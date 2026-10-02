@@ -1050,17 +1050,35 @@ pub(super) fn seed_incoming_guard_facts(
             }
             continue;
         }
-        // The selected arm establishes EVERY top-level conjunct
-        // independently, so a conjunct naming a state parameter
-        // (`fuel > 1 && self.index < 32`) must not discard the machine
-        // storage conjunct standing beside it.
-        let machine_seeded = machine_storage_conjuncts(program, machine, entry.guard);
-        // A conjunct may also name an evaluation-state parameter
-        // (`self.index < schema.field_count`): it holds at this entry when
-        // the edge binds a same-named target parameter to exactly that
-        // source parameter's place — the substitution
-        // `parameter_argument_places` already composes — so the authored
-        // label still resolves to the value the guard measured.
+        let Some(evaluation) = crate::semantic::calls::find_state(program, entry.evaluation_state)
+        else {
+            continue;
+        };
+        let parameter_roots = program
+            .state_parameters(evaluation)
+            .iter()
+            .filter(|parameter| {
+                parameter_bound_identically(
+                    program,
+                    entry.evaluation_state,
+                    state,
+                    entry.parameter_argument_places.as_deref(),
+                    parameter.symbol,
+                )
+            })
+            .filter_map(|source| {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|target| target.name == source.name)
+                    .map(|target| (source.symbol, target.symbol))
+            })
+            .collect::<Vec<_>>();
+        // A selected arm establishes every stable conjunct. Its storage reads
+        // belong to the evaluation state, so transport them before seeding:
+        // later writes compare exact destination field paths, not the stale
+        // predecessor parameter or an entire record's spelling. The same
+        // dependency operation serves machine storage and explicit bindings.
         for conjunct in stable_scope_conjuncts(
             program,
             machine,
@@ -1069,86 +1087,18 @@ pub(super) fn seed_incoming_guard_facts(
             entry.parameter_argument_places.as_deref(),
             entry.guard,
         ) {
-            if machine_seeded.contains(&conjunct) {
-                continue;
-            }
-            // The relational decomposition, but only once the conjunct's read
-            // set can be re-keyed onto DESTINATION storage. Seeding it alone
-            // is not enough: the seeders would re-derive the read set by
-            // reevaluating this SOURCE-state expression in the destination
-            // scope, come back incomplete, and let any write at all retire
-            // the fact -- a `filesystem.rd_idx =` store would kill the
-            // transported `filesystem.rd_off` bound. With the exact leaf
-            // places recorded, ordinary mutation retires the bound only when
-            // a write overlaps a field it actually reads.
-            //
-            // Without this the receiver spelling and the explicit-subject
-            // spelling disagree: a guard over the machine's own data record
-            // reached `seed_guard_facts` through `machine.symbol`, and an
-            // explicit subject arrives as a parameter and reached only the
-            // endpoints below, so a compound index went unproven in the
-            // successor.
-            let mut destination_reads = Vec::new();
-            if stable_scope_destination_reads(
+            facts.record_incoming_guard_dependencies(
                 program,
                 machine,
+                evaluation,
                 state,
-                entry.evaluation_state,
-                entry.parameter_argument_places.as_deref(),
+                &parameter_roots,
                 conjunct,
-                &mut destination_reads,
-            ) {
-                facts.claim_transported_expression(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    conjunct,
-                );
-                let mark = facts.relation_mark();
-                seed_guard_facts(program, machine, state, facts, conjunct);
-                for label in facts.relation_labels_since(mark) {
-                    // A bare name owns no expression row: `record_dependencies`
-                    // skips `Name`, and the label's storage identity comes from
-                    // its binding dependency instead. Adding an expression row
-                    // for it would disagree with that binding, make the label a
-                    // collision and retire a bound that already transported --
-                    // which is how a simple `main.w` index regresses while the
-                    // compound one is being fixed.
-                    if label_names_a_leaf(program, conjunct, &label) {
-                        continue;
-                    }
-                    facts.seed_relation_reads(
-                        machine.symbol,
-                        state.symbol,
-                        conjunct,
-                        &label,
-                        destination_reads.clone(),
-                    );
-                }
-            }
-            super::guards::seed_value_vs_value_endpoints(program, machine, state, facts, conjunct);
-        }
-        for conjunct in machine_seeded {
+            );
             seed_guard_facts(program, machine, state, facts, conjunct);
-            // R1 endpoint mints ride the positive incoming guards too
-            // (fields resolve machine-wide; a source-scope name that does
-            // not resolve here simply yields no fact).
             super::guards::seed_value_vs_value_endpoints(program, machine, state, facts, conjunct);
         }
     }
-}
-
-/// The top-level `&&` conjuncts of a selected guard that name machine storage
-/// only. The whole guard when it already qualifies; otherwise each qualifying
-/// side, so a mixed conjunction still contributes its shared-storage half.
-fn machine_storage_conjuncts(
-    program: &typed_trees::TypedTrees,
-    machine: &Machine,
-    guard: ExpressionHandle,
-) -> Vec<ExpressionHandle> {
-    qualifying_guard_conjuncts(program, guard, &|expression| {
-        guard_uses_machine_storage_only(program, machine, expression)
-    })
 }
 
 /// The `&&` conjuncts of `guard` whose every operand leaf is either machine
@@ -1291,155 +1241,43 @@ fn parameter_bound_identically(
     parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
     source: SymbolHandle,
 ) -> bool {
-    identically_bound_target(
-        program,
-        evaluation_state,
-        state,
-        parameter_argument_places,
-        source,
-    )
-    .is_some()
-}
-
-/// The parameter of `state` that the edge bound to exactly `source`, under the
-/// conditions `parameter_bound_identically` states. Returned as a symbol so a
-/// transported fact can be re-keyed onto DESTINATION storage rather than only
-/// admitted: the label names the same value, and the place is what ordinary
-/// mutation invalidation needs.
-fn identically_bound_target(
-    program: &typed_trees::TypedTrees,
-    evaluation_state: SymbolHandle,
-    state: &State,
-    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
-    source: SymbolHandle,
-) -> Option<SymbolHandle> {
-    let parameter_argument_places = parameter_argument_places?;
-    let evaluation = crate::semantic::calls::find_state(program, evaluation_state)?;
-    let source_parameter = program
+    let Some(parameter_argument_places) = parameter_argument_places else {
+        return false;
+    };
+    let Some(evaluation) = crate::semantic::calls::find_state(program, evaluation_state) else {
+        return false;
+    };
+    let Some(source_parameter) = program
         .state_parameters(evaluation)
         .iter()
-        .find(|parameter| parameter.symbol == source)?;
-    let target_parameter = program
+        .find(|parameter| parameter.symbol == source)
+    else {
+        return false;
+    };
+    let Some(target_parameter) = program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.name == source_parameter.name)?;
-    let place = parameter_argument_places
+        .find(|parameter| parameter.name == source_parameter.name)
+    else {
+        return false;
+    };
+    let Some(place) = parameter_argument_places
         .iter()
         .find(|(parameter, _)| *parameter == target_parameter.symbol)
-        .and_then(|(_, place)| place.as_ref())?;
+        .and_then(|(_, place)| place.as_ref())
+    else {
+        return false;
+    };
     if !place.segments.is_empty() || place.root != facts::PlaceRoot::Symbol(source) {
-        return None;
+        return false;
     }
-    let shadowed = program
+    !program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .any(|statement| {
             matches!(statement, StatementNode::LocalData(local) if local.name == source_parameter.name)
-        });
-    (!shadowed).then_some(target_parameter.symbol)
-}
-
-/// Whether `label` is the rendering of a bare name inside `expression`.
-///
-/// The relation tables key on display labels, so a conjunct's decomposition
-/// can establish a row under a leaf's own spelling. Those rows belong to the
-/// leaf's binding dependency, not to an expression row.
-fn label_names_a_leaf(
-    program: &typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-    label: &str,
-) -> bool {
-    let node = program.expression_table.expression(expression);
-    if matches!(node, ExpressionNode::Name(_) | ExpressionNode::Member(_))
-        && program.expression_table.display_name(expression) == label
-    {
-        return true;
-    }
-    let children: &[ExpressionHandle] = &match node {
-        ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
-        ExpressionNode::Unary(unary) => vec![unary.operand],
-        ExpressionNode::Cast(cast) => vec![cast.value],
-        ExpressionNode::Borrow(borrow) => vec![borrow.target],
-        ExpressionNode::Member(member) => vec![member.receiver],
-        ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
-        _ => Vec::new(),
-    };
-    children
-        .iter()
-        .any(|child| child.is_valid() && label_names_a_leaf(program, *child, label))
-}
-
-/// Every Name leaf of `expression`, as the place it denotes in `state`.
-///
-/// `None` when any leaf is inadmissible, which is exactly when
-/// `expression_in_stable_scope` refuses it. A machine-rooted leaf already
-/// names shared storage; a parameter leaf is re-keyed onto the destination
-/// parameter the edge bound to it, keeping its field segments.
-fn stable_scope_destination_reads(
-    program: &typed_trees::TypedTrees,
-    machine: &Machine,
-    state: &State,
-    evaluation_state: SymbolHandle,
-    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
-    expression: ExpressionHandle,
-    reads: &mut Vec<crate::flow::CanonicalPlace>,
-) -> bool {
-    let mut recurse = |expression| {
-        stable_scope_destination_reads(
-            program,
-            machine,
-            state,
-            evaluation_state,
-            parameter_argument_places,
-            expression,
-            reads,
-        )
-    };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) => {
-            let Some(place) = crate::flow::canonical_place_from_expression(program, expression)
-            else {
-                return false;
-            };
-            match crate::flow::normalized_event_place_root(program, place.root) {
-                facts::PlaceRoot::Symbol(symbol) if symbol == machine.symbol => {
-                    reads.push(place);
-                    true
-                }
-                facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() => {
-                    match identically_bound_target(
-                        program,
-                        evaluation_state,
-                        state,
-                        parameter_argument_places,
-                        symbol,
-                    ) {
-                        Some(target) => {
-                            reads.push(crate::flow::CanonicalPlace {
-                                root: facts::PlaceRoot::Symbol(target),
-                                segments: place.segments,
-                            });
-                            true
-                        }
-                        None => false,
-                    }
-                }
-                _ => false,
-            }
-        }
-        ExpressionNode::Member(member) => recurse(member.receiver),
-        ExpressionNode::Indexed(indexed) => recurse(indexed.collection) && recurse(indexed.index),
-        ExpressionNode::Binary(binary) => recurse(binary.left) && recurse(binary.right),
-        ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
-        ExpressionNode::Borrow(borrow) => recurse(borrow.target),
-        ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::String(_) => true,
-        _ => false,
-    }
+        })
 }
 
 fn guard_uses_machine_storage_only(

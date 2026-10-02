@@ -57,175 +57,175 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console {
-    self.console.write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
-    self.ps[0].x = 2;  self.ps[0].y = 2;  self.ps[0].vx = 1;  self.ps[0].vy = 1;
-    self.ps[1].x = 17; self.ps[1].y = 3;  self.ps[1].vx = 0 - 1; self.ps[1].vy = 1;
-    self.ps[2].x = 8;  self.ps[2].y = 8;  self.ps[2].vx = 1;  self.ps[2].vy = 0 - 1;
-    self.ps[3].x = 13; self.ps[3].y = 5;  self.ps[3].vx = 0 - 1; self.ps[3].vy = 0 - 1;
-    self.chars = " *";
-    self.home = "XXX";
-    self.home[0] = 27;
-    self.home[1] = 91;
-    self.home[2] = 72;
-    self.line = "                    ";
-    self.gen = 0;
-    transition { _ -> frame_loop() }
+machine Main::main(main: &mut Main) reaches Clock + Console {
+    main.console.write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
+    main.ps[0].x = 2;  main.ps[0].y = 2;  main.ps[0].vx = 1;  main.ps[0].vy = 1;
+    main.ps[1].x = 17; main.ps[1].y = 3;  main.ps[1].vx = 0 - 1; main.ps[1].vy = 1;
+    main.ps[2].x = 8;  main.ps[2].y = 8;  main.ps[2].vx = 1;  main.ps[2].vy = 0 - 1;
+    main.ps[3].x = 13; main.ps[3].y = 5;  main.ps[3].vx = 0 - 1; main.ps[3].vy = 0 - 1;
+    main.chars = " *";
+    main.home = "XXX";
+    main.home[0] = 27;
+    main.home[1] = 91;
+    main.home[2] = 72;
+    main.line = "                    ";
+    main.gen = 0;
+    transition { _ -> frame_loop(main) }
 
-    state frame_loop(&mut self) {
-        transition self.gen < 60 { true -> clear_init() _ -> finish() }
+    state frame_loop(main: &mut Main) {
+        transition main.gen < 60 { true -> clear_init(main) _ -> finish(main) }
     }
 
     // --- clear the grid ---
-    state clear_init(&mut self) {
-        self.k = 0;
-        transition { _ -> clear_loop() }
+    state clear_init(main: &mut Main) {
+        main.k = 0;
+        transition { _ -> clear_loop(main) }
     }
-    state clear_loop(&mut self) {
-        transition self.k >= 0 && self.k < 200 { true -> clear_cell() _ -> plot_init() }
+    state clear_loop(main: &mut Main) {
+        transition main.k >= 0 && main.k < 200 { true -> clear_cell(main) _ -> plot_init(main) }
     }
-    state clear_cell(&mut self) {
-        self.grid[self.k] = 0;
-        self.k = self.k + 1;
-        transition { _ -> clear_loop() }
+    state clear_cell(main: &mut Main) {
+        main.grid[main.k] = 0;
+        main.k = main.k + 1;
+        transition { _ -> clear_loop(main) }
     }
 
     // --- plot every particle ---
-    state plot_init(&mut self) {
-        self.pi = 0;
-        transition { _ -> plot_loop() }
+    state plot_init(main: &mut Main) {
+        main.pi = 0;
+        transition { _ -> plot_loop(main) }
     }
-    state plot_loop(&mut self) {
-        transition self.pi >= 0 && self.pi < 4 { true -> plot_cell() _ -> render_init() }
+    state plot_loop(main: &mut Main) {
+        transition main.pi >= 0 && main.pi < 4 { true -> plot_cell(main) _ -> render_init(main) }
     }
-    state plot_cell(&mut self) {
-        self.a = self.ps[self.pi].x;
-        self.b = self.ps[self.pi].y;
-        transition self.b * 20 + self.a >= 0 && self.b * 20 + self.a < 200 { true -> plot_set() _ -> bad() }
+    state plot_cell(main: &mut Main) {
+        main.a = main.ps[main.pi].x;
+        main.b = main.ps[main.pi].y;
+        transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> plot_set(main) _ -> bad(main) }
     }
-    state plot_set(&mut self) {
-        self.grid[self.b * 20 + self.a] = 1;
-        self.pi = self.pi + 1;
-        transition { _ -> plot_loop() }
+    state plot_set(main: &mut Main) {
+        main.grid[main.b * 20 + main.a] = 1;
+        main.pi = main.pi + 1;
+        transition { _ -> plot_loop(main) }
     }
 
     // --- render the grid in place ---
-    state render_init(&mut self) {
-        self.console.write(self.home);
-        self.ry = 0;
-        transition { _ -> render_row() }
+    state render_init(main: &mut Main) {
+        main.console.write(main.home);
+        main.ry = 0;
+        transition { _ -> render_row(main) }
     }
-    state render_row(&mut self) {
-        transition self.ry >= 0 && self.ry < 10 { true -> render_col_init() _ -> after_render() }
+    state render_row(main: &mut Main) {
+        transition main.ry >= 0 && main.ry < 10 { true -> render_col_init(main) _ -> after_render(main) }
     }
-    state render_col_init(&mut self) {
-        self.cx = 0;
-        transition { _ -> render_col() }
+    state render_col_init(main: &mut Main) {
+        main.cx = 0;
+        transition { _ -> render_col(main) }
     }
-    state render_col(&mut self) {
-        transition self.cx >= 0 && self.cx < 20 { true -> render_cell() _ -> emit_row() }
+    state render_col(main: &mut Main) {
+        transition main.cx >= 0 && main.cx < 20 { true -> render_cell(main) _ -> emit_row(main) }
     }
-    state render_cell(&mut self) {
-        transition self.ry * 20 + self.cx >= 0 && self.ry * 20 + self.cx < 200 { true -> render_read() _ -> bad() }
+    state render_cell(main: &mut Main) {
+        transition main.ry * 20 + main.cx >= 0 && main.ry * 20 + main.cx < 200 { true -> render_read(main) _ -> bad(main) }
     }
-    state render_read(&mut self) {
-        self.a = self.grid[self.ry * 20 + self.cx];
-        transition self.a >= 0 && self.a < 2 { true -> render_put() _ -> bad() }
+    state render_read(main: &mut Main) {
+        main.a = main.grid[main.ry * 20 + main.cx];
+        transition main.a >= 0 && main.a < 2 { true -> render_put(main) _ -> bad(main) }
     }
-    state render_put(&mut self) {
-        self.glyph = self.chars[self.a];
-        self.line[self.cx] = self.glyph;
-        self.cx = self.cx + 1;
-        transition { _ -> render_col() }
+    state render_put(main: &mut Main) {
+        main.glyph = main.chars[main.a];
+        main.line[main.cx] = main.glyph;
+        main.cx = main.cx + 1;
+        transition { _ -> render_col(main) }
     }
-    state emit_row(&mut self) {
-        self.console.write_line(self.line);
-        self.ry = self.ry + 1;
-        transition { _ -> render_row() }
+    state emit_row(main: &mut Main) {
+        main.console.write_line(main.line);
+        main.ry = main.ry + 1;
+        transition { _ -> render_row(main) }
     }
-    state after_render(&mut self) {
-        self.clock.sleep(70);
-        transition { _ -> update_init() }
+    state after_render(main: &mut Main) {
+        main.clock.sleep(70);
+        transition { _ -> update_init(main) }
     }
 
     // --- integrate pos += vel for every particle, bouncing off the walls ---
-    state update_init(&mut self) {
-        self.pi = 0;
-        transition { _ -> update_loop() }
+    state update_init(main: &mut Main) {
+        main.pi = 0;
+        transition { _ -> update_loop(main) }
     }
-    state update_loop(&mut self) {
-        transition self.pi >= 0 && self.pi < 4 { true -> integ_x() _ -> frame_next() }
+    state update_loop(main: &mut Main) {
+        transition main.pi >= 0 && main.pi < 4 { true -> integ_x(main) _ -> frame_next(main) }
     }
-    state integ_x(&mut self) {
-        self.a = self.ps[self.pi].x;
-        self.b = self.ps[self.pi].vx;
-        self.n = self.a + self.b;
-        transition self.n < 0 { true -> x_lo() _ -> x_hi_check() }
+    state integ_x(main: &mut Main) {
+        main.a = main.ps[main.pi].x;
+        main.b = main.ps[main.pi].vx;
+        main.n = main.a + main.b;
+        transition main.n < 0 { true -> x_lo(main) _ -> x_hi_check(main) }
     }
-    state x_lo(&mut self) {
-        self.n = 0;
-        self.b = 0 - self.b;
-        transition { _ -> store_x() }
+    state x_lo(main: &mut Main) {
+        main.n = 0;
+        main.b = 0 - main.b;
+        transition { _ -> store_x(main) }
     }
-    state x_hi_check(&mut self) {
-        transition self.n > 19 { true -> x_hi() _ -> store_x() }
+    state x_hi_check(main: &mut Main) {
+        transition main.n > 19 { true -> x_hi(main) _ -> store_x(main) }
     }
-    state x_hi(&mut self) {
-        self.n = 19;
-        self.b = 0 - self.b;
-        transition { _ -> store_x() }
+    state x_hi(main: &mut Main) {
+        main.n = 19;
+        main.b = 0 - main.b;
+        transition { _ -> store_x(main) }
     }
-    state store_x(&mut self) {
-        transition self.pi >= 0 && self.pi < 4 { true -> do_store_x() _ -> bad() }
+    state store_x(main: &mut Main) {
+        transition main.pi >= 0 && main.pi < 4 { true -> do_store_x(main) _ -> bad(main) }
     }
-    state do_store_x(&mut self) {
-        self.ps[self.pi].x = self.n;
-        self.ps[self.pi].vx = self.b;
-        transition { _ -> integ_y() }
+    state do_store_x(main: &mut Main) {
+        main.ps[main.pi].x = main.n;
+        main.ps[main.pi].vx = main.b;
+        transition { _ -> integ_y(main) }
     }
-    state integ_y(&mut self) {
-        self.a = self.ps[self.pi].y;
-        self.b = self.ps[self.pi].vy;
-        self.n = self.a + self.b;
-        transition self.n < 0 { true -> y_lo() _ -> y_hi_check() }
+    state integ_y(main: &mut Main) {
+        main.a = main.ps[main.pi].y;
+        main.b = main.ps[main.pi].vy;
+        main.n = main.a + main.b;
+        transition main.n < 0 { true -> y_lo(main) _ -> y_hi_check(main) }
     }
-    state y_lo(&mut self) {
-        self.n = 0;
-        self.b = 0 - self.b;
-        transition { _ -> store_y() }
+    state y_lo(main: &mut Main) {
+        main.n = 0;
+        main.b = 0 - main.b;
+        transition { _ -> store_y(main) }
     }
-    state y_hi_check(&mut self) {
-        transition self.n > 9 { true -> y_hi() _ -> store_y() }
+    state y_hi_check(main: &mut Main) {
+        transition main.n > 9 { true -> y_hi(main) _ -> store_y(main) }
     }
-    state y_hi(&mut self) {
-        self.n = 9;
-        self.b = 0 - self.b;
-        transition { _ -> store_y() }
+    state y_hi(main: &mut Main) {
+        main.n = 9;
+        main.b = 0 - main.b;
+        transition { _ -> store_y(main) }
     }
-    state store_y(&mut self) {
-        transition self.pi >= 0 && self.pi < 4 { true -> do_store_y() _ -> bad() }
+    state store_y(main: &mut Main) {
+        transition main.pi >= 0 && main.pi < 4 { true -> do_store_y(main) _ -> bad(main) }
     }
-    state do_store_y(&mut self) {
-        self.ps[self.pi].y = self.n;
-        self.ps[self.pi].vy = self.b;
-        self.pi = self.pi + 1;
-        transition { _ -> update_loop() }
+    state do_store_y(main: &mut Main) {
+        main.ps[main.pi].y = main.n;
+        main.ps[main.pi].vy = main.b;
+        main.pi = main.pi + 1;
+        transition { _ -> update_loop(main) }
     }
-    state frame_next(&mut self) {
-        self.gen = self.gen + 1;
-        transition { _ -> frame_loop() }
+    state frame_next(main: &mut Main) {
+        main.gen = main.gen + 1;
+        transition { _ -> frame_loop(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

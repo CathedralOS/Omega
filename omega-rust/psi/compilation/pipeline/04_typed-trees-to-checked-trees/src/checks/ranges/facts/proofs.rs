@@ -81,35 +81,6 @@ impl RangeFacts<'_> {
             .push((index, exclusive_upper_bound));
     }
 
-    /// How many relation rows exist now, so a seeder can name the rows it
-    /// adds without the guard interpretation being duplicated to predict them.
-    pub(in crate::checks::ranges) fn relation_mark(&self) -> (usize, usize) {
-        (
-            self.proven_index_upper_bounds.len(),
-            self.proven_non_negatives.len(),
-        )
-    }
-
-    /// The labels of the relation rows added since `mark`.
-    pub(in crate::checks::ranges) fn relation_labels_since(
-        &self,
-        mark: (usize, usize),
-    ) -> Vec<String> {
-        let mut labels: Vec<String> = self
-            .proven_index_upper_bounds
-            .get(mark.0..)
-            .unwrap_or_default()
-            .iter()
-            .map(|(label, _)| label.clone())
-            .collect();
-        for label in self.proven_non_negatives.get(mark.1..).unwrap_or_default() {
-            if !labels.contains(label) {
-                labels.push(label.clone());
-            }
-        }
-        labels
-    }
-
     pub(in crate::checks::ranges) fn index_upper_bound_is_proven(
         &self,
         index: &str,

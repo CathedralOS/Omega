@@ -191,32 +191,6 @@ execution and native exit/output. A moved refusal is still unfinished work.
   spelling with no exclusivity exception added to checking; a genuine second
   exclusive loan still rejects, with a fixture naming that.
 
-- **STATIC-SUBJECT-SAMPLE-STORE.** (split-of:STATIC-MACHINE-MIGRATION)
-  The guard half of the samples blocker is fixed (73dff12c5ac): a guard a state
-  spells over its own data record now transports its relation onto destination
-  storage, `pass/ranges/subject_guard_compound_index_successor` checks, and the
-  corpus measured 0 regressions against 1654 fixtures. What remains for the
-  samples is a STORE shape, not a proof shape.
-  `samples/cli/rendering/bouncing_particles` is the measured next customer: its
-  native oracle passes at base, the migration now clears every index bound, and
-  it stops at "does not check: structural field store: scalar field type:
-  indexed element destination" for `main.ps[main.pi].x = main.n` -- an
-  array-of-structs element's scalar field as a store destination. The sample's
-  own header already calls this out ("a direct ps[i].x += ps[i].vx is a gap").
-  Whether the static spelling makes this reachable where the receiver spelling
-  hid it is UNMEASURED; establish that first by checking the receiver spelling
-  of the same store, because the sample passes its oracle today with receivers.
-  If both spellings fail it, this is an ordinary unit-plan gap and belongs with
-  the unit-plan items rather than the migration.
-  386 declarations in `samples/cli` and 116 in `samples/gui` sit behind the
-  samples path. Re-measure the yield after this one store shape: the guard fix
-  removed what was blocking every guarded computed index, so the next
-  bouncing_particles failure is the honest next frontier rather than a list
-  predicted from the old measurement.
-  Acceptance: `bouncing_particles` meets its documented native oracle in the
-  static spelling, and `tools/sample_native_gate.py` does not regress any
-  sample that passes today.
-
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
   [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state).

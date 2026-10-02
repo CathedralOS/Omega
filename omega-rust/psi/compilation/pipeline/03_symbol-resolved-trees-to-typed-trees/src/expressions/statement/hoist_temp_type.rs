@@ -7,6 +7,12 @@
 //! the resolved data-field types available, the temp's element type is derived
 //! from its initializer, retaining reference access for observations, so later
 //! domain/range/layout checks and codegen see the matching concrete type.
+//!
+//! Member operands resolve through their declared receiver type, including
+//! explicit state subjects and typed locals. A receiver-only shortcut leaves
+//! hoisted compound indices as Unit and breaks otherwise supported reads and
+//! stores after bounds checking; the shared member walk preserves the same
+//! field type through normalization without inferring authored local types.
 
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_element_applicable_constraints;
@@ -53,8 +59,9 @@ pub(super) fn infer_hoist_temp_type(
     // (`let __hoist = min(self.a, self.b)`): the temp's type is its FIRST
     // argument's type. min/max/sqrt all return their operand's type (abs desugars
     // to `max(x, 0-x)`; clamp's outer call has a non-place first arg and is not
-    // hoisted). Only a `self.<field>` first arg is typeable here, which is exactly
-    // what the hoist predicate requires; any other call shape yields no type.
+    // hoisted). Resolve declared member chains through the same receiver type
+    // route for self, parameters, and locals. Explicit subjects must not become
+    // Unit merely because a computation was hoisted into a synthetic temporary.
     let builtin_first_arg: Option<Option<ExpressionHandle>> = match expressions
         .expression(initial_value)
     {
@@ -609,22 +616,11 @@ fn collection_type_reference(
 ) -> Option<TypeReference> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
     match expressions.expression(collection) {
-        // `self.<field>`
-        ExpressionNode::Member(member) => {
-            let receiver_is_self = matches!(
-                expressions.expression(member.receiver),
-                ExpressionNode::Name(path)
-                    if expressions
-                        .name_path_members(path.members)
-                        .first()
-                        .is_some_and(|name| name.is_self_receiver())
-            );
-            if !receiver_is_self {
-                return None;
-            }
-            let data_name = attached_data?;
-            attached_field_type(lowerer.source_trees, data_name, member.member.as_str())
-        }
+        // Synthetic computations and builtin operands use the same declared
+        // member projection as indexed element walks. An explicit parameter
+        // or typed local supplies its receiver type; it does not need a
+        // synthetic attachment or a receiver-only inference route.
+        ExpressionNode::Member(_) => member_chain_type(lowerer, attached_data, state, collection),
         // A bare `<name>` path -- a state parameter or explicitly typed local
         // naming the indexed collection. Locals remain fully explicit in Psi:
         // this only recovers the authored type of the collection that the
@@ -662,12 +658,13 @@ fn member_chain_type(
     let ExpressionNode::Member(member) = expressions.expression(place) else {
         return collection_type_reference(lowerer, attached_data, state, place);
     };
-    if let ExpressionNode::Name(_) = expressions.expression(member.receiver) {
-        // `self.<field>` resolves against the attached data directly; a bare
-        // parameter or local root continues through its declared type below.
-        if let Some(field_type) = collection_type_reference(lowerer, attached_data, state, place) {
-            return Some(field_type);
-        }
+    if matches!(
+        expressions.expression(member.receiver),
+        ExpressionNode::Name(path)
+            if expressions.name_path_members(path.members)
+                .first().is_some_and(|name| name.is_self_receiver())
+    ) {
+        return attached_field_type(lowerer.source_trees, attached_data?, member.member.as_str());
     }
     let receiver_type = member_chain_type(lowerer, attached_data, state, member.receiver)?;
     let data_name = named_data_of(lowerer.source_trees, &receiver_type)?;
