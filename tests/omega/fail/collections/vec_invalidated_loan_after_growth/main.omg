@@ -11,9 +11,9 @@ data Main {
     b16: Backing16;
 }
 
-machine Main::main(&mut self) {
-    let slots: &mut [u32] = self.b8.e.as_mut_slice();
+machine Main::main(main: &mut Main) {
+    let slots: &mut [u32] = main.b8.e.as_mut_slice();
     let r16: Request = Request::Denied;
-    _ = Vec::grow8to16(&mut self.v, &mut self.b8, &mut self.b16, r16);
+    _ = Vec::grow8to16(&mut main.v, &mut main.b8, &mut main.b16, r16);
     slots[0] = 1;
 }

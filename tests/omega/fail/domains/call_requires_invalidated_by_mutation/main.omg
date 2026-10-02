@@ -36,8 +36,8 @@ ensures
     player.health = 10;
 }
 
-machine Main::main(&mut self) {
-    mark_valid(&mut self.player);
-    break_valid(&mut self.player);
-    heal(&mut self.player);
+machine Main::main(main: &mut Main) {
+    mark_valid(&mut main.player);
+    break_valid(&mut main.player);
+    heal(&mut main.player);
 }

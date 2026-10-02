@@ -1,1 +1,1 @@
-asm `requires` fact `self.value` is not boolean-shaped
+asm `requires` fact `main.value` is not boolean-shaped

@@ -20,8 +20,8 @@ machine read(cell: &Cell) -> i32 {
     transition { _ -> cell.value }
 }
 
-machine Main::main(&mut self) suspends; reaches Scheduler {
-    let message: Message = Message { body: &self.cell };
-    suspend self.scheduler.park();
+machine Main::main(main: &mut Main) suspends; reaches Scheduler {
+    let message: Message = Message { body: &main.cell };
+    suspend main.scheduler.park();
     let value: i32 = read(message.body);
 }

@@ -12,17 +12,17 @@
 data Main {
 }
 
-machine Main::main(&mut self) {
-    let total: u64 = self.climb(4, 0, 0);
+machine Main::main(main: &mut Main) {
+    let total: u64 = Main::climb(main, 4, 0, 0);
 }
 
-machine Main::climb(&mut self, limit: u64, index: u64, acc: u64) -> u64
+machine Main::climb(main: &mut Main, limit: u64, index: u64, acc: u64) -> u64
 terminates by (index, limit) -> Nat::BoundedDistance;
 ensures
     result >= acc + limit - index
 {
     transition index < limit {
-        true -> climb(limit, index + 1, acc)
+        true -> climb(main, limit, index + 1, acc)
         false -> acc
     }
 }

@@ -1,1 +1,1 @@
-receives `value` as mutable more than once
+receives `main.value` as mutable more than once

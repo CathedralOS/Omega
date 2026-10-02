@@ -8,6 +8,6 @@ data Bits { x: i32; }
 machine mix(w: &mut i32, r: &u32) {
 }
 
-machine Bits::go(&mut self) {
-    mix(&mut self.x, &self.x as &u32);
+machine Bits::go(bits: &mut Bits) {
+    mix(&mut bits.x, &bits.x as &u32);
 }

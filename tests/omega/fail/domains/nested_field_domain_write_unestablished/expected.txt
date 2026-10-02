@@ -1,1 +1,1 @@
-the value assigned to `self.inner.tag` in Main::main is in domain
+the value assigned to `main.inner.tag` in Main::main is in domain

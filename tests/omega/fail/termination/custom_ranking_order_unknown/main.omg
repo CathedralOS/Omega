@@ -5,16 +5,16 @@ data Card {
 data Main {
 }
 
-machine Main::main(&mut self) {
-    let value: u64 = self.weaken(3);
+machine Main::main(main: &mut Main) {
+    let value: u64 = Main::weaken(main, 3);
 }
 
-machine Main::weaken(&mut self, power: u64)
+machine Main::weaken(main: &mut Main, power: u64)
 terminates by power -> Card::PowerOrder;
 -> u64
 {
     transition power > 0 {
-        true -> weaken(power - 1)
+        true -> weaken(main, power - 1)
         false -> power
     }
 }

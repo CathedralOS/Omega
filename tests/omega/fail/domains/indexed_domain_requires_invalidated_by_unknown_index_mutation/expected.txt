@@ -1,1 +1,1 @@
-invalidated by prior mutation of self.items[index].value
+invalidated by prior mutation of main.items[index].value

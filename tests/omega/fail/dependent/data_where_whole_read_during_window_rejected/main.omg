@@ -6,10 +6,10 @@ where
     end: i32;
 }
 
-machine Map::leak(&mut self) {
-    self.start = 10;
-    let snapshot: Map = self;
-    self.end = 10;
+machine Map::leak(map: &mut Map) {
+    map.start = 10;
+    let snapshot: Map = map;
+    map.end = 10;
 }
 
 data Main {

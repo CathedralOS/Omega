@@ -1,17 +1,17 @@
 data Main {}
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(main: &mut Main) -> i32 {
     transition {
-        _ -> self.countdown(2)
+        _ -> Main::countdown(main, 2)
     }
 }
 
-machine Main::countdown(&mut self, remaining: i32)
+machine Main::countdown(main: &mut Main, remaining: i32)
 terminates by remaining;
 -> i32
 {
     transition remaining > 0 {
-        true -> countdown(remaining - 1)
+        true -> countdown(main, remaining - 1)
         false -> remaining
     }
 }

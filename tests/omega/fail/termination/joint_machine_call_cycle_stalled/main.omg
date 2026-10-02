@@ -2,8 +2,8 @@
 // rank, leaving a non-strict cycle with no well-founded progress.
 data Main {}
 
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> Main::scan_a(&mut self, 4) }
+machine Main::main(main: &mut Main) -> u64 {
+    transition { _ -> Main::scan_a(main, 4) }
 }
 
 machine Main::scan_a(main: &mut Main, remaining: u64)

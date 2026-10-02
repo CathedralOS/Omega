@@ -28,9 +28,9 @@ machine Main::identity_index(index: u64) -> u64 {
     index
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let index: u64 = Main::identity_index(1);
-    Main::mark_valid(&mut self.items[0]);
-    self.items[index].value = 0;
-    self.accept(self.items[0]);
+    Main::mark_valid(&mut main.items[0]);
+    main.items[index].value = 0;
+    main.accept(main.items[0]);
 }

@@ -19,7 +19,7 @@ data Main {
     inner: Inner;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.inner.tag = "café";
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    main.inner.tag = "café";
+    main.console.exit_process(70);
 }

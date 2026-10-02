@@ -6,8 +6,8 @@ data Counter {
     value: i32 in Wrapping;
 }
 
-machine Counter::increment(&mut self) {
-    self.value = self.value + 1;
+machine Counter::increment(counter: &mut Counter) {
+    counter.value = counter.value + 1;
 }
 
 data Main {

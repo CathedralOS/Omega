@@ -11,13 +11,13 @@ data Main {
     raw: [u8; 5];
 }
 
-machine Main::spoil(&mut self, bytes: [u8; 5])
+machine Main::spoil(main: &mut Main, bytes: [u8; 5])
 ensures
-    self.raw in Utf8
+    main.raw in Utf8
 {
-    self.raw = bytes;
+    main.raw = bytes;
 }
 
-machine Main::main(&mut self) {
-    self.spoil("Alpha");
+machine Main::main(main: &mut Main) {
+    Main::spoil(main, "Alpha");
 }

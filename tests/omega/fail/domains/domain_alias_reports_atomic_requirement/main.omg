@@ -24,9 +24,9 @@ data Main {
     socket: Socket;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 requires
-    self.socket in Socket::Connected
+    main.socket in Socket::Connected
 {
-    consume(self.socket);
+    consume(main.socket);
 }

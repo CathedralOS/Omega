@@ -4,8 +4,8 @@ use omega::language::core::float_operations;
 
 data Main { value: f64; }
 
-machine Main::main(&mut self) {
-    self.value = 100000000000000000000.0;
-    _ = I32::from_f64(self.value);
+machine Main::main(main: &mut Main) {
+    main.value = 100000000000000000000.0;
+    _ = I32::from_f64(main.value);
     let marker: i32 = 0;
 }

@@ -10,20 +10,20 @@ data FixedVecI32x4 {
     length: u64 in Wrapping;
 }
 
-machine FixedVecI32x4::push(&mut self, value: i32)
+machine FixedVecI32x4::push(fixed_vec_i32x4: &mut FixedVecI32x4, value: i32)
 requires
-    self.length < self.items.len
+    fixed_vec_i32x4.length < fixed_vec_i32x4.items.len
 {
-    let slots: &mut [i32] = self.items.as_mut_slice();
-    let index: u64 in Wrapping = self.length;
+    let slots: &mut [i32] = fixed_vec_i32x4.items.as_mut_slice();
+    let index: u64 in Wrapping = fixed_vec_i32x4.length;
     slots[index] = value;
-    self.length = self.length + 1;
+    fixed_vec_i32x4.length = fixed_vec_i32x4.length + 1;
 }
 
 data Main {
     vec: FixedVecI32x4;
 }
 
-machine Main::main(&mut self) {
-    self.vec.push(7);
+machine Main::main(main: &mut Main) {
+    FixedVecI32x4::push(&mut main.vec, 7);
 }

@@ -28,6 +28,6 @@ data Main {
     worker: Worker;
 }
 
-machine Main::main(&mut self) {
-    Worker::run(&mut self.worker);
+machine Main::main(main: &mut Main) {
+    Worker::run(&mut main.worker);
 }

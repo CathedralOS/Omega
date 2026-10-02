@@ -10,19 +10,19 @@ data Countdown {
     remaining: u32 in Wrapping;
 }
 
-machine Countdown::arm(&mut self, start: u32 in Wrapping)
+machine Countdown::arm(countdown: &mut Countdown, start: u32 in Wrapping)
 requires
     start < 8
 ensures
-    self.remaining - 1 < 8
+    countdown.remaining - 1 < 8
 {
-    self.remaining = start;
+    countdown.remaining = start;
 }
 
 data Main {
     timer: Countdown;
 }
 
-machine Main::main(&mut self) {
-    self.timer.arm(0);
+machine Main::main(main: &mut Main) {
+    Countdown::arm(&mut main.timer, 0);
 }

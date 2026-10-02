@@ -7,8 +7,8 @@ data Counter {
     count: u32;
 }
 
-machine Counter::bump(&self) {
-    self.count = 1;
+machine Counter::bump(counter: &Counter) {
+    counter.count = 1;
 }
 
 data Main {}

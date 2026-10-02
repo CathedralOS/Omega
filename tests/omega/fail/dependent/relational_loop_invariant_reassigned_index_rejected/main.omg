@@ -15,19 +15,19 @@ data Main {
     value: u8;
 }
 
-machine Main::main(&mut self) {
-    self.items = "x";
-    self.i = 0;
-    transition self.i < self.items.len {
-        true -> loop_()
+machine Main::main(main: &mut Main) {
+    main.items = "x";
+    main.i = 0;
+    transition main.i < main.items.len {
+        true -> loop_(main)
         false -> done()
     }
 
-    state loop_(&mut self) {
-        self.i = self.i + 1;
-        self.value = self.items[self.i];
-        transition self.i < self.items.len {
-            true -> loop_()
+    state loop_(main: &mut Main) {
+        main.i = main.i + 1;
+        main.value = main.items[main.i];
+        transition main.i < main.items.len {
+            true -> loop_(main)
             false -> done()
         }
     }

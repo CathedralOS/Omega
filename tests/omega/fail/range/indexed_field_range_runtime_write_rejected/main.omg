@@ -19,7 +19,7 @@ data Main {
     i: u64;
 }
 
-machine Main::main(&mut self) {
-    self.cells[self.i].value = 100;
-    self.console.exit_process(1);
+machine Main::main(main: &mut Main) {
+    main.cells[main.i].value = 100;
+    main.console.exit_process(1);
 }

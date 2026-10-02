@@ -5,18 +5,18 @@
 
 data Main {}
 
-machine Main::main(&mut self) -> u64 {
+machine Main::main(main: &mut Main) -> u64 {
     transition {
-        _ -> self.climb(4, 0)
+        _ -> Main::climb(main, 4, 0)
     }
 }
 
-machine Main::climb(&mut self, limit: u64, index: u64)
+machine Main::climb(main: &mut Main, limit: u64, index: u64)
 terminates by index -> Nat::Increasing;
 -> u64
 {
     transition index < limit {
-        true -> climb(limit, index + 1)
+        true -> climb(main, limit, index + 1)
         false -> index
     }
 }
