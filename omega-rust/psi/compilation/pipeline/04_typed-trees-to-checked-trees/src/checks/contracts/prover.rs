@@ -28,7 +28,8 @@ use facts::{FactPayload, FactPlace};
 
 mod assigned_values;
 pub(super) use assigned_values::{
-    prove_domain_at_place, scalar_value_at_place, segments_cover_subject,
+    byte_predicate_proven_at_place, prove_domain_at_place, scalar_value_at_place,
+    segments_cover_subject,
 };
 mod scalars;
 pub(super) use crate::values::evaluate_checked_scalar;
@@ -103,6 +104,27 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         call_frames,
     ) {
         return true;
+    }
+
+    // `pred(actual)` — a byte-predicate requirement over one operand: the
+    // callee's subject instantiates to the caller actual, whose place must
+    // already carry a per-byte class implying the probe (a dominating
+    // validating guard minted it, or the caller's own `requires` assumed it).
+    if let Some((required, subject)) =
+        typed_trees::byte_predicates::byte_predicate_call(program, expression)
+        && let Some((value, remaining)) =
+            case_test_subject_actual(program, &call_site, target_parameters, subject)
+        && let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state_flow.state_symbol,
+            call_flow.statement_index,
+            value,
+        )
+    {
+        place.segments.extend(remaining);
+        if byte_predicate_proven_at_place(program, semantic, entry_contexts, &place, required) {
+            return true;
+        }
     }
 
     // `subject in T::C` lowers to `subject == T::C`: the caller's installed or

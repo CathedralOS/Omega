@@ -550,6 +550,26 @@ pub(in crate::flow) fn append_predicate_context(
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
+    // A `pred(place)` scrutinee taken true is whole-carrier evidence: every
+    // byte currently at the operand's place sits in the named per-byte class.
+    // The fact rides the operand's place, not the call's spelling, so any
+    // downstream `requires pred(..)` or predicate-domain write discharges
+    // wherever the operand travels. The refused arm mints nothing — a byte
+    // carrier failing the class is not a positive class.
+    if value {
+        append_byte_predicate_context(
+            program,
+            semantic,
+            build,
+            state_symbol,
+            statement_index,
+            expression,
+            point,
+            FactOrigin::TransitionGuard,
+            active_contexts,
+            active_constraints,
+        );
+    }
     // An effectful invocation's result is not a promise about evaluating that
     // invocation again. A saved local boolean is an ordinary stable place.
     if !expression_is_stable_predicate(program, expression) {
@@ -668,6 +688,53 @@ fn match_input_has_builtin_meaning(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => true,
         _ => false,
+    }
+}
+
+/// Mint a `pred(place)` byte-predicate fact at the operand's places: the
+/// operand of a unary byte-predicate probe is a byte carrier, and a positive
+/// probe verdict is whole-carrier evidence (`FactPayload::BytePredicate`'s own
+/// semantics). The one operation every mint site shares — transition guards
+/// carrying the taken arm, and state/machine `requires` clauses materializing
+/// their entry assumptions — so the predicate is consumed identically
+/// wherever it is proved. Arm tests arrive as `pred(..) == true` (peeled by
+/// the same conjunct walk the bounds minter uses); `pred(..) == false`
+/// contributes nothing, a refused probe is not a positive class.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::flow) fn append_byte_predicate_context(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    point: ProgramPoint,
+    origin: FactOrigin,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let mut conjuncts = Vec::new();
+    append_true_arm_conjuncts(program, expression, &mut conjuncts);
+    for conjunct in conjuncts {
+        let Some((predicate, operand)) =
+            typed_trees::byte_predicates::byte_predicate_call(program, conjunct)
+        else {
+            continue;
+        };
+        let occurrences = build.expression_occurrences_at(program, operand);
+        append_observation_context(
+            program,
+            semantic,
+            build,
+            state_symbol,
+            statement_index,
+            occurrences.as_slice(),
+            FactPayload::BytePredicate { predicate },
+            point,
+            origin,
+            active_contexts,
+            active_constraints,
+        );
     }
 }
 

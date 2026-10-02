@@ -16,6 +16,30 @@ use symbols::SymbolHandle;
 
 pub use language_semantics::byte_predicates::ByteSequencePredicate;
 
+/// If `expression` is a `pred(operand)` byte-predicate call — the reserved
+/// unary boolean probe over a byte-carrier operand — return the named
+/// primitive and its sole operand. A resolved declaration always wins over
+/// the compiler vocabulary (the same precedence `checked_call_intrinsic`
+/// enforces), receiver calls cannot select the free probes, and the probe is
+/// unary: any other arity is a malformed application, not the predicate.
+pub fn byte_predicate_call(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(ByteSequencePredicate, ExpressionHandle)> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if call.target_symbol.is_valid() || call.receiver.is_valid() {
+        return None;
+    }
+    let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let [argument] = arguments else {
+        return None;
+    };
+    Some((predicate, *argument))
+}
+
 /// If `domain_symbol`'s sole fact is a recognized comptime byte-predicate call
 /// applied to `self` (e.g. `valid_utf8(self);`), return that primitive. Domains
 /// with additional facts require general proof evaluation and are not reduced
@@ -45,24 +69,8 @@ pub fn domain_byte_predicate(
     else {
         return None;
     };
-
-    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
-        return None;
-    };
-    // A free-function predicate over `self`: no receiver, exactly one argument,
-    // and that argument is the bare `self` subject the fact scrutinizes.
-    if call.receiver.is_valid() {
-        return None;
-    }
-    let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    let [argument] = arguments else {
-        return None;
-    };
-    if !expression_is_self_reference(program, *argument) {
-        return None;
-    }
-    Some(predicate)
+    let (predicate, argument) = byte_predicate_call(program, *expression)?;
+    expression_is_self_reference(program, argument).then_some(predicate)
 }
 
 /// The DOMAIN constraints declared on a type reference (walking Reference and
