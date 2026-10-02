@@ -48,8 +48,7 @@ pub(super) fn validate_structural_scalar_field_read(
         .ok_or(invalid.clone())?;
     if let LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { indices, .. } =
         &actual.kind
-    {
-        if *indices
+        && *indices
             != scalar_graph_input::structural_fields::byte_index_operands(
                 optimized,
                 unit,
@@ -57,9 +56,8 @@ pub(super) fn validate_structural_scalar_field_read(
                 source,
                 *field,
             )?
-        {
-            return Err(invalid);
-        }
+    {
+        return Err(invalid);
     }
     if source != &expected_source || case != expected_case || *field != expected_field {
         return Err(invalid);
