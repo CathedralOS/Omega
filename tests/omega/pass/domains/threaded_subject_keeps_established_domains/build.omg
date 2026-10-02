@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("threaded_subject_keeps_established_domains");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Game::main);
+}
