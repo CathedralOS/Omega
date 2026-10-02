@@ -1,6 +1,6 @@
 // Call-with-return over an EFFECTFUL RECURSIVE (`terminates`) walk -- the
 // STATEMENT face. Historically FENCED (the inline-branching route could not
-// loop, so the per-iteration `Main::bump(&mut self, ..)` silently never executed: native
+// loop, so the per-iteration `Main::bump(main, ..)` silently never executed: native
 // counted 0 separators vs the interpreter's 2). Dispatch call-with-return
 // replaced the fence; this canary pins the capability: count the '/'
 // separators of "a/b/c" through the recursive walk. Exit 70.

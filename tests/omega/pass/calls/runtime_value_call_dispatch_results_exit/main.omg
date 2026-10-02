@@ -1,6 +1,6 @@
 // Dispatch-bodied value calls deliver into every result position (shapes the
 // 2026-06-30 trace found broken, closed by the deferral machinery):
-// (1) a STRUCT result assigned straight to a FIELD (`self.vec = Main::delta(&self, d)`
+// (1) a STRUCT result assigned straight to a FIELD (`main.vec = Main::delta(main, d)`
 //     stored 0 before -- the field assignment had no flush point until the
 //     Mutation fire site existed);
 // (2) a FREE machine with a runtime-selected branch bound to a let

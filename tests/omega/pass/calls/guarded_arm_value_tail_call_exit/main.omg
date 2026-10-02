@@ -3,10 +3,10 @@
 // (wiki/spec/language/state_contracts.md, "Terminal calls in transition
 // arms"). Only the selected arm runs; the other arm's call must not.
 //
-//   choose  a one-state receiver machine: `true -> Main::add(&mut self, value, 5)` beside
+//   choose  a one-state receiver machine: `true -> Main::add(main, value, 5)` beside
 //           `false -> 1`. `choose(60)` returns 65 and records 60;
 //           `choose(10)` returns 1 and leaves the record untouched.
-//   staged  the same guarded call (`Main::add(&mut self, value, 7)` beside `false -> 3`)
+//   staged  the same guarded call (`Main::add(main, value, 7)` beside `false -> 3`)
 //           in an internal state reached by a jump: `staged(40)` returns 47,
 //           `staged(20)` returns 3 without calling.
 //   inspect a machine without a receiver: `true -> Main::confirm(view[1..],

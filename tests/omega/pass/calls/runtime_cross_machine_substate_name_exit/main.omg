@@ -1,7 +1,7 @@
 // Two machines each have a sub-state named `try1`: Picker::pick and Main::read_at. A NAMED
 // transition target (`try1(idx)`) must resolve to a SIBLING state of the CURRENT machine, not
 // collide on the shared name and run the OTHER machine's body. So after `Picker::pick(2)`
-// (whose `try1` returns a literal) runs, `Main::read_at(&mut self, 4)` must still dispatch through read_at's
+// (whose `try1` returns a literal) runs, `Main::read_at(main, 4)` must still dispatch through read_at's
 // OWN `try1`/`try2`/`try3` to return `self.table[4]` -- not pick's `try1` literal.
 //
 // pick(2) = 4 (key 2 != 0,1 -> pick's try1 `_` arm yields 4); read_at(4) = table[4] = 60. The
