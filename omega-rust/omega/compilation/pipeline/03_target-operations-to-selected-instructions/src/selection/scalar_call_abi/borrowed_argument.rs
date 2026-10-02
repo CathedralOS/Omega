@@ -226,21 +226,8 @@ pub(super) fn validate_borrowed_argument(
     // fixed array it has no projected carrier identity, so the field's own
     // record geometry supplies the offset and the callee's type supplies the
     // view identity.
-    let owned_byte_view =
-        crate::selection::byte_concatenation_input::shared_view_argument(source, semantic, target);
-    let byte_field = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == semantic.place)
-        .and_then(|parameter| {
-            crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
-                &parameter.semantic,
-                semantic,
-                target.structural_type,
-                &signature.structural_types,
-            )
-        })
-        .or(owned_byte_view.map(|capacity| (0, capacity)));
+    let byte_field =
+        crate::selection::byte_owner_input::view_argument(source, operation, semantic, target);
     // A stored shared view field lends the descriptor it already holds: the
     // pointer addresses that field, and the formal's view type is its referent.
     let stored_view = signature
@@ -322,7 +309,9 @@ pub(super) fn validate_borrowed_argument(
         destination_carrier.byte_size,
         destination_carrier.alignment,
     );
-    let shape = if let Some((_, joined)) = address_join {
+    let shape = if byte_field.is_some() {
+        destination_shape
+    } else if let Some((_, joined)) = address_join {
         if !matches!(
             semantic.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -517,15 +506,7 @@ pub(super) fn validate_borrowed_argument(
         return None;
     }
     match &target.source {
-        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation }
-            if owned_byte_view.is_some() =>
-        {
-            // The byte classifier rejoined the exact concatenation producer;
-            // the pointer emitter independently requires its live local home.
-            if *psi_operation == operation {
-                return None;
-            }
-        }
+        _ if byte_field.is_some() => {}
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             let (producer, _) = aggregate_home?;
             let home_view = local_loan.is_some() && (byte_view.is_some() || element_view.is_some());

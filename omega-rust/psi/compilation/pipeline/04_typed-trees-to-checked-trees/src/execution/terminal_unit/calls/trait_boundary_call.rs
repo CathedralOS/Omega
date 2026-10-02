@@ -13,8 +13,8 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_argument_presentation_is_admitted, boundary_value_result_matches,
-    parameter_binding_receiver_matches, provider_attachment_receiver_matches,
+    boundary_value_result_matches, parameter_binding_receiver_matches,
+    provider_attachment_receiver_matches,
 };
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
     ParameterArgument, SourceParameter, boundary_parameter_path,
@@ -362,14 +362,11 @@ pub(super) fn build(
         // field. Its qualifications do not turn a shared observation into a
         // fixed-capacity array loan; access and predicate custody replay below.
         if path.is_empty()
-            && !boundary_argument_presentation_is_admitted(
-                program,
-                source.declaration.type_reference,
-                formal,
-                &target_identity,
+            && !argument.whole_parameter_is_admitted(
+                source,
+                custody.unqualified,
                 substitutions.as_slice(),
             )
-            && !argument.whole_parameter_is_admitted(source, custody.unqualified)
         {
             return None;
         }

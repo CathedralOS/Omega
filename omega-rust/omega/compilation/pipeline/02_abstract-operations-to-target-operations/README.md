@@ -68,10 +68,10 @@ referents without inventing a physical result home; aggregates retain their
 exact storage. Only Unit has no result. The receiving checker reconstructs the
 result against pre-call custody before publishing it to later operations.
 One [direct-call lowering](src/lowering/control_flow/direct_calls.rs) produces
-every such row: it selects an admission route from the result kind (a Unit call
-splits on whether any structural argument is graph-local), then shares callee,
-argument and result handling, keeping each route's remaining admission
-difference as an explicit check. Validation replays those rows through one
+every such row: it resolves the callee contract and each operand's storage,
+then commits moves and publishes the result. The result kind does not choose
+argument transport. Published scalar operations additionally retain their
+standalone ABI contract. Validation replays those rows through one
 `direct_call` replay with a tail per result kind.
 Source-specific semantic restrictions remain checked independently. Foreign
 calls and dynamic arguments/dispatch still have their own carriers; this is not
@@ -112,6 +112,18 @@ bounds obligations. Mutable stores address the original referent. Calls retain
 the selected callee, ordered arguments, result home, exact ABI and contract.
 Parallel transfers must preserve duplicate sources and cycles before replacing
 destinations. Allocation owns the actual snapshots and frame locations.
+
+A shared byte-view argument may observe bounded-owner storage without taking
+ownership of its capacity or predicates. [Byte arguments](src/lowering/control_flow/byte_arguments.rs)
+resolve the exact entry placement, state arrival or operation home and retain
+its backing identity. Whole owners and inline owner fields present the same
+live length word followed by bytes; the call-local descriptor contains the
+backing address and current length, never capacity as length. Qualification
+discharge remains with the verified source call: an unqualified read-only view
+does not require removing the owner's qualifications or copying its predicate
+roster to the formal. The receiving stages independently reconstruct geometry,
+source identity, dominance and call placement. Concatenation is not an
+eligibility condition for borrowing an established home.
 
 Case observations resolve their root through the live storage inventory and
 the canonical entry/state declaration. A descriptor carried into a state is

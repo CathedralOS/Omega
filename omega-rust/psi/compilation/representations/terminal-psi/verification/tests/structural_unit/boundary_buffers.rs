@@ -15,6 +15,8 @@ use terminal_psi::ByteSequenceCarrier;
 mod fixed_array_views;
 #[path = "boundary_buffers/inline_byte_identity.rs"]
 mod inline_byte_identity;
+#[path = "boundary_buffers/whole_byte_owners.rs"]
+mod whole_byte_owners;
 
 fn buffer_module() -> TerminalModule {
     let mut module = projected_boundary_qualification_module();

@@ -48,63 +48,6 @@ pub(super) fn owned_type(
     matching.next().is_none().then_some(structural_type)
 }
 
-/// A whole owned home presents a shared descriptor without changing storage
-/// identity. Selection still resolves the live home at the call; this only
-/// classifies its exact producer and the descriptor's two-word geometry.
-pub(super) fn shared_view_argument(
-    function: &LegalizedScalarFunction,
-    semantic: &terminal_psi::StructuralArgument,
-    target: &target_operations::TargetStructuralArgument,
-) -> Option<u64> {
-    let signature = function.structural.as_ref()?;
-    let mut producers = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter_map(|row| match &row.kind {
-            LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                result, ..
-            } if result.place == semantic.place => Some((row, result)),
-            _ => None,
-        });
-    let (producer_row, result) = producers.next()?;
-    if producers.next().is_some() {
-        return None;
-    }
-    if !semantic.path.is_empty()
-        || semantic.access != StructuralAccess::SharedBorrow
-        || target.place != semantic.place
-        || target.access != semantic.access
-        || !target.path.is_empty()
-        || target.root_structural_type != result.structural_type
-        || target.source
-            != (target_operations::TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: producer_row.operation,
-            })
-        || target.source_byte_offset != 0
-        || target.fixed_array_length.is_some()
-        || target.element_stride.is_some()
-        || !target.indices.is_empty()
-        || target.shape != calling_conventions::ValueShape::borrowed_reference(16, 8)
-        || result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.claims.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !signature.structural_types.iter().any(|declaration| {
-            declaration.id == target.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    })
-                )
-        })
-    {
-        return None;
-    }
-    capacity(function, producer_row).map(u64::from)
-}
-
 /// The structural type of a place whose bytes use the owner layout (length
 /// word at offset 0, bytes from offset 8): an owned concatenation result in
 /// this activation, a whole owned parameter arrival, or a shared bounded owner

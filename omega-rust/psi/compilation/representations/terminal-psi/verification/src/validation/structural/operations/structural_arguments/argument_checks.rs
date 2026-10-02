@@ -306,32 +306,17 @@ pub(in crate::validation) fn validate_structural_argument(
                             && argument.path.is_empty()
                             && (argument.access == StructuralAccess::SharedBorrow
                                 || (ordinary_call && argument.access == StructuralAccess::Owned))
-                            && crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place).is_some() =>
+                            && terminal_semantics::byte_owned_result_predicates(module, caller, argument.place).is_some() =>
                     {
-                        // An owned bounded byte local is a concatenation's
-                        // established backing. An ordinary call may receive
-                        // its whole unrestricted owned value or a shared loan;
-                        // current predicates replay below without changing the
-                        // source's owned carrier or reviving initializer facts.
-                        let result = crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place)
-                            .expect("exact owned byte result checked above");
-                        Some((result.structural_type, StructuralMultiplicity::Unrestricted,
-                            StructuralAccess::Owned, &[][..], &[][..]))
-                    }
-                    StructuralPlaceKind::OperationResult { .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                            && argument.path.is_empty()
-                            && argument.access == StructuralAccess::Owned
-                            && terminal_semantics::byte_owned_call_result(module, caller, argument.place).is_some() =>
-                    {
-                        // Completion carries the exact callee's qualified byte
-                        // owner. Availability is still checked at the use site;
-                        // a matching result declaration does not establish it.
-                        terminal_semantics::byte_owned_call_result(module, caller, argument.place)
-                            .map(|result| (result.structural_type, result.multiplicity,
-                                StructuralAccess::Owned, result.qualifications.as_slice(),
-                                result.projected_qualifications.as_slice()))
+                        // The completed bounded owner keeps its exact storage
+                        // signature whether it was constructed or returned.
+                        // Its operation validates establishment; dominance and
+                        // live-loan replay validate this use. Lending a shared
+                        // view does not erase the owner's declared predicates.
+                        crate::validation::structural::result_contracts::source_signature(caller, argument.place)
+                            .map(|source| (source.structural_type, source.multiplicity,
+                                StructuralAccess::Owned, source.qualifications,
+                                source.projected_qualifications))
                     }
                     StructuralPlaceKind::ByteSequenceLiteral {
                         structural_type, ..
@@ -572,12 +557,16 @@ pub(in crate::validation) fn validate_structural_argument(
             expected,
         )
         .is_some();
-    // The shared counterpart: a boundary reads the field's live bytes
-    // through a borrowed view. The operand keeps its owning root and path;
-    // the shared loan grants no mutation, storage, or extent replacement.
-    let shared_buffer_presentation = (source_policy
-        == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-        || (borrowed_call && is_unrestricted_shared_subloan(module, caller, expected, argument)))
+    // Shared presentation observes whole or projected bounded storage under
+    // the already resolved source contract. Neither a call's result kind nor
+    // an entry-only/nonempty-field recognizer establishes this authority.
+    // Access attenuation, exact multiplicity and qualification checks below,
+    // together with live-loan replay, remain independent obligations.
+    let shared_buffer_presentation = expected.multiplicity == StructuralMultiplicity::Unrestricted
+        && matches!(
+            actual_multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
         && terminal_semantics::shared_boundary_buffer_capacity(
             module.structural_types.iter(),
             root_type,
@@ -927,14 +916,7 @@ fn owned_bounded_owner_presentation(
         return false;
     }
     let Some(result) =
-        crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place)
-            .or_else(|| {
-                (argument.access == StructuralAccess::Owned)
-                    .then(|| {
-                        terminal_semantics::byte_owned_call_result(module, caller, argument.place)
-                    })
-                    .flatten()
-            })
+        crate::validation::structural::result_contracts::source_signature(caller, argument.place)
     else {
         return false;
     };

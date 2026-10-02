@@ -1,5 +1,6 @@
 //! Authored borrows retain reference ABI placement after canonical Psi checking.
 
+mod byte_owner_views;
 mod direct_call_operands;
 
 use super::{

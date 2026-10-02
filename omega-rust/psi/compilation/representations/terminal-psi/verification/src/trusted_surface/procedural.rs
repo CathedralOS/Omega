@@ -659,6 +659,11 @@ rows! {
     // loans to a boundary. The same source, access, qualification, dominance
     // and overlapping-argument checks apply; this grants neither owned
     // boundary transfer nor retention after return.
+    // Shared bounded-owner presentation is independent of call kind, result
+    // kind and entry/block placement. The exact available root retains its
+    // access and qualifications; the view observes its live length and bytes.
+    // Geometry alone supplies no predicate or loan authority: formal predicate
+    // implication, access attenuation and overlapping arguments still validate.
     FORM_STRUCTURAL_OPS => (
         "formation:structural-operations",
         SharedFormation,

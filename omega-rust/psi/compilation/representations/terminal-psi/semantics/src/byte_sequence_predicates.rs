@@ -187,6 +187,9 @@ pub fn byte_owned_call_result<'machine>(
 /// The declared primitive predicates of an exact established owned byte result.
 /// Initializer octets are not persistent declarations: mutation may discard
 /// incidental ASCII or no-NUL facts while preserving these qualifications.
+/// This decodes a result contract, not a producer-family permission. Each
+/// operation independently proves its result's establishment; calls additionally
+/// rejoin the exact callee contract here. Availability remains a use-site check.
 pub fn byte_owned_result_predicates(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -209,10 +212,11 @@ pub fn byte_owned_result_predicates(
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == producer)?;
     let result = operation.result.structural()?;
-    if !(matches!(
+    if (matches!(
         operation.kind,
-        OperationKind::EstablishByteSequenceConcatenation { .. }
-    ) || byte_owned_call_result(module, machine, source).is_some())
+        OperationKind::CallStructural { .. }
+            | OperationKind::CallStructuralWithScalarArguments { .. }
+    ) && byte_owned_call_result(module, machine, source).is_none())
         || result.place != source
         || result.structural_type != structural_type
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -606,13 +610,12 @@ pub fn byte_sequence_source_predicates(
                 if operation.result.structural()?.place != source {
                     return None;
                 }
-                if byte_owned_call_result(module, machine, source).is_some() {
-                    return byte_owned_result_predicates(module, machine, source);
-                }
                 let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } =
                     &operation.kind
                 else {
-                    return None;
+                    // Other completed owners contribute declared predicates,
+                    // never incidental facts about their producer's inputs.
+                    return byte_owned_result_predicates(module, machine, source);
                 };
                 if machine
                     .blocks

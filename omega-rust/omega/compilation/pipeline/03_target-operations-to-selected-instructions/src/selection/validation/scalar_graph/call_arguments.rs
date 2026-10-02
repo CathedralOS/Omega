@@ -161,30 +161,18 @@ fn argument_pointer(
     } else {
         semantic.place
     };
-    // A bounded inline byte field presents as a borrowed view: the descriptor's
-    // length is the field's own live length word, never its declared capacity.
+    // Rebuild owner presentation from the retained source identity rather
+    // than trusting construction's choice of whole or field geometry.
     let byte_field = if referent {
         None
     } else {
-        source.structural.as_ref().and_then(|signature| {
-            signature
-                .parameters
-                .iter()
-                .find(|parameter| parameter.semantic.place == semantic.place)
-                .and_then(|parameter| {
-                    crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
-                        &parameter.semantic,
-                        semantic,
-                        target.structural_type,
-                        &signature.structural_types,
-                    )
-                })
-        })
-    }
-    .or_else(|| {
-        crate::selection::byte_concatenation_input::shared_view_argument(source, semantic, target)
-            .map(|capacity| (0, capacity))
-    });
+        crate::selection::byte_owner_input::view_argument(
+            source,
+            operation.operation,
+            semantic,
+            target,
+        )
+    };
     let pointer = if reference_carrier {
         let offset = crate::selection::reference_input::borrowed_argument(source, semantic, target)
             .filter(|_| indices.is_empty())

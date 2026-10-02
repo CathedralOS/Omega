@@ -6,6 +6,9 @@ use super::{
     TypedTrees,
 };
 use crate::execution::terminal_unit::types::type_graph_requires_nominal_drop;
+
+#[cfg(test)]
+mod tests;
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
 /// operands still observe its original home before selected-edge cleanup.
@@ -30,28 +33,28 @@ fn validate(
     let StatementNode::LocalData(local) = statements.get(result.statement_index as usize)? else {
         return None;
     };
-    // A borrowed view's result binding carries the viewed `[T]` carrier
-    // identity with the reference and constraint shells peeled, exactly as
-    // structural call arguments spell it: the loan's access mode belongs to
-    // the edge carrying the view, not to the bound value.
-    let expected_identity =
-        if matches!(
-            super::super::types::byte_sequence_carrier(program, local.type_reference, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
-        ) || super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
-            .is_some()
-        {
-            super::super::types::borrowed_slice_view_type_identity(
-                program,
-                local.type_reference,
-                &[],
-                &[],
-            )
-        } else {
-            program
-                .normalized_type_identity(local.type_reference)
-                .into_string()
-        };
+    // Byte results retain the canonical storage identity their constructors
+    // and call signatures publish. Qualifications are separate obligations,
+    // not part of that identity; this applies equally to owned buffers and
+    // borrowed views. Element views retain their existing carrier identity.
+    let expected_identity = if let Some(identity) =
+        super::super::types::byte_sequence_type_identity(program, local.type_reference, &[], &[])
+    {
+        identity
+    } else if super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
+        .is_some()
+    {
+        super::super::types::borrowed_slice_view_type_identity(
+            program,
+            local.type_reference,
+            &[],
+            &[],
+        )
+    } else {
+        program
+            .normalized_type_identity(local.type_reference)
+            .into_string()
+    };
     // A reference-loaned result publishes its referent identity — the loan's
     // access mode lives on the root, not the bound value — the same peel the
     // shared-referee admission and call-result storage paths apply. An owned

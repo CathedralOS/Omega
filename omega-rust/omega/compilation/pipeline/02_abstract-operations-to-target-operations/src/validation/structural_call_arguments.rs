@@ -2773,6 +2773,9 @@ impl Replay<'_> {
         let Some(root) = self.roots.get(&semantic.place) else {
             return Ok(());
         };
+        if matches_bounded_byte_storage(actual, root, self.declarations) {
+            return Ok(());
+        }
         // A fixed array presents its backing from an incoming parameter, from
         // a block parameter that rebinds such a loan at a state edge or,
         // whole, from a local home lent through this argument's own borrow.
@@ -2905,7 +2908,7 @@ impl Replay<'_> {
                     }
                 }
                 Err(_) => {
-                    if !matches_bounded_byte_field(actual, root, self.declarations)
+                    if !matches_bounded_byte_storage(actual, root, self.declarations)
                         && !matches_stored_view_field(actual, root, self.declarations)
                     {
                         return Err(psi_operation);
@@ -3343,21 +3346,32 @@ fn matches_projected_carrier(
         && actual.element_stride == Some(1)
 }
 
-/// A bounded inline byte field has no projected carrier identity of its own.
-/// The argument still names the field's storage: its live length word and bytes
-/// stay in place and the callee sees only the borrowed view. Reconstruct the
-/// field's offset and capacity rather than trusting a substituted type or a
-/// static-length descriptor's metadata.
-fn matches_bounded_byte_field(
+/// Whole owners and inline fields share the same live length + bytes layout.
+/// Reconstruct their storage independently of the call-local view descriptor;
+/// source custody is checked separately against the exact arrival or producer.
+fn matches_bounded_byte_storage(
     actual: &TargetStructuralArgument,
     root: &RootDeclaration,
     declarations: &[StructuralTypeDeclaration],
 ) -> bool {
-    let Ok((field_offset, field_capacity)) = structural_shapes::bounded_byte_field_geometry(
-        root.structural_type,
-        &actual.path,
-        declarations,
-    ) else {
+    let geometry = if actual.path.is_empty() && actual.access == StructuralAccess::SharedBorrow {
+        declarations
+            .iter()
+            .find_map(|declaration| match declaration.shape {
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                ) if declaration.id == root.structural_type => Some((0, capacity)),
+                _ => None,
+            })
+    } else {
+        structural_shapes::bounded_byte_field_geometry(
+            root.structural_type,
+            &actual.path,
+            declarations,
+        )
+        .ok()
+    };
+    let Some((field_offset, field_capacity)) = geometry else {
         return false;
     };
     let is_owner = declarations.iter().any(|declaration| {
@@ -3380,13 +3394,15 @@ fn matches_bounded_byte_field(
                 StructuralAccess::SharedBorrow
                     | StructuralAccess::MutableBorrow
                     | StructuralAccess::WriteOnlyBorrow,
-            ) | (
-                StructuralAccess::SharedBorrow,
-                StructuralAccess::SharedBorrow
-            ) | (
-                StructuralAccess::WriteOnlyBorrow,
-                StructuralAccess::WriteOnlyBorrow
-            )
+            ) | (StructuralAccess::Owned, StructuralAccess::SharedBorrow)
+                | (
+                    StructuralAccess::SharedBorrow,
+                    StructuralAccess::SharedBorrow
+                )
+                | (
+                    StructuralAccess::WriteOnlyBorrow,
+                    StructuralAccess::WriteOnlyBorrow
+                )
         )
         && declarations.iter().any(|declaration| {
             declaration.id == actual.structural_type
@@ -3406,6 +3422,8 @@ fn matches_bounded_byte_field(
                 }
         })
         && actual.source_byte_offset == field_offset
+        && actual.root_structural_type == root.structural_type
+        && actual.indices.is_empty()
         && actual.fixed_array_length.is_none()
         && actual.element_stride.is_none()
 }

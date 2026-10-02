@@ -1233,6 +1233,7 @@ pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
+pass/borrows/qualified_byte_owner_shared_call_exit checked 2881ms @29448bf62fa8+wt
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms @4e4bfed13aee+wt
 pass/borrows/returned_record_field_read_exit checked 935ms @2067346ef4fa+wt

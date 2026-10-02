@@ -253,8 +253,8 @@ pub(crate) fn structural_arguments_match(
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
         // A bounded owned byte-sequence field supplies a borrowed byte-view
         // parameter without a structural type identity of its own. Boundary
-        // calls admit the presentation outright; ordinary borrowed calls admit
-        // the same unrestricted subloans the verifier's argument rule names.
+        // calls admit the mutable presentation outright; ordinary borrowed
+        // calls admit the same unrestricted subloans the verifier names.
         let buffer_presentation = (projection == StructuralProjectionPolicy::Boundary
             || (projection == StructuralProjectionPolicy::Unit && unrestricted_mutable_subloan))
             && terminal_semantics::boundary_buffer_capacity(
@@ -264,8 +264,20 @@ pub(crate) fn structural_arguments_match(
                 parameter,
             )
             .is_some();
-        let shared_buffer_presentation = (projection == StructuralProjectionPolicy::Boundary
-            || (projection == StructuralProjectionPolicy::Unit && unrestricted_shared_subloan))
+        // Shared observation is a storage presentation, not an arrangement
+        // spelling. The already reconstructed source contract may name an
+        // entry arrival, state arrival, local home or completed result. Exact
+        // access, multiplicity and result evidence stay independent here;
+        // current ownership later proves that the source is live.
+        let shared_buffer_presentation = parameter.multiplicity
+            == terminal_psi::StructuralMultiplicity::Unrestricted
+            && matches!(
+                source.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted
+                    | terminal_psi::StructuralMultiplicity::Affine
+            )
+            && source.projected_qualifications.is_empty()
+            && !source.has_result_evidence()
             && terminal_semantics::shared_boundary_buffer_capacity(
                 types.values().copied(),
                 source.structural_type,
@@ -388,34 +400,21 @@ pub(crate) fn structural_arguments_match(
                 )
             },
         );
-        let owned_byte_view_presentation =
-            types
-                .get(&parameter.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow)
-                            }
-                        )
+        let bounded_owner_presentation = borrowed_owner_expected
+            && projection != StructuralProjectionPolicy::Boundary
+            && (caller
+                .arrival_parameter(argument.place)
+                .is_some_and(|actual| {
+                    terminal_semantics::bounded_byte_owner_capacity_in(
+                        types.values().copied(),
+                        domains.values().copied(),
+                        actual,
+                        argument,
+                        parameter,
                     )
+                    .is_some()
                 })
-                && owned_bounded_owner_loan(caller, argument, parameter, &source, types, domains);
-        let bounded_owner_presentation = ((projection != StructuralProjectionPolicy::Boundary
-            && (caller.structural_parameters.iter().any(|actual| {
-                terminal_semantics::bounded_byte_owner_capacity_in(
-                    types.values().copied(),
-                    domains.values().copied(),
-                    actual,
-                    argument,
-                    parameter,
-                )
-                .is_some()
-            }) || owned_bounded_owner_loan(
-                caller, argument, parameter, &source, types, domains,
-            )))
-            || owned_byte_view_presentation)
+                || owned_bounded_owner_loan(caller, argument, parameter, &source, types, domains))
             && !caller
                 .entry_claim_declarations
                 .iter()
@@ -526,32 +525,33 @@ pub(crate) fn structural_arguments_match(
                         | O::EstablishCase { result, .. }
                         if result.place == argument.place)
                     }));
-        let actual_multiplicity =
-            if shared_affine_loan || record_loan(caller, argument, parameter, types) {
-                terminal_psi::StructuralMultiplicity::Unrestricted
-            } else if argument.path.is_empty() {
-                source.multiplicity
-            } else if unrestricted_write_only_subloan
-                || fixed_array_presentation
-                || bounded_owner_presentation
-                || unrestricted_mutable_subloan
-                || unrestricted_owned_mutable_subloan
-                || unrestricted_shared_subloan
-                || element_view_loan
-                || shared_buffer_presentation
-                || (buffer_presentation
-                    && source.access == terminal_psi::StructuralAccess::MutableBorrow
-                    && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)
-            {
-                terminal_psi::StructuralMultiplicity::Unrestricted
-            } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && is_partial_affine_path(types, source.structural_type, &argument.path)
-            {
-                terminal_psi::StructuralMultiplicity::Affine
-            } else {
-                terminal_psi::StructuralMultiplicity::Linear
-            };
+        let actual_multiplicity = if shared_affine_loan
+            || shared_buffer_presentation
+            || record_loan(caller, argument, parameter, types)
+        {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        } else if argument.path.is_empty() {
+            source.multiplicity
+        } else if unrestricted_write_only_subloan
+            || fixed_array_presentation
+            || bounded_owner_presentation
+            || unrestricted_mutable_subloan
+            || unrestricted_owned_mutable_subloan
+            || unrestricted_shared_subloan
+            || element_view_loan
+            || (buffer_presentation
+                && source.access == terminal_psi::StructuralAccess::MutableBorrow
+                && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)
+        {
+            terminal_psi::StructuralMultiplicity::Unrestricted
+        } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && is_partial_affine_path(types, source.structural_type, &argument.path)
+        {
+            terminal_psi::StructuralMultiplicity::Affine
+        } else {
+            terminal_psi::StructuralMultiplicity::Linear
+        };
         let copied_byte_predicates = projection != StructuralProjectionPolicy::Boundary
             && !parameter.is_self
             && argument.path.is_empty()
@@ -689,10 +689,11 @@ fn is_material_write_only_type(
     true
 }
 
-/// A whole owned bounded byte local (a concatenation result) lent
-/// shared to the same bounded owner carrier or a shared byte view. Every byte predicate
-/// the formal requires is replayed from the local's current invariants in the
-/// current graph, mirroring Terminal's call rule for the same presentation.
+/// A whole completed bounded byte owner lent shared to the same owner carrier.
+/// Every byte predicate the formal requires is replayed from the result's
+/// current invariants in this graph. Producer identity is already authenticated
+/// by the structural catalog and source contract; this storage presentation
+/// does not depend on which operation established it.
 fn owned_bounded_owner_loan(
     caller: &PsiOptimizationFunction,
     argument: &terminal_psi::StructuralArgument,
@@ -711,7 +712,11 @@ fn owned_bounded_owner_loan(
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !source.projected_qualifications.is_empty()
         || !source.operation_result.is_some_and(|result| {
-            result.claims.is_empty() && result.qualification_establishments.is_empty()
+            result.place == argument.place
+                && result.structural_type == source.structural_type
+                && result.multiplicity == source.multiplicity
+                && result.claims.is_empty()
+                && result.qualification_establishments.is_empty()
         })
         || !types
             .get(&source.structural_type)
@@ -723,27 +728,7 @@ fn owned_bounded_owner_loan(
                     )
                 )
             })
-        || !(source.structural_type == parameter.structural_type
-            || types
-                .get(&parameter.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow)
-                            }
-                        )
-                    )
-                }))
-        || !caller
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                matches!(&node.operation, O::EstablishByteSequenceConcatenation { result, .. }
-                    if result.place == argument.place)
-            })
+        || source.structural_type != parameter.structural_type
     {
         return false;
     }

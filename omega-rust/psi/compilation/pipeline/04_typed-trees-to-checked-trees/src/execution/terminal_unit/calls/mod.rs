@@ -2,7 +2,8 @@
 //!
 //! `call_operations.rs` builds the call operation, `structural_arguments.rs` builds the arguments and their claim transfers,
 //! `argument_paths.rs` the projected paths, `parameter_argument_paths.rs` which
-//! path a parameter-rooted argument lends, `boundary_admission.rs` decides
+//! path a parameter-rooted argument lends, `argument_presentation.rs` owns
+//! shared carrier compatibility, `boundary_admission.rs` decides
 //! what a boundary call admits, `signatures.rs` the signatures it is checked
 //! against and `affine_locals.rs` the unit's opening affine locals; the
 //! remaining modules cover view subslices (one admission for every site that
@@ -11,6 +12,7 @@
 
 mod affine_locals;
 mod argument_paths;
+mod argument_presentation;
 mod boundary_admission;
 mod call_operations;
 mod computation_arguments;

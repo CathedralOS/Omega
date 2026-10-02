@@ -892,11 +892,14 @@ pub(super) fn home(
     if selected.next().is_some()
         || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.claims.is_empty()
-        // Byte predicates retain the same owned layout. Concatenation checks
-        // its producer; a whole copy must retain its exact source contract.
+        // Primitive predicates do not change a bounded owner's `{length,
+        // bytes}` home. Producer replay already authenticated the exact result
+        // roster; this storage query must not reclassify that roster by which
+        // operation happened to produce it. Other aggregate carriers retain
+        // their established unqualified-home boundary.
         || (!result.qualifications.is_empty()
-            && crate::selection::byte_concatenation_input::capacity(source, row).is_none()
-            && !whole_byte_copy_contract(source, row))
+            && (!bounded_owned_byte_type(source, result.structural_type)
+                || !result.qualification_establishments.is_empty()))
         || !result.projected_qualifications.is_empty()
         || !source
             .structural
@@ -948,89 +951,6 @@ pub(super) fn home(
         &signature.structural_types,
     )?;
     Some((operation, result))
-}
-
-/// Shape replay has no domain catalog: qualified copies preserve the source's
-/// exact roster instead of interpreting domain identities as predicate proof.
-/// Dominance and source/result provenance are checked by legalization; this
-/// comparison never recursively follows homes or invents one for a parameter.
-fn whole_byte_copy_contract(
-    function: &LegalizedScalarFunction,
-    row: &LegalizedScalarInstruction,
-) -> bool {
-    let LegalizedScalarInstructionKind::StructuralLeafCopy {
-        result,
-        source,
-        path,
-        ..
-    } = &row.kind
-    else {
-        return false;
-    };
-    let Some(signature) = &function.structural else {
-        return false;
-    };
-    if !matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !result.qualification_establishments.is_empty()
-        || !signature.structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
-        })
-    {
-        return false;
-    }
-    if let Some(parameter) = signature
-        .parameters
-        .iter()
-        .map(|parameter| &parameter.semantic)
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == *source)
-    {
-        return parameter.access != StructuralAccess::WriteOnlyBorrow
-            && parameter.structural_type == result.structural_type
-            && parameter.multiplicity == result.multiplicity
-            && parameter.qualifications == result.qualifications
-            && parameter.projected_qualifications.is_empty();
-    }
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .any(|producer| {
-            let previous = match &producer.kind {
-                LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
-                | LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                    result,
-                    ..
-                } => result,
-                LegalizedScalarInstructionKind::Call(call) => {
-                    let Some(result) = &call.structural_result else {
-                        return false;
-                    };
-                    result
-                }
-                _ => return false,
-            };
-            producer.operation != row.operation
-                && previous.place == *source
-                && previous.structural_type == result.structural_type
-                && previous.multiplicity == result.multiplicity
-                && previous.qualifications == result.qualifications
-                && previous.projected_qualifications.is_empty()
-                && previous.qualification_establishments.is_empty()
-                && previous.claims.is_empty()
-        })
 }
 
 /// A selected aggregate lives in the join's own home. Reconstruct its declaration

@@ -587,6 +587,17 @@ fn structural_argument(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
+    if let Some(argument) = super::byte_arguments::shared_owner_view(
+        argument,
+        declaration,
+        destination,
+        function,
+        prepared,
+        live,
+        types,
+    )? {
+        return Ok(argument);
+    }
     if matches!(argument.path.first(), Some(StructuralPathSegment::Referent)) {
         if let Some(projected) = super::references::returned_record_call_argument(
             argument,

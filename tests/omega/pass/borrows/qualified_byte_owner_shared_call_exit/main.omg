@@ -1,0 +1,59 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+
+data Main {
+    console: Binding<Console>;
+    line: [u8; 16] in Utf8;
+    sibling: u64;
+}
+
+// This ordinary helper requests no byte predicate. It must see the owner's
+// live bytes and extent, not a capacity-sized array or a copied descriptor.
+machine observe(bytes: &[u8], expected: u64) -> bool {
+    transition {
+        expected == 0 -> (bytes.len == 4 && bytes == "Gate")
+        expected == 1 -> (bytes.len == 2 && bytes == "é")
+        expected == 2 -> (bytes.len == 0 && bytes == "")
+        expected == 3 -> (bytes.len == 3 && bytes == "Go!")
+        expected == 4 -> (bytes.len == 4 && bytes == "Call")
+        expected == 5 -> (bytes.len == 4 && bytes == "Done")
+        _ -> false
+    }
+}
+
+machine returned_line() -> [u8; 16] in Utf8 { "Call" }
+
+machine exercise(line: &mut [u8; 16] in Utf8) -> bool {
+    let entry_before: bool = observe(line, 0);
+    line = "é";
+    let entry_after: bool = observe(line, 1);
+    transition { _ -> arrived(line, entry_before && entry_after) }
+
+    state arrived(line: &mut [u8; 16] in Utf8, entry_matches: bool) {
+        let arrival: bool = observe(line, 1);
+        line = "";
+        let empty: bool = observe(line, 2);
+        let local: [u8; 16] in Utf8 = "Go" + "!";
+        let local_matches: bool = observe(local, 3);
+        let returned: [u8; 16] in Utf8 = returned_line();
+        let returned_matches: bool = observe(returned, 4);
+        line = "Done";
+        let final_matches: bool = observe(line, 5);
+        entry_matches && arrival && empty && local_matches
+            && returned_matches && final_matches
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.line = "Gate";
+    main.sibling = 29;
+    let observed: bool = exercise(&mut main.line);
+    transition observed
+        && main.line == "Done" && main.line.len == 4 && main.sibling == 29 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

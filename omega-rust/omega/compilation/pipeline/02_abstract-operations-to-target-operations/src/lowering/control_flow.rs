@@ -23,6 +23,7 @@ pub(super) mod aggregate_results;
 mod atomic_access;
 mod borrowed_calls;
 mod borrowed_windows;
+mod byte_arguments;
 mod byte_concatenation;
 mod byte_write;
 mod direct_calls;

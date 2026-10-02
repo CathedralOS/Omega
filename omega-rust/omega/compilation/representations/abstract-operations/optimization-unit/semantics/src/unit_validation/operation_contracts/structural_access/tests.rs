@@ -1,7 +1,7 @@
 //! A derived descriptor never acquires the access of an owning result.
 use crate::unit_validation::operation_contracts::structural_access::{
-    StructuralProjectionPolicy, structural_access_can_supply, structural_arguments_match,
-    structural_source_contract,
+    StructuralProjectionPolicy, owned_bounded_owner_loan, structural_access_can_supply,
+    structural_arguments_match, structural_source_contract,
 };
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 
@@ -398,6 +398,365 @@ fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitu
     let mut changed = argument;
     changed.place = PlaceId::new(999).unwrap();
     assert!(!accepts(&changed, &parameter));
+}
+
+#[test]
+fn ordinary_call_owned_byte_result_lends_a_shared_view_without_producer_spelling() {
+    use abstract_operations::{AbstractOperation as Operation, AbstractStructuralCallResult};
+    use semantic_vocabulary::{
+        ClaimId, DomainSemanticId, OperationId, StructuralDomainId, StructuralPlaceKind,
+    };
+    use terminal_psi::{
+        ByteSequenceCarrier, ByteSequencePredicate, StructuralAccess as Access,
+        StructuralMultiplicity as Multiplicity, StructuralTypeDeclaration,
+        StructuralTypeShape as Shape,
+    };
+
+    let mut unit =
+        crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
+    let owner = StructuralTypeId::new(9_030).unwrap();
+    let view = StructuralTypeId::new(9_031).unwrap();
+    let domain = StructuralDomainId::new(9_032).unwrap();
+    let source = PlaceId::new(9_033).unwrap();
+    let producer = OperationId::new(9_034).unwrap();
+    unit.structural_types.make_mut().extend([
+        StructuralTypeDeclaration {
+            id: owner,
+            identity: "ordinary-call-owner".into(),
+            shape: Shape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "ordinary-call-view".into(),
+            shape: Shape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(Access::SharedBorrow),
+            }),
+        },
+    ]);
+    let mut structural_domains = unit.structural_domains.to_vec();
+    structural_domains.push(terminal_psi::StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: DomainSemanticId::new(9_032).unwrap(),
+        identity: "ordinary-call-Utf8".into(),
+        carrier: owner,
+        content_projection: None,
+        byte_predicate: Some(ByteSequencePredicate::ValidUtf8),
+        establishment_routes: Vec::new(),
+    });
+    unit.structural_domains = structural_domains.into();
+    let callee = unit.functions[1].machine;
+    let caller = &mut unit.functions[0];
+    // Exercise this operation contract directly. Cross-machine result
+    // correspondence and catalog identity have their own validators; this
+    // fixture pins the caller-local completed-result presentation only.
+    let mut producer_node = caller.blocks[0].nodes[0].clone();
+    producer_node.operation = Operation::CallStructural {
+        psi_operation: producer,
+        result: AbstractStructuralCallResult::Structural {
+            result: terminal_psi::StructuralOperationResult {
+                place: source,
+                structural_type: owner,
+                multiplicity: Multiplicity::Unrestricted,
+                qualifications: vec![domain],
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+            returned_claim_transfers: Vec::new(),
+            selected_evidence: Vec::new(),
+        },
+        callee,
+        arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        dynamic_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    caller.blocks[0].nodes.insert(0, producer_node);
+    caller
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: owner,
+            },
+        });
+    let argument = terminal_psi::StructuralArgument {
+        place: source,
+        path: Vec::new(),
+        access: Access::SharedBorrow,
+    };
+    let parameter = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(9_035).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: view,
+        multiplicity: Multiplicity::Unrestricted,
+        access: Access::SharedBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let accepts = |unit: &optimization_unit::PsiOptimizationUnit,
+                   parameter: &terminal_psi::StructuralParameterDeclaration| {
+        let types = unit
+            .structural_types
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        let domains = unit
+            .structural_domains
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        structural_arguments_match(
+            &unit.functions[0],
+            None,
+            std::slice::from_ref(&argument),
+            std::slice::from_ref(parameter),
+            &types,
+            &domains,
+            StructuralProjectionPolicy::Unit,
+            false,
+        )
+    };
+    assert!(
+        accepts(&unit, &parameter),
+        "the view may weaken the qualified owner's predicate roster"
+    );
+    let mut qualified_owner_parameter = parameter.clone();
+    qualified_owner_parameter.structural_type = owner;
+    qualified_owner_parameter.qualifications.push(domain);
+    assert!(
+        accepts(&unit, &qualified_owner_parameter),
+        "the exact declared result predicate satisfies an owner formal"
+    );
+
+    for corruption in ["claim", "establishment", "projected", "carrier"] {
+        let mut changed = unit.clone();
+        let result = changed.functions[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.nodes)
+            .find_map(|node| match &mut node.operation {
+                Operation::CallStructural {
+                    psi_operation,
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } if *psi_operation == producer => Some(result),
+                _ => None,
+            })
+            .unwrap();
+        match corruption {
+            "claim" => result
+                .claims
+                .push(terminal_psi::StructuralResultClaimBinding {
+                    claim: ClaimId::new(1).unwrap(),
+                    path: Vec::new(),
+                }),
+            "establishment" => result
+                .qualification_establishments
+                .push(terminal_psi::ResultQualificationEstablishment { domain, route: 0 }),
+            "projected" => {
+                result
+                    .projected_qualifications
+                    .push(terminal_psi::StructuralPathQualification {
+                        path: vec![terminal_psi::StructuralPathSegment::FixedIndex(0)],
+                        domain,
+                    })
+            }
+            "carrier" => result.structural_type = view,
+            _ => unreachable!(),
+        }
+        if corruption == "carrier" {
+            let types = changed
+                .structural_types
+                .iter()
+                .map(|declaration| (declaration.id, declaration))
+                .collect();
+            let domains = changed
+                .structural_domains
+                .iter()
+                .map(|declaration| (declaration.id, declaration))
+                .collect();
+            let caller = &changed.functions[0];
+            let source_contract = structural_source_contract(caller, source, false).unwrap();
+            assert!(
+                !owned_bounded_owner_loan(
+                    caller,
+                    &argument,
+                    &qualified_owner_parameter,
+                    &source_contract,
+                    &types,
+                    &domains,
+                ),
+                "a changed result carrier cannot satisfy the owner's contract"
+            );
+        } else {
+            assert!(
+                !accepts(&changed, &parameter),
+                "ordinary result corruption: {corruption}"
+            );
+        }
+    }
+    let mut affine_owner = unit.clone();
+    let result = affine_owner.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            Operation::CallStructural {
+                psi_operation,
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if *psi_operation == producer => Some(result),
+            _ => None,
+        })
+        .unwrap();
+    result.multiplicity = Multiplicity::Affine;
+    assert!(
+        accepts(&affine_owner, &parameter),
+        "a shared view does not transfer an affine owner's custody"
+    );
+    assert!(
+        !accepts(&affine_owner, &qualified_owner_parameter),
+        "an affine owner cannot be presented as an unrestricted owner"
+    );
+    let mut erased_predicate = unit.clone();
+    let result = erased_predicate.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            Operation::CallStructural {
+                psi_operation,
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if *psi_operation == producer => Some(result),
+            _ => None,
+        })
+        .unwrap();
+    result.qualifications.clear();
+    assert!(
+        !accepts(&erased_predicate, &qualified_owner_parameter),
+        "a declared result predicate cannot be manufactured after erasure"
+    );
+}
+
+#[test]
+fn shared_byte_view_presentation_follows_exact_entry_and_state_arrivals() {
+    use semantic_vocabulary::{BlockId, DomainSemanticId, StructuralDomainId, StructuralPlaceKind};
+    use terminal_psi::{
+        ByteSequenceCarrier, ByteSequencePredicate, StructuralAccess as Access,
+        StructuralMultiplicity as Multiplicity, StructuralTypeDeclaration,
+        StructuralTypeShape as Shape,
+    };
+
+    let mut unit =
+        crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
+    let owner = StructuralTypeId::new(9_040).unwrap();
+    let view = StructuralTypeId::new(9_041).unwrap();
+    let domain = StructuralDomainId::new(9_042).unwrap();
+    unit.structural_types.make_mut().extend([
+        StructuralTypeDeclaration {
+            id: owner,
+            identity: "arrival-owner".into(),
+            shape: Shape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "arrival-view".into(),
+            shape: Shape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(Access::SharedBorrow),
+            }),
+        },
+    ]);
+    let mut structural_domains = unit.structural_domains.to_vec();
+    structural_domains.push(terminal_psi::StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: DomainSemanticId::new(9_042).unwrap(),
+        identity: "arrival-Utf8".into(),
+        carrier: owner,
+        content_projection: None,
+        byte_predicate: Some(ByteSequencePredicate::ValidUtf8),
+        establishment_routes: Vec::new(),
+    });
+    unit.structural_domains = structural_domains.into();
+
+    let caller = &mut unit.functions[0];
+    let entry = caller.structural_parameters[0].place;
+    caller.structural_parameters[0].structural_type = owner;
+    caller.structural_parameters[0].access = Access::MutableBorrow;
+    caller.structural_parameters[0].qualifications = vec![domain];
+    let mut block = caller.blocks[0].clone();
+    block.id = BlockId::new(9_043).unwrap();
+    block.nodes.clear();
+    block.parameters.clear();
+    let state = PlaceId::new(9_044).unwrap();
+    let mut state_parameter = caller.structural_parameters[0].clone();
+    state_parameter.place = state;
+    state_parameter.position = 0;
+    state_parameter.is_self = false;
+    block.structural_parameters = vec![state_parameter];
+    caller.blocks.push(block);
+    caller
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: state,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: BlockId::new(9_043).unwrap(),
+                position: 0,
+            },
+        });
+    let parameter = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(9_045).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: view,
+        multiplicity: Multiplicity::Unrestricted,
+        access: Access::SharedBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let matches = |unit: &optimization_unit::PsiOptimizationUnit,
+                   place: PlaceId,
+                   parameter: &terminal_psi::StructuralParameterDeclaration| {
+        let types = unit
+            .structural_types
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        let domains = unit
+            .structural_domains
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        structural_arguments_match(
+            &unit.functions[0],
+            None,
+            &[terminal_psi::StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: Access::SharedBorrow,
+            }],
+            std::slice::from_ref(parameter),
+            &types,
+            &domains,
+            StructuralProjectionPolicy::Projected,
+            false,
+        )
+    };
+    assert!(matches(&unit, entry, &parameter));
+    assert!(matches(&unit, state, &parameter));
+
+    let mut unreadable = unit.clone();
+    unreadable.functions[0].structural_parameters[0].access = Access::WriteOnlyBorrow;
+    assert!(!matches(&unreadable, entry, &parameter));
+
+    let mut unsupported_predicate = parameter;
+    unsupported_predicate.qualifications.push(domain);
+    assert!(!matches(&unit, entry, &unsupported_predicate));
 }
 
 #[test]
