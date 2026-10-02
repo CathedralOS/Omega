@@ -563,7 +563,12 @@ pub(super) fn validate_move_static(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
-    let OperationKind::MoveStructuralField { source, path, .. } = &operation.kind else {
+    let OperationKind::MoveStructuralField {
+        source,
+        path,
+        field,
+    } = &operation.kind
+    else {
         return Ok(());
     };
     let invalid = || ModuleError::InvalidBorrowedStorageWindow {
@@ -602,9 +607,8 @@ pub(super) fn validate_move_static(
     }
     // A root window displaces the whole referent of an exclusive loan; an
     // owned home is no loan.
-    if let OperationKind::MoveStructuralField { field: None, .. } = &operation.kind
-        && path.is_empty()
-        && !is_root_window_loan(module, machine, *source)
+    if !terminal_semantics::structural_window_selects_child(path, *field)
+        && (!path.is_empty() || !is_root_window_loan(module, machine, *source))
     {
         return Err(invalid());
     }
@@ -625,7 +629,7 @@ pub(super) fn validate_store_static(
         destination,
         path,
         value,
-        ..
+        field,
     } = &operation.kind
     else {
         return Ok(());
@@ -652,9 +656,8 @@ pub(super) fn validate_store_static(
     {
         return Err(invalid());
     }
-    if let OperationKind::StoreStructuralField { field: None, .. } = &operation.kind
-        && path.is_empty()
-        && !is_root_window_loan(module, machine, *destination)
+    if !terminal_semantics::structural_window_selects_child(path, *field)
+        && (!path.is_empty() || !is_root_window_loan(module, machine, *destination))
     {
         return Err(invalid());
     }
