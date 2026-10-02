@@ -2086,12 +2086,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   controls. Direct calls retain array gates in `calls/structural_arguments.rs`.
   Trait and direct array result declarations now lower, including empty and
   discarded results; installed trait-provider execution is covered above.
-  Harden/promote `tests/omega/pending/providers/boundary_primitive_array_argument`
-  with an element-reading provider and observable caller result, preserving its
-  valid Build identity, selected provider and demanded entry. Acceptance must
-  cover exact payload and scalar/structural interleave through Terminal
-  reload/verification and native execution; ordinary-array support alone is
-  insufficient.
+  The promoted `pass/providers/boundary_primitive_array_argument_exit` runs
+  on Linux x86-64 with native/interpreter exit **70**. Its checked provider
+  reads all four elements between scalar arguments; the final operand writes
+  the caller's source array after its owned snapshot was captured. Scalar
+  initializer admission follows the resolved result and destination rather
+  than the boundary's receiver/supply spelling, and interpreter argument
+  capture is shared by ordinary calls and selected boundary adapters.
+  `fail/calls/boundary_nested_argument_conflicting_loan` still rejects a later
+  exclusive parent loan while the earlier shared argument remains live.
+  Remaining acceptance: direct-boundary argument routes and scalar/reference
+  controls, with exact payload/interleave through Terminal reload/verification
+  and native execution; ordinary-array support alone is insufficient.
 
   Customers `samples/gui/{window_app,window_demo,image_viewer}` retain their
   by-value class/title signatures. The complete `window_demo` stops at stage

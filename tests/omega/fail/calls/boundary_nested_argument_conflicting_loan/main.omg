@@ -1,0 +1,14 @@
+// Retiring a nested-call realization fence must not retire argument loan order.
+// The first operand lends the array; the second cannot exclusively lend its
+// parent before the boundary call consumes that first operand.
+data Math {}
+data Buffer { values: [u8; 4]; }
+boundary operator Math::inspect(values: &[u8; 4], last: u64) -> u64;
+machine stamp(buffer: &mut Buffer) -> u64 {
+    buffer.values[0] = 99;
+    22
+}
+machine inspect(buffer: &mut Buffer) -> u64 {
+    let result: u64 = Math::inspect(&buffer.values, stamp(buffer));
+    result
+}

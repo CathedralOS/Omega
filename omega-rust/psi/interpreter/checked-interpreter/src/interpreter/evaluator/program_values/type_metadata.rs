@@ -5,10 +5,11 @@ use crate::interpreter::evaluator::{
     primitive_is_unsigned64, trap,
 };
 impl<'program> Evaluator<'program> {
-    /// Evaluate an argument entering an Omega state parameter while preserving
-    /// any sealed mutable recast view. The target parameter receives the same
-    /// view metadata under its own name instead of degrading to the source
-    /// byte-array reference at the state edge.
+    /// Evaluate and capture one operand at its declared parameter type before
+    /// the next operand executes. Ordinary calls and selected boundary adapters
+    /// share this operation. Owned aggregates keep their captured contents;
+    /// references keep their backing, including sealed mutable recast metadata
+    /// under the target parameter's name.
     pub(in crate::interpreter::evaluator) fn eval_state_argument(
         &mut self,
         argument: ExpressionHandle,
@@ -32,21 +33,30 @@ impl<'program> Evaluator<'program> {
                         && self.program.primitive_type_reference(destination).is_some();
                     (!scalar_observation).then_some(recast)
                 });
+        let cell = if let Some(value) = self.anonymous_integer_landing_value(
+            argument,
+            self.program.primitive_type_reference(destination),
+        )? {
+            self.allocate_cell(value)?
+        } else if matches!(
+            self.program.expression_table.expression(argument),
+            ExpressionNode::ArrayLiteral(_)
+        ) {
+            let value = self.eval_expression_at_type(argument, destination, frame)?;
+            self.allocate_cell(value)?
+        } else {
+            self.eval_argument(argument, frame)?
+        };
+        // Every call route evaluates one operand at its declared destination.
+        // Capture owned aggregate contents here, before the next operand can
+        // mutate their source. Keeping this in the ordinary-call loop left
+        // boundary adapters with aliases to arrays passed by value. Borrowed
+        // destinations retain their referents and sealed recast metadata.
+        let value = cell.borrow().clone();
+        let value = self.capture_value_operand(value, destination)?;
+        *cell.borrow_mut() = value;
         Ok(EvaluatedArgument {
-            cell: if let Some(value) = self.anonymous_integer_landing_value(
-                argument,
-                self.program.primitive_type_reference(destination),
-            )? {
-                self.allocate_cell(value)?
-            } else if matches!(
-                self.program.expression_table.expression(argument),
-                ExpressionNode::ArrayLiteral(_)
-            ) {
-                let value = self.eval_expression_at_type(argument, destination, frame)?;
-                self.allocate_cell(value)?
-            } else {
-                self.eval_argument(argument, frame)?
-            },
+            cell,
             mutable_recast,
         })
     }
