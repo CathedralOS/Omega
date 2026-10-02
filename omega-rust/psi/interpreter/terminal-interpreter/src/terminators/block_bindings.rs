@@ -362,7 +362,8 @@ impl TerminalExecution {
                 }
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                     if matches!(self.program.structural_types.get(&parameter.structural_type),
-                        Some(declaration) if matches!(declaration.shape, StructuralTypeShape::ElementView { .. })) =>
+                        Some(declaration) if matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+                            || declaration.shape.is_borrowed_byte_view()) =>
                 {
                     // A descriptor lends its window, not its affine storage.
                     // The common argument binder below preserves exact backing

@@ -1,4 +1,4 @@
-//! Validate and replace one operation-owned immutable byte descriptor.
+//! Validate and publish one byte window without replacing its backing.
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind, ValueId};
 use terminal_psi::{Operation, OperationKind, StructuralMultiplicity};
@@ -59,13 +59,16 @@ impl TerminalExecution {
         let source_value = self.structural_values.get(source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
         )?;
-        let bytes = self
-            .byte_sequence_values
-            .get(source)
-            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                *source,
-            ))?
-            .immutable()?;
+        let binding = self.byte_sequence_values.get(source).ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
+        )?;
+        let mutable = result.multiplicity == StructuralMultiplicity::Affine;
+        let source_mutable = matches!(
+            binding,
+            crate::byte_sequences::binding::ByteSequenceBinding::MutableArray { .. }
+                | crate::byte_sequences::binding::ByteSequenceBinding::MutableField { .. }
+        );
+        let source_length = self.byte_sequence_length(*source)?;
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
@@ -83,11 +86,17 @@ impl TerminalExecution {
             self.program.structural_types.get(&result.structural_type),
             Some(declaration)
                 if declaration.shape.is_borrowed_byte_view()
-        ) || bytes.len() != length
+        ) || u64::try_from(length).ok() != Some(source_length)
+            || start > end
+            || end > length
             || source_value.structural_type != result.structural_type
-            || !source_value.path.is_empty()
+            || (!source_mutable && !source_value.path.is_empty())
             || !source_value.qualifications.is_empty()
-            || result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
+            || (mutable && !source_mutable)
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
@@ -95,16 +104,15 @@ impl TerminalExecution {
                 .live_claims
                 .values()
                 .any(|claim| claim.place == Some(*source) || claim.place == Some(result.place))
-            || self
-                .live_affine_frontier
-                .iter()
-                .any(|entry| entry.place == *source || entry.place == result.place)
+            || self.live_affine_frontier.iter().any(|entry| {
+                (entry.place == *source && !source_mutable) || entry.place == result.place
+            })
             || self.scalar_case_values.contains_key(source)
             || self.scalar_case_values.contains_key(&result.place)
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let destination = TerminalStructuralValue {
+        let mut destination = TerminalStructuralValue {
             opaque_identity: result.place.get(),
             structural_type: result.structural_type,
             qualifications: Vec::new(),
@@ -121,16 +129,64 @@ impl TerminalExecution {
             ) if *previous == destination => {}
             _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
         }
-        // subslice snapshots the checked window and clones its Arc, not bytes.
-        // Other aliases keep their windows when this result is rebound.
-        let view = bytes
-            .subslice(start, end)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        self.byte_sequence_values.insert(
-            result.place,
-            crate::byte_sequences::binding::ByteSequenceBinding::Immutable(view),
-        );
+        use crate::byte_sequences::binding::ByteSequenceBinding;
+        let view = match binding {
+            ByteSequenceBinding::Immutable(bytes) => ByteSequenceBinding::Immutable(
+                bytes
+                    .subslice(start, end)
+                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
+            ),
+            ByteSequenceBinding::MutableArray {
+                array,
+                array_type,
+                offset,
+                ..
+            } => {
+                binding.validate_mutable_referent(&self.program.structural_types, source_value)?;
+                let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+                let start = offset
+                    .checked_add(u64::try_from(start).map_err(|_| invalid())?)
+                    .ok_or_else(invalid)?;
+                let end = offset
+                    .checked_add(u64::try_from(end).map_err(|_| invalid())?)
+                    .ok_or_else(invalid)?;
+                if mutable {
+                    destination = source_value.clone();
+                    destination.path = array.referent.path.clone();
+                    destination
+                        .path
+                        .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
+                    let view = ByteSequenceBinding::MutableArray {
+                        array: array.clone(),
+                        array_type: *array_type,
+                        offset: start,
+                        length: end - start,
+                        referent: destination.clone(),
+                    };
+                    view.validate_mutable_referent(&self.program.structural_types, &destination)?;
+                    view
+                } else {
+                    ByteSequenceBinding::Immutable(self.stored_byte_array_snapshot(
+                        array,
+                        usize::try_from(start).map_err(|_| invalid())?,
+                        usize::try_from(end).map_err(|_| invalid())?,
+                    )?)
+                }
+            }
+            ByteSequenceBinding::MutableField { .. } => {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+        };
+        self.byte_sequence_values.insert(result.place, view);
         self.structural_values.insert(result.place, destination);
+        if mutable {
+            self.live_affine_frontier
+                .insert(terminal_psi::StructuralAffineDiscard {
+                    place: result.place,
+                    path: Vec::new(),
+                    structural_type: result.structural_type,
+                });
+        }
         Ok(())
     }
 }

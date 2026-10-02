@@ -127,12 +127,8 @@ impl Checker<'_> {
     }
 
     pub(super) fn mutable_byte_view(&self, view: &TargetByteView, source: PlaceId) -> bool {
-        (self
-            .optimized
-            .arrival_parameter(source)
-            .is_some_and(|parameter| {
-                parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-            })
+        (optimization_unit_semantics::structural_place_access(self.optimized, source)
+            == Some(terminal_psi::StructuralAccess::MutableBorrow)
             || super::super::byte_views::owned_byte_result(self.optimized, source, self.types)
                 .is_some())
             && self.byte_view(view, source, &[])
@@ -165,7 +161,14 @@ impl Checker<'_> {
                 operation == &psi_operation
                     && *destination == source
                     && result.structural_type == structural_type
-                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    && optimization_unit_semantics::structural_place_access(self.optimized, source)
+                        .is_some_and(|access| {
+                            matches!(
+                                access,
+                                terminal_psi::StructuralAccess::SharedBorrow
+                                    | terminal_psi::StructuralAccess::MutableBorrow
+                            )
+                        })
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()

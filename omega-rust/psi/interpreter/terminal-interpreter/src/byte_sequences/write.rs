@@ -33,35 +33,91 @@ impl TerminalExecution {
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
-        if machine.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && matches!(
-                    declaration.kind,
-                    StructuralPlaceKind::OperationResult { .. }
-                )
-        }) {
-            return self.owned_byte_sequence_storage(place);
-        }
-        let parameter = machine
-            .structural_parameters
-            .iter()
-            .chain(
-                self.program
-                    .machines
-                    .get(&self.current_machine)
-                    .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
-                        self.current_machine,
-                    ))?
+        let result = machine.structural_places.iter().find_map(|declaration| {
+            let StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } = declaration.kind
+            else {
+                return None;
+            };
+            (declaration.id == place).then_some((producer, structural_type))
+        });
+        let (structural_type, qualifications, projected_qualifications) =
+            if let Some((producer, structural_type)) = result {
+                if self
+                    .program
+                    .structural_types
+                    .get(&structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                    })
+                {
+                    return self.owned_byte_sequence_storage(place);
+                }
+                let operation = machine
                     .blocks
                     .values()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == place)
-            .ok_or_else(invalid)?;
+                    .flat_map(|block| &block.operations)
+                    .find(|operation| operation.id == producer)
+                    .ok_or_else(invalid)?;
+                let result = operation.result.structural().ok_or_else(invalid)?;
+                if !matches!(
+                    operation.kind,
+                    OperationKind::EstablishMutableElementView { .. }
+                        | OperationKind::ByteSequenceSubslice { .. }
+                ) || result.place != place
+                    || result.structural_type != structural_type
+                    || result.multiplicity != StructuralMultiplicity::Affine
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                    || !self
+                        .live_affine_frontier
+                        .contains(&terminal_psi::StructuralAffineDiscard {
+                            place,
+                            path: Vec::new(),
+                            structural_type,
+                        })
+                {
+                    return Err(invalid());
+                }
+                (
+                    structural_type,
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                )
+            } else {
+                let parameter = machine
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        machine
+                            .blocks
+                            .values()
+                            .flat_map(|block| &block.structural_parameters),
+                    )
+                    .find(|parameter| parameter.place == place)
+                    .ok_or_else(invalid)?;
+                if parameter.access != StructuralAccess::MutableBorrow
+                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                {
+                    return Err(invalid());
+                }
+                (
+                    parameter.structural_type,
+                    &parameter.qualifications,
+                    &parameter.projected_qualifications,
+                )
+            };
         let bounded_owner = self
             .program
             .structural_types
-            .get(&parameter.structural_type)
+            .get(&structural_type)
             .is_some_and(|declaration| {
                 matches!(
                     declaration.shape,
@@ -70,10 +126,8 @@ impl TerminalExecution {
                     )
                 )
             });
-        if parameter.access != StructuralAccess::MutableBorrow
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || (!bounded_owner && !parameter.qualifications.is_empty())
-            || !parameter.projected_qualifications.is_empty()
+        if (!bounded_owner && !qualifications.is_empty())
+            || !projected_qualifications.is_empty()
             || self
                 .live_claims
                 .values()
@@ -82,8 +136,8 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let value = self.structural_values.get(&place).ok_or_else(invalid)?;
-        if value.structural_type != parameter.structural_type
-            || !matches!(self.program.structural_types.get(&parameter.structural_type), Some(declaration)
+        if value.structural_type != structural_type
+            || !matches!(self.program.structural_types.get(&structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
         {
             return Err(invalid());
@@ -225,6 +279,39 @@ impl TerminalExecution {
             ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableArray { .. } => {
                 self.mutable_byte_sequence_storage(source)
                     .map(|(_, length)| length)
+            }
+        }
+    }
+
+    pub(crate) fn byte_sequence_read(
+        &self,
+        source: PlaceId,
+        index: usize,
+    ) -> Result<u8, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        match self.byte_sequence_values.get(&source).ok_or_else(invalid)? {
+            ByteSequenceBinding::Immutable(view) => view.get(index).copied().ok_or_else(invalid),
+            ByteSequenceBinding::MutableArray { .. } | ByteSequenceBinding::MutableField { .. } => {
+                let (storage, length) = self.mutable_byte_sequence_storage(source)?;
+                if index as u128 >= u128::from(length) {
+                    return Err(invalid());
+                }
+                match storage {
+                    MutableByteSequenceStorage::Array { backing, offset } => {
+                        let index = usize::try_from(offset)
+                            .ok()
+                            .and_then(|offset| offset.checked_add(index))
+                            .ok_or_else(invalid)?;
+                        self.stored_byte_array_read(&backing, index)
+                    }
+                    MutableByteSequenceStorage::Field(field) => self
+                        .structural_byte_sequence_fields
+                        .get(&field)
+                        .and_then(|bytes| bytes.get(index))
+                        .copied()
+                        .ok_or_else(invalid),
+                    MutableByteSequenceStorage::Owned(_) => Err(invalid()),
+                }
             }
         }
     }

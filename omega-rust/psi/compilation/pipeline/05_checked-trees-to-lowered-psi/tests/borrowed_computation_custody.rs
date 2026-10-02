@@ -52,6 +52,91 @@ const MUTABLE_RANGE_LOCAL_SOURCE: &str = include_str!(concat!(
     "/../../../../../tests/omega/pass/slices/mutable_field_range_local_initializer_exit/main.omg"
 ));
 
+const MUTABLE_BYTE_RANGE_SOURCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/omega/pass/slices/mutable_byte_field_range_scalar_initializer_exit/main.omg"
+));
+const MUTABLE_BYTE_RANGE_LOCAL_SOURCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/omega/pass/slices/mutable_byte_field_range_local_initializer_exit/main.omg"
+));
+
+#[test]
+fn mutable_byte_range_computation_executes_once_before_observing_the_backing() {
+    assert_mutable_range_computation(MUTABLE_BYTE_RANGE_SOURCE);
+}
+
+#[test]
+fn mutable_byte_range_local_computation_executes_once_before_observing_the_backing() {
+    assert_mutable_range_computation(MUTABLE_BYTE_RANGE_LOCAL_SOURCE);
+}
+
+#[test]
+fn mutable_byte_range_establishment_rejects_access_element_and_carrier_drift() {
+    for source in [MUTABLE_BYTE_RANGE_SOURCE, MUTABLE_BYTE_RANGE_LOCAL_SOURCE] {
+        let checked = crate::front_end::checked_program(source);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("main"),
+        )
+        .expect("the mutable byte range lowers with its exact collection contract");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("the original byte range verifies independently");
+        for mutation in ["source access", "multiplicity", "element", "owned carrier"] {
+            let mut module = lowered.semantic_module.clone();
+            let operation = module
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::EstablishMutableElementView { .. }
+                    )
+                })
+                .expect("the actual byte array loan establishment");
+            let terminal_psi::OperationResult::Structural(result) = &mut operation.result else {
+                panic!("a byte descriptor result");
+            };
+            let result_type = result.structural_type;
+            let terminal_psi::OperationKind::EstablishMutableElementView {
+                source, element, ..
+            } = &mut operation.kind
+            else {
+                unreachable!();
+            };
+            match mutation {
+                "source access" => source.access = terminal_psi::StructuralAccess::SharedBorrow,
+                "multiplicity" => {
+                    result.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted
+                }
+                "element" => *element = result_type,
+                "owned carrier" => {
+                    let declaration = module
+                        .structural_types
+                        .iter_mut()
+                        .find(|declaration| declaration.id == result_type)
+                        .unwrap();
+                    assert!(declaration.shape.is_borrowed_byte_view());
+                    declaration.shape = terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 4 },
+                    );
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                terminal_verifier::validate_module(&module).is_err(),
+                "mutable collection establishment accepted forged {mutation}"
+            );
+        }
+    }
+}
+
 #[test]
 fn mutable_range_local_computation_executes_once_before_observing_the_backing() {
     assert_mutable_range_computation(MUTABLE_RANGE_LOCAL_SOURCE);

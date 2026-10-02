@@ -70,6 +70,10 @@ pub(super) fn lower(
                     function,
                     structural_types,
                     &prepared.parameters,
+                    element_views::ElementViewBackings::new(
+                        &live.structural_homes,
+                        &live.address_joins,
+                    ),
                     &mut values,
                     &live.lengths,
                     &mut provenance.operations,
@@ -112,10 +116,11 @@ pub(super) fn lower(
         ..
     } = operation
     {
-        let view = byte_views::view_for_place(
+        let (view, _) = byte_views::resolve_byte_view(
             function,
             structural_types,
             &prepared.parameters,
+            element_views::ElementViewBackings::new(&live.structural_homes, &live.address_joins),
             &values,
             &live.lengths,
             result.place,

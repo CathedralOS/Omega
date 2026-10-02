@@ -118,7 +118,6 @@ impl TerminalExecution {
                     parameter.access,
                     StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                 )
-                || (parameter.access == StructuralAccess::SharedBorrow && !resolved.path.is_empty())
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || !resolved.qualifications.is_empty()
@@ -129,21 +128,8 @@ impl TerminalExecution {
             let bytes = self.byte_sequence_values.get(&argument.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
             )?;
-            match bytes {
-                ByteSequenceBinding::Immutable(_) => {
-                    if parameter.access != StructuralAccess::SharedBorrow {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                    }
-                }
-                ByteSequenceBinding::MutableField { .. }
-                | ByteSequenceBinding::MutableArray { .. } => {
-                    if parameter.access != StructuralAccess::MutableBorrow {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                    }
-                    bytes.validate_mutable_referent(&self.program.structural_types, resolved)?;
-                }
-            }
-            if values.insert(parameter.place, bytes.clone()).is_some() {
+            let bytes = self.reborrow_byte_sequence_binding(bytes, resolved, parameter.access)?;
+            if values.insert(parameter.place, bytes).is_some() {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
         }

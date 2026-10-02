@@ -263,11 +263,18 @@ pub(super) fn validate_borrowed_argument(
             &signature.structural_types,
         )
     });
-    // An element loan rooted at an established element view keeps the view
-    // type as its root and carries the projected element's offset — the
-    // descriptor's establishment, not a parameter or a home, is its source.
+    // Whole descriptors retain their exact carrier geometry; element loans
+    // additionally carry a referent-relative projection. Their source is the
+    // authenticated view chain, not an ordinary exclusive storage parameter.
     let established_view_loan =
         crate::selection::established_view_input::element_view_type(source, semantic.place)
+            .or_else(|| {
+                if !semantic.path.is_empty() {
+                    return None;
+                }
+                crate::selection::established_view_input::view_access(source, semantic.place)?;
+                crate::selection::established_view_input::view_type(source, semantic.place)
+            })
             .and_then(|view_type| {
                 let (selected, offset, elements) =
                     crate::structural_inputs::structural_reference_input::runtime_projection(

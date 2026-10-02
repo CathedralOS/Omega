@@ -72,7 +72,7 @@ pub(in crate::selection) fn root_type(
     if let Some(structural_type) =
         super::established_view_input::element_view_type(function, source.place)
     {
-        return (super::established_view_input::element_view_access(function, source.place)?
+        return (super::established_view_input::view_access(function, source.place)?
             == source.access)
             .then_some(structural_type);
     }
