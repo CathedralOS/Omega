@@ -3027,24 +3027,33 @@ completion syntax or other terminal service is a prerequisite.
   checked layout/validity, backing identity, lifetime, access and whole-place
   reads through ordinary expression sequencing and temporary loans.
 
-  On base `9782e38b64ab`, Linux x86-64 checked/native production rejects
-  `runtime_scalar_parameter_shared_views_exit` while the checked interpreter
-  returns 70. Admitting runtime scalar parameters as shared-loan backing roots
-  in stage 04 `terminal_unit/control/statement_sequence/local_data.rs` makes
-  ordinary shared integer reads and equal-width float bit views run with both
-  engines returning 70 (`python tools/corpus_gate.py --both --filter
-  recast/runtime_scalar_parameter_shared_views_exit`). The wider `f32`-to-`u64`
-  view remains rejected for unequal footprint. The unchanged total-order
-  customer (`omega run --both
+  On base `f64782b891147a98314a566696a5a5e044378c43`, Linux x86-64
+  native production rejects `runtime_shared_domain_weakening_recast_exit` and
+  the equivalent mutable domain/range siblings at stage 05 `Unit graph dropped
+  or added a body effect`; their checked interpretation returns 70. Replaying
+  storage with `validation::declared_carriers_match` in
+  `unit/attached_unit/statement_custody.rs` instead of full qualification
+  identity makes all three unchanged programs return 70 natively and in the
+  interpreter (`python tools/corpus_gate.py --both --filter
+  runtime_shared_domain_weakening_recast_exit,runtime_mutable_equivalent_domain_recast_exit,runtime_mutable_equivalent_range_recast_exit`;
+  [reproducer](tests/omega/pass/recast/runtime_shared_domain_weakening_recast_exit/README.md)).
+  The checked recast judgment still owns qualification legality; exact loan
+  geometry, access and activation still own statement erasure.
+
+  The unchanged total-order customer (`omega run --both
   tests/omega/pass/float/runtime_total_order_satisfiers_exit/main.omg`;
   [reproducer](tests/omega/pass/float/runtime_total_order_satisfiers_exit/README.md))
-  advances from an omitted scalar callee body to stage 05
-  `computed primitive borrow lost its established local`; interpreter exit 70.
-  Next acceptance is native exit 70 after retaining a scalar parameter's backing
-  home and its shared representation-view loan through borrowed helper calls in
+  still rejects at stage 05 `computed primitive borrow lost its established
+  local`; interpreter exit 70. The scalar-parameter shared-view control returns
+  70 in both engines. Next acceptance is native total-order exit 70 after
+  retaining the scalar parameter's backing home and passing its shared
+  representation-view loan through borrowed helper calls in
   `expression_preparation/bindings::ScalarBindings::primitive_borrow`.
-  Ordinary package-review acceptance can independently stop the public command
-  at exit 200; the corpus command uses reviewed fixture policy.
+  Reference-view replay requires the live static-tail-loan assignment's
+  Terminal/Abstract references validation and the Squalr reference-store
+  assignment's Terminal result contracts; coordinate those dependencies before
+  editing. Ordinary package-review acceptance can independently stop the public
+  command at exit 200; the corpus command uses reviewed fixture policy.
 
   Keep `runtime_bool_representation_recast_exit` and
   `runtime_float_range_representation_recast_exit` as native/interpreter

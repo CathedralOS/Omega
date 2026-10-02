@@ -12,4 +12,7 @@ pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interprete
 pass/recast/runtime_bool_representation_recast_exit built 2795ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_float_range_representation_recast_exit built 6494ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_integer_bit_view_recast_exit built 3254ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
+pass/recast/runtime_mutable_equivalent_domain_recast_exit built 5555ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt
+pass/recast/runtime_mutable_equivalent_range_recast_exit built 7853ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit built 2535ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
+pass/recast/runtime_shared_domain_weakening_recast_exit built 7058ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt

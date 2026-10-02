@@ -165,9 +165,12 @@ fn place_loan_declaration(
     };
     let source_type = validation::reference_shell(&checked.typed, source_type)
         .map_or(source_type, |reference| reference.referee);
-    if checked.typed.normalized_type_identity(reference.referee)
-        != checked.typed.normalized_type_identity(source_type)
-    {
+    // Qualification legality belongs to the checked recast/weakening judgment.
+    // Here we replay storage custody: a declared domain or range does not turn
+    // an alias into a runtime producer. Compare the declared carriers while
+    // retaining access, extent and nominal identity; loan geometry and the
+    // exact activation below still justify omitting the declaration.
+    if !validation::declared_carriers_match(&checked.typed, reference.referee, source_type) {
         return None;
     }
     if loan.source_owner_symbol.is_valid()
