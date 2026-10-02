@@ -165,31 +165,23 @@ fn state_result_origins<'program>(
         inference,
     )?;
     let statements = program.statement_table.statements(state.statement_nodes);
-    let parameters = program.state_parameters(state);
-    // The shared transfer freezes local aliases and carrier leaves. Incoming
-    // reference bindings also anchor this exported relation and cannot be
-    // exposed for replacement anywhere in the helper, including a terminal
-    // sibling expression. Content writes through their owned suffixes remain
-    // ordinary producer effects.
+    // Every borrowed origin must retain its declaration. The shared transfer
+    // below decides whether a reborrow exposes an unresolved binding or writes
+    // through an established referent; a separate syntactic ban on parameter
+    // reborrows would discard that distinction for returned carriers. Content
+    // writes remain ordinary producer effects, including in result operands.
     if statements.iter().any(|statement| {
         super::statement_value_expression_roots(program, statement)
             .into_iter()
             .any(|expression| {
-                (!include_shared
-                    && super::local_aliases::expression_reborrows_stable_alias_binding(
-                        program,
-                        expression,
-                        parameters,
-                        &[],
-                    ))
-                    || super::local_aliases::expression_has_exclusive_borrow(
-                        program,
-                        expression,
-                        &|target| {
-                            super::reference_origins::declared_origin_root(program, machine, target)
-                                .is_none()
-                        },
-                    )
+                super::local_aliases::expression_has_exclusive_borrow(
+                    program,
+                    expression,
+                    &|target| {
+                        super::reference_origins::declared_origin_root(program, machine, target)
+                            .is_none()
+                    },
+                )
             })
     }) {
         return None;
