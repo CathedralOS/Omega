@@ -299,14 +299,31 @@ fn a_stored_true_field_does_not_prove_it_was_true_at_invocation_entry() {
     );
 }
 
-/// The callee's shared field guard observes storage at this invocation. The
+/// The callee's field guard observes storage at this invocation. The
 /// caller's identical-looking ceiling refers to the caller's earlier entry.
 fn loop_call_after_mutation(entry_value: bool, publish_guard: bool) -> TerminalModule {
     let mut checked = module(true, true);
     let mut callee = module(false, true).machines.remove(0);
     callee.id = id(2);
     callee.contract.id = id(2);
-    callee.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    callee.structural_parameters[0].place = id(2);
+    callee.structural_places[0].id = id(2);
+    let continuations = callee.contract.crash_routes.clone();
+    callee.contract.crash_routes[0].alternatives = vec![CrashRouteGuard::Predicate(predicate(
+        ScalarTerm::boolean_field(id(2), id(1)),
+        true,
+    ))];
+    callee.entry = id(7);
+    callee.blocks[0].id = id(7);
+    // The declaration permits this field-dependent crash. A body may return
+    // normally under that ceiling; call coverage must use its declaration,
+    // independently of whether this particular implementation takes the crash.
+    callee.blocks.truncate(1);
+    callee.blocks[0].operations.clear();
+    callee.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: id(7),
+        trivial_affine_discards: Vec::new(),
+    };
     let caller = &mut checked.machines[0];
     caller.contract.requires = vec![
         predicate(ScalarTerm::boolean_field(id(1), id(1)), entry_value)
@@ -348,11 +365,11 @@ fn loop_call_after_mutation(entry_value: bool, publish_guard: bool) -> TerminalM
                 structural_arguments: vec![terminal_psi::StructuralArgument {
                     place: id(1),
                     path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
+                    access: StructuralAccess::MutableBorrow,
                 }],
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
-                crash_continuations: callee.contract.crash_routes.clone(),
+                crash_continuations: continuations,
             },
         }],
         terminator: jump(6),

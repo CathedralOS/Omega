@@ -1,4 +1,4 @@
-//! Deterministic CFG scheduling and all-path fact intersection.
+//! Deterministic CFG scheduling, shared arrival facts, and normal-exit alternatives.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -80,7 +80,42 @@ pub(super) fn take_guaranteed_incoming(
 }
 
 pub(super) fn guaranteed_exit_facts(exits: Vec<SharedRoster>) -> Vec<Proposition> {
-    intersect_paths(exits).unwrap_or_default()
+    let mut guaranteed = intersect_paths(exits.clone()).unwrap_or_default();
+    if exits.len() < 2 {
+        return guaranteed;
+    }
+    // Every normal exit establishes its own conjunction. Intersection alone
+    // loses a restored range when different branches store different valid
+    // values. Retain the residual alternatives as one disjunction: a proof
+    // must establish its consequence from every arm, never select an arm.
+    // Common facts stay outside it, bounding storage by the original exit
+    // rosters without enumerating control-flow paths or multiplying cases.
+    let common = FactIndex::new(&guaranteed);
+    let mut alternatives = Vec::new();
+    for exit in &exits {
+        let residual = exit
+            .to_vec()
+            .into_iter()
+            .filter(|fact| common.position_of(&guaranteed, fact).is_none())
+            .collect::<Vec<_>>();
+        if residual.is_empty() {
+            return guaranteed;
+        }
+        let alternative = if residual.len() == 1 {
+            residual.into_iter().next().unwrap()
+        } else {
+            Proposition::Conjunction(residual)
+        };
+        if !alternatives.contains(&alternative) {
+            alternatives.push(alternative);
+        }
+    }
+    if alternatives.len() == 1 {
+        guaranteed.extend(alternatives);
+    } else {
+        guaranteed.push(Proposition::Disjunction(alternatives));
+    }
+    guaranteed
 }
 
 fn intersect_paths(paths: Vec<SharedRoster>) -> Option<Vec<Proposition>> {

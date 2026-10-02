@@ -13,13 +13,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, TerminalMachine, TerminalModule};
 
 pub(super) struct StorageObservations {
-    origins: BTreeMap<PlaceId, BTreeSet<(PlaceId, Vec<CanonicalStructuralPathSegment>)>>,
+    origins: crate::validation::BorrowedStorageOrigins,
     invocation_origins: BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 }
 
 impl StorageObservations {
     pub(super) fn new(module: &TerminalModule, machine: &TerminalMachine) -> Self {
-        let origins = crate::validation::window_aliases(module, machine);
+        let origins = crate::validation::borrowed_storage_origins(module, machine);
         let invocation_origins = origins
             .iter()
             .filter_map(|(place, alternatives)| {
@@ -31,7 +31,8 @@ impl StorageObservations {
                     .structural_parameters
                     .iter()
                     .any(|parameter| {
-                        parameter.place == origin.0
+                        origin.exact
+                            && parameter.place == origin.root
                             && matches!(
                                 parameter.access,
                                 StructuralAccess::SharedBorrow
@@ -39,7 +40,7 @@ impl StorageObservations {
                                     | StructuralAccess::WriteOnlyBorrow
                             )
                     })
-                    .then(|| (*place, origin.clone()))
+                    .then(|| (*place, (origin.root, origin.path.clone())))
             })
             .collect();
         Self {
@@ -56,10 +57,12 @@ impl StorageObservations {
         match self.origins.get(&root) {
             Some(origins) => origins
                 .iter()
-                .map(|(origin, prefix)| {
-                    let mut full = prefix.clone();
-                    full.extend_from_slice(path);
-                    (*origin, full)
+                .map(|origin| {
+                    let mut full = origin.path.clone();
+                    if origin.exact {
+                        full.extend_from_slice(path);
+                    }
+                    (origin.root, full)
                 })
                 .collect(),
             None => vec![(root, path.to_vec())],
@@ -83,7 +86,9 @@ impl StorageObservations {
                 // An unresolved cyclic origin grants neither disjointness nor
                 // publication identity. Until it resolves, every write may
                 // disturb an observation through that name.
-                if self.unresolved(root) || self.unresolved(observed) { return true; }
+                if self.unresolved(root) || self.unresolved(observed) {
+                    return true;
+                }
                 self.regions(observed, path.as_deref().unwrap_or_default())
                     .iter()
                     .any(|(observed_root, observed_path)| {
@@ -110,7 +115,9 @@ impl StorageObservations {
         crate::validation::proposition_boolean_field_roots(proposition)
             .into_iter()
             .any(|observed| {
-                if self.unresolved(observed) || places.iter().any(|root| self.unresolved(*root)) { return !places.is_empty(); }
+                if self.unresolved(observed) || places.iter().any(|root| self.unresolved(*root)) {
+                    return !places.is_empty();
+                }
                 self.regions(observed, &[])
                     .iter()
                     .any(|(observed_root, observed_path)| {
@@ -138,7 +145,9 @@ impl StorageObservations {
             // Content revisions and projection paths have an independent
             // conservation owner. A current-storage alias is no evidence for
             // moving a versioned content term to an invocation root.
-            if crate::validation::proposition_contains_content(&axioms[index]) { continue; }
+            if crate::validation::proposition_contains_content(&axioms[index]) {
+                continue;
+            }
             let rewritten = super::substitution::substitute_proposition_structural_places(
                 &axioms[index],
                 &self.invocation_origins,

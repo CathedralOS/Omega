@@ -459,9 +459,13 @@ fn final_state_store_invalidates_earlier_names_before_return_restoration() {
     let mut reproduced = lowered;
     reproduced.semantic_module = broken;
     reproduced.proof_bundle.evidence.clear();
-    assert!(matches!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut reproduced),
-        Err(crate::LoweringError::OperationProofUnavailable(_))),
-        "fresh proof production must also reject stale invocation-name facts");
+    assert!(
+        matches!(
+            crate::proofs::operation_proofs::finalize_operation_proofs(&mut reproduced),
+            Err(crate::LoweringError::OperationProofUnavailable(_))
+        ),
+        "fresh proof production must also reject stale invocation-name facts"
+    );
 }
 
 #[test]
@@ -479,35 +483,91 @@ fn a_local_alternative_cannot_publish_the_invocation_parameters_field_fact() {
         }
     ";
     for local_alternative in [false, true] {
-        let source = if local_alternative { SOURCE.to_owned() }
-            else { SOURCE.replace("finish(&mut other)", "finish(context)") };
+        let source = if local_alternative {
+            SOURCE.to_owned()
+        } else {
+            SOURCE.replace("finish(&mut other)", "finish(context)")
+        };
         let checked = crate::front_end::checked_program(&source);
         let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
             .expect("each selected loan writes its own backing");
         let next = terminal_verifier::maximum_registered_obligation_id(&lowered.semantic_module)
-            .unwrap().checked_add(1).unwrap();
+            .unwrap()
+            .checked_add(1)
+            .unwrap();
         let machine = &mut lowered.semantic_module.machines[0];
         let root = machine.structural_parameters[0].place;
-        let field = machine.blocks.iter().flat_map(|block| &block.operations).find_map(|operation| {
-            if let OperationKind::StructuralScalarFieldStore { field, .. } = operation.kind { Some(field) } else { None }
-        }).unwrap();
+        let field = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| {
+                if let OperationKind::StructuralScalarFieldStore { field, .. } = operation.kind {
+                    Some(field)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
         machine.contract.ensures.push(terminal_psi::ContractClause {
             obligation: semantic_vocabulary::ObligationId::new(next).unwrap(),
             proposition: semantic_vocabulary::Proposition::Equal(
-                semantic_vocabulary::ScalarTerm::ieee_float_field_path(root,
-                    vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)],
-                    semantic_vocabulary::IeeeFloatFormat::Binary32),
-                semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(semantic_vocabulary::IeeeFloatValue::Binary32(0.25_f32.to_bits())),
+                semantic_vocabulary::ScalarTerm::ieee_float_field_path(
+                    root,
+                    vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                        field,
+                    )],
+                    semantic_vocabulary::IeeeFloatFormat::Binary32,
+                ),
+                semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(
+                    semantic_vocabulary::IeeeFloatValue::Binary32(0.25_f32.to_bits()),
+                ),
             ),
         });
         lowered.proof_bundle.evidence.clear();
         let result = crate::proofs::operation_proofs::finalize_operation_proofs(&mut lowered);
         if local_alternative {
-            assert!(matches!(result, Err(crate::LoweringError::OperationProofUnavailable(_))),
-                "a local backing is not silently discarded when deciding origin identity: {result:?}");
+            assert!(
+                matches!(
+                    result,
+                    Err(crate::LoweringError::OperationProofUnavailable(_))
+                ),
+                "a local backing is not silently discarded when deciding origin identity: {result:?}"
+            );
         } else {
             result.expect("all incoming origins select the invocation parameter");
             assert!(verify(&lowered.semantic_module, &lowered));
         }
     }
+}
+
+#[test]
+fn every_normal_return_alternative_must_restore_the_collection_bounds() {
+    let mut lowered = lowered("");
+    let branched = |machine: &terminal_psi::TerminalMachine| {
+        machine
+            .blocks
+            .iter()
+            .filter(|block| {
+                matches!(
+                    block.terminator,
+                    terminal_psi::Terminator::ReturnUnit { .. }
+                )
+            })
+            .count()
+            == 2
+    };
+    assert_eq!(
+        substitute_constant(&mut lowered.semantic_module, branched, 1, 7),
+        1,
+        "only the live-cell return writes one; the other return still restores zero"
+    );
+    lowered.proof_bundle.evidence.clear();
+    assert!(
+        matches!(
+            crate::proofs::operation_proofs::finalize_operation_proofs(&mut lowered),
+            Err(crate::LoweringError::OperationProofUnavailable(_))
+        ),
+        "a valid zero-store return cannot hide the other return's invalid seven"
+    );
 }
