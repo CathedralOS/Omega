@@ -377,23 +377,6 @@ fn stored_field_identity(
         .map(|candidate| candidate.identity.clone())
 }
 
-/// Bound certificates belong to operations; an observed location is selected
-/// by its root, static geometry and exact immutable selector values. Replacing
-/// an obligation identity cannot turn another element into the measured one.
-fn same_observed_path(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(left, right)| match (left, right) {
-                (
-                    StructuralPathSegment::RuntimeIndex { index: left, .. },
-                    StructuralPathSegment::RuntimeIndex { index: right, .. },
-                ) => left == right,
-                _ => left == right,
-            })
-}
-
 pub(in crate::validation) fn exact_length_is_current(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -422,7 +405,7 @@ pub(in crate::validation) fn exact_length_is_current(
     let Some((_, producer)) = operations_naming(machine, operation.id, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
-                if source == name && same_observed_path(measured_path, path) && *measured_field == field)
+                if source == name && terminal_semantics::structural_paths_select_same_location(measured_path, path) && *measured_field == field)
     }) else { return false; };
     unchanged_since(
         machine,
@@ -566,7 +549,7 @@ pub(crate) fn field_content_length_is_current(
     let Some((_, producer)) = operations_naming(machine, use_site, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
-                if source == name && same_observed_path(measured_path, path) && *measured_field == field)
+                if source == name && terminal_semantics::structural_paths_select_same_location(measured_path, path) && *measured_field == field)
     }) else { return false; };
     unchanged_since(machine, producer.id, use_site, root, |candidate, root| {
         changes_content(module, machine, root, &exact_path, candidate)

@@ -77,6 +77,26 @@ pub fn runtime_index_selects(value: IntegerValue, extent: u64) -> Option<u64> {
     (selected < extent).then_some(selected)
 }
 
+/// Exact storage selection ignores operation-owned bound identities. Each
+/// runtime selector must still be the same immutable SSA value; this relation
+/// proves neither its bounds nor the current validity of a storage observation.
+pub fn structural_paths_select_same_location(
+    left: &[StructuralPathSegment],
+    right: &[StructuralPathSegment],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| match (left, right) {
+                (
+                    StructuralPathSegment::RuntimeIndex { index: left, .. },
+                    StructuralPathSegment::RuntimeIndex { index: right, .. },
+                ) => left == right,
+                _ => left == right,
+            })
+}
+
 /// Conservative overlap of borrowed projections. Prefixes retain their whole
 /// subtree; distinct range spellings are not evidence of disjoint storage.
 pub fn structural_paths_may_overlap(

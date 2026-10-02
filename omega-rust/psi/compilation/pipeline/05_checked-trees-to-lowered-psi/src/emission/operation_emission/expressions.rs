@@ -360,23 +360,6 @@ pub(crate) fn emit_element_length(
 /// Runtime selectors use the same per-operation namespace across primitive and
 /// byte-field observations. A field length and its read may share selectors,
 /// but each operation owns its own independently reconstructed bounds.
-/// Operation-owned bounds do not change the immutable selectors naming storage.
-fn same_observed_path(
-    left: &[terminal_psi::StructuralPathSegment],
-    right: &[terminal_psi::StructuralPathSegment],
-) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(left, right)| match (left, right) {
-                (
-                    terminal_psi::StructuralPathSegment::RuntimeIndex { index: left, .. },
-                    terminal_psi::StructuralPathSegment::RuntimeIndex { index: right, .. },
-                ) => left == right,
-                _ => left == right,
-            })
-}
 
 fn selector_obligation(operation: u64, ordinal: usize) -> semantic_vocabulary::ObligationId {
     assert!(
@@ -604,7 +587,11 @@ pub(crate) fn emit_direct_expression(
                 .iter()
                 .rev()
                 .find_map(|(place, carrier, named, value)| {
-                    (*place == *source && same_observed_path(carrier, &path) && *named == *field)
+                    (*place == *source
+                        && terminal_semantics::structural_paths_select_same_location(
+                            carrier, &path,
+                        )
+                        && *named == *field)
                         .then_some(*value)
                 })
                 .unwrap_or_else(|| {

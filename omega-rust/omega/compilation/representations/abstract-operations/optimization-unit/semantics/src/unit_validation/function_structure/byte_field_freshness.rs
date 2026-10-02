@@ -68,7 +68,7 @@ pub(super) fn validate(
                 names.in_block(block.id).find_map(|name| {
                     block.nodes.iter().position(|candidate| matches!(&candidate.operation,
                         O::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
-                        if *source == name && measured_path == path && measured_field == field && result.value == *length
+                        if *source == name && terminal_semantics::structural_paths_select_same_location(measured_path, path) && measured_field == field && result.value == *length
                     )).map(|position| (owner, position))
                 })
             }).ok_or_else(|| invalid.clone())?;
@@ -89,6 +89,32 @@ pub(super) fn validate(
     Ok(())
 }
 
+/// A dynamic view has no declared extent. Even literal selections retain a
+/// runtime-index certificate; replacing that segment by FixedIndex erases
+/// evidence and cannot preserve the current operation contract.
+pub(super) fn field_carrier(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    for (position, segment) in path.iter().enumerate() {
+        if matches!(segment, StructuralPathSegment::FixedIndex(_)) {
+            let parent = super::super::structural_catalog::resolve_structural_path(
+                types,
+                root,
+                &path[..position],
+            )?;
+            if matches!(
+                types.get(&parent)?.shape,
+                StructuralTypeShape::ElementView { .. }
+            ) {
+                return None;
+            }
+        }
+    }
+    super::super::structural_catalog::resolve_structural_path(types, root, path)
+}
+
 pub(super) fn field_path(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -103,11 +129,7 @@ pub(super) fn field_path(
         } else {
             (structural_type, path)
         };
-    let carrier = super::super::structural_catalog::resolve_structural_path(
-        types,
-        storage_type,
-        storage_path,
-    )?;
+    let carrier = field_carrier(types, storage_type, storage_path)?;
     let StructuralTypeShape::Record { fields } = &types.get(&carrier)?.shape else {
         return None;
     };
@@ -162,5 +184,5 @@ pub fn byte_field_root(
 }
 
 pub(super) fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
-    left.starts_with(right) || right.starts_with(left)
+    terminal_semantics::structural_paths_may_overlap(left, right)
 }
