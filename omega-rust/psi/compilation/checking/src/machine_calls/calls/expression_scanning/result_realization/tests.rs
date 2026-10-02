@@ -307,3 +307,20 @@ fn borrowed_self_place_receiver_initializers_are_result_operations() {
         "an owned receiver is not lent by the result operation"
     );
 }
+
+#[test]
+fn scalar_boundary_initializers_share_ordered_operand_admission() {
+    for destination in ["let result: u64", "let mut result: u64"] {
+        let program = crate::front_end::typed_program(&format!(
+            "data Math {{}}
+             boundary operator Math::keep(before: u64, values: [u8; 2], after: u64) -> u64;
+             machine mark(value: u64) -> u64 {{ value }}
+             machine selected(values: [u8; 2]) -> u64 {{
+                 {destination} = Math::keep(mark(11), values, mark(22));
+                 result
+             }}"
+        ));
+        crate::validate_program(&program)
+            .unwrap_or_else(|diagnostics| panic!("{destination}: {diagnostics:#?}"));
+    }
+}

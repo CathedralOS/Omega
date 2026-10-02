@@ -213,11 +213,6 @@ impl Evaluator<'_> {
         for (ordinal, argument) in arguments.iter().copied().enumerate() {
             let destination = destinations.get(ordinal).copied().unwrap_or_default();
             let argument = self.eval_state_argument(argument, destination, frame)?;
-            let value = argument.cell.borrow().clone();
-            let value = self.capture_value_operand(value, destination)?;
-            // Argument evaluation allocated this staging cell. Replace only its
-            // value, preserving recast metadata and any borrowed referent.
-            *argument.cell.borrow_mut() = value;
             evaluated.push(argument);
         }
         Ok(evaluated)

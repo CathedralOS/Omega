@@ -60,10 +60,9 @@ pub(crate) fn report_nested_call_in_local_initializer(
     value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if scalar_initializer_computation_is_supported(program, machine, value)
+    if scalar_initializer_has_operand_evaluation(program, machine, value)
         || result_initializer_call_is_supported(program, machine, value)
         || reference_result_nested_operand_call_is_supported(program, machine, value)
-        || boundary_application_initializer(program, machine, value)
     {
         // This exempts a destination, not its semantics. Ordinary call checks
         // still validate every argument; unsupported computation nodes or call
@@ -909,15 +908,33 @@ fn ordinary_scalar_call_result_primitive(
         .flatten()
 }
 
-fn scalar_initializer_computation_is_supported(
+/// Every resolved scalar local evaluates its operands before binding the result.
+/// Checked-body calls use a computation graph; boundary calls use a result
+/// operation with the same ordered argument computations. Requiring a particular
+/// supply or receiver spelling here duplicates those owners and refuses valid
+/// mixtures of scalar and structural operands. This only retires the legacy
+/// nested-result fence: type, effect and custody checks still run, and missing
+/// operand plans fail product construction rather than supplying a value.
+fn scalar_initializer_has_operand_evaluation(
     program: &TypedTrees,
     machine: &Machine,
     value: ExpressionHandle,
 ) -> bool {
-    let Some(result_primitive) = ordinary_scalar_call_result_primitive(program, value) else {
+    if !program.expression_table.expression_is_valid(value) {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
+    if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
+        return false;
+    }
     program.machine_states(machine).iter().any(|state| {
+        let Some(result_primitive) = crate::expression_result_type_reference(
+            program, machine, state, value,
+        ).and_then(|reference| program.primitive_type_reference(reference)) else {
+            return false;
+        };
         program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
             matches!(statement, StatementNode::LocalData(local)
                 if local.initial_value == value
@@ -965,28 +982,6 @@ pub(crate) fn report_nested_call_in_bound_value_call(
             return;
         }
     }
-}
-
-/// A scalar boundary application tree evaluates its operands in order for
-/// either local destination. Immutable bindings retain a result operation;
-/// mutable storage retains the whole computation before establishing its slot.
-/// Mutability does not change the calls' signatures or operand evaluation.
-fn boundary_application_initializer(
-    program: &TypedTrees,
-    machine: &Machine,
-    value: ExpressionHandle,
-) -> bool {
-    nested_boundary_applications_compose(program, value)
-        && program.machine_states(machine).iter().any(|state| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    matches!(statement, StatementNode::LocalData(local)
-                        if local.initial_value == value)
-                })
-        })
 }
 
 /// True when `value` is a bodyless scalar boundary application whose every
