@@ -3,6 +3,7 @@
 
 mod attached_returns_and_call_results;
 mod machine_edges_and_projections;
+mod nested_local_construction;
 mod structural_unit_control;
 
 fn machine_and_entry_state(

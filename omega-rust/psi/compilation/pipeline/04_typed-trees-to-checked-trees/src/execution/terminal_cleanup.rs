@@ -882,38 +882,6 @@ pub(super) fn state_exit_result_locals(
         {
             continue;
         }
-        // An owned selection destination is established by its receipt's arm
-        // transfers, not an ordinary Establish row; the drop keeps that
-        // receipt's Unknown provenance. Other locals keep their exact
-        // statement establishment.
-        let (statement_index, selection_destination) = match drop.provenance {
-            PermissionProvenance::Established {
-                machine_symbol,
-                state_symbol,
-                source: PermissionEventSource::Statement { statement_index },
-            } => {
-                if machine_symbol != machine.symbol || state_symbol != state.symbol {
-                    return None;
-                }
-                (statement_index, false)
-            }
-            PermissionProvenance::Unknown => {
-                let receipt = facts
-                    .flow
-                    .ownership
-                    .owned_selections
-                    .iter()
-                    .map(|(_, receipt)| receipt)
-                    .find(|receipt| {
-                        receipt.machine == machine.symbol
-                            && receipt.state == state.symbol
-                            && receipt.destination == symbol
-                            && receipt.death == PermissionEventSource::StateExit
-                    })?;
-                (receipt.statement_ordinal as usize, true)
-            }
-            _ => return None,
-        };
         if drop.multiplicity != Multiplicity::Affine
             || drop.access != PermissionAccess::Owned
             || drop.claim_identity != PermissionClaimIdentity::Unknown
@@ -923,6 +891,53 @@ pub(super) fn state_exit_result_locals(
         {
             return None;
         }
+        let exact = |event: &checked_trees::FlowPermissionEventFact| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == drop.root
+                && event.multiplicity == drop.multiplicity
+                && event.access == drop.access
+                && event.claim_identity == drop.claim_identity
+                && event.provenance == drop.provenance
+                && !event.obligation_live
+                && event.segments.is_empty()
+        };
+        // The establishment occurrence identifies this binding. Conserved
+        // ownership provenance can name a child moved into its initializer,
+        // so it need not name this local's declaration.
+        let mut establishments = permissions.permissions.iter().filter(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == drop.root
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned
+        });
+        let statement_index = if let Some((_, establish)) = establishments.next() {
+            if establishments.next().is_some() || !exact(establish) {
+                return None;
+            }
+            let PermissionEventSource::Statement { statement_index } = establish.source else {
+                return None;
+            };
+            statement_index
+        } else {
+            // An owned selection is established by its arm-transfer receipt,
+            // rather than an ordinary Establish row.
+            if drop.provenance != PermissionProvenance::Unknown {
+                return None;
+            }
+            let receipt = permissions
+                .owned_selections
+                .iter()
+                .map(|(_, receipt)| receipt)
+                .find(|receipt| {
+                    receipt.machine == machine.symbol
+                        && receipt.state == state.symbol
+                        && receipt.destination == symbol
+                        && receipt.death == PermissionEventSource::StateExit
+                })?;
+            receipt.statement_ordinal as usize
+        };
         let StatementNode::LocalData(local) = statements.get(statement_index)? else {
             return None;
         };
@@ -942,33 +957,6 @@ pub(super) fn state_exit_result_locals(
             )
         {
             return None;
-        }
-        let exact = |event: &checked_trees::FlowPermissionEventFact| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.root == drop.root
-                && event.multiplicity == drop.multiplicity
-                && event.access == drop.access
-                && event.claim_identity == drop.claim_identity
-                && event.provenance == drop.provenance
-                && !event.obligation_live
-                && event.segments.is_empty()
-        };
-        if !selection_destination {
-            let mut establishments = permissions.permissions.iter().filter(|(_, event)| {
-                event.machine_symbol == machine.symbol
-                    && event.state_symbol == state.symbol
-                    && event.root == drop.root
-                    && event.kind == PermissionEventKind::Establish
-                    && event.access == PermissionAccess::Owned
-            });
-            let (_, establish) = establishments.next()?;
-            if establishments.next().is_some()
-                || !exact(establish)
-                || establish.source != (PermissionEventSource::Statement { statement_index })
-            {
-                return None;
-            }
         }
         if statements[..=statement_index]
             .iter()
