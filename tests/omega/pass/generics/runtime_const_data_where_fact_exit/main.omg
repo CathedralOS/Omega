@@ -27,8 +27,8 @@ data Main {
     buffer: FixedBuffer<4>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.buffer.used = 4;
-    self.buffer.values[0] = 66;
-    self.console.exit_process(self.buffer.values[0] as i32 + self.buffer.used as i32);
+machine Main::main(main: &mut Main) reaches Console {
+    main.buffer.used = 4;
+    main.buffer.values[0] = 66;
+    main.console.exit_process(main.buffer.values[0] as i32 + main.buffer.used as i32);
 }

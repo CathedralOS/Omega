@@ -15,13 +15,13 @@ data Main {
     fallen: Player;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.alive.health = 10;
-    self.fallen.health = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.alive.health = 10;
+    main.fallen.health = 0;
 
-    transition (self.alive in Player::Alive, self.fallen in Player::Alive) {
-        (true, false) -> good(&mut self)
-        _ -> bad(&mut self)
+    transition (main.alive in Player::Alive, main.fallen in Player::Alive) {
+        (true, false) -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

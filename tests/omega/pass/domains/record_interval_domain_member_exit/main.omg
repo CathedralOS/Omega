@@ -19,18 +19,18 @@ data Main {
     spare: Gauge;
 }
 
-machine Main::fill_spare(&mut self) {
+machine Main::fill_spare(main: &mut Main) {
     let filled: Gauge = Gauge { level: 3 };
-    self.spare = filled;
+    main.spare = filled;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.gauge = Gauge { level: 7 };
-    self.fill_spare();
-    transition self.gauge.level == 7 && self.spare.level == 3 {
-        true -> passed()
-        false -> failed()
+machine Main::main(main: &mut Main) reaches Console {
+    main.gauge = Gauge { level: 7 };
+    Main::fill_spare(main);
+    transition main.gauge.level == 7 && main.spare.level == 3 {
+        true -> passed(main)
+        false -> failed(main)
     }
-    state passed(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }

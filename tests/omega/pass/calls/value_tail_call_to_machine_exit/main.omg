@@ -4,9 +4,9 @@
 // arms"); an internal state target stays a jump. Each leg forwards an `i32`
 // result through `_ -> callee(..)` with scalar arguments:
 //
-//   forward  a one-state receiver machine tail-calls `self.add(value, 5)`.
+//   forward  a one-state receiver machine tail-calls `Main::add(&mut self, value, 5)`.
 //   staged   jumps to its internal state `adding`, whose closing arm
-//            tail-calls `self.add(value, 7)`: the call is that state's last
+//            tail-calls `Main::add(&mut self, value, 7)`: the call is that state's last
 //            operation and its bound result is the state's returned value.
 //   pick     a machine without a receiver forwards a borrowed view and an
 //            index to `Main::at`, which reads the selected element.
@@ -27,27 +27,27 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::add(&mut self, value: i32, bias: i32) -> i32
+machine Main::add(main: &mut Main, value: i32, bias: i32) -> i32
 requires 0 <= value && value <= 100 && 0 <= bias && bias <= 100;
 {
-    self.last = value;
+    main.last = value;
     transition { _ -> (value + bias) }
 }
 
-machine Main::forward(&mut self, value: i32) -> i32
+machine Main::forward(main: &mut Main, value: i32) -> i32
 requires 0 <= value && value <= 100;
 {
-    transition { _ -> self.add(value, 5) }
+    transition { _ -> Main::add(main, value, 5) }
 }
 
-machine Main::staged(&mut self, value: i32) -> i32
+machine Main::staged(main: &mut Main, value: i32) -> i32
 requires 0 <= value && value <= 100;
 {
-    transition { _ -> adding(value) }
-    state adding(&mut self, value: i32) -> i32
+    transition { _ -> adding(main, value) }
+    state adding(main: &mut Main, value: i32) -> i32
     requires 0 <= value && value <= 100;
     {
-        transition { _ -> self.add(value, 7) }
+        transition { _ -> Main::add(main, value, 7) }
     }
 }
 
@@ -62,31 +62,31 @@ machine Main::pick(view: &[Entry], index: u64) -> i32 {
     transition { _ -> Main::at(view, index) }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.last = 0;
-    self.entries[2].value = 30;
-    let forwarded: i32 = self.forward(60);
-    let forwarded_argument: i32 = self.last;
-    let staged: i32 = self.staged(20);
-    let staged_argument: i32 = self.last;
-    let view: &[Entry] = self.entries.as_slice();
+machine Main::main(main: &mut Main) reaches Console {
+    main.last = 0;
+    main.entries[2].value = 30;
+    let forwarded: i32 = Main::forward(main, 60);
+    let forwarded_argument: i32 = main.last;
+    let staged: i32 = Main::staged(main, 20);
+    let staged_argument: i32 = main.last;
+    let view: &[Entry] = main.entries.as_slice();
     let picked: i32 = Main::pick(view, 2);
     transition forwarded == 65 && forwarded_argument == 60 {
-        true -> check_staged(staged, staged_argument, picked)
-        false -> fail(71)
+        true -> check_staged(main, staged, staged_argument, picked)
+        false -> fail(main, 71)
     }
-    state check_staged(&mut self, staged: i32, staged_argument: i32, picked: i32) {
+    state check_staged(main: &mut Main, staged: i32, staged_argument: i32, picked: i32) {
         transition staged == 27 && staged_argument == 20 {
-            true -> check_picked(picked)
-            false -> fail(72)
+            true -> check_picked(main, picked)
+            false -> fail(main, 72)
         }
     }
-    state check_picked(&mut self, picked: i32) {
+    state check_picked(main: &mut Main, picked: i32) {
         transition picked == 30 {
-            true -> done()
-            false -> fail(73)
+            true -> done(main)
+            false -> fail(main, 73)
         }
     }
-    state done(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state done(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

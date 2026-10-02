@@ -13,22 +13,22 @@ data Verdict {
     case Yes(score: i32 in Wrapping);
 }
 data Main { console: Binding<Console>; result: Verdict; }
-machine Main::count(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
+machine Main::count(main: &mut Main, i: u64, j: u64, acc: i32 in Wrapping)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> Verdict
 {
     transition j < i {
-        true -> count(i, j + 1, acc + 5)
+        true -> count(main, i, j + 1, acc + 5)
         false -> leaf(acc)
     }
     // ENUM-case terminal with a payload from a param.
     state leaf(acc: i32 in Wrapping) -> Verdict { Verdict::Yes { score: acc } }
 }
-machine Main::main(&mut self) reaches Console {
-    self.result = self.count(3, 0, 0);
-    transition self.result {
-        Verdict::Yes { score } -> ck(&mut self, score)
-        Verdict::Nope -> bad(&mut self, 71)
+machine Main::main(main: &mut Main) reaches Console {
+    main.result = Main::count(main, 3, 0, 0);
+    transition main.result {
+        Verdict::Yes { score } -> ck(main, score)
+        Verdict::Nope -> bad(main, 71)
     }
     state ck(main: &mut Main, score: i32 in Wrapping) {
         transition score == 15 { true -> good(main) _ -> bad(main, 72) }

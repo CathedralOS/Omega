@@ -9,27 +9,27 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) reaches Console {
-    let r: u64 = self.ping(100000);
-    transition r == 0 { true -> good(&mut self) _ -> bad(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    let r: u64 = Main::ping(main, 100000);
+    transition r == 0 { true -> good(main) _ -> bad(main) }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(1); }
 }
-machine Main::ping(&mut self, n: u64)
+machine Main::ping(main: &mut Main, n: u64)
 terminates by n;
 -> u64
 {
     transition n == 0 {
         true -> (0)
-        _ -> self.pong(n - 1)
+        _ -> Main::pong(main, n - 1)
     }
 }
-machine Main::pong(&mut self, n: u64)
+machine Main::pong(main: &mut Main, n: u64)
 terminates by n;
 -> u64
 {
     transition n == 0 {
         true -> (0)
-        _ -> self.ping(n - 1)
+        _ -> Main::ping(main, n - 1)
     }
 }
