@@ -1,13 +1,14 @@
 //! Attempt-local invariant constraints; placement order and failure points stay unchanged.
 
-use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
+use std::collections::BTreeMap;
 
-use super::conflicts::registers_interfere;
+use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
+use selected_instructions::{FunctionLiveRanges, VirtualRegisterId};
+
 use super::domain::AllocationDomain;
 use crate::RegisterHomeError;
-use selected_instructions::FunctionLiveRanges;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct DomainPair {
     interferes: bool,
     left_defines: bool,
@@ -22,30 +23,36 @@ pub(super) struct PreparedConflicts<'a> {
 impl<'a> PreparedConflicts<'a> {
     pub(super) fn new(
         domains: &[AllocationDomain<'_>],
+        domain_of: &BTreeMap<VirtualRegisterId, usize>,
         ranges: &FunctionLiveRanges,
         physical: &'a ValidatedPhysicalRegisterModel,
     ) -> Self {
-        let pairs = domains
-            .iter()
-            .map(|left| {
-                domains
-                    .iter()
-                    .map(|right| DomainPair {
-                        interferes: left.members.iter().any(|left| {
-                            right.members.iter().any(|right| {
-                                registers_interfere(
-                                    left.virtual_register,
-                                    right.virtual_register,
-                                    &ranges.interference,
-                                )
-                            })
-                        }),
-                        left_defines: defines_used_by(left, right, ranges),
-                        right_defines: defines_used_by(right, left, ranges),
-                    })
-                    .collect()
-            })
-            .collect();
+        let mut pairs = vec![vec![DomainPair::default(); domains.len()]; domains.len()];
+        // The live-range representation already stores these relationships sparsely.
+        // Populate the domain matrix from each authored fact once instead of rescanning
+        // every fact and every domain member for every ordered domain pair.
+        for interference in &ranges.interference {
+            let (Some(&left), Some(&right)) = (
+                domain_of.get(&interference.lower),
+                domain_of.get(&interference.higher),
+            ) else {
+                continue;
+            };
+            pairs[left][right].interferes = true;
+            pairs[right][left].interferes = true;
+        }
+        for early_clobber in &ranges.early_clobbers {
+            let Some(&definition) = domain_of.get(&early_clobber.def_virtual_register) else {
+                continue;
+            };
+            for used in &early_clobber.uses {
+                let Some(&used_domain) = domain_of.get(&used.virtual_register) else {
+                    continue;
+                };
+                pairs[definition][used_domain].left_defines = true;
+                pairs[used_domain][definition].right_defines = true;
+            }
+        }
         let views = domains
             .iter()
             .map(|domain| {
@@ -110,20 +117,6 @@ impl<'a> PreparedConflicts<'a> {
                 view: candidate.0,
             })
     }
-}
-
-fn defines_used_by(
-    definition: &AllocationDomain<'_>,
-    used: &AllocationDomain<'_>,
-    ranges: &FunctionLiveRanges,
-) -> bool {
-    ranges.early_clobbers.iter().any(|early| {
-        definition.contains(early.def_virtual_register)
-            && early
-                .uses
-                .iter()
-                .any(|register| used.contains(register.virtual_register))
-    })
 }
 
 fn symmetric_footprints_overlap(left: &RegisterView, right: &RegisterView) -> bool {
