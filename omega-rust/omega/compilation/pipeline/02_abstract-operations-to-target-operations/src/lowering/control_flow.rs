@@ -417,7 +417,12 @@ pub(super) fn lower(
         views: BTreeMap::new(),
         block_views: BTreeSet::new(),
         address_joins: BTreeSet::new(),
-        owned_arrivals: BTreeSet::new(),
+        owned_arrivals: function
+            .structural_parameters
+            .iter()
+            .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            .map(|parameter| parameter.place)
+            .collect(),
         lengths: BTreeMap::new(),
         trivial_affine_locals: BTreeMap::new(),
         references: entry_references.clone(),
