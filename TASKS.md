@@ -1975,39 +1975,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
   and interpreter/native legs; leaving an omission cluster is not execution.
 
-- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) Carry IEEE value facts through
-  machine signatures, results, locals, and exclusive state loops. Follow
-  [domains](wiki/spec/language/domains.md) and
-  [numeric values](wiki/spec/language/numeric_values.md): `Finite` excludes
-  NaN and both infinities without changing IEEE storage or arithmetic policy.
-  Ordinary interval relationships use `where`, `requires`, and `ensures`.
-
-  Current frontier (macOS ARM64, 2026-10-01): an attached machine whose
-  `f32` field has `where 0.0 <= value <= 1.0` loops three times, temporarily
-  writes `2.0`, restores `0.25`, and returns. A following observer call fails
-  `OperationProofUnavailable` at its first Unit call requirement. The same
-  fill and observer without the loop, and the loop followed by direct exit,
-  both execute with exit **70** in both engines. Carry exclusive declaration
-  guarantees through normal return and independently replay their state-arrival
-  rows. Remove the blanket mutable-borrow cycle refusal only when writes and
-  crash paths invalidate facts correctly. The customer is
-  `float/state_loop_field_refinement_restoration_exit`; coordinate state-edge
-  consumers with **COMPOSITE-TRANSITION-ARGUMENT**.
-
-  Acceptance: published Terminal reloads/verifies and the finite signature
-  customer `float/finite_signature_transport_exit` executes with exit **77**;
-  invalid non-finite arguments/results
-  reject, and a restored exclusive field invariant survives a state loop and
-  normal return. Retain the existing controls, all executing in both engines:
-  `float/finite_core_domain_range_discharge` (**77**), the three
-  `recast/runtime_float_range_representation_recast_exit`,
-  `recast/runtime_shared_record_float_range_weakening_exit`, and
-  `recast/runtime_mutable_equivalent_record_recast_exit` customers (**70**), and `generics/runtime_const_container_methods_exit`
-  (**70**). The canonical `generics/ranged_const_parameter_attached_shape`
-  now exercises distinct capacities **2/64**, writes **30/40**, checks adjacent
-  zero-initialized fields, and exits **70**; `const_container_zero_extent`
-  rejects its false const fact. These are controls, not remaining repairs.
-
 - **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the remaining
   composite internal state transfers. A by-value fixed array
   (`handle([30, 40])`, or a transferred `[i32; 2]` local) stops at

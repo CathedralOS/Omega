@@ -623,6 +623,7 @@ pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
 pass/float/runtime_total_order_satisfiers_exit rejected 3372ms @48008365d839
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
 pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9fed+wt
+pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
 pass/generics/closed_indexed_quantity rejected 3330ms @48008365d839
