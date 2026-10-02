@@ -108,25 +108,16 @@ impl TypedTrees {
         if !self.type_reference_table.contains_type_reference(reference) {
             return None;
         }
-        let unique_owner = |symbol: SymbolHandle| {
-            if !symbol.is_valid() {
-                return None;
-            }
-            let mut owners = self
-                .data_definitions()
-                .iter()
-                .filter(|data| data.symbol == symbol);
-            let owner = owners.next()?;
-            owners.next().is_none().then_some(owner)
-        };
         let data = match self.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { symbol, .. } => unique_owner(*symbol)?,
+            TypeReferenceNode::Named { symbol, .. } => {
+                self.unique_data_definition_by_symbol(*symbol)?
+            }
             TypeReferenceNode::Generic {
                 base_symbol,
                 lifetime_arguments,
                 ..
             } if lifetime_arguments.is_empty() => {
-                unique_owner(*base_symbol)?;
+                self.unique_data_definition_by_symbol(*base_symbol)?;
                 let identity = self.normalized_type_identity(reference);
                 let mut instances = self.data_definitions().iter().filter(|data| {
                     let Some(origin) = data.generic_instance else {
@@ -145,7 +136,7 @@ impl TypedTrees {
                 if !instance.lifetime_parameters.is_empty() {
                     return None;
                 }
-                unique_owner(instance.symbol)?
+                self.unique_data_definition_by_symbol(instance.symbol)?
             }
             _ => return None,
         };
@@ -177,14 +168,7 @@ impl TypedTrees {
         if self.closed_data_definition(origin)?.symbol != instance.symbol {
             return None;
         }
-        let mut templates = self
-            .data_definitions()
-            .iter()
-            .filter(|owner| owner.symbol == *base_symbol);
-        let template = templates.next()?;
-        if templates.next().is_some() {
-            return None;
-        }
+        let template = self.unique_data_definition_by_symbol(*base_symbol)?;
         let mut fields =
             self.data_members(instance)
                 .iter()
