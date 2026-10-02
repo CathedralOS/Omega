@@ -21,6 +21,63 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+/// Dominating graph storage and borrowed addresses are different sources of
+/// the same collection backing. A borrowed arrival carries a pointer; it must
+/// never acquire an owned home merely to construct a descriptor over its array.
+/// Independent ownership replay still governs access and lifetime.
+#[derive(Clone, Copy)]
+pub(in crate::lowering) struct ElementViewBackings<'a> {
+    homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    address_joins: &'a BTreeSet<PlaceId>,
+}
+
+impl<'a> ElementViewBackings<'a> {
+    pub(in crate::lowering) fn new(
+        homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+        address_joins: &'a BTreeSet<PlaceId>,
+    ) -> Self {
+        Self {
+            homes,
+            address_joins,
+        }
+    }
+
+    fn address(
+        self,
+        function: &AbstractFunction,
+        structural_types: &StructuralTypeLookup<'_>,
+        source: &StructuralArgument,
+    ) -> Option<(StructuralTypeId, TargetStructuralArgumentSource)> {
+        if !self.address_joins.contains(&source.place) {
+            return None;
+        }
+        let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
+            entry
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == source.place)
+                .map(|parameter| (entry, parameter))
+        })?;
+        if entry.block == function.entry
+            || !abstract_operations::control_flow::address_joins::is_address_join(
+                parameter,
+                |identity| structural_types.get(&identity).copied(),
+            )
+            || (source.access == StructuralAccess::MutableBorrow
+                && parameter.access != StructuralAccess::MutableBorrow)
+        {
+            return None;
+        }
+        Some((
+            parameter.structural_type,
+            TargetStructuralArgumentSource::BlockParameter {
+                block: entry.block,
+                place: parameter.place,
+            },
+        ))
+    }
+}
+
 pub(in crate::lowering) fn is_element_view_parameter(
     parameter: &StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
@@ -49,7 +106,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
-    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    backings: ElementViewBackings<'_>,
     values: &mut BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     provenance: &mut Vec<OperationId>,
@@ -64,7 +121,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
             function,
             structural_types,
             parameters,
-            homes,
+            backings,
             values,
             lengths,
             result.place,
@@ -92,7 +149,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         function,
         structural_types,
         parameters,
-        homes,
+        backings,
         values,
         lengths,
         source,
@@ -233,7 +290,7 @@ pub(in crate::lowering) fn element_view_for_place(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
-    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    backings: ElementViewBackings<'_>,
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
@@ -293,7 +350,7 @@ pub(in crate::lowering) fn element_view_for_place(
                 function,
                 structural_types,
                 parameters,
-                homes,
+                backings,
                 source,
                 *element,
             )?;
@@ -408,7 +465,7 @@ pub(in crate::lowering) fn element_view_for_place(
         function,
         structural_types,
         parameters,
-        homes,
+        backings,
         values,
         lengths,
         *source,
@@ -438,7 +495,7 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
-    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    backings: ElementViewBackings<'_>,
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
@@ -457,7 +514,7 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
             function,
             structural_types,
             parameters,
-            homes,
+            backings,
             values,
             lengths,
             place,
@@ -500,7 +557,7 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
         function,
         structural_types,
         parameters,
-        homes,
+        backings,
         values,
         lengths,
         place,
@@ -517,7 +574,7 @@ fn established_source(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters: &[TargetStructuralParameter],
-    homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    backings: ElementViewBackings<'_>,
     source: &StructuralArgument,
     element: StructuralTypeId,
 ) -> Result<
@@ -574,8 +631,12 @@ fn established_source(
             semantic.structural_type,
             TargetStructuralArgumentSource::from(parameter.placement.clone()),
         )
+    } else if let Some(backing) = live_aggregate_backing(backings.homes, source.place) {
+        backing
     } else {
-        live_aggregate_backing(homes, source.place).ok_or_else(invalid)?
+        backings
+            .address(function, structural_types, source)
+            .ok_or_else(invalid)?
     };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
@@ -706,6 +767,109 @@ fn observes_length(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn state_view_backing_requires_a_live_exact_borrowed_arrival() {
+        let element = StructuralTypeId::new(1).unwrap();
+        let array = StructuralTypeId::new(2).unwrap();
+        let place = PlaceId::new(2).unwrap();
+        let block = semantic_vocabulary::BlockId::new(2).unwrap();
+        let catalog: abstract_operations::StructuralTypeCatalog = vec![
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "u8".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                )),
+            },
+            StructuralTypeDeclaration {
+                id: array,
+                identity: "[u8; 4]".into(),
+                shape: StructuralTypeShape::FixedArray { element, length: 4 },
+            },
+        ]
+        .into();
+        let types = StructuralTypeLookup::new(&catalog);
+        let mut function = AbstractFunction {
+            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+            attachment: None,
+            entry: semantic_vocabulary::BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: abstract_operations::AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![abstract_operations::AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: array,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                }],
+            }],
+            operations: Vec::new(),
+        };
+        let homes = BTreeMap::new();
+        let addresses = BTreeSet::from([place]);
+        let backings = ElementViewBackings::new(&homes, &addresses);
+        let mut argument = StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        };
+        let expected = (
+            array,
+            0,
+            4,
+            1,
+            TargetStructuralArgumentSource::BlockParameter { block, place },
+        );
+        assert_eq!(
+            established_source(&function, &types, &[], backings, &argument, element).unwrap(),
+            expected
+        );
+        argument.access = StructuralAccess::SharedBorrow;
+        assert_eq!(
+            established_source(&function, &types, &[], backings, &argument, element).unwrap(),
+            expected
+        );
+        function.block_entries[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        assert_eq!(
+            established_source(&function, &types, &[], backings, &argument, element).unwrap(),
+            expected
+        );
+        argument.access = StructuralAccess::MutableBorrow;
+        assert!(
+            established_source(&function, &types, &[], backings, &argument, element).is_err(),
+            "a shared arrival cannot authorize a mutable collection view"
+        );
+        argument.access = StructuralAccess::SharedBorrow;
+        let absent = BTreeSet::new();
+        assert!(
+            established_source(
+                &function,
+                &types,
+                &[],
+                ElementViewBackings::new(&homes, &absent),
+                &argument,
+                element
+            )
+            .is_err(),
+            "a declaration without dominating live custody cannot supply backing"
+        );
+        function.block_entries[0].structural_parameters[0].structural_type = element;
+        assert!(
+            established_source(&function, &types, &[], backings, &argument, element).is_err(),
+            "a same-address scalar cannot impersonate the declared array"
+        );
+    }
 
     #[test]
     fn local_view_borrows_affine_backing_without_copying_ownership() {

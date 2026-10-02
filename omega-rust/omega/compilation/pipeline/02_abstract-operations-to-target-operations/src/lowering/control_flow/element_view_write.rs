@@ -42,7 +42,10 @@ pub(super) fn lower(
             function,
             structural_types,
             &prepared.parameters,
-            &live.structural_homes,
+            crate::lowering::scalar::element_views::ElementViewBackings::new(
+                &live.structural_homes,
+                &live.address_joins,
+            ),
             &values,
             &live.lengths,
             *destination,

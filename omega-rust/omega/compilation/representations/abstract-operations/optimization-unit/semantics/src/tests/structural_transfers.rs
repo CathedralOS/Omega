@@ -16,7 +16,9 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+mod address_join_scope;
 mod address_joins;
+mod descriptor_loans;
 mod mutable;
 mod owned;
 mod owned_authority;

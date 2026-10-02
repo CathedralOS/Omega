@@ -136,11 +136,12 @@ impl Checker<'_> {
                     ),
                     TargetStructuralArgumentSource::BlockParameter { block, place } => {
                         *place == argument.place
-                            && self.block_home_precedes(
+                            && self.block_backing_precedes(
                                 *block,
                                 *place,
                                 *psi_operation,
                                 *root_structural_type,
+                                argument.access,
                             )
                     }
                     _ => false,
@@ -197,14 +198,16 @@ impl Checker<'_> {
         }
     }
 
-    /// An owned arrival lends its own destination storage. A descriptor or
-    /// another block's same-typed parameter cannot stand in for that home.
-    fn block_home_precedes(
+    /// An owned arrival lends its storage; an address join lends the referent
+    /// its incoming edges authenticated. Preserve the exact declaration and
+    /// dominating block, so another same-typed carrier cannot substitute for it.
+    fn block_backing_precedes(
         &self,
         block: semantic_vocabulary::BlockId,
         place: PlaceId,
         consumer: semantic_vocabulary::OperationId,
         root_structural_type: semantic_vocabulary::StructuralTypeId,
+        requested: terminal_psi::StructuralAccess,
     ) -> bool {
         let Some(parameter) = self
             .optimized
@@ -228,7 +231,23 @@ impl Checker<'_> {
         else {
             return false;
         };
-        parameter.access == terminal_psi::StructuralAccess::Owned
+        let backing = parameter.access == terminal_psi::StructuralAccess::Owned
+            || (block != self.optimized.entry
+                && abstract_operations::control_flow::address_joins::is_address_join_in(
+                    parameter, self.types,
+                )
+                && matches!(
+                    (parameter.access, requested),
+                    (
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ) | (
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                        terminal_psi::StructuralAccess::SharedBorrow
+                            | terminal_psi::StructuralAccess::MutableBorrow,
+                    )
+                ));
+        backing
             && parameter.structural_type == root_structural_type
             && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
             && parameter.qualifications.is_empty()

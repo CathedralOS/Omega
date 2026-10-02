@@ -610,3 +610,69 @@ fn array_state_loan_rejects_permission_carriers_and_shared_to_mutable_transfer()
         "{error:?}"
     );
 }
+
+/// Whole-name attenuation ends the old exclusive spelling while retaining
+/// the backing home's independent disposal and the shared arrival's reads.
+fn attenuated_array_module() -> TerminalModule {
+    let mut module = array_module();
+    module.machines[0].blocks[2].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let Terminator::Conditional { when_false, .. } = &mut module.machines[0].blocks[1].terminator
+    else {
+        panic!("loop exit");
+    };
+    when_false.structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    module
+}
+
+#[test]
+fn exclusive_state_loan_can_attenuate_into_a_shared_arrival() {
+    verify_module_for_optimization(
+        &attenuated_array_module(),
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the shared arrival observes the same live backing after retiring the exclusive name");
+}
+
+#[test]
+fn attenuated_state_loan_cannot_reuse_the_old_exclusive_name() {
+    for write in [false, true] {
+        let mut module = attenuated_array_module();
+        let operation = &mut module.machines[0].blocks[2].operations[0];
+        if write {
+            operation.result = OperationResult::Unit;
+            operation.kind = OperationKind::StructuralScalarFieldStore {
+                destination: id(6, PlaceId::new),
+                path: vec![terminal_psi::StructuralPathSegment::FixedIndex(2)],
+                field: id(1, StructuralFieldId::new),
+                value: id(20, ValueId::new),
+                range_obligation: None,
+            };
+        } else {
+            let OperationKind::IntegerStructuralField { source, .. } = &mut operation.kind else {
+                panic!("array observation");
+            };
+            *source = id(6, PlaceId::new);
+        }
+        assert!(
+            matches!(validate_module(&module), Err(super::ModuleError::OwnedStructuralPlaceNotLiveAtOperation { place, .. }) if place == id(6, PlaceId::new))
+        );
+    }
+}
+
+#[test]
+fn shared_state_arrival_cannot_recover_exclusive_write_access() {
+    let mut module = attenuated_array_module();
+    module.machines[0].blocks[2].operations[0].result = OperationResult::Unit;
+    module.machines[0].blocks[2].operations[0].kind = OperationKind::StructuralScalarFieldStore {
+        destination: id(7, PlaceId::new),
+        path: vec![terminal_psi::StructuralPathSegment::FixedIndex(2)],
+        field: id(1, StructuralFieldId::new),
+        value: id(20, ValueId::new),
+        range_obligation: None,
+    };
+    assert!(
+        validate_module(&module).is_err(),
+        "shared arrival cannot grant a write"
+    );
+}
