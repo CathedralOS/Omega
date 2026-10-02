@@ -122,6 +122,7 @@ pub(super) fn lower_machine(
             )?;
         }
         lower_terminator(
+            module,
             block,
             machine,
             &blocks,

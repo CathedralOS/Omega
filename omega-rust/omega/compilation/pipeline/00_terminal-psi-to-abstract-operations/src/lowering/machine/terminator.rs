@@ -9,6 +9,7 @@ use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_terminator(
+    module: &terminal_psi::TerminalModule,
     block: &terminal_psi::Block,
     machine: &TerminalMachine,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
@@ -196,10 +197,9 @@ pub(super) fn lower_terminator(
                     .cloned()
                     .map(|action| match action {
                         TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
-                            // Psi has already verified these proof-site identities. They
-                            // carry no native realization meaning and must not become a
-                            // second semantic authority in Omega artifacts.
-                            cleanup.cleanup_receiver = None;
+                            // Derive runtime receiver custody from the verified declaration;
+                            // contextual-only roots and proof obligations stay in Psi.
+                            cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
                             cleanup.requirement_obligations.clear();
                             TerminalAffineCleanupAction::InvokeNominal(cleanup)
                         }
@@ -329,10 +329,9 @@ pub(super) fn lower_terminator(
                     .iter()
                     .cloned()
                     .map(|mut cleanup| {
-                        // Psi has already verified these proof-site identities. They
-                        // carry no native realization meaning and must not become a
-                        // second semantic authority in Omega artifacts.
-                        cleanup.cleanup_receiver = None;
+                        // Derive runtime receiver custody from the verified declaration;
+                        // contextual-only roots and proof obligations stay in Psi.
+                        cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
                         cleanup.requirement_obligations.clear();
                         TerminalAffineCleanupAction::InvokeNominal(cleanup)
                     })
@@ -374,4 +373,18 @@ pub(super) fn lower_terminator(
         }
     }
     Ok(())
+}
+
+/// The verified hook's parameter is operational custody. A contextual-only
+/// contract root has no runtime declaration and must disappear at the firewall.
+fn runtime_cleanup_receiver(
+    module: &terminal_psi::TerminalModule,
+    cleanup: &terminal_psi::NominalAffineCleanup,
+) -> Option<semantic_vocabulary::PlaceId> {
+    module
+        .machines
+        .iter()
+        .find(|machine| machine.id == cleanup.cleanup_machine)
+        .and_then(|machine| machine.structural_parameters.first())
+        .map(|parameter| parameter.place)
 }

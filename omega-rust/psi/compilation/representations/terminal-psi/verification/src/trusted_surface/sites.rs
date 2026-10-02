@@ -1019,7 +1019,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/affine_cleanup.rs",
-        sha256: Some("644feee128c6834ad4edce214724e063f70e5bc5e1cd932aa2ccee566bc6723e"),
+        sha256: Some("78cf2f9d55c277c52af68599271fbdde2c4b487433468d7275d6ec6cc8a9861b"),
         inventory_machinery: false,
     },
     ImplementationSite {
