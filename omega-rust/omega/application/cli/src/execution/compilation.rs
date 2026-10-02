@@ -94,7 +94,7 @@ fn interpret_checked(
     // arrival bridge provisions.
     let signature = entry.source_signature();
     let mut options = InterpretOptions {
-        virtual_clock_wait_bindings: virtual_clock::bindings(checked)?,
+        virtual_clock_bindings: virtual_clock::bindings(checked)?,
         ..InterpretOptions::default()
     };
     if let Some(context) = signature.receiver().source_symbol() {

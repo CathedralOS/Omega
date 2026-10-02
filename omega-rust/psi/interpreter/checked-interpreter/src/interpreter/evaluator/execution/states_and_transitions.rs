@@ -47,7 +47,7 @@ impl<'program> Evaluator<'program> {
             stdin,
             stdin_cursor: 0,
             virtual_ticks: 0,
-            virtual_clock_wait_bindings: Vec::new(),
+            virtual_clock_bindings: Vec::new(),
             virtual_live_windows: std::collections::HashSet::new(),
             virtual_window_next: 0,
             virtual_files: BTreeMap::new(),

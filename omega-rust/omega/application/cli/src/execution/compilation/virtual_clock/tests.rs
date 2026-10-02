@@ -1,4 +1,4 @@
-use super::{PhysicalWait, bindings, selected_bindings};
+use super::{PhysicalClockOperation, bindings, selected_bindings};
 use crate::temporary_directory::TemporaryDirectory;
 use checked_interpreter::{BuildMachineEntry, InterpretOptions};
 use effects::provider_plan::ProviderBinding;
@@ -10,7 +10,7 @@ fn physical_waits_require_the_complete_selected_locator() {
         (
             b"/usr/lib/libSystem.B.dylib".as_slice(),
             b"_poll".as_slice(),
-            Some(PhysicalWait::DarwinPoll),
+            Some(PhysicalClockOperation::DarwinPoll),
         ),
         (b"/usr/local/lib/libpoll.dylib", b"_poll", None),
         (b"/usr/lib/libSystem.B.dylib", b"_unlink", None),
@@ -23,7 +23,7 @@ fn physical_waits_require_the_complete_selected_locator() {
             TargetProfile::MacosArm64,
         )
         .expect("valid Mach-O locator");
-        assert_eq!(PhysicalWait::from_locator(&locator), expected);
+        assert_eq!(PhysicalClockOperation::from_locator(&locator), expected);
     }
     let sleep = normalize_foreign_locator(
         ForeignLocatorCandidate::PeByName {
@@ -34,12 +34,15 @@ fn physical_waits_require_the_complete_selected_locator() {
     )
     .expect("valid PE locator");
     assert_eq!(
-        PhysicalWait::from_locator(&sleep),
-        Some(PhysicalWait::WindowsSleep)
+        PhysicalClockOperation::from_locator(&sleep),
+        Some(PhysicalClockOperation::WindowsSleep)
     );
     assert_eq!(
-        PhysicalWait::WindowsSleep.maximum_milliseconds(),
-        i64::from(u32::MAX) - 1
+        PhysicalClockOperation::WindowsSleep.operation(),
+        checked_interpreter::VirtualClockOperation::Wait {
+            maximum_milliseconds: i64::from(u32::MAX) - 1,
+            result: checked_interpreter::VirtualClockResult::Unit,
+        }
     );
 }
 
@@ -56,7 +59,7 @@ pub boundary trait Pacing { machine mark() reaches Pacing; }
 data Wait { }
 data Selected { }
 data Unselected { }
-boundary requirement Wait::pause(pointer: u64, count: u64, duration: i32) reaches Pacing;
+boundary requirement Wait::pause(pointer: u64, count: u64, duration: i32) -> i32 reaches Pacing;
 machine wait_binding() -> ForeignBinding<26, 5, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -72,11 +75,11 @@ machine other_binding() -> ForeignBinding<26, 7, 0> {
         },
     }
 }
-machine Selected::wait(pointer: u64, count: u64, duration: i32)
+machine Selected::wait(pointer: u64, count: u64, duration: i32) -> i32
     satisfies Wait::pause via wait_binding();
-machine Unselected::wait(pointer: u64, count: u64, duration: i32)
+machine Unselected::wait(pointer: u64, count: u64, duration: i32) -> i32
     satisfies Wait::pause via other_binding();
-machine main() reaches Pacing { Wait::pause(123, 0, 40); }
+machine main() reaches Pacing { _ = Wait::pause(123, 0, 40); }
 "#,
     )
     .expect("source fixture");
@@ -103,7 +106,7 @@ machine build(builder: &mut Build) {
         BuildMachineEntry::Name("main"),
         &[],
         InterpretOptions {
-            virtual_clock_wait_bindings: waits,
+            virtual_clock_bindings: waits,
             ..InterpretOptions::default()
         },
     );
@@ -127,7 +130,7 @@ machine build(builder: &mut Build) {
         .iter_mut()
         .find(|external| {
             matches!(&external.binding, calling_conventions::ExternalBindingKind::Import { locator }
-            if PhysicalWait::from_locator(locator).is_some())
+            if PhysicalClockOperation::from_locator(locator).is_some())
         })
         .expect("selected external wait");
     physical_wait.boundary_entry_plan = None;
@@ -158,7 +161,7 @@ machine build(builder: &mut Build) {
 
     let mut provenance = execution.selected_provider_provenance.clone();
     let retained = provenance.iter_mut().find(|retained| retained.plan.rows.iter().any(|row| {
-        matches!(&row.binding, ProviderBinding::Import { evaluated } if PhysicalWait::from_locator(evaluated.locator()).is_some())
+        matches!(&row.binding, ProviderBinding::Import { evaluated } if PhysicalClockOperation::from_locator(evaluated.locator()).is_some())
     })).expect("selected import provenance");
     let alternate = checked
         .machines()
@@ -246,7 +249,7 @@ machine build(builder: &mut Build) {
             BuildMachineEntry::Name("main"),
             &[],
             InterpretOptions {
-                virtual_clock_wait_bindings: waits,
+                virtual_clock_bindings: waits,
                 ..InterpretOptions::default()
             },
         );

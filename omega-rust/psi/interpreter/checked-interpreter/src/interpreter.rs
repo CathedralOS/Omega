@@ -25,7 +25,7 @@ use typed_trees::TypedTrees;
 #[derive(Clone, Debug, Default)]
 pub struct InterpretOptions {
     /// Exact externally selected wait requirements, served only by virtual time.
-    pub virtual_clock_wait_bindings: Vec<crate::VirtualClockWaitBinding>,
+    pub virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
     pub filesystem: FilesystemAccess,
     pub filesystem_metadata_layout: FilesystemMetadataLayout,
     pub filesystem_service_binding: Option<FilesystemServiceBinding>,
@@ -461,7 +461,7 @@ fn evaluate_granted_arguments(
                 evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
                 evaluator.product_entry_compatibility = product_entry_compatibility;
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
-                if !options.virtual_clock_wait_bindings.is_empty() {
+                if !options.virtual_clock_bindings.is_empty() {
                     return Err(BuildMachineEvaluationFailure::without_evidence(
                         BuildMachineEvaluationFailureKind::Unsupported,
                         "runtime virtual wait bindings cannot enter build evaluation".to_owned(),
@@ -661,11 +661,11 @@ fn interpret_on_current_thread(
             evaluator.usage,
         );
     }
-    for (position, binding) in options.virtual_clock_wait_bindings.iter().enumerate() {
+    for (position, binding) in options.virtual_clock_bindings.iter().enumerate() {
         let validity = binding.validate_for(checked).and_then(|()| {
-            if options.virtual_clock_wait_bindings[..position]
+            if options.virtual_clock_bindings[..position]
                 .iter()
-                .any(|earlier| earlier.requirement == binding.requirement)
+                .any(|earlier| earlier.overlaps(binding))
             {
                 Err("virtual wait requirement has duplicate bindings")
             } else {
@@ -681,7 +681,7 @@ fn interpret_on_current_thread(
             );
         }
     }
-    evaluator.virtual_clock_wait_bindings = options.virtual_clock_wait_bindings;
+    evaluator.virtual_clock_bindings = options.virtual_clock_bindings;
     evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
     evaluator.filesystem_service_symbol = match options.filesystem_service_binding {
         Some(binding) => match binding.declaration_symbol_for(checked) {

@@ -293,7 +293,7 @@ pub(crate) struct Evaluator<'program> {
     /// read and every `sleep`); deterministic, so tick-based programs must
     /// assert monotonicity rather than concrete values.
     virtual_ticks: i64,
-    pub(super) virtual_clock_wait_bindings: Vec<crate::VirtualClockWaitBinding>,
+    pub(super) virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
     /// The virtual window system: `window_create` mints opaque non-zero handle
     /// tokens; `is_window` reports membership; `window_destroy` removes.
     /// Deterministic, so programs must branch on liveness (handle != 0,

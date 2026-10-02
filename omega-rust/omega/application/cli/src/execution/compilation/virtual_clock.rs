@@ -7,7 +7,9 @@
 //! loaded and no live host effect is granted by these virtual bindings.
 
 use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
-use checked_interpreter::{VirtualClockWaitBinding, VirtualClockWaitOperand};
+use checked_interpreter::{
+    VirtualClockBinding, VirtualClockOperand, VirtualClockOperation, VirtualClockResult,
+};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
@@ -21,11 +23,11 @@ use provider_planning::{
 use symbols::SymbolHandle;
 use target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+use typed_trees::types::PrimitiveType;
 
 pub(super) fn bindings(
     checked: &compiler::CheckedCompilation,
-) -> Result<Vec<VirtualClockWaitBinding>, Vec<Diagnostic>> {
+) -> Result<Vec<VirtualClockBinding>, Vec<Diagnostic>> {
     let execution = checked.execution();
     selected_bindings(
         checked,
@@ -44,7 +46,7 @@ fn selected_bindings(
     provenance: &[SelectedProviderReviewProvenance],
     evaluated_bindings: &EvaluatedViaBindingTable,
     external_rows: &[ExternalBindingRow],
-) -> Result<Vec<VirtualClockWaitBinding>, Vec<Diagnostic>> {
+) -> Result<Vec<VirtualClockBinding>, Vec<Diagnostic>> {
     let failure = |message: &str| vec![Diagnostic::error(message)];
     if selected.plans().len() != provenance.len() {
         return Err(failure(
@@ -76,7 +78,7 @@ fn selected_bindings(
                 // In particular, execute checked adapters through their normal dispatch.
                 continue;
             };
-            let Some(wait) = PhysicalWait::from_locator(evaluated.locator()) else {
+            let Some(wait) = PhysicalClockOperation::from_locator(evaluated.locator()) else {
                 continue;
             };
             if target != Some(evaluated.locator().target())
@@ -116,18 +118,20 @@ fn selected_bindings(
                 ));
             };
             if !wait.matches_parameters(checked, checked.state_parameters(entry))
-                || !matches!(
-                    checked
-                        .type_reference_table
-                        .type_reference(entry.return_type),
-                    TypeReferenceNode::Unit
-                )
+                || !wait
+                    .operation()
+                    .result()
+                    .matches_type(checked, entry.return_type)
             {
                 return Err(failure(
                     "virtual clock realization disagrees with its physical signature",
                 ));
             }
-            if retained.provider.provider_type != Some(machine.attached_data_symbol)
+            if retained.provider.provider_type
+                != machine
+                    .attached_data_symbol
+                    .is_valid()
+                    .then_some(machine.attached_data_symbol)
                 || checked.symbols.symbol_package_identity(machine.symbol)
                     != plan.origin_package_identity
                 || checked
@@ -182,12 +186,13 @@ fn selected_bindings(
                     "virtual clock requirement has multiple selected wait bindings",
                 ));
             }
-            let binding = VirtualClockWaitBinding::from_compiler_resolved_requirement(
+            let binding = VirtualClockBinding::from_compiler_resolved_requirement(
                 checked,
                 *requirement,
                 wait.operands(),
-                wait.maximum_milliseconds(),
+                wait.operation(),
             )
+            .and_then(|binding| binding.with_compiler_resolved_realization(checked, machine.symbol))
             .map_err(failure)?;
             requirements.push(*requirement);
             bindings.push(binding);
@@ -290,12 +295,13 @@ fn exact_requirement_parameters<'program>(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PhysicalWait {
+enum PhysicalClockOperation {
     DarwinPoll,
+    DarwinMonotonicRead,
     WindowsSleep,
 }
 
-impl PhysicalWait {
+impl PhysicalClockOperation {
     fn from_locator(locator: &NormalizedForeignLocator) -> Option<Self> {
         match (locator.target(), locator.locator()) {
             (
@@ -306,6 +312,17 @@ impl PhysicalWait {
                 },
             ) if install_name == b"/usr/lib/libSystem.B.dylib" && symbol == b"_poll" => {
                 Some(Self::DarwinPoll)
+            }
+            (
+                TargetProfile::MacosArm64,
+                ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name,
+                    symbol,
+                },
+            ) if install_name == b"/usr/lib/libSystem.B.dylib"
+                && symbol == b"_clock_gettime_nsec_np" =>
+            {
+                Some(Self::DarwinMonotonicRead)
             }
             (TargetProfile::WindowsX64, ForeignLocatorCandidate::PeByName { library, export })
                 if library == b"kernel32.dll" && export == b"Sleep" =>
@@ -319,7 +336,7 @@ impl PhysicalWait {
     fn matches_parameters(self, checked: &CheckedTrees, parameters: &[StateParameter]) -> bool {
         let expected: &[PrimitiveType] = match self {
             Self::DarwinPoll => &[PrimitiveType::U64, PrimitiveType::U64, PrimitiveType::I32],
-            Self::WindowsSleep => &[PrimitiveType::U32],
+            Self::WindowsSleep | Self::DarwinMonotonicRead => &[PrimitiveType::U32],
         };
         parameters.len() == expected.len()
             && parameters
@@ -332,26 +349,40 @@ impl PhysicalWait {
                 })
     }
 
-    fn operands(self) -> &'static [VirtualClockWaitOperand] {
+    fn operation(self) -> VirtualClockOperation {
         match self {
-            // With nfds = 0, poll does not dereference the descriptor pointer.
-            Self::DarwinPoll => &[
-                VirtualClockWaitOperand::Ignored,
-                VirtualClockWaitOperand::Zero,
-                VirtualClockWaitOperand::Milliseconds,
-            ],
-            Self::WindowsSleep => &[VirtualClockWaitOperand::Milliseconds],
+            Self::DarwinPoll => VirtualClockOperation::Wait {
+                maximum_milliseconds: i64::from(i32::MAX),
+                result: VirtualClockResult::Integer(PrimitiveType::I32),
+            },
+            Self::WindowsSleep => VirtualClockOperation::Wait {
+                // DWORD::MAX is INFINITE, not a finite duration to virtualize.
+                maximum_milliseconds: i64::from(u32::MAX) - 1,
+                result: VirtualClockResult::Unit,
+            },
+            Self::DarwinMonotonicRead => VirtualClockOperation::Read {
+                primitive: PrimitiveType::U64,
+                units_per_millisecond: 1_000_000,
+            },
         }
     }
 
-    fn maximum_milliseconds(self) -> i64 {
+    fn operands(self) -> &'static [VirtualClockOperand] {
         match self {
-            Self::DarwinPoll => i64::from(i32::MAX),
-            // DWORD::MAX is INFINITE, not a finite duration to virtualize.
-            Self::WindowsSleep => i64::from(u32::MAX) - 1,
+            // With nfds = 0, poll does not dereference the descriptor pointer.
+            Self::DarwinPoll => &[
+                VirtualClockOperand::Ignored,
+                VirtualClockOperand::ExactInteger(0),
+                VirtualClockOperand::Milliseconds,
+            ],
+            Self::WindowsSleep => &[VirtualClockOperand::Milliseconds],
+            Self::DarwinMonotonicRead => &[VirtualClockOperand::ExactInteger(6)],
         }
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod read_tests;
