@@ -163,6 +163,9 @@ mod rewrite;
 mod slot;
 mod validation;
 
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) mod test_support;
+
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;

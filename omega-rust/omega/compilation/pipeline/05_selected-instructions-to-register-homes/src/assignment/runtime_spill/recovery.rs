@@ -32,7 +32,7 @@ use selected_instructions_to_selected_instructions::{
     SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
-    ValidatedLiveness, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
+    ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
     analyze_allocation_legality, analyze_live_ranges_reusing, analyze_liveness_reusing,
     rematerialize_selected_runtime_value, spill_selected_runtime_value,
     spill_selected_runtime_value_with_span_policy, split_selected_runtime_value,
@@ -97,6 +97,29 @@ pub(super) fn analyze(
         ranges,
         legality,
     })
+}
+
+/// A failed crossing probe belongs only to the current victim attempt. The
+/// bounded policy must still construct and independently validate its rewrite;
+/// equal complete plans and receipts then mean allocation has exactly the same
+/// inputs under this attempt's unchanged environment and availability. Keep the
+/// established facts and pressure instead of analyzing and assigning them twice.
+/// This is producer work reuse, never evidence for final independent replay.
+struct SpillPressureProbe {
+    rewrite: ValidatedRuntimeSpill,
+    facts: RuntimeSpillFacts,
+    failure: crate::RegisterHomeError,
+}
+
+impl SpillPressureProbe {
+    fn reuse_for(
+        self,
+        bounded: &ValidatedRuntimeSpill,
+    ) -> Option<(RuntimeSpillFacts, crate::RegisterHomeError)> {
+        (self.rewrite.receipt() == bounded.receipt()
+            && self.rewrite.transformed() == bounded.transformed())
+        .then_some((self.facts, self.failure))
+    }
 }
 
 // Keep a finite roster from the current program. A block parameter can use
@@ -526,6 +549,7 @@ fn recover_over(
             environment,
             budget,
         )?;
+        let mut failed_crossing = None;
         let (function, register, rewrite) = if let Some((candidate, split)) = split {
             tried.insert(candidate);
             (
@@ -611,7 +635,13 @@ fn recover_over(
                                 };
                                 return Ok(result);
                             }
-                            Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {}
+                            Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => {
+                                failed_crossing = Some(SpillPressureProbe {
+                                    rewrite: crossing,
+                                    facts: probe,
+                                    failure: error,
+                                });
+                            }
                             Err(error) => {
                                 return Err(RuntimeSpillAllocationError::Homes(error));
                             }
@@ -632,15 +662,26 @@ fn recover_over(
             };
             (function, register, rewrite)
         };
-        let facts = analyze(
-            environment,
-            source.allocator_availability(),
-            &selected,
-            &current_liveness,
-            &current_ranges,
-            &rewrite.selected(),
-        )?;
-        let homes = assign(environment, &facts.ranges, &facts.legality);
+        let reused_pressure = match &rewrite {
+            RuntimeSpillStepRewrite::Spill(bounded) => {
+                failed_crossing.and_then(|probe| probe.reuse_for(bounded))
+            }
+            _ => None,
+        };
+        let (facts, homes) = if let Some((facts, pressure)) = reused_pressure {
+            (facts, Err(pressure))
+        } else {
+            let facts = analyze(
+                environment,
+                source.allocator_availability(),
+                &selected,
+                &current_liveness,
+                &current_ranges,
+                &rewrite.selected(),
+            )?;
+            let homes = assign(environment, &facts.ranges, &facts.legality);
+            (facts, homes)
+        };
         if !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
             retire_minted(&mut tried, selected.plan(), rewrite.selected().plan());
         }
@@ -680,3 +721,6 @@ fn recover_over(
 
 #[cfg(test)]
 mod candidate_tests;
+
+#[cfg(test)]
+mod probe_tests;

@@ -5,6 +5,7 @@
 //! constraint-row instruction builder every hand-built plan shares, so a rule
 //! file holds only the identifiers and shapes that distinguish its subject.
 
+pub use crate::rewrites::runtime_spill::test_support::runtime_spill_source;
 use optimization_core::OptimizationWorkBudget;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
