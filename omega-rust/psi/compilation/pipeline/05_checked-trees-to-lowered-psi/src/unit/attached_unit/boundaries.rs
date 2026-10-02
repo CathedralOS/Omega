@@ -26,7 +26,7 @@ use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 /// Declare each retained boundary, in roster order, with the parameter roster
 /// its callers bind against. Structural parameters take places from
 /// `next_place`.
-pub(super) fn lower_declarations(
+pub(crate) fn lower_declarations(
     checked: &CheckedTrees,
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     type_ids: &[(String, StructuralTypeId)],
@@ -39,6 +39,37 @@ pub(super) fn lower_declarations(
     let mut parameter_rosters = Vec::with_capacity(boundaries.len());
     for (index, (plan, identity)) in boundaries.iter().enumerate() {
         validate_requirement_kind(checked, plan)?;
+        if let Some(machine) = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == plan.machine)
+        {
+            crate::scalar_graph::scalar_contracts::validate_boundary_guarantees(checked, machine)?;
+        }
+        let expected_guarantees = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == plan.machine)
+            .and_then(|machine| {
+                checked
+                    .facts
+                    .contract_plans
+                    .for_machine(machine.symbol)
+                    .map(|contract| {
+                        validation::derive_scalar_boundary_guarantees(
+                            &checked.typed,
+                            &checked.facts,
+                            machine,
+                            contract,
+                        )
+                    })
+            })
+            .unwrap_or_default();
+        if plan.scalar_ensures != expected_guarantees {
+            return unsupported("boundary scalar guarantees disagree with the authored contract");
+        }
         let parameters = lower_unit_parameters(
             &plan.structural_parameters,
             type_ids,

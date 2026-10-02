@@ -140,33 +140,105 @@ fn validate_guarantee_sources(
             }
             _ => return unsupported("scalar guarantee lost its checked predicate"),
         };
-        namespace::validate(&predicate)?;
-        for (expression, conjunct) in expressions
-            .iter()
-            .zip(authored_conjuncts(&predicate, expressions.len())?)
-        {
-            let scalar = CheckedScalarExpression::Boolean(Box::new(conjunct.clone()));
-            crate::expression_preparation::source_custody::validate_normal_result_read_expression(
-                checked,
-                state.symbol,
-                *expression,
-                &scalar,
-            )?;
-            crate::expression_preparation::source_custody::value_correspondence::validate(
-                checked,
-                state.symbol,
-                0,
-                *expression,
-                PrimitiveType::Bool,
-                &checked_trees::CheckedCallScalarArgument::Pure(scalar),
-            )?;
-        }
+        validate_authored_predicate(checked, state, &expressions, &predicate)?;
         published.push(row.cloned().flatten());
     }
     if retained.next().is_some() {
         return unsupported("scalar completion contains an unauthored guarantee");
     }
     Ok(published)
+}
+
+/// Boundary publication may retain scalar consequences beside contracts owned
+/// by other lanes. Validate each retained predicate against its authored clause;
+/// mathematical equality consequences are separately rejoined to their sealed
+/// source application by the common checking owner.
+pub(crate) fn validate_boundary_guarantees(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+) -> Result<(), LoweringError> {
+    let contract = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .ok_or(LoweringError::Unsupported(
+            "boundary has no checked contract",
+        ))?;
+    let [state] = checked.machine_states(machine) else {
+        return unsupported("boundary scalar guarantees have no exact entry state");
+    };
+    let mut retained = contract.closed_scalar_values.ensures().iter();
+    for source in checked
+        .machine_contracts(machine)
+        .iter()
+        .filter(|source| source.kind == SignatureContractKind::Ensures && source.binding.is_none())
+    {
+        let row = retained.next().ok_or(LoweringError::Unsupported(
+            "boundary scalar guarantee lost its source clause",
+        ))?;
+        match row {
+            Some(ClosedScalarContractValue::Predicate(predicate)) => {
+                let expressions = checked
+                    .proof_facts
+                    .span_or_empty(source.facts)
+                    .iter()
+                    .map(|fact| match fact {
+                        ProofFact::Expression(expression) => Some(*expression),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .filter(|expressions| !expressions.is_empty())
+                    .ok_or(LoweringError::Unsupported(
+                        "boundary predicate has no authored expression",
+                    ))?;
+                validate_authored_predicate(checked, state, &expressions, predicate)?;
+            }
+            Some(ClosedScalarContractValue::FloatMeaningEquality { expression, .. }) => {
+                if !matches!(checked.proof_facts.span_or_empty(source.facts),
+                    [ProofFact::Expression(authored)] if authored == expression)
+                {
+                    return unsupported(
+                        "boundary meaning guarantee changed its authored expression",
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    if retained.next().is_some() {
+        return unsupported("boundary contains an unauthored scalar guarantee");
+    }
+    Ok(())
+}
+
+fn validate_authored_predicate(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    expressions: &[checked_trees::expression::ExpressionHandle],
+    predicate: &CheckedBooleanExpression,
+) -> Result<(), LoweringError> {
+    namespace::validate(&predicate)?;
+    for (expression, conjunct) in expressions
+        .iter()
+        .zip(authored_conjuncts(&predicate, expressions.len())?)
+    {
+        let scalar = CheckedScalarExpression::Boolean(Box::new(conjunct.clone()));
+        crate::expression_preparation::source_custody::validate_normal_result_read_expression(
+            checked,
+            state.symbol,
+            *expression,
+            &scalar,
+        )?;
+        crate::expression_preparation::source_custody::value_correspondence::validate(
+            checked,
+            state.symbol,
+            0,
+            *expression,
+            PrimitiveType::Bool,
+            &checked_trees::CheckedCallScalarArgument::Pure(scalar),
+        )?;
+    }
+    Ok(())
 }
 
 /// Split one clause row back into its authored facts. The checked producer

@@ -86,7 +86,7 @@ pub(crate) fn build_boundary_machine(
         scalar_parameters,
         result,
         domain_requirements,
-        scalar_ensures: super::boundary_scalar_ensures::lower(program, facts, machine, contract),
+        scalar_ensures: validation::derive_scalar_boundary_guarantees(program, facts, machine, contract),
         scalar_requires,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,

@@ -1,17 +1,14 @@
 //! Result-bearing boundary custody lowering.
 use super::{
-    BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
-    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, DomainSemanticId, LoweredPsi,
-    LoweringError, ProofBundle, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachSummary,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralTypeId, TerminalModule,
-    boundary_machine_id, checked_unit_boundary_identity,
+    CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan, CheckedTrees,
+    DomainSemanticId, LoweredPsi, LoweringError, ProofBundle, ServiceDeclaration, ServiceId,
+    ServiceReachId, ServiceReachSummary, StructuralDomainDeclaration, StructuralTypeId,
+    TerminalModule, boundary_machine_id, checked_unit_boundary_identity,
     collect_installation_machine_contract_services, collect_published_contract_services,
     collect_service_summary, content_conservation, contract_id, dense_identity,
-    finalize_operation_proofs, lookup_service_id, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes,
-    lower_published_service_ceiling, lower_root_service_reach, lower_structural_type_plans,
-    lower_unit_parameters, machine_id, service_id, structural_domain_id, terminal_scalar_type,
-    unsupported,
+    finalize_operation_proofs, lookup_service_id, lookup_type_id, lower_root_service_reach,
+    lower_structural_type_plans, lower_unit_parameters, machine_id, service_id,
+    structural_domain_id, terminal_scalar_type, unsupported,
 };
 use crate::producer_result::SourceMappedLowered;
 use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls;
@@ -74,77 +71,24 @@ pub(crate) fn lower_boundary_scalar_return_machine(
         &domain_ids,
         &mut next_place,
     )?;
-    let boundary_parameters = lower_unit_parameters(
-        &boundary.structural_parameters,
+    let boundary_id = boundary_machine_id(1);
+    let (mut boundary_declarations, _) = crate::unit::attached_unit::lower_boundary_declarations(
+        checked,
+        &[(
+            boundary,
+            checked_unit_boundary_identity(checked, boundary.machine)?,
+        )],
         &type_ids,
         &structural_types,
         &domain_ids,
+        &service_ids,
         &mut next_place,
     )?;
-    let boundary_scalar_parameters = boundary
-        .scalar_parameters
-        .iter()
-        .map(|parameter| terminal_scalar_type(parameter.primitive_type))
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut requires = boundary
-        .domain_requirements
-        .iter()
-        .map(|requirement| {
-            Ok(StructuralDomainRequirement {
-                argument_index: requirement.argument_index,
-                domain: lookup_domain_id_for_carrier(
-                    &domain_ids,
-                    requirement.domain,
-                    boundary_parameters
-                        .get(requirement.argument_index as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "boundary structural requirement has an invalid argument index",
-                        ))?
-                        .structural_type,
-                )?,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    requires.sort();
-    requires.dedup();
-    let boundary_id = boundary_machine_id(1);
-    let boundary_declaration = BoundaryMachineDeclaration {
-        kind: boundary.kind,
-        scalar_ensures: Vec::new(),
-        scalar_requires: Vec::new(),
-        parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
-            &boundary.scalar_parameters,
-            &boundary.structural_parameters,
-        )?,
-        id: boundary_id,
-        identity: checked_unit_boundary_identity(checked, boundary.machine)?,
-        attachment: boundary
-            .attachment_type_identity
-            .as_ref()
-            .map(|identity| lookup_type_id(&type_ids, identity))
-            .transpose()?,
-        scalar_parameters: boundary_scalar_parameters.clone(),
-        crash_routes: lower_boundary_crash_routes(checked, boundary, &boundary_scalar_parameters)?,
-        structural_parameters: boundary_parameters,
-        result: BoundaryMachineResult::Scalar(terminal_scalar_type(plan.result_type)?),
-        requires,
-        program_local_root_introductions: Vec::new(),
-        content_guarantees: lower_boundary_content_guarantees(
-            &checked.facts.qualifications.content.conservation_plans,
-            boundary.state,
-        )?,
-        fixed_service_reach: crate::unit::attached_unit::lower_fixed_boundary_service_reach(
-            checked,
-            boundary,
-            &service_ids,
-        )?,
-        published_service_ceiling: lower_published_service_ceiling(
-            &checked.facts.service_reaches.rows,
-            boundary.contract_service_reach,
-            boundary.service_reach,
-            &service_ids,
-        )?,
-    };
+    let boundary_declaration = boundary_declarations
+        .pop()
+        .ok_or(LoweringError::Unsupported(
+            "boundary return lost its exact declaration",
+        ))?;
 
     let roots = scalar_arguments
         .iter()

@@ -437,3 +437,63 @@ fn structural_boundary_crash_guards_reject_without_losing_the_contract() {
     .expect_err("unsupported structural boundary crash contract must reject");
     assert!(format!("{error:?}").contains("guarded crash route"));
 }
+
+#[test]
+fn boundary_normal_guarantees_rejoin_authored_predicates_and_results() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        boundary machine Host::identity(input: i32) -> i32
+        ensures result == input;
+        machine run() -> i32 {
+            let result: i32 = Host::identity(77);
+            result
+        }
+    "#,
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("run"),
+    )
+    .expect("ordinary boundary return retains normal guarantees");
+    assert!(
+        !lowered.semantic_module.boundary_machines[0]
+            .scalar_ensures
+            .is_empty()
+    );
+    verify_roundtrip(&lowered);
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        for boundary in changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .boundary_machines
+            .iter_mut()
+            .chain(
+                changed
+                    .facts
+                    .flow
+                    .terminal_boundary_scalar_returns
+                    .boundary_machines
+                    .iter_mut(),
+            )
+        {
+            if mutation == 0 {
+                boundary.scalar_ensures.clear();
+            } else {
+                boundary.scalar_ensures =
+                    vec![checked_trees::ClosedScalarContractValue::Predicate(
+                        checked_trees::CheckedBooleanExpression::Constant(true),
+                    )];
+            }
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("run"),
+            )
+            .is_err(),
+            "retained boundary guarantee mutation {mutation}"
+        );
+    }
+}

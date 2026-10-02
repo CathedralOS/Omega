@@ -687,10 +687,13 @@ fn scalar_provider_must_supply_each_declared_normal_guarantee() {
             candidate: machine_id(2),
         }
     );
-    module.machines[1].contract.ensures = vec![Proposition::Equal(
-        ScalarTerm::value(result.id, result.scalar_type),
-        ScalarTerm::boolean(true),
-    )];
+    module.machines[1].contract.ensures = vec![terminal_psi::ContractClause {
+        obligation: semantic_vocabulary::ObligationId::new(999).unwrap(),
+        proposition: Proposition::Equal(
+            ScalarTerm::value(result.id, result.scalar_type),
+            ScalarTerm::boolean(true),
+        ),
+    }];
     validate_module(&module).expect("exact provider result guarantee rejoined by position");
     module.boundary_machines[0].scalar_ensures[0] = Proposition::Equal(
         ScalarTerm::value(formal.id, formal.scalar_type),
