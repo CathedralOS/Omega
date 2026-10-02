@@ -59,11 +59,11 @@ pub(crate) fn structural_call_arguments(
     .unwrap_or_default();
     let explicit_arguments =
         crate::semantic::calls::call_site_argument_expressions(program, call_site);
-    let explicit_self = explicit_arguments.len()
-        > target_parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
+    let explicit_self = crate::semantic::calls::call_site_supplies_explicit_subject(
+        program,
+        call_site,
+        target_parameters,
+    );
     let mut explicit_index = 0usize;
     let mut output = Vec::new();
     let mut structural_argument_ordinal = 0usize;
@@ -100,33 +100,22 @@ pub(crate) fn structural_call_arguments(
             structural_argument_ordinal = structural_argument_ordinal.checked_add(1)?;
         }
         arm("call operation: structural arguments: argument place");
-        let authored_place = if target.is_self {
+        let authored_place = if target.is_self && !explicit_self {
             if is_reference(program, target.type_reference) {
-                // The completed Unit callee decides whether its borrowed self
-                // survives attachment specialization. receiver_calls rejoins
-                // retained receiver arguments after those plans are available.
+                // Only an implicit receiver lacks an authored argument here.
+                // Reconciliation supplies it if the completed callee retains
+                // that parameter; explicit operands use ordinary custody below.
                 continue;
             }
-            if explicit_self {
-                let expression = *explicit_arguments.get(explicit_index)?;
-                explicit_index += 1;
-                crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    expression,
-                )?
-            } else {
-                crate::flow::owned_method_receiver_place(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    call_site,
-                    target_parameters,
-                    receiver_symbol,
-                )
-                .or_else(|| crate::flow::canonical_place_from_symbol(receiver_symbol))?
-            }
+            crate::flow::owned_method_receiver_place(
+                program,
+                caller_state.symbol,
+                statement_index,
+                call_site,
+                target_parameters,
+                receiver_symbol,
+            )
+            .or_else(|| crate::flow::canonical_place_from_symbol(receiver_symbol))?
         } else {
             let expression = *explicit_arguments.get(explicit_index)?;
             explicit_index += 1;

@@ -1079,6 +1079,9 @@ impl<'program> Evaluator<'program> {
                 machine.symbol,
                 carried,
             )?;
+            // An explicit subject replaces ambient storage for the whole
+            // activation, including subsequent state transitions.
+            instance = frame.self_cell.clone();
 
             // Execute statements, watching for the first satisfied transition. A state
             // whose body ends in a bare expression (`{ 22 }`) returns that expression's
@@ -1158,7 +1161,8 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Bind a state's parameters (skipping `self`) to the positional argument cells. Seeds
+    /// Bind a state's parameters to their positional argument cells. An implicit
+    /// self uses the resolved instance; an explicit self keeps its evaluated home. Seeds
     /// from `carried` (the enclosing same-machine state's bindings) so a re-entered state
     /// still holds its earlier bindings; the state's own params rebind on top.
     fn bind_frame(
@@ -1169,6 +1173,7 @@ impl<'program> Evaluator<'program> {
         machine_symbol: SymbolHandle,
         carried: Vec<FrameLocal>,
     ) -> EvalResult<Frame> {
+        let explicit_subject = self.state_arguments_include_subject(state, arguments.len())?;
         let mut frame = Frame {
             return_type: state.return_type,
             locals: carried,
@@ -1179,13 +1184,10 @@ impl<'program> Evaluator<'program> {
         };
         let mut arg_index = 0;
         for parameter in self.program.state_parameters(state) {
-            if parameter.is_self {
+            if parameter.is_self && !explicit_subject {
                 continue;
             }
-            let argument = match arguments.get(arg_index).cloned() {
-                Some(argument) => argument,
-                None => EvaluatedArgument::plain(self.allocate_cell(Value::Unit)?),
-            };
+            let argument = arguments[arg_index].clone();
             let cell = argument.cell;
             // Coerce a by-value ARGUMENT to the param's declared width/domain at
             // the binding, matching the native truncating/clamping/trapping store
@@ -1226,6 +1228,9 @@ impl<'program> Evaluator<'program> {
                 }
                 None => cell,
             };
+            if parameter.is_self {
+                frame.self_cell = self.deref_cell(cell.clone());
+            }
             frame.bind(FrameLocal {
                 symbol: parameter.symbol,
                 cell,

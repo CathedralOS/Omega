@@ -1514,7 +1514,15 @@ impl<'program> Evaluator<'program> {
         // cannot supply an instance. The target symbol also survives generic
         // specialization and multi-component namespace paths.
         if self.expression_receiver_is_namespace(call.receiver) {
-            return self.resolve_namespace_call(call.target_symbol, target, frame);
+            return self.resolve_namespace_call(
+                call.target_symbol,
+                target,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .len(),
+                frame,
+            );
         }
 
         // (1) Receiver expression resolving to a contained sub-machine / data instance
