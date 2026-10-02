@@ -289,7 +289,7 @@ fn receiver_fixture(intervening: O, observe_after_write: bool) -> PsiOptimizatio
 fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
     let function = receiver_fixture(scalar(1), true);
     let regions = BorrowedRegions::new(&function, &BTreeMap::new());
-    let loans = DescriptorLoans::new(&function, &regions);
+    let loans = DescriptorLoans::new(&function, &regions, &BTreeMap::new());
     assert_eq!(loans.loans.len(), 1);
     assert!(loans.loans[0].live.contains(&position(2)));
     assert_eq!(
@@ -302,7 +302,7 @@ fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
         ),
         Some(place(9))
     );
-    let flow = DescriptorFlow::new(&function);
+    let flow = DescriptorFlow::new(&function, &BTreeMap::new());
     assert_eq!(flow.steps[&position(0)].definitions, vec![place(1)]);
     assert!(flow.steps[&position(1)].definitions.is_empty());
 }
@@ -349,7 +349,7 @@ fn stored_dynamic_selection_is_an_escape_at_capture_not_at_later_dispatch() {
     };
     let function = receiver_fixture(capture, false);
     let regions = BorrowedRegions::new(&function, &BTreeMap::new());
-    let loans = DescriptorLoans::new(&function, &regions);
+    let loans = DescriptorLoans::new(&function, &regions, &BTreeMap::new());
     assert_eq!(loans.loans.len(), 1);
     assert!(
         loans.loans[0].live.contains(&position(2)),
@@ -364,5 +364,272 @@ fn stored_dynamic_selection_is_an_escape_at_capture_not_at_later_dispatch() {
             &[]
         ),
         Some(place(9))
+    );
+}
+
+fn projected_output_call_fixture(
+    result: abstract_operations::AbstractStructuralCallResult,
+    output_access: StructuralAccess,
+    output_shape: terminal_psi::StructuralTypeShape,
+    observe_after_write: bool,
+) -> (
+    PsiOptimizationFunction,
+    Vec<terminal_psi::StructuralTypeDeclaration>,
+) {
+    use terminal_psi::{
+        BindingRelevance, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let identity = |number| StructuralTypeId::new(number).unwrap();
+    let call = O::CallStructural {
+        psi_operation: instruction(2),
+        callee: MachineId::new(2).unwrap(),
+        arguments: Vec::new(),
+        structural_arguments: vec![
+            StructuralArgument {
+                place: place(1),
+                access: StructuralAccess::SharedBorrow,
+                path: Vec::new(),
+            },
+            StructuralArgument {
+                place: place(10),
+                access: output_access,
+                path: vec![StructuralPathSegment::Field("output".into())],
+            },
+        ],
+        dynamic_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        result,
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let mut function = receiver_fixture(call, observe_after_write);
+    function
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place(10),
+            position: 0,
+            is_self: false,
+            structural_type: identity(3),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    function.declared_places.insert(place(10));
+    let field = |number, name: &str, field_type| StructuralFieldDeclaration {
+        id: semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
+        identity: name.into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    };
+    let types = vec![
+        StructuralTypeDeclaration {
+            id: identity(1),
+            identity: "test::View".into(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                },
+            ),
+        },
+        StructuralTypeDeclaration {
+            id: identity(3),
+            identity: "test::Main".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    field(1, "output", StructuralFieldType::Structural(identity(4))),
+                    field(2, "opaque", StructuralFieldType::Structural(identity(6))),
+                ],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: identity(4),
+            identity: "test::Output".into(),
+            shape: output_shape,
+        },
+        StructuralTypeDeclaration {
+            id: identity(5),
+            identity: "test::Boolean".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+        },
+        StructuralTypeDeclaration {
+            id: identity(6),
+            identity: "test::OpaqueService".into(),
+            shape: StructuralTypeShape::FusedServiceBinding,
+        },
+    ];
+    (function, types)
+}
+
+fn plain_output_shape() -> terminal_psi::StructuralTypeShape {
+    terminal_psi::StructuralTypeShape::Record {
+        fields: vec![terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            identity: "value".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean),
+        }],
+    }
+}
+
+#[test]
+fn writable_plain_projection_does_not_escape_a_shared_call_operand() {
+    use abstract_operations::AbstractStructuralCallResult;
+    for result in [
+        AbstractStructuralCallResult::Unit,
+        AbstractStructuralCallResult::Scalar(abstract_operations::AbstractResult {
+            value: value(8),
+            scalar_type: ScalarType::Boolean,
+        }),
+    ] {
+        for access in [
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let (function, declarations) =
+                projected_output_call_fixture(result.clone(), access, plain_output_shape(), false);
+            let types = declarations
+                .iter()
+                .map(|declaration| (declaration.id, declaration))
+                .collect();
+            let regions = BorrowedRegions::new(&function, &types);
+            let loans = DescriptorLoans::new(&function, &regions, &types);
+            assert_eq!(loans.loans.len(), 1);
+            assert!(
+                loans.loans[0].live.contains(&position(1)),
+                "the call observes the view"
+            );
+            assert!(
+                !loans.loans[0].live.contains(&position(2)),
+                "{result:?} {access:?}: no carrier can retain the alias after the call"
+            );
+            assert_eq!(
+                loans.conflicted_operation(
+                    &regions,
+                    position(1).0,
+                    1,
+                    &function.blocks[0].nodes[1].operation,
+                    &[],
+                ),
+                None,
+                "the writable output is disjoint from the view backing"
+            );
+            assert_eq!(
+                loans.conflicted_operation(
+                    &regions,
+                    position(2).0,
+                    2,
+                    &function.blocks[0].nodes[2].operation,
+                    &[place(9)],
+                ),
+                None,
+                "after the final observation the backing may be written or transferred"
+            );
+        }
+    }
+}
+
+#[test]
+fn alias_bearing_or_unresolved_writable_output_keeps_the_call_loan_alive() {
+    use abstract_operations::AbstractStructuralCallResult;
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
+    let output = StructuralTypeId::new(4).unwrap();
+    let scalar = StructuralTypeId::new(5).unwrap();
+    let mut nested_view = plain_output_shape();
+    let StructuralTypeShape::Record { fields } = &mut nested_view else {
+        unreachable!()
+    };
+    fields[0].field_type =
+        terminal_psi::StructuralFieldType::Structural(StructuralTypeId::new(1).unwrap());
+    for (description, shape) in [
+        (
+            "reference",
+            StructuralTypeShape::Reference {
+                referent: scalar,
+                access: StructuralAccess::SharedBorrow,
+            },
+        ),
+        (
+            "element view",
+            StructuralTypeShape::ElementView { element: scalar },
+        ),
+        (
+            "byte view",
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }),
+        ),
+        ("nested view", nested_view),
+        ("opaque", StructuralTypeShape::FusedServiceBinding),
+        (
+            "recursive",
+            StructuralTypeShape::FixedArray {
+                element: output,
+                length: 0,
+            },
+        ),
+        ("missing", plain_output_shape()),
+    ] {
+        let (function, mut declarations) = projected_output_call_fixture(
+            AbstractStructuralCallResult::Unit,
+            StructuralAccess::MutableBorrow,
+            shape,
+            false,
+        );
+        if description == "missing" {
+            declarations.retain(|declaration| declaration.id != output);
+        }
+        let types = declarations
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        let regions = BorrowedRegions::new(&function, &types);
+        let loans = DescriptorLoans::new(&function, &regions, &types);
+        assert_eq!(loans.loans.len(), 1);
+        assert!(
+            loans.loans[0].live.contains(&position(2)),
+            "{description}: an escaping alias cannot expire at the call"
+        );
+        assert_eq!(
+            loans.conflicted_operation(
+                &regions,
+                position(2).0,
+                2,
+                &function.blocks[0].nodes[2].operation,
+                &[],
+            ),
+            Some(place(9)),
+            "{description}"
+        );
+    }
+}
+
+#[test]
+fn a_non_escaping_call_does_not_retire_later_descriptor_observations() {
+    let (function, declarations) = projected_output_call_fixture(
+        abstract_operations::AbstractStructuralCallResult::Unit,
+        StructuralAccess::MutableBorrow,
+        plain_output_shape(),
+        true,
+    );
+    let types = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect();
+    let regions = BorrowedRegions::new(&function, &types);
+    let loans = DescriptorLoans::new(&function, &regions, &types);
+    assert!(loans.loans[0].live.contains(&position(3)));
+    assert_eq!(
+        loans.conflicted_operation(
+            &regions,
+            position(2).0,
+            2,
+            &function.blocks[0].nodes[2].operation,
+            &[],
+        ),
+        Some(place(9)),
+        "a write before the final observation still disturbs the loan"
     );
 }
