@@ -38,6 +38,7 @@ pub(crate) mod copies;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
+pub(crate) mod operand_types;
 mod selection;
 mod source_custody;
 mod structural_arguments;

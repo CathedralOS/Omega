@@ -107,8 +107,10 @@ pub(crate) fn requires_shared_catalog(
             checked, machine,
         )?
         .is_empty()
-            || !crate::scalar_graph::scalar_computations::cases::type_roots(checked, machine)?
-                .is_empty()
+            || !crate::scalar_graph::scalar_computations::operand_types::type_roots(
+                checked, machine,
+            )?
+            .is_empty()
         {
             // Computation-owned constructors require the shared namespace even
             // when neither this machine nor its callers have structural formals.

@@ -60,10 +60,12 @@ pub(super) fn retain_catalog_roots<'checked>(
                 },
                 service_roots,
             )?;
-            type_roots.extend(crate::scalar_graph::scalar_computations::cases::type_roots(
-                checked,
-                graph.machine,
-            )?);
+            type_roots.extend(
+                crate::scalar_graph::scalar_computations::operand_types::type_roots(
+                    checked,
+                    graph.machine,
+                )?,
+            );
             type_roots.extend(
                 graph
                     .states
