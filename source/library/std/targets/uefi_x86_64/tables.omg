@@ -32,7 +32,7 @@ data EfiLoadedImage {
 data EfiLoadedImageLayout {
 }
 
-uefi_x86_64 machine EfiLoadedImageLayout::plan(&mut self, schema: Schema) -> Plan {
+uefi_x86_64 machine EfiLoadedImageLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
@@ -95,7 +95,7 @@ data EfiSystemTableView {
 data EfiSystemTableViewLayout {
 }
 
-uefi_x86_64 machine EfiSystemTableViewLayout::plan(&mut self, schema: Schema) -> Plan {
+uefi_x86_64 machine EfiSystemTableViewLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
@@ -121,7 +121,7 @@ data EfiBootServicesView {
 data EfiBootServicesViewLayout {
 }
 
-uefi_x86_64 machine EfiBootServicesViewLayout::plan(&mut self, schema: Schema) -> Plan {
+uefi_x86_64 machine EfiBootServicesViewLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 24 } };
