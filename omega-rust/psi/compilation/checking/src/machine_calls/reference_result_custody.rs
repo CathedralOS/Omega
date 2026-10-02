@@ -1931,61 +1931,6 @@ fn view_self_member_symbol(
         })
 }
 
-/// The data definition an argument root denotes: the machine's attached data
-/// for `*self`, otherwise the argument parameter's peeled declared data type.
-fn arg_root_data_symbol(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    machine: SymbolHandle,
-    root: SymbolHandle,
-) -> Option<SymbolHandle> {
-    let parameters = program.state_parameters(state);
-    let declared = parameters
-        .iter()
-        .find(|parameter| parameter.symbol == root)
-        .map(|parameter| parameter.type_reference)
-        .or_else(|| {
-            parameters
-                .iter()
-                .find(|parameter| parameter.is_self && root == machine)
-                .map(|parameter| parameter.type_reference)
-        })?;
-    let mut selected = declared;
-    let mut symbol = loop {
-        match program.type_reference_table.type_reference(selected) {
-            TypeReferenceNode::Constrained { base_type, .. } => selected = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => selected = *referee,
-            TypeReferenceNode::Named { symbol, .. } => break *symbol,
-            _ => return None,
-        }
-    };
-    if symbol == machine {
-        symbol = program.machine_by_symbol(machine)?.attached_data_symbol;
-    }
-    Some(symbol)
-}
-
-/// Whether a recorded loan denotes exactly the storage `expected_root` names.
-///
-/// One projection has two recordings. Lending a field of a receiver collapses
-/// into the field itself -- root is the field, no segments -- while lending the
-/// same field of a named data parameter keeps the path, so `&mut main.bag`
-/// records the parameter as the root with one `Field` segment selecting `bag`.
-/// Both denote one storage, and comparing only a bare root admitted the first
-/// spelling and refused the second, which omitted the caller's whole unit plan.
-/// A longer path is a different, narrower place and still refuses.
-fn loan_denotes(
-    facts: &CheckFacts,
-    loan: &checked_trees::BorrowLoanFact,
-    expected_root: SymbolHandle,
-) -> bool {
-    match facts.borrow.loan_segments(loan) {
-        [] => loan.root_symbol == expected_root,
-        [facts::PlaceSegment::Field { symbol }] => *symbol == expected_root,
-        _ => false,
-    }
-}
-
 /// Reconstruct actual call substitution, not only the return lifetime annotation.
 /// The callee's ordinary completion independently verifies this ingress source.
 pub fn result_loan(
@@ -2124,7 +2069,7 @@ pub fn result_loan(
         members.push(member);
         root = member.receiver;
     }
-    let expected_root = if let Some((_, leaf_source)) = leaf {
+    let expected_places = if let Some((_, leaf_source)) = leaf {
         // The argument is an owned record local, possibly through one
         // declared-field projection; the returned leaf's loan is the exact
         // captured leaf loan under that projection, and this call is that
@@ -2183,7 +2128,10 @@ pub fn result_loan(
                 if leaf_loan.last_use_statement_index != call.statement_index {
                     return None;
                 }
-                leaf_loan.root_symbol
+                vec![(
+                    leaf_loan.root_symbol,
+                    facts.borrow.loan_segments(leaf_loan).to_vec(),
+                )]
             }
             ExpressionNode::Call(nested) => {
                 // The carrier is the nested call's anonymous result: its
@@ -2233,69 +2181,31 @@ pub fn result_loan(
                 if leaf_loan.last_use_statement_index != call.statement_index {
                     return None;
                 }
-                leaf_loan.root_symbol
+                vec![(
+                    leaf_loan.root_symbol,
+                    facts.borrow.loan_segments(leaf_loan).to_vec(),
+                )]
             }
             _ => return None,
         }
     } else if mutable_view || shared_view {
-        // The view's loan names the borrowed argument's denoted root:
-        // a bare parameter names its symbol; a member-rooted place such as
-        // `self.bag` names the outermost field below its root, exactly as the
-        // minted caller-side loan publishes member roots.
-        let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
-            return None;
-        };
-        if actual.head_symbol != actual.symbol
-            || program
-                .expression_table
-                .name_path_members(actual.members)
-                .len()
-                != 1
-        {
-            return None;
-        }
-        let authored_root_carries_source =
-            program.state_parameters(state).iter().any(|parameter| {
-                (parameter.symbol == actual.symbol
-                    || (parameter.is_self && actual.symbol == machine))
-                    && !parameter.is_const
-                    && if shared_view {
-                        view_source_parameter_is_readable(program, parameter)
-                    } else {
-                        view_source_parameter_is_mutable(program, parameter)
-                    }
-            });
-        if !authored_root_carries_source {
-            return None;
-        }
-        if members.is_empty() {
-            actual.symbol
-        } else {
-            let member = members.last()?;
-            // The loan's denoted root is the field declaration's symbol, not
-            // the member expression's resolution identity.
-            let Some(data_symbol) = arg_root_data_symbol(program, state, machine, actual.symbol)
-            else {
-                return None;
-            };
-            let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == data_symbol)
-            else {
-                return None;
-            };
-            let Some(field) = crate::value_custody::places::exact_data_member_field(
-                program,
-                data,
-                SymbolHandle::invalid(),
-                member.member.as_str(),
-                member.case_variant.as_ref().map(|case| case.as_str()),
-            ) else {
-                return None;
-            };
-            field.symbol
-        }
+        // A returned loan retains the actual argument's exact backing, whether
+        // that backing is a parameter, an invocation-local owner, or a view of
+        // either. Reconstruct the entire captured path instead of admitting only
+        // parameter roots or collapsing a field to its declaration symbol.
+        // Borrow checking owns availability/access; activation and release below
+        // must still match this particular call and result binding.
+        let (root, segments) =
+            mutable_source_place(program, machine, state, call.statement_index, argument)?;
+        rebase_place_through_local_loans(
+            program,
+            facts,
+            machine,
+            state.symbol,
+            call.statement_index,
+            root,
+            segments,
+        )
     } else {
         let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
             return None;
@@ -2318,7 +2228,7 @@ pub fn result_loan(
         {
             return None;
         }
-        actual.symbol
+        vec![(actual.symbol, Vec::new())]
     };
     let mut states = facts
         .borrow
@@ -2347,7 +2257,9 @@ pub fn result_loan(
     };
     if loans.next().is_some()
         || loan.statement_index != call.statement_index
-        || !loan_denotes(facts, loan, expected_root)
+        || !expected_places.iter().any(|(root, segments)| {
+            *root == loan.root_symbol && segments.as_slice() == facts.borrow.loan_segments(loan)
+        })
         || loan.kind != expected_kind
         || !facts.borrow.loan_owner_path(loan).is_empty()
     {

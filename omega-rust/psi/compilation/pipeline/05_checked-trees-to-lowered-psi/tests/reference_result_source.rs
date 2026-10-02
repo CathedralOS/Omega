@@ -13,6 +13,99 @@ use terminal_production::{
 use terminal_psi::{OperationKind, Terminator};
 
 #[test]
+fn local_record_returned_loan_replays_exact_root_path_and_access() {
+    for (declaration, argument) in [
+        ("let holder: Holder;", "&holder"),
+        ("let outer: Outer;", "&outer.left"),
+    ] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Node {{ value: i32; }}
+             data Holder {{ node: Node; }}
+             data Outer {{ left: Holder; right: Holder; }}
+             machine first(holder: &Holder) -> &Node {{
+                 transition {{ _ -> &holder.node }}
+             }}
+             machine exercise() -> i32 {{
+                 {declaration}
+                 let seen: &Node = first({argument});
+                 seen.value
+             }}",
+        ));
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "exercise")
+            .unwrap();
+        let state = &checked.typed.machine_states(machine)[0];
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| plan.machine == machine.symbol && plan.state == state.symbol)
+            .expect("local storage and returned loan have an ordinary plan");
+        let result = plan
+            .operations
+            .iter()
+            .filter_map(checked_trees::CheckedUnitEffectOperationPlan::structural_result_binding)
+            .find(|result| result.statement_index == 1)
+            .expect("returned reference binding");
+        let call = checked
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .map(|(_, call)| call)
+            .find(|call| call.statement_index == 1)
+            .unwrap();
+        let loan = validation::reference_result_custody::result_loan(
+            &checked.typed,
+            &checked.facts,
+            machine.symbol,
+            state,
+            call,
+            result,
+        )
+        .expect("loan retains the exact local backing");
+        for mutation in 0..4 {
+            if mutation == 3
+                && checked
+                    .facts
+                    .borrow
+                    .loan_segments(checked.facts.borrow.loans.get(loan))
+                    .is_empty()
+            {
+                continue;
+            }
+            let mut facts = checked.facts.clone();
+            let changed = facts.borrow.loans.get_mut(loan);
+            match mutation {
+                0 => changed.root_symbol = symbols::SymbolHandle::invalid(),
+                1 => changed.kind = checked_trees::BorrowAccessKind::Mutable,
+                2 => changed.statement_index += 1,
+                3 => changed.segments = arena::HandleSpan::empty(),
+                _ => unreachable!(),
+            }
+            assert!(
+                validation::reference_result_custody::result_loan(
+                    &checked.typed,
+                    &facts,
+                    machine.symbol,
+                    state,
+                    call,
+                    result,
+                )
+                .is_none(),
+                "{argument}: changed origin {mutation} must reject"
+            );
+        }
+    }
+}
+
+#[test]
 fn returned_shared_record_field_reads_replay_without_source() {
     execute_returned_record_field_read("", "");
 }
