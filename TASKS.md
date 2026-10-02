@@ -113,17 +113,17 @@ execution and native exit/output. A moved refusal is still unfinished work.
 ## Immediate product closure
 
 - **STATIC-GENERIC-REFERENCE-FORWARDING.** (split-of:STATIC-NOMINAL-BINDER-SUBJECT)
-  Forwarding a lent generic context into another static generic call rejects
-  before execution. Compose `trait_generic_bound_static_dispatch` with
-  `forward<T, machine Increment>(subject: &mut T)` calling
-  `step<T, Increment>(subject)` under the same authored machine-binder contract;
-  entry calls `forward<Counter, Counter::increment>(&mut main.counter)`.
-  Both structural and nominal binder forms report "argument `subject` for state
-  `entry` expects `&mut T`, got `named value`". Preserve the caller/callee type
-  parameter correspondence and the existing reference permission through the
-  ordinary call path; do not equate type parameters by spelling or require an
-  extra authored reborrow. Acceptance: both compositions run with native and
-  checked-interpreter exit 1, while incompatible carrier or access still rejects.
+  Preserve selected type qualifications in generic call requirements. Structural
+  and nominal forwarding now run through distinct caller/callee type parameters
+  (`calls/generic_reference_forwarding_exit`, native and checked exit 2), and
+  incompatible carriers and access reject. The remaining qualification join
+  drops `Ten` from `sink<i32 in Ten>(subject)` inside an unused generic body
+  taking `subject: &i32`; the equivalent nongeneric `sink(subject: &i32 in Ten)`
+  correctly requires proof. Reuse ordinary parameter-domain elaboration for
+  the selected call application before existing contract validation, including
+  unspecialized generic bodies. Acceptance: the unqualified reference rejects,
+  a reference carrying `Ten` remains accepted, and both forwarding compositions
+  retain their authored results without an extra borrow.
 
 - **STATIC-SUBJECT-IN-CALLABLE-IDENTITY.** (split-of:STATIC-MACHINE-MIGRATION)
   Remaining acceptance is customer migration and matching-host execution:

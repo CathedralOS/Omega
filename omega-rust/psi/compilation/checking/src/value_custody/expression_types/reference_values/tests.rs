@@ -1,5 +1,6 @@
 use super::super::{
-    TypeConstraintNode, argument_matches_carrier, argument_matches_type_reference_handle,
+    TypeConstraintNode, argument_matches_carrier, argument_matches_carrier_with_substitutions,
+    argument_matches_type_reference_handle,
 };
 use super::{
     ExpressionHandle, ExpressionNode, ReferenceAccess, TypeReferenceHandle, TypeReferenceNode,
@@ -99,7 +100,7 @@ fn array_reference_correspondence_preserves_elements_and_access() {
 }
 
 #[test]
-fn named_shared_reference_inference_does_not_match_closed_nominals() {
+fn named_shared_reference_requires_exact_call_type_correspondence() {
     for access in ["&", "&mut ", "&write "] {
         let program = crate::front_end::typed_program(&format!(
             "data Card {{}} data Other {{}}
@@ -116,10 +117,39 @@ fn named_shared_reference_inference_does_not_match_closed_nominals() {
                     .then_some(handle)
             })
             .expect("named reference");
+        assert!(!argument_matches_type_reference_handle(
+            &program,
+            expression,
+            expected(&program)
+        ));
+        assert!(!argument_matches_carrier(
+            &program,
+            expression,
+            expected(&program)
+        ));
+        let formal = program.machine_type_parameters(&program.machines()[0])[0].symbol;
+        let TypeReferenceNode::Reference { referee: card, .. } = program
+            .type_reference_table
+            .type_reference(parameters[0].type_reference)
+        else {
+            panic!("reference source")
+        };
+        let bindings = [(formal, *card)];
         assert_eq!(
-            argument_matches_type_reference_handle(&program, expression, expected(&program)),
+            argument_matches_carrier_with_substitutions(
+                &program,
+                expression,
+                expected(&program),
+                &bindings
+            ),
             access != "&write ",
         );
+        assert!(!argument_matches_carrier_with_substitutions(
+            &program,
+            expression,
+            parameters[2].type_reference,
+            &bindings
+        ));
         assert!(!argument_matches_type_reference_handle(
             &program,
             expression,
@@ -140,7 +170,8 @@ fn array_view_matching_cannot_grant_mutation_through_shared_storage() {
         &program,
         expression,
         expected(&program),
-        declared_value_matches_reference
+        declared_value_matches_reference,
+        &[]
     ));
     assert!(!place_forwards_mutable_reference(
         &program,
@@ -171,6 +202,7 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
         &program,
         constrained_actual,
         shared_view,
+        &[],
         &[]
     ));
     let constraints = program
@@ -193,15 +225,15 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
         .type_reference_table
         .substitute_node(constrained_actual, reference);
     assert!(
-        reference_type_matches(&program, constrained_actual, shared_view, &[]),
+        reference_type_matches(&program, constrained_actual, shared_view, &[], &[]),
         "a shared view forgets the constrained slice referee's predicate"
     );
     assert!(
-        !reference_type_matches(&program, constrained_actual, mutable_view, &[]),
+        !reference_type_matches(&program, constrained_actual, mutable_view, &[], &[]),
         "a mutable view could write past the forgotten predicate"
     );
     assert!(
-        !reference_type_matches(&program, constrained_actual, narrow_view, &[]),
+        !reference_type_matches(&program, constrained_actual, narrow_view, &[], &[]),
         "forgetting the predicate does not change the element type"
     );
     // The required side's qualification is the callee's claim, not the
@@ -223,15 +255,15 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
         .type_reference_table
         .substitute_node(shared_view, constrained_required);
     assert!(
-        !reference_type_matches(&program, plain_actual, shared_view, &[]),
+        !reference_type_matches(&program, plain_actual, shared_view, &[], &[]),
         "an unqualified slice cannot satisfy the callee's constrained referee"
     );
     assert!(
-        !value_carrier_matches_reference(&program, plain_actual, shared_view, &[]),
+        !value_carrier_matches_reference(&program, plain_actual, shared_view, &[], &[]),
         "call carrier matching cannot introduce a non-domain constraint"
     );
     assert!(
-        value_carrier_matches_reference(&program, constrained_actual, shared_view, &[]),
+        value_carrier_matches_reference(&program, constrained_actual, shared_view, &[], &[]),
         "identical non-domain constraints retain their exact declared identity"
     );
 }
@@ -255,7 +287,8 @@ fn owned_constrained_array_satisfies_only_the_view_domain_it_proves() {
             &program,
             member(&program, "value.text"),
             expected(&program),
-            declared_value_matches_reference
+            declared_value_matches_reference,
+            &[]
         ),
         "an owned `[u8; 4] in Utf8` view satisfies `&[u8] in Utf8`"
     );
@@ -264,7 +297,8 @@ fn owned_constrained_array_satisfies_only_the_view_domain_it_proves() {
             &program,
             member(&program, "value.plain"),
             expected(&program),
-            declared_value_matches_reference
+            declared_value_matches_reference,
+            &[]
         ),
         "a bare `[u8; 4]` cannot satisfy the callee's constrained referee"
     );
@@ -275,6 +309,7 @@ fn owned_constrained_array_satisfies_only_the_view_domain_it_proves() {
             member(&program, "value.text"),
             parameters[2].type_reference,
             declared_value_matches_reference,
+            &[]
         ),
         "the byte-carrier bridge does not change the element type"
     );
@@ -312,6 +347,7 @@ fn owned_constrained_array_satisfies_only_the_view_domain_it_proves() {
             &program,
             parameters[0].type_reference,
             parameters[1].type_reference,
+            &[],
             &[]
         ),
         "an unrelated `[u8; 4]` domain cannot satisfy `&[u8] in Utf8`"
@@ -328,7 +364,8 @@ fn repeated_generic_telescope_projection_remains_explicitly_unsupported() {
             &program,
             member(&program, "value.value.value"),
             expected(&program),
-            declared_value_matches_reference
+            declared_value_matches_reference,
+            &[]
         ),
         "re-entry needs scoped argument views, not an overwritten flat binding"
     );
@@ -361,7 +398,8 @@ fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
                 &program,
                 expression,
                 expected(&program),
-                declared_value_matches_reference
+                declared_value_matches_reference,
+                &[]
             ),
             accepted,
             "{operator}"
@@ -395,7 +433,8 @@ fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
         &program,
         expression,
         expected(&program),
-        declared_value_matches_reference
+        declared_value_matches_reference,
+        &[]
     ));
 }
 
@@ -418,7 +457,8 @@ fn generic_index_cannot_select_builtin_meaning_from_unsubstituted_elements() {
         &program,
         expression,
         expected(&program),
-        declared_value_matches_reference
+        declared_value_matches_reference,
+        &[]
     ));
 }
 

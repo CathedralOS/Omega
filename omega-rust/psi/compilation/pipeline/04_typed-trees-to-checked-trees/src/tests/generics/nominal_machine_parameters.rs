@@ -690,3 +690,115 @@ fn nominal_subject_legacy_receiver_uses_its_exact_attached_carrier() {
     lower_typed_trees(typed_program(source), &CheckingRequest::settled())
         .expect("legacy syntax and explicit subject share one exact callable carrier");
 }
+
+#[test]
+fn generic_reference_forwarding_maps_permuted_call_arguments_in_both_positions() {
+    for value_position in [false, true] {
+        for explicit in [true, false] {
+            let (result, body, terminator) = if value_position {
+                ("-> i32", "0", "")
+            } else {
+                ("", "", ";")
+            };
+            let selection = if explicit { "<Y, X>" } else { "" };
+            let source = format!(
+                "machine sink<A, B>(first: &A, second: &B) {result} {{ {body} }}
+                 machine forward<X, Y>(left: &X, right: &Y) {result} {{
+                     sink{selection}(right, left){terminator}
+                 }}"
+            );
+            lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+                .expect("callee type slots retain the caller's exact permuted identities");
+        }
+    }
+}
+
+#[test]
+fn generic_reference_forwarding_rejects_wrong_explicit_carriers_in_both_positions() {
+    for value_position in [false, true] {
+        for (parameters, selection, arguments) in
+            [("A, B", "Y, X", "left, right"), ("A", "X", "right")]
+        {
+            let (result, body, terminator) = if value_position {
+                ("-> i32", "0", "")
+            } else {
+                ("", "", ";")
+            };
+            let inputs = if parameters == "A" {
+                "first: &A"
+            } else {
+                "first: &A, second: &B"
+            };
+            let source = format!(
+                "machine sink<{parameters}>({inputs}) {result} {{ {body} }}
+                 machine forward<X, Y>(left: &X, right: &Y) {result} {{
+                     sink<{selection}>({arguments}){terminator}
+                 }}"
+            );
+            let diagnostics =
+                lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect_err(
+                    "an unselected generic body still checks each explicit type choice",
+                );
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("argument")
+                        && diagnostic.message.contains("expects")),
+                "{diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn generic_reference_forwarding_keeps_repeated_type_arguments_consistent() {
+    for selection in ["<Left>", ""] {
+        let source = format!(
+            "machine sink<T>(first: &T, second: &T) {{}}
+             machine forward<Left, Right>(left: &Left, right: &Right) {{
+                 sink{selection}(left, right);
+             }}"
+        );
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err("one inferred or explicit slot cannot denote two caller carriers");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("argument")
+                    && diagnostic.message.contains("expects")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn generic_reference_forwarding_preserves_access_in_both_positions() {
+    for value_position in [false, true] {
+        for (required, actual, admitted) in [("&", "&mut", true), ("&mut", "&", false)] {
+            let (result, body, terminator) = if value_position {
+                ("-> i32", "0", "")
+            } else {
+                ("", "", ";")
+            };
+            let source = format!(
+                "machine sink<Selected>(value: {required} Selected) {result} {{ {body} }}
+                 machine forward<Caller>(value: {actual} Caller) {result} {{ sink<Caller>(value){terminator} }}"
+            );
+            let checked = lower_typed_trees(typed_program(&source), &CheckingRequest::settled());
+            if admitted {
+                checked.expect(
+                    "carrier correspondence permits ordinary mutable-to-shared attenuation",
+                );
+            } else {
+                let diagnostics =
+                    checked.expect_err("type correspondence cannot grant mutable access");
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains("argument")),
+                    "{diagnostics:?}"
+                );
+            }
+        }
+    }
+}

@@ -4,9 +4,8 @@
 use super::{
     CallScope, boundary_trait_call_signature, call_gates, declared_receiver_type_reference,
     generic_requirement, machine_state_by_symbol, validate_call_arguments_handles,
-    validate_call_arguments_handles_with_self_argument, validate_generic_bound_argument_types,
-    validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,
-    validate_result_use,
+    validate_generic_bound_argument_types, validate_machine_call_type_parameter_bounds,
+    validate_resolved_target_type_parameter_bounds, validate_result_use,
 };
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -299,15 +298,16 @@ fn validate_resolved_receiver_call(
             state.return_type,
             diagnostics,
         );
-        validate_call_arguments_handles_with_self_argument(
+        super::type_arguments::validate_resolved_call_arguments(
             program,
             current_machine,
             current_state,
             value_environment,
             arguments,
             state.name.as_str(),
-            program.state_parameters(state),
-            Some(state),
+            callee_machine,
+            state,
+            &call.machine_arguments,
             writable_roots,
             self_is_argument,
             diagnostics,

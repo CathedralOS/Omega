@@ -17,6 +17,117 @@ fn named(program: &mut TypedTrees, symbol: SymbolHandle, name: &str) -> TypeRefe
         })
 }
 
+fn application_binders() -> (TypedTrees, [SymbolHandle; 2], [TypeReferenceHandle; 2]) {
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let symbols: Vec<_> = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("A")),
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("B")),
+        ],
+    ))
+    .collect();
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..TypedTrees::default()
+    };
+    let first = named(&mut program, symbols[0], "A");
+    let second = named(&mut program, symbols[1], "B");
+    (program, [symbols[0], symbols[1]], [first, second])
+}
+
+#[test]
+fn simultaneous_type_substitution_preserves_recursive_permutation() {
+    let (mut program, symbols, references) = application_binders();
+    let borrows = references.map(|referee| {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: language_core::ReferenceAccess::Mutable,
+                lifetime: None,
+            })
+    });
+    let substitutions = [(symbols[0], references[1]), (symbols[1], references[0])];
+    for (source, expected) in [(borrows[0], borrows[1]), (borrows[1], borrows[0])] {
+        let actual = program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..TypeIdentityRequest::ordinary(source)
+        });
+        assert_eq!(actual, program.normalized_type_identity(expected));
+        assert_ne!(actual, program.normalized_type_identity(source));
+    }
+}
+
+#[test]
+fn simultaneous_type_substitution_does_not_rebind_nested_actuals() {
+    let (mut program, symbols, references) = application_binders();
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let actual = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: references[1],
+        });
+    let transitive = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice { element_type: unit });
+    let substitutions = [(symbols[0], actual), (symbols[1], unit)];
+    let request = TypeIdentityRequest {
+        substitutions: &substitutions,
+        ..TypeIdentityRequest::ordinary(references[0])
+    };
+    assert_eq!(
+        program.type_identity_with_simultaneous_substitutions(request),
+        program.normalized_type_identity(actual),
+    );
+    assert_eq!(
+        program.type_identity(request),
+        program.normalized_type_identity(transitive),
+        "existing transitive specialization remains unchanged",
+    );
+}
+
+#[test]
+fn simultaneous_const_substitution_keeps_actual_extent_scope() {
+    let (mut program, symbols, references) = application_binders();
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let literal = named(&mut program, SymbolHandle::invalid(), "3");
+    let arrays = [
+        FixedArrayLength::ConstParameter {
+            symbol: symbols[0],
+            name: Identifier::generated("A"),
+        },
+        FixedArrayLength::ConstParameter {
+            symbol: symbols[1],
+            name: Identifier::generated("B"),
+        },
+        FixedArrayLength::Literal(3),
+    ]
+    .map(|length| {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length,
+            })
+    });
+    let substitutions = [(symbols[0], references[1]), (symbols[1], literal)];
+    let request = TypeIdentityRequest {
+        substitutions: &substitutions,
+        ..TypeIdentityRequest::ordinary(arrays[0])
+    };
+    assert_eq!(
+        program.type_identity_with_simultaneous_substitutions(request),
+        program.normalized_type_identity(arrays[1]),
+    );
+    assert_eq!(
+        program.type_identity(request),
+        program.normalized_type_identity(arrays[2])
+    );
+}
+
 #[test]
 fn substituted_const_has_direct_integer_and_array_length_identity() {
     let mut program = TypedTrees::default();

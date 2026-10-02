@@ -1,0 +1,52 @@
+// Existing references cross generic calls without a second authored borrow.
+// Both nominal and structural machine binders increment the same counter.
+// Expected exit: 2.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+trait Incrementable {
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(counter: &mut Counter) satisfies Incrementable::increment {
+    counter.value = counter.value + 1;
+}
+CounterIncrementable: Counter satisfies Incrementable;
+
+// The two helpers own distinct type parameters; the explicit applications
+// connect them by identity while preserving the existing mutable reference.
+machine nominal_step<StepSubject, machine Increment>(subject: &mut StepSubject)
+where machine Increment satisfies Incrementable::increment;
+{
+    Increment(subject);
+}
+
+machine nominal_forward<ForwardedSubject, machine Increment>(subject: &mut ForwardedSubject)
+where machine Increment satisfies Incrementable::increment;
+{
+    nominal_step<ForwardedSubject, Increment>(subject);
+}
+
+machine structural_step<StepSubject, machine Increment>(subject: &mut StepSubject)
+where machine Increment(target: &mut StepSubject);
+{
+    Increment(subject);
+}
+
+machine structural_forward<ForwardedSubject, machine Increment>(subject: &mut ForwardedSubject)
+where machine Increment(target: &mut ForwardedSubject);
+{
+    structural_step<ForwardedSubject, Increment>(subject);
+}
+
+data Main { console: Binding<Console>; counter: Counter; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    nominal_forward<Counter, Counter::increment>(&mut main.counter);
+    structural_forward<Counter, Counter::increment>(&mut main.counter);
+    main.console.exit_process(main.counter.value as i32);
+}

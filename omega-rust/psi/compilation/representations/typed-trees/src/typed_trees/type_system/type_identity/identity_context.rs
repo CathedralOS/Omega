@@ -20,10 +20,18 @@ use symbols::SymbolHandle;
 pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) binders: &'binders [(SymbolHandle, String)],
     pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
+    pub(crate) substitution_semantics: SubstitutionSemantics,
     pub(crate) active_const_substitutions: &'binders [SymbolHandle],
     pub(crate) exact_toolchain_sources: &'binders [(source::SourceId, [u8; 32])],
     pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
     pub(crate) qualification: TypeIdentityQualification,
+}
+
+#[derive(Clone, Copy, Default)]
+pub(crate) enum SubstitutionSemantics {
+    #[default]
+    Transitive,
+    Simultaneous,
 }
 
 /// Whether a normalized identity spells nominals locally or with their
@@ -55,6 +63,18 @@ impl PackageQualifiedNominalOwner {
 }
 
 impl TypeIdentityContext<'_> {
+    /// A simultaneous application's actual belongs to the caller's scope.
+    /// Its leaves must not be rebound by the callee's application again.
+    pub(crate) fn replacement_context(&self) -> Self {
+        Self {
+            substitutions: match self.substitution_semantics {
+                SubstitutionSemantics::Transitive => self.substitutions,
+                SubstitutionSemantics::Simultaneous => &[],
+            },
+            ..*self
+        }
+    }
+
     pub(crate) fn name(
         &self,
         program: &TypedTrees,
@@ -164,7 +184,7 @@ pub(crate) fn normalize_type_reference(
             .find(|(candidate, _)| candidate == symbol)
         && *replacement != type_reference
     {
-        return normalize_type_reference(program, *replacement, context);
+        return normalize_type_reference(program, *replacement, &context.replacement_context());
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
