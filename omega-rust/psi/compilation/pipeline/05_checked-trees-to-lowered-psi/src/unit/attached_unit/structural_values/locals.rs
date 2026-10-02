@@ -7,6 +7,8 @@ use checked_trees::statement::StatementNode;
 /// Bind only the local whose initializer owns this exact published result.
 /// Nested call/argument values in the same statement have different owners and
 /// must never replace its payload merely because their types happen to match.
+/// The dense result route registers the bound local in the view roster beside
+/// this join when its produced type names a view family.
 pub(crate) fn bind_local(
     checked: &CheckedTrees,
     caller_state: symbols::SymbolHandle,
@@ -51,6 +53,15 @@ pub(crate) fn bind_local(
     // Every readable returned reference publishes the same exact local-to-place
     // join. Its declared access distinguishes shared from mutable permission;
     // omitting shared carriers makes later computations lose their live source.
+    // A shared `&[T]` local borrows its slice referent through the same
+    // SharedBorrow custody the named-referee arms admit — `shared_borrowed_parts`
+    // keeps its named restriction, so the slice view peels separately. Its
+    // published identity is the peeled carrier the call result records.
+    let shared_slice =
+        crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
+            checked,
+            local.type_reference,
+        );
     let borrowed_access = validation::reference_result_custody::mutable_borrowed_parts(
         &checked.typed,
         local.type_reference,
@@ -63,7 +74,8 @@ pub(crate) fn bind_local(
     })
     .map(|(_, access)| {
         crate::expression_preparation::bindings::structural_paths::terminal_access(access)
-    });
+    })
+    .or_else(|| shared_slice.map(|_| terminal_psi::StructuralAccess::SharedBorrow));
     let owned_array =
         validation::is_closed_primitive_array_type(&checked.typed, local.type_reference);
     if expression.is_some_and(|expression| expression != local.initial_value)
@@ -87,13 +99,16 @@ pub(crate) fn bind_local(
     // that home does not freeze its contents or lend it; later writes, copies
     // and loans independently rejoin their authored access. Reference carriers
     // still retain their separate immutable-binding requirement.
+    let declared_identity = match shared_slice {
+        Some(referee) => checked.normalized_type_identity(referee).into_string(),
+        None => checked
+            .normalized_type_identity(local.type_reference)
+            .into_string(),
+    };
     if (local.is_mutable && !(owned_array || super::plain_record(checked, local.type_reference)))
         || !local.symbol.is_valid()
         || locals.iter().any(|binding| binding.symbol == local.symbol)
-        || checked
-            .normalized_type_identity(local.type_reference)
-            .as_str()
-            != result.type_identity
+        || declared_identity.as_str() != result.type_identity
     {
         return unsupported("structural local differs from its published initializer binding");
     }

@@ -84,8 +84,12 @@ pub(super) fn signature_matches(
                         == Some(&result.projected_qualifications);
             }
             if let Some(slice) = borrowed_view_slice(checked, source.return_type) {
+                // The checker stamps the same affine view-loan custody on a
+                // shared slice result that the mutable and named arms above
+                // spell, while `type_multiplicity` still reads the `&`
+                // carrier as unrestricted.
                 return checked.normalized_type_identity(slice).as_str() == result.type_identity
-                    && checked.type_multiplicity(source.return_type) == result.multiplicity
+                    && result.multiplicity == Multiplicity::Affine
                     && view_result_qualifications(checked, source.return_type).as_ref()
                         == Some(&result.qualifications)
                     && validation::structural_result_projected_qualifications(
@@ -626,6 +630,15 @@ pub(super) fn validate_structural(
                 || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
             {
                 return unsupported("structural return exchanged its owned parameter");
+            }
+        }
+        // A literal-backed `&[u8]` return carries its bytes as the whole
+        // ingress: the authored completion is that same string literal —
+        // nothing else could have exchanged or weakened the loan.
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { ref bytes } => {
+            if !matches!(checked.expression_table.expression(*expression), ExpressionNode::String(literal) if literal.as_ref() == bytes.as_slice())
+            {
+                return unsupported("structural return exchanged its literal source");
             }
         }
         _ => return unsupported("structural return requires whole established custody"),

@@ -3,6 +3,46 @@ use super::super::Multiplicity;
 use super::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::statement::StatementNode;
 
+/// The carrier a declared result type joins the binding roster with. A shared
+/// `&[T]` view peels to the view carrier exactly as a `&mut` view does —
+/// `structural_result_type`'s `borrowed_slice_view` arm mints the peeled
+/// `add_type` identity — while named and primitive referees keep the shell
+/// the checker recorded against their own result shapes.
+fn view_result_carrier(
+    checked: &CheckedTrees,
+    declared: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+        checked, declared,
+    )
+    .or_else(|| {
+        crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
+            checked, declared,
+        )
+    })
+}
+
+/// The multiplicity the checker stamps on a declared result type's binding:
+/// a shared slice view's custody ends exactly once like every other borrowed
+/// view (`structural_result_type`'s `borrowed_slice_view` arm). Every other
+/// type keeps the arm's own spelling, so `&mut` and named-view results stay
+/// under whichever classifier the caller already applied.
+fn declared_result_multiplicity(
+    checked: &CheckedTrees,
+    declared: typed_trees::types::TypeReferenceHandle,
+    fallback: Multiplicity,
+) -> Multiplicity {
+    if crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
+        checked, declared,
+    )
+    .is_some()
+    {
+        Multiplicity::Affine
+    } else {
+        fallback
+    }
+}
+
 /// A discarded invocation produces a value but no source-local binding.
 pub(crate) fn discards_result(
     checked: &CheckedTrees,
@@ -123,11 +163,7 @@ pub(crate) fn validate_structural(
     let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
     let target =
         super::authored::target_signature(checked, caller_machine, authored.source_target)?;
-    let carrier = crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-        checked,
-        target.return_type,
-    )
-    .unwrap_or(target.return_type);
+    let carrier = view_result_carrier(checked, target.return_type).unwrap_or(target.return_type);
     let carrier = crate::unit::attached_unit::structural_carrier_type(checked, carrier)?;
     if machine.symbol != caller_machine
         || result.statement_index != coordinate.statement_index
@@ -135,9 +171,13 @@ pub(crate) fn validate_structural(
             .primitive_type_reference(target.return_type)
             .is_some()
         || checked.normalized_type_identity(carrier).as_str() != result.type_identity
-        || validation::reference_result_custody::result_multiplicity(
-            &checked.typed,
+        || declared_result_multiplicity(
+            checked,
             target.return_type,
+            validation::reference_result_custody::result_multiplicity(
+                &checked.typed,
+                target.return_type,
+            ),
         ) != result.multiplicity
     {
         return unsupported("structural call result disagrees with its declared carrier");
@@ -181,11 +221,16 @@ pub(crate) fn validate_structural(
             || checked
                 .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(
                     checked,
-                    state.return_type,
+                    view_result_carrier(checked, state.return_type)
+                        .unwrap_or(state.return_type),
                 )?)
                 .as_str()
                 != result.type_identity
-            || checked.type_multiplicity(state.return_type) != result.multiplicity
+            || declared_result_multiplicity(
+                checked,
+                state.return_type,
+                checked.type_multiplicity(state.return_type),
+            ) != result.multiplicity
         {
             return unsupported(
                 "structural call result differs from its authored return destination",
@@ -217,11 +262,16 @@ pub(crate) fn validate_structural(
             || checked
                 .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(
                     checked,
-                    target.return_type,
+                    view_result_carrier(checked, target.return_type)
+                        .unwrap_or(target.return_type),
                 )?)
                 .as_str()
                 != result.type_identity
-            || checked.type_multiplicity(target.return_type) != result.multiplicity
+            || declared_result_multiplicity(
+                checked,
+                target.return_type,
+                checked.type_multiplicity(target.return_type),
+            ) != result.multiplicity
             || result.multiplicity == Multiplicity::Linear
         {
             return unsupported("structural call result disagrees with its assigned field");
@@ -291,11 +341,16 @@ pub(crate) fn validate_structural(
             || checked
                 .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(
                     checked,
-                    target.return_type,
+                    view_result_carrier(checked, target.return_type)
+                        .unwrap_or(target.return_type),
                 )?)
                 .as_str()
                 != result.type_identity
-            || checked.type_multiplicity(target.return_type) != result.multiplicity
+            || declared_result_multiplicity(
+                checked,
+                target.return_type,
+                checked.type_multiplicity(target.return_type),
+            ) != result.multiplicity
         {
             return unsupported("transition result differs from its authored named target");
         }
@@ -310,17 +365,14 @@ pub(crate) fn validate_structural(
     };
     // An exclusive `&mut T` view local joins the same carrier its result
     // identity records: `&mut` peel to the view/named referee carrier for
-    // non-primitive referees, the borrow shell for the primitive ones.
-    let expected_type =
-        match crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-            checked,
-            local.type_reference,
-        ) {
-            Some(carrier) => crate::unit::attached_unit::structural_carrier_type(checked, carrier)?,
-            None => {
-                crate::unit::attached_unit::structural_carrier_type(checked, local.type_reference)?
-            }
-        };
+    // non-primitive referees, the borrow shell for the primitive ones. A
+    // shared `&[T]` local peels the same way — its binding stamps the sliced
+    // view carrier and affine custody, the convention `view_result_carrier`
+    // and `declared_result_multiplicity` spell for every result route.
+    let expected_type = crate::unit::attached_unit::structural_carrier_type(
+        checked,
+        view_result_carrier(checked, local.type_reference).unwrap_or(local.type_reference),
+    )?;
     if machine.symbol != caller_machine
         || result.statement_index != coordinate.statement_index
         || coordinate.call_ordinal != 0
@@ -329,9 +381,13 @@ pub(crate) fn validate_structural(
             .normalized_type_identity(expected_type)
             .into_string()
             != result.type_identity
-        || validation::reference_result_custody::result_multiplicity(
-            &checked.typed,
+        || declared_result_multiplicity(
+            checked,
             local.type_reference,
+            validation::reference_result_custody::result_multiplicity(
+                &checked.typed,
+                local.type_reference,
+            ),
         ) != result.multiplicity
     {
         return unsupported("boundary structural result disagrees with its authored local");

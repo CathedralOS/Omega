@@ -117,6 +117,15 @@ pub(in crate::execution::terminal_unit) fn signature(
                 shapes.add_reference_type(reference, &[])?,
                 Multiplicity::Affine,
             )
+        } else if crate::execution::terminal_unit::types::borrowed_slice_view(program, reference) {
+            // A shared `&[T]` result borrows its referent through the same
+            // peeled `add_type` identity the binding records — the view's own
+            // carrier — so the signature spells affine custody like every
+            // other borrowed-view result.
+            (
+                shapes.add_type(reference, &[], &[])?,
+                Multiplicity::Affine,
+            )
         } else {
             (shapes.add_type(reference, &[], &[])?, multiplicity)
         };
@@ -578,11 +587,34 @@ pub(super) fn literal_result_operation(
         state.return_type,
         expression,
     )?;
+    // A shared `&[T]` return borrows its referent, so the binding spells the
+    // peeled slice carrier and the affine view-loan custody — the same mint
+    // `structural_result_type`'s `borrowed_slice_view` arm records — rather
+    // than the unrestricted reference shell.
+    let (type_identity, multiplicity) = if crate::execution::terminal_unit::types::borrowed_slice_view(
+        program,
+        state.return_type,
+    ) && let Some((referee, _)) =
+        validation::reference_result_custody::shared_place_borrowed_parts(
+            program,
+            state.return_type,
+        )
+    {
+        (
+            shapes.add_type(referee, &[], &[])?,
+            Multiplicity::Affine,
+        )
+    } else {
+        (
+            shapes.add_type(state.return_type, &[], &[])?,
+            Multiplicity::Unrestricted,
+        )
+    };
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index: statement_ordinal,
         binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity: shapes.add_type(state.return_type, &[], &[])?,
-        multiplicity: Multiplicity::Unrestricted,
+        type_identity,
+        multiplicity,
     };
     let qualifications = parameter_qualifications(program, shapes, state.return_type, &[])?;
     *count = count.checked_add(1)?;
