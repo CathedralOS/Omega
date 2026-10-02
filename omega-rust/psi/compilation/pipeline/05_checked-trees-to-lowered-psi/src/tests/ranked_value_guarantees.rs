@@ -186,3 +186,183 @@ fn wrong_accumulator_arrival_rejects_the_replayed_guarantee_certificate() {
         Err(LoweringError::OperationProofUnavailable(obligation)) if obligation == guarantee
     ));
 }
+
+/// The actual customer's explicit subject and bounded-distance contract, with
+/// host effects removed only from the harness. No guarantee is injected after
+/// source checking: source custody, invariant production and proof publication
+/// must all preserve the authored mathematical relationship.
+const CLIMBING_SUM: &str = r#"
+    data Main {}
+    machine Main::climb(main: &mut Main, limit: u64, index: u64, acc: u64) -> u64
+    requires limit <= 1000, acc <= index, acc <= 1000
+    terminates by (index, limit) -> Nat::BoundedDistance;
+    ensures embed(result) >= embed(acc) + embed(limit) - embed(index)
+    {
+        transition index < limit {
+            true -> climb(main, limit, index + 1, acc + 1)
+            false -> acc
+        }
+    }
+"#;
+
+#[test]
+fn mathematical_climbing_guarantee_survives_codec_and_rejects_wrong_accumulator() {
+    use terminal_interpreter::{
+        AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue,
+        TerminalStructuralInputs, TerminalStructuralValue,
+    };
+    let checked = crate::front_end::checked_program(CLIMBING_SUM);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::climb"))
+        .expect("the authored mathematical guarantee lowers with its inductive invariant");
+    let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    let module = terminal_codec::decode_module(&semantic_bytes).unwrap();
+    let proofs = terminal_codec::decode_proof_section_for(&module, &proof_bytes).unwrap();
+    let profile = AdmissionProfile::default();
+    verify_module(&module, &proofs, &profile).expect("source-free proof replay");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let unsigned = |value| TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Unsigned,
+            64,
+        )
+        .unwrap(),
+        value: IntegerValue::Unsigned(value),
+    };
+    let subject = TerminalStructuralValue {
+        opaque_identity: 1,
+        structural_type: entry.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    for (limit, index, accumulator, expected) in [(4, 0, 0, 4), (4, 9, 5, 5)] {
+        // The second call returns immediately: the mathematical remaining
+        // distance is negative, rather than underflowing an unsigned carrier.
+        let result = terminal_interpreter::interpret_terminal_artifact_measured(
+            &semantic_bytes,
+            &proof_bytes,
+            &profile,
+            &[unsigned(limit), unsigned(index), unsigned(accumulator)],
+            TerminalStructuralInputs {
+                arguments: std::slice::from_ref(&subject),
+                ..Default::default()
+            },
+            &mut AcceptTerminalEffects,
+        )
+        .expect("verified climbing artifact executes without checked trees");
+        assert_eq!(
+            result.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected))
+        );
+    }
+
+    // Retain the exact arithmetic operations and rank arrival. Only the
+    // accumulator carried on the backedge changes from acc + 1 to acc.
+    let mut wrong = module.clone();
+    let machine_index = wrong
+        .machines
+        .iter()
+        .position(|machine| machine.id == module.entry)
+        .unwrap();
+    let machine = &wrong.machines[machine_index];
+    let (block_index, prior_accumulator) = machine
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(index, block)| {
+            let Terminator::Jump {
+                target, arguments, ..
+            } = &block.terminator
+            else {
+                return None;
+            };
+            if block.id == machine.entry
+                || !wrong
+                    .scalar_block_invariants
+                    .iter()
+                    .any(|invariant| invariant.header == *target)
+            {
+                return None;
+            }
+            let updated = *arguments.get(2)?;
+            let prior = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| {
+                    if operation
+                        .result
+                        .scalar()
+                        .is_none_or(|result| result.id != updated)
+                    {
+                        return None;
+                    }
+                    match operation.kind {
+                        OperationKind::ExactIntegerAdd { left, .. } => Some(left),
+                        _ => None,
+                    }
+                })?;
+            Some((index, prior))
+        })
+        .expect("the loop's accumulator update reaches its strengthened header");
+    let Terminator::Jump { arguments, .. } =
+        &mut wrong.machines[machine_index].blocks[block_index].terminator
+    else {
+        panic!("climbing backedge");
+    };
+    assert_ne!(arguments[2], prior_accumulator);
+    arguments[2] = prior_accumulator;
+    let validated =
+        validate_module(&wrong).expect("the stale accumulator arrival is structurally well formed");
+    let cycle_questions = reconstruct_control_cycle_obligations(&wrong).unwrap();
+    assert_eq!(
+        cycle_questions,
+        reconstruct_control_cycle_obligations(&module).unwrap(),
+        "the mutation leaves bounded-distance termination unchanged"
+    );
+    let [cycle_question] = cycle_questions.as_slice() else {
+        panic!("one ranked component");
+    };
+    let context = validated
+        .value_context(&wrong.machines[machine_index])
+        .unwrap();
+    let parameters = wrong.machines[machine_index]
+        .parameters
+        .iter()
+        .map(|parameter| parameter.id)
+        .collect();
+    proof_admission::verify_recursive_component_with_machine_parameters(
+        &context,
+        &cycle_question.obligation,
+        &parameters,
+        proofs.control_cycles[0].certificate.clone(),
+        &profile,
+    )
+    .expect("the retained cycle certificate still proves termination");
+    assert!(
+        matches!(
+            verify_module(&wrong, &proofs, &profile),
+            Err(VerificationError::RejectedEvidence { .. })
+        ),
+        "termination cannot license a false accumulator guarantee"
+    );
+
+    let mut reproduced = lowered;
+    reproduced.semantic_module = wrong;
+    reproduced.semantic_module.scalar_block_invariants.clear();
+    reproduced.proof_bundle.evidence.clear();
+    retain_provable(&mut reproduced).unwrap();
+    assert!(
+        matches!(
+            finalize_operation_proofs(&mut reproduced),
+            Err(LoweringError::OperationProofUnavailable(_))
+        ),
+        "fresh evidence production must also refuse the wrong update"
+    );
+}

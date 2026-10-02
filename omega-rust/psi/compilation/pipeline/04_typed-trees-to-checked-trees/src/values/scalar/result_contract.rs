@@ -8,10 +8,13 @@ use crate::values::scalar::contract_entry;
 use crate::values::scalar::expression_facts::is_integer;
 use crate::values::scalar::scalar_lowering::{construct_integer_binary, lower_return_expression};
 use crate::values::scalar_expression_type;
-use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
+use checked_trees::{
+    CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
+    CheckedIntegerMathTerm,
+};
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
 use typed_trees::expression::BinaryOperator;
@@ -322,6 +325,84 @@ impl ContractPredicates<'_, '_> {
         }
     }
 
+    fn integer_math_expression(
+        &mut self,
+        expression: ExpressionHandle,
+        depth: usize,
+    ) -> Option<CheckedIntegerMathExpression> {
+        let mut terms = arena::Arena::new();
+        let root = self.integer_math_term(expression, depth, &mut terms)?;
+        Some(CheckedIntegerMathExpression { terms, root })
+    }
+
+    fn integer_math_term(
+        &mut self,
+        expression: ExpressionHandle,
+        depth: usize,
+        terms: &mut arena::Arena<CheckedIntegerMathTerm>,
+    ) -> Option<arena::Handle<CheckedIntegerMathTerm>> {
+        if depth >= 64
+            || *self.remaining == 0
+            || !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+        {
+            return None;
+        }
+        *self.remaining -= 1;
+        let program = self.program;
+        let term = if let Some((primitive_type, argument)) =
+            validation::integer_embedding_argument(program, expression)
+        {
+            let operand = self
+                .integer_term(argument, depth + 1)
+                .map(|(term, _)| term)
+                .or_else(|| {
+                    lower_contract_integer_literal(
+                        program,
+                        self.operators,
+                        argument,
+                        primitive_type,
+                    )
+                })?;
+            if scalar_expression_type(&operand) != Some(primitive_type)
+                || !is_integer(primitive_type)
+            {
+                return None;
+            }
+            CheckedIntegerMathTerm::Embed {
+                primitive_type,
+                operand,
+            }
+        } else if let ExpressionNode::Binary(binary) =
+            program.expression_table.expression(expression)
+            && validation::proof_integer_expression(program, expression)
+            && operator_is_builtin(self.operators, expression)
+        {
+            let operator = binary.operator;
+            if !matches!(
+                operator,
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+            ) {
+                return None;
+            }
+            let left = self.integer_math_term(binary.left, depth + 1, terms)?;
+            let right = self.integer_math_term(binary.right, depth + 1, terms)?;
+            match operator {
+                BinaryOperator::Add => CheckedIntegerMathTerm::Add { left, right },
+                BinaryOperator::Subtract => CheckedIntegerMathTerm::Subtract { left, right },
+                BinaryOperator::Multiply => CheckedIntegerMathTerm::Multiply { left, right },
+                _ => return None,
+            }
+        } else {
+            CheckedIntegerMathTerm::Literal(validation::anonymous_integer_math_literal(
+                program, expression,
+            )?)
+        };
+        Some(terms.insert(term))
+    }
+
     fn boolean_type(&self, expression: ExpressionHandle) -> Option<TypeReferenceHandle> {
         if matches!(
             self.program.expression_table.expression(expression),
@@ -377,6 +458,46 @@ impl ContractPredicates<'_, '_> {
             ExpressionNode::Binary(binary) => {
                 if !operator_is_builtin(self.operators, expression) {
                     return None;
+                }
+                if validation::proof_integer_expression(program, binary.left)
+                    || validation::proof_integer_expression(program, binary.right)
+                {
+                    let (kind, swap, negate) = match binary.operator {
+                        BinaryOperator::Equal => {
+                            (CheckedIntegerComparisonKind::Equal, false, false)
+                        }
+                        BinaryOperator::NotEqual => {
+                            (CheckedIntegerComparisonKind::Equal, false, true)
+                        }
+                        BinaryOperator::Less => {
+                            (CheckedIntegerComparisonKind::LessThan, false, false)
+                        }
+                        BinaryOperator::LessOrEqual => {
+                            (CheckedIntegerComparisonKind::LessOrEqual, false, false)
+                        }
+                        BinaryOperator::Greater => {
+                            (CheckedIntegerComparisonKind::LessThan, true, false)
+                        }
+                        BinaryOperator::GreaterOrEqual => {
+                            (CheckedIntegerComparisonKind::LessOrEqual, true, false)
+                        }
+                        _ => return None,
+                    };
+                    let left = self.integer_math_expression(
+                        if swap { binary.right } else { binary.left },
+                        depth + 1,
+                    )?;
+                    let right = self.integer_math_expression(
+                        if swap { binary.left } else { binary.right },
+                        depth + 1,
+                    )?;
+                    let comparison =
+                        CheckedBooleanExpression::IntegerMathComparison { kind, left, right };
+                    return Some(if negate {
+                        CheckedBooleanExpression::Not(Box::new(comparison))
+                    } else {
+                        comparison
+                    });
                 }
                 let subjects =
                     [binary.left, binary.right].map(|expression| self.integer_term(expression, 0));

@@ -546,8 +546,8 @@ rows! {
     FORM_BLOCK_INVARIANTS => (
         "formation:scalar-block-invariants",
         SharedFormation,
-        "a header block's declared scalar invariants over the destination telescope, immutable invocation formals, and storage observations rooted at places alive for the whole invocation; members are integer or Boolean relations or exact-format IEEE comparisons and their connectives",
-        "invariants validate as well-formed propositions before per-edge obligations are reconstructed",
+        "a header block's declared scalar invariants over the destination telescope, immutable invocation formals, and storage observations rooted at places alive for the whole invocation; members are finite integer or Boolean relations, mathematical integer comparisons over exact typed scalar embeddings, or exact-format IEEE comparisons and their connectives",
+        "invariants validate as well-formed propositions before per-edge obligations are reconstructed; mathematical embeddings retain the exact scoped value and finite carrier, never admitting another block's value or a substituted signedness or width",
         &["formation:proposition-context", "scope:header-edge-arrival"],
         &[tv!( "validation/scalar/block_invariants.rs")]
     );

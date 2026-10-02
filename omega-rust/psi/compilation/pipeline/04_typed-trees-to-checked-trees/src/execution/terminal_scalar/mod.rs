@@ -1562,6 +1562,12 @@ fn boolean_expression_reads_position(
 ) -> bool {
     use checked_trees::CheckedBooleanExpression as Boolean;
     match expression {
+        Boolean::IntegerMathComparison { left, right, .. } => {
+            [left, right].into_iter().any(|expression| expression.terms.iter().any(|(_, term)| {
+                matches!(term, checked_trees::CheckedIntegerMathTerm::Embed { operand, .. } if scalar_expression_reads_position(operand, position))
+            }))
+        }
+
         Boolean::StructuralParameterField {
             parameter_position, ..
         } => *parameter_position == position,

@@ -17,6 +17,8 @@ mod exact;
 mod forbidden_root;
 mod implications;
 mod logical;
+mod mathematical_equalities;
+mod mathematical_order;
 mod multiply;
 mod order;
 mod policy_translation;

@@ -1502,6 +1502,7 @@ rejects nesting deeper than 256.
 | 24 | IntegerAddOrder | 2 (sum, positive) | — |
 | 25 | IntegerSubtractAntitone | 3 (smaller, larger, order) | — |
 | 26 | IntegerExactSubtractDefinitionBound | 2 (left bound, right bound) | `u32` definition axiom index |
+| 27 | IntegerMathOrderTranslation | 1 (nonstrict mathematical order) | mathematical integer addend term |
 
 ## Obligation ledger
 

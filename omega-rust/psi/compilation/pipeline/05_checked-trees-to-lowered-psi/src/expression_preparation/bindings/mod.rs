@@ -1220,6 +1220,9 @@ impl ScalarBindings {
 
     fn boolean(&self, expression: &mut CheckedBooleanExpression) -> Result<(), LoweringError> {
         match expression {
+            CheckedBooleanExpression::IntegerMathComparison { .. } => {
+                return unsupported("mathematical contract predicate has no executable binding");
+            }
             CheckedBooleanExpression::Parameter { position }
             | CheckedBooleanExpression::Local { position } => {
                 *position = self.authored_position(*position)?

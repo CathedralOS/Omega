@@ -427,3 +427,118 @@ fn abstract_policy_erasure_with_a_literal_retains_exact_formation() {
             .contains("exact arithmetic in trait `ArithmeticRule` state `add` requires contract may overflow `i8`")
     }));
 }
+
+fn integer_math_guarantee(source: &str) -> checked_trees::CheckedBooleanExpression {
+    let checked = checked(source).expect("a total mathematical guarantee checks");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "identity")
+        .expect("identity declaration");
+    let clauses = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .expect("authored contract plan")
+        .closed_scalar_values
+        .ensures();
+    let [Some(checked_trees::ClosedScalarContractValue::Predicate(predicate))] = clauses else {
+        panic!("mathematical guarantee must retain its checked predicate: {clauses:?}");
+    };
+    predicate.clone()
+}
+
+#[test]
+fn mathematical_contract_capsule_retains_distinct_entry_and_result_subjects() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerMathTerm, CheckedScalarExpression,
+    };
+    use typed_trees::types::PrimitiveType;
+    let predicate = integer_math_guarantee(
+        r#"
+        machine identity(value: u64) -> u64
+        ensures embed(result) == embed(value)
+        { value }
+    "#,
+    );
+    let CheckedBooleanExpression::IntegerMathComparison { left, right, .. } = predicate else {
+        panic!("proof-only integer comparison");
+    };
+    for (expression, position) in [(&left, 1), (&right, 0)] {
+        assert!(matches!(expression.terms.get(expression.root),
+            CheckedIntegerMathTerm::Embed { primitive_type: PrimitiveType::U64,
+                operand: CheckedScalarExpression::Parameter { position: actual, primitive_type: PrimitiveType::U64 } }
+            if *actual == position));
+    }
+}
+
+#[test]
+fn mathematical_contract_capsule_keeps_unbounded_operations_outside_embed() {
+    use checked_trees::{CheckedBooleanExpression, CheckedIntegerMathTerm};
+    let predicate = integer_math_guarantee(
+        r#"
+        machine identity(value: u64) -> u64
+        ensures embed(result) + 1 > embed(value)
+        { value }
+    "#,
+    );
+    let CheckedBooleanExpression::IntegerMathComparison { kind, left, right } = predicate else {
+        panic!("proof-only integer comparison");
+    };
+    assert_eq!(kind, checked_trees::CheckedIntegerComparisonKind::LessThan);
+    assert!(matches!(
+        left.terms.get(left.root),
+        CheckedIntegerMathTerm::Embed { .. }
+    ));
+    let CheckedIntegerMathTerm::Add {
+        left,
+        right: literal,
+    } = right.terms.get(right.root)
+    else {
+        panic!("unbounded addition is not a finite u64 operation");
+    };
+    assert!(matches!(
+        right.terms.get(*left),
+        CheckedIntegerMathTerm::Embed { .. }
+    ));
+    assert!(matches!(
+        right.terms.get(*literal),
+        CheckedIntegerMathTerm::Literal(_)
+    ));
+}
+
+#[test]
+fn mathematical_contract_capsule_preserves_embedded_wrapping_arithmetic() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerMathTerm, CheckedScalarExpression,
+    };
+    // Reflexivity supplies the proof independently of result substitution
+    // through modular arithmetic; this control concerns retained finite policy.
+    let predicate = integer_math_guarantee(
+        r#"
+        machine identity(value: u8 in Wrapping) -> u8 in Wrapping
+        ensures embed(value + 1) == embed(value + 1)
+        { value }
+    "#,
+    );
+    let CheckedBooleanExpression::IntegerMathComparison { left, right, .. } = predicate else {
+        panic!("proof-only integer comparison");
+    };
+    for expression in [&left, &right] {
+        assert!(matches!(
+            expression.terms.get(expression.root),
+            CheckedIntegerMathTerm::Embed {
+                operand: CheckedScalarExpression::IntegerBinary {
+                    kind: checked_trees::CheckedIntegerBinaryKind::WrappingAdd,
+                    ..
+                },
+                ..
+            }
+        ));
+        assert_eq!(
+            expression.terms.iter().count(),
+            1,
+            "finite operand arithmetic must not become an unbounded math node"
+        );
+    }
+}

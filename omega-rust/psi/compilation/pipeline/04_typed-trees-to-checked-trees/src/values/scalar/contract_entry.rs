@@ -244,7 +244,8 @@ impl EntryOperands<'_> {
                     }
                 };
             }
-            CheckedBooleanExpression::Local { .. } => return None,
+            CheckedBooleanExpression::Local { .. }
+            | CheckedBooleanExpression::IntegerMathComparison { .. } => return None,
             CheckedBooleanExpression::Not(operand) => self.boolean(operand)?,
             CheckedBooleanExpression::And { left, right }
             | CheckedBooleanExpression::Or { left, right }

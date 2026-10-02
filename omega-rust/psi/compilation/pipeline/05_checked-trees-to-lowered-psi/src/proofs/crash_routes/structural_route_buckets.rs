@@ -130,6 +130,9 @@ impl RouteTerms<'_> {
                 ScalarTerm::boolean_equal(self.lower_term(left)?, self.lower_term(right)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
+            CheckedBooleanExpression::IntegerMathComparison { .. } => {
+                unsupported("mathematical comparison is a proof proposition, not a scalar term")
+            }
             CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
                 let left = self.lower_integer_term(left)?;
                 let right = self.lower_integer_term(right)?;
@@ -543,6 +546,7 @@ fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression)
         | CheckedBooleanExpression::Local { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
+        | CheckedBooleanExpression::IntegerMathComparison { .. }
         | CheckedBooleanExpression::IntegerComparison { .. } => false,
     }
 }

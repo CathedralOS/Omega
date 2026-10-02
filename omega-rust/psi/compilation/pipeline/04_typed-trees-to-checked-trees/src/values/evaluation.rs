@@ -346,7 +346,8 @@ fn boolean(
                 CheckedIntegerComparisonKind::LessOrEqual => !ordering.is_gt(),
             })
         }
-        CheckedBooleanExpression::IeeeFloatComparison { .. }
+        CheckedBooleanExpression::IntegerMathComparison { .. }
+        | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }

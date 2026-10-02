@@ -24,6 +24,8 @@ use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 
 mod extents;
+mod integer_math;
+pub(crate) use integer_math::validate_embedding_sources;
 
 pub(crate) fn validate(
     checked: &CheckedTrees,
@@ -954,6 +956,10 @@ impl Context<'_> {
                 }
                 _ => false,
             },
+            Boolean::IntegerMathComparison { kind, left, right } => {
+                !matches!(node, ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::NotEqual)
+                    && self.integer_math_comparison(source, *kind, left, right, operands, depth + 1)
+            }
             Boolean::Equal { .. }
             | Boolean::IntegerComparison { .. }
             | Boolean::ScalarIeeeFloatComparison { .. } => {
@@ -1044,6 +1050,12 @@ impl Context<'_> {
         else {
             return false;
         };
+        // Mathematical equality has its own selected builtin meaning; it is
+        // not an executable finite-carrier comparison. In particular the
+        // enclosing Not routes an authored != here with its polarity intact.
+        if let Boolean::IntegerMathComparison { kind, left, right } = value {
+            return self.integer_math_comparison(source, *kind, left, right, operands, depth + 1);
+        }
         if !self.builtin(source) {
             return false;
         }

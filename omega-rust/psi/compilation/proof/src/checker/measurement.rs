@@ -226,7 +226,8 @@ fn proof_node_count(node: &ProofNode) -> u64 {
         } => proof_node_count(left_equals_middle) + proof_node_count(middle_equals_right),
         ProofRule::EqualitySymmetry { equality } => proof_node_count(equality),
         ProofRule::IntegerOrderWeakening { relation }
-        | ProofRule::IntegerOrderDiscreteness { relation } => proof_node_count(relation),
+        | ProofRule::IntegerOrderDiscreteness { relation }
+        | ProofRule::IntegerMathOrderTranslation { relation, .. } => proof_node_count(relation),
         ProofRule::IntegerSubtractOrder {
             difference,
             positive,

@@ -190,6 +190,7 @@ mod equality_transport;
 mod forbidden_roots;
 mod integer_operations;
 mod multiplication;
+mod order_translation;
 mod subtraction;
 
 /// One bounded certificate elaborated into the common mathematical core.
@@ -2501,6 +2502,22 @@ impl<'a> Elaboration<'a> {
                         &proof.conclusion,
                     ),
                 }
+            }
+            ProofRule::IntegerMathOrderTranslation { relation, addend } => {
+                let evidence = self.node(relation)?;
+                integer_order_rules::math_order_translation(
+                    &relation.conclusion,
+                    addend,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rules
+                    .insert(AcceptedProofRule::IntegerMathOrderTranslation);
+                self.denotation.mathematical_order_translation(
+                    &relation.conclusion,
+                    addend,
+                    evidence,
+                )
             }
             ProofRule::IntegerOrderSubstitution {
                 relation,

@@ -21,6 +21,10 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
     use checked_trees::CheckedBooleanExpression;
 
     Some(match expression {
+        // Review evidence has no mathematical integer vocabulary. Refuse the
+        // entire projection rather than erasing a requirement or reinterpreting
+        // its unbounded operations as finite scalar arithmetic.
+        CheckedBooleanExpression::IntegerMathComparison { .. } => return None,
         CheckedBooleanExpression::ErasedParameter { .. } => return None,
         CheckedBooleanExpression::StorageRead { .. } => return None,
         CheckedBooleanExpression::Constant(value) => {

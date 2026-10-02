@@ -936,6 +936,7 @@ fn boolean_expression_needs_no_bindings(
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+        | CheckedBooleanExpression::IntegerMathComparison { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }

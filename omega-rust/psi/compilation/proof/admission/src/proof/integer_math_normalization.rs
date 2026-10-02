@@ -165,3 +165,17 @@ pub(crate) fn lift_exact_integer_term(term: &ScalarTerm) -> Option<IntegerMathTe
         _ => lift_fixed_integer_term(term),
     }
 }
+
+/// Preserve an exact finite order's denotation in the mathematical vocabulary.
+/// This changes no arithmetic policy: only already-exact ring constructors
+/// lift, and their resulting terms remain mathematical rather than new SSA
+/// values or an assertion that an operation's finite result is representable.
+pub fn lift_exact_integer_order(proposition: &Proposition) -> Option<Proposition> {
+    proposition.validate().ok()?;
+    let (left, right) = lift_exact_integer_relation(proposition)?;
+    match proposition {
+        Proposition::LessThan(..) => Some(Proposition::IntegerMathLessThan(left, right)),
+        Proposition::LessOrEqual(..) => Some(Proposition::IntegerMathLessOrEqual(left, right)),
+        _ => None,
+    }
+}

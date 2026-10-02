@@ -1,104 +1,61 @@
-//! Strengthen a cyclic header so a published guarantee proves after the loop.
+//! Propose contract-derived predicates at a cyclic header.
 //!
-//! A value-returning cycle returns a header-carried value, while the machine's
-//! `ensures` relates the result to its invocation formals. The ordinary roster
-//! proposes closed entry bounds, storage bounds and scoped join demands. Some
-//! return guarantees additionally need relations between loop-carried values
-//! and immutable formals that exit equations alone cannot recover. This pass
-//! runs only when a guarantee of a cyclic
-//! machine cannot be proved from the retained roster, and proposes three
-//! families at the header the entry edge binds from the formals: every entry
-//! requirement conjunct rewritten over the bound header parameters, `header ==
-//! formal` for every parameter each in-component arrival forwards unchanged,
-//! and each guarantee transported through the exit's exact equations into
-//! header scope. These are proposals only: every arrival is proved before
-//! retention, and the whole strengthening is discarded when any header fails
-//! or the guarantee still does not prove, so a module the pass cannot help
-//! keeps its original roster unchanged. No ranking premise is used; the claim
-//! is checked against the loop, never inherited from a termination certificate.
+//! Entry requirements, unchanged formals, conserved mathematical terms and
+//! exit guarantees share the ordinary invariant roster's prove-or-drop owner.
+//! A false exit-bound proposal must not discard an independently provable
+//! relation needed by the loop's operations. Every retained predicate still
+//! proves at every arrival, and finalization checks the actual guarantees.
+//! Ranking evidence never supplies an invariant premise.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
     BlockId, MachineId, Proposition, PropositionContext, ScalarTerm, ValueId,
 };
-use terminal_psi::{
-    ScalarBlockInvariant, ScalarBlockInvariantArrival, TerminalMachine, TerminalModule, Terminator,
-};
+use terminal_psi::{ScalarBlockInvariant, TerminalMachine, TerminalModule, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
 use super::joins::{ArrivalEquations, scoped_goal, uses_header};
-use super::{header_arrival_edges, retained_evidence};
-use crate::lowering_error::{LoweringError, ProofSearchCapacity};
+use crate::lowering_error::ProofSearchCapacity;
 use crate::proofs::ProofSearchDeclines;
 use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
-use lowered_psi::LoweredPsi;
+mod conservation;
 
 /// Shared finite budget for equation transport and candidate discovery.
 const BUDGET: usize = ProofSearchCapacity::CyclicGuaranteeCandidateWork.limit() as usize;
 
-pub(super) fn strengthen(
-    lowered: &mut LoweredPsi,
-    retained: Option<&ReconstructedTerminalObligationSet>,
+pub(super) fn candidates(
+    module: &TerminalModule,
+    original: &ReconstructedTerminalObligationSet,
     declines: &mut ProofSearchDeclines,
-) -> Result<(), LoweringError> {
-    let _scope = crate::proofs::proof_timing::Scope::enter("cyclic_guarantees::strengthen");
-    // The roster owner hands over its own reconstruction when it left the
-    // module exactly as it reconstructed it; otherwise this pass takes one.
-    let reconstructed;
-    let original = match retained {
-        Some(original) => original,
-        None => {
-            reconstructed =
-                terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
-                    .map_err(LoweringError::InvalidTerminalModule)?;
-            &reconstructed
-        }
+) -> Vec<ScalarBlockInvariant> {
+    let _scope = crate::proofs::proof_timing::Scope::enter("cyclic_guarantees::candidates");
+    let Ok(validated) = terminal_verifier::validate_module(module) else {
+        return Vec::new();
     };
-    let (demanding, candidates) = {
-        let module = &lowered.semantic_module;
-        // The roster owner validated the module before this pass; a shape the
-        // verifier refuses is not turned into a new program restriction here.
-        let Ok(validated) = terminal_verifier::validate_module(module) else {
-            return Ok(());
-        };
-        let demanding = unproved_cyclic_guarantees(module, validated, original, declines);
-        let mut remaining = BUDGET;
-        let mut candidates = Vec::new();
-        for machine in module
-            .machines
-            .iter()
-            .filter(|machine| demanding.contains(&machine.id))
-        {
-            let Ok(context) = validated.value_context(machine) else {
-                continue;
-            };
-            candidates.extend(header_candidates(
-                machine,
-                &context,
-                original,
-                &mut remaining,
-                declines,
-            ));
-        }
-        // A producer that left the pool empty hit its provision, whether or
-        // not a draw site happened to report the refusal itself.
-        if remaining == 0 {
-            declines.record(ProofSearchCapacity::CyclicGuaranteeCandidateWork);
-        }
-        (demanding, candidates)
-    };
-    if candidates.is_empty() {
-        return Ok(());
-    }
-    let baseline = lowered.semantic_module.scalar_block_invariants.clone();
-    if merge(&mut lowered.semantic_module, candidates, declines)?
-        && proves(lowered, original, &demanding, declines)?
+    let demanding = unproved_cyclic_guarantees(module, validated, original, declines);
+    let mut remaining = BUDGET;
+    let mut candidates = Vec::new();
+    for machine in module
+        .machines
+        .iter()
+        .filter(|machine| demanding.contains(&machine.id))
     {
-        return Ok(());
+        let Ok(context) = validated.value_context(machine) else {
+            continue;
+        };
+        candidates.extend(header_candidates(
+            machine,
+            &context,
+            original,
+            &mut remaining,
+            declines,
+        ));
     }
-    lowered.semantic_module.scalar_block_invariants = baseline;
-    Ok(())
+    if remaining == 0 {
+        declines.record(ProofSearchCapacity::CyclicGuaranteeCandidateWork);
+    }
+    candidates
 }
 
 /// Machines with a cycle whose guarantee the retained roster cannot prove.
@@ -306,6 +263,14 @@ fn header_candidates(
         }
     }
 
+    // A mathematical expression built from invocation formals can remain
+    // constant while its individual parameters change. Propose that relation
+    // independently from the stronger exit guarantee; the common roster
+    // discards either when one of its arrivals fails.
+    for predicate in conservation::candidates(machine, &bound, remaining) {
+        propose(predicate);
+    }
+
     // (3) Each guarantee carried back through the exit's exact equations to
     // the values alive at this header.
     let header_scope = formals
@@ -360,125 +325,4 @@ fn successor_arguments(terminator: &Terminator, header: BlockId) -> Vec<&[ValueI
             .collect(),
         _ => Vec::new(),
     }
-}
-
-/// Join the proposals into the roster: one conjunction per header, existing
-/// rows extended in place, new rows given one arrival per actual edge. Returns
-/// false when no obligation identity remains for a new arrival.
-fn merge(
-    module: &mut TerminalModule,
-    mut candidates: Vec<ScalarBlockInvariant>,
-    declines: &mut ProofSearchDeclines,
-) -> Result<bool, LoweringError> {
-    candidates.sort_by_key(|candidate| (candidate.machine, candidate.header));
-    let mut grouped: Vec<ScalarBlockInvariant> = Vec::new();
-    for candidate in candidates {
-        if let Some(previous) = grouped.last_mut()
-            && (previous.machine, previous.header) == (candidate.machine, candidate.header)
-        {
-            previous.predicate = crate::proofs::contract_predicates::connective(
-                previous.predicate.clone(),
-                candidate.predicate,
-                true,
-            )?;
-        } else {
-            grouped.push(candidate);
-        }
-    }
-    let mut fresh_obligations = crate::proofs::FreshObligations::above(module)?;
-    for mut candidate in grouped {
-        if let Some(existing) = module.scalar_block_invariants.iter_mut().find(|existing| {
-            (existing.machine, existing.header) == (candidate.machine, candidate.header)
-        }) {
-            existing.predicate = crate::proofs::contract_predicates::connective(
-                existing.predicate.clone(),
-                candidate.predicate,
-                true,
-            )?;
-            continue;
-        }
-        let machine = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == candidate.machine)
-            .ok_or(LoweringError::Unsupported(
-                "guarantee candidate lost its machine",
-            ))?;
-        for edge in header_arrival_edges(machine, candidate.header) {
-            // A declined identity is accounted like every other named
-            // capacity, so an unmet guarantee reports the capacity instead
-            // of reading as a disproof.
-            let Some(obligation) = fresh_obligations.mint(declines) else {
-                return Ok(false);
-            };
-            candidate
-                .arrivals
-                .push(ScalarBlockInvariantArrival { edge, obligation });
-        }
-        module.scalar_block_invariants.push(candidate);
-    }
-    module
-        .scalar_block_invariants
-        .sort_by_key(|candidate| (candidate.machine, candidate.header));
-    Ok(true)
-}
-
-/// Every arrival of the strengthened roster and every demanding guarantee
-/// proves, and previously supplied certificates still replay.
-fn proves(
-    lowered: &LoweredPsi,
-    original: &ReconstructedTerminalObligationSet,
-    demanding: &BTreeSet<MachineId>,
-    declines: &mut ProofSearchDeclines,
-) -> Result<bool, LoweringError> {
-    let module = &lowered.semantic_module;
-    let Ok(validated) = terminal_verifier::validate_module(module) else {
-        return Ok(false);
-    };
-    let questions = terminal_verifier::reconstruct_terminal_obligations(module)
-        .map_err(LoweringError::InvalidTerminalModule)?;
-    let mut contexts = BTreeMap::new();
-    for site in questions.obligations() {
-        let machine = match site.owner {
-            ReconstructedTerminalObligationOwner::ScalarBlockInvariant { machine, .. } => machine,
-            ReconstructedTerminalObligationOwner::ContractEnsures { machine, .. }
-                if demanding.contains(&machine) =>
-            {
-                machine
-            }
-            _ => continue,
-        };
-        let (context, parameters) = match contexts.entry(machine) {
-            std::collections::btree_map::Entry::Occupied(prepared) => prepared.into_mut(),
-            std::collections::btree_map::Entry::Vacant(slot) => {
-                let owner = validated
-                    .machine(machine)
-                    .ok_or(LoweringError::Unsupported(
-                        "guarantee proof owner disappeared",
-                    ))?;
-                let context = validated
-                    .value_context(owner)
-                    .map_err(LoweringError::InvalidTerminalModule)?;
-                let parameters = owner
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.id)
-                    .collect::<BTreeSet<_>>();
-                slot.insert((context, parameters))
-            }
-        };
-        if produce_checked_canonical_integer_proof(
-            context,
-            &site.obligation.proposition,
-            &site.requirements,
-            &site.semantic_axioms,
-            parameters,
-            declines,
-        )
-        .is_none()
-        {
-            return Ok(false);
-        }
-    }
-    retained_evidence::replays(validated, original, &questions, &lowered.proof_bundle)
 }

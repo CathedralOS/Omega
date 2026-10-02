@@ -44,14 +44,13 @@ pub(super) fn prove(
     })
 }
 
-fn transport(
+fn retained_equalities(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    machine_parameters: &BTreeSet<ValueId>,
     rejoin_stores: bool,
-) -> Option<ProofNode> {
+) -> Option<Vec<ProofNode>> {
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut pending = Vec::new();
     goal.visit_value_ids(|value| pending.push(value));
@@ -60,6 +59,7 @@ fn transport(
     let mut remaining = 4096usize;
     while let Some(value) = pending.pop() {
         remaining = remaining.checked_sub(1)?;
+        super::search_context::spend(1)?;
         if !visited.insert(value) {
             continue;
         }
@@ -125,6 +125,54 @@ fn transport(
         });
         equalities.push(equality);
     }
+    Some(equalities)
+}
+
+/// Retain both the original citation and an equivalent, explicitly transported
+/// view. Equations stay proved children; no caller premise roster is rewritten.
+pub(super) fn citation_forms(
+    context: &PropositionContext,
+    citation: ProofNode,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    let mut forms = Vec::new();
+    if let Some(equalities) = retained_equalities(
+        context,
+        &citation.conclusion,
+        assumptions,
+        semantic_axioms,
+        false,
+    ) && !equalities.is_empty()
+        && let Ok(transported) = check_value_equality_denotation(
+            context,
+            &citation.conclusion,
+            equalities.iter().map(|equality| &equality.conclusion),
+        )
+        && transported != citation.conclusion
+    {
+        forms.push(ProofNode {
+            conclusion: transported,
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(citation.clone()),
+                equalities,
+            },
+        });
+    }
+    forms.push(citation);
+    forms
+}
+
+fn transport(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameters: &BTreeSet<ValueId>,
+    rejoin_stores: bool,
+) -> Option<ProofNode> {
+    let equalities =
+        retained_equalities(context, goal, assumptions, semantic_axioms, rejoin_stores)?;
     if equalities.is_empty() {
         return None;
     }

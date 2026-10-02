@@ -237,6 +237,8 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
         CheckedBooleanExpression::StructuralCaseMembership { subject, .. } => {
             subject.parameter_position == receiver
         }
+        // Mathematical contract graphs are never executable receiver bodies.
+        CheckedBooleanExpression::IntegerMathComparison { .. } => true,
         CheckedBooleanExpression::StorageRead { .. }
         | CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }

@@ -24,6 +24,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
+mod integer_math;
+pub use integer_math::{CheckedIntegerMathExpression, CheckedIntegerMathTerm};
+
 mod byte_comparison;
 mod computations;
 pub use computations::{
@@ -737,6 +740,13 @@ pub enum CheckedBooleanExpression {
         left: Box<CheckedScalarExpression>,
         right: Box<CheckedScalarExpression>,
     },
+    /// Proof-only comparison over mathematical integers. This form has no
+    /// executable Boolean lowering; its finite leaves retain exact subjects.
+    IntegerMathComparison {
+        kind: CheckedIntegerComparisonKind,
+        left: CheckedIntegerMathExpression,
+        right: CheckedIntegerMathExpression,
+    },
     /// Atomic IEEE comparison between scalar terms (parameters and composed
     /// float expressions), as opposed to the structural-leaf form below. It is
     /// deliberately not represented as generic/reflexive scalar equality: IEEE
@@ -793,6 +803,9 @@ impl CheckedBooleanExpression {
             }
             Self::IntegerComparison { left, right, .. }
             | Self::ScalarIeeeFloatComparison { left, right, .. } => {
+                left.contains_trapping_operation() || right.contains_trapping_operation()
+            }
+            Self::IntegerMathComparison { left, right, .. } => {
                 left.contains_trapping_operation() || right.contains_trapping_operation()
             }
             Self::StorageRead { .. }

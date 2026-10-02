@@ -165,6 +165,10 @@ fn validate_proof_node(node: &ProofNode) -> Result<(), ProofCodecError> {
                     ProofRule::DisjunctionIntroduction { disjunct, .. } => {
                         pending.push(Step::Node(disjunct, depth + 1));
                     }
+                    ProofRule::IntegerMathOrderTranslation { relation, addend } => {
+                        validate_integer_math_term_depth(addend)?;
+                        pending.push(Step::Node(relation, depth + 1));
+                    }
                     ProofRule::DisjunctionElimination {
                         disjunction,
                         branches,

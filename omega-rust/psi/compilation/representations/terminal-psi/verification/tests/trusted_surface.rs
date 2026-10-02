@@ -122,6 +122,12 @@ fn proof_rule_exemplars() -> Vec<ProofRule> {
             equality: leaf(),
             endpoint: 0,
         },
+        ProofRule::IntegerMathOrderTranslation {
+            relation: leaf(),
+            addend: semantic_vocabulary::IntegerMathTerm::literal(
+                semantic_vocabulary::IntegerValue::Unsigned(0),
+            ),
+        },
         ProofRule::IntegerAffineBound {
             root_bound: leaf(),
             witness: IntegerAffineWitness {

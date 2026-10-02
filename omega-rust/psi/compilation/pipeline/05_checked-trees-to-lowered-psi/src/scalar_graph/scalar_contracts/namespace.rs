@@ -19,6 +19,10 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
             validate(left)?;
             validate(right)
         }
+        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
+            crate::proofs::contract_predicates::validate_math_namespace(left, &scalar)?;
+            crate::proofs::contract_predicates::validate_math_namespace(right, &scalar)
+        }
         CheckedBooleanExpression::IntegerComparison { left, right, .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar(left)?;

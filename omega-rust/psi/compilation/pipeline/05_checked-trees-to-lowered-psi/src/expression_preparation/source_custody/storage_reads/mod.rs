@@ -1139,6 +1139,23 @@ fn collect_authored_storage_reads(
         return unsupported("scalar storage source contains a stale or cyclic expression");
     }
     active.push(expression);
+    if let Some((_, operand)) = validation::integer_embedding_argument(&checked.typed, expression) {
+        // Proof embedding observes the finite operand; it neither calls an
+        // executable machine nor changes that operand's storage namespace.
+        collect_authored_storage_reads(
+            checked,
+            state,
+            scope,
+            operand,
+            path,
+            active,
+            reads,
+            member_paths,
+            unmatched_member_paths,
+        )?;
+        active.pop();
+        return Ok(());
+    }
     if let Some((subject, subject_path, case)) =
         case_membership::authored(checked, state, expression)?
     {
@@ -1726,6 +1743,50 @@ fn collect_boolean_storage_reads(
                 path.push(position);
                 collect_boolean_storage_reads(operand, namespace, path, reads, needs_value_replay);
                 path.pop();
+            }
+        }
+        CheckedBooleanExpression::IntegerMathComparison { left, right, .. } => {
+            // Also replay value meaning when there are no reads: a malformed
+            // literal-only capsule cannot evade correspondence through an
+            // empty storage inventory.
+            *needs_value_replay = true;
+            for (position, expression) in [(0, left), (1, right)] {
+                let mut root_path = path.clone();
+                root_path.push(position);
+                let mut pending = vec![(expression.root, root_path)];
+                let mut remaining = namespace
+                    .checked
+                    .expression_table
+                    .expression_count()
+                    .saturating_mul(4);
+                while let Some((handle, mut term_path)) = pending.pop() {
+                    if remaining == 0 || !expression.terms.is_valid(handle) {
+                        break; // Value replay independently rejects this capsule.
+                    }
+                    remaining -= 1;
+                    use checked_trees::CheckedIntegerMathTerm;
+                    match expression.terms.get(handle) {
+                        CheckedIntegerMathTerm::Embed { operand, .. } => {
+                            collect_scalar_storage_reads(
+                                operand,
+                                namespace,
+                                &mut term_path,
+                                reads,
+                                needs_value_replay,
+                            );
+                        }
+                        CheckedIntegerMathTerm::Literal(_) => {}
+                        CheckedIntegerMathTerm::Add { left, right }
+                        | CheckedIntegerMathTerm::Subtract { left, right }
+                        | CheckedIntegerMathTerm::Multiply { left, right } => {
+                            let mut right_path = term_path.clone();
+                            right_path.push(1);
+                            term_path.push(0);
+                            pending.push((*right, right_path));
+                            pending.push((*left, term_path));
+                        }
+                    }
+                }
             }
         }
         CheckedBooleanExpression::IntegerComparison { left, right, .. }
