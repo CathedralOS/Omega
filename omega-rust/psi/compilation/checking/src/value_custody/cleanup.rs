@@ -291,6 +291,10 @@ fn validate_cleanup_machine(
     let Some(_attached_name) = machine.attached_data.as_ref() else {
         return;
     };
+    // A receiver's synthesized type points at the machine, while a named
+    // parameter's `&mut Guard` points at the DATA the machine is attached to.
+    // Both denote the same storage, so the shape test accepts either target.
+    let attached_symbol = machine.attached_data_symbol;
     let Some(entry) = program.machine_states(machine).first() else {
         diagnostics.push(Diagnostic::error(format!(
             "cleanup machine `{}` has no entry state; reserved cleanup has shape `drop(&mut self) -> ()`",
@@ -299,19 +303,31 @@ fn validate_cleanup_machine(
         return;
     };
     let parameters = program.state_parameters(entry);
-    let receiver_is_exact = matches!(parameters, [receiver]
-    if receiver.is_self
-        && receiver.is_mutable
-        && !receiver.is_const
+    // The shape is one exclusive loan of the machine's own data and nothing
+    // else. A receiver and a named parameter spell that same shape, and under
+    // the static-machine contract a qualified path "contributes no argument or
+    // storage", so which spelling carries it is not cleanup's business. Every
+    // other condition is unchanged: exactly one parameter, mutable, not const,
+    // and a mutable reference to this machine's data.
+    let shape_is_exact = matches!(parameters, [owner]
+    if owner.is_mutable
+        && !owner.is_const
             && mutable_reference_targets(
                 program,
-                receiver.type_reference,
+                owner.type_reference,
                 machine.symbol,
+                attached_symbol,
             ));
-    if !receiver_is_exact {
+    if !shape_is_exact {
         diagnostics.push(Diagnostic::error(format!(
-            "cleanup machine `{}` must have exactly the receiver `&mut self` and no positional parameters",
-            machine.name
+            "cleanup machine `{}` must take exactly one exclusive loan of its own data \
+             and no other parameters, as `drop(value: &mut {})`",
+            machine.name,
+            machine
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str())
+                .unwrap_or("Data")
         )));
     }
     if !machine.lifetime_parameters.is_empty()
@@ -368,31 +384,41 @@ fn mutable_reference_targets(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     expected_self_symbol: symbols::SymbolHandle,
+    attached_symbol: symbols::SymbolHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            mutable_reference_targets(program, *base_type, expected_self_symbol)
+            mutable_reference_targets(program, *base_type, expected_self_symbol, attached_symbol)
         }
         TypeReferenceNode::Reference {
             referee,
             access: ReferenceAccess::Mutable,
             ..
-        } => named_type_matches(program, *referee, expected_self_symbol),
+        } => named_type_matches(program, *referee, expected_self_symbol, attached_symbol),
         _ => false,
     }
 }
 
+/// Whether a reference's referee names this cleanup machine's own data.
+///
+/// A receiver's synthesized referee is the machine symbol under the literal
+/// name `Self`. The same shape written statically names the data directly, as
+/// `&mut Guard`, whose referee is the attached data's symbol under its own
+/// name. The symbol is what identifies the storage in the static spelling, so
+/// the name is not compared there.
 fn named_type_matches(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     expected_self_symbol: symbols::SymbolHandle,
+    attached_symbol: symbols::SymbolHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            named_type_matches(program, *base_type, expected_self_symbol)
+            named_type_matches(program, *base_type, expected_self_symbol, attached_symbol)
         }
         TypeReferenceNode::Named { symbol, name } => {
-            *symbol == expected_self_symbol && name.as_str() == "Self"
+            (*symbol == expected_self_symbol && name.as_str() == "Self")
+                || (attached_symbol.is_valid() && *symbol == attached_symbol)
         }
         _ => false,
     }

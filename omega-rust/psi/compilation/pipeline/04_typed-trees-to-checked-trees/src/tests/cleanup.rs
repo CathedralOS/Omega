@@ -4,6 +4,12 @@ fn diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
     checked_program_result(source).expect_err("invalid cleanup declaration must reject")
 }
 
+fn accepts(source: &str) {
+    if let Err(diagnostics) = checked_program_result(source) {
+        panic!("expected the declaration to check, got {diagnostics:?}");
+    }
+}
+
 fn rejects(source: &str, expected: &str) {
     let diagnostics = diagnostics(source);
     assert!(
@@ -65,12 +71,31 @@ fn accepts_repeated_nonempty_or_argumented_hook_bodies() {
 }
 
 #[test]
-fn rejects_non_mutable_cleanup_receiver() {
-    for receiver in ["self", "&self", "&write self"] {
+fn rejects_cleanup_without_an_exclusive_loan_of_its_data() {
+    // The shape is one exclusive loan of the machine's own data. Either
+    // spelling of that shape is accepted, so the rejections are the accesses
+    // that are not exclusive, in both spellings.
+    for owner in [
+        "self",
+        "&self",
+        "&write self",
+        "wrapper: Wrapper",
+        "wrapper: &Wrapper",
+        "wrapper: &write Wrapper",
+    ] {
         rejects(
-            &format!("data Wrapper {{ value: i32; }} machine Wrapper::drop({receiver}) {{}}"),
-            "must have exactly the receiver `&mut self`",
+            &format!("data Wrapper {{ value: i32; }} machine Wrapper::drop({owner}) {{}}"),
+            "must take exactly one exclusive loan of its own data",
         );
+    }
+}
+
+#[test]
+fn accepts_either_spelling_of_the_cleanup_shape() {
+    for owner in ["&mut self", "wrapper: &mut Wrapper"] {
+        accepts(&format!(
+            "data Wrapper {{ value: i32; }} machine Wrapper::drop({owner}) {{}}"
+        ));
     }
 }
 

@@ -24,11 +24,11 @@ data Guard {
     handle: i32;
 }
 
-machine Guard::drop(&mut self) {
-    Ledger::note(self.handle);
+machine Guard::drop(guard: &mut Guard) {
+    Ledger::note(guard.handle);
     Ledger::trace();
     Ledger::trace();
-    self.handle = 0;
+    guard.handle = 0;
 }
 
 data Carrier {

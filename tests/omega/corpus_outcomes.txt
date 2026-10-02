@@ -1652,11 +1652,11 @@ pass/domains/utf8_field_write_from_param rejected 357ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at structural field store: destination parameter, statement 1)") })
 pass/domains/vacuous_domain_qualification checked 282ms @2d8ed253669f
 pass/domains/view_field_literal_store_reads_exit checked 943ms @4e4bfed13aee+wt
-pass/drops/cleanup_machine_drop_shape checked 291ms @2d8ed253669f
-pass/drops/core_drop_explicit_consume checked 296ms @2d8ed253669f
-pass/drops/core_drop_owner_hook checked 290ms @2d8ed253669f
-pass/drops/core_drop_owner_hook_body checked 294ms @2d8ed253669f
-pass/drops/transfer_cleanup_into_state checked 332ms @2d8ed253669f
+pass/drops/cleanup_machine_drop_shape checked 240ms @0aa983f6af47+wt
+pass/drops/core_drop_explicit_consume checked 261ms @0aa983f6af47+wt
+pass/drops/core_drop_owner_hook checked 251ms @0aa983f6af47+wt
+pass/drops/core_drop_owner_hook_body checked 240ms @0aa983f6af47+wt
+pass/drops/transfer_cleanup_into_state checked 259ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 1484ms @2d8ed253669f
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 1332ms @2d8ed253669f
 pass/effects/generic_callback_schema_reach checked 315ms @2d8ed253669f
@@ -1944,7 +1944,7 @@ pass/ownership/linear_transfer_and_consume rejected 738ms @2d8ed253669f
 pass/ownership/linear_transparent_record_frontier rejected 742ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment checked 1226ms @2d8ed253669f
-pass/ownership/read_owner_before_consumption_and_after_reassignment checked 1127ms @78cf629f34f9+wt
+pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms @2d8ed253669f
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 1365ms @4e4bfed13aee+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 298ms @2d8ed253669f

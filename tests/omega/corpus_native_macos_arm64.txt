@@ -490,11 +490,11 @@ pass/domains/utf8_field_write_from_param rejected 359ms @48008365d839
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
 pass/domains/vacuous_domain_qualification checked 203ms
 pass/domains/view_field_literal_store_reads_exit built 1100ms exit:70 @1c0bb7bc95d0
-pass/drops/cleanup_machine_drop_shape checked 196ms
-pass/drops/core_drop_explicit_consume checked 197ms
-pass/drops/core_drop_owner_hook checked 202ms
-pass/drops/core_drop_owner_hook_body checked 199ms
-pass/drops/transfer_cleanup_into_state checked 172ms
+pass/drops/cleanup_machine_drop_shape checked 254ms @0aa983f6af47+wt
+pass/drops/core_drop_explicit_consume checked 247ms @0aa983f6af47+wt
+pass/drops/core_drop_owner_hook checked 253ms @0aa983f6af47+wt
+pass/drops/core_drop_owner_hook_body checked 241ms @0aa983f6af47+wt
+pass/drops/transfer_cleanup_into_state checked 229ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 812ms exit:73
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1600ms exit:70 @48008365d839
 pass/effects/generic_callback_schema_reach checked 191ms
@@ -781,7 +781,7 @@ pass/ownership/linear_transfer_and_consume rejected 980ms @48008365d839
 pass/ownership/linear_transparent_record_frontier rejected 1010ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment built 606ms exit:41 @ed1fb1257faf+wt
-pass/ownership/read_owner_before_consumption_and_after_reassignment checked 407ms @78cf629f34f9+wt
+pass/ownership/read_owner_before_consumption_and_after_reassignment checked 252ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt
 pass/parameters/byte_store_root_after_scalar_formal_exit built 2002ms exit:70 @8fa15c53cbf3+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 205ms
