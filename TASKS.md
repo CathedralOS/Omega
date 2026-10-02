@@ -1384,16 +1384,20 @@ the complete product bar; focused successes below do not establish that baseline
   compiler before assigning any further source-signature or structural-argument
   failure: old diagnostics and expired claims are not current blockers.
 
-  Current candidate application `74beda02c779`, with std
-  `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, checks API and scanning but
-  last completed review reached six session-package borrow diagnostics on macOS
-  ARM64 using compiler `b3cd8b5a318`. Reproduction: `omega update --project
-  samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1 at
-  `pointer_scan_results_store.omg`'s `fill_window_write`: shared candidate-arena
-  ranges conflict with the mutable receiver's reported whole-`self` writes.
-  Candidate API payload writeback and scan construction/sealing repairs are
-  checkpointed but unpublished because the application remote denied writes;
-  resolve publication before advancing the application gitlink.
+  Current candidate application `da7a91b191e3` has four unpublished source-lifetime
+  repairs; its remote denies writes, so do not advance the application gitlink.
+  On macOS ARM64, the last completed `omega update --project
+  samples/apps/squalr/squalr-tests --target linux_x86_64` review with compiler
+  `7a2174f161e` stopped at unsupported scalar crash-evidence projection in scanning.
+  That projection is repaired on main at `69dc4bc35b7`; the integrated carrier
+  candidate `dcfb893284a` is still under full application review, not a successful
+  review or native run. Profiling that command found repeated activation-subtree
+  type/graph searches, then write-frame inference in a later sample. The carry
+  join now prepares exact-handle ordinals once and preserves the complete
+  breadth-first contribution roster; it does not change carry admission or
+  prune the graph. Compare the same complete application command after this
+  repair before claiming an end-to-end speedup or assigning the next semantic
+  failure. Resolve the application publication dependency before updating pins.
 
   Shared frame inference now completes the entire `assemble_results_view`
   cycle: `build` writes `self.target_addresses`, array filling writes
@@ -1411,8 +1415,6 @@ the complete product bar; focused successes below do not establish that baseline
   tests pass, including a complete checked metadata-call program and stale
   value-evidence rejection. The 78-fixture borrow corpus has unchanged outcomes
   from the prior checkpoint (including its attributed baseline failures).
-  Fresh unchanged-application review on `a836340ffc43` plus indexed unique-owner
-  lookup is pending; no successful package review or native run is established.
   Profiling found repeated service and closed-data declaration scans. Both now
   use the existing mutation-aware declaration index; unique-owner queries retain
   duplicate rejection rather than taking the first match. The lookup change
