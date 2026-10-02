@@ -1,9 +1,18 @@
-//! Exact projected exclusive references retain their incoming root pointer.
+//! Borrowed call arguments retain their incoming root pointer and projection.
+//!
+//! Machine parameters and state arrivals differ in where that pointer lives,
+//! not in how the callee's referent is laid out. Resolve canonical arrival
+//! custody once, then apply the same projection and call-placement checks.
+//! Signature qualifications are semantic preconditions, not native carriers:
+//! unit admission owns their discharge and the bounded-byte writable invariant
+//! rule. Transport must not reject a qualified value or invent a postcondition.
 use super::{
     AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralAccess, StructuralArgument,
     TargetOperationPlan, TargetStructuralArgument, ValueShape,
 };
 use crate::LegalizationError;
+use semantic_vocabulary::StructuralPlaceKind;
+use target_operations::TargetStructuralArgumentSource;
 use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub(super) fn argument(
@@ -15,55 +24,14 @@ pub(super) fn argument(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    // An exclusive root may arrive through control flow rather than the machine
-    // entrance. A non-entry block structural parameter carries the same custody
-    // as an incoming parameter, and the caller's own parameter roster holds no
-    // row for such a place, so reconstruct it from the block declaration and the
-    // verifier-owned place role instead. Entry-block rows keep the entrance
-    // route below, which owns the published parameter placement.
-    if semantic.path.is_empty()
-        && let Some((block, declaration)) = caller
-            .blocks
-            .iter()
-            .filter(|block| block.id != caller.entry)
-            .find_map(|block| {
-                block
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == semantic.place)
-                    .map(|parameter| (block, parameter))
-            })
-    {
-        return block_parameter_argument(
-            semantic,
-            caller,
-            block,
-            declaration,
-            destination,
-            call,
-            scalar_count,
-            plan,
-        );
-    }
     let source = caller
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == semantic.place)
-        .ok_or(LegalizationError::custody())?;
-    let target_caller = native
-        .functions
-        .iter()
-        .find(|function| function.machine == caller.machine)
-        .ok_or(LegalizationError::custody())?;
-    let parameter = super::super::structural_parameters(target_caller)
-        .ok_or(LegalizationError::custody())?
-        .iter()
-        .find(|parameter| parameter.place == semantic.place)
+        .arrival_parameter(semantic.place)
         .ok_or(LegalizationError::custody())?;
     let types = &plan.structural_types;
     let root_shape =
         crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
             .ok_or(LegalizationError::custody())?;
+    let source_placement = arrival_source(source, caller, native, root_shape)?;
     let byte_field = crate::structural_inputs::structural_reference_input::bounded_byte_view(
         source,
         semantic,
@@ -148,18 +116,7 @@ pub(super) fn argument(
         )
         || source.multiplicity != StructuralMultiplicity::Unrestricted
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
-        || !source.qualifications.is_empty()
-        || !source.projected_qualifications.is_empty()
-        || (byte_owner.is_none() && stored_view.is_none() && !destination.qualifications.is_empty())
-        || !destination.projected_qualifications.is_empty()
         || (structural_type != destination.structural_type && !descriptor)
-        || parameter.place != source.place
-        || parameter.structural_type != source.structural_type
-        || parameter.access != source.access
-        || parameter.multiplicity != source.multiplicity
-        || !parameter.projected_qualifications.is_empty()
-        || parameter.shape
-            != ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment)
         || call
             .parameters
             .get(scalar_count)
@@ -186,98 +143,51 @@ pub(super) fn argument(
             .map(|_| 1)
             .or_else(|| element_view.map(|(_, _, stride)| stride)),
         indices: Vec::new(),
-        source: parameter.placement.clone().into(),
+        source: source_placement,
         destination: call.parameters[scalar_count].clone(),
     })
 }
 
-/// One exclusive borrow whose root is established by control flow: a non-entry
-/// block structural parameter. The verifier's own place roster supplies the
-/// root's role and the block declaration its custody, so no entrance placement
-/// is consulted; a borrowed view presents the descriptor the entrance route
-/// publishes. Only a whole root reaches here — a projected path has no
-/// block-local carrier identity to reconstruct.
-#[allow(clippy::too_many_arguments)]
-fn block_parameter_argument(
-    semantic: &StructuralArgument,
+/// Rejoin the pointer's physical origin without imposing a second type roster
+/// on state arrivals. Canonical arrival lookup checked role and position;
+/// unit ownership checked availability and dominance before legalization.
+fn arrival_source(
+    source: &StructuralParameterDeclaration,
     caller: &PsiOptimizationFunction,
-    block: &optimization_unit::OptimizationBlock,
-    declaration: &StructuralParameterDeclaration,
-    destination: &StructuralParameterDeclaration,
-    call: &CallPlan,
-    scalar_count: usize,
-    plan: &AbstractOperationPlan,
-) -> Result<TargetStructuralArgument, LegalizationError> {
-    use semantic_vocabulary::StructuralPlaceKind;
-    use target_operations::TargetStructuralArgumentSource;
-    // The block parameter rides the same referent the entrance published:
-    // a fat descriptor for a slice view, one pointer cell for a bounded view.
-    let referent_size = plan.structural_types.iter().find_map(|entry| {
-        (entry.id == declaration.structural_type)
-            .then_some(match &entry.shape {
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ) => Some(16),
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedView { .. },
-                ) => Some(8),
-                _ => None,
+    native: &TargetOperationPlan,
+    root_shape: ValueShape,
+) -> Result<TargetStructuralArgumentSource, LegalizationError> {
+    let place = caller
+        .structural_places
+        .iter()
+        .find(|place| place.id == source.place)
+        .ok_or(LegalizationError::custody())?;
+    match place.kind {
+        StructuralPlaceKind::BlockParameter { block, .. } => {
+            Ok(TargetStructuralArgumentSource::BlockParameter {
+                block,
+                place: source.place,
             })
-            .flatten()
-    });
-    let Some(referent_size) = referent_size else {
-        return Err(LegalizationError::custody());
-    };
-    let shape = ValueShape::borrowed_reference(referent_size, 8);
-    if declaration.access != StructuralAccess::MutableBorrow
-        || !matches!(
-            semantic.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        )
-        || destination.access != semantic.access
-        || declaration.is_self
-        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-        || destination.multiplicity != StructuralMultiplicity::Unrestricted
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
-        || !destination.qualifications.is_empty()
-        || !destination.projected_qualifications.is_empty()
-        || declaration.structural_type != destination.structural_type
-        || !caller.structural_places.iter().any(|place| {
-            place.id == declaration.place
-                && place.kind
-                    == StructuralPlaceKind::BlockParameter {
-                        block: block.id,
-                        position: declaration.position,
-                    }
-        })
-        || !plan.structural_types.iter().any(|entry| {
-            entry.id == declaration.structural_type && entry.shape.is_borrowed_byte_carrier()
-        })
-        || call
-            .parameters
-            .get(scalar_count)
-            .is_none_or(|placement| placement.shape != shape)
-    {
-        return Err(LegalizationError::custody());
+        }
+        StructuralPlaceKind::Parameter { .. } => {
+            let parameter = native
+                .functions
+                .iter()
+                .find(|function| function.machine == caller.machine)
+                .and_then(super::super::structural_parameters)
+                .and_then(|parameters| parameters.iter().find(|row| row.place == source.place))
+                .ok_or(LegalizationError::custody())?;
+            if parameter.structural_type != source.structural_type
+                || parameter.access != source.access
+                || parameter.multiplicity != source.multiplicity
+                || parameter.projected_qualifications != source.projected_qualifications
+                || parameter.shape
+                    != ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment)
+            {
+                return Err(LegalizationError::custody());
+            }
+            Ok(parameter.placement.clone().into())
+        }
+        _ => Err(LegalizationError::custody()),
     }
-    Ok(TargetStructuralArgument {
-        place: semantic.place,
-        access: semantic.access,
-        path: Vec::new(),
-        root_structural_type: declaration.structural_type,
-        structural_type: declaration.structural_type,
-        shape,
-        source_byte_offset: 0,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source: TargetStructuralArgumentSource::BlockParameter {
-            block: block.id,
-            place: declaration.place,
-        },
-        destination: call.parameters[scalar_count].clone(),
-    })
 }

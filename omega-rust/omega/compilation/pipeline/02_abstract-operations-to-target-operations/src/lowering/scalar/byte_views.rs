@@ -1,4 +1,7 @@
 //! Byte observation and view operations for common graph lowering.
+//! Arrival transport resolves storage once, independently of whether an entry
+//! or state edge supplied it. Operation validation owns access permissions;
+//! native geometry must not reinterpret qualification or frozen-content rules.
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
@@ -102,9 +105,7 @@ pub(in crate::lowering) fn byte_view_referent_size(
         }) => Some(8),
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             capacity,
-        }) if is_owner_loan(parameter, structural_types) => {
-            u32::try_from(capacity.checked_add(8)?).ok()
-        }
+        }) => u32::try_from(capacity.checked_add(8)?).ok(),
         _ => None,
     }
 }
@@ -142,20 +143,18 @@ fn reads_owner_layout(
     match view {
         TargetByteView::Owned { .. } => true,
         TargetByteView::Parameter { place, .. } | TargetByteView::BlockParameter { place, .. } => {
-            function
-                .structural_parameters
-                .iter()
-                .chain(
-                    function
-                        .block_entries
-                        .iter()
-                        .flat_map(|entry| entry.structural_parameters.iter()),
-                )
-                .any(|parameter| {
-                    parameter.place == *place
-                        && (is_owner_loan(parameter, structural_types)
-                            || is_owned_byte_parameter(parameter, structural_types))
-                })
+            function.arrival_parameter(*place).is_some_and(|parameter| {
+                structural_types
+                    .get(&parameter.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                    })
+            })
         }
         TargetByteView::Literal { .. } | TargetByteView::Subslice { .. } => false,
     }
@@ -169,17 +168,7 @@ fn bounded_view_capacity(
     structural_types: &StructuralTypeLookup<'_>,
     place: PlaceId,
 ) -> Option<u64> {
-    let structural_type = function
-        .structural_parameters
-        .iter()
-        .chain(
-            function
-                .block_entries
-                .iter()
-                .flat_map(|entry| entry.structural_parameters.iter()),
-        )
-        .find(|parameter| parameter.place == place)?
-        .structural_type;
+    let structural_type = function.arrival_parameter(place)?.structural_type;
     match &structural_types.get(&structural_type)?.shape {
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
             capacity,
@@ -296,22 +285,15 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         _ => return Ok(false),
     };
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
-    let mutable_view = matches!(operation, AbstractOperation::ByteSequenceLength { .. })
-        .then(|| mutable_parameter_view(function, structural_types, parameters, source).ok())
-        .flatten();
-    let view = if let Some((_, view)) = mutable_view {
-        view
-    } else {
-        view_for_place(
-            function,
-            structural_types,
-            parameters,
-            values,
-            lengths,
-            source,
-            &mut Vec::new(),
-        )?
-    };
+    let view = view_for_place(
+        function,
+        structural_types,
+        parameters,
+        values,
+        lengths,
+        source,
+        &mut Vec::new(),
+    )?;
     let ScalarType::Integer(scalar_type) = result.scalar_type else {
         return Err(invalid());
     };
@@ -473,31 +455,39 @@ pub(in crate::lowering) fn view_for_place(
             structural_type,
         });
     }
-    if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
-        entry
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)
-            .map(|parameter| (entry, parameter))
-    }) {
-        if entry.block == function.entry
-            || (!is_immutable_byte_parameter(parameter, structural_types)
-                && !is_immutable_byte_carrier_parameter(parameter, structural_types)
-                && !is_owner_loan(parameter, structural_types))
+    if let Some(semantic) = function.arrival_parameter(place) {
+        let declaration = structural_types
+            .get(&semantic.structural_type)
+            .ok_or_else(invalid)?;
+        let StructuralTypeShape::ByteSequence(carrier) = declaration.shape else {
+            return Err(invalid());
+        };
+        let owned = semantic.access == StructuralAccess::Owned;
+        if semantic.multiplicity != StructuralMultiplicity::Unrestricted
+            || !semantic.projected_qualifications.is_empty()
+            || owned
+                && !matches!(
+                    carrier,
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
         {
             return Err(invalid());
         }
-        return Ok(TargetByteView::BlockParameter {
-            block: entry.block,
-            place,
-            structural_type: parameter.structural_type,
-        });
-    }
-    if let Some(semantic) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-    {
+        // The semantic declaration is authenticated above. Only physical
+        // residence differs: state arrivals name an edge carrier, while an
+        // entry arrival must rejoin its exact ABI placement.
+        if let Some(entry) = function.block_entries.iter().find(|entry| {
+            entry
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == place)
+        }) {
+            return Ok(TargetByteView::BlockParameter {
+                block: entry.block,
+                place,
+                structural_type: semantic.structural_type,
+            });
+        }
         let parameter = parameters
             .iter()
             .find(|parameter| parameter.place == place)
@@ -505,7 +495,6 @@ pub(in crate::lowering) fn view_for_place(
         // An owned byte formal uses the ordinary aggregate ABI. Its incoming
         // value-copy address supports observations; it is not a borrowed
         // descriptor or a loan of the caller's original payload.
-        let owned = is_owned_byte_parameter(semantic, structural_types);
         let expected_shape = if owned {
             crate::lowering::structural_layout::structural_shape(
                 semantic.structural_type,
@@ -519,14 +508,7 @@ pub(in crate::lowering) fn view_for_place(
                 8,
             )
         };
-        // A declared-domain view (`&[u8] in Utf8`) is observed through the
-        // same shared descriptor; its qualifications constrain contents this
-        // read-only view cannot change.
-        if (!is_immutable_byte_parameter(semantic, structural_types)
-            && !is_immutable_byte_carrier_parameter(semantic, structural_types)
-            && !is_owner_loan(semantic, structural_types)
-            && !owned)
-            || parameter.structural_type != semantic.structural_type
+        if parameter.structural_type != semantic.structural_type
             || parameter.access != semantic.access
             || parameter.multiplicity != semantic.multiplicity
             || parameter.projected_qualifications != semantic.projected_qualifications

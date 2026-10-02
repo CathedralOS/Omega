@@ -236,52 +236,23 @@ pub(in crate::legalization) fn owned_byte_result(
 }
 /// Whether a byte place reads the owner layout (length word at offset 0,
 /// bytes from offset 8): a completed owned byte result in this activation, or a
-/// shared bounded owner loan whose signature or block parameter carries the
-/// owner's address.
+/// bounded owner arrival. Access controls observations, not the field offsets.
 pub(in crate::legalization) fn reads_owner_layout(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
     owned_byte_result(function, place, types).is_some()
-        || owner_loan(function, place, types).is_some()
-        || owned_parameter(function, place, types).is_some()
-}
-
-/// Readable by-value payload, distinct from the shared pointer loan above.
-pub(in crate::legalization) fn owned_parameter<'a>(
-    function: &'a PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
-    function.structural_parameters.iter().find(|parameter| {
-        parameter.place == place
-            && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-                parameter, types,
-            )
-    })
-}
-
-/// The shared bounded owner loan declared at `place`, if any.
-pub(in crate::legalization) fn owner_loan<'a>(
-    function: &'a PsiOptimizationFunction,
-    place: semantic_vocabulary::PlaceId,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
-    function
-        .structural_parameters
-        .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == place)
-        .filter(|parameter| {
-            abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
-                parameter, types,
-            )
+        || function.arrival_parameter(place).is_some_and(|parameter| {
+            types.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+            })
         })
 }
 

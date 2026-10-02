@@ -3,17 +3,18 @@
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralDomainDeclaration, StructuralMultiplicity,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::StructuralCatalogMismatch {
@@ -83,6 +84,7 @@ pub(super) fn validate(
                             &node.operation,
                             kind,
                             types,
+                            domains,
                             *source,
                             Some(*length),
                         )?;
@@ -257,12 +259,12 @@ mod tests {
                 },
             });
         function.blocks[block].nodes.insert(position, concat);
-        validate(&function, &types, &BTreeMap::new()).unwrap();
         let domains = unit
             .structural_domains
             .iter()
             .map(|domain| (domain.id, domain))
             .collect::<BTreeMap<_, _>>();
+        validate(&function, &types, &domains, &BTreeMap::new()).unwrap();
         crate::unit_validation::structural_catalog::validate_function_structural_catalog(
             &function, &types, &domains,
         )
@@ -271,7 +273,7 @@ mod tests {
         let mut stale = function.clone();
         stale.blocks[block].nodes.insert(position, byte_write);
         assert!(
-            validate(&stale, &types, &BTreeMap::new()).is_err(),
+            validate(&stale, &types, &domains, &BTreeMap::new()).is_err(),
             "a length-preserving byte write changes the captured content"
         );
 
@@ -283,7 +285,7 @@ mod tests {
             .unwrap()
             .access = StructuralAccess::WriteOnlyBorrow;
         assert!(
-            validate(&unreadable, &types, &BTreeMap::new()).is_err(),
+            validate(&unreadable, &types, &domains, &BTreeMap::new()).is_err(),
             "metadata observation cannot grant content read authority"
         );
 
@@ -298,7 +300,7 @@ mod tests {
         };
         *field = id(90_005, semantic_vocabulary::StructuralFieldId::new);
         assert!(
-            validate(&substituted, &types, &BTreeMap::new()).is_err(),
+            validate(&substituted, &types, &domains, &BTreeMap::new()).is_err(),
             "length must observe the exact selected field"
         );
     }

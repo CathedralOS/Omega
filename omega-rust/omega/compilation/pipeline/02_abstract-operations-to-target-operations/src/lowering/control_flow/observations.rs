@@ -36,11 +36,23 @@ pub(super) fn lower(
         AbstractOperation::ByteSequenceLength { source, .. }
         | AbstractOperation::ByteSequenceRead { source, .. }
         | AbstractOperation::ByteSequenceSubslice { source, .. } => {
-            // A bounded owner loan arrives as an address join; it is read in
-            // place through the owner layout.
+            // A live byte-owner address join observes its own storage. The
+            // semantic operation, not the pointer layout, determines whether
+            // this is a metadata or payload observation.
             let owner_join = live.address_joins.contains(source)
                 && super::transfers::address_parameter(function, live, *source).is_some_and(
-                    |parameter| byte_views::is_owner_loan(parameter, structural_types),
+                    |parameter| {
+                        structural_types
+                            .get(&parameter.structural_type)
+                            .is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    )
+                                )
+                            })
+                    },
                 );
             if !prepared
                 .parameters

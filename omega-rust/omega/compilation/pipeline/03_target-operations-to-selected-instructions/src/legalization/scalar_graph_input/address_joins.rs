@@ -55,6 +55,8 @@ pub(in crate::legalization) fn parameter<'a>(
 }
 
 /// Rejoin a shared or mutable projection lent by an address join.
+/// Semantic call admission has already checked the formal's qualifications;
+/// replay reconstructs its original address, projection and ABI placement.
 pub(in crate::legalization) fn call_argument(
     semantic: &terminal_psi::StructuralArgument,
     destination: &StructuralParameterDeclaration,
@@ -108,8 +110,6 @@ pub(in crate::legalization) fn call_argument(
         || semantic.access == StructuralAccess::MutableBorrow
             && parameter.access != StructuralAccess::MutableBorrow
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
-        || !destination.qualifications.is_empty()
-        || !destination.projected_qualifications.is_empty()
         || destination.structural_type != selected
         || !dominates(caller, block, call_block)
         || placement.shape != shape

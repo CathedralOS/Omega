@@ -692,8 +692,11 @@ pub(in crate::validation) fn validate_structural_argument(
         terminal_semantics::byte_parameter_predicates(module, expected)
             .is_some_and(|required| captured.implies(required))
     });
+    // A state arrival names the same owner under its incoming declaration.
+    // Resolve that exact storage role before checking the common capacity and
+    // writable-predicate contract; machine-entry spelling grants no authority.
     let bounded_owner_presentation = (ordinary_call
-        && caller.structural_parameters.iter().any(|actual| {
+        && terminal_semantics::arrival_parameter(caller, argument.place).is_some_and(|actual| {
             terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
                 .is_some()
                 && !caller
