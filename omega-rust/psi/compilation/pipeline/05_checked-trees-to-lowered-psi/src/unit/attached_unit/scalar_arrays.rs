@@ -225,16 +225,6 @@ pub(super) fn validate_shape(
     unsupported("array source carrier is cyclic")
 }
 
-/// Whether an authored statement owes a planned operation. A fact-only
-/// citation owes none: execution erases it (`validation::is_fact_only_citation`),
-/// so its missing operation is the plan, not an omitted statement.
-pub(super) fn statement_owes_operation(
-    checked: &CheckedTrees,
-    statement: &checked_trees::statement::StatementNode,
-) -> bool {
-    !validation::is_fact_only_citation(&checked.typed, statement)
-}
-
 pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
     match operation {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {

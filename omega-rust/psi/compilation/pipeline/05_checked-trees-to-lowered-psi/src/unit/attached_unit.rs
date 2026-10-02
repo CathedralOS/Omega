@@ -93,6 +93,7 @@ pub(crate) mod view_ranges;
 
 // How a body completes: its scalar or structural result.
 mod scalar_completion;
+mod statement_custody;
 mod structural_completion;
 pub(crate) use scalar_completion::control::validate_tail as validate_scalar_control_tail;
 

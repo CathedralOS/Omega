@@ -343,7 +343,13 @@ pub(super) fn validate(
     // Every authored statement owes an operation, except a final binding use
     // and an erased fact-only citation.
     for index in 0..statements.len() {
-        if !super::scalar_arrays::statement_owes_operation(checked, &statements[index]) {
+        if !super::statement_custody::statement_owes_operation(
+            checked,
+            machine.machine,
+            machine.state,
+            index,
+            &statements[index],
+        ) {
             continue;
         }
         if index + 1 == statements.len()

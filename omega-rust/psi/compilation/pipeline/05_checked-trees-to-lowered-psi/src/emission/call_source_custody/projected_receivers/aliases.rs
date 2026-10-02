@@ -21,7 +21,7 @@ use symbols::SymbolHandle;
 mod reborrow;
 use reborrow::reborrow_resource;
 
-pub(super) fn parameter_source(
+pub(crate) fn parameter_source(
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -655,7 +655,7 @@ fn call_result_source(
 /// captured place names `FixedIndex { i }`. Under a recast initializer a
 /// range that starts at the captured element index is the same place;
 /// every other pair compares literally.
-fn loan_place_agrees(
+pub(crate) fn loan_place_agrees(
     loan_segments: &[facts::PlaceSegment],
     captured_segments: &[facts::PlaceSegment],
     recast_initializer: bool,

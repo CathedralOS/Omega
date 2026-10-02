@@ -40,8 +40,13 @@ pub(super) fn validate(
             node,
             StatementNode::LocalData(local)
                 if local.name.as_str().starts_with("__arm_destructure#")
-        ) || !super::super::scalar_arrays::statement_owes_operation(checked, node)
-        {
+        ) || !super::super::statement_custody::statement_owes_operation(
+            checked,
+            machine.machine,
+            machine.state,
+            statement,
+            node,
+        ) {
             continue;
         }
         if !matches!(
