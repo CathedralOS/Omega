@@ -6,8 +6,8 @@
 //! normalized model consumed by admission and lowering.
 
 use access_plans::{AccessPlan, ValidatedAccessPlan};
+use checked_interpreter::BuildTimeOperationEvaluation;
 use checked_interpreter::BuildTimeValue;
-use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use layout_plans::{LayoutPlanReport, layout_plan_reports_match_for_replay};
 use typed_trees::TypedTrees;
 
@@ -80,7 +80,7 @@ fn evaluate_policy(
     BuildTimeAdmissionPlan::infer(typed, None).require_common_floor(typed, machine)?;
     checked_interpreter::evaluate_build_time_machine(
         typed,
-        BuildMachineEvaluationRequest::named(policy_machine, arguments),
+        super::policy_arguments::policy_request(typed, machine, arguments)?,
     )
     .map(BuildTimeOperationEvaluation::into_value)
     .map_err(|reason| {

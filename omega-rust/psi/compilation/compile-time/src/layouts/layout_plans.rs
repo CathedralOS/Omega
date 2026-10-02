@@ -4,7 +4,6 @@
 //! layout and private callback demands. Typed-value byte production belongs to
 //! the sibling `materialization` module.
 
-use checked_interpreter::BuildMachineEvaluationRequest;
 use layout_plans::LayoutPlanReport;
 use typed_trees::TypedTrees;
 
@@ -65,7 +64,7 @@ pub fn compute_native_layout_plan(
 
     let evaluation = checked_interpreter::evaluate_build_time_machine(
         typed,
-        BuildMachineEvaluationRequest::named(policy_machine, vec![schema_value]),
+        super::policy_arguments::policy_request(typed, machine, vec![schema_value])?,
     )
     .map_err(|reason| format!("build-time evaluation of `{policy_machine}` failed: {reason}"))?;
 
