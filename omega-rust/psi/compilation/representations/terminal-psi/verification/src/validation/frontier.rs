@@ -719,6 +719,7 @@ fn validate_scalar_cleanup_actions(
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
         if !super::scalar::case::plain_return_source(module, machine, place)
             && super::record::completed_source(module, machine, place).is_none()
+            && super::element_view::view_loan_result(machine, place).is_none()
             && super::references::carrier_type(module, machine, place).is_none()
             && !frontier
                 .references
