@@ -1057,13 +1057,17 @@ fn mutable_element_view_writes_owned_array_and_retires_exact_loan() {
     // fact. Prove the original operation bound through those independently
     // reconstructed equalities instead of requiring an identical axiom row.
     let questions = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
-    let context = PropositionContext::from_value_types(
+    let context = PropositionContext::from_value_types_and_places(
         module.machines[0]
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
             .filter_map(|operation| operation.result.scalar())
             .map(|value| (value.id, value.scalar_type)),
+        module.machines[0]
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind)),
     )
     .unwrap();
     let mut evidence = questions
