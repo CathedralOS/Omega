@@ -94,6 +94,7 @@ mod primitive_store_return_source;
 mod program_local_root_introduction;
 mod projected_case_observation;
 mod provider_attachment_source;
+mod provider_array_results;
 mod provider_candidates;
 mod provider_results;
 mod receiver_call_source;
