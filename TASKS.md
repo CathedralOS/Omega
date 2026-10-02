@@ -3767,20 +3767,18 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   storage-changing `self` transitions. Preserve establishment, every arrival's
   simultaneous substitution, and exact source/Terminal scope.
 
-  `proofs/runtime_inductive_{gauss_sum,climbing_sum}_exit` keep the authored
-  receivers, contracts and measures over field-read inputs and exit 70 on the
-  checked interpreter; Terminal production refuses both. Gauss: stage 04's
-  `values/scalar/result_contract.rs::integer_term` reads only Exact carriers,
-  so its Wrapping `ensures` is unrepresented and stage 05's closed-literal
-  fallback misreports "exactly one requires and one ensures clause"; without
-  the ensures, the ranked countdown leaves `wrapping_sub(n, 1) < n` under
-  `1 <= n` unproved because admission has no WrappingIntegerSubtract no-wrap
-  evidence. Climb: `terminal_scalar/ranking.rs` spells only unsigned
-  countdowns, `state_graph/mod.rs` refuses single-state scalar bodies, and the
-  ordinary sequence leaves the self call unplanned ("call count agreement");
-  a two-state restatement then lacks `requires` as header facts and a closed
-  `embed(...)` predicate reading. Coordinate execution gaps with
-  STATE-LOCAL-VALUE-FRONTIER.
+  Retain `proofs/runtime_inductive_climbing_sum_exit` as a working control:
+  its mathematical guarantee and bounded-distance ranking survive Terminal
+  serialization, independent verification, and artifact execution. On macOS
+  arm64, `omega run --both` exits 70 in both engines. Wrong accumulator
+  arrivals still reject while the same cycle certificate remains valid.
+
+  `proofs/runtime_inductive_gauss_sum_exit` remains the next native acceptance.
+  Carry the authored Wrapping result identity through every arrival and
+  independent replay. Stage 04 already retains Wrapping arithmetic and the
+  affine checker already supports subtraction with explicit no-wrap evidence;
+  reuse those owners without treating ranking as evidence for arithmetic bounds.
+  Coordinate execution gaps with STATE-LOCAL-VALUE-FRONTIER.
 
   Reuse `ClosedIntegerRelation` normalization in
   `proof/admission/src/integer_rules/open_terms.rs`; PROOF-KERNEL-CORE and
