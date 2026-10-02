@@ -1,13 +1,17 @@
 //! Exact byte-view observation and mutation source contracts.
+//! Entry and state arrivals share one declaration lookup and access rule.
+//! Length observes owner metadata, reads require readable contents, and
+//! replacement requires an immutable source. A state edge changes none of
+//! those permissions; custody separately checks availability and currentness.
 
 use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralDomainDeclaration, StructuralMultiplicity,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 use crate::OptimizationUnitValidationError;
@@ -170,6 +174,7 @@ pub(super) fn validate_byte_view_source(
     operation: &AbstractOperation,
     source_kind: Option<&StructuralPlaceKind>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let (source, length) = match operation {
         AbstractOperation::ByteSequenceWrite {
@@ -193,6 +198,7 @@ pub(super) fn validate_byte_view_source(
         operation,
         source_kind,
         structural_types,
+        structural_domains,
         source,
         length,
     )
@@ -205,85 +211,67 @@ pub(super) fn validate_source(
     operation: &AbstractOperation,
     source_kind: Option<&StructuralPlaceKind>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     source: semantic_vocabulary::PlaceId,
     length: Option<semantic_vocabulary::ValueId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let permitted_access = |access| match operation {
-        AbstractOperation::ByteSequenceWrite { .. } => access == StructuralAccess::MutableBorrow,
-        AbstractOperation::ByteSequenceLength { .. } => matches!(
-            access,
-            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-        ),
-        _ => access == StructuralAccess::SharedBorrow,
-    };
-    // A shared bounded-owner loan keeps its owner's plain byte qualifications;
-    // it is read through the owner layout, never written.
-    let owner_loan = |parameter: &terminal_psi::StructuralParameterDeclaration| {
-        !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
-            && abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
-                parameter,
-                |identity| structural_types.get(&identity).copied(),
-            )
-    };
-    // A declared-domain shared view (`&[u8] in Utf8`) keeps the same borrowed
-    // descriptor; its qualifications constrain contents that reads and length
-    // observations cannot change, so only writes need an unqualified view.
-    let qualified_shared_view = |parameter: &terminal_psi::StructuralParameterDeclaration| {
-        !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
-            && parameter.access == StructuralAccess::SharedBorrow
-            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            && parameter.projected_qualifications.is_empty()
-            && structural_types
-                .get(&parameter.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-                    )
-                })
-    };
-    // A by-value bounded owner supplies readable bytes from its own incoming
-    // payload. This does not make it a mutable view or a borrowed descriptor.
-    let owned_parameter = |parameter: &terminal_psi::StructuralParameterDeclaration| {
-        !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
-            && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
-                parameter,
-                |identity| structural_types.get(&identity).copied(),
-            )
-    };
+    let arrival = function.arrival_parameter(source);
     let structural_type = match source_kind {
-        Some(StructuralPlaceKind::BlockParameter {
-            block: owner,
-            position,
-        }) => function
-            .blocks
-            .iter()
-            .find(|block| block.id == *owner)
-            .and_then(|block| block.structural_parameters.get(*position as usize))
-            .filter(|parameter| {
-                parameter.place == source
-                    && ((permitted_access(parameter.access)
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty())
-                        || qualified_shared_view(parameter)
-                        || owner_loan(parameter))
+        Some(
+            StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. },
+        ) => {
+            arrival.and_then(|parameter| {
+                let StructuralTypeShape::ByteSequence(carrier) =
+                    structural_types.get(&parameter.structural_type)?.shape
+                else {
+                    return None;
+                };
+                let owned = matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. });
+                let permitted = match operation {
+                    AbstractOperation::ByteSequenceWrite { .. } => {
+                        !owned
+                            && parameter.access == StructuralAccess::MutableBorrow
+                            && parameter.qualifications.is_empty()
+                    }
+                    AbstractOperation::ByteSequenceLength { .. } => {
+                        matches!(
+                            parameter.access,
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        ) || owned
+                            && matches!(
+                                parameter.access,
+                                StructuralAccess::Owned | StructuralAccess::WriteOnlyBorrow
+                            )
+                    }
+                    AbstractOperation::ByteSequenceStore { .. }
+                    | AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
+                        parameter.access == StructuralAccess::SharedBorrow
+                            || owned && parameter.access == StructuralAccess::Owned
+                    }
+                    _ => {
+                        parameter.access == StructuralAccess::SharedBorrow
+                            || owned
+                                && matches!(
+                                    parameter.access,
+                                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                                )
+                    }
+                };
+                // A same-carrier domain is not necessarily a byte predicate.
+                // Replay the exact primitive roster before observing contents
+                // or owner metadata; this grants no mutation permission.
+                let qualifications_permitted = terminal_semantics::byte_parameter_predicates_in(
+                    structural_domains.values().copied(),
+                    parameter,
+                )
+                .is_some();
+                (permitted
+                    && qualifications_permitted
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && parameter.projected_qualifications.is_empty())
+                .then_some(parameter.structural_type)
             })
-            .map(|parameter| parameter.structural_type),
-        Some(StructuralPlaceKind::Parameter { .. }) => function
-            .structural_parameters
-            .iter()
-            .find(|parameter| {
-                parameter.place == source
-                    && ((permitted_access(parameter.access)
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty())
-                        || qualified_shared_view(parameter)
-                        || owner_loan(parameter)
-                        || owned_parameter(parameter))
-            })
-            .map(|parameter| parameter.structural_type),
+        }
         Some(StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         }) => Some(*structural_type),
@@ -354,20 +342,7 @@ pub(super) fn validate_source(
                 })
             })
             .is_some()
-                || function
-                    .structural_parameters
-                    .iter()
-                    .chain(
-                        function
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.structural_parameters),
-                    )
-                    .any(|parameter| parameter.place == source && owner_loan(parameter))
-                || function
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == source && owned_parameter(parameter))))
+                || arrival.is_some()))
         })
         && function
             .entry_claim_declarations

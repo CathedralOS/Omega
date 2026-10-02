@@ -342,6 +342,94 @@ fn an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects()
 }
 
 #[test]
+fn qualified_exclusive_parameters_keep_their_call_contract_and_native_address() {
+    let mut source = block_parameter_source(StructuralAccess::MutableBorrow);
+    let caller = &mut source.functions[0];
+    caller.operations = caller.operations[3..5].to_vec();
+    caller.block_entries.truncate(1);
+    let domain = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
+    for function in &mut source.functions {
+        for parameter in &mut function.structural_parameters {
+            parameter.qualifications.push(domain);
+        }
+        for block in &mut function.block_entries {
+            block.structural_parameters.clear();
+        }
+        for operation in &mut function.operations {
+            match operation {
+                AbstractOperation::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    when_true.structural_bindings.clear();
+                    when_false.structural_bindings.clear();
+                }
+                AbstractOperation::CallStructural {
+                    structural_arguments,
+                    ..
+                } => {
+                    structural_arguments[0].place = function.structural_parameters[0].place;
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+        identity: "Utf8".into(),
+        carrier: StructuralTypeId::new(10).unwrap(),
+        byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+        content_projection: None,
+        establishment_routes: Vec::new(),
+    }]
+    .into();
+    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+        .expect("the exact qualified call is admitted before native geometry");
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .expect("qualified descriptor transport does not change target layout");
+        let legal = legalize_target_operations(&target, &source, &unit)
+            .expect("parameter qualifications are not a new native carrier");
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone())
+            .expect("native replay rejoins the same qualified parameter");
+    }
+    let mut missing_predicate = unit.clone();
+    missing_predicate.functions[0].structural_parameters[0]
+        .qualifications
+        .clear();
+    missing_predicate.identity =
+        optimization_unit::recompute_psi_optimization_unit_identity(&missing_predicate);
+    assert!(
+        optimization_unit_semantics::validate_psi_optimization_unit(&missing_predicate).is_err(),
+        "native geometry cannot discharge a missing callee precondition"
+    );
+    let mut shared_source = unit;
+    shared_source.functions[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    shared_source.identity =
+        optimization_unit::recompute_psi_optimization_unit_identity(&shared_source);
+    assert!(
+        optimization_unit_semantics::validate_psi_optimization_unit(&shared_source).is_err(),
+        "the same address cannot authorize an exclusive call from shared access"
+    );
+}
+
+#[test]
 fn fused_binding_address_joins_replay_pointer_custody_on_all_hosted_targets() {
     for access in [
         StructuralAccess::SharedBorrow,

@@ -263,6 +263,8 @@ pub(super) fn argument(
 /// Projections use the same typed layout and dominating scalar operands as an
 /// incoming parameter; the block source retains the joined root's identity.
 /// Access cannot widen, and the projected referent must match the callee.
+/// Unit call admission owns qualification discharge and writable invariants;
+/// a qualified loan has the same address and layout as its carrier.
 pub(super) fn address_join_argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -278,8 +280,6 @@ pub(super) fn address_join_argument(
         )
         || declaration.access != argument.access
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

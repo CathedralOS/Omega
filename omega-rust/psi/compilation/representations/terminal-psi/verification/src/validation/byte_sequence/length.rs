@@ -1,4 +1,8 @@
-//! Exact whole immutable byte-view observation; control flow owns availability.
+//! Whole byte observations resolve the source's canonical arrival or producer.
+//! A state edge changes the name of incoming storage, not its permissions:
+//! owner length is metadata, content observation requires readable access,
+//! and replacement still requires an immutable payload source. Control flow
+//! independently checks availability and currentness.
 
 use crate::validation::{
     IntegerSign, IntegerType, ModuleError, PlaceId, ScalarType, StructuralAccess,
@@ -22,10 +26,7 @@ pub(in crate::validation) fn validate(
             operation.id,
         ));
     }
-    if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source)
+    if let Some(parameter) = terminal_semantics::arrival_parameter(machine, source)
         && matches!(
             parameter.access,
             StructuralAccess::SharedBorrow
@@ -56,18 +57,8 @@ pub(in crate::validation) fn validate(
         // through a write-only loan.
         return Ok(());
     }
-    if machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .any(|parameter| {
-            parameter.place == source && parameter.access == StructuralAccess::MutableBorrow
-        })
+    if terminal_semantics::arrival_parameter(machine, source)
+        .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)
     {
         return crate::validation::byte_sequence::write::validate_destination(
             module, machine, operation, source,
@@ -95,16 +86,9 @@ pub(in crate::validation) fn validate_source(
         .find(|place| place.id == source)
         .ok_or_else(&invalid)?;
     let structural_type = match place.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
-            let parameter = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| {
-                    parameter.place == source
-                        && parameter.position == position
-                        && parameter.is_self == is_self
-                })
-                .ok_or_else(&invalid)?;
+        StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
+            let parameter =
+                terminal_semantics::arrival_parameter(machine, source).ok_or_else(&invalid)?;
             let owned = module.structural_types.iter().any(|row| {
                 row.id == parameter.structural_type
                     && matches!(
@@ -122,24 +106,6 @@ pub(in crate::validation) fn validate_source(
                     )))
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || terminal_semantics::byte_parameter_predicates(module, parameter).is_none()
-            {
-                return Err(invalid());
-            }
-            parameter.structural_type
-        }
-        StructuralPlaceKind::BlockParameter { .. } => {
-            let parameter =
-                crate::validation::block_views::parameter(machine, source).ok_or_else(&invalid)?;
-            if parameter.access != StructuralAccess::SharedBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || (!parameter.qualifications.is_empty()
-                    && !crate::validation::block_views::shared_bounded_owner_loan(
-                        module, parameter,
-                    )
-                    && !crate::validation::block_views::qualified_shared_byte_view(
-                        module, parameter,
-                    ))
-                || !parameter.projected_qualifications.is_empty()
             {
                 return Err(invalid());
             }
@@ -171,15 +137,7 @@ pub(in crate::validation) fn validate_source(
                 )
             ) || ((super::concatenation::owned_result(machine, source).is_some()
                 || terminal_semantics::byte_owned_call_result(module, machine, source).is_some()
-                || machine
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == source)
-                || crate::validation::block_views::parameter(machine, source).is_some_and(
-                    |parameter| {
-                        crate::validation::block_views::shared_bounded_owner_loan(module, parameter)
-                    },
-                ))
+                || terminal_semantics::arrival_parameter(machine, source).is_some())
                 && matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
@@ -203,30 +161,19 @@ pub(in crate::validation) fn validate_replacement_source(
     source: PlaceId,
     invalid: impl Fn() -> ModuleError,
 ) -> Result<(), ModuleError> {
-    if machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .any(|parameter| {
-            parameter.place == source
-                && parameter.access != StructuralAccess::SharedBorrow
-                && !(parameter.access == StructuralAccess::Owned
-                    && module.structural_types.iter().any(|row| {
-                        row.id == parameter.structural_type
-                            && matches!(
-                                row.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
+    if terminal_semantics::arrival_parameter(machine, source).is_some_and(|parameter| {
+        parameter.access != StructuralAccess::SharedBorrow
+            && !(parameter.access == StructuralAccess::Owned
+                && module.structural_types.iter().any(|row| {
+                    row.id == parameter.structural_type
+                        && matches!(
+                            row.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                             )
-                    }))
-        })
-    {
+                        )
+                }))
+    }) {
         return Err(invalid());
     }
     validate_source(module, machine, operation, source, invalid)

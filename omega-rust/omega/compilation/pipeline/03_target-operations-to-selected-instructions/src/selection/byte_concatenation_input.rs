@@ -50,15 +50,16 @@ pub(super) fn owned_type(
 
 /// The structural type of a place whose bytes use the owner layout (length
 /// word at offset 0, bytes from offset 8): an owned concatenation result in
-/// this activation, a whole owned parameter arrival, or a shared bounded owner
-/// loan whose signature or block parameter pointer is the owner's address.
+/// this activation or a bounded-owner arrival. Owned, shared, mutable and
+/// write-only arrivals differ in permission, not the owner's field offsets.
+/// Legalization checks the operation's access; this query only chooses storage.
 pub(super) fn owner_layout_type(
     function: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
     owned_type(function, place).or_else(|| {
         let signature = function.structural.as_ref()?;
-        signature
+        let mut parameters = signature
             .parameters
             .iter()
             .map(|parameter| &parameter.semantic)
@@ -68,17 +69,19 @@ pub(super) fn owner_layout_type(
                     .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
-            .find(|parameter| parameter.place == place)
-            .filter(|parameter| {
-                abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
-                    parameter,
-                    &signature.structural_types,
-                )
-                    || abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-                        parameter, &signature.structural_types,
+            .filter(|parameter| parameter.place == place);
+        let parameter = parameters.next()?;
+        (parameters.next().is_none()
+            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && parameter.projected_qualifications.is_empty()
+            && signature.structural_types.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
                     )
-            })
-            .map(|parameter| parameter.structural_type)
+            }))
+        .then_some(parameter.structural_type)
     })
 }
 

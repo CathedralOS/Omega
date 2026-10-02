@@ -7,6 +7,74 @@ use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 
+#[test]
+fn byte_arrival_length_rejects_same_carrier_non_byte_domain() {
+    for body in [
+        "input.len",
+        "transition { _ -> arrived(input) }\n\
+         state arrived(input: &mut [u8;16] in Utf8) { input.len }",
+    ] {
+        let source = format!(
+            "domain [u8;16]::Utf8 requires valid_utf8(self);\n\
+             data Record {{ value: u64; }}\n\
+             machine Record::replace(&mut self, input: &mut [u8;16] in Utf8) -> u64 {{ {body} }}"
+        );
+        let mut unit = indexed_field_source_unit(&source);
+        validate_psi_optimization_unit(&unit)
+            .expect("primitive-qualified entry and state owners expose live length");
+        let (machine, block, node, domain) = unit
+            .functions
+            .iter()
+            .find_map(|function| {
+                function.blocks.iter().find_map(|block| {
+                    block
+                        .nodes
+                        .iter()
+                        .enumerate()
+                        .find_map(|(node, operation)| {
+                            let AbstractOperation::ByteSequenceLength { source, .. } =
+                                operation.operation
+                            else {
+                                return None;
+                            };
+                            let parameter = function.arrival_parameter(source)?;
+                            let [domain] = parameter.qualifications.as_slice() else {
+                                return None;
+                            };
+                            Some((
+                                function.machine,
+                                block.id,
+                                u32::try_from(node).unwrap(),
+                                *domain,
+                            ))
+                        })
+                })
+            })
+            .expect("length observes an exact qualified arrival");
+        let mut domains = unit.structural_domains.to_vec();
+        let declaration = domains
+            .iter_mut()
+            .find(|candidate| candidate.id == domain)
+            .unwrap();
+        assert!(declaration.byte_predicate.take().is_some());
+        // Keep the exact domain identity and carrier. Catalog membership alone
+        // must not substitute for the primitive byte-domain contract.
+        unit.structural_domains = domains.into();
+        refresh_identity(&mut unit);
+        assert_eq!(
+            validate_psi_optimization_unit(&unit),
+            Err(
+                crate::OptimizationUnitValidationError::InvalidByteSequenceLength {
+                    machine,
+                    block,
+                    node,
+                }
+            ),
+            "{body}",
+        );
+    }
+}
+
 fn mutable_byte_arrival_unit() -> PsiOptimizationUnit {
     indexed_field_source_unit(
         r#"

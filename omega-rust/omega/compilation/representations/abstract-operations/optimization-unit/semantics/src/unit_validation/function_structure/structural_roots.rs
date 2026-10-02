@@ -4,7 +4,9 @@ use crate::unit_validation::structural_catalog::structural_root_key;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{
+    PlaceId, ScalarType, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod availability;
@@ -37,6 +39,7 @@ pub(crate) fn validate_structural_root_uniqueness(
 pub(crate) fn validate_structural_root_operations(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let place_kinds = function
         .structural_places
@@ -193,6 +196,7 @@ pub(crate) fn validate_structural_root_operations(
                         &node.operation,
                         place_kinds.get(source),
                         structural_types,
+                        structural_domains,
                     )?;
                     if super::byte_views::byte_field_store_capacity(
                         function,
@@ -334,6 +338,7 @@ pub(crate) fn validate_structural_root_operations(
                         &node.operation,
                         place_kinds.get(source),
                         structural_types,
+                        structural_domains,
                     )?;
                 }
                 O::ByteSequenceWrite { destination, .. } => {
@@ -344,6 +349,7 @@ pub(crate) fn validate_structural_root_operations(
                         &node.operation,
                         place_kinds.get(destination),
                         structural_types,
+                        structural_domains,
                     )?;
                 }
                 O::WriteOnlyPrimitiveStore {

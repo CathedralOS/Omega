@@ -1,4 +1,8 @@
 //! Independent correspondence for native descriptor derivations.
+//! The validated unit owns operation permissions and primitive predicates.
+//! This join authenticates exact storage identity and ABI residence, not a
+//! second entry-versus-state access policy. Indexed mutation additionally
+//! retains its explicit mutable-storage check below.
 use super::Checker;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{PlaceId, ValueId};
@@ -11,40 +15,18 @@ impl Checker<'_> {
         source: PlaceId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
-        self.byte_view_access(
-            view,
-            source,
-            aliases,
-            terminal_psi::StructuralAccess::SharedBorrow,
-        )
-    }
-
-    pub(super) fn mutable_byte_view(&self, view: &TargetByteView, source: PlaceId) -> bool {
-        self.byte_view_access(
-            view,
-            source,
-            &[],
-            terminal_psi::StructuralAccess::MutableBorrow,
-        )
-    }
-
-    fn byte_view_access(
-        &self,
-        view: &TargetByteView,
-        source: PlaceId,
-        aliases: &[(ValueId, ValueId)],
-        access: terminal_psi::StructuralAccess,
-    ) -> bool {
         match view {
             TargetByteView::Owned {
                 psi_operation,
                 place,
                 structural_type,
             } => {
-                matches!(access, terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::MutableBorrow)
-                    && *place == source
-                    && super::super::byte_views::owned_byte_result(self.optimized, source, self.types)
-                        == Some((*psi_operation, *structural_type))
+                *place == source
+                    && super::super::byte_views::owned_byte_result(
+                        self.optimized,
+                        source,
+                        self.types,
+                    ) == Some((*psi_operation, *structural_type))
                     && self.types.iter().any(|declaration| {
                         declaration.id == *structural_type
                             && matches!(
@@ -60,8 +42,7 @@ impl Checker<'_> {
                 place,
                 structural_type,
             } => {
-                access == terminal_psi::StructuralAccess::SharedBorrow
-                    && *place == source
+                *place == source
                     && (super::super::literals::declaration_producer(self.optimized, source)
                         == Some((*psi_operation, *structural_type))
                         || self.established_byte_view(*psi_operation, source, *structural_type))
@@ -78,17 +59,10 @@ impl Checker<'_> {
                             && owner.structural_parameters.iter().any(|parameter| {
                                 parameter.place == *place
                                     && parameter.structural_type == *structural_type
-                                    && parameter.access == access
                                     && parameter.multiplicity
                                         == terminal_psi::StructuralMultiplicity::Unrestricted
-                                    && ((parameter.qualifications.is_empty()
-                                        && parameter.projected_qualifications.is_empty())
-                                        || abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
-                                            parameter, self.types,
-                                        )
-                                        || abstract_operations::control_flow::owner_loans::is_shared_byte_view_in(
-                                            parameter, self.types,
-                                        ))
+                                    && self.optimized.arrival_parameter(source) == Some(parameter)
+                                    && parameter.projected_qualifications.is_empty()
                             })
                     })
             }
@@ -98,15 +72,15 @@ impl Checker<'_> {
                         |parameters| {
                             parameters.iter().any(|parameter| {
                                 parameter.place == source
-                                    && (parameter.access == access
-                                        || (access == terminal_psi::StructuralAccess::SharedBorrow
-                                            && parameter.access == terminal_psi::StructuralAccess::Owned
-                                            && super::super::byte_views::owned_parameter(
-                                                self.optimized, source, self.types,
-                                            ).is_some_and(|semantic|
-                                                semantic.structural_type == parameter.structural_type
-                                                    && semantic.multiplicity == parameter.multiplicity
-                                                    && semantic.projected_qualifications == parameter.projected_qualifications)))
+                                    && self.optimized.arrival_parameter(source).is_some_and(
+                                        |semantic| {
+                                            semantic.structural_type == parameter.structural_type
+                                                && semantic.access == parameter.access
+                                                && semantic.multiplicity == parameter.multiplicity
+                                                && semantic.projected_qualifications
+                                                    == parameter.projected_qualifications
+                                        },
+                                    )
                                     && &parameter.placement == placement
                             })
                         },
@@ -121,8 +95,7 @@ impl Checker<'_> {
                 length,
                 obligation,
             } => {
-                access == terminal_psi::StructuralAccess::SharedBorrow
-                    && *place == source
+                *place == source
                     && self
                         .optimized
                         .blocks
@@ -151,6 +124,18 @@ impl Checker<'_> {
                         })
             }
         }
+    }
+
+    pub(super) fn mutable_byte_view(&self, view: &TargetByteView, source: PlaceId) -> bool {
+        (self
+            .optimized
+            .arrival_parameter(source)
+            .is_some_and(|parameter| {
+                parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+            })
+            || super::super::byte_views::owned_byte_result(self.optimized, source, self.types)
+                .is_some())
+            && self.byte_view(view, source, &[])
     }
 
     /// The operation at `psi_operation` establishes a borrowed `&[u8]` view at

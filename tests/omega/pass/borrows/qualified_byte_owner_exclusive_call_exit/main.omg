@@ -1,0 +1,39 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+
+data Main {
+    console: Binding<Console>;
+    line: [u8; 16] in Utf8;
+    sibling: u64;
+}
+
+machine replace(line: &mut [u8; 16] in Utf8) {
+    line = "é";
+}
+
+// Passing the owner onward must preserve its address and predicate contract,
+// whether it entered the machine or arrived through a state transition.
+machine forward(line: &mut [u8; 16] in Utf8) -> bool {
+    replace(line);
+    let first: bool = line == "é" && line.len == 2;
+    line = "";
+    transition { _ -> arrived(line, first) }
+
+    state arrived(line: &mut [u8; 16] in Utf8, first: bool) {
+        replace(line);
+        first && line == "é" && line.len == 2
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.line = "Gate";
+    main.sibling = 29;
+    let changed: bool = forward(&mut main.line);
+    transition changed && main.line == "é" && main.line.len == 2 && main.sibling == 29 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

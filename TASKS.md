@@ -1590,25 +1590,23 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `f6f5d90ce55`
-  plus this lane's structural-result and borrowed-header repairs, macOS ARM64,
-  the unchanged closed-stdin command clears target lowering and exits 200
-  during instruction legalization after 594 seconds:
-  `SourceCustodyMismatch` at `scalar_graph_input/structural_call/exclusive.rs:168`.
-  The owning dependency is
-  `03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/structural_call/exclusive.rs`:
-  identify the actual source, formal and failed predicate in exclusive call
-  transport; retain independently checked writable predicate preservation and
-  exact ABI placement rather than adding a source-family exception.
-  Shared bounded-owner views
-  now retain entry, state-arrival and completed-result storage; structural reads
-  use live arrivals. `borrows/qualified_byte_owner_shared_call_exit` and nine
-  related native controls execute their authored results. Borrowed headers now
-  rejoin the common place/producer inventory; element-view operation replay owns
-  its result checks. Twenty-five focused checks retain custody and ABI rejection;
-  the expanded native selection builds 27 fixtures and executes 26 with expected
-  results. The single macOS golden improvement is stale after upstream
-  `93913f8a122` added the static element-view fixture's entrypoint and exit oracle.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `e26439b2fe5`
+  plus the canonical-arrival exclusive-call repair, macOS ARM64, the unchanged
+  closed-stdin command clears legalization and exits 200 during instruction
+  selection after 697 seconds: `UnsupportedSourceShape`, function 9,
+  Machine 10, Operation 781. A failure-only probe locates the refusal inside
+  `03_target-operations-to-selected-instructions/src/selection/scalar_call_abi.rs`
+  `validate`: rejoin that call's retained arguments, placement and register
+  constraints; do not replace canonical ABI replay with producer assertions.
+  The preceding exclusive-call failure was a qualification-emptiness gate on
+  identically typed and qualified mutable arguments, not an ABI disagreement.
+  Entry and state-arrival call transport now share the same semantic lookup;
+  byte observations use carrier layout independently of access permission.
+  Terminal and Omega validation retain primitive-domain replay, readable-payload
+  requirements and immutable replacement sources. Native
+  `borrows/qualified_byte_owner_exclusive_call_exit` executes exit 70 through
+  entry and state-arrival mutation, multibyte UTF-8 observations and a preserved
+  sibling; seven related native controls retain their authored exit 70.
   Neither game command is complete. Keep exact access, qualifications,
   source-length/capacity evidence, every possible origin, ranking and live-root
   rebind rejection. The next acceptance remains the two unchanged game commands.
