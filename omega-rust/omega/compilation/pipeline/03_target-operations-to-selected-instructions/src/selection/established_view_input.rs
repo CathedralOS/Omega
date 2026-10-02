@@ -179,6 +179,15 @@ pub(super) fn accepts(
         }
         _ => return None,
     };
+    if element_view_source {
+        let actual = element_view_access(source, target.place)?;
+        if target.access != actual
+            && !(target.access == terminal_psi::StructuralAccess::SharedBorrow
+                && actual == terminal_psi::StructuralAccess::MutableBorrow)
+        {
+            return None;
+        }
+    }
     let signature = source.structural.as_ref()?;
     let mut occurrences = source.blocks.iter().flat_map(|block| {
         block
@@ -240,7 +249,6 @@ pub(super) fn accepts(
         LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => {
             if result.place != target.place
                 || result.structural_type != target.structural_type
-                || result.multiplicity != StructuralMultiplicity::Unrestricted
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
@@ -270,7 +278,6 @@ pub(super) fn accepts(
             if result.place != target.place
                 || result.structural_type != target.structural_type
                 || *destination != target.place
-                || result.multiplicity != StructuralMultiplicity::Unrestricted
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
@@ -312,6 +319,17 @@ pub(super) fn accepts_view_loan(
     else {
         return None;
     };
+    let access = element_view_access(source, target.place)?;
+    if target.access != access
+        && !(access == terminal_psi::StructuralAccess::MutableBorrow
+            && matches!(
+                target.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ))
+    {
+        return None;
+    }
     let signature = source.structural.as_ref()?;
     let mut occurrences = source.blocks.iter().flat_map(|block| {
         block

@@ -2,10 +2,11 @@
 
 //! Closed, target-neutral semantic tables for terminal Psi.
 //!
-//! This crate owns declarative operation-row identity and the local semantics
-//! that can be interpreted without control-flow, call-composition, or proof
-//! reduction policy. It deliberately does not own traversal, evidence
-//! availability, sufficient-form reduction, or provider realization.
+//! This crate owns declarative operation-row identity, local denotations, and
+//! pure replay of scalar ordering and descriptor lifetimes over supplied graphs.
+//! Representation owners reconstruct those graphs and authenticate their inputs;
+//! the shared solvers do not decide evidence availability, proof reduction,
+//! provider realization, or authority from source spellings.
 //!
 //! `semantic_rows.rs` is the root: the row every terminal
 //! operation kind resolves to. `scalar_leaf_schema.rs` describes a goal-free
@@ -16,6 +17,7 @@
 //! structural effects.
 
 mod arrival_storage;
+pub mod borrowed_storage;
 mod byte_carriers;
 mod byte_sequence_concatenation;
 mod byte_sequence_predicates;
@@ -27,6 +29,7 @@ mod record_field;
 mod scalar_array;
 mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
+pub mod scalar_ordering;
 mod scalar_representation_view;
 mod semantic_rows;
 mod service_binding;
@@ -115,3 +118,5 @@ pub use structural_effect::{
 pub use zeroed_structural::{
     ZeroedStructuralLeaf, zeroed_structural_leaves, zeroed_structural_shape,
 };
+
+pub mod descriptor_lifetimes;

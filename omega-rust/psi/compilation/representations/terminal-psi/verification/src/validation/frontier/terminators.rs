@@ -38,6 +38,8 @@ pub(super) fn close_block(
     let FrontierWalk {
         module, machine, ..
     } = *walk;
+    walk.descriptor_loans
+        .check_terminator(module, machine, block)?;
     // Every successful exit closes its remaining loans. The ordinary
     // ownership checks below independently validate the complete roster.
     let closing = match &block.terminator {

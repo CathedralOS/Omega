@@ -31,6 +31,17 @@ pub use error::OptimizationUnitValidationError;
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::byte_field_root;
 
+/// Current declaration and producer authority for one structural place.
+/// Availability, the selected projection and use-site loan compatibility are
+/// separate judgments; this query does not bypass their receiving validators.
+pub fn structural_place_access(
+    function: &optimization_unit::PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<terminal_psi::StructuralAccess> {
+    unit_validation::operation_contracts::structural_source_contract(function, place, true)
+        .map(|source| source.access)
+}
+
 // Whole-unit acceptance.
 pub use unit_validation::{
     validate_psi_optimization_unit, validate_psi_optimization_unit_with_admitted_cycle_machines,

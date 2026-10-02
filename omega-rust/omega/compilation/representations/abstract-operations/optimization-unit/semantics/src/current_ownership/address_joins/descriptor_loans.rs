@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 #[cfg(test)]
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
+use terminal_semantics::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorFlowStep};
 
 struct DescriptorLoan {
     regions: Vec<Region>,
@@ -257,36 +258,6 @@ struct DescriptorFlow {
     steps: BTreeMap<Position, DescriptorFlowStep>,
 }
 
-#[derive(Default)]
-struct DescriptorFlowStep {
-    definitions: Vec<PlaceId>,
-    derivations: Vec<(PlaceId, PlaceId)>,
-    inputs: Vec<PlaceId>,
-    may_escape: bool,
-    successors: Vec<DescriptorFlowEdge>,
-}
-
-struct DescriptorFlowEdge {
-    target: Position,
-    parameters: Vec<PlaceId>,
-    bindings: Vec<(PlaceId, PlaceId)>,
-}
-
-impl DescriptorFlowEdge {
-    fn forward(&self, source: PlaceId) -> impl Iterator<Item = PlaceId> + '_ {
-        // Every actual belongs to the pre-edge state. A swap must not read a
-        // destination after another binding has replaced that destination.
-        (!self.parameters.contains(&source))
-            .then_some(source)
-            .into_iter()
-            .chain(
-                self.bindings.iter().filter_map(move |(actual, parameter)| {
-                    (*actual == source).then_some(*parameter)
-                }),
-            )
-    }
-}
-
 impl DescriptorFlow {
     fn new(
         function: &PsiOptimizationFunction,
@@ -358,6 +329,16 @@ impl DescriptorFlow {
                         definitions: Self::result_definition(function, &node.operation)
                             .into_iter()
                             .collect(),
+                        authority_derivations: if matches!(
+                            node.operation,
+                            O::EstablishElementView { .. }
+                                | O::ElementViewSubslice { .. }
+                                | O::ByteSequenceSubslice { .. }
+                        ) {
+                            derivations.clone()
+                        } else {
+                            Vec::new()
+                        },
                         derivations,
                         inputs: crate::unit_validation::function_structure::operation_place_inputs(
                             &node.operation,
@@ -400,73 +381,11 @@ impl DescriptorFlow {
     }
 
     fn live_positions(&self, birth: Position, descriptor: PlaceId) -> BTreeSet<Position> {
-        // Materialize only reachable (position, name) links. Returning to the
-        // formation kills its old result name, not independently carried aliases.
-        type Occurrence = (Position, PlaceId);
-        let mut pending = Vec::new();
-        if let Some(step) = self.steps.get(&birth) {
-            for edge in &step.successors {
-                pending.extend(edge.forward(descriptor).map(|name| (edge.target, name)));
-            }
-        }
-        let mut visited = BTreeSet::new();
-        let mut predecessors = BTreeMap::<Occurrence, BTreeSet<Occurrence>>::new();
-        let mut observations = Vec::new();
-        let mut escaped = Vec::new();
-        while let Some(occurrence @ (position, name)) = pending.pop() {
-            if !visited.insert(occurrence) {
-                continue;
-            }
-            let Some(step) = self.steps.get(&position) else {
-                continue;
-            };
-            if step.inputs.contains(&name) {
-                observations.push(occurrence);
-                if step.may_escape {
-                    escaped.push(position);
-                }
-            }
-            let mut outputs = Vec::new();
-            if !step.definitions.contains(&name) {
-                outputs.push(name);
-            }
-            outputs.extend(
-                step.derivations
-                    .iter()
-                    .filter_map(|(source, result)| (*source == name).then_some(*result)),
-            );
-            for edge in &step.successors {
-                for output in &outputs {
-                    for destination in edge.forward(*output) {
-                        let next = (edge.target, destination);
-                        predecessors.entry(next).or_default().insert(occurrence);
-                        pending.push(next);
-                    }
-                }
-            }
-        }
-        let mut observed = BTreeSet::new();
-        let mut live = BTreeSet::new();
-        while let Some(occurrence @ (position, _)) = observations.pop() {
-            if !observed.insert(occurrence) {
-                continue;
-            }
-            live.insert(position);
-            observations.extend(predecessors.get(&occurrence).into_iter().flatten().copied());
-        }
-        // A name kill cannot retire an untracked escape. Its possible alias
-        // persists along every subsequent control edge until activation exit.
-        let mut escaped_positions = BTreeSet::new();
-        while let Some(position) = escaped.pop() {
-            if !escaped_positions.insert(position) {
-                continue;
-            }
-            live.insert(position);
-            if let Some(step) = self.steps.get(&position) {
-                escaped.extend(step.successors.iter().map(|edge| edge.target));
-            }
-        }
-        live
+        terminal_semantics::descriptor_lifetimes::descriptor_live_positions(
+            &self.steps,
+            birth,
+            descriptor,
+        )
     }
 }
 

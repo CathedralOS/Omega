@@ -84,21 +84,25 @@ does not close an item. Keep independent receiving verification.
   resolver where needed; do not duplicate its source-place policy there.
 
 - **VIEW-LOAN-COMPOSITION.** (split-of:STATIC-MACHINE-MIGRATION)
-  High priority: one checked view-narrowing operation across local binding,
-  call argument and state edge, carrying access and lifetime rather than
-  silently assuming a shared view. Stage 04 `calls/view_subslice.rs::ViewRange`
-  has no access field and `argument` hardcodes SharedBorrow; field ranges are
-  refused at transition sites. Stage 05's `ViewRangeSource` likewise lacks
-  access; `byte_subslices.rs` documents ordinary-versus-composed restrictions
-  from temporary/namespace ownership. Local binding and call staging separately
-  establish field views. Consolidate source resolution, temporary ownership,
-  endpoint binding and cleanup around the existing range operation, removing
-  those site-specific admission rules. Byte/element carrier differences and
-  qualification-preservation obligations remain explicit semantic checks.
-  Owners: stage 04 `calls/view_subslice.rs` and
-  `control/statement_sequence/local_data.rs`; stage 05
-  `unit/attached_unit/view_ranges.rs`, `byte_subslices.rs`, `operation_frame.rs`
-  and `composed_control/state_graph/subslices.rs`; Terminal element/byte-view
+  High priority: finish one checked view-narrowing operation across local
+  binding, call argument and state edge, preserving access, captured backing
+  and lifetime. Keep `borrow_guarded_window_write_and_call` executing with
+  exit 0 natively and interpreted while closing the two remaining customers:
+  `borrow_domain_window_write_and_call` loses its entry requirements because
+  the shared runtime-requirement producer and source replay only accept
+  expression facts, not authored domain membership; expand the exact domain
+  predicate at the authenticated subject. `borrow_returned_window_write_and_call`
+  fails scalar statement coverage for an erased exclusive-place loan binding;
+  share exact loan-marker custody accounting with composed bodies without
+  erasing an effectful initializer or an omitted real operation. Field ranges
+  remain refused at transition sites; local binding, call staging and composed
+  byte ranges still need common temporary ownership, endpoint binding and
+  cleanup around the existing range operation. Byte/element carrier differences
+  and qualification-preservation obligations remain explicit semantic checks.
+  Owners: stage 04 `calls/view_subslice.rs`, `facts/crash_plan_facts.rs` and
+  `control/statement_sequence/local_data.rs`; stage 05 `unit/runtime_requirements`,
+  `unit/attached_unit/{scalar_completion,view_ranges,byte_subslices,operation_frame}.rs`
+  and `composed_control/state_graph/{body,subslices}.rs`; Terminal element/byte-view
   validation. Acceptance: all three
   `pass/borrows/borrow_{domain,guarded,returned}_window_write_and_call` programs
   execute with exit 0 natively and interpreted, preserving mutable loans and
@@ -107,8 +111,6 @@ does not close an item. Keep independent receiving verification.
   Reject overlapping live windows, shared-to-mutable forgery, stale source
   access and invalid cleanup in independent Terminal checks, not only source
   checking. Preserve `fail/slices/overlapping_mut_subslice_windows_rejected`.
-  An unfinished isolated mutable-subslice patch is not acceptance or a permanent
-  reservation; reconcile it rather than landing a second local-only mechanism.
 
 - **SCALAR-CLOSURE-CATALOG.** (split-of:LOWERING-ROUTE-CONSOLIDATION)
   High priority: use the common Unit callee catalog to assemble scalar-machine
