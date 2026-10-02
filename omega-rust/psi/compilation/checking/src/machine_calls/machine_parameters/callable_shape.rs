@@ -1,9 +1,13 @@
 use super::contract_facts::validate_contract_facts;
-use super::type_refinement::{BinderBinding, TypeBinding, required_type_matches};
+use super::type_refinement::{
+    BinderBinding, TypeBinding, required_type_matches, required_type_matches_with_subject,
+    selected_subject_carrier,
+};
 use super::{
     MachineBlockingRow, MachineStateIndex, MachineSuspensionRow, machine_and_state,
     machine_parameter_contract, machine_parameter_signature,
 };
+use crate::machine_calls::effect_inference::full_parameter_invocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -17,6 +21,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// parameter's requirement: a machine entry, a forwarded machine parameter or
 /// a nested machine contract all reduce to these parts.
 pub(super) struct CallableParts<'a> {
+    pub(super) machine: Option<&'a Machine>,
     pub(super) type_parameters: &'a [TypeParameter],
     pub(super) parameters: &'a [StateParameter],
     pub(super) return_type: TypeReferenceHandle,
@@ -36,6 +41,7 @@ impl<'a> CallableParts<'a> {
         signature: &'a typed_trees::signature::StateSignature,
     ) -> Self {
         Self {
+            machine: None,
             type_parameters: program.state_signature_type_parameters(signature),
             parameters: program.state_signature_parameters(signature),
             return_type: signature.return_type,
@@ -164,6 +170,7 @@ fn validate_callable_shape(
         parameter,
         requirement,
         &CallableParts {
+            machine: Some(actual_machine),
             type_parameters: program.machine_type_parameters(actual_machine),
             parameters: program.state_parameters(actual_state),
             return_type: actual_state.return_type,
@@ -222,12 +229,23 @@ fn validate_callable_parts(
         return;
     }
 
+    let selected_machine = actual.machine;
+    let subject = required_parameters
+        .iter()
+        .zip(actual_parameters)
+        .find(|(required, _)| required.is_self)
+        .map(|(_, parameter)| selected_subject_carrier(program, selected_machine, parameter))
+        .unwrap_or_else(TypeReferenceHandle::invalid);
+
     for (index, (required, actual)) in required_parameters
         .iter()
         .zip(actual_parameters)
         .enumerate()
     {
-        if required.is_self != actual.is_self
+        let role_matches = selected_machine.map_or(required.is_self == actual.is_self, |machine| {
+            crate::declarations::traits::subject_role_matches(program, machine, actual, required)
+        });
+        if !role_matches
             || required.is_mutable != actual.is_mutable
             || required.is_const != actual.is_const
         {
@@ -237,13 +255,14 @@ fn validate_callable_parts(
             )));
             continue;
         }
-        if !required_type_matches(
+        if !required_type_matches_with_subject(
             program,
             actual.type_reference,
             required.type_reference,
             generic_types,
             bindings,
             binder_bindings,
+            subject,
         ) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
@@ -255,13 +274,14 @@ fn validate_callable_parts(
         }
     }
 
-    if !required_type_matches(
+    if !required_type_matches_with_subject(
         program,
         actual.return_type,
         requirement.return_type,
         generic_types,
         bindings,
         binder_bindings,
+        subject,
     ) {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: expected return `{}`, got `{}`",
@@ -289,13 +309,18 @@ fn validate_callable_parts(
         )));
     }
 
-    let allowed_invocations = crate::declared_signature_invocations(program, requirement);
+    let allowed_invocations = crate::declared_signature_invocations(program, requirement)
+        .iter()
+        .filter_map(|target| full_parameter_invocation(*target, required_parameters))
+        .collect::<Vec<_>>();
     for invocation in &actual.invocations {
-        if allowed_invocations.contains(invocation) {
+        if full_parameter_invocation(*invocation, actual_parameters)
+            .is_some_and(|target| allowed_invocations.contains(&target))
+        {
             continue;
         }
         let name = match invocation {
-            flow_effects::InvocationTarget::Parameter(index) => required_parameters
+            flow_effects::InvocationTarget::Parameter(index) => actual_parameters
                 .iter()
                 .filter(|parameter| !parameter.is_self)
                 .nth(*index as usize)

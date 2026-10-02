@@ -5,6 +5,7 @@
 //! opaque requirements and operational may-ceilings retain their fixed contracts.
 
 mod invocations;
+pub(crate) use invocations::full_parameter_invocation;
 pub(crate) mod operational;
 pub(crate) mod service_reach;
 

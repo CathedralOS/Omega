@@ -465,3 +465,228 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         .validate_resource_envelopes()
         .expect("resource anchors must independently replay from exact contracts");
 }
+
+#[test]
+fn nominal_subject_statement_and_forwarded_calls_keep_explicit_custody() {
+    let source = r#"
+        trait Incrementable { machine increment(&mut self); }
+        data Counter { value: i32 in Wrapping; }
+        machine Counter::increment(counter: &mut Counter)
+        satisfies Incrementable::increment {
+            counter.value = counter.value + 1;
+        }
+        machine step<machine Increment>(subject: &mut Counter)
+        where machine Increment satisfies Incrementable::increment; {
+            Increment(subject);
+        }
+        machine forward<machine Increment>(subject: &mut Counter)
+        where machine Increment satisfies Incrementable::increment; {
+            step<Increment>(subject);
+        }
+        machine probe(counter: &mut Counter) {
+            forward<Counter::increment>(counter);
+        }
+    "#;
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
+        .expect("the exact nominal contract forwards with an explicit subject");
+}
+
+#[test]
+fn nominal_subject_value_calls_share_one_carrier_for_both_parameters() {
+    let source = r#"
+        trait Sum { machine sum(&self, other: &Self) -> i32 in Wrapping; }
+        data Counter { value: i32 in Wrapping; }
+        machine Counter::sum(counter: &Counter, other: &Counter) -> i32 in Wrapping
+        satisfies Sum::sum { counter.value + other.value }
+        machine combine<T, machine Selected>(first: &T, second: &T) -> i32 in Wrapping
+        where machine Selected satisfies Sum::sum; { Selected(first, second) }
+        machine probe(first: &Counter, second: &Counter) -> i32 in Wrapping {
+            combine<Counter, Counter::sum>(first, second)
+        }
+    "#;
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
+        .expect("a nominal value invocation passes its complete explicit roster");
+}
+
+#[test]
+fn nominal_subject_refinement_preserves_reference_shells() {
+    for (required, supplied) in [
+        ("&self", "counter: Counter"),
+        ("&mut self", "counter: &Counter"),
+    ] {
+        let source = format!(
+            r#"
+            trait Observe {{ machine observe({required}); }}
+            data Counter {{}}
+            machine Counter::observe({supplied}) satisfies Observe::observe {{}}
+            machine invoke<T, machine Selected>(subject: &mut T)
+            where machine Selected satisfies Observe::observe; {{ Selected(subject); }}
+            machine probe(counter: &mut Counter) {{ invoke<Counter, Counter::observe>(counter); }}
+        "#
+        );
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err("a matching subject role cannot change ownership or reference access");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("parameter 0")
+                    && (diagnostic.message.contains("refine")
+                        || diagnostic.message.contains("satisfy"))),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn nominal_subject_refinement_rejects_other_carriers_in_self_parameters_and_results() {
+    for result in [false, true] {
+        let (requirement, implementation, body, invocation) = if result {
+            (
+                "machine copy(&self) -> Self;",
+                "machine Counter::copy(counter: &Counter) -> Other satisfies Operation::copy { Other {} }",
+                "machine invoke<T, machine Selected>(subject: &T) where machine Selected satisfies Operation::copy; { let value: T = Selected(subject); }",
+                "invoke<Counter, Counter::copy>(counter);",
+            )
+        } else {
+            (
+                "machine read(&self, other: &Self);",
+                "machine Counter::read(counter: &Counter, other: &Other) satisfies Operation::read {}",
+                "machine invoke<T, U, machine Selected>(subject: &T, other: &U) where machine Selected satisfies Operation::read; { Selected(subject, other); }",
+                "invoke<Counter, Other, Counter::read>(counter, other);",
+            )
+        };
+        let source = format!(
+            r#"
+            trait Operation {{ {requirement} }}
+            data Counter {{}} data Other {{}}
+            {implementation}
+            {body}
+            machine probe(counter: &Counter, other: &Other) {{ {invocation} }}
+        "#
+        );
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err("every Self occurrence must retain the selected subject carrier");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("does not refine")
+                    && diagnostic
+                        .message
+                        .contains(if result { "return" } else { "parameter 1" })),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn nominal_subject_invocation_rejects_an_attenuated_other_carrier() {
+    let source = r#"
+        trait Observe { machine observe(&self, other: &Self); }
+        machine invoke<T, U, machine Selected>(subject: &T, other: &mut U)
+        where machine Selected satisfies Observe::observe; {
+            Selected(subject, &mut other);
+        }
+    "#;
+    let diagnostics = lower_typed_trees(typed_program(source), &CheckingRequest::settled())
+        .expect_err("mutable-to-shared attenuation does not change the nominal carrier");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("argument")
+                && (diagnostic.message.contains("expects")
+                    || diagnostic.message.contains("does not match"))),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn nominal_subject_selection_requires_the_exact_named_satisfaction() {
+    let source = r#"
+        trait Wanted { machine act(&mut self); }
+        trait Other { machine act(&mut self); }
+        data Counter {}
+        machine Counter::act(counter: &mut Counter) satisfies Other::act {}
+        machine invoke<T, machine Selected>(subject: &mut T)
+        where machine Selected satisfies Wanted::act; { Selected(subject); }
+        machine probe(counter: &mut Counter) { invoke<Counter, Counter::act>(counter); }
+    "#;
+    let diagnostics = lower_typed_trees(typed_program(source), &CheckingRequest::settled())
+        .expect_err("matching shapes do not replace nominal satisfaction evidence");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("0 authored satisfaction row")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn nominal_subject_invocation_ceiling_keeps_full_argument_positions() {
+    for invoked in ["first", "second"] {
+        let source = format!(
+            r#"
+            pub boundary trait Host {{ machine mark(value: u64); }}
+            trait Handler {{
+                machine handle(&self, first: Binding<Host>, second: Binding<Host>)
+                reaches Host invokes first;
+            }}
+            data Counter {{}}
+            machine Counter::handle(counter: &Counter, first: Binding<Host>, second: Binding<Host>)
+            satisfies Handler::handle reaches Host invokes {invoked}; {{ {invoked}.mark(1); }}
+            machine invoke<T, machine Selected>(subject: &T, first: Binding<Host>, second: Binding<Host>)
+            where machine Selected satisfies Handler::handle;
+            reaches Host invokes first; {{ Selected(subject, first, second); }}
+            machine probe(counter: &Counter, first: Binding<Host>, second: Binding<Host>)
+            reaches Host invokes first; {{ invoke<Counter, Counter::handle>(counter, first, second); }}
+        "#
+        );
+        let typed = crate::tests::front_end::typed_program_with_core_service(&source);
+        let invoke = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "invoke")
+            .unwrap();
+        let inference = validation::infer_synchronous_invocations(&typed);
+        assert_eq!(
+            inference
+                .for_machine(invoke.symbol)
+                .unwrap()
+                .inferred_transitive,
+            [flow_effects::InvocationTarget::Parameter(1)],
+            "the first service argument follows the explicit subject"
+        );
+        // This pins static selection and invocation inference directly. Binding
+        // placement in requirement/generic parameters has an independent
+        // lowering limit, so this is not a full source-execution control.
+        let checked = validation::validate_static_machine_selections(&typed);
+        if invoked == "first" {
+            checked.expect("subject spelling cannot shift an otherwise exact invocation ceiling");
+        } else {
+            let diagnostics = checked.expect_err("a ceiling on first cannot authorize second");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("invokes")
+                        || diagnostic.message.contains("invocation")),
+                "{diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn nominal_subject_legacy_receiver_uses_its_exact_attached_carrier() {
+    let source = r#"
+        trait Sum { machine sum(&self, other: &Self) -> i32 in Wrapping; }
+        data Counter { value: i32 in Wrapping; }
+        machine Counter::sum(&self, other: &Counter) -> i32 in Wrapping
+        satisfies Sum::sum { self.value + other.value }
+        machine combine<T, machine Selected>(first: &T, second: &T) -> i32 in Wrapping
+        where machine Selected satisfies Sum::sum; { Selected(first, second) }
+        machine probe(first: &Counter, second: &Counter) -> i32 in Wrapping {
+            combine<Counter, Counter::sum>(first, second)
+        }
+    "#;
+    lower_typed_trees(typed_program(source), &CheckingRequest::settled())
+        .expect("legacy syntax and explicit subject share one exact callable carrier");
+}

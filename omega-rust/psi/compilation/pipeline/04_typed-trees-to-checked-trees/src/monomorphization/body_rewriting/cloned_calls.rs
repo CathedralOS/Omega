@@ -104,6 +104,29 @@ pub(crate) fn rewrite_cloned_calls(
             (*parameter, binding.symbol, name)
         })
         .collect();
+    // Selection changes declaration identity, not the explicit operand roster.
+    // An attached declaration retains its Data namespace so ordinary call
+    // validation cannot reinterpret the first operand as an implicit receiver.
+    let selected_carriers: Vec<_> = machine_rewrites
+        .iter()
+        .filter_map(|(parameter, target, _)| {
+            let declarations = source.unwrap_or(program);
+            let machine = declarations.machines().iter().find(|machine| {
+                declarations
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == *target)
+            })?;
+            if !machine.attached_data_symbol.is_valid() {
+                return None;
+            }
+            Some((
+                *parameter,
+                machine.attached_data_symbol,
+                machine.attached_data.as_ref()?.clone(),
+            ))
+        })
+        .collect();
     let evidence_target_rewrites =
         evidence_requirement_rewrites(source.unwrap_or(program), candidate);
     let mut target_rewrites = machine_rewrites.clone();
@@ -173,6 +196,16 @@ pub(crate) fn rewrite_cloned_calls(
             let evidence_dispatch = evidence_target_rewrites
                 .iter()
                 .find(|rewrite| rewrite.placeholder == snapshot.target_symbol);
+            let selected_carrier = selected_carriers
+                .iter()
+                .find(|(parameter, _, _)| *parameter == snapshot.target_symbol)
+                .map(|(_, symbol, name)| {
+                    let mut members = HandleSpan::empty();
+                    program
+                        .statement_table
+                        .push_name_path_member(&mut members, name.clone());
+                    (*symbol, members)
+                });
             let evidence_receiver = evidence_dispatch
                 .is_some()
                 .then(|| {
@@ -211,6 +244,11 @@ pub(crate) fn rewrite_cloned_calls(
             {
                 call.target_symbol = *target;
                 call.target = name.clone();
+            }
+            if let Some((symbol, members)) = selected_carrier {
+                call.receiver_root_symbol = symbol;
+                call.receiver_symbol = symbol;
+                call.receiver = members;
             }
             if let (Some((root, receiver_symbol, _)), Some(receiver)) =
                 (evidence_receiver, receiver)
@@ -300,6 +338,14 @@ pub(crate) fn rewrite_cloned_calls(
                 .copied(),
             _ => None,
         };
+        let selected_carrier = match program.expression_table.expression(handle) {
+            ExpressionNode::Call(call) => selected_carriers
+                .iter()
+                .find(|(parameter, _, _)| *parameter == call.target_symbol)
+                .map(|(_, symbol, name)| (*symbol, name.clone())),
+            _ => None,
+        }
+        .map(|(symbol, name)| insert_subject_name(&mut program.expression_table, name, symbol));
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             continue;
         };
@@ -317,6 +363,9 @@ pub(crate) fn rewrite_cloned_calls(
         {
             call.target_symbol = *target;
             call.target = name.clone();
+        }
+        if let Some(receiver) = selected_carrier {
+            call.receiver = receiver;
         }
         if evidence_dispatch.is_some()
             && let Some(receiver) = evidence_receiver

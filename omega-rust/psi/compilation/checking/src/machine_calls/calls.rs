@@ -34,6 +34,8 @@ pub use generic_requirement::{
     named_conformance_target_requirement,
 };
 mod inline_assembly;
+mod machine_parameter_arguments;
+use machine_parameter_arguments::validate_machine_parameter_arguments;
 mod receiver_calls;
 mod receiverless_calls;
 mod recursion;
@@ -748,15 +750,8 @@ fn validate_call_arguments_with_type_correspondence(
             }
         }
 
-        if expected_access == Some(language_semantics::ReferenceAccess::Shared)
-            && is_mutable
-            && !matches!(
-                program.expression_table.expression(*argument),
-                ExpressionNode::Call(_)
-            )
-        {
-            continue;
-        }
+        // Mutable-to-shared attenuation changes permission, not carrier or
+        // domain. Keep the same type correspondence and proof checks below.
 
         let expected_type =
             program.display_type_reference_with_constraints(parameter.type_reference);

@@ -2313,6 +2313,7 @@ pass/traits/equatable_record_equality_exit checked 6146ms @2d8ed253669f
 pass/traits/equatable_string_field_equality_exit rejected 1842ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
 pass/traits/generic_trait_parent_binds_requirement checked 666ms @2d8ed253669f
+pass/traits/nominal_machine_binder_static_dispatch checked 675ms @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms @2d8ed253669f
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1540ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)

@@ -561,7 +561,7 @@ fn validate_trait_effect_ceiling(
 ///   carrier -- so `other: &Point` fills `rhs: &Self` even though `Point` is
 ///   also the conforming data. Requiring it NOT to name that data would refuse
 ///   every `equals(point: &Point, other: &Point)`.
-fn subject_role_matches(
+pub(crate) fn subject_role_matches(
     program: &TypedTrees,
     machine: &Machine,
     actual: &StateParameter,
@@ -1159,7 +1159,7 @@ fn indexed_law_callable_telescope_groups<'program>(
         .collect()
 }
 
-fn required_is_self_type(program: &TypedTrees, required: TypeReferenceHandle) -> bool {
+pub(crate) fn required_is_self_type(program: &TypedTrees, required: TypeReferenceHandle) -> bool {
     matches!(
         program.type_reference_table.type_reference(required),
         TypeReferenceNode::Named { name, .. } if name.as_str() == "Self"

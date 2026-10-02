@@ -37,15 +37,13 @@ pub(super) fn validate_receiverless_call(
             signature.return_type,
             diagnostics,
         );
-        validate_call_arguments_handles(
+        super::validate_machine_parameter_arguments(
             program,
             current_machine,
             current_state,
             value_environment,
             arguments,
-            signature.name.as_str(),
-            program.state_signature_parameters(signature),
-            None,
+            signature,
             writable_roots,
             diagnostics,
         );
