@@ -10,27 +10,27 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.entries[0].value = 7;
+machine Main::main(main: &mut Main) reaches Console {
+    main.entries[0].value = 7;
 
-    let entry_view: &[Entry] = self.entries.as_slice();
+    let entry_view: &[Entry] = main.entries.as_slice();
 
     transition {
-        _ -> check_first(entry_view)
+        _ -> check_first(main, entry_view)
     }
 
-    state check_first(&mut self, entries: &[Entry]) {
+    state check_first(main: &Main, entries: &[Entry]) {
         transition entries[0].value == 7 {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(121);
+    state good(main: &Main) {
+        main.console.exit_process(121);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(122);
+    state bad(main: &Main) {
+        main.console.exit_process(122);
     }
 }

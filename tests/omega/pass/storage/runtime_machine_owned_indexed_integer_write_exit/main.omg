@@ -10,21 +10,21 @@ data Main {
     rooms: [Room; 2];
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let index: u64 = 1;
-    self.rooms[index].exit_count = 7;
+    main.rooms[index].exit_count = 7;
 
-    let room_slice: &[Room] = self.rooms.as_slice();
+    let room_slice: &[Room] = main.rooms.as_slice();
     transition room_slice[index].exit_count == 7 {
-        true -> good()
-        false -> bad()
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(79);
+    state good(main: &Main) {
+        main.console.exit_process(79);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(80);
+    state bad(main: &Main) {
+        main.console.exit_process(80);
     }
 }

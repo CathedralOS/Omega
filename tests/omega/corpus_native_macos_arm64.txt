@@ -925,25 +925,25 @@ pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb21
 pass/slices/runtime_policy_element_view_tail_recursion_exit built 865ms exit:70 @de74b73e1452+wt
 pass/slices/runtime_saturating_array_element_guard_exit built 1780ms exit:70 @fb2178def922
 pass/slices/runtime_slice_element_runtime_index_read_exit built 1557ms exit:1 @fb2178def922
-pass/slices/runtime_slice_fixed_index_guard_exit built 1483ms exit:121 @fb2178def922
+pass/slices/runtime_slice_fixed_index_guard_exit built 1162ms exit:121 @8a91f26a0b28+wt
 pass/slices/runtime_slice_index_copy_dispatch_exit built 1445ms exit:61 @fb2178def922
 pass/slices/runtime_slice_index_copy_exit built 1546ms exit:51 @fb2178def922
 pass/slices/runtime_slice_index_read_dispatch_exit built 683ms exit:43
-pass/slices/runtime_slice_index_transition_exit built 1631ms exit:111 @fb2178def922
+pass/slices/runtime_slice_index_transition_exit built 1189ms exit:111 @8a91f26a0b28+wt
 pass/slices/runtime_slice_indexed_read_exit built 689ms exit:70
-pass/slices/runtime_slice_iteration_exit built 1558ms exit:91 @fb2178def922
-pass/slices/runtime_slice_record_field_offset_exit built 684ms exit:61
+pass/slices/runtime_slice_iteration_exit built 1189ms exit:91 @8a91f26a0b28+wt
+pass/slices/runtime_slice_record_field_offset_exit built 1151ms exit:61 @8a91f26a0b28+wt
 pass/slices/runtime_subslice_and_element_read_call_operands_exit built 2159ms exit:42 @ed38350cbc69+wt
-pass/slices/runtime_subslice_dynamic_index_exit built 1652ms exit:207 @fb2178def922
+pass/slices/runtime_subslice_dynamic_index_exit built 1182ms exit:207 @8a91f26a0b28+wt
 pass/slices/runtime_subslice_len_exit built 1323ms exit:70 @48008365d839
 pass/slices/runtime_subslice_range_pointer_exit built 1595ms exit:205 @fb2178def922
-pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit built 2064ms exit:42 @ed38350cbc69+wt
+pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit built 1292ms exit:42 @8a91f26a0b28+wt
 pass/slices/signed_index_and_range_lower_bounds checked 205ms
 pass/slices/state_record_array_mutable_view_exit built 1255ms exit:70 @4b881daeea00+wt
 pass/slices/state_record_array_shared_child_view_exit built 708ms exit:70 @4b881daeea00+wt
 pass/slices/subslice_folded_bound_facts_compile checked 205ms
 pass/slices/subslice_literal_bounds_compile checked 184ms
-pass/slices/termination_slice_length_compile checked 201ms
+pass/slices/termination_slice_length_compile checked 247ms @8a91f26a0b28+wt
 pass/slices/window_shrink_min_length_tail_index_compile checked 155ms
 pass/storage/forwarded_context_bounded_byte_field_exit built 813ms exit:0 @de74b73e1452+wt
 pass/storage/forwarded_context_byte_field_cross_state_store_exit built 847ms exit:66 @ea8076b7cb75+wt
@@ -952,7 +952,7 @@ pass/storage/runtime_alias_field_binary checked 217ms
 pass/storage/runtime_alias_integer_write checked 190ms
 pass/storage/runtime_local_slice_forward_exit rejected 512ms @32531e204685+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(8) }))
-pass/storage/runtime_machine_owned_indexed_integer_write_exit built 683ms exit:79
+pass/storage/runtime_machine_owned_indexed_integer_write_exit built 1159ms exit:79 @8a91f26a0b28+wt
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 1441ms exit:85 @fb2178def922
 pass/storage/runtime_primitive_local_literal_composition_exit built 700ms exit:70 @e75f61cc4333+wt
 pass/structs/affine_record_state_clone built 2180ms exit:70 @922ccf420927+wt
@@ -1020,7 +1020,7 @@ pass/termination/computed_measure_rank_range checked 155ms
 pass/termination/computed_rank_copies checked 188ms
 pass/termination/custom_ranking_order_compile checked 183ms
 pass/termination/default_order_nat_countdown_compile checked 152ms
-pass/termination/default_order_slice_length_compile checked 171ms
+pass/termination/default_order_slice_length_compile checked 249ms @8a91f26a0b28+wt
 pass/termination/identity_measure_rank_range checked 157ms
 pass/termination/increasing_to_rank_range_compile checked 186ms
 pass/termination/inherited_acyclic_requirement_guarantee_compile checked 187ms

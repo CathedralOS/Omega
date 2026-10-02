@@ -10,16 +10,16 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) reaches Console {
-    let entry_view: &[Entry] = self.entries.as_slice();
+machine Main::main(main: &mut Main) reaches Console {
+    let entry_view: &[Entry] = main.entries.as_slice();
 
     transition entry_view.len > 0 {
-        true -> sum_entries(entry_view, 0, 0)
-        false -> bad()
+        true -> sum_entries(main, entry_view, 0, 0)
+        false -> bad(main)
     }
 
     state sum_entries(
-        &mut self,
+        main: &Main,
         entries: &[Entry],
         index: u64 in Wrapping,
         total: i32 in Wrapping
@@ -30,23 +30,23 @@ machine Main::main(&mut self) reaches Console {
         let has_next: bool = next_index < entries.len;
 
         transition has_next {
-            true -> sum_entries(entries, next_index, next_total)
-            false -> check_total(next_total)
+            true -> sum_entries(main, entries, next_index, next_total)
+            false -> check_total(main, next_total)
         }
     }
 
-    state check_total(&mut self, total: i32 in Wrapping) {
+    state check_total(main: &Main, total: i32 in Wrapping) {
         transition total == 4 {
-            true -> good()
-            false -> bad()
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(91);
+    state good(main: &Main) {
+        main.console.exit_process(91);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(92);
+    state bad(main: &Main) {
+        main.console.exit_process(92);
     }
 }
