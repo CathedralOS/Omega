@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.23, "load1_start": 7.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.25, "load1_start": 7.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -890,6 +890,7 @@ pass/slices/callee_non_byte_view_len_index_subslice built 1975ms exit:9 @ed38350
 pass/slices/disjoint_mut_subslice_windows_compile checked 218ms
 pass/slices/domained_runtime_end_subslice_exit rejected 6222ms @ad4cf8611e36+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `call operation: structural arguments: range into a qualified view formal` (state 0, statement 0)
+pass/slices/guarded_match_slice_index_exit built 1640ms exit:70 @64c3c65ffb80+wt
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 166ms
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 208ms
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 187ms
@@ -897,6 +898,7 @@ pass/slices/guarded_slice_parameter_successor_index_compile checked 193ms
 pass/slices/inclusive_subslice_literal_bounds_compile checked 207ms
 pass/slices/local_array_element_view_exit built 1877ms exit:70 @48008365d839
 pass/slices/local_record_array_state_view_exit built 1512ms exit:70 @b33d826687a3
+pass/slices/projected_array_call_exit built 1072ms exit:70 stdout:match @64c3c65ffb80+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 806ms exit:70 @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 186ms
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 9468ms exit:3 @ad4cf8611e36+wt
