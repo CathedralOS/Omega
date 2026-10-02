@@ -97,8 +97,11 @@ pub(super) fn validate(
         // The establishment consumer independently replays the Return-role
         // source binding, including its exact expression and scalar type.
         for statement_index in 0..statements.len() {
-            if !super::scalar_arrays::statement_owes_operation(
+            if !super::statement_custody::statement_owes_operation(
                 checked,
+                machine.machine,
+                machine.state,
+                statement_index,
                 &statements[statement_index],
             ) {
                 continue;
@@ -200,8 +203,11 @@ pub(super) fn validate(
     }
     for statement_index in 0..statements.len() {
         if (named_return && statement_index + 1 == statements.len())
-            || !super::scalar_arrays::statement_owes_operation(
+            || !super::statement_custody::statement_owes_operation(
                 checked,
+                machine.machine,
+                machine.state,
+                statement_index,
                 &statements[statement_index],
             )
         {

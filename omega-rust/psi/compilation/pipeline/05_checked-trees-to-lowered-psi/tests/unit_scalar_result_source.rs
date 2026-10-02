@@ -5,6 +5,8 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[path = "unit_scalar_result_source/boundary_wrappers.rs"]
 mod boundary_wrappers;
+#[path = "unit_scalar_result_source/carrier_declarations.rs"]
+mod carrier_declarations;
 
 const SOURCE: &str = r#"
 boundary trait Host {

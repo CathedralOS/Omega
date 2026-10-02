@@ -138,15 +138,14 @@ pub(super) fn validate(
                 Some("record")
             } else if !closed_sum && is_arm_pattern_marker(statement) {
                 Some("arm")
-            } else if is_loan_marker(checked, machine, state, statement, index) {
-                Some("loan")
-            } else if is_exclusive_loan_marker(checked, machine, state, statement, index) {
-                Some("xloan")
-            } else if !super::super::super::scalar_arrays::statement_owes_operation(
-                checked, statement,
+            } else if !super::super::super::statement_custody::statement_owes_operation(
+                checked,
+                machine,
+                state.state,
+                index,
+                statement,
             ) {
-                // An erased fact-only citation plans no operation either.
-                Some("citation")
+                Some("custody")
             } else {
                 None
             }
@@ -1291,183 +1290,6 @@ fn validate_returned_value(
 fn is_record_pattern_marker(statement: &StatementNode) -> bool {
     matches!(statement, StatementNode::LocalData(local)
         if local.name.as_str().starts_with("__destructure#"))
-}
-
-/// A `let` binding a loan of a place declares no storage and plans no
-/// operation: the loan is compile-time information and each access through
-/// the name is rejoined to the loaned place by the access's own place
-/// resolution. Reconstructed here from the authored statement rather than
-/// taken from the plan, which is what the surrounding count is checking.
-fn is_loan_marker(
-    checked: &CheckedTrees,
-    _machine: symbols::SymbolHandle,
-    state: &CheckedComposedUnitControlStatePlan,
-    statement: &StatementNode,
-    index: usize,
-) -> bool {
-    let StatementNode::LocalData(local) = statement else {
-        return false;
-    };
-    if local.is_mutable {
-        return false;
-    }
-    let checked_trees::expression::ExpressionNode::Borrow(borrow) =
-        checked.expression_table.expression(local.initial_value)
-    else {
-        return false;
-    };
-    // An element borrow minted through a view — `let cell: &Cell = &cells[i]` —
-    // plans a real establishment whose result custody the graph accounts; it
-    // is no carrier-only marker. A borrow can also register a structural root
-    // for observation without planning an operation (`let seen: &u32 = &v`),
-    // so the test is the planned result, not the registered root.
-    if state.operations.iter().any(|operation| {
-        operation
-            .structural_result_binding()
-            .is_some_and(|result| result.statement_index as usize == index)
-    }) {
-        return false;
-    }
-    match borrow.access {
-        language_core::ReferenceAccess::Mutable => {
-            validation::reference_result_custody::mutable_borrowed_parts(
-                checked,
-                local.type_reference,
-            )
-            .is_some()
-        }
-        // A named referent may arrive under constraint shells (`&u32 in
-        // Wide`): stage 04's `shared_place_loan_referent` plans that loan as
-        // the same carrier, so the recount peels the shells before demanding
-        // the named shape. Slice and array referents keep their own view
-        // plans and are not markers.
-        language_core::ReferenceAccess::Shared => {
-            validation::reference_result_custody::shared_place_borrowed_parts(
-                checked,
-                local.type_reference,
-            )
-            .is_some_and(|(referee, _)| named_under_constraints(checked, referee))
-        }
-        // A write-only loan local (`let r: &write Node = &write self.node;`)
-        // binds the same compile-time carrier an exclusive `&mut` loan does:
-        // the loan ledger holds its single WriteOnly loan and the binding
-        // plans no operation, so its statement is a marker too.
-        language_core::ReferenceAccess::WriteOnly => {
-            validation::reference_result_custody::write_only_borrowed_parts(
-                checked,
-                local.type_reference,
-            )
-            .is_some()
-        }
-    }
-}
-
-/// Whether `referee` names a declared type beneath any constraint shells.
-fn named_under_constraints(
-    checked: &CheckedTrees,
-    mut referee: checked_trees::types::TypeReferenceHandle,
-) -> bool {
-    loop {
-        match checked.type_reference_table.type_reference(referee) {
-            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                referee = *base_type;
-            }
-            checked_trees::types::TypeReferenceNode::Named { .. } => return true,
-            _ => return false,
-        }
-    }
-}
-
-///
-/// A call-shaped view opener (`let slots: &mut [T] = self.cells
-/// .as_mut_slice()`) binds the same compile-time carrier: the borrow
-/// analyzer minted its loan directly, so the binding plans nothing. An
-/// ordinary call result — the same `&mut` spelling with a flow call row —
-/// plans its structural call and is not a marker.
-fn is_exclusive_loan_marker(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &CheckedComposedUnitControlStatePlan,
-    statement: &StatementNode,
-    index: usize,
-) -> bool {
-    let StatementNode::LocalData(local) = statement else {
-        return false;
-    };
-    if local.is_mutable
-        || validation::reference_result_custody::mutable_borrowed_parts(
-            checked,
-            local.type_reference,
-        )
-        .is_none()
-    {
-        return false;
-    }
-    match checked.expression_table.expression(local.initial_value) {
-        checked_trees::expression::ExpressionNode::Borrow(borrow) => {
-            borrow.access == language_core::ReferenceAccess::Mutable
-        }
-        checked_trees::expression::ExpressionNode::Call(_) => {
-            // A call-spelled view opener whose operation claims the binding
-            // establishes the view in the structural namespace: its result
-            // custody the graph already accounts, so it is no carrier-only
-            // marker. Loan-only openers — the shape this arm was written for —
-            // still plan nothing. A call can also register a structural root
-            // for observation without planning an operation, so the test is
-            // the planned result, not the registered root.
-            if state.operations.iter().any(|operation| {
-                operation
-                    .structural_result_binding()
-                    .is_some_and(|result| result.statement_index as usize == index)
-            }) {
-                return false;
-            }
-            let has_call_row = checked
-                .facts
-                .flow
-                .control
-                .states
-                .iter()
-                .map(|(_, state)| state)
-                .find(|candidate| {
-                    candidate.machine_symbol == machine && candidate.state_symbol == state.state
-                })
-                .is_some_and(|state| {
-                    checked
-                        .facts
-                        .flow
-                        .control
-                        .calls
-                        .span_or_empty(state.calls)
-                        .iter()
-                        .any(|call| call.statement_index == index && call.call_ordinal == 0)
-                });
-            if has_call_row {
-                return false;
-            }
-            let Some(borrow_state) = checked
-                .facts
-                .borrow
-                .states
-                .iter()
-                .map(|(_, candidate)| candidate)
-                .find(|candidate| {
-                    candidate.machine_symbol == machine && candidate.state_symbol == state.state
-                })
-            else {
-                return false;
-            };
-            let mut loans = checked.facts.borrow.loans.iter().filter(|(handle, loan)| {
-                checked.facts.borrow.state_owns_loan(borrow_state, *handle)
-                    && loan.owner_symbol == local.symbol
-                    && loan.statement_index == index
-                    && loan.kind == checked_trees::BorrowAccessKind::Mutable
-                    && checked.facts.borrow.loan_owner_path(loan).is_empty()
-            });
-            loans.next().is_some() && loans.next().is_none()
-        }
-        _ => false,
-    }
 }
 
 fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
