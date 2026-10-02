@@ -223,12 +223,19 @@ pub(crate) struct CollectedStatementPrefix {
     pub(crate) stored: Vec<StoredLocalOrigins>,
 }
 
-/// One walk returning both the whole-body prefix and every statement's
+struct StatementPrefixCollection<'request> {
+    requested: &'request dyn Fn(usize) -> bool,
+    prefixes: Vec<Option<CollectedStatementPrefix>>,
+}
+
+/// One walk returning both the whole-body prefix and requested statements'
 /// `Before`/`ReferenceBefore` context: `include_shared` selects the shared
 /// parameter-seeded `stored` exactly as `ReferenceResult` does, and entry i
 /// of the collected vector is what `Before(statement[i])` (or
 /// `ReferenceBefore`) returns for that boundary. A state's result arms share
-/// this walk instead of re-walking the prefix per arm.
+/// this walk instead of re-walking the prefix per arm. Unrequested boundaries
+/// retain their index as `None` without cloning accumulated origin evidence.
+/// Selection changes only snapshot materialization, never body validation.
 pub(crate) fn walk_state_write_prefix_collected(
     program: &TypedTrees,
     machine: &Machine,
@@ -237,9 +244,13 @@ pub(crate) fn walk_state_write_prefix_collected(
     inference: &mut FrameInference,
     complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     include_shared: bool,
+    requested: &dyn Fn(usize) -> bool,
 ) -> Option<(StateWritePrefix, Vec<Option<CollectedStatementPrefix>>)> {
     inference.with_local_scope(|inference| {
-        let mut prefixes = Vec::new();
+        let mut collection = StatementPrefixCollection {
+            requested,
+            prefixes: Vec::new(),
+        };
         let prefix = walk_state_write_prefix_inner(
             program,
             machine,
@@ -252,10 +263,10 @@ pub(crate) fn walk_state_write_prefix_collected(
             } else {
                 None
             },
-            Some(&mut prefixes),
+            Some(&mut collection),
             None,
         )?;
-        Some((prefix, prefixes))
+        Some((prefix, collection.prefixes))
     })
 }
 
@@ -276,7 +287,10 @@ pub(crate) fn collect_state_write_prefixes(
         .statement_table
         .statements(state.statement_nodes)
         .len();
-    let mut prefixes = Vec::new();
+    let mut collection = StatementPrefixCollection {
+        requested: &|_| true,
+        prefixes: Vec::new(),
+    };
     let mut inference = FrameInference::default();
     // The walk's own result is unused here: `prefixes` carries everything the
     // caller reads, and solved callee summaries land in the shared memo.
@@ -292,15 +306,15 @@ pub(crate) fn collect_state_write_prefixes(
                     inference,
                     complete_state_summaries,
                     Some(StateWriteQuery::StatementPrefixes { include_shared }),
-                    Some(&mut prefixes),
+                    Some(&mut collection),
                     None,
                 )
             });
         });
-    while prefixes.len() < statement_count {
-        prefixes.push(None);
+    while collection.prefixes.len() < statement_count {
+        collection.prefixes.push(None);
     }
-    Some(prefixes)
+    Some(collection.prefixes)
 }
 
 /// A state's collected per-statement prefixes are a pure property of
@@ -374,7 +388,7 @@ fn walk_state_write_prefix_inner(
     inference: &mut FrameInference,
     complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     query: Option<StateWriteQuery<'_>>,
-    mut collect: Option<&mut Vec<Option<CollectedStatementPrefix>>>,
+    mut collect: Option<&mut StatementPrefixCollection<'_>>,
     mut assignments: Option<&mut Vec<(usize, AssignmentPrefix)>>,
 ) -> Option<StateWritePrefix> {
     if crate::declarations::standard_declarations::is_core_vector_surface_state(
@@ -434,12 +448,16 @@ fn walk_state_write_prefix_inner(
 
     let statements = program.statement_table.statements(state.statement_nodes);
     for (statement_index, statement) in statements.iter().enumerate() {
-        if let Some(prefixes) = collect.as_deref_mut() {
-            prefixes.push(Some(CollectedStatementPrefix {
-                aliases: local_alias_origins.clone(),
-                divergent: divergent_alias_origins.clone(),
-                stored: stored.clone(),
-            }));
+        if let Some(collection) = collect.as_deref_mut() {
+            collection
+                .prefixes
+                .push(
+                    (collection.requested)(statement_index).then(|| CollectedStatementPrefix {
+                        aliases: local_alias_origins.clone(),
+                        divergent: divergent_alias_origins.clone(),
+                        stored: stored.clone(),
+                    }),
+                );
         }
         if matches!(query, Some(StateWriteQuery::StatementPrefixes { .. }))
             && statement_index + 1 == statements.len()

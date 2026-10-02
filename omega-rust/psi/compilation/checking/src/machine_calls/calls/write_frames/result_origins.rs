@@ -220,8 +220,9 @@ fn state_result_origins<'program>(
         // and operand exposure in every statement, including transition
         // arguments and terminal result expressions, are validated by one
         // complete walk before any arm contributes leaves. That walk also
-        // collects every statement's boundary prefix so each result arm
-        // evaluates against its own prefix without re-walking the body.
+        // collects only boundaries consumed by result arms. Each selected
+        // snapshot retains the complete alias/stored closure at that point;
+        // discarded statements still undergo the same validation walk.
         let (context, prefixes) = walk_state_write_prefix_collected(
             program,
             machine,
@@ -230,6 +231,24 @@ fn state_result_origins<'program>(
             inference,
             &mut HashMap::default(),
             include_shared,
+            &|statement_index| match &statements[statement_index] {
+                StatementNode::Expression(_) => statement_index + 1 == statements.len(),
+                StatementNode::Transition(transition)
+                    if transition.exit == TransitionExit::Ordinary =>
+                {
+                    [transition.target, transition.continuation]
+                        .into_iter()
+                        .any(|edge| {
+                            edge.is_valid()
+                                && matches!(
+                                    program.statement_table.transition_target(edge),
+                                    TransitionTargetNode::Value(_)
+                                        | TransitionTargetNode::Named { .. }
+                                )
+                        })
+                }
+                _ => false,
+            },
         )?;
         for local in &context.stored {
             inference.record_local(local);

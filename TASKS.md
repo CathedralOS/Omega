@@ -1401,20 +1401,24 @@ the complete product bar; focused successes below do not establish that baseline
   compiler before assigning any further source-signature or structural-argument
   failure: old diagnostics and expired claims are not current blockers.
 
-  Current candidate application `da7a91b191e3` has four unpublished source-lifetime
+  Current candidate application `248a79e66025` has six unpublished source-lifetime
   repairs; its remote denies writes, so do not advance the application gitlink.
   On macOS ARM64, the last completed `omega update --project
   samples/apps/squalr/squalr-tests --target linux_x86_64` review with compiler
-  `7a2174f161e` stopped at unsupported scalar crash-evidence projection in scanning.
-  That projection is repaired on main at `69dc4bc35b7`; the integrated carrier
-  candidate `dcfb893284a` is still under full application review, not a successful
-  review or native run. Profiling that command found repeated activation-subtree
-  type/graph searches, then write-frame inference in a later sample. The carry
-  join now prepares exact-handle ordinals once and preserves the complete
-  breadth-first contribution roster; it does not change carry admission or
-  prune the graph. Compare the same complete application command after this
-  repair before claiming an end-to-end speedup or assigning the next semantic
-  failure. Resolve the application publication dependency before updating pins.
+  `04ac304a976` and application `65449080992e` rejected `ProjectItem::get_field_name`:
+  a transition carried a view beyond its local `DataValue` owner's storage.
+  The application now uses its existing byte-copy helper in an ordinary call,
+  keeping the owner live and removing the duplicated state loop. Review of that
+  candidate is in flight; neither successful review nor native execution is proven.
+  A sample of the current review again found nested write-frame inference copying
+  accumulated origin snapshots. The shared collector now materializes only
+  caller-requested boundaries while retaining complete body validation and the
+  all-boundary cache contract. All 102 focused frame tests pass; the 81-fixture
+  borrow corpus's eight golden differences reproduce exactly on base `94e7af7e417`,
+  with all negative cases rejecting. Scoped Clippy's 31 diagnostics also reproduce
+  on that base. Finish the same application command, integrate this snapshot
+  repair, and compare identical inputs before claiming an end-to-end speedup or
+  assigning the next semantic failure. Resolve publication before updating pins.
 
   Shared frame inference now completes the entire `assemble_results_view`
   cycle: `build` writes `self.target_addresses`, array filling writes
