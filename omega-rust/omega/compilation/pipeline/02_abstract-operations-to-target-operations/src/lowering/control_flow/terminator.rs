@@ -14,6 +14,45 @@ use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
 };
 
+#[cfg(test)]
+mod tests;
+
+/// A materialized descriptor owns its affine carrier, not the borrowed backing.
+/// The live definition is installed only after view/access reconstruction; rejoin
+/// its exact producer and result contract before accepting a no-code discard.
+fn affine_view_carrier(
+    live: &LiveDefinitions,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+) -> bool {
+    let Some((producer, structural_type)) = live.views.get(&place) else {
+        return false;
+    };
+    let mut results = function.operations.iter().filter_map(|operation| {
+        operation
+            .structural_result()
+            .filter(|(_, result)| result.place == place)
+    });
+    let Some((operation, result)) = results.next() else {
+        return false;
+    };
+    results.next().is_none()
+        && operation == *producer
+        && result.structural_type == *structural_type
+        && result.multiplicity == StructuralMultiplicity::Affine
+        && result.claims.is_empty()
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && types.get(structural_type).is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ) || declaration.shape.is_borrowed_byte_view()
+        })
+}
+
 // An unobserved owned arrival has no live storage home, so its discard keys
 // on the arrival declaration — the same owned affine contract a realized home
 // would report.
@@ -129,6 +168,15 @@ pub(super) fn plain_home_cleanup(
             TerminalAffineCleanupAction::DiscardRoot(place) => {
                 if !discarded_roots.insert(*place) {
                     return Ok(false);
+                }
+                if live.views.contains_key(place) {
+                    if !affine_view_carrier(live, function, structural_types, *place) {
+                        return Ok(false);
+                    }
+                    // Keep the dominating definition available for sibling-edge
+                    // reconstruction. The target cleanup action retires this
+                    // path's carrier; no owned backing home is created or moved.
+                    continue;
                 }
                 // A bare `&` local's root discard names its loan carrier:
                 // the ordered pass below releases the carrier's own leaf
