@@ -331,6 +331,77 @@ impl<'field> RangeFacts<'field> {
         });
     }
 
+    /// Claim every sub-expression of a TRANSPORTED expression as already
+    /// recorded in this scope, so the seeding that follows does not derive a
+    /// dependency row for it.
+    ///
+    /// Re-deriving would reevaluate a source-state expression against the
+    /// destination scope and come back with an incomplete read set. A row
+    /// that disagrees about its reads makes its label a collision, which
+    /// withdraws the label from the preserved set -- retiring bounds that had
+    /// transported perfectly well before the transported guard arrived. The
+    /// caller supplies the exact reads through `seed_relation_reads` instead.
+    pub(in crate::checks::ranges) fn claim_transported_expression(
+        &mut self,
+        program: &TypedTrees,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        expression: ExpressionHandle,
+    ) {
+        if !expression.is_valid() {
+            return;
+        }
+        self.recorded_expressions
+            .insert((expression, machine, state));
+        let children: Vec<ExpressionHandle> = match program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+            ExpressionNode::Unary(unary) => vec![unary.operand],
+            ExpressionNode::Cast(cast) => vec![cast.value],
+            ExpressionNode::Borrow(borrow) => vec![borrow.target],
+            ExpressionNode::Member(member) => vec![member.receiver],
+            ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
+            _ => Vec::new(),
+        };
+        for child in children {
+            self.claim_transported_expression(program, machine, state, child);
+        }
+    }
+
+    /// Rebind a transported RELATION's read set to destination storage.
+    ///
+    /// Like `seed_storage_dependency`, but a relation over several leaves
+    /// reads all of them (`main.b * 20 + main.a` reads `main.b` and `main.a`),
+    /// so ordinary mutation retires it only when a write overlaps one of those
+    /// fields. Re-deriving the read set here instead would reevaluate a
+    /// SOURCE-state expression in the destination scope, come back incomplete,
+    /// and retire the fact on any write at all.
+    pub(in crate::checks::ranges) fn seed_relation_reads(
+        &mut self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        expression: ExpressionHandle,
+        label: &str,
+        reads: Vec<CanonicalPlace>,
+    ) {
+        // REPLACE this label's rows in this scope rather than adding beside
+        // them. The seeding that just ran recorded the same label with an
+        // incomplete read set, and two rows that disagree about their reads
+        // make the label a collision, which withdraws BOTH from the
+        // preserved set -- so appending the precise row would leave the fact
+        // retired by any write, which is the state it was already in.
+        self.expression_dependencies
+            .retain(|row| !(row.label == label && row.machine == machine && row.state == state));
+        self.recorded_expressions
+            .insert((expression, machine, state));
+        self.expression_dependencies.push(ExpressionDependencies {
+            expression,
+            label: label.to_owned(),
+            machine,
+            state,
+            reads: Some(reads),
+        });
+    }
+
     pub(in crate::checks::ranges) fn record_scalar_binding_dependency(
         &mut self,
         program: &TypedTrees,
