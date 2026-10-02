@@ -538,3 +538,69 @@ fn zeroed_mixed_fields_keep_common_and_payload_namespaces_separate() {
         Some(&unsigned(0)),
     );
 }
+
+#[test]
+fn zeroed_affine_record_retains_its_disposal_until_the_exit() {
+    let mut module = record_module();
+    let machine = &mut module.machines[0];
+    machine.parameters.clear();
+    let operation = &mut machine.blocks[0].operations[0];
+    operation.kind = OperationKind::EstablishZeroedStructural {};
+    let OperationResult::Structural(result) = &mut operation.result else {
+        panic!("record result");
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    let disposal = StructuralAffineDiscard {
+        place: result.place,
+        path: Vec::new(),
+        structural_type: result.structural_type,
+    };
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[0].terminator
+    else {
+        panic!("Unit exit");
+    };
+    trivial_affine_discards.push(disposal.place);
+    let semantic = encode_module(&module).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
+    let mut meter = TerminalFuelMeter::with_allowance(1);
+    assert!(matches!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    assert_eq!(
+        execution
+            .live_affine_frontier()
+            .cloned()
+            .collect::<Vec<_>>(),
+        [disposal]
+    );
+    assert_eq!(
+        execution
+            .structural_scalar_fields
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
+        [unsigned(0)]
+    );
+    meter.replenish(100).unwrap();
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(execution.live_affine_frontier().count(), 0);
+}

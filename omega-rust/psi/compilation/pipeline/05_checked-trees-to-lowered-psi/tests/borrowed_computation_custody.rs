@@ -85,7 +85,24 @@ fn mutable_range_computation_executes_once_before_observing_the_backing() {
     assert_eq!(
         execution
             .resume(&mut meter, &mut terminal_interpreter::AcceptTerminalEffects)
-            .unwrap(),
+            .unwrap_or_else(|error| {
+                let charged = module
+                    .machines
+                    .iter()
+                    .flat_map(|machine| &machine.blocks)
+                    .flat_map(|block| &block.operations)
+                    .filter(|operation| {
+                        meter
+                            .usage()
+                            .at(terminal_fuel::FuelChargeSite::Operation(operation.id))
+                            .is_some()
+                    })
+                    .collect::<Vec<_>>();
+                panic!(
+                    "{error:?}; charged operations: {charged:#?}; fuel: {:#?}",
+                    meter.usage()
+                );
+            }),
         terminal_interpreter::TerminalExecutionStatus::Complete(
             terminal_interpreter::TerminalExecutionResult::Unit
         ),

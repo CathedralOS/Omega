@@ -524,8 +524,10 @@ impl TerminalExecution {
             unreachable!("dispatched execute_establish_zeroed_structural")
         };
         let result = operation.result.structural().ok_or_else(invalid)?;
-        if result.multiplicity != StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty()
+        if !matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
@@ -673,6 +675,15 @@ impl TerminalExecution {
             }
         }
         self.structural_values.insert(result.place, value);
+        // Zeroing establishes payload; it does not discharge the nominal
+        // owner's affine debt. The verified continuation still disposes it.
+        if result.multiplicity == StructuralMultiplicity::Affine {
+            self.live_affine_frontier.insert(StructuralAffineDiscard {
+                place: result.place,
+                path: Vec::new(),
+                structural_type: result.structural_type,
+            });
+        }
         Ok(OperationFlow::Advance)
     }
 
