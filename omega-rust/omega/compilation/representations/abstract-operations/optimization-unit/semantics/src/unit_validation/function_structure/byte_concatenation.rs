@@ -137,13 +137,14 @@ pub(super) fn validate(
                             block.id,
                             source.place,
                         );
-                        let producer = function.blocks.iter().enumerate().find_map(|(owner, block)| names.in_block(block.id).find_map(|name| block.nodes.iter().position(|candidate| matches!(&candidate.operation,
+                        let (producer, producer_root) = function.blocks.iter().enumerate().find_map(|(owner, block)| names.in_block(block.id).find_map(|name| block.nodes.iter().position(|candidate| matches!(&candidate.operation,
                             O::StructuralByteSequenceFieldLength { source: measured, path, field: measured_field, result, .. }
-                            if *measured == name && *path == source.path && measured_field == field && result.value == *length)).map(|position| (owner, position)))).ok_or_else(invalid)?;
+                            if *measured == name && *path == source.path && measured_field == field && result.value == *length)).map(|position| ((owner, position), name)))).ok_or_else(invalid)?;
                         if !super::structural_freshness::unchanged_since(
                             function,
                             predecessors,
                             producer,
+                            producer_root,
                             (block_position, node_position),
                             source.place,
                             |candidate, root| {

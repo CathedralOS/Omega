@@ -48,9 +48,12 @@ fn operations_naming<'machine>(
 /// Every finite execution reaching `use_site` must have passed `producer`
 /// without an invalidating operation. Visiting a graph point twice adds no
 /// additional paths; mutations on cyclic paths are still examined in full.
+/// Reaching the operation is insufficient when another arrival supplies
+/// different storage: its translated root must match the producer too.
 fn unchanged_since(
     machine: &TerminalMachine,
     producer: OperationId,
+    producer_root: PlaceId,
     use_site: OperationId,
     root: PlaceId,
     invalidates: impl Fn(&terminal_psi::Operation, PlaceId) -> bool,
@@ -60,7 +63,7 @@ fn unchanged_since(
             machine,
             use_site,
             root,
-            |candidate, _| candidate.id == producer,
+            |candidate, root| candidate.id == producer && root == producer_root,
             invalidates,
         )
 }
@@ -402,7 +405,7 @@ pub(in crate::validation) fn exact_length_is_current(
     let Some(exact_path) = field_path(module, machine, root, path, field, writing, false) else {
         return false;
     };
-    let Some((_, producer)) = operations_naming(machine, operation.id, root).find(|(name, candidate)| {
+    let Some((producer_root, producer)) = operations_naming(machine, operation.id, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
                 if source == name && terminal_semantics::structural_paths_select_same_location(measured_path, path) && *measured_field == field)
@@ -410,6 +413,7 @@ pub(in crate::validation) fn exact_length_is_current(
     unchanged_since(
         machine,
         producer.id,
+        producer_root,
         operation.id,
         root,
         |candidate, root| changes_length(module, machine, root, &exact_path, candidate),
@@ -546,14 +550,19 @@ pub(crate) fn field_content_length_is_current(
     let Some(exact_path) = field_path(module, machine, root, path, field, false, false) else {
         return false;
     };
-    let Some((_, producer)) = operations_naming(machine, use_site, root).find(|(name, candidate)| {
+    let Some((producer_root, producer)) = operations_naming(machine, use_site, root).find(|(name, candidate)| {
         candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
                 if source == name && terminal_semantics::structural_paths_select_same_location(measured_path, path) && *measured_field == field)
     }) else { return false; };
-    unchanged_since(machine, producer.id, use_site, root, |candidate, root| {
-        changes_content(module, machine, root, &exact_path, candidate)
-    })
+    unchanged_since(
+        machine,
+        producer.id,
+        producer_root,
+        use_site,
+        root,
+        |candidate, root| changes_content(module, machine, root, &exact_path, candidate),
+    )
 }
 
 fn changes_content(
@@ -599,7 +608,7 @@ pub(crate) fn literal_field_read_bounds(
         return None;
     }
     let exact_path = field_path(module, machine, *root, path, *field, false, false)?;
-    for replacement in machine.blocks.iter().flat_map(|block| &block.operations) {
+    for (name, replacement) in operations_naming(machine, operation.id, *root) {
         let OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path: written,
@@ -610,12 +619,13 @@ pub(crate) fn literal_field_read_bounds(
         else {
             continue;
         };
-        if destination != root
+        if *destination != name
             || written != path
             || written_field != field
             || !unchanged_since(
                 machine,
                 replacement.id,
+                name,
                 operation.id,
                 *root,
                 |candidate, root| changes_content(module, machine, root, &exact_path, candidate),
@@ -645,7 +655,14 @@ pub(crate) fn literal_field_read_bounds(
         };
         if literals.next().is_some()
             || bytes.is_empty()
-            || !unchanged_since(machine, producer, replacement.id, *source, |_, _| false)
+            || !unchanged_since(
+                machine,
+                producer,
+                *source,
+                replacement.id,
+                *source,
+                |_, _| false,
+            )
         {
             continue;
         }
@@ -709,6 +726,7 @@ pub(crate) fn replacement_length_equation(
             || !unchanged_since(
                 machine,
                 replacement.id,
+                name,
                 operation.id,
                 *root,
                 |candidate, root| changes_length(module, machine, root, &exact_path, candidate),
@@ -731,6 +749,7 @@ pub(crate) fn replacement_length_equation(
         if unchanged_since(
             machine,
             replacement.id,
+            name,
             operation.id,
             *root,
             |candidate, _| {
@@ -767,6 +786,7 @@ pub(crate) fn replacement_length_equation(
             || !unchanged_since(
                 machine,
                 observation.id,
+                name,
                 operation.id,
                 *root,
                 |candidate, root| changes_length(module, machine, root, &exact_path, candidate),
@@ -794,11 +814,14 @@ pub(crate) fn view_length_is_current(
     operation: OperationId,
     destination: PlaceId,
 ) -> bool {
-    unchanged_since(
+    // Callers establish descriptor identity separately, sometimes checking
+    // every intermediate alias against the same producer. This is only their
+    // ordering and mutation fence; it grants no equality between storage names.
+    established_on_every_path(
         machine,
-        producer,
         operation,
         destination,
+        |candidate, _| candidate.id == producer,
         |candidate, root| changes_length(module, machine, root, &[], candidate),
     )
 }

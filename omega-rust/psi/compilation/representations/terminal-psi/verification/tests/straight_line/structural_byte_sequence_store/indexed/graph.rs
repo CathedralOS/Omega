@@ -60,6 +60,233 @@ fn repeated_replacement(module: &TerminalModule) -> Operation {
     replacement
 }
 
+fn forwarded_argument(place: u64) -> StructuralArgument {
+    StructuralArgument {
+        place: id(place),
+        path: Vec::new(),
+        access: StructuralAccess::MutableBorrow,
+    }
+}
+
+fn forwarding_jump(raw: u64, target: u64, places: &[u64]) -> Terminator {
+    let mut terminator = jump(raw, target);
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut terminator
+    else {
+        unreachable!()
+    };
+    *structural_arguments = places.iter().copied().map(forwarded_argument).collect();
+    terminator
+}
+
+fn parameter_block(
+    module: &mut TerminalModule,
+    block: u64,
+    places: &[u64],
+    operations: Vec<Operation>,
+    terminator: Terminator,
+) -> Block {
+    let machine = &mut module.machines[0];
+    let structural_parameters = places
+        .iter()
+        .enumerate()
+        .map(|(position, place)| {
+            let mut parameter = machine.structural_parameters[0].clone();
+            parameter.place = id(*place);
+            parameter.position = u32::try_from(position).unwrap();
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: id(block),
+                    position: parameter.position,
+                },
+            });
+            parameter
+        })
+        .collect();
+    Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        id: id(block),
+        parameters: Vec::new(),
+        structural_parameters,
+        operations,
+        terminator,
+    }
+}
+
+fn rename_indexed_operations(operations: &mut [Operation], place: u64) {
+    for operation in operations {
+        match &mut operation.kind {
+            OperationKind::StructuralByteSequenceFieldLength { source, .. } => {
+                *source = id(place);
+            }
+            OperationKind::StructuralByteSequenceFieldByteStore { destination, .. } => {
+                *destination = id(place);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn replacement_before_plain_block_and_rename() -> (TerminalModule, ProofBundle) {
+    let (mut module, bundle) = indexed_fixture(StructuralAccess::MutableBorrow);
+    // The replacement precedes an ordinary edge with no structural bindings.
+    // The next edge renames its storage before the length observation.
+    let machine = &mut module.machines[0];
+    let mut operations = machine.blocks[0].operations.split_off(4);
+    rename_indexed_operations(&mut operations, 3);
+    let terminator = std::mem::replace(&mut machine.blocks[0].terminator, jump(901, 901));
+    let plain = parameter_block(
+        &mut module,
+        901,
+        &[],
+        Vec::new(),
+        forwarding_jump(902, 902, &[1]),
+    );
+    let renamed = parameter_block(&mut module, 902, &[3], operations, terminator);
+    module.machines[0].blocks.extend([plain, renamed]);
+    (module, bundle)
+}
+
+fn exact_replacement_length() -> Proposition {
+    Proposition::Equal(
+        ScalarTerm::value(id(3), ScalarType::Integer(integer())),
+        count(3),
+    )
+}
+
+fn add_other_backing(module: &mut TerminalModule) {
+    let machine = &mut module.machines[0];
+    let mut parameter = machine.structural_parameters[0].clone();
+    parameter.place = id(4);
+    parameter.position = 1;
+    machine.structural_parameters.push(parameter);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(4),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+}
+
+#[test]
+fn replacement_length_survives_an_empty_structural_telescope_followed_by_a_rename() {
+    let (module, bundle) = replacement_before_plain_block_and_rename();
+    validate_module(&module).unwrap();
+    let questions = reconstruct_operation_obligations(&module).unwrap();
+    let byte_store = questions
+        .iter()
+        .find(|question| question.obligation.id == id(2))
+        .unwrap();
+    assert!(
+        byte_store
+            .semantic_axioms
+            .contains(&exact_replacement_length())
+    );
+    verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
+}
+
+#[test]
+fn replacement_length_cannot_follow_a_rename_of_different_backing() {
+    let (mut module, bundle) = replacement_before_plain_block_and_rename();
+    add_other_backing(&mut module);
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].place = id(4);
+    validate_module(&module).unwrap();
+    let questions = reconstruct_operation_obligations(&module).unwrap();
+    let byte_store = questions
+        .iter()
+        .find(|question| question.obligation.id == id(2))
+        .unwrap();
+    assert!(
+        !byte_store
+            .semantic_axioms
+            .contains(&exact_replacement_length())
+    );
+    assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+}
+
+#[test]
+fn different_backing_on_one_diamond_arrival_cannot_supply_replacement_length() {
+    let (mut module, bundle) = indexed_fixture(StructuralAccess::MutableBorrow);
+    add_other_backing(&mut module);
+    let machine = &mut module.machines[0];
+    machine.parameters.push(ValueDeclaration {
+        qualifications: Default::default(),
+        id: id(5),
+        scalar_type: ScalarType::Boolean,
+    });
+    let mut operations = machine.blocks[0].operations.split_off(4);
+    rename_indexed_operations(&mut operations, 8);
+    let terminator = std::mem::replace(
+        &mut machine.blocks[0].terminator,
+        forwarding_jump(901, 901, &[1, 4]),
+    );
+    let mut when_true = edge(902, 902);
+    when_true.structural_arguments.push(forwarded_argument(3));
+    let mut when_false = edge(903, 903);
+    when_false.structural_arguments.push(forwarded_argument(5));
+    let branch = parameter_block(
+        &mut module,
+        901,
+        &[3, 5],
+        Vec::new(),
+        Terminator::Conditional {
+            condition: id(5),
+            when_true,
+            when_false,
+        },
+    );
+    let left = parameter_block(
+        &mut module,
+        902,
+        &[6],
+        Vec::new(),
+        forwarding_jump(904, 904, &[6]),
+    );
+    let right = parameter_block(
+        &mut module,
+        903,
+        &[7],
+        Vec::new(),
+        forwarding_jump(905, 904, &[7]),
+    );
+    let joined = parameter_block(&mut module, 904, &[8], operations, terminator);
+    // This order lets a provisional left-hand name reach the entry before a
+    // later traversal discovers the branch's incompatible right-hand name.
+    module.machines[0]
+        .blocks
+        .extend([left, branch, right, joined]);
+    for reversed in [false, true] {
+        if reversed {
+            module.machines[0].blocks[1..].reverse();
+        }
+        validate_module(&module).unwrap();
+        let questions = reconstruct_operation_obligations(&module).unwrap();
+        let byte_store = questions
+            .iter()
+            .find(|question| question.obligation.id == id(2))
+            .unwrap();
+        assert!(
+            !byte_store
+                .semantic_axioms
+                .contains(&exact_replacement_length()),
+            "one arrival denotes untouched backing, regardless of block order ({reversed})"
+        );
+        assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+    }
+}
+
 #[test]
 fn cross_block_observation_is_current_only_without_intervening_replacement() {
     let (mut module, bundle) = indexed_fixture(StructuralAccess::MutableBorrow);

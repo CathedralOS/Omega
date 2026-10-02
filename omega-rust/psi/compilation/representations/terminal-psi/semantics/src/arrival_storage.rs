@@ -1,7 +1,7 @@
 //! The arrival storage a structural place occupies.
 
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     Block, StructuralArgument, StructuralParameterDeclaration, TerminalMachine, Terminator,
 };
@@ -151,103 +151,50 @@ fn reaches_by_case(predecessor: &Block, block: BlockId) -> bool {
         if cases.iter().any(|successor| successor.target == block))
 }
 
-/// The names one storage answers to, per block, among the blocks behind a use
-/// of it.
+/// Candidate names of the storage at a use, grouped by predecessor block.
 ///
-/// A place denotes one storage wherever it is mentioned, so the difficulty is
-/// never that a place changes meaning between blocks: it is that two different
-/// places denote one storage, because every edge that forwards it renames it.
-/// A receiver gives every state the one machine parameter, while a named data
-/// parameter gives each state its own block parameter, so a search comparing
-/// place identities finds an operation in another state only for the receiver
-/// spelling. The use site's own place is therefore always an answer, and each
-/// block behind the use may answer to one further place as well.
-///
-/// Membership says only that two places denote one storage, never that the
-/// operation holding one of them runs before another. Callers that need that
-/// ordering still prove it -- `unchanged_since` requires the earlier operation
-/// to dominate the later one on every path -- so a name only some arrivals
-/// reach cannot carry a fact the others never established.
+/// A state parameter renames its incoming storage; an ordinary control edge
+/// keeps the dominating name. Both edges participate in discovery. A join can
+/// reach the use through different storage, so membership is only a candidate,
+/// never an equality or a freshness proof. Consumers must independently trace
+/// every arrival and match the producer's root as well as its operation.
 pub struct StorageNames {
-    root: PlaceId,
-    behind: BTreeMap<BlockId, Option<PlaceId>>,
+    behind: BTreeMap<BlockId, BTreeSet<PlaceId>>,
 }
 
 impl StorageNames {
-    /// The places `block` may use for this storage: the use site's own place,
-    /// and the place this block forwards into it, when the two differ and this
-    /// block reaches the use under exactly one such place.
+    /// Names encountered in `block` while tracing this use backward.
     pub fn in_block(&self, block: BlockId) -> impl Iterator<Item = PlaceId> + '_ {
-        std::iter::once(self.root).chain(
-            self.behind
-                .get(&block)
-                .copied()
-                .flatten()
-                .filter(|place| *place != self.root),
-        )
+        self.behind.get(&block).into_iter().flatten().copied()
     }
 }
 
-/// The names the storage that `root` names inside `block` answers to in the
-/// blocks that reach `block`.
+/// Follow whole-storage bindings backward, including edges without a rename.
 ///
-/// Only predecessors are followed. An establishment is looked for behind the
-/// use, never ahead of it, and naming a predecessor's argument is exact for
-/// arrivals through that predecessor: the edge binds the two to one storage.
-/// Following successors instead would name a target's parameter from one
-/// incoming edge while another edge binds different storage into it, which no
-/// later check would catch. Only whole-storage bindings are followed, for the
-/// reason [`root_before_edge`] states.
+/// Visit each (block, place) pair rather than retaining one provisional name
+/// per block. Different paths can disagree in one block and converge to the
+/// same upstream storage; discarding an ambiguous block would lose that route,
+/// while retaining its previously propagated name would depend on block order.
+/// The finite pair worklist handles cycles without either shortcut. Projected
+/// and case-payload bindings remain excluded by [`root_before_edge`].
 pub fn storage_names(machine: &TerminalMachine, block: BlockId, root: PlaceId) -> StorageNames {
-    let mut behind = BTreeMap::new();
-    behind.insert(block, Some(root));
-    let mut changed = true;
-    while changed {
-        changed = false;
+    let mut behind: BTreeMap<BlockId, BTreeSet<PlaceId>> = BTreeMap::new();
+    let mut pending = vec![(block, root)];
+    while let Some((block, root)) = pending.pop() {
+        if !behind.entry(block).or_default().insert(root) {
+            continue;
+        }
         for predecessor in &machine.blocks {
-            for (target, arguments) in forwarded_bindings(predecessor) {
-                let Some(&Some(known)) = behind.get(&target) else {
-                    continue;
-                };
-                let Some(parameters) = machine
-                    .blocks
+            let reaches = reaches_by_case(predecessor, block)
+                || forwarded_bindings(predecessor)
                     .iter()
-                    .find(|candidate| candidate.id == target)
-                    .map(|candidate| &candidate.structural_parameters)
-                else {
-                    continue;
-                };
-                for (position, argument) in arguments.iter().enumerate() {
-                    let Some(parameter) = parameters.get(position) else {
-                        continue;
-                    };
-                    if parameter.place != known || !argument.path.is_empty() {
-                        continue;
-                    }
-                    changed |= learn(&mut behind, predecessor.id, argument.place);
-                }
+                    .any(|(target, _)| *target == block);
+            if reaches && let Some(before) = root_before_edge(machine, block, predecessor, root) {
+                pending.push((predecessor.id, before));
             }
         }
     }
-    StorageNames { root, behind }
-}
-
-/// Record one block-local name, erasing the entry to ambiguous when the block
-/// already reaches the use under a different place: two names at once identify
-/// no one storage, and the use site's own place remains the answer there.
-fn learn(behind: &mut BTreeMap<BlockId, Option<PlaceId>>, block: BlockId, place: PlaceId) -> bool {
-    match behind.get(&block) {
-        Some(Some(known)) if *known == place => false,
-        Some(None) => false,
-        Some(Some(_)) => {
-            behind.insert(block, None);
-            true
-        }
-        None => {
-            behind.insert(block, Some(place));
-            true
-        }
-    }
+    StorageNames { behind }
 }
 
 /// Each edge out of `predecessor` that forwards the target block's structural

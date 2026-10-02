@@ -739,7 +739,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/arrival_storage.rs",
-        sha256: Some("222417d811160c1737e300de3fb0c18a9930709d034cbbbd5319c5e0e5a591e1"),
+        sha256: Some("92f608963a6180cf09238dd48c83b0ce1c3b402d1a9ba69cfd40f28af1a2d77b"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1414,7 +1414,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields/freshness.rs",
-        sha256: Some("03875c4961bf7e329375913efc53d8c9c10d39eeb7aeebbe9dd985bb8bb7f559"),
+        sha256: Some("1e723d6426946130a661319da8aa0b653106767db5a180c7608d778e1c2cf687"),
         inventory_machinery: false,
     },
     ImplementationSite {

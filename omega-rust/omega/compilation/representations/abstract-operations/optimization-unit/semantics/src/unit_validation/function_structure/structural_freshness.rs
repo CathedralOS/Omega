@@ -233,12 +233,14 @@ pub(super) fn structural_metadata_may_change(
 }
 
 /// Every finite path arriving at the use must reach the observation first,
-/// without a metadata-changing operation. Revisiting a point closes only that
-/// graph search branch; other predecessors and mutations on backedges still run.
+/// on the same backing, without a metadata-changing operation. Revisiting a
+/// point closes only that graph search branch; other predecessors and mutations
+/// on backedges still run.
 pub(super) fn unchanged_since(
     function: &PsiOptimizationFunction,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     producer: (usize, usize),
+    producer_root: PlaceId,
     use_site: (usize, usize),
     root: PlaceId,
     invalidates: impl Fn(&O, PlaceId) -> bool,
@@ -248,7 +250,7 @@ pub(super) fn unchanged_since(
         predecessors,
         use_site,
         root,
-        |position, _, _| position == producer,
+        |position, _, root| position == producer && root == producer_root,
         invalidates,
     )
 }

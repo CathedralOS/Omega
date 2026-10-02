@@ -27,11 +27,11 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
-    self.out = "XXX";
-    self.k = 1;
-    transition { _ -> outer(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
+    main.out = "XXX";
+    main.k = 1;
+    transition { _ -> outer(main) }
 
     state outer(main: &mut Main) {
         transition main.k <= 9 { true -> compute_sq(main) _ -> finish(main) }

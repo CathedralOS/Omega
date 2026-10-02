@@ -64,18 +64,19 @@ pub(super) fn validate(
                 block.id,
                 *destination,
             );
-            let producer = function.blocks.iter().enumerate().find_map(|(owner, block)| {
+            let (producer, producer_root) = function.blocks.iter().enumerate().find_map(|(owner, block)| {
                 names.in_block(block.id).find_map(|name| {
                     block.nodes.iter().position(|candidate| matches!(&candidate.operation,
                         O::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
                         if *source == name && terminal_semantics::structural_paths_select_same_location(measured_path, path) && measured_field == field && result.value == *length
-                    )).map(|position| (owner, position))
+                    )).map(|position| ((owner, position), name))
                 })
             }).ok_or_else(|| invalid.clone())?;
             if !unchanged_since(
                 function,
                 predecessors,
                 producer,
+                producer_root,
                 (block_position, node_position),
                 *destination,
                 |operation, root| {

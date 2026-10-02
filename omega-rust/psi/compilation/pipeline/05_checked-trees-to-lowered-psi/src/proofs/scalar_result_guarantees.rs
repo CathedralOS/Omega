@@ -13,8 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use lowered_psi::LoweredPsi;
 use proof_admission::{PredicateDenotationError, check_value_equality_denotation};
 use semantic_vocabulary::{
-    BlockId, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm, ScalarType,
-    ValueId,
+    BlockId, MachineId, ObligationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    ScalarType, ValueId,
 };
 use terminal_psi::{ContractClause, OperationKind, TerminalMachine, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
@@ -130,7 +130,12 @@ fn demanded_callees(
     for machine in &lowered.semantic_module.machines {
         let mut calls = BTreeMap::new();
         let mut stores = Vec::new();
-        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        for (block, operation) in machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .map(move |operation| (block.id, operation))
+        }) {
             if !charge(remaining, 1) {
                 return demanded;
             }
@@ -145,9 +150,9 @@ fn demanded_callees(
                 field,
                 value,
                 ..
-            } = operation.kind
+            } = &operation.kind
             {
-                stores.push((destination, field, value));
+                stores.push((block, *destination, *field, *value));
             }
         }
         if calls.is_empty() {
@@ -206,7 +211,10 @@ fn demanded_callees(
                 }
             }
         }
+        let mut storage_names: BTreeMap<(BlockId, PlaceId), terminal_semantics::StorageNames> =
+            BTreeMap::new();
         for (site_index, site) in sites.iter().enumerate() {
+            let mut owning_blocks = None;
             let mut pending = Vec::new();
             if site
                 .obligation
@@ -238,9 +246,11 @@ fn demanded_callees(
                     // selects a proof candidate, never establishes a field
                     // fact. Without that store, a join discarded the branch
                     // equation: the store table supplies possible
-                    // dependencies instead — matching root and leaf field
-                    // conservatively includes stores through different
-                    // intermediate projections, none of which become axioms.
+                    // dependencies instead. Follow whole-storage bindings
+                    // behind this demand; matching the leaf field still
+                    // conservatively includes different intermediate paths.
+                    // These are candidate dependencies only: each callee
+                    // still proves its proposed result guarantee.
                     if let Proposition::Equal(_, observed) = equation {
                         let mut bridged = definitions
                             .field_definitions_within(observed, bound)
@@ -269,8 +279,30 @@ fn demanded_callees(
                             if !charge(remaining, stores.len()) {
                                 return demanded;
                             }
-                            for (destination, stored_field, value) in &stores {
-                                if destination == root && stored_field == field {
+                            // Scalar-only demands never need graph ownership;
+                            // repeated field dependencies share this site's lookup.
+                            let demand_blocks = owning_blocks
+                                .get_or_insert_with(|| demand_blocks(machine, site.owner));
+                            for &block in demand_blocks.iter() {
+                                if let std::collections::btree_map::Entry::Vacant(entry) =
+                                    storage_names.entry((block, *root))
+                                {
+                                    if !charge(remaining, machine.blocks.len()) {
+                                        return demanded;
+                                    }
+                                    entry.insert(terminal_semantics::storage_names(
+                                        machine, block, *root,
+                                    ));
+                                }
+                            }
+                            for (block, destination, stored_field, value) in &stores {
+                                if stored_field == field
+                                    && demand_blocks.iter().any(|demand| {
+                                        storage_names[&(*demand, *root)]
+                                            .in_block(*block)
+                                            .any(|name| name == *destination)
+                                    })
+                                {
                                     // Attach the dependency only when this
                                     // observation is demanded, rather than
                                     // selecting every scalar callee.
@@ -306,6 +338,43 @@ fn demanded_callees(
         }
     }
     demanded
+}
+
+/// Storage observations in an operation question use that block's names;
+/// arrival and cleanup questions are expressed before their exact edge.
+/// Contract ensures may be demanded by any normal return.
+fn demand_blocks(
+    machine: &TerminalMachine,
+    owner: ReconstructedTerminalObligationOwner,
+) -> Vec<BlockId> {
+    machine
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            let owns = match owner {
+                ReconstructedTerminalObligationOwner::Operation { operation, .. }
+                | ReconstructedTerminalObligationOwner::CallRequires { operation, .. } => block
+                    .operations
+                    .iter()
+                    .any(|candidate| candidate.id == operation),
+                ReconstructedTerminalObligationOwner::ScalarBlockInvariant { edge, .. }
+                | ReconstructedTerminalObligationOwner::NominalCleanupRequires { edge, .. } => {
+                    block.terminator.edges().any(|candidate| candidate == edge)
+                }
+                ReconstructedTerminalObligationOwner::ContractEnsures { .. } => {
+                    matches!(
+                        block.terminator,
+                        Terminator::Return { .. }
+                            | Terminator::ReturnUnit { .. }
+                            | Terminator::ReturnUnitPartialAffine { .. }
+                            | Terminator::ReturnUnitNominalAffine { .. }
+                            | Terminator::ReturnStructural { .. }
+                    )
+                }
+            };
+            owns.then_some(block.id)
+        })
+        .collect()
 }
 
 /// Position-tagged definition index over one axiom roster. A chain of
