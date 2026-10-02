@@ -28,7 +28,7 @@ use legalized_operations::LegalizedRuntimeIndexOperand;
 use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 
 /// Resolve the storage observed by a projection, before its static and runtime
-/// displacements. Element-view homes describe a loan: load its backing pointer
+/// displacements. View homes describe a loan: load its backing pointer
 /// and retain a derived view's offset, never index the descriptor itself.
 /// A missing address denotes ABI value fragments, not an empty or invalid loan;
 /// callers separately admit the operations that can consume those fragments.
@@ -39,13 +39,24 @@ pub(super) fn projection_base(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    let view_home = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == place)
-        .copied();
-    if view_home.is_none()
+    let byte_view = crate::selection::established_view_input::view_type(source, place).is_some();
+    let view_offset = if byte_view {
+        builder
+            .transport
+            .views
+            .iter()
+            .find(|view| view.place == place)
+            .map(|view| view.byte_offset)
+    } else {
+        builder
+            .transport
+            .element_views
+            .iter()
+            .find(|view| view.place == place)
+            .map(|view| view.byte_offset)
+    };
+    if !byte_view
+        && view_offset.is_none()
         && crate::selection::established_view_input::element_view_type(source, place).is_none()
     {
         return Ok(builder
@@ -55,15 +66,19 @@ pub(super) fn projection_base(
             .find(|(stored, _)| *stored == place)
             .map(|(_, pointer)| *pointer));
     }
-    let backing = super::element_views::element_backing_pointer(builder, row, place)?;
-    let Some(view) = view_home else {
+    let backing = if byte_view {
+        super::byte_views::backing_pointer(source, builder, row, place)?
+    } else {
+        super::element_views::element_backing_pointer(builder, row, place)?
+    };
+    let Some(view_offset) = view_offset else {
         return Ok(Some(backing));
     };
     let base = transport_register(builder, place, byte_offset)?;
     builder.emit(
         SelectedInstructionKind::ByteViewAddress,
         builder.constraints.keys.add_i64,
-        &[backing, view.byte_offset, base],
+        &[backing, view_offset, base],
         super::provenance(row),
     )?;
     Ok(Some(base))
