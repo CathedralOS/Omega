@@ -82,7 +82,8 @@ pub(in crate::execution) fn collect(
                     }
                 }
                 CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. } => {}
+                | CheckedScalarComputationKind::StructuralField { .. }
+                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
                 CheckedScalarComputationKind::Call {
                     arguments,
                     structural_arguments,

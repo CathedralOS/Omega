@@ -41,7 +41,10 @@ fn value_type(
     active.push(handle);
     let node = plans.nodes.get(handle);
     let result = match &node.kind {
-        CheckedScalarComputationKind::CaseMembership { .. } => ScalarType::Boolean.into(),
+        CheckedScalarComputationKind::CaseMembership { .. }
+        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {
+            ScalarType::Boolean.into()
+        }
         CheckedScalarComputationKind::Qualification { result_type, .. }
         | CheckedScalarComputationKind::AuthoredCast { result_type, .. } => {
             qualifications.value_type(checked, *result_type)?

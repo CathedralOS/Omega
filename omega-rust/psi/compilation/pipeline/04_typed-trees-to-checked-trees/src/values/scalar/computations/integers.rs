@@ -649,7 +649,8 @@ impl Builder<'_, '_> {
                 }
                 CheckedScalarComputationKind::CaseMembership { .. } => {}
                 CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. } => {}
+                | CheckedScalarComputationKind::StructuralField { .. }
+                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
             }
         }
         false

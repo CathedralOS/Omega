@@ -88,7 +88,8 @@ pub(super) fn validate(
                     }
                 }
                 CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. } => {}
+                | CheckedScalarComputationKind::StructuralField { .. }
+                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
                 CheckedScalarComputationKind::Select {
                     condition,
                     when_true,

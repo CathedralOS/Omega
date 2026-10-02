@@ -18,6 +18,7 @@ use crate::lowering_error::unsupported;
 pub(super) mod access_occurrences;
 mod arrays;
 mod view_subslices;
+pub(crate) use view_subslices::validate_operand as validate_range_operand;
 
 /// Authored formal order, preserving scalar handles and structural occurrences.
 pub(crate) enum RejoinedComputationArgument {

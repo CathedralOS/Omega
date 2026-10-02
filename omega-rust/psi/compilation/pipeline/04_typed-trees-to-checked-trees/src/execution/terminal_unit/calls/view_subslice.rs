@@ -324,7 +324,9 @@ pub(in crate::execution) fn admit_replayed(
     )?;
     if range.storage == ViewStorage::FixedArray
         && !match site {
-            CheckedSubsliceSite::LocalBinding | CheckedSubsliceSite::CallArgument { .. } => true,
+            CheckedSubsliceSite::LocalBinding
+            | CheckedSubsliceSite::CallArgument { .. }
+            | CheckedSubsliceSite::Expression { .. } => true,
             CheckedSubsliceSite::TransitionArgument { .. } => false,
         }
     {

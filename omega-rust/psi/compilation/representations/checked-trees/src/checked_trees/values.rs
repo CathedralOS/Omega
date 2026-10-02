@@ -24,6 +24,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
+mod byte_comparison;
 mod computations;
 pub use computations::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
@@ -385,6 +386,9 @@ pub enum CheckedScalarExpressionRole {
 /// one coordinate rather than a role pair per site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedSubsliceSite {
+    /// A computed operand at its exact expression occurrence. It has no call
+    /// formal or source local, but its endpoints use the same scalar namespace.
+    Expression { expression: ExpressionHandle },
     /// A structural argument of the statement's `call_ordinal`th call, keyed
     /// by its dense structural argument ordinal, not its mixed authored
     /// position.

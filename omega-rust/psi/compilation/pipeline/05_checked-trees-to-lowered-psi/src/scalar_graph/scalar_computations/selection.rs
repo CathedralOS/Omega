@@ -191,7 +191,8 @@ impl Expansion<'_> {
                 | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                     pending.push((*operand, false))
                 }
-                CheckedScalarComputationKind::Value(_)
+                CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
+                | CheckedScalarComputationKind::Value(_)
                 | CheckedScalarComputationKind::StructuralField { .. }
                 | CheckedScalarComputationKind::CaseMembership { .. }
                 | CheckedScalarComputationKind::Select { .. }

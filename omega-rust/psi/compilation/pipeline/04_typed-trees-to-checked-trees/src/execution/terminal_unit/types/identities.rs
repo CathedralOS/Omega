@@ -99,7 +99,7 @@ pub(in crate::execution::terminal_unit) fn mutable_plain_nonlinear_referent(
     .then_some(*referee)
 }
 
-pub(in crate::execution::terminal_unit) fn byte_sequence_type_identity(
+pub(crate) fn byte_sequence_type_identity(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],

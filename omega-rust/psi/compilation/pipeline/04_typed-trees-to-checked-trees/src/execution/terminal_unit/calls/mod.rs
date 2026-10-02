@@ -24,7 +24,7 @@ mod signatures;
 mod structural_arguments;
 mod structural_result_call;
 mod trait_boundary_call;
-pub(in crate::execution) mod view_subslice;
+pub(crate) mod view_subslice;
 
 pub(crate) use affine_locals::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals,

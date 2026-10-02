@@ -36,6 +36,7 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceNode;
 
 mod boundary_calls;
+mod byte_comparisons;
 mod call_arguments;
 mod cases;
 mod dispatch;
@@ -1224,6 +1225,11 @@ impl Builder<'_, '_> {
                     right,
                 },
             ));
+        }
+        if expected_type == PrimitiveType::Bool
+            && let Some(comparison) = self.byte_literal_comparison(expression)
+        {
+            return Some(comparison);
         }
         if !semantic_casts::requires_custody(self.program, self.state, expression)
             && let Some(value) = lower_return_expression(

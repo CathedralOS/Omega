@@ -75,6 +75,32 @@ pub(super) fn validate(
     position: usize,
     site: CheckedSubsliceSite,
 ) -> Result<(), LoweringError> {
+    validate_operand(
+        checked,
+        state,
+        statement,
+        target.type_reference,
+        expression,
+        argument,
+        site,
+    )?;
+    let (caller, _) = super::super::authored_state(checked, state.symbol)?;
+    let captured = captured_range(checked, caller.symbol, state.symbol, statement, expression)?;
+    super::borrow_rows::validate_shared_place_argument_at(checked, call, position, &captured)
+}
+
+/// Replay the range operation independently of its consumer. A call additionally
+/// rejoins its own captured argument loan; an immediate observation introduces
+/// no call or destination-local authority.
+pub(crate) fn validate_operand(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    statement: u32,
+    target_type: checked_trees::types::TypeReferenceHandle,
+    expression: ExpressionHandle,
+    argument: &CheckedUnitStructuralArgumentPlan,
+    site: CheckedSubsliceSite,
+) -> Result<(), LoweringError> {
     let (root, retained_expression, start, end, bytes) = match &argument.source {
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root,
@@ -111,7 +137,6 @@ pub(super) fn validate(
     if source.path != argument.path {
         return unsupported("computed subslice substituted its projected path");
     }
-    let captured = captured_range(checked, caller.symbol, state.symbol, statement, expression)?;
     let parameters = checked.state_parameters(state);
     let (symbol, reference, mutable_binding) = match root {
         CheckedStorageRoot::Parameter { index } => {
@@ -171,7 +196,7 @@ pub(super) fn validate(
             == Some(checked_trees::types::PrimitiveType::U8);
         Some((*referee, *element_type, is_bytes))
     };
-    let (target_slice, target_element, target_bytes) = view_type(target.type_reference).ok_or(
+    let (target_slice, target_element, target_bytes) = view_type(target_type).ok_or(
         LoweringError::Unsupported("computed subslice formal is not a shared view"),
     )?;
     let source_element = if let Some((_, element, _)) = view_type(reference) {
@@ -249,5 +274,5 @@ pub(super) fn validate(
         symbol,
         &source.path,
     )?;
-    super::borrow_rows::validate_shared_place_argument_at(checked, call, position, &captured)
+    Ok(())
 }

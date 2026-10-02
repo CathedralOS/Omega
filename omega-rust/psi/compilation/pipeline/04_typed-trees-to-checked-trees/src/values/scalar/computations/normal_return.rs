@@ -19,6 +19,7 @@ pub(super) fn boolean_result(
     match &plans.nodes.get(computation).kind {
         CheckedScalarComputationKind::SelectedComparison { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
+        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
         | CheckedScalarComputationKind::CaseMembership { .. }
         | CheckedScalarComputationKind::BooleanToInteger { .. }
         | CheckedScalarComputationKind::AuthoredCast { .. } => None,

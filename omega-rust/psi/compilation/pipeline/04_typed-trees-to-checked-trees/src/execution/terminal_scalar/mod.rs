@@ -1356,7 +1356,11 @@ fn computation_reads_position(
             return true;
         }
         match &computations.nodes.get(handle).kind {
-            checked_trees::CheckedScalarComputationKind::StructuralField { subject, .. } => {
+            checked_trees::CheckedScalarComputationKind::StructuralField { subject, .. }
+            | checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                subject,
+                ..
+            } => {
                 if structural_place_reads_position(subject, position) {
                     return true;
                 }

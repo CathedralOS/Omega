@@ -59,7 +59,11 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
         }
         let node = computations.nodes.get(handle);
         match &node.kind {
-            CheckedScalarComputationKind::StructuralField { subject, .. } => {
+            CheckedScalarComputationKind::StructuralField { subject, .. }
+            | checked_trees::CheckedScalarComputationKind::ByteSequenceLiteralComparison {
+                subject,
+                ..
+            } => {
                 if subject.source_parameter_index() == Some(receiver_source) {
                     return true;
                 }

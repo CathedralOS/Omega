@@ -156,7 +156,11 @@ fn an_edge_call_reads_or_takes_a_state_local_on_its_edge_alone() {
     assert_eq!(when_true.result_moves(owned), 1);
     assert_eq!(when_false.result_moves(owned), 0);
     assert_eq!(when_false.operand_result_moves(seed.binding_ordinal), 1);
-    assert_eq!(when_false.result_moves(seed), 0, "a copy read moves nothing");
+    assert_eq!(
+        when_false.result_moves(seed),
+        0,
+        "a copy read moves nothing"
+    );
     assert!(
         checked
             .facts
@@ -231,4 +235,46 @@ fn a_mutable_view_local_forwards_its_own_binding() {
         ]
     );
     assert!(when_false.transfers.is_empty());
+}
+
+#[test]
+fn bounded_command_guards_return_selected_structural_values() {
+    let checked = crate::tests::front_end::checked_program(
+        r#"
+        data Command { case Look; case Quit; case Invalid; }
+        data Parser {}
+        machine Parser::resolve(line: &[u8], count: u64) -> Command {
+            transition {
+                count <= line.len && line[0..count] == "look" -> Command::Look
+                count <= line.len && line[0..count] == "quit" -> Command::Quit
+                _ -> Command::Invalid
+            }
+        }
+        "#,
+    );
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Parser::resolve")
+        .expect("the original parser helper");
+    let trace = super::control::LocalConstructionTrace::default();
+    let mut shapes = super::ShapeCollector::new(program);
+    let plan = super::build_traced(
+        program,
+        &checked.facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+        },
+        &mut shapes,
+        machine,
+        None,
+        &trace,
+    );
+    assert!(
+        plan.is_some(),
+        "original command parser graph declined: {:?}",
+        trace.stage()
+    );
 }

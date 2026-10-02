@@ -136,6 +136,13 @@ impl Default for CheckedScalarComputation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarComputationKind {
+    /// Compare the contents of one evaluated byte carrier with a finite literal.
+    /// The operand owns any descriptor preparation; indexed observations happen
+    /// only after that preparation and the length comparison succeed.
+    ByteSequenceLiteralComparison {
+        source_expression: typed_trees::expression::ExpressionHandle,
+        subject: CheckedUnitStructuralArgumentPlan,
+    },
     /// Read one scalar field at its authored evaluation point without moving
     /// the containing owner or assigning it a scalar parameter position.
     StructuralField {

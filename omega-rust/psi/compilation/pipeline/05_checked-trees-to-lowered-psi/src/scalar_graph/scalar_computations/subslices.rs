@@ -37,23 +37,25 @@ pub(crate) fn prepare(
         .filter(|(_, root)| root.machine == machine)
     {
         for handle in super::reachable_nodes(checked, &[root.root])? {
-            let CheckedScalarComputationKind::Call {
-                structural_arguments,
-                ..
-            } = plans.nodes.get(handle).kind
-            else {
-                continue;
+            let arguments: Vec<_> = match &plans.nodes.get(handle).kind {
+                CheckedScalarComputationKind::Call {
+                    structural_arguments,
+                    ..
+                } => plans
+                    .structural_arguments
+                    .span(*structural_arguments)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed range has stale structural operands",
+                    ))?
+                    .iter()
+                    .filter_map(CheckedScalarComputationStructuralArgument::as_place)
+                    .collect(),
+                CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. } => {
+                    vec![subject]
+                }
+                _ => Vec::new(),
             };
-            for argument in plans
-                .structural_arguments
-                .span(structural_arguments)
-                .ok_or(LoweringError::Unsupported(
-                    "computed range has stale structural operands",
-                ))?
-            {
-                let CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
-                    continue;
-                };
+            for argument in arguments {
                 let Some(range) = range(argument) else {
                     continue;
                 };
