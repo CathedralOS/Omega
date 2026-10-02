@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "2", "load1_end": 0.11, "load1_start": 0.11, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 3.06, "load1_start": 4.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2313,8 +2313,7 @@ pass/versioning/runtime_version_migration_exit checked 4353ms @2d8ed253669f
 pass/wire/numbered_case_identities checked 694ms @2d8ed253669f
 pass/wire/runtime_wire_decode_byte_slice_exit rejected 713ms @4e4bfed13aee+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 3)
-pass/wire/runtime_wire_decode_ranged_field_exit rejected 1638ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 6)
+pass/wire/runtime_wire_decode_ranged_field_exit checked 15540ms @7d617c5d99b2+wt
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 3975ms @1da616075c39+wt
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 72946ms @9b253f5667e5
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 706ms @4e4bfed13aee+wt
