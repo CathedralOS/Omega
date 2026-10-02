@@ -122,6 +122,10 @@ fn proof_rule_exemplars() -> Vec<ProofRule> {
             equality: leaf(),
             endpoint: 0,
         },
+        ProofRule::IntegerOrderAntisymmetry {
+            forward: leaf(),
+            backward: leaf(),
+        },
         ProofRule::IntegerMathOrderTranslation {
             relation: leaf(),
             addend: semantic_vocabulary::IntegerMathTerm::literal(

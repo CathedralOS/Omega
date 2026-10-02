@@ -12,7 +12,7 @@ use super::integer_math_normalization::{
     propositions_match_under_integer_math_normalization,
 };
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError};
-use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm};
+use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType};
 use terminal_psi::{ProofNode, ProofRule};
 
 pub(super) fn check_integer_subtract_order(
@@ -352,5 +352,60 @@ pub(super) fn check_integer_math_order_translation(
     acceptance
         .rules
         .insert(AcceptedProofRule::IntegerMathOrderTranslation);
+    Ok(())
+}
+
+/// Antisymmetry retains both independently checked orders and their exact
+/// endpoints. This is a finite integer relation, never an arithmetic policy
+/// rewrite or a way to obtain equality from only one bound.
+pub(crate) fn order_antisymmetry(
+    forward: &Proposition,
+    backward: &Proposition,
+    conclusion: &Proposition,
+) -> Result<(), ProofError> {
+    let Proposition::LessOrEqual(left, right) = forward else {
+        return Err(ProofError::RulePremiseMismatch(
+            "integer order antisymmetry",
+        ));
+    };
+    let ScalarType::Integer(carrier) = left.scalar_type() else {
+        return Err(ProofError::RulePremiseMismatch(
+            "integer order antisymmetry carrier",
+        ));
+    };
+    if carrier.is_address() || right.scalar_type() != ScalarType::Integer(carrier) {
+        return Err(ProofError::RulePremiseMismatch(
+            "integer order antisymmetry carrier",
+        ));
+    }
+    let Proposition::LessOrEqual(backward_left, backward_right) = backward else {
+        return Err(ProofError::RulePremiseMismatch(
+            "integer order antisymmetry",
+        ));
+    };
+    if backward_left != right || backward_right != left {
+        return Err(ProofError::IntegerOrderMiddleMismatch);
+    }
+    match conclusion {
+        Proposition::Equal(actual_left, actual_right)
+            if actual_left == left && actual_right == right =>
+        {
+            Ok(())
+        }
+        _ => Err(ProofError::IntegerOrderConclusionMismatch),
+    }
+}
+
+pub(super) fn check_integer_order_antisymmetry(
+    proof: &ProofNode,
+    acceptance: &mut AcceptanceBuilder,
+) -> Result<(), ProofError> {
+    let ProofRule::IntegerOrderAntisymmetry { forward, backward } = &proof.rule else {
+        unreachable!("dispatched check_integer_order_antisymmetry");
+    };
+    order_antisymmetry(&forward.conclusion, &backward.conclusion, &proof.conclusion)?;
+    acceptance
+        .rules
+        .insert(AcceptedProofRule::IntegerOrderAntisymmetry);
     Ok(())
 }

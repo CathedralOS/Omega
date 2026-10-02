@@ -88,13 +88,18 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         id: "primitive:closed-integer-relation",
         family: LedgerFamily::PrimitiveJudgment,
         binding: dispatch(CoveredSurface::PrimitiveJudgments),
-        premises: "an Equal, LessThan, or LessOrEqual over same-type fixed-integer literals, or the matching mathematical-integer relation whose terms fit the bounded evaluator",
-        conclusion: "the closed relation holds by exact evaluation; malformed terms and resource exhaustion reject instead of judging",
+        premises: "a well-formed integer relation within the bounded evaluator; exact mathematical add/subtract/multiply may retain open atoms, and fixed-carrier wrapping equality permits only same-carrier values, literals, and wrapping add/subtract/multiply",
+        conclusion: "the relation holds by exact evaluation or a constant mathematical polynomial difference; wrapping equality requires the zero polynomial modulo 2^width and establishes no order, disequality, policy conversion, or cancellation of nonunits; malformed terms and resource exhaustion reject",
         dependencies: &[
             "formation:proposition-context",
             "normalization:closed-integer-evaluator",
         ],
-        implementation: &[KERNEL, NODES],
+        implementation: &[
+            KERNEL,
+            NODES,
+            "omega-rust/psi/compilation/proof/admission/src/integer_rules/open_terms.rs",
+            "omega-rust/psi/compilation/proof/admission/src/integer_rules/wrapping_equality.rs",
+        ],
         soundness: TRUSTED,
     },
     TrustedSurfaceEntry {
@@ -344,7 +349,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
         premises: "a checked ordered endpoint witness from one proved root bound through admitted arithmetic definitions and literal landings, or a supported direct arithmetic expression",
-        conclusion: "the mapped endpoint bound equals the conclusion; unsigned remainder can retain a tighter dividend upper bound or its unconditional image for a landed divisor, or be strictly below its exact runtime divisor with separately proved positivity; a Truth root admits only checked truth bounds, never runtime-divisor positivity; cited definitions and literal landings remain dependencies",
+        conclusion: "the mapped endpoint bound equals the conclusion; unsigned remainder can retain a tighter dividend upper bound or its unconditional image for a landed divisor, or be strictly below its exact runtime divisor with separately proved positivity; an additive word can compare its target with its root from a reflexive root bound and every reconstructed wrapping no-wrap condition, with strict direction determined only by nonzero checked net displacement; a Truth root admits only checked truth bounds, never runtime-divisor positivity or relative translation; cited definitions and literal landings remain dependencies",
         dependencies: &[
             "rule:traversal",
             "normalization:integer-affine-witness",
@@ -357,6 +362,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             AFFINE_WITNESS_CHECKING,
             AFFINE_REMAINDER,
             AFFINE_BOUND_MAPPING,
+            "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/bound_mapping/relative_translation.rs",
             AFFINE_TRUTH_BOUNDS,
             INTEGER_MATH_NORMALIZATION,
             WITNESSES,
@@ -381,6 +387,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             INTEGER_AFFINE,
             AFFINE_WITNESS_CHECKING,
             AFFINE_BOUND_MAPPING,
+            "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/bound_mapping/relative_translation.rs",
             NODES,
         ],
         soundness: TRUSTED,
@@ -464,6 +471,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
             INTEGER_AFFINE,
             AFFINE_WITNESS_CHECKING,
             AFFINE_BOUND_MAPPING,
+            "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/bound_mapping/relative_translation.rs",
             NODES,
         ],
         soundness: TRUSTED,
@@ -518,6 +526,25 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         ],
         soundness: TRUSTED,
     },
+    TrustedSurfaceEntry {
+        id: "rule:integer-order-antisymmetry",
+        family: LedgerFamily::CheckerRule,
+        binding: dispatch(CoveredSurface::ProofRules),
+        premises: "independently checked a <= b and b <= a over the same fixed non-address integer carrier and exact endpoint identities",
+        conclusion: "a == b; missing, strict, changed-carrier or mismatched-endpoint premises reject; core elaboration applies the existing nonstrict order antisymmetry law",
+        dependencies: &[
+            "rule:traversal",
+            "formation:proposition-context",
+            "formation:mathematical-core",
+        ],
+        implementation: &[
+            PROOF,
+            INTEGER_ORDER_RULES,
+            NODES,
+            "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/forbidden_roots.rs",
+        ],
+        soundness: TRUSTED,
+    },
 ];
 
 /// `PrimitiveJudgment` -> ledger entry, total by construction.
@@ -553,6 +580,7 @@ pub fn checker_rule_entry(rule: &ProofRule) -> &'static TrustedSurfaceEntry {
         ProofRule::IntegerStrictOrderTransitivity { .. } => &ENTRIES[22],
         ProofRule::IntegerOrderSubstitution { .. } => &ENTRIES[23],
         ProofRule::IntegerMathOrderTranslation { .. } => &ENTRIES[34],
+        ProofRule::IntegerOrderAntisymmetry { .. } => &ENTRIES[35],
         ProofRule::IntegerAffineBound { .. } => &ENTRIES[24],
         ProofRule::IntegerExactAddDefinitionBound { .. } => &ENTRIES[25],
         ProofRule::IntegerCastBound { .. } => &ENTRIES[26],

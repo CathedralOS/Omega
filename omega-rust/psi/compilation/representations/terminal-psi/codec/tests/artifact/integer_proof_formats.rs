@@ -948,3 +948,69 @@ fn proof_format_canonically_encodes_closed_wrapping_arithmetic() {
     assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
+
+#[test]
+fn integer_order_antisymmetry_round_trips_both_premises_and_replays() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = semantic_vocabulary::ScalarType::Integer(integer);
+    let context =
+        PropositionContext::from_value_types([(value_id(1), scalar), (value_id(2), scalar)])
+            .unwrap();
+    let left = ScalarTerm::value(value_id(1), scalar);
+    let right = ScalarTerm::value(value_id(2), scalar);
+    let requirements = [
+        Proposition::LessOrEqual(left.clone(), right.clone()),
+        Proposition::LessOrEqual(right.clone(), left.clone()),
+    ];
+    let goal = Proposition::Equal(left, right);
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerOrderAntisymmetry {
+            forward: Box::new(ProofNode {
+                conclusion: requirements[0].clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            backward: Box::new(ProofNode {
+                conclusion: requirements[1].clone(),
+                rule: ProofRule::Assumption { index: 1 },
+            }),
+        },
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(75),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(75),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof,
+            }),
+        }],
+        ..ProofBundle::default()
+    };
+    let bytes = encode_proof_bundle(&bundle).unwrap();
+    let mut decoded = decode_proof_bundle(&bytes).unwrap();
+    assert_eq!(
+        decoded, bundle,
+        "child order and original citations survive wire transport"
+    );
+    let EvidenceRoute::CertificateDerived(envelope) = &mut decoded.evidence[0].route else {
+        panic!("certificate route");
+    };
+    proof_admission::accept_certificate(&context, &goal, &requirements, &[], &envelope.proof)
+        .expect("decoded opposite bounds establish equality");
+    let ProofRule::IntegerOrderAntisymmetry { forward, backward } = &mut envelope.proof.rule else {
+        panic!("antisymmetry wire tag");
+    };
+    *backward = forward.clone();
+    let corrupt_bytes = encode_proof_bundle(&decoded).unwrap();
+    assert_ne!(corrupt_bytes, bytes);
+    let corrupt = decode_proof_bundle(&corrupt_bytes).unwrap();
+    let EvidenceRoute::CertificateDerived(envelope) = &corrupt.evidence[0].route else {
+        panic!("certificate route");
+    };
+    assert!(
+        proof_admission::accept_certificate(&context, &goal, &requirements, &[], &envelope.proof)
+            .is_err(),
+        "two copies of a forward bound never authorize equality"
+    );
+}

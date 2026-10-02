@@ -190,6 +190,8 @@ mod equality_transport;
 mod forbidden_roots;
 mod integer_operations;
 mod multiplication;
+#[cfg(test)]
+mod order_antisymmetry_tests;
 mod order_translation;
 mod subtraction;
 
@@ -2502,6 +2504,29 @@ impl<'a> Elaboration<'a> {
                         &proof.conclusion,
                     ),
                 }
+            }
+            ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
+                let forward_evidence = self.node(forward)?;
+                let backward_evidence = self.node(backward)?;
+                integer_order_rules::order_antisymmetry(
+                    &forward.conclusion,
+                    &backward.conclusion,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rules
+                    .insert(AcceptedProofRule::IntegerOrderAntisymmetry);
+                let Proposition::LessOrEqual(left, right) = &forward.conclusion else {
+                    unreachable!("checked antisymmetry order");
+                };
+                let conclusion = self.denotation.denote(&proof.conclusion)?;
+                self.denotation.order_antisymmetry_evidence(
+                    left,
+                    right,
+                    forward_evidence,
+                    backward_evidence,
+                    conclusion,
+                )
             }
             ProofRule::IntegerMathOrderTranslation { relation, addend } => {
                 let evidence = self.node(relation)?;

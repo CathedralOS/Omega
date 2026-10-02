@@ -114,6 +114,10 @@ pub fn retain_original_predicate_citations(
                 left_equals_middle: left,
                 middle_equals_right: right,
             }
+            | ProofRule::IntegerOrderAntisymmetry {
+                forward: left,
+                backward: right,
+            }
             | ProofRule::IntegerSubtractOrder {
                 difference: left,
                 positive: right,

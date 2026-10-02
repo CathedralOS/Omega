@@ -90,6 +90,11 @@ pub(crate) fn encode_proof_node(
                         writer.u8(27);
                         pending.push(ProofEncodingAction::Node(relation, child_depth));
                     }
+                    ProofRule::IntegerOrderAntisymmetry { forward, backward } => {
+                        writer.u8(28);
+                        pending.push(ProofEncodingAction::Node(backward, child_depth));
+                        pending.push(ProofEncodingAction::Node(forward, child_depth));
+                    }
                     ProofRule::IntegerSubtractOrder {
                         difference,
                         positive,
@@ -247,6 +252,7 @@ fn encode_proof_rule_suffix(
         | ProofRule::EqualitySymmetry { .. }
         | ProofRule::IntegerOrderWeakening { .. }
         | ProofRule::IntegerOrderDiscreteness { .. }
+        | ProofRule::IntegerOrderAntisymmetry { .. }
         | ProofRule::IntegerSubtractOrder { .. }
         | ProofRule::IntegerAddOrder { .. }
         | ProofRule::IntegerSubtractAntitone { .. }
@@ -366,7 +372,7 @@ pub(crate) fn decode_proof_node(
             1..=3 | 14 => 0,
             4 => reader.count()?,
             5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 | 23 | 27 => 1,
-            7 | 8 | 10 | 11 | 15 | 20 | 21 | 24 | 26 => 2,
+            7 | 8 | 10 | 11 | 15 | 20 | 21 | 24 | 26 | 28 => 2,
             25 => 3,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
         };
@@ -469,6 +475,10 @@ fn decode_proof_rule(
                     .next()
                     .expect("decoded integer order discreteness child"),
             ),
+        },
+        28 => ProofRule::IntegerOrderAntisymmetry {
+            forward: Box::new(children.next().expect("decoded forward order")),
+            backward: Box::new(children.next().expect("decoded backward order")),
         },
         27 => ProofRule::IntegerMathOrderTranslation {
             relation: Box::new(children.next().expect("decoded mathematical order child")),

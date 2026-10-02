@@ -56,6 +56,7 @@ pub enum AcceptedProofRule {
     IntegerStrictOrderTransitivity,
     IntegerOrderSubstitution,
     IntegerMathOrderTranslation,
+    IntegerOrderAntisymmetry,
     IntegerAffineBound,
     IntegerExactAddDefinitionBound,
     IntegerExactSubtractDefinitionBound,
@@ -448,6 +449,9 @@ fn check_node_locally(
         }
         ProofRule::IntegerOrderSubstitution { .. } => {
             integer_order_rules::check_integer_order_substitution(proof, acceptance)
+        }
+        ProofRule::IntegerOrderAntisymmetry { .. } => {
+            integer_order_rules::check_integer_order_antisymmetry(proof, acceptance)
         }
         ProofRule::IntegerMathOrderTranslation { .. } => {
             integer_order_rules::check_integer_math_order_translation(proof, acceptance)
