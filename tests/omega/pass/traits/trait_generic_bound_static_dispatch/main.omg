@@ -1,7 +1,11 @@
-// A generic body may call only the statically known trait surface promised by
-// its nominal bound. Specialization selects Counter's authored conformance and
-// lowers subject.increment() to Counter::increment; there is no runtime trait
-// dictionary. Expected exit: 1.
+// A generic body may call only the statically known machine surface its
+// declaration promises. The subject and the operation are both explicit: `T` is
+// the carrier, `Increment` is a machine binder with an authored structural
+// contract, and the call spells its argument. Specialization selects
+// `Counter::increment` at the call site; there is no runtime trait dictionary
+// and no receiver-inserting call syntax
+// ([machines](../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state)).
+// Expected exit: 1.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -13,21 +17,20 @@ data Counter {
     value: i32 in Wrapping;
 }
 
-machine Counter::increment(&mut self) satisfies Incrementable::increment {
-    self.value = self.value + 1;
+machine Counter::increment(counter: &mut Counter) satisfies Incrementable::increment {
+    counter.value = counter.value + 1;
 }
 CounterIncrementable: Counter satisfies Incrementable;
 
-machine step<T>(subject: &mut T)
-where
-    T satisfies Incrementable
+machine step<T, machine Increment>(subject: &mut T)
+where machine Increment(target: &mut T);
 {
-    subject.increment();
+    Increment(subject);
 }
 
 data Main { console: Binding<Console>; counter: Counter; }
 
-machine Main::main(&mut self) reaches Console {
-    step(&mut self.counter);
-    self.console.exit_process(self.counter.value as i32);
+machine Main::main(main: &mut Main) reaches Console {
+    step<Counter, Counter::increment>(&mut main.counter);
+    main.console.exit_process(main.counter.value as i32);
 }
