@@ -210,11 +210,30 @@ class ControllerTests(unittest.TestCase):
         snapshot_value['claims']=[dict(ticket='peer',item='item-next0',board=None,owner='peer',paths=['unrelated/file.py'])]
         with self.assertRaisesRegex(RecoveryError,'live claim'):self.update(lambda r:cloud.admit(r,m,snapshot_value))
 
-    def test_unsafe_overlap_undeclared_dependency_cycle_and_no_digest(self):
+    def test_independent_canary_needs_no_invented_dependency(self):
+        value = manifest(prefix='independent')
+        value['assignments'][1]['reads'] = []
+        value['dependencies'] = []
+        record = self.store.load()
+        record['cloud']['batches'].clear()
+        record['cloud']['assignments'].clear()
+        cloud.admit(record, value, snapshot())
+        self.assertEqual(record['cloud']['batches'][value['id']]['manifest']['dependencies'], [])
+
+    def test_canary_accepts_a_real_dependency_without_requiring_a_digest(self):
+        value = manifest(prefix='shared')
+        value['dependencies'][0]['kind'] = 'producer-consumer'
+        record = self.store.load()
+        record['cloud']['batches'].clear()
+        record['cloud']['assignments'].clear()
+        cloud.admit(record, value, snapshot())
+        self.assertEqual(record['cloud']['batches'][value['id']]['manifest']['dependencies'][0]['kind'],
+                         'producer-consumer')
+
+    def test_unsafe_overlap_undeclared_dependency_cycle(self):
         for mutate, reason in [
             (lambda m:m['assignments'][1].update(writes=m['assignments'][0]['writes']), 'unsafe overlap'),
             (lambda m:m.update(dependencies=[]), 'undeclared'),
-            (lambda m:m['dependencies'][0].update(kind='shared'), 'digest'),
             (lambda m:m['assignments'][1].update(outcome=m['assignments'][0]['outcome']), 'disjoint')]:
             m = manifest(prefix='new'); mutate(m)
             with self.assertRaisesRegex(RecoveryError, reason): self.update(lambda r: cloud.admit(r,m,snapshot()))

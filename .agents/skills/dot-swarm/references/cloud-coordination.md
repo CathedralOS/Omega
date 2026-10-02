@@ -32,8 +32,11 @@ exact landing receipt, fetched remote ancestry, reconciled claims/tickets and
 owned-resource cleanup to the final SHA. Historical evidence remains separate;
 reuse needs unchanged reviewed inputs/environment and explicit justification.
 
-Admit only a bounded two-session canary first: disjoint real outcomes and an
-explicit shared-digest dependency with one integration owner. Admit five, then
+Admit only a bounded two-session canary first: two currently red real programs
+with disjoint, eligible implementation and test ownership. Declare a dependency
+and exact handoff only when the actual producer/consumer or shared-file closure
+requires it; independent assignments use an empty dependency list. Required
+digest and golden updates remain part of the actual ownership review. Admit five, then
 ten only after every outcome in the prior stage satisfies that same contract
 without user rescue. Keep independent executors' build slots independent and
 shared publication serialized. Simulate fault cases in tests, never by disrupting
