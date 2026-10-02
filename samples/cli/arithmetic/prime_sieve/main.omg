@@ -34,12 +34,12 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("prime_sieve: sieve of Eratosthenes printing the primes below 50");
-    self.line = "                                                ";
-    self.pos = 0;
-    self.i = 2;
-    transition { _ -> outer(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("prime_sieve: sieve of Eratosthenes printing the primes below 50");
+    main.line = "                                                ";
+    main.pos = 0;
+    main.i = 2;
+    transition { _ -> outer(main) }
 
     state outer(main: &mut Main) {
         transition main.i >= 2 && main.i < 50 { true -> read_marked(main) _ -> write_out(main) }

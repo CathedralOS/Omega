@@ -39,12 +39,12 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("mandelbrot: escape-time fractal rendered as 64x28 ASCII");
-    self.palette = " .:-=+*#";
-    self.row = "................................................................";
-    self.y = 0;
-    transition { _ -> row_loop(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("mandelbrot: escape-time fractal rendered as 64x28 ASCII");
+    main.palette = " .:-=+*#";
+    main.row = "................................................................";
+    main.y = 0;
+    transition { _ -> row_loop(main) }
 
     state row_loop(main: &mut Main) {
         transition main.y < 28 { true -> col_init(main) _ -> done(main) }
