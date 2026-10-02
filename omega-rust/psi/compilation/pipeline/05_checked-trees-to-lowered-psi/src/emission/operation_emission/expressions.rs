@@ -360,7 +360,6 @@ pub(crate) fn emit_element_length(
 /// Runtime selectors use the same per-operation namespace across primitive and
 /// byte-field observations. A field length and its read may share selectors,
 /// but each operation owns its own independently reconstructed bounds.
-
 fn selector_obligation(operation: u64, ordinal: usize) -> semantic_vocabulary::ObligationId {
     assert!(
         ordinal < TERMINAL_NESTED_SELECTOR_LIMIT,
