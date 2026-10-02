@@ -233,6 +233,9 @@ pub(super) fn validate_current_ownership_cfg(
                     StructuralMultiplicity::Affine,
                 )?;
             }
+            // Literal views refer to immutable image storage. Their exact
+            // establishment must dominate each use, but creates no disposal
+            // debt in this activation (including a re-entered block).
             if let O::ReturnStructural {
                 trivial_affine_locals,
                 ..
@@ -646,21 +649,7 @@ pub(super) fn validate_current_ownership_cfg(
                     let unrestricted_result = function.result.structural().is_some_and(|result| {
                         result.multiplicity == StructuralMultiplicity::Unrestricted
                     });
-                    // A byte-sequence literal's descriptor borrows immutable
-                    // backing: the establishment is pinned ahead of its uses,
-                    // so it is a plain copy payload with no owned custody to
-                    // consume here.
-                    let literal_source = function.structural_places.iter().any(|place| {
-                        place.id == *source
-                            && matches!(
-                                place.kind,
-                                semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
-                            )
-                    });
-                    if !unrestricted_result
-                        && !literal_source
-                        && frontier.owned_places.remove(source).is_none()
-                    {
+                    if !unrestricted_result && frontier.owned_places.remove(source).is_none() {
                         return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
                             machine: function.machine,
                             block: block_id,

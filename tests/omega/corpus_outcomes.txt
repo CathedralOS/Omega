@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.15, "load1_start": 3.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 11.66, "load1_start": 11.81, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2273,6 +2273,7 @@ pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1212ms @2d8ed25
 pass/termination/stored_reference_endpoint_arrivals checked 320ms @2d8ed253669f
 pass/termination/symbolic_quotient_endpoints checked 334ms @2d8ed253669f
 pass/termination/unsigned_identity_measure_rank_range checked 300ms @2d8ed253669f
+pass/text/byte_content_store_continuation_exit checked 1157ms @381ab55e53d2+wt
 pass/text/copy_record_view_field_state_transfer_exit checked 822ms @ef2ef25a3ab8+wt
 pass/text/local_bounded_byte_indexed_write_exit checked 1159ms @251097c4c144+wt
 pass/text/local_bounded_text_case_result_loan_exit checked 662ms @ca8c127c90c5

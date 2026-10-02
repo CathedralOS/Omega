@@ -821,7 +821,7 @@ pub(crate) fn validate_structural_root_operations(
                                 };
                                 Some((
                                     structural_type,
-                                    terminal_psi::StructuralMultiplicity::Affine,
+                                    terminal_psi::StructuralMultiplicity::Unrestricted,
                                     &[][..],
                                     &[][..],
                                     BTreeSet::new(),

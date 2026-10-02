@@ -66,6 +66,9 @@ pub(super) fn apply_operation(
             place: destination,
         });
     }
+    // Quoted bytes denote immutable image storage, not an affine local.
+    // Control validation checks their establishment and availability; recording
+    // disposal debt here would manufacture an obligation at every loop entry.
     let mut consumed_places = consumed_places(walk, operation);
     consumed_places.extend(leaf_moved_place);
     if let Some(place) =

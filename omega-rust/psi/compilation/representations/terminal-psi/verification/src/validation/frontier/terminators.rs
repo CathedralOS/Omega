@@ -639,7 +639,7 @@ fn close_return_structural(
                         } if declaration.id == *source => {
                             Some(super::super::structural::result_contracts::StructuralResultSignature {
                                 structural_type,
-                                multiplicity: StructuralMultiplicity::Affine,
+                                multiplicity: StructuralMultiplicity::Unrestricted,
                                 qualifications: &[],
                                 projected_qualifications: &[],
                             })
@@ -684,28 +684,13 @@ fn close_return_structural(
                 && parameter.access == StructuralAccess::SharedBorrow
                 && parameter.qualifications.is_empty()
         });
-    // A byte-sequence literal's descriptor borrows immutable backing: its
-    // single establishment is pinned by foundation validation and control
-    // flow already checks its dominance, so it is a plain copy payload that
-    // owes no disposal at the contract edge.
-    let literal_return_source = machine.structural_places.iter().any(|place| {
-        place.id == *source && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
-    });
-    // Plain copy payloads owe no disposal. Their exact producer
-    // dominance/order is checked by control-flow validation, not
-    // by retaining a fictitious affine obligation across joins.
+    // Return availability and the exact source/result signature are checked
+    // independently. An unrestricted source owes no disposal regardless of
+    // its producer: a literal view does not become an affine owner merely
+    // because it lacks an operation-result row. Claims, partial moves and
+    // returned loans still pass their own checks.
     if frontier.owned_places.remove(source).is_none()
-        && !exact_unrestricted_parameter_return
-        && !bounded_owned_byte_return
-        && !shared_view_parameter_return
-        && !literal_return_source
-        && !super::super::scalar::array::plain_return_source(module, machine, *source)
-        && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
-            && (super::super::scalar::case::plain_return_source(module, machine, *source)
-                || super::super::structural::case::plain_return_source(module, machine, *source)
-                || super::super::record::plain_return_source(module, machine, *source)))
-        && !(plain_owned_block_return
-            && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
+        && source_signature.multiplicity != StructuralMultiplicity::Unrestricted
     {
         return Err(ModuleError::StructuralReturnSourceNotLive {
             machine: machine.id,

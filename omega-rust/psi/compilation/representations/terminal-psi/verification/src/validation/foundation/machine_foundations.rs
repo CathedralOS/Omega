@@ -3,8 +3,7 @@
 
 use super::super::structural::qualification_rosters::validate_projected_qualification_roster;
 use super::super::{
-    BTreeMap, BTreeSet, BlockId, MachineId, ModuleError, OperationKind, ServiceId,
-    StructuralAccess, StructuralDomainId, StructuralMultiplicity, StructuralPlaceDeclaration,
+    BTreeMap, BTreeSet, BlockId, ModuleError, OperationKind, ServiceId, StructuralDomainId,
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator,
 };
@@ -23,7 +22,6 @@ use terminal_psi::{ServiceDeclaration, StructuralDomainDeclaration, StructuralTy
 pub(super) fn validate_machine_foundation(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    machines: &BTreeMap<MachineId, &TerminalMachine>,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     services: &BTreeMap<ServiceId, &ServiceDeclaration>,
@@ -41,7 +39,7 @@ pub(super) fn validate_machine_foundation(
     validate_byte_sequence_literals(machine, types)?;
     validate_trivial_affine_locals(machine, types)?;
     validate_place_declarations(machine, types, domains)?;
-    validate_result_declaration(module, machine, machines, types, domains)?;
+    validate_result_declaration(machine, types, domains)?;
     validate_structural_parameters(machine)?;
     validate_service_ceiling(
         &machine.published_service_ceiling,
@@ -413,9 +411,7 @@ pub(super) fn validate_place_declarations(
 /// whose places, type, multiplicity, qualifications and claims agree with
 /// the machine's declarations and the callers that consume it.
 pub(super) fn validate_result_declaration(
-    module: &TerminalModule,
     machine: &TerminalMachine,
-    machines: &BTreeMap<MachineId, &TerminalMachine>,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> Result<(), ModuleError> {
@@ -445,224 +441,10 @@ pub(super) fn validate_result_declaration(
             }
         }
         TerminalMachineResult::Structural(result) => {
-            let exact_unrestricted_payloadless_result =
-                result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && super::super::structural::result_contracts::has_empty_qualification_rosters(
-                        &result.qualifications,
-                        &result.projected_qualifications,
-                    )
-                    && !machine.blocks.is_empty()
-                    && machine.blocks.iter().all(|block| {
-                        let Terminator::ReturnStructural {
-                            source,
-                            returned_claims,
-                            ..
-                        } = &block.terminator
-                        else {
-                            return true;
-                        };
-                        if !returned_claims.is_empty() {
-                            return false;
-                        }
-                        if let Some(StructuralPlaceDeclaration {
-                            kind: StructuralPlaceKind::Parameter { position, is_self },
-                            ..
-                        }) = machine
-                            .structural_places
-                            .iter()
-                            .find(|place| place.id == *source)
-                        {
-                            if matches!(machine.structural_parameters.as_slice(), [parameter]
-                                if parameter.place == *source
-                                    && parameter.position == *position
-                                    && parameter.is_self == *is_self
-                                    && !parameter.is_self
-                                    && parameter.structural_type == result.structural_type
-                                    && parameter.multiplicity
-                                        == StructuralMultiplicity::Unrestricted
-                                    && parameter.access == StructuralAccess::Owned
-                                    && parameter.qualifications.is_empty())
-                            {
-                                return true;
-                            }
-                            // A shared-borrowed view parameter (`&'a [T]`/`&'a V`)
-                            // loans its storage straight through as the result —
-                            // nothing is consumed, so sibling shared parameters
-                            // may ride alongside it.
-                            return machine.structural_parameters.iter().any(|parameter| {
-                                parameter.place == *source
-                                    && parameter.position == *position
-                                    && parameter.is_self == *is_self
-                                    && !parameter.is_self
-                                    && parameter.structural_type == result.structural_type
-                                    && parameter.multiplicity == result.multiplicity
-                                    && parameter.access
-                                        == StructuralAccess::SharedBorrow
-                                    && parameter.qualifications.is_empty()
-                                    && super::super::structural::result_contracts::borrowed_view_shape(
-                                        module,
-                                        result.structural_type,
-                                    )
-                            });
-                        }
-                        let Some(StructuralPlaceDeclaration {
-                            kind:
-                                StructuralPlaceKind::OperationResult {
-                                    producer,
-                                    structural_type,
-                                },
-                            ..
-                        }) = machine
-                            .structural_places
-                            .iter()
-                            .find(|place| place.id == *source)
-                        else {
-                            return false;
-                        };
-                        if *structural_type != result.structural_type {
-                            return false;
-                        }
-                        machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.operations)
-                            .find(|operation| operation.id == *producer)
-                            .is_some_and(|operation| {
-                                (matches!(
-                                    &operation.kind,
-                                    OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty()
-                                ) || super::super::structural::operations::exact_payloadless_structural_call(
-                                    module,
-                                    operation,
-                                    machines,
-                                )) && operation.result.structural().is_some_and(
-                                    |operation_result| {
-                                        operation_result.place == *source
-                                            && operation_result.structural_type
-                                                == result.structural_type
-                                            && operation_result.multiplicity
-                                                == StructuralMultiplicity::Unrestricted
-                                            && super::super::structural::result_contracts::has_empty_qualification_rosters(
-                                                &operation_result.qualifications,
-                                                &operation_result.projected_qualifications,
-                                            )
-                                            && operation_result.claims.is_empty()
-                                    },
-                                )
-                            })
-                    })
-                    && machine.blocks.iter().any(|block| {
-                        matches!(block.terminator, Terminator::ReturnStructural { .. })
-                    })
-                    && machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.operations)
-                        .all(|operation| {
-                            !matches!(
-                                operation.kind,
-                                OperationKind::Call { .. }
-                                    | OperationKind::CallUnit { .. }
-                                    | OperationKind::CallStructuralScalar { .. }
-                                    | OperationKind::CallDynamicScalar { .. }
-                                    | OperationKind::CallDynamicParameterScalar { .. }
-                                    | OperationKind::BoundaryCall { .. }
-                            ) && (!matches!(operation.kind, OperationKind::CallStructural { .. })
-                                || super::super::structural::operations::exact_payloadless_structural_call(
-                                    module,
-                                    operation,
-                                    machines,
-                                ))
-                        });
-            if result.multiplicity == StructuralMultiplicity::Unrestricted
-                && !exact_unrestricted_payloadless_result
-                && !(machine.blocks.iter().any(|block| {
-                    matches!(block.terminator, Terminator::ReturnStructural { .. })
-                }) && machine.blocks.iter().all(|block| match &block.terminator {
-                    Terminator::ReturnStructural { source, returned_claims, .. } => {
-                        returned_claims.is_empty()
-                            && super::super::structural::result_contracts::bounded_owned_byte_return_source(
-                                module, machine, *source, result,
-                            )
-                    }
-                    _ => true,
-                }))
-                && !(result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && terminal_semantics::scalar_array_leaf_shape(
-                        module.structural_types.iter(),
-                        result.structural_type,
-                    )
-                    .is_some()
-                    && machine.blocks.iter().all(|block| match &block.terminator {
-                        Terminator::ReturnStructural {
-                            source,
-                            returned_claims,
-                            ..
-                        } => {
-                            returned_claims.is_empty()
-                                && super::super::scalar::array::plain_return_source(
-                                    module, machine, *source,
-                                )
-                        }
-                        _ => true,
-                    }))
-                && !(result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && machine.blocks.iter().all(|block| match &block.terminator {
-                        Terminator::ReturnStructural {
-                            source,
-                            returned_claims,
-                            ..
-                        } => {
-                            returned_claims.is_empty()
-                                && (((super::super::scalar::case::plain_type(
-                                    module,
-                                    result.structural_type,
-                                ) || super::super::record::plain_type(
-                                    module,
-                                    result.structural_type,
-                                )) && (super::super::scalar::case::plain_return_source(
-                                    module, machine, *source,
-                                ) || super::super::record::plain_return_source(
-                                    module, machine, *source,
-                                ) || super::super::block_views::plain_owned_return_source(
-                                    module, machine, *source,
-                                )))
-                                    // A plain-owned Sum may nest structural
-                                    // payloads: `Parsed(alignment)` holds a
-                                    // record or another case. Its claim-free
-                                    // establishment or structural-call source
-                                    // is still an owned result.
-                                    || (super::super::structural::result_contracts::has_plain_owned_shape(
-                                        module,
-                                        result.structural_type,
-                                    ) && super::super::structural::case::plain_return_source(
-                                        module, machine, *source,
-                                    ))
-                                    // Completed copy records preserve inline byte
-                                    // predicates through their exact owned type.
-                                    // This does not admit new record constructors.
-                                    || (types.get(&result.structural_type).is_some_and(|declaration|
-                                        matches!(declaration.shape, StructuralTypeShape::Record { .. }))
-                                        && super::super::structural::result_contracts::has_plain_owned_shape(
-                                            module, result.structural_type,
-                                        )
-                                        && super::super::record::completed_source(module, machine, *source)
-                                            .is_some_and(|source| source.structural_type == result.structural_type
-                                                && source.multiplicity == StructuralMultiplicity::Unrestricted))
-                                    // A leaf copy is fresh owned storage by
-                                    // construction: an `Unrestricted` result
-                                    // may publish it whatever the leaf shape.
-                                    || super::super::structural::leaf_copy::copied_return_source(
-                                        machine, *source,
-                                    ))
-                        }
-                        _ => true,
-                    }))
-            {
-                return Err(ModuleError::StructuralResultMustBeOwned(machine.id));
-            }
+            // The declaration describes a result contract, not a producer
+            // family. Each return independently checks its available source,
+            // exact signature, loans, claims and remaining cleanup. Copyable
+            // results need no affine custody merely to cross this boundary.
             if !types.contains_key(&result.structural_type) {
                 return Err(ModuleError::UnknownStructuralType(result.structural_type));
             }

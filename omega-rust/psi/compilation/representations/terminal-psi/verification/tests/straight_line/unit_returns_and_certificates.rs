@@ -382,7 +382,6 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
         returned_claims: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
-    let machine_id = machine.id;
     validate_module(&module).expect("exact payloadless member validates");
 
     let mut unknown = module.clone();
@@ -417,13 +416,10 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
         Err(ModuleError::ScalarCaseRequiresSum { .. })
     ));
 
-    let mut generic_unrestricted = module.clone();
-    generic_unrestricted.machines[0].blocks[0].operations[0].kind =
+    let mut wrong_operation_result = module.clone();
+    wrong_operation_result.machines[0].blocks[0].operations[0].kind =
         OperationKind::BooleanConstant { value: true };
-    assert_eq!(
-        validate_module(&generic_unrestricted).unwrap_err(),
-        ModuleError::StructuralResultMustBeOwned(machine_id)
-    );
+    assert!(validate_module(&wrong_operation_result).is_err());
 
     let mut qualified = module;
     let OperationResult::Structural(result) =
@@ -434,10 +430,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
     result
         .qualifications
         .push(semantic_vocabulary::StructuralDomainId::new(902).unwrap());
-    assert_eq!(
-        validate_module(&qualified).unwrap_err(),
-        ModuleError::StructuralResultMustBeOwned(machine_id)
-    );
+    assert!(validate_module(&qualified).is_err());
 }
 
 #[test]

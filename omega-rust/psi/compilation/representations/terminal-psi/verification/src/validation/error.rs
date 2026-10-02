@@ -727,7 +727,6 @@ pub enum ModuleError {
         operation: OperationId,
         place: PlaceId,
     },
-    StructuralResultMustBeOwned(MachineId),
     StructuralResultPlaceMismatch {
         machine: MachineId,
         place: PlaceId,
