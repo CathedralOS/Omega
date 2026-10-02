@@ -30,8 +30,7 @@ use std::collections::BTreeMap;
 
 use semantic_vocabulary::ScalarTerm;
 use terminal_psi::{
-    BoundaryMachineDeclaration, BoundaryMachineResult, StructuralMultiplicity, TerminalMachine,
-    TerminalMachineResult,
+    BoundaryMachineDeclaration, BoundaryMachineResult, TerminalMachine, TerminalMachineResult,
 };
 
 use crate::verification::substitute_proposition_values;
@@ -113,14 +112,10 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
             // qualifications and may not declare a domain the boundary does
             // not promise.
             required.structural_type == actual.structural_type
-                // A boundary route mints caller claims only at Linear custody
-                // (the boundary-call admissibility rule); Affine stays the
-                // claim-free provider result. Unrestricted stays out of the
-                // installed lane until its non-affine custody is modeled.
-                && matches!(
-                    required.multiplicity,
-                    StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
-                )
+                // The existing result declarations own copy, affine and
+                // linear custody. Installation must preserve their exact
+                // multiplicity; it neither mints claims nor changes payload
+                // representation merely because a provider was selected.
                 && actual.multiplicity == required.multiplicity
                 && actual
                     .qualifications
