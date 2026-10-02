@@ -472,6 +472,33 @@ fn check_successor(
             }
             continue;
         }
+        let owned_shape = if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
+            let parameter = function
+                .blocks
+                .iter()
+                .find(|block| block.id == source.target)
+                .ok_or(SelectedInstructionError::custody())?
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == semantic.parameter)
+                .ok_or(SelectedInstructionError::custody())?;
+            Some(
+                crate::selection::aggregate_result_input::block_parameter_shape(
+                    function, parameter,
+                )
+                .ok_or(SelectedInstructionError::custody())?,
+            )
+        } else {
+            None
+        };
+        if owned_shape.is_some_and(|shape| shape.byte_size == 0) {
+            if actual.semantic != *semantic
+                || actual.transport != selected_instructions::SelectedStructuralTransport::Unused
+            {
+                return Err(SelectedInstructionError::custody());
+            }
+            continue;
+        }
         let pointer = replay
             .transport
             .pointers
@@ -483,20 +510,7 @@ fn check_successor(
             block: source.target,
             place: semantic.parameter,
         };
-        let expected = if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
-            let parameter = function
-                .blocks
-                .iter()
-                .find(|block| block.id == source.target)
-                .ok_or(SelectedInstructionError::custody())?
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == semantic.parameter)
-                .ok_or(SelectedInstructionError::custody())?;
-            let shape = crate::selection::aggregate_result_input::block_parameter_shape(
-                function, parameter,
-            )
-            .ok_or(SelectedInstructionError::custody())?;
+        let expected = if let Some(shape) = owned_shape {
             selected_instructions::SelectedStructuralTransport::WholeValue {
                 argument: pointer,
                 destination,
