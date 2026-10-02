@@ -86,8 +86,7 @@ pub(crate) struct Evaluation {
     /// Other callers retain the ordinary dense source-prefix mapping.
     pub scalar_bindings: Option<crate::expression_preparation::bindings::ScalarBindings>,
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
-    pub structural_fields:
-        Vec<crate::expression_preparation::bindings::StructuralScalarFieldBinding>,
+    pub structural_fields: crate::expression_preparation::bindings::StructuralFieldBindings,
     pub structural_cases:
         Vec<crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding>,
     /// The enclosing signature's erased scalar formals, for `ErasedParameter`
@@ -411,6 +410,12 @@ impl Evaluation {
                     )?,
                 );
             }
+            self.structural_fields.register_local(
+                local.symbol,
+                produced.place(),
+                produced.structural_type(),
+                structural_types,
+            );
             self.structural_locals.push(
                 crate::expression_preparation::bindings::StructuralLocalBinding {
                     symbol: local.symbol,
@@ -752,7 +757,7 @@ impl Evaluation {
             byte_record_loans: std::sync::Arc::from([]),
             primitive_storage: Vec::new(),
             scalar_bindings: None,
-            structural_fields: Vec::new(),
+            structural_fields: Default::default(),
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),

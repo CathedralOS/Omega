@@ -470,7 +470,7 @@ fn plan_assignment(
     // installs a stored loan, so the value must outlive the destination
     // root: a quoted literal's image storage does (structural_access.md,
     // `StructuralByteViewFieldStore`). Other views decline below.
-    if static_carrier && is_shared_view_field(program, field.type_reference) {
+    if is_shared_view_field(program, field.type_reference) {
         return view_field_store::literal_store(
             program,
             &destination,

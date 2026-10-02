@@ -21,6 +21,10 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ProjectionStep {
     Static(StructuralPathSegment),
+    /// A literal still needs a runtime bound when selecting a dynamic view.
+    RuntimeIndexLiteral {
+        index: u64,
+    },
     AssignmentIndex {
         depth: u32,
     },
@@ -79,6 +83,7 @@ pub(crate) fn static_segments(
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
             ProjectionStep::AssignmentIndex { .. }
+            | ProjectionStep::RuntimeIndexLiteral { .. }
             | ProjectionStep::RuntimeIndexParameter { .. }
             | ProjectionStep::RuntimeIndexLocal { .. }
             | ProjectionStep::RuntimeIndexField(_) => {
@@ -143,6 +148,21 @@ pub(crate) fn evaluate_selectors(
                 };
                 (index.id, index.scalar_type)
             }
+            ProjectionStep::RuntimeIndexLiteral { index } => {
+                let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
+                    checked_trees::types::PrimitiveType::U64,
+                )?;
+                let value = super::emit_direct_expression(
+                    &LoweredDirectExpression::IntegerLiteral {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
+                        scalar_type,
+                    },
+                    values,
+                    next_value,
+                    operations,
+                );
+                (value, scalar_type)
+            }
             ProjectionStep::RuntimeIndexField(field) => {
                 let (source, path, field, scalar_type) =
                     crate::expression_preparation::bindings::structural_fields::resolve_typed(
@@ -195,6 +215,7 @@ pub(crate) fn complete_path(
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
             ProjectionStep::AssignmentIndex { .. }
+            | ProjectionStep::RuntimeIndexLiteral { .. }
             | ProjectionStep::RuntimeIndexParameter { .. }
             | ProjectionStep::RuntimeIndexLocal { .. }
             | ProjectionStep::RuntimeIndexField(_) => Ok(StructuralPathSegment::RuntimeIndex {

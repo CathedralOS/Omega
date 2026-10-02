@@ -61,7 +61,10 @@ pub(crate) enum LoweredElementPathSegment {
     /// A statically spelled path step.
     Static(terminal_psi::StructuralPathSegment),
     /// A runtime selector emitted with its own `index < extent` obligation.
-    RuntimeIndex(LoweredDirectExpression),
+    RuntimeIndex {
+        selector: LoweredDirectExpression,
+        extent: Option<LoweredDirectExpression>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,7 +86,7 @@ pub(crate) enum LoweredDirectExpression {
     },
     ByteSequenceFieldLength {
         source: PlaceId,
-        path: Vec<terminal_psi::StructuralPathSegment>,
+        path: Vec<LoweredElementPathSegment>,
         field: StructuralFieldId,
         scalar_type: ScalarType,
     },
@@ -94,7 +97,7 @@ pub(crate) enum LoweredDirectExpression {
     },
     ByteSequenceFieldRead {
         source: PlaceId,
-        path: Vec<terminal_psi::StructuralPathSegment>,
+        path: Vec<LoweredElementPathSegment>,
         field: StructuralFieldId,
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
@@ -354,6 +357,68 @@ pub(crate) fn emit_element_length(
     value
 }
 
+/// Runtime selectors use the same per-operation namespace across primitive and
+/// byte-field observations. A field length and its read may share selectors,
+/// but each operation owns its own independently reconstructed bounds.
+fn selector_obligation(operation: u64, ordinal: usize) -> semantic_vocabulary::ObligationId {
+    assert!(
+        ordinal < TERMINAL_NESTED_SELECTOR_LIMIT,
+        "preparation bounds the nested selector count"
+    );
+    obligation_id(
+        operation
+            .checked_mul(TERMINAL_NESTED_SELECTOR_STRIDE)
+            .and_then(|offset| offset.checked_add(TERMINAL_NESTED_SELECTOR_OBLIGATION_BASE))
+            .and_then(|base| base.checked_add(ordinal as u64 + 1))
+            .expect("nested selector obligations fit their reserved namespace"),
+    )
+}
+
+fn emit_prepared_path(
+    path: &[LoweredElementPathSegment],
+    first_ordinal: usize,
+    parameters: &[ValueDeclaration],
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Vec<terminal_psi::StructuralPathSegment> {
+    let mut ordinal = first_ordinal;
+    path.iter()
+        .map(|segment| match segment {
+            LoweredElementPathSegment::Static(segment) => segment.clone(),
+            LoweredElementPathSegment::RuntimeIndex { selector, extent } => {
+                let index =
+                    emit_direct_expression(selector, parameters, next_value_identity, operations);
+                if let Some(extent) = extent {
+                    emit_direct_expression(extent, parameters, next_value_identity, operations);
+                }
+                let obligation = selector_obligation(operations.next_identity, ordinal);
+                ordinal += 1;
+                terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation }
+            }
+        })
+        .collect()
+}
+
+fn path_with_current_bounds(
+    path: &[terminal_psi::StructuralPathSegment],
+    operation: u64,
+) -> Vec<terminal_psi::StructuralPathSegment> {
+    let mut ordinal = 0;
+    path.iter()
+        .map(|segment| match segment {
+            terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. } => {
+                let obligation = selector_obligation(operation, ordinal);
+                ordinal += 1;
+                terminal_psi::StructuralPathSegment::RuntimeIndex {
+                    index: *index,
+                    obligation,
+                }
+            }
+            segment => segment.clone(),
+        })
+        .collect()
+}
+
 pub(crate) fn emit_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[ValueDeclaration],
@@ -447,6 +512,8 @@ pub(crate) fn emit_direct_expression(
             field,
             scalar_type,
         } => {
+            let path = emit_prepared_path(path, 0, parameters, next_value_identity, operations);
+            let path = path_with_current_bounds(&path, operations.next_identity);
             // Field length is live storage metadata, not a whole-view extent.
             // Emit at this occurrence; replacement and calls can change it.
             // Record the observation so an indexed read on the same field
@@ -506,6 +573,9 @@ pub(crate) fn emit_direct_expression(
             index,
             scalar_type,
         } => {
+            // Evaluate the carrier before the byte selector, once each. Length
+            // and read share these exact SSA selectors, not replayed expressions.
+            let path = emit_prepared_path(path, 0, parameters, next_value_identity, operations);
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             // A bound proven against an earlier field `.len` observation
             // only discharges this read when the operand names that same
@@ -516,13 +586,13 @@ pub(crate) fn emit_direct_expression(
                 .iter()
                 .rev()
                 .find_map(|(place, carrier, named, value)| {
-                    (*place == *source && *carrier == *path && *named == *field).then_some(*value)
+                    (*place == *source && *carrier == path && *named == *field).then_some(*value)
                 })
                 .unwrap_or_else(|| {
                     emit_scalar_leaf(
                         OperationKind::StructuralByteSequenceFieldLength {
                             source: *source,
-                            path: path.clone(),
+                            path: path_with_current_bounds(&path, operations.next_identity),
                             field: *field,
                         },
                         ScalarType::Integer(
@@ -541,7 +611,7 @@ pub(crate) fn emit_direct_expression(
             emit_scalar_leaf(
                 OperationKind::StructuralByteSequenceFieldRead {
                     source: *source,
-                    path: path.clone(),
+                    path: path_with_current_bounds(&path, operations.next_identity),
                     field: *field,
                     index,
                     length,
@@ -581,59 +651,16 @@ pub(crate) fn emit_direct_expression(
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             let inner_count = inner_indexes.len();
             for (ordinal, index) in inner_indexes.into_iter().enumerate() {
-                assert!(
-                    ordinal < TERMINAL_NESTED_SELECTOR_LIMIT,
-                    "preparation bounds the nested selector count"
-                );
-                let obligation = obligation_id(
-                    operations
-                        .next_identity
-                        .checked_mul(TERMINAL_NESTED_SELECTOR_STRIDE)
-                        .and_then(|offset| {
-                            offset.checked_add(TERMINAL_NESTED_SELECTOR_OBLIGATION_BASE)
-                        })
-                        .and_then(|base| base.checked_add(ordinal as u64 + 1))
-                        .expect("nested selector obligations fit their reserved namespace"),
-                );
+                let obligation = selector_obligation(operations.next_identity, ordinal);
                 path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             }
-            // Element-path runtime selectors share the nested-selector
-            // namespace, their ordinals continuing past the inner indexes.
-            let mut runtime_ordinal = inner_count;
-            for segment in element_path {
-                match segment {
-                    LoweredElementPathSegment::Static(segment) => {
-                        path.push(segment.clone());
-                    }
-                    LoweredElementPathSegment::RuntimeIndex(selector) => {
-                        assert!(
-                            runtime_ordinal < TERMINAL_NESTED_SELECTOR_LIMIT,
-                            "preparation bounds the nested selector count"
-                        );
-                        let index = emit_direct_expression(
-                            selector,
-                            parameters,
-                            next_value_identity,
-                            operations,
-                        );
-                        let obligation = obligation_id(
-                            operations
-                                .next_identity
-                                .checked_mul(TERMINAL_NESTED_SELECTOR_STRIDE)
-                                .and_then(|offset| {
-                                    offset.checked_add(TERMINAL_NESTED_SELECTOR_OBLIGATION_BASE)
-                                })
-                                .and_then(|base| base.checked_add(runtime_ordinal as u64 + 1))
-                                .expect("nested selector obligations fit their reserved namespace"),
-                        );
-                        path.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
-                            index,
-                            obligation,
-                        });
-                        runtime_ordinal += 1;
-                    }
-                }
-            }
+            path.extend(emit_prepared_path(
+                element_path,
+                inner_count,
+                parameters,
+                next_value_identity,
+                operations,
+            ));
             emit_scalar_leaf(
                 OperationKind::PrimitiveScalarRead {
                     source: *source,
@@ -968,3 +995,7 @@ pub(crate) fn emit_direct_expression(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "expressions/path_tests.rs"]
+mod path_tests;

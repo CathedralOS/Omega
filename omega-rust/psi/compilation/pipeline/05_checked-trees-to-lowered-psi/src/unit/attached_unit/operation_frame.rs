@@ -939,7 +939,57 @@ impl OperationFrame<'_, '_> {
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
             crate::emission::structural_byte_sequence_store::prepare_types(&store.value, types)?;
         }
-        let kind = crate::emission::structural_byte_sequence_store::emit(
+        if let checked_trees::CheckedByteSequenceStoreDestination::ViewField {
+            carrier_path,
+            field_identity,
+        } = &store.destination
+        {
+            let mut destination =
+                crate::emission::structural_byte_sequence_store::prepare_view_field_store(
+                    store,
+                    &root,
+                    carrier_path,
+                    field_identity,
+                    self.structural_types.declarations(),
+                )?;
+            let indexes = crate::emission::runtime_elements::evaluate_selectors(
+                &destination.steps,
+                self.checked,
+                self.machine,
+                self.state,
+                store.statement_index,
+                self.evaluation,
+                self.source_value_count,
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+                self.calls,
+            )?;
+            self.observe_store_element_extent(
+                destination.destination,
+                destination.structural_type,
+                &destination.steps,
+            )?;
+            let path = crate::emission::runtime_elements::complete_path(
+                std::mem::take(&mut destination.steps),
+                indexes,
+                self.calls,
+            )?;
+            let kind = crate::emission::structural_byte_sequence_store::emit_view_field_store(
+                store,
+                destination,
+                path,
+                self.structural_types.declarations(),
+                self.private_places.literals(),
+                self.next_place,
+                self.operations,
+            )?;
+            self.push_unit(kind);
+            return Ok(());
+        }
+        let kind = crate::emission::structural_byte_sequence_store::emit_content_store(
             store,
             root,
             &self.evaluation.structural_parameters,
@@ -1261,48 +1311,59 @@ impl OperationFrame<'_, '_> {
         if value.scalar_type != lowered.scalar_type {
             return unsupported("structural scalar store RHS differs from its field type");
         }
-        // A runtime-indexed store whose carrier is an element view owes its
-        // bound the view's own stored extent: mint the dominating
-        // `ElementViewLength` observation the `RuntimeIndex` segment's
-        // `index < length` obligation names — the same observation an
-        // element-view write carries as its `length` operand.
-        let runtime_index_through_view =
-            self.structural_types
-                .declarations()
-                .iter()
-                .any(|declaration| {
-                    declaration.id == destination_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ElementView { .. }
-                        )
-                })
-                && lowered.steps.iter().any(|step| {
-                    matches!(
-                        step,
-                        crate::emission::runtime_elements::ProjectionStep::AssignmentIndex { .. }
-                            | crate::emission::runtime_elements::ProjectionStep::RuntimeIndexParameter { .. }
-                    )
-                });
-        if runtime_index_through_view {
-            let length = crate::terminal_identities::value_id(allocate_dense(self.next_value)?);
-            let observation = self.operations.allocate();
-            self.operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: observation,
-                result: OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: length,
-                    scalar_type: terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
-                }),
-                kind: OperationKind::ElementViewLength {
-                    source: destination_place,
-                },
-            });
-        }
+        self.observe_store_element_extent(destination_place, destination_type, &lowered.steps)?;
         let kind = lowered.into_operation(destination_place, indexes, value.id, self.calls)?;
         self.push_unit(kind);
+        Ok(())
+    }
+
+    /// A descriptor's live extent owns runtime bounds through either a scalar
+    /// field store or a stored-view replacement. References keep their own
+    /// authority; following the type here only finds the extent representation.
+    fn observe_store_element_extent(
+        &mut self,
+        destination: semantic_vocabulary::PlaceId,
+        mut structural_type: StructuralTypeId,
+        steps: &[crate::emission::runtime_elements::ProjectionStep],
+    ) -> Result<(), LoweringError> {
+        use crate::emission::runtime_elements::ProjectionStep;
+        let declarations = self.structural_types.declarations();
+        if let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) = declarations
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .map(|declaration| &declaration.shape)
+        {
+            structural_type = *referent;
+        }
+        let is_view = declarations.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+        });
+        if !is_view
+            || !steps
+                .iter()
+                .any(|step| !matches!(step, ProjectionStep::Static(_)))
+        {
+            return Ok(());
+        }
+        let length = crate::terminal_identities::value_id(allocate_dense(self.next_value)?);
+        let observation = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: observation,
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: length,
+                scalar_type: terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
+            }),
+            kind: OperationKind::ElementViewLength {
+                source: destination,
+            },
+        });
         Ok(())
     }
 

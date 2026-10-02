@@ -107,7 +107,7 @@ pub(crate) fn emit_call_leaf(
         )?,
         primitive_storage: Vec::new(),
         scalar_bindings: None,
-        structural_fields: Vec::new(),
+        structural_fields: Default::default(),
         structural_cases: Vec::new(),
         structural_parameters: Vec::new(),
         erased_scalar_formals: erased_parameters.to_vec(),

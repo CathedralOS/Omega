@@ -30,6 +30,76 @@ pub(crate) struct StructuralScalarFieldBinding {
     case_payloads: CasePayloadAccess,
 }
 
+/// Observation roots share one declaration catalog, including when the machine
+/// has no structural parameters. A later local observation must not depend on
+/// an unrelated formal supplying its type declarations.
+#[derive(Clone, Default)]
+pub(crate) struct StructuralFieldBindings {
+    roots: Vec<StructuralScalarFieldBinding>,
+    locals: Vec<(symbols::SymbolHandle, PlaceId, StructuralTypeId)>,
+    declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
+}
+
+impl std::ops::Deref for StructuralFieldBindings {
+    type Target = [StructuralScalarFieldBinding];
+    fn deref(&self) -> &Self::Target {
+        &self.roots
+    }
+}
+impl std::ops::DerefMut for StructuralFieldBindings {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.roots
+    }
+}
+
+impl StructuralFieldBindings {
+    pub(crate) fn register_local(
+        &mut self,
+        symbol: symbols::SymbolHandle,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        declarations: &[StructuralTypeDeclaration],
+    ) {
+        if !self
+            .declarations
+            .iter()
+            .any(|row| row.id == structural_type)
+        {
+            self.declarations = declarations.into();
+        }
+        self.locals.push((symbol, place, structural_type));
+    }
+
+    pub(crate) fn observation_source(
+        &self,
+        root: checked_trees::CheckedStorageRoot,
+    ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
+        let candidates: Vec<_> = match root {
+            checked_trees::CheckedStorageRoot::Parameter { index } => self
+                .roots
+                .iter()
+                .filter(|binding| binding.source_position == index)
+                .map(|binding| (binding.source, binding.structural_type))
+                .collect(),
+            checked_trees::CheckedStorageRoot::ViewLocal { symbol }
+            | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => self
+                .locals
+                .iter()
+                .filter(|(candidate, _, _)| *candidate == symbol)
+                .map(|(_, place, structural_type)| (*place, *structural_type))
+                .collect(),
+        };
+        match candidates.as_slice() {
+            [source] => Ok(*source),
+            _ => unsupported("field observation lost its unique established root"),
+        }
+    }
+
+    pub(crate) fn declarations(&self) -> &[StructuralTypeDeclaration] {
+        &self.declarations
+    }
+}
+
 /// Whether a read through a case segment may observe this root's payload.
 ///
 /// A whole root's payload is read as a parameter of the block its
@@ -121,7 +191,7 @@ impl StructuralScalarFieldBinding {
     pub(crate) fn collect(
         parameters: &[(u32, StructuralParameterDeclaration)],
         types: &[StructuralTypeDeclaration],
-    ) -> Vec<Self> {
+    ) -> StructuralFieldBindings {
         // Share declarations between roots and resolve only observed paths. A
         // recursive leaf inventory would expand unused nested record contents.
         let declarations: std::sync::Arc<[StructuralTypeDeclaration]> = types.into();
@@ -143,7 +213,11 @@ impl StructuralScalarFieldBinding {
                 case_payloads: CasePayloadAccess::Unavailable,
             });
         }
-        bindings
+        StructuralFieldBindings {
+            roots: bindings,
+            locals: Vec::new(),
+            declarations,
+        }
     }
 }
 
@@ -551,27 +625,19 @@ pub(crate) fn plan_case_payload_leaf(
     })
 }
 
-pub(crate) fn resolve_byte_length(
-    fields: &[StructuralScalarFieldBinding],
-    position: u32,
+pub(crate) fn resolve_byte_projection(
+    source: PlaceId,
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<
-    (
+    Option<(
         PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
+        Vec<crate::emission::runtime_elements::ProjectionStep>,
         StructuralFieldId,
-    ),
+    )>,
     LoweringError,
 > {
-    let mut matching = fields
-        .iter()
-        .filter(|field| field.source_position == position);
-    let binding = matching.next().ok_or(LoweringError::Unsupported(
-        "byte field length has no readable binding",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("byte field length has ambiguous bindings");
-    }
     let Some((checked_trees::CheckedStructuralPredicatePathSegment::Field(identity), carrier)) =
         path.split_last()
     else {
@@ -586,14 +652,17 @@ pub(crate) fn resolve_byte_length(
             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
                 Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
             }
+            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => Ok(
+                CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone()),
+            ),
             _ => unsupported("byte field length has an unsupported case path"),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
-        binding.structural_type,
+    let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_steps(
+        structural_type,
         &carrier,
         identity,
-        &binding.declarations,
+        declarations,
     )?;
     // Raw fixed arrays have static capacity, not live metadata; a borrowed
     // view leaf carries its extent on the view descriptor instead. The
@@ -610,7 +679,7 @@ pub(crate) fn resolve_byte_length(
                 | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
             ..
         } => true,
-        StructuralFieldType::Structural(view) => binding.declarations.iter().any(|declaration| {
+        StructuralFieldType::Structural(view) => declarations.iter().any(|declaration| {
             declaration.id == view
                 && matches!(
                     declaration.shape,
@@ -620,9 +689,9 @@ pub(crate) fn resolve_byte_length(
         _ => false,
     };
     if !leaf_is_view {
-        return unsupported("field view length requires a view-carried field leaf");
+        return Ok(None);
     }
-    Ok((binding.source, path, field.id))
+    Ok(Some((source, path, field.id)))
 }
 
 /// Resolve an indexed read that lands on a fixed-array record field: the path

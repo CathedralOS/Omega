@@ -610,7 +610,7 @@ pub(crate) fn literal_view_type(
     Ok(id)
 }
 
-pub(crate) fn emit(
+pub(crate) fn emit_content_store(
     store: &checked_trees::CheckedByteSequenceStorePlan,
     root: StoreRoot<'_>,
     parameters: &[(u32, StructuralParameterDeclaration)],
@@ -626,22 +626,6 @@ pub(crate) fn emit(
         StoreRoot::Parameter(parameter) => parameter.place,
         StoreRoot::Reference { place, .. } | StoreRoot::Owned { place, .. } => *place,
     };
-    if let Destination::ViewField {
-        carrier_path,
-        field_identity,
-    } = &store.destination
-    {
-        return emit_view_field_store(
-            store,
-            &root,
-            carrier_path,
-            field_identity,
-            structural_types,
-            literal_places,
-            next_place,
-            operations,
-        );
-    }
     let field_destination = match &store.destination {
         Destination::Whole => {
             let StoreRoot::Parameter(parameter) = &root else {
@@ -829,29 +813,28 @@ pub(crate) fn emit(
     }
 }
 
-/// Replace one shared borrowed-view field's descriptor with a literal's view
-/// of image storage. The literal is established at the store, without a
-/// qualification roster: Terminal replays the field's predicates from the
-/// octets. No bytes are copied, so no length observation or capacity
-/// obligation accompanies the store.
-#[allow(clippy::too_many_arguments)]
-fn emit_view_field_store(
+/// The destination of a descriptor replacement, before the ordered frame
+/// evaluates its selectors. Runtime elements retain the same bounds as any
+/// other structural field store.
+pub(crate) struct ViewFieldStore {
+    pub(crate) destination: semantic_vocabulary::PlaceId,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) steps: Vec<crate::emission::runtime_elements::ProjectionStep>,
+    field: semantic_vocabulary::StructuralFieldId,
+}
+
+pub(crate) fn prepare_view_field_store(
     store: &checked_trees::CheckedByteSequenceStorePlan,
     root: &StoreRoot<'_>,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &str,
     structural_types: &[StructuralTypeDeclaration],
-    literal_places: &mut Vec<StructuralPlaceDeclaration>,
-    next_place: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<OperationKind, LoweringError> {
-    let ByteValue::Literal(bytes) = store.value.nodes.get(store.value.root) else {
-        return unsupported("view-field store source is not a literal");
-    };
-    let (destination, (path, field)) = match root {
+) -> Result<ViewFieldStore, LoweringError> {
+    let (destination, structural_type, (steps, field)) = match root {
         StoreRoot::Parameter(parameter) => (
             parameter.place,
-            crate::emission::structural_scalar_store::lower_structural_field_place(
+            parameter.structural_type,
+            crate::emission::structural_scalar_store::lower_structural_field_place_steps(
                 store.statement_index,
                 store.statement_index,
                 parameter.position,
@@ -865,35 +848,20 @@ fn emit_view_field_store(
         StoreRoot::Reference {
             place,
             structural_type,
-        } => {
-            if !structural_types.iter().any(|declaration| {
-                declaration.id == *structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::Reference {
-                            access: terminal_psi::StructuralAccess::MutableBorrow,
-                            ..
-                        }
-                    )
-            }) {
-                return unsupported("view-field local destination lost mutable reference custody");
-            }
-            (
-                *place,
-                crate::emission::structural_scalar_store::lower_structural_field_path(
-                    *structural_type,
-                    carrier_path,
-                    field_identity,
-                    structural_types,
-                )?,
-            )
         }
-        // An owned local root has no exclusive loan whose referent the
-        // literal's image backing is checked to outlive, so the store stays
-        // parameter- and reference-rooted.
-        StoreRoot::Owned { .. } => {
-            return unsupported("view-field store into an owned local root");
-        }
+        | StoreRoot::Owned {
+            place,
+            structural_type,
+        } => (
+            *place,
+            *structural_type,
+            crate::emission::structural_scalar_store::lower_structural_field_steps(
+                *structural_type,
+                carrier_path,
+                field_identity,
+                structural_types,
+            )?,
+        ),
     };
     if field.field_type.byte_sequence_carrier()
         != Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -902,6 +870,29 @@ fn emit_view_field_store(
     {
         return unsupported("view-field store destination is not a shared view field");
     }
+    Ok(ViewFieldStore {
+        destination,
+        structural_type,
+        steps,
+        field: field.id,
+    })
+}
+
+/// Establish the literal only after the destination's selectors complete.
+/// Terminal replays its predicates from the octets; descriptor replacement
+/// neither copies bytes nor substitutes a capacity fact for index bounds.
+pub(crate) fn emit_view_field_store(
+    store: &checked_trees::CheckedByteSequenceStorePlan,
+    destination: ViewFieldStore,
+    path: Vec<terminal_psi::StructuralPathSegment>,
+    structural_types: &[StructuralTypeDeclaration],
+    literal_places: &mut Vec<StructuralPlaceDeclaration>,
+    next_place: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<OperationKind, LoweringError> {
+    let ByteValue::Literal(bytes) = store.value.nodes.get(store.value.root) else {
+        return unsupported("view-field store source is not a literal");
+    };
     let source = place_id(allocate_dense(next_place)?);
     literal_places.push(StructuralPlaceDeclaration {
         id: source,
@@ -922,11 +913,11 @@ fn emit_view_field_store(
             qualifications: Vec::new(),
         },
     });
-    operations.invalidate_field_lengths_under(destination, &path);
+    operations.invalidate_field_lengths_under(destination.destination, &path);
     Ok(OperationKind::StructuralByteViewFieldStore {
-        destination,
+        destination: destination.destination,
         path,
-        field: field.id,
+        field: destination.field,
         source,
     })
 }

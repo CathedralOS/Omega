@@ -79,7 +79,7 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
     let expression = lower_checked_scalar_expression_with_parameters(
         expression,
         structural_parameters,
-        &[],
+        &Default::default(),
         &[],
         &[],
         &std::collections::BTreeMap::new(),
@@ -175,7 +175,7 @@ fn owned_local_observation(
 pub(crate) fn lower_checked_scalar_expression_with_parameters(
     expression: &CheckedScalarExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
-    structural_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+    structural_fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
     structural_cases: &[crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding],
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
@@ -186,24 +186,23 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
             let count_type = terminal_scalar_type(PrimitiveType::U64)?;
+            if !path.is_empty() {
+                let (source, path, field) =
+                    byte_field_observation(structural_fields, scalar_bindings, *root, path)?
+                        .ok_or(LoweringError::Unsupported(
+                            "field length requires a live byte or element descriptor",
+                        ))?;
+                return Ok(LoweredDirectExpression::ByteSequenceFieldLength {
+                    source,
+                    path,
+                    field,
+                    scalar_type: count_type,
+                });
+            }
             let (source, carrier) = match *root {
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 } => {
-                    if !path.is_empty() {
-                        let (source, path, field) =
-                            crate::expression_preparation::bindings::structural_fields::resolve_byte_length(
-                                structural_fields,
-                                parameter_position,
-                                path,
-                            )?;
-                        return Ok(LoweredDirectExpression::ByteSequenceFieldLength {
-                            source,
-                            path,
-                            field,
-                            scalar_type: count_type,
-                        });
-                    }
                     let parameter =
                         view_observation_parameter(parameter_position, structural_parameters)?;
                     (
@@ -551,6 +550,36 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             {
                 return Ok(observation);
             }
+            if matches!(
+                path.last(),
+                Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                    _
+                ))
+            ) && inner_indexes.is_empty()
+                && element_path.is_empty()
+                && *primitive_type == PrimitiveType::U8
+                && let Some((source, path, field)) =
+                    byte_field_observation(structural_fields, scalar_bindings, *root, path)?
+            {
+                let index = lower_checked_scalar_expression_with_parameters(
+                    index,
+                    structural_parameters,
+                    structural_fields,
+                    structural_cases,
+                    primitive_storage,
+                    element_views,
+                    view_locals,
+                    structural_locals,
+                    scalar_bindings,
+                )?;
+                return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
+                    source,
+                    path,
+                    field,
+                    index: Box::new(exact_u64_index(index)?),
+                    scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+                });
+            }
             // Nested selectors read a structural parameter or its static
             // projection; every selector keeps its own
             // `RuntimeIndex` segment and obligation.
@@ -781,13 +810,14 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 let segment = match segment {
                                     checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
                                         index,
-                                    ) => LoweredElementPathSegment::RuntimeIndex(
-                                        exact_u64_index(element_path_runtime_selector(
+                                    ) => LoweredElementPathSegment::RuntimeIndex {
+                                        selector: exact_u64_index(element_path_runtime_selector(
                                             structural_fields,
                                             scalar_bindings,
                                             &index,
                                         )?)?,
-                                    ),
+                                        extent: None,
+                                    },
                                     checked_trees::CheckedUnitStructuralPathSegment::Field(
                                         identity,
                                     ) => LoweredElementPathSegment::Static(
@@ -887,26 +917,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 scalar_type: element_scalar,
                             });
                         }
-                        // An indexed read landing on a byte-sequence record
-                        // field borrows the field's own dominating length
-                        // observation, so bounded-owned and borrowed-view
-                        // carriers share one read.
-                        if *primitive_type != PrimitiveType::U8 {
-                            return unsupported("indexed field reads require a u8 element");
-                        }
-                        let (source, path, field) =
-                            crate::expression_preparation::bindings::structural_fields::resolve_byte_length(
-                                structural_fields,
-                                parameter_position,
-                                path,
-                            )?;
-                        return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
-                            source,
-                            path,
-                            field,
-                            index: Box::new(index),
-                            scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
-                        });
+                        return unsupported("indexed field read has no scalar collection carrier");
                     }
                     let parameter =
                         view_observation_parameter(parameter_position, structural_parameters)?;
@@ -1154,7 +1165,7 @@ pub(crate) fn lower_checked_boolean_expression(
 fn lower_checked_boolean_expression_with_parameters(
     expression: &CheckedBooleanExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
-    structural_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+    structural_fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
     structural_cases: &[crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding],
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
@@ -1404,6 +1415,104 @@ fn lower_checked_boolean_expression_with_parameters(
     })
 }
 
+fn byte_field_observation(
+    fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
+    bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
+    root: checked_trees::CheckedStorageRoot,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<
+    Option<(
+        PlaceId,
+        Vec<LoweredElementPathSegment>,
+        semantic_vocabulary::StructuralFieldId,
+    )>,
+    LoweringError,
+> {
+    use crate::emission::runtime_elements::ProjectionStep;
+    let (source, structural_type) = fields.observation_source(root)?;
+    let Some((source, steps, field)) =
+        crate::expression_preparation::bindings::structural_fields::resolve_byte_projection(
+            source,
+            structural_type,
+            fields.declarations(),
+            path,
+        )?
+    else {
+        return Ok(None);
+    };
+    let view_prefix = fields
+        .declarations()
+        .iter()
+        .find(|row| row.id == structural_type)
+        .and_then(|row| match row.shape {
+            terminal_psi::StructuralTypeShape::ElementView { .. } => Some(0),
+            terminal_psi::StructuralTypeShape::Reference { referent, .. }
+                if fields.declarations().iter().any(|row| {
+                    row.id == referent
+                        && matches!(
+                            row.shape,
+                            terminal_psi::StructuralTypeShape::ElementView { .. }
+                        )
+                }) =>
+            {
+                Some(1)
+            }
+            _ => None,
+        });
+    let path = steps
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, step)| {
+            let selector = match step {
+                ProjectionStep::Static(segment) => {
+                    return Ok(LoweredElementPathSegment::Static(segment));
+                }
+                ProjectionStep::RuntimeIndexLiteral { index } => {
+                    LoweredDirectExpression::IntegerLiteral {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(index)),
+                        scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                    }
+                }
+                step => {
+                    let selector = match step {
+                        ProjectionStep::RuntimeIndexParameter { position } => {
+                            checked_trees::CheckedRuntimeIndex::Parameter { position }
+                        }
+                        ProjectionStep::RuntimeIndexLocal { position } => {
+                            checked_trees::CheckedRuntimeIndex::Local { position }
+                        }
+                        ProjectionStep::RuntimeIndexField(field) => {
+                            checked_trees::CheckedRuntimeIndex::StructuralField(field)
+                        }
+                        _ => {
+                            return unsupported(
+                                "field observation cannot borrow an assignment selector",
+                            );
+                        }
+                    };
+                    exact_u64_index(element_path_runtime_selector(fields, bindings, &selector)?)?
+                }
+            };
+            let extent = (view_prefix == Some(ordinal)).then(|| {
+                LoweredDirectExpression::ElementViewLength {
+                    source,
+                    scalar_type: selector.scalar_type(),
+                }
+            });
+            Ok(LoweredElementPathSegment::RuntimeIndex { selector, extent })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    if path
+        .iter()
+        .filter(|segment| matches!(segment, LoweredElementPathSegment::RuntimeIndex { .. }))
+        .count()
+        > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
+    {
+        return unsupported("field observation exceeds the runtime selector namespace");
+    }
+    Ok(Some((source, path, field)))
+}
+
 /// Terminal element reads take a `u64` position. Any integer carrier may index
 /// once its bounds are proven: a narrower unsigned index widens totally, and a
 /// signed index lands through an exact cast whose Terminal obligation proves it
@@ -1413,7 +1522,7 @@ fn lower_checked_boolean_expression_with_parameters(
 /// carrier path's `CheckedRuntimeIndex` spells. Parameter selectors resolve
 /// through the typed authored namespace before emission.
 fn element_path_runtime_selector(
-    structural_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+    structural_fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
     scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
     index: &checked_trees::CheckedRuntimeIndex,
 ) -> Result<LoweredDirectExpression, LoweringError> {
@@ -1423,6 +1532,11 @@ fn element_path_runtime_selector(
                 "element selector has no typed scalar namespace",
             ))?
             .runtime_index_parameter(*position),
+        checked_trees::CheckedRuntimeIndex::Local { position } => scalar_bindings
+            .ok_or(LoweringError::Unsupported(
+                "element selector has no typed scalar namespace",
+            ))?
+            .runtime_index_local(*position),
         checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
             let (source, path, field, scalar_type) =
                 crate::expression_preparation::bindings::structural_fields::resolve_typed(

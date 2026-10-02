@@ -7,10 +7,8 @@ use super::{
 };
 use crate::execution::terminal_unit::{calls, types};
 use checked_trees::{
-    CheckedStorageRoot, CheckedStructuralAccess,
-    CheckedStructuralPredicatePathSegment as Predicate, CheckedSubsliceSite,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan as Source,
-    CheckedUnitStructuralPathSegment as Path,
+    CheckedStructuralAccess, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan as Source,
 };
 
 impl Builder<'_, '_> {
@@ -41,34 +39,8 @@ impl Builder<'_, '_> {
         super::super::boolean_lowering::comparable_byte_carrier_type(self.program, target)?;
         let (machine, state) =
             crate::semantic::calls::find_state_with_machine(self.program, self.state)?;
-        let subject = if let Some((root, path, _)) =
-            super::super::boolean_lowering::comparable_byte_carrier(
-                self.program,
-                self.authored_parameters,
-                operand,
-            ) {
-            let source = match root {
-                CheckedStorageRoot::Parameter { index } => Source::Parameter {
-                    parameter_index: self.dense_structural_parameter_index(index as usize)?,
-                },
-                CheckedStorageRoot::OwnedLocal { symbol }
-                | CheckedStorageRoot::ViewLocal { symbol } => Source::StructuralLocal { symbol },
-            };
-            let path = path
-                .into_iter()
-                .map(|segment| match segment {
-                    Predicate::Field(field) => Some(Path::Field(field)),
-                    Predicate::FixedIndex(index) => Some(Path::FixedIndex(index)),
-                    Predicate::RuntimeIndex(index) => Some(Path::RuntimeIndex(index)),
-                    Predicate::Case(_) => None,
-                })
-                .collect::<Option<Vec<_>>>()?;
-            CheckedUnitStructuralArgumentPlan {
-                source,
-                path,
-                type_identity: types::byte_sequence_type_identity(self.program, target, &[], &[])?,
-                access: CheckedStructuralAccess::SharedBorrow,
-            }
+        let subject = if let Some(subject) = self.byte_comparison_place(operand, target) {
+            subject
         } else {
             let parameters = if machine.attached_data.is_some() {
                 calls::ambient_self_scalar_graph_signature(self.program, machine, state)?.0
@@ -105,5 +77,62 @@ impl Builder<'_, '_> {
                 subject,
             },
         ))
+    }
+    fn byte_comparison_place(
+        &self,
+        operand: ExpressionHandle,
+        target: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+        let (machine, state) =
+            crate::semantic::calls::find_state_with_machine(self.program, self.state)?;
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            operand,
+        )?;
+        if !validation::place_has_builtin_coordinates(self.program, machine, Some(state), operand) {
+            return None;
+        }
+        let facts::PlaceRoot::Symbol(root) =
+            crate::flow::normalized_event_place_root(self.program, place.root)
+        else {
+            return None;
+        };
+        let source = if let Some(position) = self.authored_parameters.iter().position(|parameter| {
+            (parameter.is_self && root == self.machine)
+                || crate::flow::normalized_event_place_root(
+                    self.program,
+                    facts::PlaceRoot::Symbol(parameter.symbol),
+                ) == facts::PlaceRoot::Symbol(root)
+        }) {
+            Source::Parameter {
+                parameter_index: self.dense_structural_parameter_index(position)?,
+            }
+        } else {
+            // The ordinary operation sequence owns local establishment and
+            // lifetime. Observing a projected field retains that local's
+            // identity rather than replaying its initializer as storage.
+            Source::StructuralLocal { symbol: root }
+        };
+        let (projected, path) = calls::projected_observed_path(
+            self.program,
+            self.machine,
+            self.state,
+            self.statement_index,
+            &place,
+            &|selector| self.local_selector(selector),
+        )?;
+        if self.program.normalized_type_identity(projected)
+            != self.program.normalized_type_identity(target)
+        {
+            return None;
+        }
+        Some(CheckedUnitStructuralArgumentPlan {
+            source,
+            path,
+            type_identity: types::byte_sequence_type_identity(self.program, target, &[], &[])?,
+            access: CheckedStructuralAccess::SharedBorrow,
+        })
     }
 }

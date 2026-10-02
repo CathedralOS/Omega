@@ -198,7 +198,7 @@ pub(crate) fn lower_structural_field_place<'a>(
 
 /// Reconstruct the exact carrier and relevant field independently of payload type.
 #[allow(clippy::too_many_arguments)]
-fn lower_structural_field_place_steps<'a>(
+pub(crate) fn lower_structural_field_place_steps<'a>(
     statement_index: u32,
     expected_statement_index: u32,
     destination_parameter_position: u32,
@@ -368,7 +368,17 @@ pub(crate) fn lower_structural_field_steps<'a>(
                     // A view's extent is its own stored runtime length, not a
                     // literal in the type: the element's bound re-proves
                     // against that extent when the store executes.
-                    StructuralTypeShape::ElementView { element } => *element,
+                    StructuralTypeShape::ElementView { element } => {
+                        steps.push(ProjectionStep::RuntimeIndexLiteral { index: *index });
+                        let selected = *element;
+                        field_owner = structural_types
+                            .iter()
+                            .find(|row| row.id == selected)
+                            .ok_or(LoweringError::Unsupported(
+                                "view element declaration is absent",
+                            ))?;
+                        continue;
+                    }
                     _ => {
                         return unsupported("structural scalar store carrier is not a fixed array");
                     }

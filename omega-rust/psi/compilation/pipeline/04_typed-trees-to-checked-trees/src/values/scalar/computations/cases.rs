@@ -225,7 +225,7 @@ impl Builder<'_, '_> {
     /// (`self.grid[self.r * 6 + self.c]`) into. It selects at the local's
     /// dense `Local` position, the coordinate every scalar read of that local
     /// in this computation uses.
-    fn local_selector(
+    pub(super) fn local_selector(
         &self,
         selector: ExpressionHandle,
     ) -> Option<checked_trees::CheckedRuntimeIndex> {
