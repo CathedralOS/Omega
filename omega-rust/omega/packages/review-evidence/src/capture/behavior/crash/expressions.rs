@@ -1,4 +1,10 @@
 //! Closed projection of structural crash expressions.
+//!
+//! Preserve semantic operations recursively, independently of their source
+//! arrangement. A collection observation retains its exact entry root and
+//! selectors, and conversions retain their policy; neither is interchangeable
+//! with an ordinary scalar parameter. Private storage roots have no public
+//! entry coordinate and reject rather than exporting compiler-local handles.
 
 use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewBooleanExpression,
@@ -16,9 +22,7 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
 
     Some(match expression {
         CheckedBooleanExpression::ErasedParameter { .. } => return None,
-        CheckedBooleanExpression::StorageRead { .. } => {
-            unreachable!("checked structural crash requirements cannot read local storage")
-        }
+        CheckedBooleanExpression::StorageRead { .. } => return None,
         CheckedBooleanExpression::Constant(value) => {
             PackageReviewBooleanExpression::Constant(*value)
         }
@@ -144,15 +148,31 @@ fn project_scalar_expression(
 
     Some(match expression {
         CheckedScalarExpression::ErasedParameter { .. } => return None,
-        CheckedScalarExpression::IntegerTrappingCast { .. }
-        | CheckedScalarExpression::IntegerWrappingCast { .. }
-        | CheckedScalarExpression::RepresentationView { .. }
-        | CheckedScalarExpression::IntegerSaturatingCast { .. }
-        | CheckedScalarExpression::StructuralParameterByteLength { .. }
-        | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
-        CheckedScalarExpression::StorageRead { .. } => {
-            unreachable!("checked structural crash requirements cannot read local storage")
+        CheckedScalarExpression::StorageRead { .. } => return None,
+        CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
+            PackageReviewScalarExpression::StructuralParameterByteLength {
+                parameter_position: root.parameter()?,
+                path: project_structural_path(path),
+            }
         }
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            root,
+            path,
+            index,
+            inner_indexes,
+            element_path,
+            primitive_type,
+        } => PackageReviewScalarExpression::StructuralParameterIndexedRead {
+            parameter_position: root.parameter()?,
+            path: project_structural_path(path),
+            index: Box::new(project_scalar_expression(index)?),
+            inner_indexes: inner_indexes
+                .iter()
+                .map(project_scalar_expression)
+                .collect::<Option<_>>()?,
+            element_path: project_structural_path(element_path),
+            primitive_type: project_primitive_type(*primitive_type),
+        },
         CheckedScalarExpression::Parameter {
             position,
             primitive_type,
@@ -231,6 +251,34 @@ fn project_scalar_expression(
                 minimum: range.minimum.to_string(),
                 maximum: range.maximum.to_string(),
             },
+        },
+        CheckedScalarExpression::IntegerWrappingCast {
+            primitive_type,
+            operand,
+        } => PackageReviewScalarExpression::IntegerWrappingCast {
+            primitive_type: project_primitive_type(*primitive_type),
+            operand: Box::new(project_scalar_expression(operand)?),
+        },
+        CheckedScalarExpression::IntegerSaturatingCast {
+            primitive_type,
+            operand,
+        } => PackageReviewScalarExpression::IntegerSaturatingCast {
+            primitive_type: project_primitive_type(*primitive_type),
+            operand: Box::new(project_scalar_expression(operand)?),
+        },
+        CheckedScalarExpression::IntegerTrappingCast {
+            primitive_type,
+            operand,
+        } => PackageReviewScalarExpression::IntegerTrappingCast {
+            primitive_type: project_primitive_type(*primitive_type),
+            operand: Box::new(project_scalar_expression(operand)?),
+        },
+        CheckedScalarExpression::RepresentationView {
+            primitive_type,
+            operand,
+        } => PackageReviewScalarExpression::RepresentationView {
+            primitive_type: project_primitive_type(*primitive_type),
+            operand: Box::new(project_scalar_expression(operand)?),
         },
         CheckedScalarExpression::Boolean(expression) => PackageReviewScalarExpression::Boolean(
             Box::new(project_boolean_expression(expression)?),

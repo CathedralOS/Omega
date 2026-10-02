@@ -311,6 +311,216 @@ pub(in crate::encoding::recovery) fn every_scalar_variant_and_primitive_tag_roun
     }
 }
 
+fn indexed_scalar() -> Scalar {
+    use PackageReviewStructuralPredicatePathSegment as Segment;
+    Scalar::StructuralParameterIndexedRead {
+        parameter_position: 0,
+        path: vec![Segment::Field("items".into())],
+        index: Box::new(Scalar::IntegerWrappingCast {
+            primitive_type: Primitive::U64,
+            operand: Box::new(Scalar::Parameter {
+                position: 1,
+                primitive_type: Primitive::U32,
+            }),
+        }),
+        inner_indexes: vec![
+            Scalar::Parameter {
+                position: 2,
+                primitive_type: Primitive::U64,
+            },
+            Scalar::Parameter {
+                position: 3,
+                primitive_type: Primitive::U64,
+            },
+        ],
+        element_path: vec![Segment::Case("Some".into()), Segment::Field("value".into())],
+        primitive_type: Primitive::U8,
+    }
+}
+
+#[test]
+pub(in crate::encoding::recovery) fn scalar_observations_and_conversion_policies_roundtrip_with_distinct_tags()
+ {
+    let operand = || Box::new(indexed_scalar());
+    let values = [
+        Scalar::IntegerWrappingCast {
+            primitive_type: Primitive::U16,
+            operand: operand(),
+        },
+        Scalar::IntegerSaturatingCast {
+            primitive_type: Primitive::U16,
+            operand: operand(),
+        },
+        Scalar::IntegerTrappingCast {
+            primitive_type: Primitive::U16,
+            operand: operand(),
+        },
+        Scalar::RepresentationView {
+            primitive_type: Primitive::U16,
+            operand: operand(),
+        },
+        Scalar::StructuralParameterByteLength {
+            parameter_position: 2,
+            path: field().path,
+        },
+        indexed_scalar(),
+    ];
+    let mut encodings = Vec::new();
+    for (offset, value) in values.into_iter().enumerate() {
+        let bytes = scalar_bytes(&value);
+        assert_eq!(bytes[0], 11 + offset as u8);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
+        scalar_roundtrip(value);
+    }
+    scalar_roundtrip(Scalar::StructuralParameterByteLength {
+        parameter_position: 0,
+        path: Vec::new(),
+    });
+    boolean_roundtrip(Boolean::IntegerComparison {
+        kind: PackageReviewIntegerComparisonKind::LessThan,
+        left: Box::new(indexed_scalar()),
+        right: Box::new(Scalar::StructuralParameterByteLength {
+            parameter_position: 0,
+            path: Vec::new(),
+        }),
+    });
+}
+
+#[test]
+pub(in crate::encoding::recovery) fn indexed_scalar_coordinates_and_index_order_are_canonical_identity()
+ {
+    use PackageReviewStructuralPredicatePathSegment as Segment;
+    let original = indexed_scalar();
+    let bytes = scalar_bytes(&original);
+    let mut changed_values = vec![original.clone(); 6];
+    for (coordinate, changed) in changed_values.iter_mut().enumerate() {
+        let Scalar::StructuralParameterIndexedRead {
+            parameter_position,
+            path,
+            index,
+            inner_indexes,
+            element_path,
+            primitive_type,
+        } = changed
+        else {
+            panic!("indexed scalar fixture");
+        };
+        match coordinate {
+            0 => *parameter_position = 1,
+            1 => *path = vec![Segment::Field("other".into())],
+            2 => *index = Box::new(literal()),
+            3 => inner_indexes.swap(0, 1),
+            4 => *element_path = vec![Segment::Field("other".into())],
+            5 => *primitive_type = Primitive::I8,
+            _ => panic!("one control per retained coordinate"),
+        }
+        assert_ne!(scalar_bytes(changed), bytes);
+        scalar_roundtrip(changed.clone());
+    }
+    let length = |parameter_position, path| Scalar::StructuralParameterByteLength {
+        parameter_position,
+        path,
+    };
+    let whole = scalar_bytes(&length(0, Vec::new()));
+    assert_ne!(whole, scalar_bytes(&length(1, Vec::new())));
+    assert_ne!(
+        whole,
+        scalar_bytes(&length(0, vec![Segment::Field("bytes".into())]))
+    );
+    assert_ne!(
+        whole,
+        scalar_bytes(&Scalar::Parameter {
+            position: 0,
+            primitive_type: Primitive::U64,
+        })
+    );
+}
+
+#[test]
+pub(in crate::encoding::recovery) fn scalar_observation_recovery_rejects_malformed_payloads() {
+    for tag in 11..=14 {
+        assert_eq!(recover_scalar(&[tag, 12]), Err(Error::InvalidTag));
+        assert_eq!(recover_scalar(&[tag, 10]), Err(Error::UnexpectedEnd));
+        assert_eq!(recover_scalar(&[tag, 10, 17]), Err(Error::InvalidTag));
+    }
+    let simple = Scalar::StructuralParameterIndexedRead {
+        parameter_position: 0,
+        path: Vec::new(),
+        index: Box::new(Scalar::Parameter {
+            position: 1,
+            primitive_type: Primitive::U64,
+        }),
+        inner_indexes: Vec::new(),
+        element_path: Vec::new(),
+        primitive_type: Primitive::U8,
+    };
+    let bytes = scalar_bytes(&simple);
+    for end in 0..bytes.len() {
+        assert!(
+            recover_scalar(&bytes[..end]).is_err(),
+            "indexed prefix {end}"
+        );
+    }
+    let mut unknown_index = bytes.clone();
+    unknown_index[13] = 17;
+    assert_eq!(recover_scalar(&unknown_index), Err(Error::InvalidTag));
+    let mut unknown_carrier = bytes.clone();
+    *unknown_carrier.last_mut().unwrap() = 12;
+    assert_eq!(recover_scalar(&unknown_carrier), Err(Error::InvalidTag));
+    let mut excessive_inner_indexes = bytes;
+    excessive_inner_indexes[23..31].copy_from_slice(&u64::MAX.to_le_bytes());
+    assert_eq!(
+        recover_scalar(&excessive_inner_indexes),
+        Err(Error::ElementLimitExceeded)
+    );
+
+    let mut unknown_path = vec![15];
+    unknown_path.extend_from_slice(&0_u32.to_le_bytes());
+    unknown_path.extend_from_slice(&1_u64.to_le_bytes());
+    unknown_path.push(4);
+    unknown_path.extend_from_slice(&0_u64.to_le_bytes());
+    assert_eq!(recover_scalar(&unknown_path), Err(Error::InvalidTag));
+}
+
+#[test]
+pub(in crate::encoding::recovery) fn indexed_scalar_recovery_charges_nested_indices_paths_and_storage()
+ {
+    let value = indexed_scalar();
+    let bytes = scalar_bytes(&value);
+    let owned = 4 * std::mem::size_of::<Scalar>()
+        + 3 * std::mem::size_of::<PackageReviewStructuralPredicatePathSegment>()
+        + 14;
+    let limits = |elements, owned, depth| {
+        PackagePolicyRecoveryLimits::new(bytes.len(), 5, elements, owned, depth)
+    };
+    let recover = |limits| {
+        let mut reader = Reader::new(&bytes, limits)?;
+        let value = scalar_expression(&mut reader)?;
+        reader.finish()?;
+        Ok(value)
+    };
+    assert_eq!(recover(limits(10, owned, 3)), Ok(value.clone()));
+    for (limits, error) in [
+        (limits(9, owned, 3), Error::ElementLimitExceeded),
+        (limits(10, owned - 1, 3), Error::AllocationLimitExceeded),
+        (limits(10, owned, 2), Error::NestingLimitExceeded),
+        (
+            PackagePolicyRecoveryLimits::new(bytes.len(), 4, 10, owned, 3),
+            Error::FieldTooLarge,
+        ),
+        (
+            PackagePolicyRecoveryLimits::new(bytes.len() - 1, 5, 10, owned, 3),
+            Error::InputTooLarge,
+        ),
+    ] {
+        assert_eq!(recover(limits), Err(error));
+    }
+    let mut encoder = Encoder::policy_bounded(bytes.len());
+    encode_scalar_expression(&mut encoder, &value).unwrap();
+    assert_eq!(encoder.finish().unwrap(), bytes);
+}
+
 #[test]
 pub(in crate::encoding::recovery) fn all_integer_binary_kinds_and_literal_landing_domains_roundtrip()
  {
@@ -387,7 +597,7 @@ pub(in crate::encoding::recovery) fn closed_tags_reject_unknown_nodes_kinds_path
             Err(Error::InvalidTag)
         );
     }
-    for bytes in [vec![11], vec![4, 31], vec![5, 12]] {
+    for bytes in [vec![17], vec![4, 31], vec![5, 12]] {
         assert_eq!(recover_scalar(&bytes), Err(Error::InvalidTag));
     }
     for kind in [29, 30] {

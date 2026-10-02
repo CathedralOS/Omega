@@ -355,7 +355,7 @@ total-direct `define` and position-preserving transport-backed `lift`
 correspondences. The manager owns comparison and policy; neither entrance
 admits a package or executable operation.
 
-The canonical review schema is version 134, row schema version 92, and
+The canonical review schema is version 138, row schema version 96, and
 canonical-row recovery envelope version 23. Exact vocabulary and revision
 notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

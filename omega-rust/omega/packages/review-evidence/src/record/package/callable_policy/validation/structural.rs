@@ -1,6 +1,7 @@
 //! Public runtime requirements contain entry parameters, never private locals.
 use crate::record::PackageReviewBooleanExpression;
 use crate::record::PackageReviewPrimitiveType;
+use crate::record::PackageReviewRuntimeIndex;
 use crate::record::PackageReviewScalarExpression;
 use crate::record::PackageReviewStructuralPredicatePathSegment;
 
@@ -18,7 +19,7 @@ pub(super) fn validate(
         Expression::StructuralParameterField {
             parameter_position,
             path,
-        } => field(*parameter_position, path, parameters),
+        } => field(*parameter_position, path, parameters, depth + 1),
         Expression::Not(operand) => validate(operand, parameters, depth + 1),
         Expression::Equal { left, right }
         | Expression::And { left, right }
@@ -43,16 +44,16 @@ pub(super) fn validate(
             ) {
                 return Err("IEEE callable comparison has a non-float type");
             }
-            field(left.parameter_position, &left.path, parameters)?;
-            field(right.parameter_position, &right.path, parameters)
+            field(left.parameter_position, &left.path, parameters, depth + 1)?;
+            field(right.parameter_position, &right.path, parameters, depth + 1)
         }
         Expression::ByteSequenceEqual { left, right } => {
-            field(left.parameter_position, &left.path, parameters)?;
-            field(right.parameter_position, &right.path, parameters)
+            field(left.parameter_position, &left.path, parameters, depth + 1)?;
+            field(right.parameter_position, &right.path, parameters, depth + 1)
         }
         Expression::PayloadlessSumEqual { left, right, cases } => {
-            field(left.parameter_position, &left.path, parameters)?;
-            field(right.parameter_position, &right.path, parameters)?;
+            field(left.parameter_position, &left.path, parameters, depth + 1)?;
+            field(right.parameter_position, &right.path, parameters, depth + 1)?;
             if cases.is_empty()
                 || cases.iter().any(String::is_empty)
                 || cases
@@ -65,7 +66,12 @@ pub(super) fn validate(
             Ok(())
         }
         Expression::StructuralCaseMembership { subject, case } => {
-            field(subject.parameter_position, &subject.path, parameters)?;
+            field(
+                subject.parameter_position,
+                &subject.path,
+                parameters,
+                depth + 1,
+            )?;
             if case.is_empty() {
                 return Err("structural requirement has an empty case");
             }
@@ -90,7 +96,26 @@ fn scalar(
             parameter_position,
             path,
             ..
-        } => field(*parameter_position, path, parameters),
+        }
+        | Expression::StructuralParameterByteLength {
+            parameter_position,
+            path,
+        } => field(*parameter_position, path, parameters, depth + 1),
+        Expression::StructuralParameterIndexedRead {
+            parameter_position,
+            path,
+            index,
+            inner_indexes,
+            element_path,
+            ..
+        } => {
+            field(*parameter_position, path, parameters, depth + 1)?;
+            scalar(index, parameters, depth + 1)?;
+            for inner_index in inner_indexes {
+                scalar(inner_index, parameters, depth + 1)?;
+            }
+            structural_path(element_path, parameters, depth + 1)
+        }
         Expression::IntegerLiteral(literal) => {
             if literal.canonical_text.is_empty() {
                 return Err("structural requirement has an empty integer literal");
@@ -103,7 +128,11 @@ fn scalar(
             scalar(right, parameters, depth + 1)
         }
         Expression::IntegerBitwiseNot { operand, .. }
-        | Expression::IntegerWiden { operand, .. } => scalar(operand, parameters, depth + 1),
+        | Expression::IntegerWiden { operand, .. }
+        | Expression::IntegerWrappingCast { operand, .. }
+        | Expression::IntegerSaturatingCast { operand, .. }
+        | Expression::IntegerTrappingCast { operand, .. }
+        | Expression::RepresentationView { operand, .. } => scalar(operand, parameters, depth + 1),
         Expression::IntegerExactCast { operand, range, .. } => {
             if range.minimum.is_empty() || range.maximum.is_empty() {
                 return Err("structural requirement has an empty cast range");
@@ -125,14 +154,44 @@ fn field(
     position: u32,
     path: &[PackageReviewStructuralPredicatePathSegment],
     count: usize,
+    depth: usize,
 ) -> Result<(), &'static str> {
     parameter(position as usize, count)?;
+    structural_path(path, count, depth)
+}
+
+fn structural_path(
+    path: &[PackageReviewStructuralPredicatePathSegment],
+    count: usize,
+    depth: usize,
+) -> Result<(), &'static str> {
+    bounded(depth)?;
     for segment in path {
-        if matches!(segment,
+        match segment {
             PackageReviewStructuralPredicatePathSegment::Field(name)
-            | PackageReviewStructuralPredicatePathSegment::Case(name) if name.is_empty()
-        ) {
-            return Err("structural requirement has an empty path segment");
+            | PackageReviewStructuralPredicatePathSegment::Case(name)
+                if name.is_empty() =>
+            {
+                return Err("structural requirement has an empty path segment");
+            }
+            PackageReviewStructuralPredicatePathSegment::RuntimeIndex(index) => {
+                bounded(depth + 1)?;
+                match index {
+                    PackageReviewRuntimeIndex::Parameter { position } => {
+                        parameter(*position as usize, count)?
+                    }
+                    PackageReviewRuntimeIndex::StructuralField(subject) => {
+                        field(subject.parameter_position, &subject.path, count, depth + 2)?;
+                    }
+                    PackageReviewRuntimeIndex::Local { .. }
+                    | PackageReviewRuntimeIndex::AssignmentIndex { .. } => {
+                        return Err(
+                            "published callable requirement contains a private runtime index",
+                        );
+                    }
+                }
+            }
+            _ => {}
         }
     }
     Ok(())
@@ -153,11 +212,93 @@ mod tests {
     #[test]
     fn fixed_index_is_numeric_while_named_segments_and_parameter_scope_remain_checked() {
         use PackageReviewStructuralPredicatePathSegment as Segment;
-        assert!(field(0, &[Segment::FixedIndex(0)], 1).is_ok());
-        assert!(field(0, &[Segment::FixedIndex(u64::MAX)], 1).is_ok());
-        assert!(field(1, &[Segment::FixedIndex(0)], 1).is_err());
+        assert!(field(0, &[Segment::FixedIndex(0)], 1, 0).is_ok());
+        assert!(field(0, &[Segment::FixedIndex(u64::MAX)], 1, 0).is_ok());
+        assert!(field(1, &[Segment::FixedIndex(0)], 1, 0).is_err());
         for empty in [Segment::Field(String::new()), Segment::Case(String::new())] {
-            assert!(field(0, &[Segment::FixedIndex(0), empty], 1).is_err());
+            assert!(field(0, &[Segment::FixedIndex(0), empty], 1, 0).is_err());
         }
+    }
+
+    #[test]
+    fn runtime_path_indexes_validate_their_own_scope_recursively() {
+        use super::PackageReviewRuntimeIndex as Index;
+        use crate::record::PackageReviewStructuralParameterField as Field;
+        use PackageReviewStructuralPredicatePathSegment as Segment;
+        let wrap = |index| {
+            Segment::RuntimeIndex(Index::StructuralField(Field {
+                parameter_position: 0,
+                path: vec![Segment::RuntimeIndex(index)],
+            }))
+        };
+        assert!(field(0, &[wrap(Index::Parameter { position: 1 })], 2, 0).is_ok());
+        for index in [
+            Index::Parameter { position: 2 },
+            Index::Local { position: 0 },
+            Index::AssignmentIndex { depth: 0 },
+        ] {
+            assert!(field(0, &[wrap(index)], 2, 0).is_err());
+        }
+        let mut path = vec![Segment::Field("value".into())];
+        for _ in 0..64 {
+            path = vec![Segment::RuntimeIndex(Index::StructuralField(Field {
+                parameter_position: 0,
+                path,
+            }))];
+        }
+        assert!(field(0, &path, 1, 0).is_err());
+    }
+
+    #[test]
+    fn indexed_scalar_scope_checks_cast_operands_and_every_projection() {
+        use super::{
+            PackageReviewPrimitiveType as Primitive, PackageReviewRuntimeIndex as Index,
+            PackageReviewScalarExpression as Expression, scalar,
+        };
+        use PackageReviewStructuralPredicatePathSegment as Segment;
+        let parameter = || Expression::Parameter {
+            position: 1,
+            primitive_type: Primitive::U64,
+        };
+        let valid = Expression::StructuralParameterIndexedRead {
+            parameter_position: 0,
+            path: vec![Segment::Field("rows".into())],
+            index: Box::new(parameter()),
+            inner_indexes: vec![Expression::IntegerWrappingCast {
+                primitive_type: Primitive::U64,
+                operand: Box::new(parameter()),
+            }],
+            element_path: vec![Segment::Field("value".into())],
+            primitive_type: Primitive::U8,
+        };
+        assert!(scalar(&valid, 2, 0).is_ok());
+        let mut bad_root = valid.clone();
+        let Expression::StructuralParameterIndexedRead {
+            parameter_position, ..
+        } = &mut bad_root
+        else {
+            unreachable!()
+        };
+        *parameter_position = 2;
+        assert!(scalar(&bad_root, 2, 0).is_err());
+        let mut bad_inner = valid.clone();
+        let Expression::StructuralParameterIndexedRead { inner_indexes, .. } = &mut bad_inner
+        else {
+            unreachable!()
+        };
+        inner_indexes.push(Expression::IntegerTrappingCast {
+            primitive_type: Primitive::U8,
+            operand: Box::new(Expression::Local {
+                position: 0,
+                primitive_type: Primitive::U32,
+            }),
+        });
+        assert!(scalar(&bad_inner, 2, 0).is_err());
+        let mut bad_path = valid;
+        let Expression::StructuralParameterIndexedRead { element_path, .. } = &mut bad_path else {
+            unreachable!()
+        };
+        element_path.push(Segment::RuntimeIndex(Index::Parameter { position: 2 }));
+        assert!(scalar(&bad_path, 2, 0).is_err());
     }
 }

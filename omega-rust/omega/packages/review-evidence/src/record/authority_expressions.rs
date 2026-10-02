@@ -169,6 +169,23 @@ pub enum PackageReviewScalarExpression {
         path: Vec<PackageReviewStructuralPredicatePathSegment>,
         primitive_type: PackageReviewPrimitiveType,
     },
+    /// Live extent of the selected entry carrier, not its capacity. Element
+    /// views count elements; byte views and bounded byte fields count bytes.
+    StructuralParameterByteLength {
+        parameter_position: u32,
+        path: Vec<PackageReviewStructuralPredicatePathSegment>,
+    },
+    /// Ordered element selections and the final scalar projection. Retaining
+    /// each index separately preserves its own extent obligation; encoding
+    /// this evidence neither proves the bounds nor authorizes the read.
+    StructuralParameterIndexedRead {
+        parameter_position: u32,
+        path: Vec<PackageReviewStructuralPredicatePathSegment>,
+        index: Box<PackageReviewScalarExpression>,
+        inner_indexes: Vec<PackageReviewScalarExpression>,
+        element_path: Vec<PackageReviewStructuralPredicatePathSegment>,
+        primitive_type: PackageReviewPrimitiveType,
+    },
     IntegerLiteral(PackageReviewIntegerLiteral),
     IntegerBinary {
         kind: PackageReviewIntegerBinaryKind,
@@ -188,6 +205,25 @@ pub enum PackageReviewScalarExpression {
         primitive_type: PackageReviewPrimitiveType,
         operand: Box<PackageReviewScalarExpression>,
         range: PackageReviewIntegerRange,
+    },
+    IntegerWrappingCast {
+        primitive_type: PackageReviewPrimitiveType,
+        operand: Box<PackageReviewScalarExpression>,
+    },
+    IntegerSaturatingCast {
+        primitive_type: PackageReviewPrimitiveType,
+        operand: Box<PackageReviewScalarExpression>,
+    },
+    /// Trapping policy is not an exactness or normal-return proof.
+    IntegerTrappingCast {
+        primitive_type: PackageReviewPrimitiveType,
+        operand: Box<PackageReviewScalarExpression>,
+    },
+    /// Observe the operand's storage bits under the target carrier. This is
+    /// distinct from numeric conversion; the operand retains its own type.
+    RepresentationView {
+        primitive_type: PackageReviewPrimitiveType,
+        operand: Box<PackageReviewScalarExpression>,
     },
     Boolean(Box<PackageReviewBooleanExpression>),
     /// IEEE interchange bits, retaining format, signed zero and NaN payload.

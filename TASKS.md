@@ -1917,12 +1917,19 @@ the complete product bar; focused successes below do not establish that baseline
     lowers but needs an inductive exit proof. Reuse
     `tests/unit_scalar_result_source/boundary_wrappers/`; preserve transitive
     contracts and exact entry versions across joins.
-  - Complete package crash-expression projection in
-    `review-evidence/src/capture/behavior/crash/expressions.rs`: indexed scalar
-    reads, byte lengths and integer casts currently return `None`. Verify
-    remaining generic-field and case-payload combinations through source and
-    canonical recovery. `tests/callable_policy/case_membership.rs` already
-    covers authored/indexed membership and projected result tags.
+  - Generalize entry-operand normalization in stage 04
+    `values/scalar/contract_entry.rs`: `EntryOperands::scalar` still declines
+    indexed reads, nonempty-path lengths, policy casts and representation views
+    in ordinary expression requirements. Preserve exact entry coordinates and
+    recursive operand meaning instead of adding source-arrangement exceptions;
+    private/local roots must not become public parameters. Package crash
+    evidence now preserves this vocabulary recursively through capture and
+    bounded canonical recovery, including selector scope checks. Its source
+    regression covers whole-view length, Boolean composition and a nonzero
+    entry root; it does not close the earlier normalization gap. Verify remaining
+    generic-field and case-payload composition through source and recovery.
+    `tests/callable_policy/case_membership.rs` already covers authored/indexed
+    membership and projected result tags.
   - Extend entry provenance for opaque/content leaves, dynamic indices and
     whole-collection reads after writes with proven origins. Fixed-index/range
     disjointness exists; divergent arrivals and unknown cycles stay conservative.

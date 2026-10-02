@@ -5,6 +5,71 @@ use super::{
     PackageReviewCrashRouteGuard, PackageReviewNominalOwner, callable, package_identity, project,
     project_checked_callable_policy,
 };
+
+#[test]
+fn collection_runtime_requirements_cross_review_and_callable_policy() {
+    use package_evidence::record::{
+        PackageReviewBooleanExpression as Boolean, PackageReviewScalarExpression as Scalar,
+    };
+    for (source, expected_parameter) in [
+        (
+            "pub machine consume(values: &[u8]) requires values.len > 0 {}",
+            0,
+        ),
+        (
+            "pub machine consume(limit: u64, values: &[u8]) requires values.len > 0 && values.len <= limit {}",
+            1,
+        ),
+    ] {
+        let fixture = Fixture::local(source);
+        let review = package_evidence::project_checked_package_review(&fixture.checked)
+            .expect("collection observation review");
+        let reviewed = review
+            .callables()
+            .iter()
+            .find(|row| row.identity().path() == "consume")
+            .expect("consume review");
+        let policy = project(&fixture);
+        let requirements = callable(&policy, "consume")
+            .checked_crash()
+            .structural_runtime_requirements()
+            .unwrap_or_else(|| panic!("missing runtime requirements for {source}"));
+        assert_eq!(
+            Some(requirements),
+            reviewed.checked_crash().structural_runtime_requirements()
+        );
+        fn contains_observation(requirement: &Boolean, expected_parameter: u32) -> bool {
+            match requirement {
+                Boolean::And { left, right } | Boolean::Or { left, right } => {
+                    return contains_observation(left, expected_parameter)
+                        || contains_observation(right, expected_parameter);
+                }
+                _ => {}
+            }
+            let Boolean::IntegerComparison { left, right, .. } = requirement else {
+                return false;
+            };
+            [left.as_ref(), right.as_ref()]
+                .into_iter()
+                .any(|operand| match operand {
+                    Scalar::StructuralParameterByteLength {
+                        parameter_position,
+                        path,
+                    } => *parameter_position == expected_parameter && path.is_empty(),
+                    _ => false,
+                })
+        }
+        assert!(
+            requirements
+                .iter()
+                .any(|requirement| contains_observation(requirement, expected_parameter)),
+            "collection identity must survive projection: {requirements:#?}"
+        );
+        review
+            .canonical_review_bytes()
+            .expect("full review encoding");
+    }
+}
 #[test]
 fn selected_operator_crash_evidence_projects_through_review_and_callable_policy() {
     for (operator_contract, caller_contract, cause) in [
