@@ -20,6 +20,29 @@ pub struct StructuralWindowProjection {
     pub structural_type: StructuralTypeId,
 }
 
+/// Whether the window selects a child of the storage root it reaches. Crossing
+/// a reference starts a new root: the carrier's enclosing fields do not make
+/// the whole referent a child window. This classifies geometry only; callers
+/// still validate the path and authenticate authority over that storage.
+pub fn structural_window_selects_child(
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+) -> bool {
+    field.is_some()
+        || path
+            .iter()
+            .rev()
+            .take_while(|segment| !matches!(segment, StructuralPathSegment::Referent))
+            .any(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                        | StructuralPathSegment::RuntimeIndex { .. }
+                )
+            })
+}
+
 /// Resolve a window below an already authenticated storage root. Reference
 /// crossings describe geometry only; consumers must independently resolve the
 /// live loan. Owning a carrier does not grant ownership of its referent.
@@ -162,5 +185,94 @@ mod tests {
         );
         path[1] = StructuralPathSegment::FixedIndex(2);
         assert!(structural_window_projection(types.iter(), root, &path, None).is_none());
+    }
+
+    #[test]
+    fn window_reference_crossing_preserves_whole_referent_geometry() {
+        let mut types = declarations();
+        let referent = types[0].id;
+        let carrier = StructuralTypeId::new(5).unwrap();
+        types.push(StructuralTypeDeclaration {
+            id: carrier,
+            identity: "WindowReference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::MutableBorrow,
+            },
+        });
+        let path = vec![StructuralPathSegment::Referent];
+        let whole = structural_window_projection(types.iter(), carrier, &path, None).unwrap();
+        assert_eq!(whole.structural_type, referent);
+        assert!(!structural_window_selects_child(&whole.path, None));
+        assert!(!structural_window_selects_child(&[], None));
+
+        let child =
+            structural_window_projection(types.iter(), carrier, &path, StructuralFieldId::new(1))
+                .unwrap();
+        assert_eq!(child.structural_type, types[1].id);
+        assert!(structural_window_selects_child(&child.path, None));
+        assert!(structural_window_selects_child(
+            &path,
+            StructuralFieldId::new(1)
+        ));
+        for selector in [
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::RuntimeIndex {
+                index: semantic_vocabulary::ValueId::new(1).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            },
+        ] {
+            let path = vec![
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::Field("elements".into()),
+                selector,
+            ];
+            let element = structural_window_projection(types.iter(), carrier, &path, None).unwrap();
+            assert_eq!(element.structural_type, types[2].id);
+            assert!(structural_window_selects_child(&path, None));
+            let member = structural_window_projection(
+                types.iter(),
+                carrier,
+                &path,
+                StructuralFieldId::new(1),
+            )
+            .unwrap();
+            assert_eq!(member.structural_type, types[3].id);
+            assert!(structural_window_selects_child(&member.path, None));
+        }
+    }
+
+    #[test]
+    fn window_reference_crossing_resets_enclosing_child_geometry() {
+        let mut types = declarations();
+        let carrier = StructuralTypeId::new(5).unwrap();
+        let container = StructuralTypeId::new(6).unwrap();
+        types.push(StructuralTypeDeclaration {
+            id: carrier,
+            identity: "WindowReference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: types[0].id,
+                access: terminal_psi::StructuralAccess::MutableBorrow,
+            },
+        });
+        types.push(StructuralTypeDeclaration {
+            id: container,
+            identity: "WindowReferenceContainer".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "reference".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(carrier),
+                }],
+            },
+        });
+        let path = vec![
+            StructuralPathSegment::Field("reference".into()),
+            StructuralPathSegment::Referent,
+        ];
+        let whole = structural_window_projection(types.iter(), container, &path, None).unwrap();
+        assert_eq!(whole.structural_type, types[0].id);
+        assert!(!structural_window_selects_child(&whole.path, None));
     }
 }

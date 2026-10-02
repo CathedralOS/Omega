@@ -1158,16 +1158,18 @@ pub(super) fn validate_store_structural_field(
 
 /// The declared root type a window operation may name. A field window may
 /// open beneath a mutable-borrowed parameter or a completed owned home; a
-/// root window (`field: None`, empty path) vacates a whole referent, which only an
-/// exclusive loan lends — an owned home's whole value moves by ordinary
-/// transfer instead.
+/// whole-root window needs the original exclusive parameter loan. A reference
+/// crossing without a following child selector still names a whole referent.
 fn window_root_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    if field.is_none() && path.is_empty() {
+    if !terminal_semantics::structural_window_selects_child(path, field) {
+        if !path.is_empty() {
+            return None;
+        }
         mutable_borrowed_parameter_type(machine, place)
     } else {
         borrowed_field_store_root_type(machine, place)

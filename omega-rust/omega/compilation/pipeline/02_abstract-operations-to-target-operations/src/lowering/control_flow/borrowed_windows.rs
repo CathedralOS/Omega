@@ -219,20 +219,19 @@ pub(super) fn window_referent(
     Ok(Some(referent))
 }
 
-/// A root window (`field: None`, empty path) replaces a loan's whole referent, so its
-/// root must be a borrowed parameter; an owned home's whole value never
-/// moves through a window.
+/// A whole-root window needs the original exclusive parameter loan. Crossing
+/// an owned reference carrier does not grant that authority over its referent.
 fn root_window_loan(
     root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> bool {
-    field.is_some()
-        || !path.is_empty()
-        || matches!(
-            root,
-            abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
-        )
+    terminal_semantics::structural_window_selects_child(path, field)
+        || (path.is_empty()
+            && matches!(
+                root,
+                abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
+            ))
 }
 
 /// The window root retains its exact mutable-borrowed declaration. An entry

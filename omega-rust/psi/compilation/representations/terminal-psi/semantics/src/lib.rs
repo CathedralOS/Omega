@@ -118,7 +118,9 @@ pub use structural_effect::{
     structural_effect_semantic_row, subslice_length_equation,
     validate_structural_effect_semantic_rows,
 };
-pub use structural_window::{StructuralWindowProjection, structural_window_projection};
+pub use structural_window::{
+    StructuralWindowProjection, structural_window_projection, structural_window_selects_child,
+};
 pub use zeroed_structural::{
     ZeroedStructuralLeaf, zeroed_structural_leaves, zeroed_structural_shape,
 };

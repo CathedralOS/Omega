@@ -102,7 +102,10 @@ ownership of the referent. Its descendants must have ended, and every possible
 ingress origin stays suspended until the carrier is released. Restoration debt
 names the carrier and complete referent-relative field path, so an overlapping
 access or repair at a possible origin cannot bypass the hole. This does not
-extend whole-root windows (`field: None`) beyond exclusive parameter loans.
+extend whole-root windows beyond direct exclusive parameter loans. A `Referent`
+crossing starts a new storage root; only a field or element selected below it
+makes the window a child projection. `field: None` alone does not distinguish
+a whole root from a complete indexed-element path.
 `borrows/returned_record_case_field_store_exit` exercises nested enum replacement
 through each of two selected record references while preserving their siblings
 and an untouched third record.

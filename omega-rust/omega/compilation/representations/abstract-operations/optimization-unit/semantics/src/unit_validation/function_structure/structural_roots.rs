@@ -1152,20 +1152,19 @@ fn borrowed_window_root(
     }
 }
 
-/// A root window (`field: None`, empty path) replaces the whole referent of an exclusive
-/// loan, so its root must be a borrowed parameter. Field windows keep their
-/// own per-field contract.
+/// A whole-root window needs the original exclusive parameter loan. Crossing
+/// a reference alone does not select a child or transfer that authority.
 fn root_window_loan(
     root: &abstract_operations::StructuralWindowRoot,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> bool {
-    field.is_some()
-        || !path.is_empty()
-        || matches!(
-            root,
-            abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
-        )
+    terminal_semantics::structural_window_selects_child(path, field)
+        || (path.is_empty()
+            && matches!(
+                root,
+                abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
+            ))
 }
 
 /// The declared `Structural` type of the field a window operation names,

@@ -108,14 +108,14 @@ pub(in crate::legalization) fn extent(
         (referent.referent, referent.path.as_slice())
     });
     let types = &plan.structural_types;
-    // Only the empty complete projection replaces the whole root. Element
-    // and nested-field windows retain their enclosing storage's authority.
-    if field.is_none()
-        && path.is_empty()
-        && !matches!(
-            root,
-            abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
-        )
+    // Reference crossings retain whole-root authority requirements; only a
+    // following field or element selects a child of that referent.
+    if !terminal_semantics::structural_window_selects_child(path, field)
+        && (!path.is_empty()
+            || !matches!(
+                root,
+                abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
+            ))
     {
         return Err(invalid());
     }

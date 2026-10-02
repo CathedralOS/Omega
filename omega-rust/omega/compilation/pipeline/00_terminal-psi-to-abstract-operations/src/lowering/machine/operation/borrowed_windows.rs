@@ -189,17 +189,15 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
     Some(StructuralWindowRoot::OwnedResult { producer, result })
 }
 
-/// A root window (`field: None`, empty path) names the whole referent of an exclusive
-/// loan: only a borrowed parameter root qualifies. Field windows keep their
-/// own contract.
+/// A whole-root window needs the original exclusive parameter loan. A
+/// reference crossing alone does not turn its whole referent into a child.
 fn root_window_loan(
     root: &StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> bool {
-    field.is_some()
-        || !path.is_empty()
-        || matches!(root, StructuralWindowRoot::BorrowedParameter(_))
+    terminal_semantics::structural_window_selects_child(path, field)
+        || (path.is_empty() && matches!(root, StructuralWindowRoot::BorrowedParameter(_)))
 }
 
 /// The declared `Structural` type of the field a window operation names,
