@@ -435,60 +435,59 @@ fn non_preserving_domain_narrows_only_into_a_plain_formal() {
 
 #[test]
 fn fixed_array_field_ranges_retain_access_and_projection_on_state_edges() {
-    for (borrow, access) in [
-        ("&", CheckedStructuralAccess::SharedBorrow),
-        ("&mut ", CheckedStructuralAccess::MutableBorrow),
+    for (borrow, access, explicit) in [
+        ("&", CheckedStructuralAccess::SharedBorrow, false),
+        ("&", CheckedStructuralAccess::SharedBorrow, true),
+        ("&mut ", CheckedStructuralAccess::MutableBorrow, true),
     ] {
-        for explicit in [false, true] {
-            let operand_borrow = if explicit { borrow } else { "" };
-            let checked = checked(&format!(
-                "data Root {{ items: [i32; 4]; }}
+        let operand_borrow = if explicit { borrow } else { "" };
+        let checked = checked(&format!(
+            "data Root {{ items: [i32; 4]; }}
                  machine forward(root: &mut Root) {{
                      transition {{ _ -> narrowed({operand_borrow}root.items[1..3]) }}
                      state narrowed(values: {borrow}[i32]) {{
                          let length: u64 = values.len;
                      }}
                  }}"
-            ));
-            let machine = machine_named(&checked, "forward");
-            let plan = checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .composed_for_machine(machine)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "{borrow} explicit={explicit}: {:?}",
-                        checked
-                            .facts
-                            .flow
-                            .terminal_unit_effects
-                            .omission_for_machine(machine)
-                    )
-                });
-            let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
-                &plan.states[0].terminator
-            else {
-                panic!("range is a state edge");
-            };
-            let [transfer] = successor.transfers.as_slice() else {
-                panic!("one range operand");
-            };
-            assert!(matches!(&transfer.source,
-                checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                    root: CheckedStorageRoot::Parameter { index: 0 }, path, ..
-                } if matches!(path.as_slice(), [CheckedUnitStructuralPathSegment::Field(_)])
-            ));
-            let target = plan
-                .states
-                .iter()
-                .find(|state| state.state == successor.target_state)
-                .expect("the exact edge target");
-            assert_eq!(
-                target.structural_parameters[transfer.target_parameter_index as usize].access,
-                access
-            );
-        }
+        ));
+        let machine = machine_named(&checked, "forward");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{borrow} explicit={explicit}: {:?}",
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(machine)
+                )
+            });
+        let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+            &plan.states[0].terminator
+        else {
+            panic!("range is a state edge");
+        };
+        let [transfer] = successor.transfers.as_slice() else {
+            panic!("one range operand");
+        };
+        assert!(matches!(&transfer.source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                root: CheckedStorageRoot::Parameter { index: 0 }, path, ..
+            } if matches!(path.as_slice(), [CheckedUnitStructuralPathSegment::Field(_)])
+        ));
+        let target = plan
+            .states
+            .iter()
+            .find(|state| state.state == successor.target_state)
+            .expect("the exact edge target");
+        assert_eq!(
+            target.structural_parameters[transfer.target_parameter_index as usize].access,
+            access
+        );
     }
 }
 
@@ -514,6 +513,13 @@ fn fixed_array_field_range_edges_require_surviving_backing_and_source_access() {
             "root: &Root",
             "",
             "&mut root.items[1..3]",
+            "&mut [i32]",
+        ),
+        (
+            "implicit mutable escalation",
+            "root: &mut Root",
+            "",
+            "root.items[1..3]",
             "&mut [i32]",
         ),
     ] {
