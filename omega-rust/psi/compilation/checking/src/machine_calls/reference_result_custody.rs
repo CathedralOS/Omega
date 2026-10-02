@@ -168,8 +168,7 @@ pub fn initializer_source(
         .find(|(_, parameter)| parameter.symbol == path.symbol)?;
     if parameter.is_self
         || parameter.name != *name
-        || program.normalized_type_identity(parameter.type_reference)
-            != program.normalized_type_identity(reference)
+        || !reference_parameter_can_supply(program, parameter.type_reference, reference)
     {
         return None;
     }
@@ -181,6 +180,38 @@ pub fn initializer_source(
         type_identity: program.normalized_type_identity(referent).into_string(),
         access,
     })
+}
+
+/// Returning an ingress loan can reduce access, never change its referent.
+/// Lifetime validity is checked by the borrow checker; this reconstruction
+/// retains the exact referent (including qualifications). An outer constraint
+/// shell is not silently dropped to make an access conversion succeed.
+fn reference_parameter_can_supply(
+    program: &TypedTrees,
+    source: TypeReferenceHandle,
+    result: TypeReferenceHandle,
+) -> bool {
+    if program.normalized_type_identity(source) == program.normalized_type_identity(result) {
+        return true;
+    }
+    let TypeReferenceNode::Reference {
+        referee: source_referee,
+        access: language_core::ReferenceAccess::Mutable,
+        ..
+    } = program.type_reference_table.type_reference(source)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Reference {
+        referee: result_referee,
+        access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::WriteOnly,
+        ..
+    } = program.type_reference_table.type_reference(result)
+    else {
+        return false;
+    };
+    program.normalized_type_identity(*source_referee)
+        == program.normalized_type_identity(*result_referee)
 }
 
 /// A borrowed initializer may name one projected leaf of a formal carrier —
@@ -1457,13 +1488,6 @@ pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle)
 }
 
 pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State) -> Option<usize> {
-    let shared = if parts(program, state.return_type).is_some() {
-        false
-    } else if shared_borrowed_parts(program, state.return_type).is_some() {
-        true
-    } else {
-        return None;
-    };
     let StatementNode::Expression(expression) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1483,20 +1507,15 @@ pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State)
     {
         return None;
     }
-    // Parameter `is_mutable` also describes `&mut` referent access; it is not
-    // evidence of rebinding a pointer. Supported prefix operations preserve
-    // the ingress place and independently check their writes/call custody. A
-    // shared-borrowed whole ingress may also be the `self` receiver — the
-    // `&'a self` loan and its referent storage are the same custody.
+    // The same ingress reconstruction serves bare returns and stored reference
+    // initializers. Parameter identity is explicit; attached-machine identity
+    // cannot stand in for an authored argument.
+    initializer_source(program, state, *expression, state.return_type)?;
     program
         .state_parameters(state)
         .iter()
         .position(|parameter| {
-            (parameter.symbol == path.symbol || (shared && parameter.is_self))
-                && (shared || !parameter.is_self)
-                && !parameter.is_const
-                && program.normalized_type_identity(parameter.type_reference)
-                    == program.normalized_type_identity(state.return_type)
+            parameter.symbol == path.symbol && !parameter.is_self && !parameter.is_const
         })
 }
 
