@@ -9,6 +9,8 @@ use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 
+#[cfg(test)]
+mod arrival_tests;
 mod borrowed_arguments;
 mod owned_arguments;
 pub(super) use owned_arguments::{node_site, precedes};
@@ -432,22 +434,18 @@ pub(in crate::legalization) fn block_home_layout(
         && parameter.access == terminal_psi::StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
         && (parameter.qualifications.is_empty() || owned_bounded_bytes)
-        && parameter.projected_qualifications.is_empty()
-        && plan.structural_types.iter().any(|declaration| {
-            declaration.id == parameter.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::Sum { .. }
-                        | StructuralTypeShape::Mixed { .. }
-                        | StructuralTypeShape::Record { .. }
-                        | StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                )
-        }))
+        && parameter.projected_qualifications.is_empty())
     {
         return Err(LegalizationError::custody());
     }
+    // An edge changes the owning declaration, not the carrier's geometry.
+    // Share the aggregate storage judgment with other arrivals without
+    // imposing call-copy eligibility on already-established nested contents.
+    crate::structural_inputs::structural_reference_input::owned_storage_shape(
+        parameter.structural_type,
+        &plan.structural_types,
+    )
+    .ok_or(LegalizationError::custody())?;
     home_layout(
         &StructuralOperationResult {
             qualification_establishments: Vec::new(),
