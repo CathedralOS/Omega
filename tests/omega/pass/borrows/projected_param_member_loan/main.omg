@@ -10,19 +10,19 @@ data Main {
     inner: Inner;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.inner.tag = 9;
-    transition true { _ -> next(&self.inner) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.inner.tag = 9;
+    transition true { _ -> next(main, &main.inner) }
 
-    state next(&mut self, loan: &Inner) {
-        transition loan.tag == 9 { true -> done() _ -> bad() }
+    state next(main: &mut Main, loan: &Inner) {
+        transition loan.tag == 9 { true -> done(main) _ -> bad(main) }
     }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

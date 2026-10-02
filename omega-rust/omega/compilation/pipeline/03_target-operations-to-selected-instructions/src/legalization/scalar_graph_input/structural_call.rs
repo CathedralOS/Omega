@@ -247,6 +247,7 @@ pub(in crate::legalization) fn argument_at(
     {
         return primitive_argument(
             semantic,
+            call_operation,
             caller,
             destination_parameter,
             call,
@@ -266,6 +267,7 @@ pub(in crate::legalization) fn argument_at(
     }) {
         return primitive_argument(
             semantic,
+            call_operation,
             caller,
             destination_parameter,
             call,
@@ -289,6 +291,7 @@ pub(in crate::legalization) fn argument_at(
     {
         return primitive_argument(
             semantic,
+            call_operation,
             caller,
             destination_parameter,
             call,
@@ -559,6 +562,7 @@ fn owned_byte_loan(
 /// Reconstruct a primitive borrow at its actual ordered call ABI position.
 pub(super) fn primitive_argument(
     semantic: &StructuralArgument,
+    call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
     destination_parameter: &terminal_psi::StructuralParameterDeclaration,
     call: &CallPlan,
@@ -613,6 +617,7 @@ pub(super) fn primitive_argument(
     }
     exclusive::argument(
         semantic,
+        call_operation,
         caller,
         destination_parameter,
         call,

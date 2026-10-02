@@ -39,12 +39,17 @@ pub(super) fn argument(
     if !is_reference(declaration, types) || argument.access != declaration.access {
         return Err(invalid());
     }
-    if live.address_joins.contains(&argument.place) {
-        return super::borrowed_calls::address_join_argument(
+    if live.address_joins.contains(&argument.place)
+        || prepared.parameters.iter().any(|parameter| {
+            parameter.place == argument.place && parameter.access != StructuralAccess::Owned
+        })
+    {
+        return super::borrowed_calls::storage_argument(
             argument,
             declaration,
             destination,
             function,
+            prepared,
             live,
             types,
         );
@@ -106,11 +111,7 @@ pub(super) fn argument(
             .iter()
             .find(|parameter| parameter.place == argument.place)
             .ok_or_else(invalid)?;
-        if !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::Owned
-        ) && parameter.access != argument.access
-        {
+        if parameter.access != StructuralAccess::Owned {
             return Err(invalid());
         }
         (

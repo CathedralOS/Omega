@@ -1,5 +1,6 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
+use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::normalize_attached_place_root;
 use crate::flow::resolve_member_symbol_from_type_symbol;
@@ -7,6 +8,7 @@ use crate::flow::symbol_type_symbol;
 use crate::lookup::statement_call_receiver_members;
 use crate::proof::contract_target_from_state_symbol;
 use crate::semantic::calls::CallSite;
+use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::find_call_site;
 use crate::semantic::calls::find_state;
 use crate::semantic::calls::find_state_in_machine;
@@ -144,7 +146,23 @@ fn receiver_place_for_call_site(
                 .find(|parameter| parameter.is_self)?;
             canonical_place_from_symbol(self_parameter.symbol)
         }
-        CallSite::TransitionNamed { .. } => {
+        CallSite::TransitionNamed { path, .. } => {
+            if path.members.count() == 1
+                && let Some(target) =
+                    find_state_in_machine(program, caller_machine_symbol, path.head_symbol)
+                && !program
+                    .state_parameters(target)
+                    .iter()
+                    .any(|parameter| parameter.is_self)
+            {
+                let argument = local_jump_data_argument(program, caller_machine_symbol, call_site)?;
+                return canonical_place_from_expression_in_state(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    argument,
+                );
+            }
             let caller_state =
                 find_state_in_machine(program, caller_machine_symbol, caller_state_symbol)?;
             let self_parameter = program
@@ -154,6 +172,33 @@ fn receiver_place_for_call_site(
             canonical_place_from_symbol(self_parameter.symbol)
         }
     }
+}
+
+/// A local successor's explicit data operand, at its actual positional ordinal.
+/// The declaration qualifier supplies no storage: retain the actual root and
+/// projection, including when a different record is supplied to the successor.
+pub(in crate::flow) fn local_jump_data_argument(
+    program: &typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    call_site: &CallSite<'_>,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    let CallSite::TransitionNamed { path, .. } = call_site else {
+        return None;
+    };
+    if path.members.count() != 1 {
+        return None;
+    }
+    let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
+    let target = find_state_in_machine(program, caller_machine_symbol, path.head_symbol)?;
+    let parameters = program.state_parameters(target);
+    let subject = program.data_binding_parameter(machine, parameters)?;
+    let ordinal = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.symbol == subject.symbol)?;
+    call_site_argument_expressions(program, call_site)
+        .get(ordinal)
+        .copied()
 }
 
 fn canonical_self_receiver_path(

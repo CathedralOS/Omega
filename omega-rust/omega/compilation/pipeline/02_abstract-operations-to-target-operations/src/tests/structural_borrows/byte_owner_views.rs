@@ -17,9 +17,14 @@ fn qualified_byte_owner_calls_replay_entry_and_arrival_storage() {
             state bad(output: &mut u64) { output = 1; }
         }
         machine Main::run(left: &mut [u8;16] in Utf8,
-                          right: &mut [u8;16] in Utf8, output: &mut u64) {
+                          right: &mut [u8;16] in Utf8, output: &mut u64, swap: bool) {
             inspect(left, right, output);
-            transition { _ -> arrived(left, right, output) }
+            // Each arrival may name either owner, so neither can be aliased
+            // to a single invocation place. This exercises real block custody.
+            transition swap {
+                true -> arrived(right, left, output)
+                false -> arrived(left, right, output)
+            }
             state arrived(left: &mut [u8;16] in Utf8,
                           right: &mut [u8;16] in Utf8, output: &mut u64) {
                 inspect(left, right, output);

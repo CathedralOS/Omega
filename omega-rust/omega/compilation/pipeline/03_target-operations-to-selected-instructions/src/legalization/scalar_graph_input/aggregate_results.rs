@@ -610,6 +610,7 @@ pub(in crate::legalization) fn call_argument(
         }
         return super::structural_call::primitive_argument(
             argument,
+            call_operation,
             caller,
             destination,
             call,

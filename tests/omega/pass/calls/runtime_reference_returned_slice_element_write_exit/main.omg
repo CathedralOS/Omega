@@ -15,30 +15,30 @@ data Main {
     bag: Bag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.fill(&mut self.bag);
+machine Main::main(main: &mut Main) reaches Console {
+    Main::fill(&mut main.bag);
 
-    transition self.bag.cells[2].value == 7 {
-        true -> good()
-        false -> bad()
+    transition main.bag.cells[2].value == 7 {
+        true -> good(main)
+        false -> bad(main)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(181);
+    state good(main: &mut Main) {
+        main.console.exit_process(181);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(182);
+    state bad(main: &mut Main) {
+        main.console.exit_process(182);
     }
 }
 
-machine Main::fill(&mut self, bag: &mut Bag) {
-    let cell: &mut Cell = self.pick(bag);
+machine Main::fill(bag: &mut Bag) {
+    let cell: &mut Cell = Main::pick(bag);
     cell.value = 7;
     cell.tag = 9;
 }
 
-machine Main::pick(&mut self, bag: &mut Bag) -> &mut Cell {
+machine Main::pick(bag: &mut Bag) -> &mut Cell {
     let cells: &mut [Cell] = bag.cells.as_mut_slice();
     transition {
         _ -> &mut cells[2]

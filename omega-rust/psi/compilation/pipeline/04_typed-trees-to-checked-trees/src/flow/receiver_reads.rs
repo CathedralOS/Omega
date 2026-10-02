@@ -1,14 +1,14 @@
-//! The storage a call may read through its implicit receiver.
+//! The storage a call or local state jump may read through its data binding.
 //!
 //! A whole `&mut` receiver is judged by its footprint, not as one exclusive
 //! operand, so arguments lending disjoint fields stay usable beside it. The
-//! mutation summaries supply what the callee writes through `self`; this
+//! mutation summaries supply what the callee writes through the binding; this
 //! module supplies what it reads. An exclusive argument loan suspends the
 //! receiver branch it lends for the whole invocation, so a callee read of
 //! that branch through `self` observes storage another live path may rewrite.
 //!
 //! A state's footprint is a may-access set in its own coordinates: every
-//! place reached through `self` or attached storage that the body names as a
+//! place reached through the exact data parameter or attached storage that the body names as a
 //! read operand, borrow target, call receiver, call or transition operand,
 //! or index selector. A plain assignment's written place is not a read; the
 //! mutation summary owns it. Naming a place covers every later access
@@ -24,6 +24,13 @@
 //! receiver place instead, which covers everything the target can reach
 //! through it. A state whose own body or receiver call cannot be placed has
 //! no footprint, and its callers treat their whole receiver as read.
+//!
+//! Local jumps obtain a named data binding from its actual argument at the
+//! declared ordinal. Transporting that reference delegates observation to the
+//! successor footprint; its selectors still execute in the source state.
+//! Ordinary explicit machine-call arguments keep their whole-operand reads.
+//! Named parameter roots never collapse to the machine symbol: two instances
+//! of the same record must keep distinct storage identities.
 //!
 //! Each state keeps whole-run and per-parameter footprints (`jump_loans`).
 //! The whole run includes every state it jumps to, because a call holds its
@@ -42,7 +49,7 @@ use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{
     WritePlaceNamespace, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
-    instantiate_call_relative_places,
+    instantiate_call_relative_places, local_jump_data_argument,
 };
 use crate::flow::normalize_attached_place_root;
 use crate::semantic::calls::{CallSite, find_call_site_in_state, find_state};
@@ -189,9 +196,6 @@ fn build_state_receiver_reads(
         let mut delegated = DelegatedReceivers::default();
         let mut calls = Vec::new();
         for call in borrow.calls.span_or_empty(borrow_state.calls) {
-            if !target_takes_receiver(program, call.target_symbol) {
-                continue;
-            }
             let Some(site) = find_call_site_in_state(
                 program,
                 machine,
@@ -202,12 +206,22 @@ fn build_state_receiver_reads(
                 complete = false;
                 continue;
             };
+            let data_argument = local_jump_data_argument(program, machine.symbol, &site);
+            if !target_takes_receiver(program, call.target_symbol) && data_argument.is_none() {
+                continue;
+            }
             match site {
                 CallSite::Statement(_) => delegated.statements.push(call.statement_index),
                 CallSite::Expression { expression, .. } => {
                     delegated.expressions.push(expression);
                 }
-                CallSite::TransitionNamed { .. } => {}
+                CallSite::TransitionNamed { .. } => {
+                    if let Some(argument) = data_argument {
+                        delegated
+                            .transition_arguments
+                            .push((call.statement_index, argument));
+                    }
+                }
             }
             let Some(receiver) = canonical_receiver_place_for_call_site(
                 program,
@@ -338,22 +352,9 @@ fn extend_new(reads: &mut Vec<CanonicalPlace>, additions: Vec<CanonicalPlace>) -
     grew
 }
 
-/// Whether `target_symbol`'s declaration takes the subject of its machine's
-/// data: `self` under the receiver spelling, an ordinary parameter declaring
-/// that data under the static one. Both arrive as the same storage, so a
-/// footprint judgment has to follow either.
 fn target_takes_receiver(program: &typed_trees::TypedTrees, target_symbol: SymbolHandle) -> bool {
-    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target_symbol)
-    else {
-        return false;
-    };
-    if parameters.iter().any(|parameter| parameter.is_self) {
-        return true;
-    }
-    program
-        .machine_holding_state(target_symbol)
-        .and_then(|machine| program.data_binding_position(machine.attached_data_symbol, parameters))
-        .is_some()
+    crate::semantic::calls::call_target_parameters(program, target_symbol)
+        .is_some_and(|parameters| parameters.iter().any(|parameter| parameter.is_self))
 }
 
 impl FootprintOwner<'_> {
@@ -406,31 +407,19 @@ impl FootprintOwner<'_> {
         owned
     }
 
-    /// Whether `place` is storage this state reaches through its receiver:
-    /// the `self` binding or the attached machine storage.
+    /// Whether `place` is storage this state reaches through its data binding.
+    /// Named roots stay distinct from the machine and from other records of
+    /// the same type; instantiation supplies their exact caller-side identity.
     fn reaches(&self, program: &typed_trees::TypedTrees, place: &CanonicalPlace) -> bool {
         let facts::PlaceRoot::Symbol(root) = place.root else {
             return false;
         };
-        if root == self.machine_symbol {
-            return true;
-        }
-        let parameters = program.state_parameters(self.state);
-        if parameters
-            .iter()
-            .any(|parameter| parameter.is_self && parameter.symbol == root)
-        {
-            return true;
-        }
-        // The static spelling reaches the same storage through the state's data
-        // binding, which is an ordinary parameter rather than a receiver.
-        crate::lookup::machine_by_symbol(program, self.machine_symbol)
-            .and_then(|machine| {
-                program.data_binding_position(machine.attached_data_symbol, parameters)
-            })
-            .is_some_and(|index| {
-                parameters[index].symbol.is_valid() && parameters[index].symbol == root
-            })
+        root == self.machine_symbol
+            || crate::lookup::machine_by_symbol(program, self.machine_symbol)
+                .and_then(|machine| {
+                    program.data_binding_parameter(machine, program.state_parameters(self.state))
+                })
+                .is_some_and(|parameter| parameter.symbol == root)
     }
 }
 
@@ -440,6 +429,7 @@ impl FootprintOwner<'_> {
 struct DelegatedReceivers {
     expressions: Vec<ExpressionHandle>,
     statements: Vec<usize>,
+    transition_arguments: Vec<(usize, ExpressionHandle)>,
 }
 
 /// One state's directly named receiver places.
@@ -480,6 +470,18 @@ impl DirectReads<'_, '_> {
                 match role {
                     StatementRootRole::AssemblyFact => {}
                     StatementRootRole::AssignmentTarget => self.place(root, false),
+                    StatementRootRole::TransitionArgument
+                        if self
+                            .delegated
+                            .transition_arguments
+                            .contains(&(statement_index, root)) =>
+                    {
+                        // Forwarding the parent reference does not observe its
+                        // entire referent. The successor's held footprint owns
+                        // those reads; evaluating projection selectors still
+                        // observes their operands here.
+                        self.place(root, false);
+                    }
                     _ => self.value(root),
                 }
             }

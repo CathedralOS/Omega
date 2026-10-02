@@ -284,7 +284,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             } else {
                 &local_namespace
             };
-        computations.refresh_proof_scope(&state.erased_proof_parameters);
+        let private_start = computations.private_state_count();
         state_requires.push(PreparedStateRequirements {
             clauses: replayed_requirements[state_index].clone(),
             parameters: state_namespace.to_vec(),
@@ -570,6 +570,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             &mut computations,
             &mut value_requirements,
         )?;
+        computations.retain_state_erased_scope(private_start, &mut lowered)?;
         lowered.structural_parameters = state_parameters;
         lowered_states.push(lowered);
     }

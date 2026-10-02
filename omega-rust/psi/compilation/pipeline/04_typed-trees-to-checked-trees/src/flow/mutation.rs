@@ -28,6 +28,7 @@ pub(crate) use local_origins::close_storage_places_over_aliases_with_resolver;
 pub(crate) use local_origins::origin_place;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
+pub(in crate::flow) use receiver::local_jump_data_argument;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };

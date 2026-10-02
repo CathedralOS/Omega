@@ -6,19 +6,19 @@ data Main {
     buf: [u8; 8];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.buf[2] = 9;
-    transition true { _ -> next(&self.buf[2]) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.buf[2] = 9;
+    transition true { _ -> next(main, &main.buf[2]) }
 
-    state next(&mut self, leaf: &u8) {
-        transition leaf == 9 { true -> done() _ -> bad() }
+    state next(main: &mut Main, leaf: &u8) {
+        transition leaf == 9 { true -> done(main) _ -> bad(main) }
     }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

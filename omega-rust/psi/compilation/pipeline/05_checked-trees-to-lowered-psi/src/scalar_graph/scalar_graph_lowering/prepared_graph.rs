@@ -32,6 +32,8 @@ pub(crate) enum LoweredScalarBranchTerminator {
     Qualify {
         target: usize,
         arguments: Vec<LoweredDirectExpression>,
+        erased_arguments: Vec<LoweredDirectExpression>,
+        erased_proof_arguments: Vec<LoweredProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
     },
     Jump {

@@ -17,6 +17,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub(super) fn argument(
     semantic: &StructuralArgument,
+    call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
     destination: &StructuralParameterDeclaration,
     call: &CallPlan,
@@ -44,11 +45,17 @@ pub(super) fn argument(
         destination.structural_type,
         types,
     );
-    let projection = crate::structural_inputs::structural_reference_input::project(
+    // Static prefixes and runtime selectors share the joined-storage
+    // geometry. Keep selectors tied to this call's dominating definitions;
+    // the path still carries their independently accepted bound obligations.
+    let geometry = crate::structural_inputs::structural_reference_input::runtime_projection(
         source.structural_type,
         &semantic.path,
         types,
     );
+    let projection = geometry
+        .as_ref()
+        .map(|(selected, offset, _)| (*selected, *offset));
     let byte_view = crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
         source,
         semantic,
@@ -142,7 +149,14 @@ pub(super) fn argument(
         element_stride: byte_view
             .map(|_| 1)
             .or_else(|| element_view.map(|(_, _, stride)| stride)),
-        indices: Vec::new(),
+        indices: super::super::target::control_flow::sources::call_indices(
+            native,
+            caller,
+            call_operation,
+            geometry
+                .as_ref()
+                .map_or(&[], |(_, _, elements)| elements.as_slice()),
+        )?,
         source: source_placement,
         destination: call.parameters[scalar_count].clone(),
     })

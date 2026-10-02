@@ -11,16 +11,17 @@
 //! invocation parameter carries whatever record the entry receives, bounded
 //! byte fields included.
 //!
-//! A borrowed entry parameter whose referent holds a borrowed view is forwarded
-//! the same way: a generated wire encoder's `sample: &BlobSample` rides each
-//! state unchanged, and a record with a borrowed byte view member has no
-//! block-parameter form at all. Entry parameters over plain carriers stay
-//! block parameters, which cyclic eligibility, bounded-owner qualifications
-//! and arrival proofs already read. Such a forward keeps its access: a `&mut`
-//! entry parameter that a state narrows to `&T` stays a shared block
-//! parameter, the restriction `tests/shared_state_views.rs` pins. Only the
-//! receiver may also be narrowed while keeping the invocation place, as a
-//! state's implicit `&self` is.
+//! Any whole borrowed entry parameter can keep its invocation place when
+//! every arrival proves that identity. The referent's representation does not
+//! change this proof: a plain record and a record containing views obey the
+//! same rule. This also lets a projected child travel while its parent stays
+//! rooted at invocation storage; Terminal still checks every child access and
+//! its release independently.
+//!
+//! A forward keeps its access and custody metadata. A named `&mut` entry loan
+//! narrowed to `&T` remains a shared block parameter, as pinned by
+//! `tests/shared_state_views.rs`. Only the receiver may also be narrowed while
+//! keeping the invocation place, as a state's implicit `&self` is.
 //!
 //! The roster is the greatest fixpoint per entry parameter: every candidate
 //! starts aliased, and a candidate leaves once one of its incoming edges
@@ -31,18 +32,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::super::super::LoweringError;
-use super::super::CheckedTrees;
 use super::{CheckedComposedUnitControlMachinePlan, successors};
-use checked_trees::{
-    CheckedByteSequenceCarrier, CheckedStructuralAccess,
-    CheckedStructuralControlTransferSourcePlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape,
-};
+use checked_trees::{CheckedStructuralAccess, CheckedStructuralControlTransferSourcePlan};
 
 /// Bind each forwarded whole entry-parameter loan to that parameter's
 /// position in `aliased`, beside the claim aliases already resolved there.
 pub(super) fn alias_entry_parameter_loans(
-    checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     live: &[bool],
     aliased: &mut [BTreeMap<u32, u32>],
@@ -70,12 +65,11 @@ pub(super) fn alias_entry_parameter_loans(
         .enumerate()
         .filter(|(_, parameter)| {
             parameter.is_self
-                || (matches!(
+                || matches!(
                     parameter.access,
                     CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
-                ) && holds_borrowed_view(checked, &parameter.type_identity))
+                )
         })
-        .map(|(position, parameter)| (position, parameter))
         .collect::<Vec<_>>();
     roots.sort_by_key(|(_, parameter)| !parameter.is_self);
     for (root, root_parameter) in roots {
@@ -99,6 +93,10 @@ pub(super) fn alias_entry_parameter_loans(
                     )
                     && (receiver || parameter.access == root_parameter.access)
                     && parameter.type_identity == root_parameter.type_identity
+                    && parameter.multiplicity == root_parameter.multiplicity
+                    && parameter.qualifications == root_parameter.qualifications
+                    && parameter.projected_qualifications == root_parameter.projected_qualifications
+                    && parameter.fused_service_erasure == root_parameter.fused_service_erasure
                     && !aliased[position].contains_key(&index)
                 {
                     candidates.insert((position, index));
@@ -155,70 +153,4 @@ pub(super) fn alias_entry_parameter_loans(
         }
     }
     Ok(())
-}
-
-/// Whether a referent's type graph reaches a borrowed view: a byte or bounded
-/// view, a slice view or a reference. Terminal declares no borrowed block
-/// parameter over such a referent.
-fn holds_borrowed_view(checked: &CheckedTrees, identity: &str) -> bool {
-    let types = &checked.facts.flow.terminal_unit_effects.structural_types;
-    let mut pending = vec![identity];
-    let mut visited = BTreeSet::new();
-    while let Some(current) = pending.pop() {
-        if !visited.insert(current) {
-            continue;
-        }
-        let Some(declaration) = types.iter().find(|row| row.identity == current) else {
-            continue;
-        };
-        let fields = match &declaration.shape {
-            CheckedUnitStructuralTypeShape::Reference { .. }
-            | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => return true,
-            CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
-                if borrowed_carrier(carrier) {
-                    return true;
-                }
-                continue;
-            }
-            CheckedUnitStructuralTypeShape::FixedArray {
-                element_type_identity,
-                ..
-            } => {
-                pending.push(element_type_identity);
-                continue;
-            }
-            CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().collect::<Vec<_>>(),
-            CheckedUnitStructuralTypeShape::Sum { cases } => {
-                cases.iter().flat_map(|case| &case.fields).collect()
-            }
-            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-                .collect(),
-            _ => continue,
-        };
-        for field in fields {
-            match &field.field_type {
-                CheckedUnitStructuralFieldType::ByteSequence(carrier)
-                | CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, .. }
-                    if borrowed_carrier(carrier) =>
-                {
-                    return true;
-                }
-                CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                    pending.push(type_identity);
-                }
-                _ => {}
-            }
-        }
-    }
-    false
-}
-
-fn borrowed_carrier(carrier: &CheckedByteSequenceCarrier) -> bool {
-    matches!(
-        carrier,
-        CheckedByteSequenceCarrier::BorrowedView { .. }
-            | CheckedByteSequenceCarrier::BoundedView { .. }
-    )
 }

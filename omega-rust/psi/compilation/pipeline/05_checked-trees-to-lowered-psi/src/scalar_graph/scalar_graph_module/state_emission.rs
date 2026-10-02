@@ -96,18 +96,51 @@ impl GraphEmission<'_> {
             LoweredScalarBranchTerminator::Qualify {
                 target,
                 arguments,
+                erased_arguments,
+                erased_proof_arguments,
                 structural_arguments,
-            } => qualifications::emit(
-                *target,
-                arguments,
-                structural_arguments,
-                &current_values,
-                &self.state_parameters,
-                self.terminal_machine,
-                self.identity_base,
-                &mut self.next_edge_identity,
-                &mut self.scalar_qualifications,
-            )?,
+            } => {
+                let mut terminator = qualifications::emit(
+                    *target,
+                    arguments,
+                    structural_arguments,
+                    &current_values,
+                    &self.state_parameters,
+                    self.terminal_machine,
+                    self.identity_base,
+                    &mut self.next_edge_identity,
+                    &mut self.scalar_qualifications,
+                )?;
+                let Terminator::Jump {
+                    erased_arguments: scalar_actuals,
+                    erased_proof_arguments: proof_actuals,
+                    ..
+                } = &mut terminator
+                else {
+                    return unsupported("qualification emission lost its successor edge");
+                };
+                *scalar_actuals = erased_arguments
+                    .iter()
+                    .map(|argument| {
+                        crate::proofs::crash_routes::lowered_direct_scalar_term(
+                            argument,
+                            &current_values,
+                            &self.state_erased_formals[index],
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                *proof_actuals = erased_proof_arguments
+                    .iter()
+                    .map(|argument| {
+                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            argument,
+                            &current_values,
+                            &self.state_erased_formals[index],
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                terminator
+            }
             LoweredScalarBranchTerminator::Jump {
                 target,
                 arguments,

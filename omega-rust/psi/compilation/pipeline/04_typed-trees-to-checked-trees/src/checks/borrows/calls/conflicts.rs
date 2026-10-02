@@ -22,23 +22,14 @@ pub(super) fn check_call_access_conflicts<'p>(
     recording: &mut CallCompatibility<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    // The argument supplying the callee's SUBJECT is the parent of the
-    // call, not one operand among others: an implicit receiver was never an
-    // argument access at all, so the receiver spelling never formed these
-    // pairs. `receiver::footprint` owns that parent, judging it by what the
-    // callee actually does through it, and it refuses a projection of the
-    // parent that the callee's own reads or writes disturb.
-    let subject_argument =
-        super::receiver::subject_argument_position(program, facts, state_flow, borrow_call);
-    // The list keeps every access: `end_before_access` cites POSITIONS in it,
-    // so dropping an element would misalign every later comparison. The
-    // subject is skipped when pairing instead.
     let accesses: Vec<_> = facts
         .borrow
         .argument_accesses
         .span_or_empty(borrow_call.accesses)
         .iter()
         .collect();
+    let data_access =
+        super::receiver::explicit_jump_data_access(program, facts, state_flow, borrow_call);
     let exiting_source = super::super::statements::source_exiting_without_local_loan_carriers(
         program,
         state_flow,
@@ -99,11 +90,13 @@ pub(super) fn check_call_access_conflicts<'p>(
     }
 
     for (index, access) in accesses.iter().enumerate() {
-        if subject_argument == Some(index) {
-            continue;
-        }
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
-            if subject_argument == Some(other_index) {
+            // A local jump forwards the activation's exact data parent. It
+            // does not establish a second independent whole-record loan while
+            // staging the other operands. The successor footprint judges each
+            // retained child's lifetime; a completed copy holds no child loan.
+            // Ordinary calls and pairs between other operands stay exclusive.
+            if data_access == Some(index) || data_access == Some(other_index) {
                 continue;
             }
             // A copied read or completed nested-call loan no longer observes

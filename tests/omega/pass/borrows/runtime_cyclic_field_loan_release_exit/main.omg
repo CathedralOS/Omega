@@ -5,29 +5,29 @@ data Main { console: Binding<Console>; count: u64; }
 
 // The storage root stays the same across the loop, while the loan exists
 // only in snapshot. Writeback must see the count after that loan ends.
-machine Main::update(&mut self) {
-    transition { _ -> snapshot(&mut self.count) }
-    state snapshot(&mut self, count: &mut u64) {
+machine Main::update(main: &mut Main) {
+    transition { _ -> snapshot(main, &mut main.count) }
+    state snapshot(main: &mut Main, count: &mut u64) {
         let saved: u64 = count;
-        transition { _ -> writeback(saved) }
+        transition { _ -> writeback(main, saved) }
     }
-    state writeback(&mut self, saved: u64) {
-        self.count = ((saved as u64 in Wrapping) + 1) as u64;
-        transition self.count < 70 {
-            true -> snapshot(&mut self.count)
-            false -> done()
+    state writeback(main: &mut Main, saved: u64) {
+        main.count = ((saved as u64 in Wrapping) + 1) as u64;
+        transition main.count < 70 {
+            true -> snapshot(main, &mut main.count)
+            false -> done(main)
         }
     }
-    state done(&mut self) {}
+    state done(main: &mut Main) {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.count = 67;
-    self.update();
-    transition self.count == 70 {
-        true -> matched()
-        false -> mismatched()
+machine Main::main(main: &mut Main) reaches Console {
+    main.count = 67;
+    Main::update(main);
+    transition main.count == 70 {
+        true -> matched(main)
+        false -> mismatched(main)
     }
-    state matched(&mut self) { self.console.exit_process(70); }
-    state mismatched(&mut self) { self.console.exit_process(71); }
+    state matched(main: &mut Main) { main.console.exit_process(70); }
+    state mismatched(main: &mut Main) { main.console.exit_process(71); }
 }

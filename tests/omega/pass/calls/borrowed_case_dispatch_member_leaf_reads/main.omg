@@ -22,46 +22,46 @@ data Main {
     shape: Shape;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.shape = Shape::Line {
+machine Main::main(main: &mut Main) reaches Console {
+    main.shape = Shape::Line {
         inner: Inner { leaf: Leaf { v: 7 }, other: 3 },
         tag: 9,
     };
-    transition { _ -> inspect(&self.shape) }
-    state after_inspect(&mut self) {
-        transition self.shape {
-            Shape::Line { inner, tag } -> use_inner(inner)
-            _ -> bad(72)
+    transition { _ -> inspect(main, &main.shape) }
+    state after_inspect(main: &mut Main) {
+        transition main.shape {
+            Shape::Line { inner, tag } -> use_inner(main, inner)
+            _ -> bad(main, 72)
         }
     }
-    state use_inner(&mut self, inner: Inner) {
+    state use_inner(main: &mut Main, inner: Inner) {
         transition inner.leaf.v == 7 {
-            true -> loaned(inner)
-            _ -> bad(73)
+            true -> loaned(main, inner)
+            _ -> bad(main, 73)
         }
     }
-    state loaned(&mut self, inner: Inner) {
-        transition { _ -> read_leaf(&inner.leaf) }
+    state loaned(main: &mut Main, inner: Inner) {
+        transition { _ -> read_leaf(main, &inner.leaf) }
     }
-    state read_leaf(&mut self, leaf: &Leaf) {
+    state read_leaf(main: &mut Main, leaf: &Leaf) {
         transition leaf.v == 7 {
-            true -> good()
-            _ -> bad(74)
+            true -> good(main)
+            _ -> bad(main, 74)
         }
     }
-    state inspect(&mut self, shape: &Shape) {
+    state inspect(main: &mut Main, shape: &Shape) {
         transition shape {
-            Shape::Line { inner, tag } -> via_loan(inner, tag)
-            _ -> bad(75)
+            Shape::Line { inner, tag } -> via_loan(main, inner, tag)
+            _ -> bad(main, 75)
         }
     }
-    state via_loan(&mut self, inner: Inner, tag: i32 in Wrapping) {
+    state via_loan(main: &mut Main, inner: Inner, tag: i32 in Wrapping) {
         transition inner.leaf.v == 7 && tag == 9 {
-            true -> good()
-            _ -> bad(76)
+            true -> good(main)
+            _ -> bad(main, 76)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
