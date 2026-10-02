@@ -4,7 +4,7 @@
 //! and closes its writes over the canonical storage paths and live local names
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
-use super::stored_origins::{StoredLocalOrigins, expand_write_path, place_suffix};
+use super::stored_origins::{StoredLocalOrigins, expand_write_paths, place_suffix};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
     Machine, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
@@ -162,12 +162,12 @@ pub(super) fn assignment_write_paths(
     let evidence = assignment_evidence(program, machine, symbols, statement, state_assignments)?;
     match evidence.target {
         AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
-        AssignmentWriteTarget::Storage { paths } => Some(close_over_origins(
+        AssignmentWriteTarget::Storage { paths } => close_over_origins(
             paths,
             &evidence.aliases,
             &evidence.divergent,
             &evidence.stored,
-        )),
+        ),
     }
 }
 
@@ -279,19 +279,24 @@ pub(super) fn local_write_origins_before_statement(
         .stored
         .into_iter()
         .flat_map(|local| local.references)
-        .map(|leaf| LocalWriteOrigin {
-            local_symbol: leaf.local_symbol,
-            local_segments: leaf.local_segments,
-            source_path: leaf.origin.path,
-            collection_coarse: leaf.origin.precision == FramePathPrecision::CollectionCoarse,
-            source_root: if leaf.origin.source.builtin_coordinates {
-                leaf.origin.source.root
-            } else {
-                SymbolHandle::invalid()
-            },
-            source_segments: leaf.origin.source.segments,
+        .map(|leaf| {
+            // This public query promises a complete source roster. Unknown
+            // rows cannot be omitted: consumers would call their writes private.
+            let origin = leaf.origin?;
+            Some(LocalWriteOrigin {
+                local_symbol: leaf.local_symbol,
+                local_segments: leaf.local_segments,
+                source_path: origin.path,
+                collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
+                source_root: if origin.source.builtin_coordinates {
+                    origin.source.root
+                } else {
+                    SymbolHandle::invalid()
+                },
+                source_segments: origin.source.segments,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Option<Vec<_>>>()?;
     if evidence.aliases.is_empty() && evidence.divergent.is_empty() {
         return Some(origins);
     }
@@ -362,12 +367,12 @@ fn close_caller_aliases(
         return Some(written);
     }
     let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
-    Some(close_over_origins(
+    close_over_origins(
         written,
         &evidence.aliases,
         &evidence.divergent,
         &evidence.stored,
-    ))
+    )
 }
 
 #[cfg(test)]
@@ -500,12 +505,12 @@ pub(super) fn with_caller_origins(
         stored: &evidence.stored,
     };
     let written = resolve(&mut inference, &prefix)?;
-    Some(close_over_origins(
+    close_over_origins(
         written,
         &evidence.aliases,
         &evidence.divergent,
         &evidence.stored,
-    ))
+    )
 }
 
 fn close_over_origins(
@@ -513,10 +518,9 @@ fn close_over_origins(
     aliases: &[(String, FramePlaceOrigin)],
     divergent: &[(String, Vec<FramePlaceOrigin>)],
     stored: &[StoredLocalOrigins],
-) -> Vec<String> {
-    let canonical = written
-        .iter()
-        .flat_map(|path| expand_write_path(path, aliases, stored))
+) -> Option<Vec<String>> {
+    let canonical = expand_write_paths(&written, aliases, stored)?
+        .into_iter()
         // A divergent binding's raw spelling names every referent it may
         // carry: keep the local name for fact invalidation and add each
         // candidate route, composing a projected suffix onto exact
@@ -551,7 +555,7 @@ fn close_over_origins(
         }
         for (alias, origin, local_coarse) in aliases
             .iter()
-            .map(|(alias, origin)| (alias, origin, false))
+            .map(|(alias, origin)| (alias, Some(origin), false))
             .chain(
                 stored
                     .iter()
@@ -559,7 +563,7 @@ fn close_over_origins(
                     .map(|leaf| {
                         (
                             &leaf.local_path,
-                            &leaf.origin,
+                            leaf.origin.as_ref(),
                             leaf.local_segments.iter().any(|segment| {
                                 matches!(
                                     segment,
@@ -571,6 +575,14 @@ fn close_over_origins(
                     }),
             )
         {
+            let Some(origin) = origin else {
+                // No disjointness evidence exists for this captured reference.
+                // Invalidate its facts on every potentially aliasing write.
+                if !closed.contains(alias) {
+                    closed.push(alias.clone());
+                }
+                continue;
+            };
             let spelling = if let Some(suffix) = place_suffix(&origin.path, &path) {
                 match (origin.precision, local_coarse) {
                     (FramePathPrecision::Exact, false) => append_place_suffix(alias, suffix),
@@ -586,7 +598,7 @@ fn close_over_origins(
             }
         }
     }
-    closed
+    Some(closed)
 }
 
 /// The prefix evidence a boundary site established: the enclosing state plus

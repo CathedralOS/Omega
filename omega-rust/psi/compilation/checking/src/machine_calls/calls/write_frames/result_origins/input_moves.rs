@@ -140,7 +140,9 @@ pub(super) fn instantiate_moves(
         let projected =
             stored_origins::project_stored_origins(program, &actual, &selectors, false)?;
         for mut leaf in projected.references {
-            leaf.origin.source.builtin_coordinates &= moved.source.builtin_coordinates;
+            if let Some(origin) = &mut leaf.origin {
+                origin.source.builtin_coordinates &= moved.source.builtin_coordinates;
+            }
             let mut segments = moved.local_segments.clone();
             segments.extend(leaf.local_segments);
             leaf.local_segments = segments;

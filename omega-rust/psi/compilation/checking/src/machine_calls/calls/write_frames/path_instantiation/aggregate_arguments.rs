@@ -41,8 +41,9 @@ pub(super) fn written_paths(
     )?;
     let mut written = Vec::new();
     for leaf in leaves.references {
-        if !written.contains(&leaf.origin.path) {
-            written.push(leaf.origin.path);
+        let origin = leaf.origin?;
+        if !written.contains(&origin.path) {
+            written.push(origin.path);
         }
     }
     Some(written)
@@ -54,7 +55,8 @@ pub(super) fn written_paths(
 pub(in crate::machine_calls::calls::write_frames) struct ReferenceLeaf {
     pub local_suffix: String,
     pub local_segments: Vec<PlaceSegment>,
-    pub origin: FramePlaceOrigin,
+    /// None retains an unresolved reference boundary, never an absent leaf.
+    pub origin: Option<FramePlaceOrigin>,
 }
 
 #[derive(Clone, Default)]
@@ -236,8 +238,10 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
             }
             for mut leaf in moved.references {
                 if let Some(remainder) = place_suffix(&leaf.local_suffix, suffix) {
-                    if leaf.origin.precision == FramePathPrecision::Exact {
-                        leaf.origin.path = append_place_suffix(&leaf.origin.path, remainder);
+                    if let Some(origin) = &mut leaf.origin
+                        && origin.precision == FramePathPrecision::Exact
+                    {
+                        origin.path = append_place_suffix(&origin.path, remainder);
                     }
                 } else if place_suffix(suffix, &leaf.local_suffix).is_none() {
                     continue;
@@ -271,10 +275,19 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                 if !access.is_exclusive() && !include_shared {
                     continue;
                 }
-                if !include_shared && !referent_has_only_owned_storage(program, *referee) {
-                    return None;
-                }
-                for origin in resolve_reference(expression, reference, false, inference)? {
+                let origins = (include_shared
+                    || referent_has_only_owned_storage(program, *referee))
+                .then(|| resolve_reference(expression, reference, false, inference))
+                .flatten();
+                let Some(origins) = origins else {
+                    leaves.references.push(ReferenceLeaf {
+                        local_suffix,
+                        local_segments,
+                        origin: None,
+                    });
+                    continue;
+                };
+                for origin in origins {
                     let path = match origin.precision {
                         FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
                         FramePathPrecision::CollectionCoarse => origin.path,
@@ -282,11 +295,11 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                     leaves.references.push(ReferenceLeaf {
                         local_suffix: local_suffix.clone(),
                         local_segments: local_segments.clone(),
-                        origin: FramePlaceOrigin {
+                        origin: Some(FramePlaceOrigin {
                             path,
                             precision: origin.precision,
                             source: origin.source,
-                        },
+                        }),
                     });
                 }
             }

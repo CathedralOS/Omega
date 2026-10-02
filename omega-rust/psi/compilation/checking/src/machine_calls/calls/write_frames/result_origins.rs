@@ -426,7 +426,8 @@ fn merge_relative_origins(
     }
     for leaf in returned.references {
         for origin in canonical_reference_origins(program, &leaf.origin, aliases, stored) {
-            if include_shared
+            if let Some(origin) = &origin
+                && include_shared
                 && parameters.iter().any(|parameter| {
                     super::type_reference_is_reference(program, parameter.type_reference)
                         && (parameter.symbol == origin.source.root
@@ -454,9 +455,7 @@ fn merge_relative_origins(
             if !relative.references.iter().any(|existing| {
                 existing.local_suffix == leaf.local_suffix
                     && existing.local_segments == leaf.local_segments
-                    && existing.origin.path == leaf.origin.path
-                    && existing.origin.precision == leaf.origin.precision
-                    && existing.origin.source == leaf.origin.source
+                    && existing.origin == leaf.origin
             }) {
                 relative.references.push(leaf);
             }
@@ -619,9 +618,13 @@ fn instantiate_result_origins(
     )?;
     returned.cases.extend(relative.cases.iter().cloned());
     for leaf in relative.references.iter() {
+        let Some(origin) = &leaf.origin else {
+            returned.references.push(leaf.clone());
+            continue;
+        };
         if include_shared
-            && !leaf.origin.source.root.is_valid()
-            && leaf.origin.precision == FramePathPrecision::CollectionCoarse
+            && !origin.source.root.is_valid()
+            && origin.precision == FramePathPrecision::CollectionCoarse
         {
             // A shared unknown is still a leaf, not an empty result footprint.
             // Mutable unknowns cannot be issued by the reference resolver.
@@ -629,8 +632,8 @@ fn instantiate_result_origins(
             continue;
         }
         let parameter = parameters.iter().find(|parameter| {
-            leaf.origin.source.root == parameter.symbol
-                || (parameter.is_self && leaf.origin.source.root == callee_machine.symbol)
+            origin.source.root == parameter.symbol
+                || (parameter.is_self && origin.source.root == callee_machine.symbol)
         })?;
         let actual = if parameter.is_self {
             match receiver {
@@ -655,7 +658,7 @@ fn instantiate_result_origins(
             callee_machine,
             parameter,
             actual,
-            &leaf.origin,
+            origin,
             symbols,
             inference,
             include_shared,
@@ -665,7 +668,7 @@ fn instantiate_result_origins(
             returned.references.push(ReferenceLeaf {
                 local_suffix: leaf.local_suffix.clone(),
                 local_segments: leaf.local_segments.clone(),
-                origin,
+                origin: Some(origin),
             });
         }
     }

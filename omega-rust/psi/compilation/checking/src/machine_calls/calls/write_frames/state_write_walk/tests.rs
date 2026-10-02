@@ -13,6 +13,99 @@ const SUCCESSOR_WRITE: &str = "
 ";
 
 #[test]
+fn private_metadata_writes_do_not_require_unrelated_reference_origins() {
+    let program = crate::front_end::typed_program(
+        "data Entry { observed: &u64; value: u64; }
+         data Carrier { entries: &mut [Entry]; count: u64; }
+         machine make(entries: &mut [Entry]) -> Carrier {
+             Carrier { entries: entries, count: 0 }
+         }
+         machine Carrier::set_count(&mut self) { self.count = 7; }
+         machine update(entries: &mut [Entry]) {
+             let mut carrier: Carrier = make(entries);
+             carrier.set_count();
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "update")
+        .expect("caller");
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert_eq!(frames[0].complete_paths(), Some([].as_slice()));
+}
+
+#[test]
+fn unresolved_carrier_referent_writes_cannot_become_private() {
+    let program = crate::front_end::typed_program(
+        "data Entry { observed: &u64; value: u64; }
+         data Carrier { entries: &mut [Entry]; count: u64; }
+         machine make(entries: &mut [Entry]) -> Carrier {
+             Carrier { entries: entries, count: 0 }
+         }
+         machine update(entries: &mut [Entry]) {
+             let mut carrier: Carrier = make(entries);
+             carrier.entries[0].value = 7;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "update")
+        .expect("caller");
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    if let Some(paths) = frames[0].complete_paths() {
+        assert!(paths.contains(&"entries".to_owned()), "{paths:?}");
+    }
+}
+
+#[test]
+fn unresolved_reference_frontier_survives_local_and_call_transport() {
+    let program = crate::front_end::typed_program(
+        "data Entry { observed: &u64; value: u64; }
+         data Carrier { entries: &mut [Entry]; count: u64; }
+         machine make(entries: &mut [Entry]) -> Carrier {
+             Carrier { entries: entries, count: 0 }
+         }
+         machine relocate(value: Carrier) -> Carrier {
+             let moved: Carrier = value;
+             moved
+         }
+         machine Carrier::set_count(&mut self) { self.count = 7; }
+         machine metadata(entries: &mut [Entry]) {
+             let original: Carrier = make(entries);
+             let mut carrier: Carrier = relocate(original);
+             carrier.set_count();
+         }
+         machine referent(entries: &mut [Entry]) {
+             let original: Carrier = make(entries);
+             let mut carrier: Carrier = relocate(original);
+             carrier.entries[0].value = 7;
+         }",
+    );
+    let resolver = crate::CallFrameResolver::new(&program).expect("resolver");
+    for machine in program.machines() {
+        match machine.name.as_str() {
+            "metadata" => {
+                let frames = resolver.inferred_machine_state_write_frames(machine);
+                assert_eq!(frames[0].complete_paths(), Some([].as_slice()));
+            }
+            "referent" => {
+                let frames = resolver.inferred_machine_state_write_frames(machine);
+                if let Some(paths) = frames[0].complete_paths() {
+                    assert!(paths.contains(&"entries".to_owned()), "{paths:?}");
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+#[test]
 fn returned_carrier_preserves_origins_after_parameter_reborrow() {
     let program = crate::front_end::typed_program(
         "data Carrier { destination: &mut u64; count: u64; }
@@ -173,7 +266,14 @@ fn statement_prefix_demand_stops_before_successor_effects() {
         if include_shared {
             assert_eq!(stored.len(), 1);
             assert_eq!(stored[0].references.len(), 1);
-            assert_eq!(stored[0].references[0].origin.path, "shared.value");
+            assert_eq!(
+                stored[0].references[0]
+                    .origin
+                    .as_ref()
+                    .expect("known source")
+                    .path,
+                "shared.value"
+            );
         } else {
             assert!(stored.is_empty());
         }

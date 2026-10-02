@@ -224,8 +224,9 @@ pub(super) fn value_origin(
         )?
     };
     let mut origins =
-        stored_origins::canonical_reference_origins(program, &origin, aliases, stored).into_iter();
-    let origin = origins.next()?;
+        stored_origins::canonical_reference_origins(program, &Some(origin), aliases, stored)
+            .into_iter();
+    let origin = origins.next()??;
     if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
         return None;
     }
@@ -264,9 +265,9 @@ fn declared_initializer_origin(
         // borrowed carrier lands on the caller's leaf slot, whose referent the
         // slot's own row supplies.
         let mut origins =
-            stored_origins::canonical_reference_origins(program, &origin, aliases, stored)
+            stored_origins::canonical_reference_origins(program, &Some(origin), aliases, stored)
                 .into_iter();
-        let origin = origins.next()?;
+        let origin = origins.next()??;
         if origins.next().is_some() {
             return None;
         }
@@ -353,8 +354,9 @@ fn frozen_reference_origin(
         return None;
     }
     let mut origins =
-        stored_origins::canonical_reference_origins(program, &raw, aliases, stored).into_iter();
-    let origin = origins.next()?;
+        stored_origins::canonical_reference_origins(program, &Some(raw), aliases, stored)
+            .into_iter();
+    let origin = origins.next()??;
     if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
         return None;
     }

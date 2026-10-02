@@ -1008,7 +1008,7 @@ the complete product bar; focused successes below do not establish that baseline
   Current candidate application `74beda02c779`, with std
   `8a9485804ea8e5ae7f7bb5b2405a86a42a81188c`, checks API and scanning but
   reaches six session-package borrow diagnostics on macOS ARM64 using compiler
-  `3a0034ccc27`. Reproduction: `omega update --project
+  `3a0034ccc27` plus the partial-origin transfer repair. Reproduction: `omega update --project
   samples/apps/squalr/squalr-tests --target linux_x86_64` exits 1 at
   `pointer_scan_results_store.omg`'s `fill_window_write`: shared candidate-arena
   ranges conflict with the mutable receiver's reported whole-`self` writes.
@@ -1016,11 +1016,17 @@ the complete product bar; focused successes below do not establish that baseline
   checkpointed but unpublished because the application remote denied writes;
   resolve publication before advancing the application gitlink.
 
-  Recover the body-derived returned-reference relation inside
-  `PointerScanResults::new`: it is already opaque before caller substitution,
-  so `assemble_results_view::build` cannot retain its result's captured origins.
-  Keep the shared statement transfer authoritative for reborrows and disjoint
-  metadata writes; do not relax nested-reference storage guards. The route retains
+  Trace the remaining opaque effect in `assemble_results_view::build` after
+  partial-origin transfer. The `PointerScanResults::new` result contains a
+  mutable slice whose elements themselves hold shared references; plain path
+  substitution cannot establish that leaf's complete storage origin. The shared
+  transfer now retains unresolved leaves through local moves and helper results,
+  permitting disjoint metadata writes without exporting unknown origins or
+  dropping overlapping writes. Its local pure-tail-return exception is removed;
+  98 focused frame tests pass, including helper transport and a referent-write
+  control, but the unchanged application still reports the six conflicts.
+  Keep the shared transfer authoritative; do not relax nested-reference storage
+  guards or add a source-shape exception. The route retains
   candidate windows in external result entries, sorts disjoint `target_addresses`,
   and updates scalar metadata on the new result; no candidate-arena write was found. The owning
   paths are checking's receiver footprint/write-frame analysis and flow mutation

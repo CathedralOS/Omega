@@ -144,8 +144,11 @@ pub(super) fn substitutions_are_finite(
                     }) {
                         spelling.precision = FramePathPrecision::CollectionCoarse;
                     }
-                    let mut sources =
-                        canonical_origins(&origin, &equation.local_alias_origins, &equation.stored);
+                    let Some(mut sources) =
+                        canonical_origins(&origin, &equation.local_alias_origins, &equation.stored)
+                    else {
+                        return false;
+                    };
                     sources.push(spelling);
                     for source in sources {
                         let (name, suffix) = split_place_root(&source.path);

@@ -2,6 +2,14 @@
 //!
 //! The literal walker is shared with call instantiation. State transfer stores
 //! canonical origins now, not expressions to replay after an alias is rebound.
+//!
+//! A reference slot and knowledge of its referent are separate facts. Keep an
+//! unresolved slot through projection, moves, calls and joins rather than
+//! rejecting every use of its enclosing record or omitting the slot. Only an
+//! overlapping write demands its source; that demand fails closed before
+//! private-local filtering. Exact-origin consumers likewise reject unknown
+//! sources. This replaces the local pure-tail-return exception with ordinary
+//! transfer, without treating incomplete effect summaries as complete.
 
 use super::path_instantiation::aggregate_arguments::reference_leaves_with_origins;
 use super::place_paths::{
@@ -140,7 +148,32 @@ pub(super) struct StoredWriteOrigin {
     pub local_symbol: SymbolHandle,
     pub local_path: String,
     pub local_segments: Vec<PlaceSegment>,
-    pub origin: FramePlaceOrigin,
+    /// The reference boundary exists even when its captured storage is unknown.
+    /// Such a leaf must survive transport and prevent overlapping writes from
+    /// being discarded as private local storage.
+    pub origin: Option<FramePlaceOrigin>,
+}
+
+/// The type supplies a reference frontier even when value transfer cannot
+/// establish its sources. This is unknown evidence, never an empty footprint.
+pub(super) fn unresolved_origins(
+    program: &TypedTrees,
+    local: &TableLocalData,
+    include_shared: bool,
+) -> Option<StoredLocalOrigins> {
+    let mut origins = type_origins::declared_origins_for_query(
+        program,
+        local.symbol,
+        local.name.as_str(),
+        local.type_reference,
+        include_shared,
+    )?;
+    for leaf in &mut origins.references {
+        leaf.origin = None;
+    }
+    // Unknown transport cannot establish conserved input identity.
+    origins.moves.clear();
+    Some(origins)
 }
 
 pub(super) fn declaration_origins(
@@ -361,7 +394,7 @@ pub(super) fn canonical_origins(
     origin: &FramePlaceOrigin,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
-) -> Vec<FramePlaceOrigin> {
+) -> Option<Vec<FramePlaceOrigin>> {
     let (root, suffix) = split_place_root(&origin.path);
     let origin = aliases.iter().find(|(name, _)| name == root).map_or_else(
         || origin.clone(),
@@ -382,9 +415,9 @@ pub(super) fn canonical_origins(
             } else {
                 origin.precision
             };
-            compose_origin(&leaf.origin, suffix, precision)
+            compose_origin(leaf.origin.as_ref()?, suffix, precision)
         } else if place_suffix(&origin.path, &leaf.local_path).is_some() {
-            compose_origin(&leaf.origin, "", origin.precision)
+            compose_origin(leaf.origin.as_ref()?, "", origin.precision)
         } else {
             continue;
         };
@@ -397,7 +430,7 @@ pub(super) fn canonical_origins(
     if includes_private {
         origins.push(origin);
     }
-    origins
+    Some(origins)
 }
 
 fn compose_origin(
@@ -430,7 +463,7 @@ pub(super) fn expand_write_path(
     path: &str,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
-) -> Vec<String> {
+) -> Option<Vec<String>> {
     let mut paths = vec![super::rebase_local_alias_path(path, aliases)];
     for origin in canonical_origins(
         &FramePlaceOrigin {
@@ -440,10 +473,24 @@ pub(super) fn expand_write_path(
         },
         aliases,
         stored,
-    ) {
+    )? {
         if !paths.contains(&origin.path) {
             paths.push(origin.path);
         }
     }
-    paths
+    Some(paths)
+}
+
+/// Resolve every effect before any caller filters private local storage. An
+/// unresolved overlapping reference makes the entire effect set opaque.
+pub(super) fn expand_write_paths(
+    paths: &[String],
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<String>> {
+    let mut expanded = Vec::new();
+    for path in paths {
+        expanded.extend(expand_write_path(path, aliases, stored)?);
+    }
+    Some(expanded)
 }

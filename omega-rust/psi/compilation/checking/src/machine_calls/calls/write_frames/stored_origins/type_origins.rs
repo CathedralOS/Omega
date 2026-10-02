@@ -172,11 +172,6 @@ fn walk_declared_origins(
                 if !access.is_exclusive() && !include_shared {
                     continue;
                 }
-                if !super::super::reference_origins::referent_has_only_owned_storage(
-                    program, *referee,
-                ) {
-                    return None;
-                }
                 if detail == OriginDetail::ShapeOnly {
                     continue;
                 }
@@ -200,7 +195,13 @@ fn walk_declared_origins(
                     local_symbol: symbol,
                     local_path: path.clone(),
                     local_segments: segments.clone(),
-                    origin: FramePlaceOrigin {
+                    // Crossing another reference boundary cannot be represented
+                    // by path substitution. Keep the leaf, without claiming a
+                    // source: disjoint fields remain independently writable.
+                    origin: super::super::reference_origins::referent_has_only_owned_storage(
+                        program, *referee,
+                    )
+                    .then_some(FramePlaceOrigin {
                         path,
                         precision,
                         source: super::super::FrameSourcePlace {
@@ -208,7 +209,7 @@ fn walk_declared_origins(
                             segments,
                             builtin_coordinates: symbol.is_valid(),
                         },
-                    },
+                    }),
                 });
             }
             TypeReferenceNode::FixedArray {

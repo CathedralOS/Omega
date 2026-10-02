@@ -163,23 +163,17 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
     // initialized binding already named its source selectors. Seeds and
     // frontier-only rows stay symbolic so a selected element can still
     // specialize an unknown index.
-    let tracked = stored.and_then(|stored| stored.iter().find(|local| local.local_symbol == root));
+    let tracked = stored
+        .and_then(|stored| stored.iter().find(|local| local.local_symbol == root))
+        .or_else(|| inference.and_then(|inference| inference.local_origins(root)));
     let declared_origins = if tracked.is_none() && (parameter.is_some() || stored.is_none()) {
-        let mut origins = super::type_origins::declared_origins_for_query(
+        let origins = super::type_origins::declared_origins_for_query(
             program,
             root,
             source_name,
             source_reference,
             include_shared,
         )?;
-        if parameter.is_none() {
-            if let Some(cases) = inference.and_then(|inference| inference.local_cases(root)) {
-                origins.cases = cases.to_vec();
-            }
-            if let Some(moves) = inference.and_then(|inference| inference.local_moves(root)) {
-                origins.moves = moves.to_vec();
-            }
-        }
         Some(origins)
     } else {
         None
@@ -196,7 +190,9 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
         project_stored_origins(program, established, segments, established.symbolic)?;
     let source = super::super::FrameSourcePlace::from_expression(program, expression);
     for leaf in &mut projected.references {
-        leaf.origin.source.builtin_coordinates &= source.builtin_coordinates;
+        if let Some(origin) = &mut leaf.origin {
+            origin.source.builtin_coordinates &= source.builtin_coordinates;
+        }
     }
     for moved in &mut projected.moves {
         moved.source.builtin_coordinates &= source.builtin_coordinates;
@@ -263,7 +259,9 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
             }
         }
         let mut origin = prior.origin.clone();
-        if symbolic {
+        if let Some(origin) = &mut origin
+            && symbolic
+        {
             // A type-derived wildcard describes all possible elements, but a
             // moved fixed projection selects one. Preserve that selector in
             // source evidence without narrowing the coarse write footprint.
@@ -487,7 +485,7 @@ mod tests {
                 local_symbol,
                 local_path: "local".into(),
                 local_segments: path.clone(),
-                origin: FramePlaceOrigin {
+                origin: Some(FramePlaceOrigin {
                     path: "local".into(),
                     precision: FramePathPrecision::Exact,
                     source: FrameSourcePlace {
@@ -495,7 +493,7 @@ mod tests {
                         segments: path,
                         builtin_coordinates: true,
                     },
-                },
+                }),
             }],
             cases,
             moves: Vec::new(),

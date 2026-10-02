@@ -121,7 +121,7 @@ pub(super) fn instantiate_source(
             segments: relative.source.segments[leaf.local_segments.len()..].to_vec(),
             builtin_coordinates: relative.source.builtin_coordinates,
         };
-        let source = compose_source(leaf.origin, suffix, relative.precision, &remaining);
+        let source = compose_source(leaf.origin?, suffix, relative.precision, &remaining);
         if !sources.iter().any(|prior: &FramePlaceOrigin| {
             prior.path == source.path
                 && prior.precision == source.precision

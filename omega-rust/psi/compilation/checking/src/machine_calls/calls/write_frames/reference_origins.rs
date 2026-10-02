@@ -370,7 +370,7 @@ pub(super) fn projected_carrier_reference_origins(
     let mut origins = Vec::new();
     for leaf in &returned.references {
         if leaf.local_segments == segments {
-            push_unique_origin(&mut origins, leaf.origin.clone());
+            push_unique_origin(&mut origins, leaf.origin.clone()?);
         }
     }
     (!origins.is_empty()).then_some(origins)

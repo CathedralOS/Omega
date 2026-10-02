@@ -33,7 +33,9 @@ use crate::machine_calls::calls::write_frames::state_paths::{
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     summarize_complete_state_written_paths, summarize_state_written_paths,
 };
-use crate::machine_calls::calls::write_frames::stored_origins::expand_write_path;
+use crate::machine_calls::calls::write_frames::stored_origins::{
+    expand_write_path, expand_write_paths,
+};
 use crate::machine_calls::calls::write_frames::transition_equations::{
     CycleFrameEquation, append_cycle_frame_edge, transition_state_reaches,
 };
@@ -151,7 +153,7 @@ pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
                 let target_index = *equation_index.get(&edge.target)?;
                 let target = &equations[target_index];
                 for relative in &delta[target_index] {
-                    for instantiated in instantiate_written_path(
+                    let instantiated_paths = instantiate_written_path(
                         program,
                         machine,
                         relative,
@@ -161,11 +163,12 @@ pub(crate) fn summarize_state_written_paths_with_cycles<'program>(
                         &equation.locals,
                         symbols,
                         &mut inference,
-                    )?
-                    .iter()
-                    .flat_map(|path| {
-                        expand_write_path(path, &equation.local_alias_origins, &equation.stored)
-                    }) {
+                    )?;
+                    for instantiated in expand_write_paths(
+                        &instantiated_paths,
+                        &equation.local_alias_origins,
+                        &equation.stored,
+                    )? {
                         if !relative_state_path_is_visible(
                             &instantiated,
                             program.state_parameters(equation.state),
@@ -323,10 +326,7 @@ fn build_cycle_frame_equation<'program>(
                     stored: &stored,
                 },
             )?;
-            for relative in expression_writes
-                .iter()
-                .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
-            {
+            for relative in expand_write_paths(&expression_writes, &local_alias_origins, &stored)? {
                 push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
             }
         }
@@ -392,7 +392,7 @@ fn build_cycle_frame_equation<'program>(
                     &local_alias_origins,
                     symbols,
                 )?;
-                for path in expand_write_path(&relative, &local_alias_origins, &stored) {
+                for path in expand_write_path(&relative, &local_alias_origins, &stored)? {
                     push_visible_frame_path(&mut direct_writes, path, parameters, &locals)?;
                 }
             }
@@ -483,10 +483,7 @@ fn build_cycle_frame_equation<'program>(
                         )
                     })
                 }?;
-                for relative in nested_writes
-                    .iter()
-                    .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
-                {
+                for relative in expand_write_paths(&nested_writes, &local_alias_origins, &stored)? {
                     push_visible_frame_path(&mut direct_writes, relative, parameters, &locals)?;
                 }
             }
@@ -512,9 +509,7 @@ fn build_cycle_frame_equation<'program>(
                             complete_state_summaries,
                             &origins,
                         )?;
-                        for relative in writes
-                            .iter()
-                            .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+                        for relative in expand_write_paths(&writes, &local_alias_origins, &stored)?
                         {
                             push_visible_frame_path(
                                 &mut direct_writes,
@@ -543,7 +538,8 @@ fn build_cycle_frame_equation<'program>(
                             &stored,
                             symbols,
                             &mut inference,
-                        )?;
+                        )
+                        .or_else(|| stored_origins::unresolved_origins(program, local, false))?;
                         inference.record_local(&origins);
                         stored.push(origins);
                     }

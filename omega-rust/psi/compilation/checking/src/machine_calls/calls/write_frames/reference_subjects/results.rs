@@ -77,11 +77,12 @@ pub(super) fn call_origin(
     let [leaf] = returned.references.as_slice() else {
         return None;
     };
+    let origin = leaf.origin.as_ref()?;
     (returned.cases.is_empty()
         && returned.moves.is_empty()
         && leaf.local_segments.is_empty()
         && leaf.local_suffix.is_empty()
-        && leaf.origin.precision == FramePathPrecision::Exact
-        && leaf.origin.source.root.is_valid())
-    .then(|| leaf.origin.clone())
+        && origin.precision == FramePathPrecision::Exact
+        && origin.source.root.is_valid())
+    .then(|| origin.clone())
 }
