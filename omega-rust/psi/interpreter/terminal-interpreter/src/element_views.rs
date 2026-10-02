@@ -33,7 +33,7 @@ use terminal_psi::StructuralTypeShape;
 /// Original scalar storage retained by a view. Access belongs to the descriptor;
 /// a shared descendant can keep this home for current reads without write authority.
 pub(crate) struct ElementViewHome {
-    source: PlaceId,
+    storage: crate::primitive_storage::PrimitiveStorageHome,
     path: Vec<StructuralPathSegment>,
 }
 
@@ -388,7 +388,7 @@ impl TerminalExecution {
                     ElementView::new_mutable(
                         elements,
                         ElementViewHome {
-                            source: source.place,
+                            storage: self.capture_primitive_home(source.place)?,
                             path: source.path.clone(),
                         },
                     )
@@ -473,7 +473,7 @@ impl TerminalExecution {
         path.push(StructuralPathSegment::FixedIndex(
             u64::try_from(position).map_err(|_| invalid())?,
         ));
-        self.store_primitive_place(home.source, &path, element)?;
+        self.store_primitive_home(home.storage, &path, element)?;
         let Some(view) = self.element_view_values.get_mut(destination) else {
             return Err(invalid());
         };
@@ -551,7 +551,7 @@ impl TerminalExecution {
                 u64::try_from(view.window.start.checked_add(index).ok_or_else(invalid)?)
                     .map_err(|_| invalid())?,
             ));
-            self.read_primitive_place(home.source, &path, result.scalar_type)?
+            self.read_primitive_home(home.storage, &path, result.scalar_type)?
         } else {
             view.get(index).copied().ok_or_else(invalid)?
         };
