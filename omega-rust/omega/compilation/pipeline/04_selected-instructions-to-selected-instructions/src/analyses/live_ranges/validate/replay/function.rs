@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use crate::LiveRangeError;
 use selected_instructions::{
     FunctionLiveRanges, VirtualFixedConstraint, VirtualFixedConstraintSite, VirtualInterference,
-    VirtualLiveRange, VirtualOccurrence,
+    VirtualLiveRange, VirtualOccurrence, VirtualRegisterId,
 };
 
 use super::{architectural_units, constraints, fragments};
@@ -22,81 +22,7 @@ pub(super) fn replay_function(
     let early_clobbers = constraints::derive_early_clobbers(function, live)?;
     let block_domains = fragments::block_domains(function, live)?;
 
-    let mut virtual_registers = Vec::new();
-    for register in &selected.virtual_registers {
-        let mut occurrences = Vec::new();
-        let mut fixed_constraints = Vec::new();
-        if let Some(view) = register.entry_fixed_view {
-            fixed_constraints.push(VirtualFixedConstraint {
-                site: VirtualFixedConstraintSite::Entry,
-                view,
-            });
-        }
-        for operand in &live.operand_positions {
-            if operand.virtual_register != register.id {
-                continue;
-            }
-            let point = fragments::operand_point(function, operand)?;
-            occurrences.push(VirtualOccurrence {
-                position: operand.position,
-                point,
-                instruction: operand.instruction,
-                operand: operand.operand,
-                access: operand.access,
-            });
-            if let Some(view) = operand.fixed_view {
-                fixed_constraints.push(VirtualFixedConstraint {
-                    site: VirtualFixedConstraintSite::Operand {
-                        position: operand.position,
-                        point,
-                        instruction: operand.instruction,
-                        operand: operand.operand,
-                        access: operand.access,
-                    },
-                    view,
-                });
-            }
-        }
-        let mut range_fragments = Vec::new();
-        let mut edge_connectors = Vec::new();
-        for block in &live.blocks {
-            let mut occupied = BTreeSet::new();
-            for instruction in &block.instructions {
-                if instruction
-                    .virtual_live_in
-                    .binary_search(&register.id)
-                    .is_ok()
-                    || instruction.virtual_uses.binary_search(&register.id).is_ok()
-                {
-                    occupied.insert(fragments::checked_before(function, instruction.position.0)?);
-                }
-                if instruction
-                    .virtual_live_out
-                    .binary_search(&register.id)
-                    .is_ok()
-                    || instruction.virtual_defs.binary_search(&register.id).is_ok()
-                {
-                    occupied.insert(fragments::checked_after(function, instruction.position.0)?);
-                }
-            }
-            fragments::append_maximal(block.block, occupied, &mut range_fragments);
-            edge_connectors.extend(
-                block
-                    .successors
-                    .iter()
-                    .filter(|edge| edge.virtual_live.binary_search(&register.id).is_ok())
-                    .map(|edge| fragments::edge_row(block.block, edge)),
-            );
-        }
-        virtual_registers.push(VirtualLiveRange {
-            virtual_register: register.id,
-            class: register.class,
-            occurrences,
-            fixed_constraints,
-            fragments: range_fragments,
-            edge_connectors,
-        });
-    }
+    let virtual_registers = replay_virtual_ranges(function, selected, live)?;
 
     let architectural_units = architectural_units::replay_all(function, live)?;
     let mut interference = Vec::new();
@@ -123,6 +49,127 @@ pub(super) fn replay_function(
         architectural_units,
         interference,
     })
+}
+
+/// Reconstruct from actual memberships, retaining selected roster order and
+/// operand/edge order within each range. IDs can be sparse after rewrites, so
+/// scratch storage follows roster positions, never the largest register ID.
+/// Only rows occupied in this block need their point sets drained. All facts
+/// come from the independently revalidated liveness input, not producer ranges.
+fn replay_virtual_ranges(
+    function: usize,
+    selected: &selected_instructions::SelectedFunction,
+    live: &selected_instructions::FunctionLiveness,
+) -> Result<Vec<VirtualLiveRange>, LiveRangeError> {
+    let mut roster = selected
+        .virtual_registers
+        .iter()
+        .enumerate()
+        .map(|(position, register)| (register.id, position))
+        .collect::<Vec<_>>();
+    roster.sort_unstable_by_key(|(register, _)| *register);
+    if roster.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(LiveRangeError::NonCanonicalRows { function });
+    }
+    let mut ranges = selected
+        .virtual_registers
+        .iter()
+        .map(|register| VirtualLiveRange {
+            virtual_register: register.id,
+            class: register.class,
+            occurrences: Vec::new(),
+            fixed_constraints: register
+                .entry_fixed_view
+                .map(|view| VirtualFixedConstraint {
+                    site: VirtualFixedConstraintSite::Entry,
+                    view,
+                })
+                .into_iter()
+                .collect(),
+            fragments: Vec::new(),
+            edge_connectors: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    for operand in &live.operand_positions {
+        let position = register_position(function, &roster, operand.virtual_register)?;
+        let range = &mut ranges[position];
+        let point = fragments::operand_point(function, operand)?;
+        range.occurrences.push(VirtualOccurrence {
+            position: operand.position,
+            point,
+            instruction: operand.instruction,
+            operand: operand.operand,
+            access: operand.access,
+        });
+        if let Some(view) = operand.fixed_view {
+            range.fixed_constraints.push(VirtualFixedConstraint {
+                site: VirtualFixedConstraintSite::Operand {
+                    position: operand.position,
+                    point,
+                    instruction: operand.instruction,
+                    operand: operand.operand,
+                    access: operand.access,
+                },
+                view,
+            });
+        }
+    }
+    let mut occupied = vec![BTreeSet::new(); ranges.len()];
+    let mut touched = Vec::new();
+    for block in &live.blocks {
+        for instruction in &block.instructions {
+            for (point, members, operands) in [
+                (
+                    fragments::checked_before(function, instruction.position.0)?,
+                    &instruction.virtual_live_in,
+                    &instruction.virtual_uses,
+                ),
+                (
+                    fragments::checked_after(function, instruction.position.0)?,
+                    &instruction.virtual_live_out,
+                    &instruction.virtual_defs,
+                ),
+            ] {
+                for register in members.iter().chain(operands) {
+                    let position = register_position(function, &roster, *register)?;
+                    if occupied[position].is_empty() {
+                        touched.push(position);
+                    }
+                    occupied[position].insert(point);
+                }
+            }
+        }
+        for position in touched.drain(..) {
+            fragments::append_maximal(
+                block.block,
+                std::mem::take(&mut occupied[position]),
+                &mut ranges[position].fragments,
+            );
+        }
+        for edge in &block.successors {
+            for register in &edge.virtual_live {
+                let position = register_position(function, &roster, *register)?;
+                ranges[position]
+                    .edge_connectors
+                    .push(fragments::edge_row(block.block, edge));
+            }
+        }
+    }
+    Ok(ranges)
+}
+
+fn register_position(
+    function: usize,
+    roster: &[(VirtualRegisterId, usize)],
+    register: VirtualRegisterId,
+) -> Result<usize, LiveRangeError> {
+    roster
+        .binary_search_by_key(&register, |(identity, _)| *identity)
+        .map(|position| roster[position].1)
+        .map_err(|_| LiveRangeError::VirtualRegisterMismatch {
+            function,
+            register: register.0,
+        })
 }
 
 fn replay_copy_affinities(
