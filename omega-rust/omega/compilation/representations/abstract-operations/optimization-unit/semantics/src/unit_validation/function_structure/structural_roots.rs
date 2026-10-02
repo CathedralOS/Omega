@@ -12,8 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod availability;
 mod primitive_locals;
 
-pub(crate) use availability::operation_place_inputs;
 pub(crate) use availability::validate_structural_place_availability;
+pub(crate) use availability::{operation_place_accesses, operation_place_inputs};
 
 pub(crate) fn validate_structural_root_uniqueness(
     function: &PsiOptimizationFunction,
@@ -49,44 +49,13 @@ pub(crate) fn validate_structural_root_operations(
     // Stores through an entry loan and a state loan must retain the exact
     // declaration of their own storage root. Availability and exclusive name
     // transfer are independently replayed by the control-flow ownership walk.
-    let exact_store_destination =
-        |destination: &terminal_psi::StructuralParameterDeclaration| match place_kinds
-            .get(&destination.place)
-        {
-            Some(StructuralPlaceKind::Parameter { position, is_self }) => {
-                *position == destination.position
-                    && *is_self == destination.is_self
-                    && function
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == destination.place)
-                        == Some(destination)
-            }
-            Some(StructuralPlaceKind::BlockParameter {
-                block: owner,
-                position,
-            }) => {
-                *position == destination.position
-                    && destination.access == terminal_psi::StructuralAccess::MutableBorrow
-                    && abstract_operations::control_flow::address_joins::is_address_join(
-                        destination,
-                        |identity| structural_types.get(&identity).copied(),
-                    )
-                    && function
-                        .blocks
-                        .iter()
-                        .find(|block| block.id == *owner)
-                        .is_some_and(|block| {
-                            block.id != function.entry
-                                && block
-                                    .structural_parameters
-                                    .iter()
-                                    .find(|parameter| parameter.place == destination.place)
-                                    == Some(destination)
-                        })
-            }
-            _ => false,
-        };
+    let exact_store_destination = |destination: &terminal_psi::StructuralParameterDeclaration| {
+        function.arrival_parameter(destination.place) == Some(destination)
+            && (!matches!(
+                place_kinds.get(&destination.place),
+                Some(StructuralPlaceKind::BlockParameter { .. })
+            ) || destination.access == terminal_psi::StructuralAccess::MutableBorrow)
+    };
     // Both scalar store forms reconstruct the same root authority; local
     // results retain their exact producing operation instead of an ABI slot.
     let exact_scalar_store_destination =
@@ -427,7 +396,7 @@ pub(crate) fn validate_structural_root_operations(
                         )
                     });
                     // The retained store destination must be the complete
-                    // declaration of its actual root. A mutable address join
+                    // declaration of its actual root. A mutable block arrival
                     // supplies its incoming permission, never an entry ABI slot.
                     // Availability above and exclusive-transfer replay below
                     // independently establish dominance and live custody.

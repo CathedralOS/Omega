@@ -48,10 +48,19 @@ pub(in crate::lowering) fn lower_field_store(
     };
     let (destination, path, destination_storage) = match destination {
         abstract_operations::StructuralScalarStoreDestination::Parameter(destination) => {
-            if !matches!(
-                destination.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ) {
+            if function.arrival_parameter(destination.place) != Some(destination)
+                || !matches!(
+                    destination.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+                || destination.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                || !destination.qualifications.is_empty()
+                || !destination.projected_qualifications.is_empty()
+                || function
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == destination.place)
+            {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(
                     function.machine,
                 ));
@@ -86,10 +95,6 @@ pub(in crate::lowering) fn lower_field_store(
                     .find(|block| {
                         block.structural_parameters.contains(destination)
                             && destination.access == StructuralAccess::MutableBorrow
-                            && abstract_operations::control_flow::address_joins::is_address_join(
-                                destination,
-                                |identity| structural_types.get(&identity).copied(),
-                            )
                     })
                     .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,

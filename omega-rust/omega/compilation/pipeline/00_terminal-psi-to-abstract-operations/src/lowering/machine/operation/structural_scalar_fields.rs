@@ -65,33 +65,40 @@ fn lower_store(
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidStructuralScalarFieldStore(operation.id);
     // A state arrival is a declared loan of the same backing storage, not an
-    // entry ABI parameter. Preserve its own declaration for downstream pointer
-    // transport; Terminal verification has already checked edge exclusivity.
+    // entry ABI parameter. Preserve its own declaration whether transport uses
+    // an address or a view descriptor; edge verification checked exclusivity.
     let destination = exact_parameter(machine, destination)
         .or_else(|| {
             let mut matches = machine.blocks.iter().flat_map(|block| {
                 block
                     .structural_parameters
                     .iter()
-                    .filter(move |parameter| parameter.place == destination)
-                    .map(move |parameter| (block.id, parameter))
+                    .enumerate()
+                    .filter(move |(_, parameter)| parameter.place == destination)
+                    .map(move |(position, parameter)| (block.id, position, parameter))
             });
-            let (owner, parameter) = matches.next()?;
+            let (owner, position, parameter) = matches.next()?;
             let expected_kind = StructuralPlaceKind::BlockParameter {
                 block: owner,
                 position: parameter.position,
             };
             if matches.next().is_some()
+                || owner == machine.entry
+                || parameter.is_self
+                || parameter.position as usize != position
                 || parameter.access != StructuralAccess::MutableBorrow
-                || !abstract_operations::control_flow::address_joins::is_address_join_in(
-                    parameter,
-                    structural_types,
-                )
-                || !machine
-                    .structural_places
+                || machine
+                    .structural_parameters
                     .iter()
-                    .any(|place| place.id == destination && place.kind == expected_kind)
+                    .any(|row| row.place == destination)
             {
+                return None;
+            }
+            let mut places = machine
+                .structural_places
+                .iter()
+                .filter(|row| row.id == destination);
+            if places.next()?.kind != expected_kind || places.next().is_some() {
                 return None;
             }
             Some(parameter.clone())
@@ -1053,6 +1060,138 @@ mod tests {
         store: &Operation,
     ) -> Result<abstract_operations::AbstractOperation, crate::lowering::LoweringError> {
         super::lower(store, &machine.blocks[1], machine, types)
+    }
+
+    fn mutable_view_arrival_store(
+        selector: StructuralPathSegment,
+    ) -> (TerminalMachine, Vec<StructuralTypeDeclaration>, Operation) {
+        let (mut machine, mut types, mut store) = owned_arrival_store(
+            StructuralAccess::MutableBorrow,
+            StructuralMultiplicity::Unrestricted,
+        );
+        let view_type = StructuralTypeId::new(2).unwrap();
+        types.push(StructuralTypeDeclaration {
+            id: view_type,
+            identity: "test::Counters".into(),
+            shape: StructuralTypeShape::ElementView {
+                element: StructuralTypeId::new(1).unwrap(),
+            },
+        });
+        machine.blocks[1].structural_parameters[0].structural_type = view_type;
+        if let Some((value, _)) = selector.runtime_index() {
+            machine.blocks[1].parameters.push(ValueDeclaration {
+                id: value,
+                scalar_type: i32_type(),
+                qualifications: Default::default(),
+            });
+        }
+        let OperationKind::StructuralScalarFieldStore { path, .. } = &mut store.kind else {
+            panic!("the fixture constructs a scalar field store");
+        };
+        *path = vec![selector];
+        machine.blocks[1].operations[1] = store.clone();
+        (machine, types, store)
+    }
+
+    #[test]
+    fn mutable_view_arrival_store_preserves_descriptor_and_selector() {
+        for selector in [
+            StructuralPathSegment::FixedIndex(0),
+            StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(6).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(12).unwrap(),
+            },
+        ] {
+            let (machine, types, store) = mutable_view_arrival_store(selector.clone());
+            let lowered = lower_arrival_store(&machine, &types, &store).unwrap();
+            let abstract_operations::AbstractOperation::StructuralScalarFieldStore {
+                destination,
+                path,
+                ..
+            } = lowered
+            else {
+                panic!("a field store lowers to a field store");
+            };
+            assert_eq!(
+                destination,
+                abstract_operations::StructuralScalarStoreDestination::Parameter(
+                    machine.blocks[1].structural_parameters[0].clone()
+                )
+            );
+            assert_eq!(path, vec![selector]);
+        }
+    }
+
+    #[test]
+    fn mutable_view_arrival_store_rejects_lost_authority_and_custody() {
+        let (original, types, store) =
+            mutable_view_arrival_store(StructuralPathSegment::FixedIndex(0));
+        let refused = |machine: &TerminalMachine| {
+            assert!(matches!(
+                lower_arrival_store(machine, &types, &store),
+                Err(crate::lowering::LoweringError::InvalidStructuralScalarFieldStore(_))
+            ));
+        };
+        let mut changed = original.clone();
+        changed.blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        refused(&changed);
+        let mut changed = original.clone();
+        changed.blocks[1].structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+        refused(&changed);
+        let mut changed = original.clone();
+        changed.blocks[1].structural_parameters[0].qualifications =
+            vec![semantic_vocabulary::StructuralDomainId::new(30).unwrap()];
+        refused(&changed);
+        let mut changed = original.clone();
+        changed.blocks[1].structural_parameters[0].projected_qualifications =
+            vec![terminal_psi::StructuralPathQualification {
+                path: vec![StructuralPathSegment::FixedIndex(0)],
+                domain: semantic_vocabulary::StructuralDomainId::new(30).unwrap(),
+            }];
+        refused(&changed);
+        let mut changed = original;
+        changed.entry_claims.push(terminal_psi::EntryClaim {
+            claim: semantic_vocabulary::ClaimId::new(31).unwrap(),
+            input: PlaceId::new(20).unwrap(),
+            path: Vec::new(),
+        });
+        refused(&changed);
+    }
+
+    #[test]
+    fn mutable_view_arrival_store_rejects_substituted_or_ambiguous_identity() {
+        let (original, types, store) =
+            mutable_view_arrival_store(StructuralPathSegment::FixedIndex(0));
+        let refused = |machine: &TerminalMachine| {
+            assert!(matches!(
+                lower_arrival_store(machine, &types, &store),
+                Err(crate::lowering::LoweringError::InvalidStructuralScalarFieldStore(_))
+            ));
+        };
+        let mut changed = original.clone();
+        changed.structural_places[0].kind = StructuralPlaceKind::BlockParameter {
+            block: BlockId::new(2).unwrap(),
+            position: 0,
+        };
+        refused(&changed);
+        let mut changed = original.clone();
+        changed.structural_places[0].kind = StructuralPlaceKind::BlockParameter {
+            block: BlockId::new(4).unwrap(),
+            position: 1,
+        };
+        refused(&changed);
+        let mut changed = original.clone();
+        changed
+            .structural_places
+            .push(changed.structural_places[0].clone());
+        refused(&changed);
+        let mut changed = original.clone();
+        let duplicate = changed.blocks[1].structural_parameters[0].clone();
+        changed.blocks[1].structural_parameters.push(duplicate);
+        refused(&changed);
+        let mut changed = original;
+        changed.blocks[1].structural_parameters[0].is_self = true;
+        refused(&changed);
     }
 
     #[test]

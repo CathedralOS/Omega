@@ -4,7 +4,7 @@
 //! applies the static offset.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess,
+    SelectedInstructionKind, SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -88,20 +88,9 @@ pub(super) fn emit(
             }
             _ => return Err(invalid()),
         };
-    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     let declared = match &destination {
         abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
-            (signature
-                .parameters
-                .iter()
-                .any(|declared| declared.semantic == *parameter)
-                || parameter.access == StructuralAccess::MutableBorrow
-                    && crate::selection::address_join_input::join(source, parameter.place)
-                        .is_some_and(|(_, declared)| declared == parameter))
-                && matches!(
-                    parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                )
+            crate::selection::arrival_parameter_input::store_destination(source, parameter)
         }
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
             reference_destination

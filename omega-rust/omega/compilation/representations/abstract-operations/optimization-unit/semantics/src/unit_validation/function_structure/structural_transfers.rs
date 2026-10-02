@@ -166,12 +166,22 @@ pub(super) fn validate(
                         })
                 } else {
                     binding.argument.path.is_empty()
-                        && source
-                            == Some((
-                                parameter.structural_type,
-                                parameter.access,
-                                parameter.multiplicity,
-                            ))
+                        && source.is_some_and(|(source_type, access, multiplicity)| {
+                            source_type == parameter.structural_type
+                                // A borrowed arrival carries permission over the
+                                // source, not ownership of its descriptor. Its
+                                // declaration does not erase the affine result's
+                                // separate custody and cleanup obligations.
+                                && match parameter.access {
+                                    StructuralAccess::Owned => access == StructuralAccess::Owned
+                                        && multiplicity == parameter.multiplicity,
+                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow =>
+                                        matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+                                            && super::super::operation_contracts::structural_access_can_supply(access, parameter.access)
+                                            && multiplicity != StructuralMultiplicity::Linear,
+                                    StructuralAccess::WriteOnlyBorrow => false,
+                                }
+                        })
                 };
                 let claim_hit = function
                     .entry_claim_declarations
@@ -402,9 +412,9 @@ fn source_contract(
                     .unwrap_or(StructuralAccess::Owned);
                 Some((result.structural_type, access, result.multiplicity))
             }
-            O::ByteSequenceSubslice { result, .. }
+            operation @ (O::ByteSequenceSubslice { result, .. }
             | O::EstablishElementView { result, .. }
-            | O::ElementViewSubslice { result, .. }
+            | O::ElementViewSubslice { result, .. })
                 if result.place == place
                     && matches!(
                         result.multiplicity,
@@ -414,16 +424,13 @@ fn source_contract(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty() =>
             {
-                // An affine view is the mutable establishment's descriptor:
-                // it supplies its exclusive loan's access, so both shared and
-                // mutable projected loans may root at it.
-                let (access, multiplicity) = match result.multiplicity {
-                    StructuralMultiplicity::Unrestricted => {
-                        (StructuralAccess::SharedBorrow, result.multiplicity)
-                    }
-                    _ => (StructuralAccess::MutableBorrow, result.multiplicity),
-                };
-                Some((result.structural_type, access, multiplicity))
+                // The same exact producer/source chain supplies a call's or
+                // edge's view permission; an affine result alone grants none.
+                let source =
+                    super::super::operation_contracts::structural_operation_result_contract(
+                        function, operation,
+                    )?;
+                Some((source.structural_type, source.access, source.multiplicity))
             }
             _ => None,
         })

@@ -74,8 +74,11 @@ pub(crate) fn validate_structural_place_availability(
     Ok(())
 }
 
-pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
-    let mut inputs = match operation {
+/// Places the operation observes or lends, excluding disposal of owned custody.
+/// A retired loan name cannot grant access merely because its descriptor still
+/// has a cleanup obligation.
+pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
+    match operation {
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.source(), right.source()]
         }
@@ -209,7 +212,11 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             vec![*source]
         }
         _ => Vec::new(),
-    };
+    }
+}
+
+pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
+    let mut inputs = operation_place_accesses(operation);
     match operation {
         O::Jump {
             trivial_affine_discards,
