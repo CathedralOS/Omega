@@ -51,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition main.empty_result { EmptyResult::NonEmpty -> teardown(main) _ -> bad(main, 74) }
     }
     state teardown(main: &mut Main) {
-        _ = main.fs.remove_dir_all("omega_walk_a");
+        _ = Filesystem::remove_dir_all(&mut main.fs, "omega_walk_a");
         transition true { true -> ck_gone(main) _ -> bad(main, 99) }
     }
     state ck_gone(main: &mut Main) {

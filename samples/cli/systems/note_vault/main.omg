@@ -169,7 +169,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let next_passed: i32 in Wrapping = passed + 1;
         // 14. ...and drain the whole tree the sweeping way (the iterative
         // dirfd-stack remove_dir_all), backup and directories included.
-        let unit_result: UnitResult = context.fs.remove_dir_all("omega_vault");
+        let unit_result: UnitResult = Filesystem::remove_dir_all(&mut context.fs, "omega_vault");
         transition unit_result { UnitResult::Ok -> ck_gone(context, next_passed) _ -> done(context, next_passed) }
     }
     state ck_gone(context: &mut Main, passed: i32 in Wrapping) {

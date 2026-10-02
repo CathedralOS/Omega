@@ -31,7 +31,7 @@ data FailedOpen {
 }
 
 machine FailedOpen::main(failed_open: &mut FailedOpen) -> i32 reaches FilesystemHost {
-    let outcome: UnitResult = failed_open.filesystem.canonicalize("omega_wcanon_missing.txt", &mut failed_open.buffer);
+    let outcome: UnitResult = Filesystem::canonicalize(&mut failed_open.filesystem, "omega_wcanon_missing.txt", &mut failed_open.buffer);
     transition outcome {
         UnitResult::Error { kind } -> failed(kind)
         _ -> unexpected()
@@ -54,7 +54,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
     main.unit_result = Filesystem::write_all(&mut main.fs, "omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> resolve(main) _ -> bad(main, 71) }
     state resolve(main: &mut Main) {
-        main.unit_result = main.fs.canonicalize("omega_wcanon_probe.txt", &mut main.canon);
+        main.unit_result = Filesystem::canonicalize(&mut main.fs, "omega_wcanon_probe.txt", &mut main.canon);
         transition main.unit_result { UnitResult::Ok -> spelled(main) _ -> bad(main, 72) }
     }
     state spelled(main: &mut Main) {
@@ -70,7 +70,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition main.unit_result { UnitResult::Ok -> resolve_dir(main) _ -> bad(main, 76) }
     }
     state resolve_dir(main: &mut Main) {
-        main.unit_result = main.fs.canonicalize("omega_wcanon_dir", &mut main.canon);
+        main.unit_result = Filesystem::canonicalize(&mut main.fs, "omega_wcanon_dir", &mut main.canon);
         transition main.unit_result { UnitResult::Ok -> spelled_dir(main) _ -> bad(main, 77) }
     }
     state spelled_dir(main: &mut Main) {
@@ -80,7 +80,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
         transition main.canon[0] == 111 { true -> missing(main) _ -> bad(main, 78) }
     }
     state missing(main: &mut Main) {
-        let outcome: UnitResult = main.fs.canonicalize("omega_wcanon_missing.txt", &mut main.canon);
+        let outcome: UnitResult = Filesystem::canonicalize(&mut main.fs, "omega_wcanon_missing.txt", &mut main.canon);
         transition outcome { UnitResult::Error { kind } -> kindcheck(main, kind) _ -> bad(main, 74) }
     }
     state kindcheck(main: &mut Main, kind: ErrorKind) {

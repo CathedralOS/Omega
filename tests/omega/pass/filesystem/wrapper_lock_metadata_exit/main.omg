@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition meta.len == 5 { true -> lockx(main) _ -> bad(main, 73) }
     }
     state lockx(main: &mut Main) {
-        main.unit_result = main.fs.lock(File { fd: main.file_fd });
+        main.unit_result = Filesystem::lock(&mut main.fs, File { fd: main.file_fd });
         transition main.unit_result { UnitResult::Ok -> un1(main) _ -> bad(main, 74) }
     }
     state un1(main: &mut Main) {
