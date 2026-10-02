@@ -78,47 +78,54 @@ pub fn produce_predicate_proof(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    produce_denotation_certificates(context, goal, requirements, semantic_axioms)
-        .into_iter()
-        .find_map(|certificate| {
-            let equations = semantic_axioms
-                .iter()
-                .enumerate()
-                .filter(|(_, proposition)| {
-                    certificate.with_value_equalities
-                        && matches!(proposition, Proposition::Equal(..))
-                })
-                .map(|(index, proposition)| ProofNode {
-                    conclusion: proposition.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                })
-                .collect::<Vec<_>>();
-            let mut proof = certificate.proof;
-            retain_original_predicate_citations(
-                &mut proof,
-                context,
-                requirements,
-                semantic_axioms,
-                &equations,
-            )?;
-            if &proof.conclusion != goal {
-                proof = ProofNode {
-                    conclusion: goal.clone(),
-                    rule: if certificate.with_value_equalities {
-                        ProofRule::ValueEqualityTransport {
-                            premise: Box::new(proof),
-                            equalities: equations,
-                        }
-                    } else {
-                        ProofRule::PredicateDenotation {
-                            premise: Box::new(proof),
-                        }
-                    },
-                };
-            }
-            crate::check_certificate(context, goal, requirements, semantic_axioms, &proof).ok()?;
-            Some(proof)
+    let view = crate::predicate_denotation::prepare_cited_predicate_search(
+        context,
+        goal,
+        requirements,
+        semantic_axioms,
+    )
+    .ok()?;
+    let mut remaining = MAXIMUM_SEARCH_STEPS;
+    let mut proof = prove(
+        &view.goal,
+        &view.requirements,
+        &view.semantic_axioms,
+        &mut remaining,
+        0,
+    )?;
+    let equations = semantic_axioms
+        .iter()
+        .enumerate()
+        .filter(|(_, proposition)| crate::predicate_denotation::is_value_definition(proposition))
+        .map(|(index, proposition)| ProofNode {
+            conclusion: proposition.clone(),
+            rule: ProofRule::SemanticAxiom { index },
         })
+        .collect::<Vec<_>>();
+    retain_original_predicate_citations(
+        &mut proof,
+        context,
+        requirements,
+        semantic_axioms,
+        &equations,
+    )?;
+    if &proof.conclusion != goal {
+        proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: if equations.is_empty() {
+                ProofRule::PredicateDenotation {
+                    premise: Box::new(proof),
+                }
+            } else {
+                ProofRule::ValueEqualityTransport {
+                    premise: Box::new(proof),
+                    equalities: equations,
+                }
+            },
+        };
+    }
+    crate::check_certificate(context, goal, requirements, semantic_axioms, &proof).ok()?;
+    Some(proof)
 }
 
 /// Establish a goal from the supplied premises by producing then re-deciding
@@ -192,6 +199,12 @@ fn prove(
             if !found {
                 continue;
             }
+            if matches!(goal, Proposition::Truth) {
+                return Some(ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+                });
+            }
             let mut proof = ProofNode {
                 conclusion: premise.clone(),
                 rule: if semantic {
@@ -249,6 +262,14 @@ fn prove(
         }
     }
     if let Some(proof) = order_chain::prove(goal, requirements, semantic_axioms, remaining, depth) {
+        return Some(proof);
+    }
+    // A conditional may establish the complete conjunction. Applying it once
+    // avoids independently rediscovering its antecedent for every child.
+    if matches!(goal, Proposition::Conjunction(_))
+        && let Some(proof) =
+            implications::prove(goal, requirements, semantic_axioms, remaining, depth + 1)
+    {
         return Some(proof);
     }
     let rule = match goal {

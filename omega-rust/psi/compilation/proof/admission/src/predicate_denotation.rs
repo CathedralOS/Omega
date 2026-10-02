@@ -41,6 +41,63 @@ pub struct CheckedPredicateDenotations<'input> {
     semantic_axioms: Vec<Proposition>,
 }
 
+/// An untrusted search view for an ordinary proof with explicit conversion
+/// edges. Definition equations remain transport dependencies, not a second
+/// roster of propositions to normalize and search. Their slots contain Truth
+/// to keep original citation indices; any used slot must still be reconstructed
+/// and checked against its original proposition before publication.
+pub(crate) struct CitedPredicateSearchView {
+    pub(crate) goal: Proposition,
+    pub(crate) requirements: Vec<Proposition>,
+    pub(crate) semantic_axioms: Vec<Proposition>,
+}
+
+pub(crate) fn is_value_definition(proposition: &Proposition) -> bool {
+    matches!(proposition, Proposition::Equal(subject, _) if value_equalities::is_definition_subject(subject))
+}
+
+pub(crate) fn prepare_cited_predicate_search(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Result<CitedPredicateSearchView, PredicateDenotationError> {
+    let mut budget = Budget::new();
+    for proposition in std::iter::once(goal)
+        .chain(requirements)
+        .chain(semantic_axioms)
+    {
+        budget.proposition(proposition, 0)?;
+        context
+            .validate(proposition)
+            .map_err(PredicateDenotationError::Malformed)?;
+    }
+    let equalities = value_equalities::ValueEqualities::from_semantic_axioms(semantic_axioms);
+    let mut convert = |proposition: &Proposition| {
+        transport_denotation(context, proposition, &equalities, &mut budget)
+    };
+    let goal = convert(goal)?;
+    let requirements = requirements
+        .iter()
+        .map(&mut convert)
+        .collect::<Result<Vec<_>, _>>()?;
+    let semantic_axioms = semantic_axioms
+        .iter()
+        .map(|proposition| {
+            if is_value_definition(proposition) {
+                Ok(Proposition::Truth)
+            } else {
+                convert(proposition)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(CitedPredicateSearchView {
+        goal,
+        requirements,
+        semantic_axioms,
+    })
+}
+
 impl CheckedPredicateDenotations<'_> {
     pub fn goal(&self) -> &Proposition {
         &self.goal

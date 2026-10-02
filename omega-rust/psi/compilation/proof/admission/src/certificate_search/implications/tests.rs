@@ -156,3 +156,56 @@ fn conditional_search_keeps_the_enclosing_step_and_depth_limits() {
         .is_none()
     );
 }
+
+#[test]
+fn definition_rosters_keep_conditional_contract_citations_and_input_limits() {
+    let context = PropositionContext::from_value_types((1..=1503).map(|index| {
+        (
+            ValueId::new(index).unwrap(),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        )
+    }))
+    .unwrap();
+    let definition = |index| {
+        Proposition::Equal(
+            value(index),
+            ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0)),
+        )
+    };
+    let mut axioms = (4..354).map(definition).collect::<Vec<_>>();
+    let contract_index = axioms.len();
+    axioms.push(implies(Proposition::Truth, bounds(3)));
+    let goal = bounds(3);
+    let proof = crate::produce_predicate_proof(&context, &goal, &[], &axioms)
+        .expect("unrelated value definitions do not hide a normal-return contract");
+    crate::check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+    let mut changed = axioms.clone();
+    changed[contract_index] = implies(ordered(1), bounds(3));
+    assert!(crate::check_certificate(&context, &goal, &[], &changed, &proof).is_err());
+    assert!(crate::produce_predicate_proof(&context, &goal, &[], &changed).is_none());
+    changed[contract_index] = implies(Proposition::Truth, bounds(2));
+    assert!(crate::check_certificate(&context, &goal, &[], &changed, &proof).is_err());
+    assert!(crate::produce_predicate_proof(&context, &goal, &[], &changed).is_none());
+    axioms.extend((354..=1503).map(definition));
+    assert!(crate::produce_predicate_proof(&context, &goal, &[], &axioms).is_none());
+}
+
+#[test]
+fn a_conjunctive_consequence_composes_through_a_later_conditional_contract() {
+    let context = context();
+    let requirements = [ordered(1)];
+    let axioms = [
+        implies(ordered(1), bounds(2)),
+        implies(bounds(2), ordered(3)),
+        implies(
+            Proposition::Conjunction(vec![bounds(2), ordered(3)]),
+            bounds(1),
+        ),
+    ];
+    let goal = bounds(1);
+    let proof = crate::produce_predicate_proof(&context, &goal, &requirements, &axioms)
+        .expect("later contracts consume the proven range of earlier results");
+    crate::check_certificate(&context, &goal, &requirements, &axioms, &proof).unwrap();
+    assert!(crate::check_certificate(&context, &goal, &[], &axioms, &proof).is_err());
+    assert!(crate::produce_predicate_proof(&context, &goal, &[], &axioms).is_none());
+}
