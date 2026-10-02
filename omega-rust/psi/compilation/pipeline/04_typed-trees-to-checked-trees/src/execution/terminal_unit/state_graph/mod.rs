@@ -1252,18 +1252,19 @@ fn call_argument_admitted(
     argument: &CheckedUnitStructuralArgumentPlan,
     earlier: &[CheckedUnitEffectOperationPlan],
 ) -> bool {
-    whole_shared_argument(argument)
-        || ((argument.source_parameter_index().is_some()
-            || argument
-                .source_structural_result_binding_ordinal()
-                .is_some())
-            && matches!(
-                argument.access,
-                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-            ))
-        || (argument.source_parameter_index().is_some()
-            && argument.path.is_empty()
-            && argument.access == CheckedStructuralAccess::Owned)
+    // The call sequencer already validated the exact borrowed source and
+    // access. Borrowing transfers no owned value for the selected edge to
+    // dispose; the caller's loan ledger still owns lifetime and restoration.
+    // Reclassifying storage origins here would make a local descriptor differ
+    // from the same descriptor supplied by a parameter.
+    matches!(
+        argument.access,
+        CheckedStructuralAccess::SharedBorrow
+            | CheckedStructuralAccess::MutableBorrow
+            | CheckedStructuralAccess::WriteOnlyBorrow
+    ) || (argument.source_parameter_index().is_some()
+        && argument.path.is_empty()
+        && argument.access == CheckedStructuralAccess::Owned)
         || call_consumes_result_argument(argument, earlier)
         || call_copies_result_argument(argument, earlier)
 }
@@ -1348,16 +1349,6 @@ fn call_custody_refusal(
         };
     }
     "state graph: operation custody: unit call arguments"
-}
-
-fn whole_shared_argument(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
-    argument.path.is_empty()
-        && argument.access == CheckedStructuralAccess::SharedBorrow
-        && (argument.source_parameter_index().is_some()
-            || matches!(
-                argument.source,
-                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
-            ))
 }
 
 type Signature = (

@@ -74,6 +74,8 @@ fn local_array_ranges_use_declared_storage_with_or_without_initializers() {
                  machine run() {{
                      let values: [{element}; 2]{initializer};
                      consume(&values[..]);
+                     transition {{ _ -> done() }}
+                     state done() {{}}
                  }}"
             ));
             let symbol = machine_named(&checked, "run");
@@ -81,7 +83,7 @@ fn local_array_ranges_use_declared_storage_with_or_without_initializers() {
                 .facts
                 .flow
                 .terminal_unit_effects
-                .for_machine(symbol)
+                .composed_for_machine(symbol)
                 .unwrap_or_else(|| {
                     panic!(
                         "{element} local {initializer}: {:?}",
@@ -92,7 +94,7 @@ fn local_array_ranges_use_declared_storage_with_or_without_initializers() {
                             .omission_for_machine(symbol)
                     )
                 });
-            let argument = plan
+            let argument = plan.states[0]
                 .operations
                 .iter()
                 .find_map(CheckedUnitEffectOperationPlan::call)
