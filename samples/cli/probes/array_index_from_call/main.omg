@@ -79,30 +79,30 @@ machine Main::read_at(main: &mut Main, idx: i32) -> i32 {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("array_index_from_call: value-call results drive array-index dispatch (pick -> read_at chains)");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("array_index_from_call: value-call results drive array-index dispatch (pick -> read_at chains)");
     // Initialize the lookup table.
-    self.table[0] = 3;
-    self.table[1] = 7;
-    self.table[2] = 14;
-    self.table[3] = 30;
-    self.table[4] = 60;
+    main.table[0] = 3;
+    main.table[1] = 7;
+    main.table[2] = 14;
+    main.table[3] = 30;
+    main.table[4] = 60;
 
     // Call pick() to get indices, then read_at() to look up values.
     // Both picks chain: call result drives the dispatch in read_at.
-    let idx0: i32 = Picker::pick(&mut self.picker, 0);
-    let v0: i32 = Main::read_at(&mut self, idx0);
+    let idx0: i32 = Picker::pick(&mut main.picker, 0);
+    let v0: i32 = Main::read_at(main, idx0);
 
-    let idx2: i32 = Picker::pick(&mut self.picker, 2);
-    let v2: i32 = Main::read_at(&mut self, idx2);
+    let idx2: i32 = Picker::pick(&mut main.picker, 2);
+    let v2: i32 = Main::read_at(main, idx2);
 
-    let idx1: i32 = Picker::pick(&mut self.picker, 1);
-    let v1: i32 = Main::read_at(&mut self, idx1);
+    let idx1: i32 = Picker::pick(&mut main.picker, 1);
+    let v1: i32 = Main::read_at(main, idx1);
 
     // Verify idx0 == 0.
     transition idx0 == 0 {
-        true -> check_idx2(&mut self, idx2, v0, v2, v1)
-        _ -> bad_idx0(&mut self)
+        true -> check_idx2(main, idx2, v0, v2, v1)
+        _ -> bad_idx0(main)
     }
 
     state bad_idx0(main: &mut Main) {

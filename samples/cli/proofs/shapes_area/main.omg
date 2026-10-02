@@ -24,8 +24,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
     // Circle radius 3: r*r = 9, passed as scalar; callee returns 9*3 = 27.
     let rr: i32 in Saturating = 3 * 3;
     let a1: i32 in Saturating = triple(rr);
@@ -36,11 +36,11 @@ machine Main::main(&mut self) reaches Console {
     // Triangle base=6, height=1: callee returns 6*1/2 = 3.
     let a3: i32 in Saturating = halve(6, 1);
 
-    self.total = a1 + a2 + a3;
+    main.total = a1 + a2 + a3;
 
-    transition self.total == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+    transition main.total == 70 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

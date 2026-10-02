@@ -94,20 +94,20 @@ machine Main::apply_command(main: &mut Main, cmd: Command) {
     state done(main: &mut Main) {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
-    Main::apply_command(&mut self, Command::Run { op: 0, n: 10 });
-    Main::apply_command(&mut self, Command::Noop);
-    Main::apply_command(&mut self, Command::Run { op: 2, n: 3 });
-    Main::apply_command(&mut self, Command::Run { op: 0, n: 15 });
-    Main::apply_command(&mut self, Command::Run { op: 1, n: 45 });
-    Main::apply_command(&mut self, Command::Run { op: 0, n: 5 });
-    Main::apply_command(&mut self, Command::Run { op: 2, n: 13 });
-    Main::apply_command(&mut self, Command::Run { op: 0, n: 5 });
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
+    Main::apply_command(main, Command::Run { op: 0, n: 10 });
+    Main::apply_command(main, Command::Noop);
+    Main::apply_command(main, Command::Run { op: 2, n: 3 });
+    Main::apply_command(main, Command::Run { op: 0, n: 15 });
+    Main::apply_command(main, Command::Run { op: 1, n: 45 });
+    Main::apply_command(main, Command::Run { op: 0, n: 5 });
+    Main::apply_command(main, Command::Run { op: 2, n: 13 });
+    Main::apply_command(main, Command::Run { op: 0, n: 5 });
 
-    transition self.st.acc == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+    transition main.st.acc == 70 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

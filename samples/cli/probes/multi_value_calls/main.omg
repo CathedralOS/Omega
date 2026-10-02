@@ -51,22 +51,22 @@ machine clamp_low(n: i32 in Saturating, min_val: i32 in Saturating) -> i32 in Sa
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("multi_value_calls: three value-returning calls combined into one total");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("multi_value_calls: three value-returning calls combined into one total");
     // Set up a field to test that it doesn't interfere with call results.
-    self.offset = 38;
+    main.offset = 38;
 
     // Three sequential value-returning calls with different arities.
     let r1: i32 in Saturating = double_val(15);    // r1 = 30
     let r2: i32 in Saturating = add3(5, 10, 7);   // r2 = 22
     let r3: i32 in Saturating = clamp_low(18, 20); // r3 = 20
 
-    // Use all three results together with self.offset.
-    let total: i32 in Saturating = r1 + r2 - r3 + self.offset;
+    // Use all three results together with main.offset.
+    let total: i32 in Saturating = r1 + r2 - r3 + main.offset;
 
     transition total == 70 {
-        true -> check_r1(&mut self, r1, r2, r3)
-        _ -> bad_total(&mut self)
+        true -> check_r1(main, r1, r2, r3)
+        _ -> bad_total(main)
     }
 
     state bad_total(main: &mut Main) {

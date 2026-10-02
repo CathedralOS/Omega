@@ -27,13 +27,13 @@ where
     is_prime: bool;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("prime_counter: counting primes up to 20 by trial division");
-    self.n = 2;
-    self.count = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("prime_counter: counting primes up to 20 by trial division");
+    main.n = 2;
+    main.count = 0;
 
     transition {
-        _ -> outer(&mut self)
+        _ -> outer(main)
     }
 
     // Outer: walk candidate numbers n = 2..20.

@@ -65,27 +65,27 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
     // Populate the array: [1, 2, 3, 4, 5]
-    self.data[0] = 1;
-    self.data[1] = 2;
-    self.data[2] = 3;
-    self.data[3] = 4;
-    self.data[4] = 5;
+    main.data[0] = 1;
+    main.data[1] = 2;
+    main.data[2] = 3;
+    main.data[3] = 4;
+    main.data[4] = 5;
 
     // First recursive value-returning call: compute sum.
-    let s: &[i32 in Wrapping] = self.data.as_slice();
+    let s: &[i32 in Wrapping] = main.data.as_slice();
     let sum_result: i32 in Wrapping = sum(s, 0);
 
     // Second recursive value-returning call: compute sum of squares.
-    let s2: &[i32 in Wrapping] = self.data.as_slice();
+    let s2: &[i32 in Wrapping] = main.data.as_slice();
     let sum_sq_result: i32 in Wrapping = sum_sq(s2, 0);
 
     // Verify sum = 15.
     transition sum_result == 15 {
-        true -> check_sum_sq(&mut self, sum_sq_result, sum_result)
-        _ -> bad_sum(&mut self)
+        true -> check_sum_sq(main, sum_sq_result, sum_result)
+        _ -> bad_sum(main)
     }
 
     state bad_sum(main: &mut Main) {

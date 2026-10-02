@@ -22,13 +22,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("collatz_sequence: count hailstone steps from 27 down to 1");
-    self.collatz.value = 27;
-    self.collatz.steps = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("collatz_sequence: count hailstone steps from 27 down to 1");
+    main.collatz.value = 27;
+    main.collatz.steps = 0;
 
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     // One hailstone step, or stop once the sequence has collapsed to 1.

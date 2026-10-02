@@ -102,24 +102,24 @@ machine Main::dispatch(main: &mut Main, event: AlarmEvent) {
     state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
-    Main::dispatch(&mut self, AlarmEvent::Set { hour: 6, minute: 30 });
-    Main::dispatch(&mut self, AlarmEvent::Snooze { minutes: 5 });
-    Main::dispatch(&mut self, AlarmEvent::Snooze { minutes: 5 });
-    Main::dispatch(&mut self, AlarmEvent::Trigger);
-    Main::dispatch(&mut self, AlarmEvent::Dismiss);
-    Main::dispatch(&mut self, AlarmEvent::Set { hour: 7, minute: 0 });
-    Main::dispatch(&mut self, AlarmEvent::Trigger);
-    Main::dispatch(&mut self, AlarmEvent::Cancel);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
+    Main::dispatch(main, AlarmEvent::Set { hour: 6, minute: 30 });
+    Main::dispatch(main, AlarmEvent::Snooze { minutes: 5 });
+    Main::dispatch(main, AlarmEvent::Snooze { minutes: 5 });
+    Main::dispatch(main, AlarmEvent::Trigger);
+    Main::dispatch(main, AlarmEvent::Dismiss);
+    Main::dispatch(main, AlarmEvent::Set { hour: 7, minute: 0 });
+    Main::dispatch(main, AlarmEvent::Trigger);
+    Main::dispatch(main, AlarmEvent::Cancel);
 
     // fire_count == 2, active == 0, hour == 7, minute == 0
     // Verification: fire_count * 35 == 70
-    let score: i32 in Saturating = self.alarm.fire_count * 35;
+    let score: i32 in Saturating = main.alarm.fire_count * 35;
 
     transition score == 70 {
-        true -> check_active(&mut self)
-        _ -> bad_score(&mut self)
+        true -> check_active(main)
+        _ -> bad_score(main)
     }
 
     state check_active(main: &mut Main) {

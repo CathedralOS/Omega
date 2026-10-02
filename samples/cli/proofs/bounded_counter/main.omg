@@ -20,17 +20,17 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
-    self.counter.bound = 100;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
+    main.counter.bound = 100;
 
-    Main::add(&mut self, 40);
-    Main::add(&mut self, 40);
-    Main::add(&mut self, 40);   // 120, saturates to 100
+    Main::add(main, 40);
+    Main::add(main, 40);
+    Main::add(main, 40);   // 120, saturates to 100
 
-    transition self.counter.value == 100 {
-        true -> good_msg(&mut self)
-        _ -> not_hundred(&mut self)
+    transition main.counter.value == 100 {
+        true -> good_msg(main)
+        _ -> not_hundred(main)
     }
     state good_msg(main: &mut Main) {
         main.console.write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");

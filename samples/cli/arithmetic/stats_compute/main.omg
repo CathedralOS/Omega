@@ -71,50 +71,50 @@ machine Main::add_weighted(main: &mut Main, x: f64, w: f64) {
     main.s.weighted_sum = main.s.weighted_sum + x * w;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
-    Main::add(&mut self, 2.0);
-    Main::add(&mut self, 4.0);
-    Main::add(&mut self, 4.0);
-    Main::add(&mut self, 4.0);
-    Main::add(&mut self, 5.0);
-    Main::add(&mut self, 5.0);
-    Main::add(&mut self, 7.0);
-    Main::add(&mut self, 9.0);
+    Main::add(main, 2.0);
+    Main::add(main, 4.0);
+    Main::add(main, 4.0);
+    Main::add(main, 4.0);
+    Main::add(main, 5.0);
+    Main::add(main, 5.0);
+    Main::add(main, 7.0);
+    Main::add(main, 9.0);
 
     // Finalize mean.
-    Main::finalize_mean(&mut self);
+    Main::finalize_mean(main);
 
     // Phase 2: compute squared deviations from the mean (mean = 5.0).
     // (2-5)^2 = 9, (4-5)^2=1 x3, (5-5)^2=0 x2, (7-5)^2=4, (9-5)^2=16
     // sum = 9+1+1+1+0+0+4+16 = 32; variance = 32/8 = 4.0
-    Main::add_dev(&mut self, 2.0);
-    Main::add_dev(&mut self, 4.0);
-    Main::add_dev(&mut self, 4.0);
-    Main::add_dev(&mut self, 4.0);
-    Main::add_dev(&mut self, 5.0);
-    Main::add_dev(&mut self, 5.0);
-    Main::add_dev(&mut self, 7.0);
-    Main::add_dev(&mut self, 9.0);
+    Main::add_dev(main, 2.0);
+    Main::add_dev(main, 4.0);
+    Main::add_dev(main, 4.0);
+    Main::add_dev(main, 4.0);
+    Main::add_dev(main, 5.0);
+    Main::add_dev(main, 5.0);
+    Main::add_dev(main, 7.0);
+    Main::add_dev(main, 9.0);
 
-    Main::finalize_variance(&mut self);
+    Main::finalize_variance(main);
 
     // Phase 3: weighted sum.
     // 2*1+4*1+4*1.5+4*1.5+5*2+5*2+7*2.5+9*3 = 2+4+6+6+10+10+17.5+27 = 82.5
-    Main::add_weighted(&mut self, 2.0, 1.0);
-    Main::add_weighted(&mut self, 4.0, 1.0);
-    Main::add_weighted(&mut self, 4.0, 1.5);
-    Main::add_weighted(&mut self, 4.0, 1.5);
-    Main::add_weighted(&mut self, 5.0, 2.0);
-    Main::add_weighted(&mut self, 5.0, 2.0);
-    Main::add_weighted(&mut self, 7.0, 2.5);
-    Main::add_weighted(&mut self, 9.0, 3.0);
+    Main::add_weighted(main, 2.0, 1.0);
+    Main::add_weighted(main, 4.0, 1.0);
+    Main::add_weighted(main, 4.0, 1.5);
+    Main::add_weighted(main, 4.0, 1.5);
+    Main::add_weighted(main, 5.0, 2.0);
+    Main::add_weighted(main, 5.0, 2.0);
+    Main::add_weighted(main, 7.0, 2.5);
+    Main::add_weighted(main, 9.0, 3.0);
 
     // Verify mean: should be 5.0.
-    transition self.s.mean > 4.9 {
-        true -> check_mean_upper(&mut self)
-        _ -> bad_mean_low(&mut self)
+    transition main.s.mean > 4.9 {
+        true -> check_mean_upper(main)
+        _ -> bad_mean_low(main)
     }
 
     state bad_mean_low(main: &mut Main) {

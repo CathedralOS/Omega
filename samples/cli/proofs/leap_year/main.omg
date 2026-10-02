@@ -17,13 +17,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("leap_year: classifying 2024 with the div-4/100/400 compound rule");
-    self.year = 2024;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("leap_year: classifying 2024 with the div-4/100/400 compound rule");
+    main.year = 2024;
 
-    transition self.year % 4 == 0 && self.year % 100 != 0 || self.year % 400 == 0 {
-        true -> leap(&mut self)
-        _ -> common(&mut self)
+    transition main.year % 4 == 0 && main.year % 100 != 0 || main.year % 400 == 0 {
+        true -> leap(main)
+        _ -> common(main)
     }
 
     state leap(main: &mut Main) {

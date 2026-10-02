@@ -44,20 +44,20 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
-    Main::send(&mut self, Command::Tick { n: 10 });
-    Main::send(&mut self, Command::Split);
-    Main::send(&mut self, Command::Tick { n: 20 });
-    Main::send(&mut self, Command::Lap);
-    Main::send(&mut self, Command::Tick { n: 15 });
-    Main::send(&mut self, Command::Tick { n: 25 });
-    Main::send(&mut self, Command::Split);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
+    Main::send(main, Command::Tick { n: 10 });
+    Main::send(main, Command::Split);
+    Main::send(main, Command::Tick { n: 20 });
+    Main::send(main, Command::Lap);
+    Main::send(main, Command::Tick { n: 15 });
+    Main::send(main, Command::Tick { n: 25 });
+    Main::send(main, Command::Split);
 
     // total==70, split==40, lap==30, elapsed==40.
-    transition self.watch.total == 70 {
-        true -> check_split(&mut self)
-        _ -> bad_total(&mut self)
+    transition main.watch.total == 70 {
+        true -> check_split(main)
+        _ -> bad_total(main)
     }
 
     state check_split(main: &mut Main) {

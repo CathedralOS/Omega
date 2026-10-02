@@ -41,14 +41,14 @@ machine Main::dispatch(main: &mut Main, event: AlarmEvent) {
     state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
-    Main::dispatch(&mut self, AlarmEvent::Trigger);
-    Main::dispatch(&mut self, AlarmEvent::Trigger);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
+    Main::dispatch(main, AlarmEvent::Trigger);
+    Main::dispatch(main, AlarmEvent::Trigger);
 
-    transition self.fire_count == 2 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+    transition main.fire_count == 2 {
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) {
         main.console.write_line("PASS: fire_count == 2 after two Trigger dispatches (exit 70)");
