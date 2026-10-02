@@ -541,7 +541,7 @@ rows! {
         "a machine's declared entry requirements and independently reconstructed pre-operation paths, including integer-order chains, exact primitive failure predicates and complements of supported scalar crash predicates",
         "certificates independently prove the caller's invocation-entry ceiling or disprove every uncovered call-time alternative on every retained path without normal-return facts; refutation retains only temporally stable requirements, and direct predicate equality covers only unchanged entry meanings; cyclic coverage keeps entry-only facts without invariant custody; exact forwarding and predicate formation remain trusted Rust decisions, while producers emit certificate supplies and consumers replay them through the certificate checker and mathematical-core kernel",
         &["formation:crash-validation", "formation:mathematical-core"],
-        &[pa!( "admission/denotation.rs"), pa!( "certificate_search.rs"), pa!( "certificate_search/integer_order.rs"), pa!( "certificate_search/order_chain.rs"), tv!( "verification/reconstruction/crash_obligations.rs"), tv!( "verification.rs")]
+        &[pa!( "admission/denotation.rs"), pa!( "certificate_search.rs"), pa!( "certificate_search/implications.rs"), pa!( "certificate_search/original_citations.rs"), pa!( "certificate_search/integer_order.rs"), pa!( "certificate_search/order_chain.rs"), tv!( "verification/reconstruction/crash_obligations.rs"), tv!( "verification.rs")]
     );
     FORM_BLOCK_INVARIANTS => (
         "formation:scalar-block-invariants",

@@ -972,7 +972,7 @@ static OP_TRAPPING_INTEGER: TrustedSurfaceEntry = entry(
 static OP_FLOAT_RESULT_POLICY: TrustedSurfaceEntry = entry(
     "operation:float-result-policy",
     "an already evaluated IEEE result and, for saturation, its finite-overflow inputs, all in one exact format",
-    "Trapping owns a Trap site under the complement of IEEE finiteness and establishes finite unchanged payload only on normal return; saturation establishes no unconditional finiteness or raw-result equality",
+    "Trapping owns a Trap site under the complement of IEEE finiteness and establishes finite unchanged payload only on normal return; saturation establishes finite-result bounds only under exact finite-input and ordered-raw-result premises, plus a nonzero divisor for division, and establishes no unconditional finiteness or raw-result equality",
     &[
         "fact:trapping-normal-return",
         "formation:operation-validation",

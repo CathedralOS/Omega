@@ -1756,8 +1756,7 @@ pass/float/f32_arg_const_arith_landed_exit checked 4338ms @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms @2d8ed253669f
 pass/float/finite_core_domain_range_discharge checked 3079ms @42dbef3839ee+wt
 pass/float/finite_signature_transport_exit checked 3457ms @6d55eb9c43a4+wt
-pass/float/float_saturating_arithmetic_exit rejected 3556ms @9b253f5667e5
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/float/float_saturating_arithmetic_exit checked 3341ms @518d04d837b2+wt
 pass/float/float_to_int_exact_proofs_exit rejected 2233ms @4e4bfed13aee+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: structural parameter type` (state 0)
 pass/float/float_to_int_trapping_nan_traps checked 2511ms @4e4bfed13aee+wt

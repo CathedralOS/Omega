@@ -70,7 +70,7 @@ pub(super) fn prove(
         &axioms,
         machine_parameters,
     )?;
-    retain_original_predicate_citations(
+    let remaining = retain_original_predicate_citations(
         &mut proof,
         context,
         assumptions,
@@ -80,6 +80,7 @@ pub(super) fn prove(
     Some(if &proof.conclusion == goal {
         proof
     } else {
+        remaining.checked_sub(1)?;
         ProofNode {
             conclusion: goal.clone(),
             rule: ProofRule::PredicateDenotation {

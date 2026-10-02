@@ -958,14 +958,6 @@ the complete product bar; focused successes below do not establish that baseline
   `input.txt` and `expected_stdout.txt` supply input/output evidence.
   See [test workflow](tools/testing.md#attributing-a-move) for attribution.
 
-  Native regressions on macOS ARM64, measured against their golden rows and
-  bisected on 2026-10-01 (each still rejected at `a836340ffc`):
-
-  - `a094beb6bb0` or `531d2642067` (unit-local and scalar value refinements;
-    the first does not build alone, so the bisect cannot split them) stops
-    `float/float_saturating_arithmetic_exit` (golden 77) at
-    `OperationProofUnavailable`.
-
   Finish coverage and roster accounting here; the old
   `CANARY-CORPUS-ROSTER-ACCOUNTING` name has no separate assignment:
 
@@ -2258,12 +2250,10 @@ crash and native exit behavior. Use affected check/native corpus slices under
     Eight native policy/cast/nested-call controls meet their authored results;
     the three policy programs also build for Linux x86-64, Windows x86-64 and
     Linux ARM64, without foreign-host execution evidence. Both ISA encodings,
-    physical recovery and exit checking pass their focused controls. Direct
-    `omega run tests/omega/pass/float/float_saturating_arithmetic_exit/main.omg`
-    still returns **200** for first-use package review, not a compiler rejection;
-    no dependency acceptance was granted by this repair. All eleven trust-ledger
-    controls pass after registering the two new implementation sites and reviewing
-    the twelve changed digests. Twenty-one focused verifier, codec, interpreter
+    physical recovery and exit checking pass their focused controls.
+    All eleven trust-ledger controls pass after registering the two new
+    implementation sites and reviewing the twelve changed digests. Twenty-one
+    focused verifier, codec, interpreter
     and backend controls pass; seven negative programs retain their expected
     rejections. The current source-replay suite rerun still cannot compile:
     `DUNGEON-STAGE05-TEST-COMPILE` owns the missing `FusedServiceBinding` arm in

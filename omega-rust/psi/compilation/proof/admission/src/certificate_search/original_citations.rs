@@ -5,13 +5,25 @@
 use crate::{ProofNode, ProofRule, check_predicate_denotations, check_value_equality_denotation};
 use semantic_vocabulary::{Proposition, PropositionContext};
 
+/// Restore citations using flat definition citations from the original semantic
+/// roster. Counting this input before each clone bounds the expanded proof, not
+/// merely the smaller search tree that requested the conversions. The result
+/// is the remaining node budget for any enclosing conversion.
 pub fn retain_original_predicate_citations(
     proof: &mut ProofNode,
     context: &PropositionContext,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     equations: &[ProofNode],
-) -> Option<()> {
+) -> Option<usize> {
+    for equation in equations {
+        let ProofRule::SemanticAxiom { index } = equation.rule else {
+            return None;
+        };
+        if semantic_axioms.get(index) != Some(&equation.conclusion) {
+            return None;
+        }
+    }
     let mut pending = vec![proof];
     let mut remaining = 4096usize;
     while let Some(proof) = pending.pop() {
@@ -23,6 +35,7 @@ pub fn retain_original_predicate_citations(
         };
         if let Some(original) = original {
             if original != &proof.conclusion {
+                remaining = remaining.checked_sub(1)?;
                 let premise = ProofNode {
                     conclusion: original.clone(),
                     rule: proof.rule.clone(),
@@ -42,6 +55,7 @@ pub fn retain_original_predicate_citations(
                     if transported != proof.conclusion {
                         return None;
                     }
+                    remaining = remaining.checked_sub(equations.len())?;
                     proof.rule = ProofRule::ValueEqualityTransport {
                         premise: Box::new(premise),
                         equalities: equations.to_vec(),
@@ -139,5 +153,5 @@ pub fn retain_original_predicate_citations(
             }
         }
     }
-    Some(())
+    Some(remaining)
 }

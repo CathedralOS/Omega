@@ -674,7 +674,7 @@ fn scalar_provider_must_supply_each_declared_normal_guarantee() {
     let TerminalMachineResult::Scalar(result) = &module.machines[1].result else {
         panic!("scalar provider fixture");
     };
-    let result = result.clone();
+    let result = *result;
     let guarantee = Proposition::Equal(
         ScalarTerm::value(formal.id, formal.scalar_type),
         ScalarTerm::boolean(true),
