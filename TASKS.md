@@ -892,14 +892,15 @@ the complete product bar; focused successes below do not establish that baseline
   bisected on 2026-10-01 (each still rejected at `a836340ffc`):
 
   - `cc0667f334` (shared views through private state control) makes Omega
-    abstract optimization reject four programs in initial validation with
-    `CurrentSharedJoinOriginDisturbed`, from the new
+    abstract optimization reject two programs in initial validation with
+    `CurrentSharedJoinOriginDisturbed`, from
     `current_ownership/address_joins/descriptor_loans.rs` conflicts:
-    `collections/element_view_edge_loan`,
-    `termination/runtime_shrinking_slice_recursion_exit`,
-    `calls/guarded_arm_view_range_tail_call_exit` and
-    `slices/runtime_bounded_fixed_array_subslice_arg_exit` (golden exits 70,
-    70, 70 and 3).
+    `termination/runtime_shrinking_slice_recursion_exit` and
+    `slices/runtime_bounded_fixed_array_subslice_arg_exit` (golden exits 70
+    and 3). Their callee summaries still treat Console boundary calls as
+    opaque storage effects. The shrinking slice is a lowered control-flow
+    backedge, not a recursive Terminal call. Both failures reproduce after
+    ordinary callee write regions and captured record loans are tracked.
   - `a094beb6bb0` or `531d2642067` (unit-local and scalar value refinements;
     the first does not build alone, so the bisect cannot split them) stops
     `float/float_saturating_arithmetic_exit` (golden 77) at
