@@ -6,7 +6,6 @@
 //! role, not a different ABI or an exemption from the home custody checks.
 use super::LiveDefinitions;
 use crate::LoweringError;
-use abstract_operations::AbstractFunction;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
@@ -28,7 +27,6 @@ pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
-    function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -45,34 +43,14 @@ pub(super) fn argument(
     let (source, root_structural_type, source_byte_offset) = if let Some(home) =
         live.structural_homes.get(&argument.place)
     {
-        // A field snapshot has no qualification roster of its own. The
-        // canonical call judgment reconstructs its captured byte predicates;
-        // this leg transports that exact owned carrier, not a borrowed view.
-        // Geometry cannot establish a predicate from the formal's roster.
-        let copied_byte_field = argument.path.is_empty()
-            && !declaration.is_self
-            && declaration.multiplicity == StructuralMultiplicity::Unrestricted
-            && home.qualifications().is_empty()
-            && types.get(&declaration.structural_type).is_some_and(|row| {
-                matches!(row.shape, StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                ))
-            })
-            && home.operation_result().is_some_and(|(producer, result)| {
-                result.qualification_establishments.is_empty()
-                    && function.operations.iter().any(|operation| matches!(operation,
-                        abstract_operations::AbstractOperation::StructuralLeafCopy {
-                            psi_operation, result: actual,
-                            path: abstract_operations::StructuralCopyPath::Ordinary(path), ..
-                        } if *psi_operation == producer && actual == result
-                            && matches!(path.last(), Some(terminal_psi::StructuralPathSegment::Field(_)))
-                    ))
-            });
+        // The product entry validates the optimized plan's call custody before
+        // invoking this lowering core. Target storage carries bytes and live
+        // length, not that predicate proof; geometry must not turn valid
+        // predicate weakening into native qualification equality. Direct uses
+        // of the unvalidated core remain responsible for supplying that proof.
         if home.access() != StructuralAccess::Owned
             || home.multiplicity() != declaration.multiplicity
             || home.has_claims()
-            || (home.qualifications() != declaration.qualifications.as_slice()
-                && !copied_byte_field)
             || home.projected_qualifications() != declaration.projected_qualifications.as_slice()
         {
             return Err(invalid());
@@ -88,9 +66,6 @@ pub(super) fn argument(
             }
             0
         } else {
-            if !home.qualifications().is_empty() {
-                return Err(invalid());
-            }
             let (selected, shape, offset) =
                 crate::lowering::structural_layout::resolve_structural_projection_path(
                     home.structural_type(),
@@ -149,20 +124,11 @@ pub(super) fn argument(
             .iter()
             .find(|parameter| parameter.place == argument.place)
             .ok_or_else(invalid)?;
-        // The callee's whole-root preconditions transfer only when the
-        // caller's declared roster on this place equals them exactly.
-        let caller_qualifications = function
-            .structural_parameters
-            .iter()
-            .find(|source| source.place == argument.place)
-            .map(|source| source.qualifications.as_slice())
-            .unwrap_or(&[]);
         if !argument.path.is_empty()
             || parameter.access != StructuralAccess::Owned
             || parameter.multiplicity != declaration.multiplicity
             || parameter.structural_type != declaration.structural_type
             || parameter.shape != expected_shape
-            || caller_qualifications != declaration.qualifications.as_slice()
         {
             return Err(invalid());
         }

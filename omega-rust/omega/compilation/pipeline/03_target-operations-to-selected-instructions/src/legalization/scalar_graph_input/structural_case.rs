@@ -4,7 +4,6 @@ use super::{
     PsiProvenance,
 };
 use crate::LegalizationError;
-use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
 };
@@ -21,73 +20,9 @@ pub(in crate::legalization) fn source_result(
         .blocks
         .iter()
         .flat_map(|block| &block.nodes)
-        .filter_map(|node| match &node.operation {
-            AbstractOperation::EstablishScalarArray {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishByteSequenceConcatenation {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishZeroedStructural {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishCase {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishReference {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::EstablishElementView {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::ElementViewSubslice {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::ByteSequenceSubslice {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::StructuralLeafCopy {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::MoveStructuralField {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            } if result.place == source => Some((*psi_operation, result)),
-            AbstractOperation::BoundaryCall {
-                psi_operation,
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                ..
-            } if result.place == source => Some((*psi_operation, result)),
-            _ => None,
+        .filter_map(|node| {
+            let (producer, result) = node.operation.structural_result()?;
+            (result.place == source).then_some((producer, result))
         });
     let result = matching.next().ok_or(LegalizationError::custody())?;
     if matching.next().is_some() {
