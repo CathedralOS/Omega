@@ -55,7 +55,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
         self.passed = self.passed + 1;
         // Step 2 — create the file through the portable target-format adapter
         // and write a known 17-byte line.
-        self.open_result = self.files.create("/tmp/omega_journal_dir/note.txt");
+        self.open_result = Filesystem::create(&mut self.files, "/tmp/omega_journal_dir/note.txt");
         transition self.open_result { OpenResult::Ok { file } -> opened_for_write(file) _ -> done() }
     }
     state opened_for_write(&mut self, file: File) {
@@ -74,7 +74,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
         self.passed = self.passed + 1;
         // Step 4 — reopen read-only through the same adapter and read the 17
         // bytes back byte-exactly.
-        self.open_result = self.files.open("/tmp/omega_journal_dir/note.txt");
+        self.open_result = Filesystem::open(&mut self.files, "/tmp/omega_journal_dir/note.txt");
         transition self.open_result { OpenResult::Ok { file } -> opened_for_read(file) _ -> done() }
     }
     state opened_for_read(&mut self, file: File) {
