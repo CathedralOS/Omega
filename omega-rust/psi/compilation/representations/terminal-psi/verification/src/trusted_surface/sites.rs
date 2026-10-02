@@ -283,13 +283,18 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
 
 pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_ordering/contracts.rs",
+        sha256: Some("b0efc8edf8ba477e0ce918faedb6b17d61956845dc44bd25840093ec7c6fa1d9"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/borrowed_storage.rs",
-        sha256: Some("b7189fd77f937b46af2088cc64ddbe592f62f39d4abdfe46b117b32188cd114f"),
+        sha256: Some("f17628aa82c98019b4a9955a7f76a8cce61248fff3ef036d386465e60d0e3d9e"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_ordering.rs",
-        sha256: Some("8b941e8a8655a87ae4dee6097554185be936d025ce41b8187e294f50d099dfd5"),
+        sha256: Some("fa3b1728211315fdbc37ae4ab5e5793ba03e2e3eb244552871a74b5afeb1247a"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -299,7 +304,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans.rs",
-        sha256: Some("1b4cc4ac95dfc57db3a532605fd97aaa2510bfeb945828643584069caa3533a9"),
+        sha256: Some("b57de3d83a3361ee73410670ab9a2191c1edd9200a6808d7a00f7792b24ea488"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -324,7 +329,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/scalar_ordering.rs",
-        sha256: Some("f32bd34bf138b69b70091c025ef01c28f945fa0b57849d2739d78c460a5a5b9c"),
+        sha256: Some("3489e28febd70c402a8a057b1d8a355185f078212ce6b99740ae7a3c89e62996"),
         inventory_machinery: false,
     },
     ImplementationSite {

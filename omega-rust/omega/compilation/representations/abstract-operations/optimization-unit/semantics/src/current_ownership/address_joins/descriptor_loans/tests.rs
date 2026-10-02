@@ -315,6 +315,7 @@ fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
     let regions = BorrowedRegions::new(
         &function,
         &BTreeMap::new(),
+        &BTreeMap::new(),
         &crate::current_ownership::CallAccesses::default(),
     );
     let loans = DescriptorLoans::new(&function, &regions, &BTreeMap::new());
@@ -466,6 +467,7 @@ fn record_observation_keeps_every_contained_descriptor_backing_live() {
         function.declared_places.insert(place(10));
         let regions = BorrowedRegions::new(
             &function,
+            &BTreeMap::new(),
             &types,
             &crate::current_ownership::CallAccesses::default(),
         );
@@ -530,6 +532,7 @@ fn stored_dynamic_selection_is_an_escape_at_capture_not_at_later_dispatch() {
     let function = receiver_fixture(capture, false);
     let regions = BorrowedRegions::new(
         &function,
+        &BTreeMap::new(),
         &BTreeMap::new(),
         &crate::current_ownership::CallAccesses::default(),
     );
@@ -689,6 +692,7 @@ fn writable_plain_projection_does_not_escape_a_shared_call_operand() {
                 .collect();
             let regions = BorrowedRegions::new(
                 &function,
+                &BTreeMap::new(),
                 &types,
                 &crate::current_ownership::CallAccesses::default(),
             );
@@ -784,6 +788,7 @@ fn alias_bearing_or_unresolved_writable_output_keeps_the_call_loan_alive() {
             .collect();
         let regions = BorrowedRegions::new(
             &function,
+            &BTreeMap::new(),
             &types,
             &crate::current_ownership::CallAccesses::default(),
         );
@@ -821,6 +826,7 @@ fn a_non_escaping_call_does_not_retire_later_descriptor_observations() {
         .collect();
     let regions = BorrowedRegions::new(
         &function,
+        &BTreeMap::new(),
         &types,
         &crate::current_ownership::CallAccesses::default(),
     );

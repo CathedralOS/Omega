@@ -4,14 +4,18 @@
 use super::borrowed_regions::Position;
 use abstract_operations::{AbstractOperation as O, ValueBinding};
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, MachineId, Proposition, ScalarType, ValueId};
 #[cfg(test)]
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerSign, IntegerType};
+use std::collections::BTreeMap;
 use terminal_semantics::scalar_ordering::{Binding, Edge, Effect, ScalarOrdering, Step};
 
 pub(super) struct RangeRelations(ScalarOrdering);
 impl RangeRelations {
-    pub(super) fn new(function: &PsiOptimizationFunction) -> Self {
+    pub(super) fn new(
+        function: &PsiOptimizationFunction,
+        functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    ) -> Self {
         let positions = function
             .blocks
             .iter()
@@ -141,7 +145,38 @@ impl RangeRelations {
                 successors,
             });
         }
-        Self(ScalarOrdering::new(
+        // Contract custody is attached from the verified Terminal product and
+        // independently checked against the immutable seed. Executable call
+        // occurrences come from this current graph: no stale source operation
+        // coordinate is used to import a guarantee after a rewrite.
+        let scalar_types = function
+            .parameters
+            .iter()
+            .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+            .map(|parameter| (parameter.value, parameter.scalar_type))
+            .chain(
+                steps
+                    .iter()
+                    .flat_map(|step| step.definitions.iter().copied()),
+            )
+            .collect::<Vec<_>>();
+        let normal_returns = function
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                let scalar_types = &scalar_types;
+                block
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, node)| {
+                        let propositions =
+                            call_guarantees(&node.operation, functions, scalar_types)?;
+                        Some(((block.id, u32::try_from(index).ok()?), propositions))
+                    })
+            })
+            .collect();
+        Self(ScalarOrdering::with_contracts(
             steps,
             (function.entry, 0),
             function
@@ -149,6 +184,11 @@ impl RangeRelations {
                 .iter()
                 .map(|parameter| (parameter.value, parameter.scalar_type))
                 .collect(),
+            function
+                .verified_contract
+                .as_ref()
+                .map_or(&[], |contract| contract.requires.as_slice()),
+            normal_returns,
         ))
     }
     pub(super) fn ordering(&self) -> &ScalarOrdering {
@@ -183,6 +223,95 @@ impl RangeRelations {
         self.0.values_unchanged_since(birth, current, values)
     }
 }
+/// Instantiate only current, statically named scalar return contracts. The
+/// common contract projection rejects unbound leaves and unsupported clauses;
+/// result/formal namespaces never fall back to coincident caller identities.
+fn call_guarantees(
+    operation: &O,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    scalar_types: &[(ValueId, ScalarType)],
+) -> Option<Vec<Proposition>> {
+    let (callee, arguments, result) = match operation {
+        O::Call {
+            callee,
+            arguments,
+            result,
+            scalar_type,
+            ..
+        } => (
+            *callee,
+            arguments,
+            abstract_operations::AbstractResult {
+                value: *result,
+                scalar_type: *scalar_type,
+            },
+        ),
+        O::CallStructural {
+            callee,
+            arguments,
+            result,
+            ..
+        } => (*callee, arguments, result.scalar()?),
+        _ => return None,
+    };
+    let callee = functions.get(&callee)?;
+    let contract = callee.verified_contract.as_ref()?;
+    let signature = callee.result.scalar()?;
+    // A formal denotes its pre-call argument, while the result denotes the
+    // completed value. Reusing one identifier would erase that distinction.
+    if arguments.contains(&result.value)
+        || signature.scalar_type != result.scalar_type
+        || arguments.len() != callee.parameters.len()
+        || !arguments
+            .iter()
+            .zip(&callee.parameters)
+            .all(|(actual, formal)| {
+                scalar_types.contains(&(*actual, formal.scalar_type))
+                    && scalar_types.iter().all(|(value, scalar_type)| {
+                        value != actual || *scalar_type == formal.scalar_type
+                    })
+            })
+        || !contract.erased_scalar_formals.is_empty()
+        || !contract.erased_proof_formals.is_empty()
+    {
+        return None;
+    }
+    let mut bindings = callee
+        .parameters
+        .iter()
+        .zip(arguments)
+        .map(|(formal, actual)| {
+            (
+                formal.value,
+                semantic_vocabulary::ScalarTerm::value(*actual, formal.scalar_type),
+            )
+        })
+        .collect::<Vec<_>>();
+    bindings.push((
+        signature.value,
+        semantic_vocabulary::ScalarTerm::value(result.value, signature.scalar_type),
+    ));
+    if bindings
+        .iter()
+        .enumerate()
+        .any(|(index, row)| bindings[..index].iter().any(|other| other.0 == row.0))
+    {
+        return None;
+    }
+    Some(
+        contract
+            .ensures
+            .iter()
+            .flat_map(|clause| {
+                terminal_semantics::scalar_ordering::instantiate_contract_ordering(
+                    &clause.proposition,
+                    &bindings,
+                )
+            })
+            .collect(),
+    )
+}
+
 #[cfg(test)]
 #[path = "range_relations/tests.rs"]
 mod tests;

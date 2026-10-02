@@ -1,8 +1,11 @@
-//! Scalar ordering reconstructed from executable comparisons and selected edges.
+//! Scalar ordering from executable comparisons, selected edges and authenticated contracts.
 //! The solver owns only supplied analysis scratch: each IR adapter reconstructs
 //! its exact graph, definitions and effects. Cycles remain unknown, joins retain
 //! all-path facts, and captured selectors require unchanged formation values.
-use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, IntegerSign, IntegerType, Proposition, ScalarType, ValueId};
+
+mod contracts;
+pub use contracts::instantiate_contract_ordering;
 use std::collections::VecDeque;
 
 /// A current executable coordinate, including terminator steps supplied by adapters.
@@ -54,9 +57,21 @@ pub struct Step {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Term {
+    Value(ValueId),
+    Unsigned(u64),
+}
+
+impl Term {
+    fn mentions(self, values: &[ValueId]) -> bool {
+        matches!(self, Self::Value(value) if values.contains(&value))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Relation {
-    left: ValueId,
-    right: ValueId,
+    left: Term,
+    right: Term,
     strict: bool,
 }
 
@@ -80,13 +95,12 @@ struct State {
 
 impl State {
     fn kill(&mut self, values: &[ValueId]) {
-        self.relations.retain(|relation| {
-            !values.contains(&relation.left) && !values.contains(&relation.right)
-        });
+        self.relations
+            .retain(|relation| !relation.left.mentions(values) && !relation.right.mentions(values));
         self.comparisons.retain(|(value, relation)| {
             !values.contains(value)
-                && !values.contains(&relation.left)
-                && !values.contains(&relation.right)
+                && !relation.left.mentions(values)
+                && !relation.right.mentions(values)
         });
         self.types.retain(|(value, _)| !values.contains(value));
         self.literals.retain(|(value, _)| !values.contains(value));
@@ -108,6 +122,20 @@ impl State {
                 IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is a valid integer type"),
             ),
         ))
+    }
+
+    fn assume(&mut self, propositions: &[Proposition]) {
+        for relation in contracts::relations(propositions) {
+            let valid = |term| match term {
+                Term::Value(value) => self.is_index(value),
+                Term::Unsigned(_) => true,
+            };
+            if valid(relation.left) && valid(relation.right) {
+                self.relations.push(relation);
+            }
+        }
+        self.relations.sort_unstable();
+        self.relations.dedup();
     }
 
     fn after(&self, step: &Step) -> Self {
@@ -132,8 +160,8 @@ impl State {
                 vec![(
                     result,
                     Relation {
-                        left,
-                        right,
+                        left: Term::Value(left),
+                        right: Term::Value(right),
                         strict,
                     },
                 )]
@@ -159,7 +187,7 @@ impl State {
         result.kill(&defined);
         result.types.extend_from_slice(&step.definitions);
         for (value, relation) in comparisons {
-            if !defined.contains(&relation.left) && !defined.contains(&relation.right) {
+            if !relation.left.mentions(&defined) && !relation.right.mentions(&defined) {
                 result.comparisons.push((value, relation));
             }
         }
@@ -244,9 +272,13 @@ impl State {
                 result.literals.push((alias, *literal));
             }
         }
+        let term_aliases = |term| match term {
+            Term::Value(value) => aliases(value).into_iter().map(Term::Value).collect(),
+            Term::Unsigned(_) => vec![term],
+        };
         for relation in &source.relations {
-            for left in aliases(relation.left) {
-                for right in aliases(relation.right) {
+            for left in term_aliases(relation.left) {
+                for right in term_aliases(relation.right) {
                     result.relations.push(Relation {
                         left,
                         right,
@@ -257,8 +289,8 @@ impl State {
         }
         for (value, relation) in &source.comparisons {
             for alias in aliases(*value) {
-                for left in aliases(relation.left) {
-                    for right in aliases(relation.right) {
+                for left in term_aliases(relation.left) {
+                    for right in term_aliases(relation.right) {
                         result.comparisons.push((
                             alias,
                             Relation {
@@ -285,7 +317,7 @@ impl State {
 
 /// All-path ordering and captured-value stability over a supplied current graph.
 /// Adapters reconstruct definitions, effects and edges from their validated IR;
-/// no serialized fact or obligation lookup enters this analysis.
+/// adapters authenticate contracts independently of incidental operation identities.
 pub struct ScalarOrdering {
     steps: Vec<Step>,
     states: Vec<Option<State>>,
@@ -293,6 +325,20 @@ pub struct ScalarOrdering {
 
 impl ScalarOrdering {
     pub fn new(steps: Vec<Step>, entry: Position, parameters: Vec<(ValueId, ScalarType)>) -> Self {
+        Self::with_contracts(steps, entry, parameters, &[], Vec::new())
+    }
+
+    /// Entry requirements hold for incoming formals. Normal-return guarantees
+    /// hold only after their exact current call's result definitions. Adapters
+    /// must reconstruct those applications from independently checked contracts;
+    /// this solver neither grants contract authority nor accepts storage facts.
+    pub fn with_contracts(
+        steps: Vec<Step>,
+        entry: Position,
+        parameters: Vec<(ValueId, ScalarType)>,
+        entry_requirements: &[Proposition],
+        normal_returns: Vec<(Position, Vec<Proposition>)>,
+    ) -> Self {
         let positions = steps.iter().map(|step| step.position).collect::<Vec<_>>();
         let mut result = Self {
             states: vec![None; steps.len()],
@@ -340,16 +386,24 @@ impl ScalarOrdering {
         // successors stay unknown. Acyclic paths use every reachable arrival.
         let mut queue = VecDeque::new();
         let mut arrivals = vec![None::<State>; positions.len()];
-        arrivals[entry] = Some(State {
+        let mut initial = State {
             types: parameters,
             ..State::default()
-        });
+        };
+        initial.assume(entry_requirements);
+        arrivals[entry] = Some(initial);
         if remaining[entry] == 0 {
             queue.push_back(entry);
         }
         while let Some(index) = queue.pop_front() {
             let state = arrivals[index].take().unwrap_or_default();
-            let output = state.after(&result.steps[index]);
+            let mut output = state.after(&result.steps[index]);
+            for (_, guarantees) in normal_returns
+                .iter()
+                .filter(|(position, _)| *position == result.steps[index].position)
+            {
+                output.assume(guarantees);
+            }
             result.states[index] = Some(state);
             for edge in &result.steps[index].successors {
                 let arrival = output.across(edge);
@@ -368,14 +422,14 @@ impl ScalarOrdering {
     }
 
     pub fn proves_less_than(&self, position: Position, left: ValueId, right: ValueId) -> bool {
-        self.proves(position, left, right, true)
+        self.proves(position, Term::Value(left), Term::Value(right), true)
     }
 
     pub fn proves_less_or_equal(&self, position: Position, left: ValueId, right: ValueId) -> bool {
-        self.proves(position, left, right, false)
+        self.proves(position, Term::Value(left), Term::Value(right), false)
     }
 
-    fn proves(&self, position: Position, left: ValueId, right: ValueId, strict: bool) -> bool {
+    pub(crate) fn proves(&self, position: Position, left: Term, right: Term, strict: bool) -> bool {
         let Some(state) = self
             .steps
             .iter()
@@ -384,35 +438,60 @@ impl ScalarOrdering {
         else {
             return false;
         };
-        if !state.is_index(left) || !state.is_index(right) {
+        let valid = |term| match term {
+            Term::Value(value) => state.is_index(value),
+            Term::Unsigned(_) => true,
+        };
+        if !valid(left) || !valid(right) {
             return false;
         }
+        let mut relations = state.relations.clone();
+        for (value, literal) in &state.literals {
+            let Ok(literal) = u64::try_from(*literal) else {
+                continue;
+            };
+            for (left, right) in [
+                (Term::Value(*value), Term::Unsigned(literal)),
+                (Term::Unsigned(literal), Term::Value(*value)),
+            ] {
+                relations.push(Relation {
+                    left,
+                    right,
+                    strict: false,
+                });
+            }
+        }
+        let constants = relations
+            .iter()
+            .flat_map(|relation| [relation.left, relation.right])
+            .chain([left, right])
+            .filter_map(|term| match term {
+                Term::Unsigned(value) => Some(value),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         let mut pending = vec![(left, false)];
         let mut visited = Vec::new();
-        while let Some((value, already_strict)) = pending.pop() {
-            if value == right && (!strict || already_strict) {
+        while let Some((term, already_strict)) = pending.pop() {
+            if term == right && (!strict || already_strict) {
                 return true;
             }
-            if visited.contains(&(value, already_strict)) {
+            if visited.contains(&(term, already_strict)) {
                 continue;
             }
-            visited.push((value, already_strict));
-            if let Some((_, literal)) = state.literals.iter().find(|(known, _)| *known == value) {
+            visited.push((term, already_strict));
+            if let Term::Unsigned(literal) = term {
                 pending.extend(
-                    state
-                        .literals
+                    constants
                         .iter()
-                        .filter(|(_, other)| literal <= other)
-                        .map(|(other, other_literal)| {
-                            (*other, already_strict || literal < other_literal)
-                        }),
+                        .filter(|other| literal <= **other)
+                        .map(|other| (Term::Unsigned(*other), already_strict || literal < *other)),
                 );
             }
             pending.extend(
-                state
-                    .relations
+                relations
                     .iter()
-                    .filter(|relation| relation.left == value)
+                    .filter(|relation| relation.left == term)
                     .map(|relation| (relation.right, already_strict || relation.strict)),
             );
         }

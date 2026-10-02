@@ -440,3 +440,6 @@ fn mutable_child_requires_exact_affine_carrier_cleanup() {
         Err(ModuleError::UnitReturnAffineDiscardsMismatch { .. })
     ));
 }
+
+#[path = "element_view_write/contract_ordering.rs"]
+mod contract_ordering;

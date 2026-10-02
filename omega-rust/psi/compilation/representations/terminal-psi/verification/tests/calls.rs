@@ -21,6 +21,8 @@ mod qualification_establishments;
 mod scalar_and_structural_call_reconstruction;
 #[path = "calls/scalar_array_arguments.rs"]
 mod scalar_array_arguments;
+#[path = "calls/scalar_ordering_contracts.rs"]
+mod scalar_ordering_contracts;
 
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,

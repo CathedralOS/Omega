@@ -155,21 +155,25 @@ fn window_excludes_index(
     let (Some((start, end)), Some(birth)) = (window.window, window.captured_at) else {
         return false;
     };
-    let Some(StructuralPathSegment::RuntimeIndex { index, .. }) =
-        selected.path.get(window.path.len())
-    else {
-        return false;
+    use crate::scalar_ordering::Term;
+    let index = match selected.path.get(window.path.len()) {
+        Some(StructuralPathSegment::FixedIndex(index)) => Term::Unsigned(*index),
+        Some(StructuralPathSegment::RuntimeIndex { index, .. })
+            if selected.captured_at.is_some_and(|captured| {
+                relations.values_unchanged_since(captured, position, &[*index])
+            }) =>
+        {
+            Term::Value(*index)
+        }
+        _ => return false,
     };
     if selected.path[..window.path.len()] != window.path
         || !relations.values_unchanged_since(birth, position, &[start, end])
-        || selected
-            .captured_at
-            .is_none_or(|captured| !relations.values_unchanged_since(captured, position, &[*index]))
     {
         return false;
     }
-    relations.proves_less_than(position, *index, start)
-        || relations.proves_less_or_equal(position, end, *index)
+    relations.proves(position, index, Term::Value(start), true)
+        || relations.proves(position, Term::Value(end), index, false)
 }
 
 pub fn resolve(aliases: &AliasSources, root: PlaceId, projection: Projection) -> Vec<Region> {
