@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 2.02, "load1_start": 2.02, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 7.65, "load1_start": 0.17, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -197,37 +197,7 @@ fail/build/elf_interpreter_relative_path rejected 1706ms expected @5ce9755c44a5+
 	`build` produced an invalid Build: Build.elf_interpreter.linux_x86_64 is invalid: ELF interpreter plan path is not absolute
 fail/build/hosted_program_entry_visible_parameter rejected 1019ms expected @2d8ed253669f
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
-fail/build/package_local_calling_copy rejected 226ms expected @2d8ed253669f
-	duplicate data `SystemVEightbyteClass`
-	duplicate data `ValueClass`
-	duplicate data `ValueShape`
-	duplicate data `ValueField`
-	duplicate data `CallbackBinderIdentity`
-	duplicate data `AbiValueClass`
-	duplicate data `AbiValueShape`
-	duplicate data `NativePlace`
-	duplicate data `NativeCallbackDemandIdentity`
-	duplicate data `NativeParameterOrigin`
-	duplicate data `NativeParameterShape`
-	duplicate data `NativeParameterIdentity`
-	duplicate data `BoundarySignature`
-	duplicate data `MachineRegister`
-	duplicate data `IndirectPointerLocation`
-	duplicate data `ValueLocation`
-	duplicate data `ValuePlacement`
-	duplicate data `CallingConvention`
-	duplicate data `RegisterSet`
-	duplicate data `EntryControl`
-	duplicate data `CallbackMaterialization`
-	duplicate data `CallPlan`
-	duplicate data `MachineRegime`
-	duplicate data `MachineStateSet`
-	duplicate data `EntryStack`
-	duplicate data `Preemption`
-	duplicate data `StatePlan`
-	duplicate data `BoundaryEntryPlan`
-	duplicate data `CallingPolicyRejection`
-	duplicate data `BoundaryPlanResult`
+fail/build/package_local_calling_copy checked 923ms @9b253f5667e5
 fail/build/placed_view_program_entry_input rejected 677ms expected @c9ed9f7b9e4c+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: parameter source`
 fail/build/product_entry_description_slot_mismatch rejected 546ms expected @b09f66e07ebd+wt
@@ -1228,7 +1198,8 @@ pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 35290ms @ca8c127c90c5
-pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 910ms @ba014724095f+wt
+pass/borrows/runtime_released_loan_with_forwarded_view_exit rejected 1230ms @9b253f5667e5
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: argument place` (state 0, statement 2)
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9ff444c14+wt
@@ -1276,7 +1247,8 @@ pass/calls/field_path_byte_subslice_exit checked 3105ms @48d34a64a938+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
 pass/calls/guarded_arm_value_tail_call_exit checked 2342ms @4e4bfed13aee+wt
-pass/calls/guarded_arm_view_range_tail_call_exit checked 746ms @ad4cf8611e36+wt
+pass/calls/guarded_arm_view_range_tail_call_exit rejected 1423ms @9b253f5667e5
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(1), block: BlockId(1), node: 13, place: PlaceId(1) }))
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/inline_record_scalar_call_arguments_exit checked 791ms @3a2233464b3b
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
@@ -1410,7 +1382,8 @@ pass/collections/case_array_literal_row_store_exit checked 1434ms @2d8ed253669f
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 40086ms @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store checked 1241ms @2d8ed253669f
 pass/collections/element_view_borrow_local checked 1364ms @2d8ed253669f
-pass/collections/element_view_edge_loan checked 1307ms @ca8c127c90c5
+pass/collections/element_view_edge_loan rejected 1396ms @9b253f5667e5
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(6), block: BlockId(14), node: 2, place: PlaceId(6) }))
 pass/collections/element_view_field_write checked 1283ms @2d8ed253669f
 pass/collections/element_view_indexed_read checked 1297ms @2d8ed253669f
 pass/collections/element_view_indexed_write checked 1179ms @2d8ed253669f
@@ -1692,8 +1665,7 @@ pass/filesystem/dir_walk_wrappers_exit rejected 12855ms @f136a75fbbc
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::read_dir_is_empty`), which was itself omitted at local construction at `statement sequence: structural result: returned value` (state 3)
 pass/filesystem/native_canonicalize rejected 896ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::canonicalize),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_close rejected 782ms @2d8ed253669f
-	native artifact target lowering failed: MissingBoundarySettlement(BoundaryMachineId(1))
+pass/filesystem/native_close checked 1246ms @9b253f5667e5
 pass/filesystem/native_crud rejected 899ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_errno rejected 851ms @2d8ed253669f
@@ -1726,8 +1698,7 @@ pass/filesystem/windows_wrapper_results_exit rejected 15480ms @f136a75fbbc
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/wrapper_lock_metadata_exit rejected 9876ms @f136a75fbbc
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 9760ms @f136a75fbbc
-	terminal-artifact production failed: Lowering(Unsupported("record read carrier path left its record namespace"))
+pass/filesystem/wrapper_open_with_exit timeout 120000ms @9b253f5667e5
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 5403ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 4056ms @2d8ed253669f
@@ -1739,7 +1710,8 @@ pass/float/f32_arg_const_arith_landed_exit checked 4338ms @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms @2d8ed253669f
 pass/float/finite_core_domain_range_discharge checked 3079ms @42dbef3839ee+wt
 pass/float/finite_signature_transport_exit checked 3457ms @6d55eb9c43a4+wt
-pass/float/float_saturating_arithmetic_exit checked 8348ms @ca8c127c90c5
+pass/float/float_saturating_arithmetic_exit rejected 3556ms @9b253f5667e5
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
 pass/float/float_to_int_exact_proofs_exit rejected 2233ms @4e4bfed13aee+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: structural parameter type` (state 0)
 pass/float/float_to_int_trapping_nan_traps checked 2511ms @4e4bfed13aee+wt
@@ -1764,7 +1736,9 @@ pass/float/named_provider_directed_divide_exit rejected 4689ms @2d8ed253669f
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_negative(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_negative(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_positive(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_positive(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F64::divide_toward_zero(named(name(f64)),named(name(f64)))->named(name(f64))` for Terminal boundary `operator::F64::divide_toward_zero(named(name(f64)),named(name(f64)))->named(name(f64))` has no native boundary realization
-pass/float/named_provider_fused_multiply_add_exit checked 6076ms @ca8c127c90c5
+pass/float/named_provider_fused_multiply_add_exit rejected 2601ms @9b253f5667e5
+	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
+	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
 pass/float/named_provider_min_max_sqrt_exit checked 7600ms @2d8ed253669f
 pass/float/named_provider_multiply_then_add_exit checked 4722ms @2d8ed253669f
 pass/float/named_provider_negate_is_nan_exit checked 5868ms @2d8ed253669f
@@ -2060,7 +2034,8 @@ pass/slices/local_record_array_state_view_exit checked 1337ms @b33d826687a3
 pass/slices/projected_array_call_exit checked 1035ms @4e4bfed13aee+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 728ms @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 709ms @ad4cf8611e36+wt
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 1007ms @9b253f5667e5
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(2), block: BlockId(7), node: 3, place: PlaceId(2) }))
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 987ms @5fb2e19e1f1+wt
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms @59aa9580a54d+wt
@@ -2208,7 +2183,8 @@ pass/termination/remainder_literal_call_component checked 297ms @2d8ed253669f
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms @2d8ed253669f
 pass/termination/runtime_rank_range_state_call_exit checked 867ms @82d2bd2d7669
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms @c9c108ecb4ac+wt
-pass/termination/runtime_shrinking_slice_recursion_exit checked 761ms @ca8c127c90c5
+pass/termination/runtime_shrinking_slice_recursion_exit rejected 942ms @9b253f5667e5
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(1), block: BlockId(2), node: 0, place: PlaceId(1) }))
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1212ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
 pass/termination/stored_reference_endpoint_arrivals checked 320ms @2d8ed253669f
@@ -2258,7 +2234,8 @@ pass/time/runtime_checked_time_arith_exit checked 83365ms @8778c440081
 pass/time/runtime_duration_core_exit checked 24317ms @ca8c127c90c5
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 1206ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
-pass/time/runtime_time_elapsed_since_exit checked 39939ms @ca8c127c90c5
+pass/time/runtime_time_elapsed_since_exit rejected 13018ms @9b253f5667e5
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(TimeHost::monotonic_ticks_per_second),parameters(),result-dispatch())` resolves to 0 selected provider rows
 pass/time/runtime_time_host_native_darwin_exit checked 4141ms @ca8c127c90c5
 pass/time/runtime_time_host_virtual_exit checked 1234ms @2d8ed253669f
 pass/time/static_duration_accessors checked 7010ms @2d8ed253669f
@@ -2293,7 +2270,7 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 713ms @4e4bfed13aee+wt
 pass/wire/runtime_wire_decode_ranged_field_exit rejected 1638ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 6)
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 3975ms @1da616075c39+wt
-pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 43414ms @1da616075c39+wt
+pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 72946ms @9b253f5667e5
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 706ms @4e4bfed13aee+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 4)
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1642ms @2d8ed253669f
@@ -2301,8 +2278,7 @@ pass/wire/runtime_wire_encode_byte_slice_exit rejected 1642ms @2d8ed253669f
 pass/wire/runtime_wire_exact_array_without_count_exit checked 6175ms @1da616075c39+wt
 pass/wire/runtime_wire_policy_authored_plan_exit rejected 364ms @4e4bfed13aee+wt
 	build-time evaluation of `CompactBinary::plan` failed for `CounterMessage`: machine `CompactBinary::plan` takes 2 argument(s); the build-time position supplied 1
-pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit incomplete 41105ms @6ec9ff444c14+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775823 unproved; the module is not shown invalid
+pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit timeout 123319ms @9b253f5667e5
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1733ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms @2d8ed253669f
