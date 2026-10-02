@@ -18,7 +18,6 @@ pub(super) fn observe(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
-    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &mut LiveDefinitions,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -34,15 +33,9 @@ pub(super) fn observe(
     else {
         return Err(invalid());
     };
-    let identity = if let Some(home) = live.structural_homes.get(source) {
-        home.structural_type()
-    } else if let Some(parameter) = super::transfers::address_parameter(function, live, *source) {
-        parameter.structural_type
-    } else {
-        parameter_root(prepared, *source)
-            .ok_or_else(invalid)?
-            .structural_type
-    };
+    let identity = live
+        .structural_observation_type(function, *source)
+        .ok_or_else(invalid)?;
     let (tag_byte_offset, case_tag, runs) = case_projection(identity, path, *case, types)?;
     if result.scalar_type != ScalarType::Boolean {
         return Err(invalid());
@@ -342,12 +335,116 @@ pub(super) fn lower(
 
 #[cfg(test)]
 mod tests {
+    use super::super::LiveDefinitions;
     use super::case_projection;
     use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-    use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
-    use terminal_psi::{
-        StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    use abstract_operations::{AbstractBlockEntry, AbstractFunction, AbstractFunctionResult};
+    use semantic_vocabulary::{
+        BlockId, MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,
     };
+    use std::collections::{BTreeMap, BTreeSet};
+    use terminal_psi::{
+        StructuralAccess, StructuralFieldType, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
+
+    fn parameter(
+        place: u64,
+        position: u32,
+        access: StructuralAccess,
+    ) -> StructuralParameterDeclaration {
+        StructuralParameterDeclaration {
+            place: PlaceId::new(place).unwrap(),
+            position,
+            is_self: false,
+            structural_type: StructuralTypeId::new(place).unwrap(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn observation_roots_retain_live_storage_roles_and_read_access() {
+        let entry = parameter(1, 0, StructuralAccess::SharedBorrow);
+        let write_only = parameter(2, 1, StructuralAccess::WriteOnlyBorrow);
+        let block_view = parameter(3, 0, StructuralAccess::SharedBorrow);
+        let unavailable = parameter(4, 1, StructuralAccess::SharedBorrow);
+        let address_join = parameter(5, 2, StructuralAccess::MutableBorrow);
+        let function = AbstractFunction {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            entry: BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: vec![entry.clone(), write_only.clone()],
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block: BlockId::new(2).unwrap(),
+                structural_parameters: vec![
+                    block_view.clone(),
+                    unavailable.clone(),
+                    address_join.clone(),
+                ],
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: Vec::new(),
+        };
+        let local = PlaceId::new(6).unwrap();
+        let live = LiveDefinitions {
+            structural_homes: BTreeMap::new(),
+            nonreturning: false,
+            stored_descriptors: BTreeSet::new(),
+            integers: BTreeMap::new(),
+            booleans: BTreeMap::new(),
+            scalar_homes: BTreeMap::new(),
+            ieee_float_constants: BTreeMap::new(),
+            scalar_block_parameters: BTreeMap::new(),
+            views: BTreeMap::from([(
+                local,
+                (
+                    OperationId::new(1).unwrap(),
+                    StructuralTypeId::new(6).unwrap(),
+                ),
+            )]),
+            block_views: BTreeSet::from([block_view.place]),
+            address_joins: BTreeSet::from([address_join.place]),
+            owned_arrivals: BTreeSet::new(),
+            lengths: BTreeMap::new(),
+            trivial_affine_locals: BTreeMap::new(),
+            references: BTreeMap::new(),
+            drained_loan_roots: BTreeSet::new(),
+        };
+
+        assert_eq!(
+            live.structural_observation_type(&function, entry.place),
+            Some(entry.structural_type)
+        );
+        assert_eq!(
+            live.structural_observation_type(&function, local),
+            Some(StructuralTypeId::new(6).unwrap())
+        );
+        assert_eq!(
+            live.structural_observation_type(&function, block_view.place),
+            Some(block_view.structural_type)
+        );
+        assert_eq!(
+            live.structural_observation_type(&function, address_join.place),
+            Some(address_join.structural_type)
+        );
+        assert!(
+            live.structural_observation_type(&function, write_only.place)
+                .is_none()
+        );
+        assert!(
+            live.structural_observation_type(&function, unavailable.place)
+                .is_none()
+        );
+    }
 
     #[test]
     fn projected_case_layout_retains_nested_offset_and_nominal_ordinal() {

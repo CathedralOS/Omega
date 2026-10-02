@@ -79,6 +79,37 @@ struct LiveDefinitions {
     drained_loan_roots: BTreeSet<PlaceId>,
 }
 
+impl LiveDefinitions {
+    /// Resolve the declared type of one currently readable structural root.
+    ///
+    /// `AbstractFunction::arrival_parameter` authenticates entry and block
+    /// coordinates and fails closed for duplicate place identities. A block
+    /// declaration is observable only while its descriptor or referent address
+    /// is live; the declaration alone never revives storage outside its block.
+    fn structural_observation_type(
+        &self,
+        function: &AbstractFunction,
+        place: PlaceId,
+    ) -> Option<StructuralTypeId> {
+        if let Some(home) = self.structural_homes.get(&place) {
+            return (home.access() != StructuralAccess::WriteOnlyBorrow)
+                .then(|| home.structural_type());
+        }
+        if let Some((_, structural_type)) = self.views.get(&place) {
+            return Some(*structural_type);
+        }
+        let parameter = function
+            .arrival_parameter(place)
+            .filter(|parameter| parameter.access != StructuralAccess::WriteOnlyBorrow)?;
+        let entry = function
+            .structural_parameters
+            .iter()
+            .any(|entry| entry.place == place);
+        (entry || self.address_joins.contains(&place) || self.block_views.contains(&place))
+            .then_some(parameter.structural_type)
+    }
+}
+
 pub(super) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,

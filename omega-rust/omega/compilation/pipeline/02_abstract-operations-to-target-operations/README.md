@@ -113,6 +113,12 @@ the selected callee, ordered arguments, result home, exact ABI and contract.
 Parallel transfers must preserve duplicate sources and cycles before replacing
 destinations. Allocation owns the actual snapshots and frame locations.
 
+Case observations resolve their root through the live storage inventory and
+the canonical entry/state declaration. A descriptor carried into a state is
+still observable; an unavailable declaration cannot revive it. Tag layout and
+runtime selectors remain separate from that lookup, so observing a case through
+a slice does not confuse its descriptor with the addressed element.
+
 A shared view field holds a two-word descriptor (backing pointer, then extent)
 in its record. `StructuralByteViewFieldStore` replaces that descriptor with an
 established literal's pointer and length. A literal denotes immutable image
