@@ -30,6 +30,12 @@ pub(super) fn check_call_access_conflicts<'p>(
         .collect();
     let data_access =
         super::receiver::explicit_jump_data_access(program, facts, state_flow, borrow_call);
+    // This call's own subject, for a call of any form. A receiver's loan is
+    // taken when the call is ENTERED, after its operands are evaluated, so a
+    // nested call among those operands released its own loan first. Used only
+    // against a partner that already completed.
+    let entered_subject =
+        super::receiver::entered_subject_access(program, facts, state_flow, borrow_call);
     let exiting_source = super::super::statements::source_exiting_without_local_loan_carriers(
         program,
         state_flow,
@@ -110,6 +116,17 @@ pub(super) fn check_call_access_conflicts<'p>(
                 || other_access
                     .end_before_access
                     .is_some_and(|end| end <= index)
+            {
+                continue;
+            }
+            // The subject against an operand that already completed. The
+            // positional test above asks whether the partner ended before
+            // THIS access began; the subject's loan does not begin at its own
+            // position but at call entry, after every operand, so any
+            // completed partner ended first. `Main::bump(main, main)` keeps
+            // its refusal: a second retained name completes nothing.
+            if (entered_subject == Some(index) && other_access.end_before_access.is_some())
+                || (entered_subject == Some(other_index) && access.end_before_access.is_some())
             {
                 continue;
             }

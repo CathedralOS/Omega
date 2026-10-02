@@ -1,0 +1,19 @@
+// The subject supplied twice, both times RETAINED. Neither occurrence
+// completes during operand evaluation, so both loans are live when the call
+// is entered, and the call would hold two exclusive names for one record.
+//
+// This is the boundary of the rule `pass/calls/nested_subject_call_operand`
+// relies on: a subject may be excused against an operand that already
+// COMPLETED -- a nested call releases its loan before the outer call is
+// entered -- and never against one that is still held.
+
+data Main { hits: u64 in Wrapping; }
+
+machine Main::take(main: &mut Main, other: &mut Main) -> u64 in Wrapping {
+    main.hits = main.hits + 1;
+    other.hits + 1
+}
+
+machine Main::main(main: &mut Main) -> u64 in Wrapping {
+    Main::take(main, main)
+}
