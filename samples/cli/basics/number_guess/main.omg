@@ -66,28 +66,28 @@ machine Main::step(main: &mut Main, target: i32 in Saturating) {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("number_guess: binary-searching [1,100] for the secret number 42");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("number_guess: binary-searching [1,100] for the secret number 42");
     // Initialize search range [1, 100].
-    self.search.lo = 1;
-    self.search.hi = 100;
+    main.search.lo = 1;
+    main.search.hi = 100;
 
     // Secret number to find.
     let target: i32 in Saturating = 42;
 
     // Seven unrolled binary-search steps.
-    Main::step(&mut self, target);   // guess 1: mid=50 > 42, hi=49
-    Main::step(&mut self, target);   // guess 2: mid=25 < 42, lo=26
-    Main::step(&mut self, target);   // guess 3: mid=37 < 42, lo=38
-    Main::step(&mut self, target);   // guess 4: mid=43 > 42, hi=42
-    Main::step(&mut self, target);   // guess 5: mid=40 < 42, lo=41
-    Main::step(&mut self, target);   // guess 6: mid=41 < 42, lo=42
-    Main::step(&mut self, target);   // guess 7: mid=42 == 42, found!
+    Main::step(main, target);   // guess 1: mid=50 > 42, hi=49
+    Main::step(main, target);   // guess 2: mid=25 < 42, lo=26
+    Main::step(main, target);   // guess 3: mid=37 < 42, lo=38
+    Main::step(main, target);   // guess 4: mid=43 > 42, hi=42
+    Main::step(main, target);   // guess 5: mid=40 < 42, lo=41
+    Main::step(main, target);   // guess 6: mid=41 < 42, lo=42
+    Main::step(main, target);   // guess 7: mid=42 == 42, found!
 
     // Verify found within 7 guesses.
-    transition self.search.found == 1 {
-        true -> check_guesses(&mut self)
-        _ -> not_found_error(&mut self)
+    transition main.search.found == 1 {
+        true -> check_guesses(main)
+        _ -> not_found_error(main)
     }
 
     state check_guesses(main: &mut Main) {

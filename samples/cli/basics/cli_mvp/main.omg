@@ -14,9 +14,9 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("Hello, Omega.");
-    self.console.write_line("[press Enter to close]");
-    _ = block self.console.read_line(&mut self.pause);
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("Hello, Omega.");
+    main.console.write_line("[press Enter to close]");
+    _ = block main.console.read_line(&mut main.pause);
+    main.console.exit_process(0);
 }

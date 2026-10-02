@@ -31,82 +31,82 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("stack_calculator: evaluates (3 + 4) * 5 with an explicit operand stack");
-    self.sp = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("stack_calculator: evaluates (3 + 4) * 5 with an explicit operand stack");
+    main.sp = 0;
 
-    transition self.sp >= 0 && self.sp < 8 {
-        true -> push_three()
-        _ -> bad()
-    }
-
-    state push_three(&mut self) {
-        self.stack[self.sp] = 3;
-        self.sp = self.sp + 1;
-        transition self.sp >= 0 && self.sp < 8 { true -> push_four() _ -> bad() }
+    transition main.sp >= 0 && main.sp < 8 {
+        true -> push_three(main)
+        _ -> bad(main)
     }
 
-    state push_four(&mut self) {
-        self.stack[self.sp] = 4;
-        self.sp = self.sp + 1;
-        transition self.sp >= 2 && self.sp <= 8 { true -> add_pop_b() _ -> bad() }
+    state push_three(main: &mut Main) {
+        main.stack[main.sp] = 3;
+        main.sp = main.sp + 1;
+        transition main.sp >= 0 && main.sp < 8 { true -> push_four(main) _ -> bad(main) }
     }
 
-    state add_pop_b(&mut self) {
-        self.sp = self.sp - 1;
-        transition self.sp >= 0 && self.sp < 8 { true -> add_read_b() _ -> bad() }
-    }
-    state add_read_b(&mut self) {
-        self.b = self.stack[self.sp];
-        transition self.sp >= 1 && self.sp <= 8 { true -> add_pop_a() _ -> bad() }
-    }
-    state add_pop_a(&mut self) {
-        self.sp = self.sp - 1;
-        transition self.sp >= 0 && self.sp < 8 { true -> add_read_a() _ -> bad() }
-    }
-    state add_read_a(&mut self) {
-        self.a = self.stack[self.sp];
-        self.acc = self.a + self.b;              // compute into a temp (a binary value
-        self.stack[self.sp] = self.acc as i32;   // into an indexed target is unsupported)
-        self.sp = self.sp + 1;
-        transition self.sp >= 0 && self.sp < 8 { true -> push_five() _ -> bad() }
+    state push_four(main: &mut Main) {
+        main.stack[main.sp] = 4;
+        main.sp = main.sp + 1;
+        transition main.sp >= 2 && main.sp <= 8 { true -> add_pop_b(main) _ -> bad(main) }
     }
 
-    state push_five(&mut self) {
-        self.stack[self.sp] = 5;
-        self.sp = self.sp + 1;
-        transition self.sp >= 2 && self.sp <= 8 { true -> mul_pop_b() _ -> bad() }
+    state add_pop_b(main: &mut Main) {
+        main.sp = main.sp - 1;
+        transition main.sp >= 0 && main.sp < 8 { true -> add_read_b(main) _ -> bad(main) }
+    }
+    state add_read_b(main: &mut Main) {
+        main.b = main.stack[main.sp];
+        transition main.sp >= 1 && main.sp <= 8 { true -> add_pop_a(main) _ -> bad(main) }
+    }
+    state add_pop_a(main: &mut Main) {
+        main.sp = main.sp - 1;
+        transition main.sp >= 0 && main.sp < 8 { true -> add_read_a(main) _ -> bad(main) }
+    }
+    state add_read_a(main: &mut Main) {
+        main.a = main.stack[main.sp];
+        main.acc = main.a + main.b;              // compute into a temp (a binary value
+        main.stack[main.sp] = main.acc as i32;   // into an indexed target is unsupported)
+        main.sp = main.sp + 1;
+        transition main.sp >= 0 && main.sp < 8 { true -> push_five(main) _ -> bad(main) }
     }
 
-    state mul_pop_b(&mut self) {
-        self.sp = self.sp - 1;
-        transition self.sp >= 0 && self.sp < 8 { true -> mul_read_b() _ -> bad() }
-    }
-    state mul_read_b(&mut self) {
-        self.b = self.stack[self.sp];
-        transition self.sp >= 1 && self.sp <= 8 { true -> mul_pop_a() _ -> bad() }
-    }
-    state mul_pop_a(&mut self) {
-        self.sp = self.sp - 1;
-        transition self.sp >= 0 && self.sp < 8 { true -> mul_read_a() _ -> bad() }
-    }
-    state mul_read_a(&mut self) {
-        self.a = self.stack[self.sp];
-        self.acc = self.a * self.b;              // compute into a temp, then push
-        self.stack[self.sp] = self.acc as i32;
-        transition self.sp >= 0 && self.sp < 8 { true -> done() _ -> bad() }
+    state push_five(main: &mut Main) {
+        main.stack[main.sp] = 5;
+        main.sp = main.sp + 1;
+        transition main.sp >= 2 && main.sp <= 8 { true -> mul_pop_b(main) _ -> bad(main) }
     }
 
-    state done(&mut self) {
-        self.console.write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.stack[0] as i32);
+    state mul_pop_b(main: &mut Main) {
+        main.sp = main.sp - 1;
+        transition main.sp >= 0 && main.sp < 8 { true -> mul_read_b(main) _ -> bad(main) }
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state mul_read_b(main: &mut Main) {
+        main.b = main.stack[main.sp];
+        transition main.sp >= 1 && main.sp <= 8 { true -> mul_pop_a(main) _ -> bad(main) }
+    }
+    state mul_pop_a(main: &mut Main) {
+        main.sp = main.sp - 1;
+        transition main.sp >= 0 && main.sp < 8 { true -> mul_read_a(main) _ -> bad(main) }
+    }
+    state mul_read_a(main: &mut Main) {
+        main.a = main.stack[main.sp];
+        main.acc = main.a * main.b;              // compute into a temp, then push
+        main.stack[main.sp] = main.acc as i32;
+        transition main.sp >= 0 && main.sp < 8 { true -> done(main) _ -> bad(main) }
+    }
+
+    state done(main: &mut Main) {
+        main.console.write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.stack[0] as i32);
+    }
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

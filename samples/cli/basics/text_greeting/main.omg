@@ -28,15 +28,15 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
-    self.name = "Ada";
-    self.greeting = "Hello, " + self.name + "!";
-    self.console.write_line(self.greeting);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
+    main.name = "Ada";
+    main.greeting = "Hello, " + main.name + "!";
+    main.console.write_line(main.greeting);
 
-    transition self.greeting == "Hello, Ada!" {
-        true -> ok(&mut self)
-        _ -> mismatch(&mut self)
+    transition main.greeting == "Hello, Ada!" {
+        true -> ok(main)
+        _ -> mismatch(main)
     }
 
     state ok(main: &mut Main) {

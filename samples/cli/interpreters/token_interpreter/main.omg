@@ -101,21 +101,21 @@ machine Main::exec(main: &mut Main, tok: Token) {
     state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
     // Clamp(30) -> acc=25 (no clamp); Add -> acc=50; Literal(20) -> acc=70.
-    Main::exec(&mut self, Token::Literal { value: 10 });
-    Main::exec(&mut self, Token::Add);
-    Main::exec(&mut self, Token::Literal { value: 5 });
-    Main::exec(&mut self, Token::Clamp { max: 30 });
-    Main::exec(&mut self, Token::Add);
-    Main::exec(&mut self, Token::Literal { value: 20 });
+    Main::exec(main, Token::Literal { value: 10 });
+    Main::exec(main, Token::Add);
+    Main::exec(main, Token::Literal { value: 5 });
+    Main::exec(main, Token::Clamp { max: 30 });
+    Main::exec(main, Token::Add);
+    Main::exec(main, Token::Literal { value: 20 });
 
-    transition self.interp.acc == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+    transition main.interp.acc == 70 {
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

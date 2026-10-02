@@ -34,20 +34,20 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
-    self.program[0] = 3;
-    self.program[1] = 4;
-    self.program[2] = 0 - 1;
-    self.program[3] = 5;
-    self.program[4] = 0 - 2;
-    self.nprog = 5;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
+    main.program[0] = 3;
+    main.program[1] = 4;
+    main.program[2] = 0 - 1;
+    main.program[3] = 5;
+    main.program[4] = 0 - 2;
+    main.nprog = 5;
 
-    self.sp = 0;
-    self.pc = 0;
+    main.sp = 0;
+    main.pc = 0;
 
     transition {
-        _ -> loop(&mut self)
+        _ -> loop(main)
     }
 
     // Loop while there are tokens left.
