@@ -13,14 +13,14 @@ data Message { active: bool; text: [u8; 8] in Utf8; }
 MessageEquatable: Message satisfies Equatable;
 
 data Main { console: Binding<Console>; left: Message; right: Message; }
-machine Main::inspect(&self)
+machine Main::inspect(main: &Main)
 crashes Abort
-    self.left == self.right
+    main.left == main.right
 {}
 
-machine Main::main(&mut self) reaches Console
+machine Main::main(main: &mut Main) reaches Console
 crashes Abort
 {
-    self.inspect();
-    self.console.exit_process(70);
+    Main::inspect(main);
+    main.console.exit_process(70);
 }

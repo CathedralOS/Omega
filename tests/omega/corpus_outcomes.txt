@@ -1295,6 +1295,7 @@ pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4a
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
 pass/calls/cyclic_affine_call_result_exit checked 1353ms @1da616075c39+wt
+pass/calls/cyclic_copy_arguments_exit checked 852ms @4cab6512b4bb
 pass/calls/cyclic_mutable_borrow_block_parameter_call checked 1108ms @ca8c127c90c5
 pass/calls/cyclic_projected_borrow_call_exit checked 1337ms @1da616075c39+wt
 pass/calls/cyclic_scalar_query_reborrow_exit checked 3489ms @48d34a64a938+wt
@@ -1392,6 +1393,7 @@ pass/calls/runtime_value_call_single_execution_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 1473ms @2d8ed253669f
 pass/calls/runtime_value_call_terminal_exit checked 37709ms @ca8c127c90c5
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 1888ms @ff6d0c077d78+wt
+pass/calls/scalar_range_argument_exit checked 706ms @4cab6512b4bb
 pass/calls/scalar_return_after_unit_call_exit checked 1343ms @63377f7122bb+wt
 pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f

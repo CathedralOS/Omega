@@ -24,30 +24,30 @@ machine value(kind: Kind) -> u64 in Wrapping {
     transition kind { Kind::First -> 1 Kind::Second -> 2 }
 }
 
-machine Counter::count(&mut self) {
-    transition { _ -> scan(0) }
-    state scan(&mut self, position: u64) {
+machine Counter::count(counter: &mut Counter) {
+    transition { _ -> scan(counter, 0) }
+    state scan(counter: &mut Counter, position: u64) {
         transition position < 4 {
-            true -> step(position)
+            true -> step(counter, position)
             false -> done()
         }
     }
-    state step(&mut self, position: u64) {
-        observe(&mut self, Kind::First);
-        self.total = self.total + value(Kind::First);
+    state step(counter: &mut Counter, position: u64) {
+        observe(counter, Kind::First);
+        counter.total = counter.total + value(Kind::First);
         let kind: Kind = choose(position);
-        observe(&mut self, kind);
-        self.total = self.total + value(kind);
-        transition { _ -> scan(position + 1) }
+        observe(counter, kind);
+        counter.total = counter.total + value(kind);
+        transition { _ -> scan(counter, position + 1) }
     }
-    state done(&mut self) {}
+    state done() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.counter.count();
-    transition self.counter.total == 10 && self.counter.observed == 2 {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    Counter::count(&mut main.counter);
+    transition main.counter.total == 10 && main.counter.observed == 2 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

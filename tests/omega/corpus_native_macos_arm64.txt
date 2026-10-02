@@ -223,6 +223,7 @@ pass/calls/runtime_value_call_single_execution_exit built 680ms exit:70
 pass/calls/runtime_value_call_statement_recursive_walk_exit built 2344ms exit:70 @fb2178def922
 pass/calls/runtime_value_call_terminal_exit built 17393ms exit:70 @48008365d839
 pass/calls/scalar_callee_borrowed_primitive_reads_exit built 960ms exit:70 @ff6d0c077d78+wt
+pass/calls/scalar_range_argument_exit built 675ms exit:70 @305a118e5963+wt
 pass/calls/scalar_return_after_unit_call_exit built 1469ms exit:42 @63377f7122bb+wt
 pass/calls/serviceful_borrowed_scalar_exit built 933ms exit:70 stdout:match @f9a8ced78a89
 pass/calls/state_and_machine_names_exit built 691ms exit:0 @48008365d839

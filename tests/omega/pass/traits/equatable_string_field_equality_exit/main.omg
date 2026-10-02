@@ -30,13 +30,13 @@ data Main {
     right: Tag;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.left = Tag { label: "amulet", weight: 3 };
-    self.right = Tag { label: "amulet", weight: 3 };
-    let equal: bool = self.left == self.right;
+machine Main::main(main: &mut Main) reaches Console {
+    main.left = Tag { label: "amulet", weight: 3 };
+    main.right = Tag { label: "amulet", weight: 3 };
+    let equal: bool = main.left == main.right;
     transition equal {
-        false -> bad(&mut self)
-        true -> different_contents(&mut self)
+        false -> bad(main)
+        true -> different_contents(main)
     }
 
     state different_contents(main: &mut Main) {
