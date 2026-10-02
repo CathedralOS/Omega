@@ -1467,6 +1467,16 @@ the complete product bar; focused successes below do not establish that baseline
   Remaining migration and verification work, with capability repairs under
   their existing owners:
 
+  `float/float_to_int_exact_proofs_exit` now retains its former common-field
+  `bounded: f64 [0.0..=100.0]` contract as `bounded: f64` with data
+  `where bounded >= 0.0 && bounded <= 100.0`, not a replacement domain.
+  The original stores, guarded conversion and state transfers execute with
+  authored exit 78 natively and interpreted on macOS ARM64. Public `omega run`
+  still stops at pending standard-library package review (exit 200); fixture
+  package admission does not satisfy that external prerequisite.
+  Its invalid-write control requires the field
+  invariant to be restored even when the subsequent integer conversion fits.
+
   - Carry field/case propositions through construction, nonliteral and indexed
     writes, reads/index proofs, calls, state joins, mutable recasts and returns.
     Preserve exact subjects, invalidation and invariant-window closure.
@@ -1808,8 +1818,9 @@ the complete product bar; focused successes below do not establish that baseline
     capture and state joins retain IEEE bounds without a cast-only proof path.
     The outer `omega run tests/omega/pass/float/exact_fractional_integer_boundary_exit/main.omg`
     still requires fresh project/package review acceptance. The original
-    `float/float_to_int_exact_proofs_exit` remains blocked on attached range-field
-    realization (**FLOAT-RANGE-ATTACHED-FIELD**), not permission to weaken Exact.
+    `float/float_to_int_exact_proofs_exit` executes with exit 78 after preserving
+    its field bound as a canonical data `where` clause; the retired range suffix
+    was the structural-signature blocker, not an Exact-conversion proof gap.
 
   Acceptance: comparisons and conversions agree across source evaluation,
   verified artifacts and matching-host execution. Preserve all six relations

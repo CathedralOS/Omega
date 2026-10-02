@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.86, "load1_start": 4.07, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 8.39, "load1_start": 8.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -637,6 +637,8 @@ fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expec
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
 fail/float/exclusive_float_range_endpoint_rejected rejected 431ms expected @2d8ed253669f
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
+fail/float/field_range_conversion_after_invalid_write rejected 262ms expected @c67082a3bcd4+wt
+	data `Sample`'s default domain is still FALSE at a call: the invariant window opened on `sample` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/float/finite_store_invalidated rejected 491ms expected @ca8c127c90c5
 	cannot prove transition argument `sample.value` satisfies `finite` for bounded parameter `value` in `inspect.entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 57ms expected @2d8ed253669f
@@ -1756,8 +1758,7 @@ pass/float/f32_per_operation_rounding_exit checked 4917ms @2d8ed253669f
 pass/float/finite_core_domain_range_discharge checked 3079ms @42dbef3839ee+wt
 pass/float/finite_signature_transport_exit checked 3457ms @6d55eb9c43a4+wt
 pass/float/float_saturating_arithmetic_exit checked 3341ms @518d04d837b2+wt
-pass/float/float_to_int_exact_proofs_exit rejected 2233ms @4e4bfed13aee+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: structural parameter type` (state 0)
+pass/float/float_to_int_exact_proofs_exit checked 2808ms @c67082a3bcd4+wt
 pass/float/float_to_int_trapping_nan_traps checked 2511ms @4e4bfed13aee+wt
 pass/float/float_trapping_overflow_traps checked 4784ms @ca8c127c90c5
 pass/float/float_trapping_propagated_nan_traps checked 3518ms @ca8c127c90c5

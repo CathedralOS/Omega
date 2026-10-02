@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.07, "load1_start": 4.07, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 8.39, "load1_start": 8.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -596,8 +596,7 @@ pass/float/f32_per_operation_rounding_exit built 7304ms exit:77 @fb2178def922
 pass/float/finite_core_domain_range_discharge built 5181ms exit:77 @42dbef3839ee+wt
 pass/float/finite_signature_transport_exit built 3690ms exit:77 @6d55eb9c43a4+wt
 pass/float/float_saturating_arithmetic_exit built 2960ms exit:77 @12e6b9755e61+wt
-pass/float/float_to_int_exact_proofs_exit rejected 2385ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/float/float_to_int_exact_proofs_exit built 2847ms exit:78 @c67082a3bcd4
 pass/float/float_to_int_trapping_nan_traps built 4789ms exit:signal signal:5 @bed5f45e9185+wt
 pass/float/float_trapping_overflow_traps built 1988ms exit:signal signal:5 @12e6b9755e61+wt
 pass/float/float_trapping_propagated_nan_traps built 1994ms exit:signal signal:5 @12e6b9755e61+wt

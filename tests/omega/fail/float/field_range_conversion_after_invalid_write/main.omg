@@ -1,0 +1,11 @@
+use omega::language::core::float_operations;
+
+data Sample where bounded >= 0.0 && bounded <= 100.0 {
+    bounded: f64;
+}
+
+// The conversion itself fits i32, but it cannot hide an unclosed field invariant.
+machine convert(sample: &mut Sample) -> i32 {
+    sample.bounded = 101.0;
+    sample.bounded as i32
+}
