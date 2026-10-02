@@ -7,7 +7,9 @@ use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
+use typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 // An owned formal has a compact type DAG but its returned-origin roster is
@@ -862,7 +864,7 @@ pub fn local_record_loans(
         {
             return None;
         }
-        release_statement(facts, machine, state.symbol, handle)?;
+        release_boundary(program, facts, machine, state.symbol, handle)?;
         output.push((source, handle));
     }
     Some(output)
@@ -954,7 +956,14 @@ fn moved_record_source(
     let mut matching = prior.iter().filter(|(source, _)| source.path == path);
     let (_, handle) = matching.next()?;
     if matching.next().is_some()
-        || !record_loan_is_active(facts, machine, state.symbol, statement_index, *handle)
+        || !record_loan_is_active(
+            program,
+            facts,
+            machine,
+            state.symbol,
+            statement_index,
+            *handle,
+        )
     {
         return None;
     }
@@ -1042,6 +1051,7 @@ fn call_actual_leaf_loan(
 }
 
 fn record_loan_is_active(
+    program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -1064,7 +1074,7 @@ fn record_loan_is_active(
         && facts.flow.contexts.constraint_refs.span(entry.entry_constraints).is_some_and(|constraints|
             constraints.iter().filter(|constraint| matches!(constraint.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan)).count() == 1)
         && facts.borrow.loans.get(loan).statement_index < statement_index as usize
-        && release_statement(facts, machine, state, loan).is_some_and(|end| statement_index < end)
+        && release_boundary(program, facts, machine, state, loan).is_some_and(|end| statement_index < end)
 }
 
 /// Whole owned operands retain every captured leaf until their consuming call.
@@ -1081,7 +1091,14 @@ pub fn owned_record_argument(
             |loans| {
                 !loans.is_empty()
                     && loans.iter().all(|(_, loan)| {
-                        record_loan_is_active(facts, machine, state.symbol, statement_index, *loan)
+                        record_loan_is_active(
+                            program,
+                            facts,
+                            machine,
+                            state.symbol,
+                            statement_index,
+                            *loan,
+                        )
                     })
             },
         )
@@ -1146,6 +1163,7 @@ pub fn projected_record_argument(
                     && loans.iter().all(|(source, loan)| {
                         source.path.starts_with(path)
                             && record_loan_is_active(
+                                program,
                                 facts,
                                 machine,
                                 state.symbol,
@@ -1206,7 +1224,14 @@ pub fn nested_call_record_argument(
                     source,
                 )
                 .is_some_and(|loan| {
-                    record_loan_is_active(facts, machine, state.symbol, statement_index, loan)
+                    record_loan_is_active(
+                        program,
+                        facts,
+                        machine,
+                        state.symbol,
+                        statement_index,
+                        loan,
+                    )
                 })
         })
 }
@@ -1256,7 +1281,7 @@ pub fn nested_call_result_loans(
                 source,
             )
             .is_some_and(|loan| {
-                record_loan_is_active(facts, machine, state.symbol, statement_index, loan)
+                record_loan_is_active(program, facts, machine, state.symbol, statement_index, loan)
             })
         })
 }
@@ -1329,7 +1354,7 @@ pub fn record_argument(
         return None;
     }
     if statement_index <= result.statement_index
-        || statement_index >= release_statement(facts, machine, state.symbol, *loan)?
+        || statement_index >= release_boundary(program, facts, machine, state.symbol, *loan)?
         || source.source.type_identity != program.normalized_type_identity(referent).as_str()
     {
         return None;
@@ -2322,8 +2347,1011 @@ pub fn result_loan(
     {
         return None;
     }
-    release_statement(facts, machine, state.symbol, handle)?;
+    release_boundary(program, facts, machine, state.symbol, handle)?;
     Some(handle)
+}
+
+/// Reconstruct the `&mut T` result's caller-side storage loan the same way
+/// `result_loan` does for a primitive referee: the signature's declared
+/// source applied at this exact call site — the receiver for a `&mut self`
+/// callee (elision rule 3), else the one unambiguous reference argument —
+/// replayed as the recorded loan's (root, segments). The callee's own
+/// completion independently verifies the returned place's ingress; this
+/// replay pins the caller's substitution, activation and weakening.
+///
+/// Name, member and whole-borrow actuals spell exact places; a local actual
+/// resolves through the loans already recorded for it (the same rebase the
+/// borrow tracker performs). Indexed actuals keep their index segment;
+/// computed receivers, nested-call actuals and borrow-carrying owned
+/// carriers stay opaque and reject the whole lane.
+pub fn mutable_result_loan(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+    result: &CheckedUnitStructuralResultBindingPlan,
+) -> Option<arena::Handle<checked_trees::BorrowLoanFact>> {
+    let Some(StatementNode::LocalData(local)) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(result.statement_index as usize)
+    else {
+        return None;
+    };
+    if local.is_mutable || mutable_borrowed_parts(program, local.type_reference).is_none() {
+        return None;
+    }
+    let ExpressionNode::Call(expression) = program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    if expression.target_symbol != call.target_symbol
+        || call.authored_expression != local.initial_value
+        || call.statement_index != result.statement_index as usize
+        || call.call_ordinal != 0
+    {
+        return None;
+    }
+    let Some(callee_machine) = program.machines().iter().find(|candidate| {
+        program
+            .machine_states(candidate)
+            .iter()
+            .any(|candidate_state| candidate_state.symbol == call.target_symbol)
+    }) else {
+        return None;
+    };
+    let Some(callee) = program
+        .machine_states(callee_machine)
+        .iter()
+        .find(|candidate| candidate.symbol == call.target_symbol)
+    else {
+        return None;
+    };
+    if mutable_borrowed_parts(program, callee.return_type).is_none()
+        || program.normalized_type_identity(local.type_reference)
+            != program.normalized_type_identity(callee.return_type)
+    {
+        return None;
+    }
+    let Some(expected) = mutable_result_source_places(
+        program,
+        facts,
+        machine,
+        state,
+        call.statement_index,
+        expression,
+        callee_machine,
+        callee,
+    ) else {
+        return None;
+    };
+    let mut states = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, candidate)| candidate)
+        .filter(|candidate| {
+            candidate.machine_symbol == machine && candidate.state_symbol == state.symbol
+        });
+    let borrowing = states.next()?;
+    if states.next().is_some() {
+        return None;
+    }
+    let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
+        facts.borrow.state_owns_loan(borrowing, *handle) && loan.owner_symbol == local.symbol
+    });
+    let Some((handle, loan)) = loans.next() else {
+        return None;
+    };
+    if loans.next().is_some()
+        || loan.statement_index != call.statement_index
+        || loan.kind != checked_trees::BorrowAccessKind::Mutable
+        || !facts.borrow.loan_owner_path(loan).is_empty()
+        || !expected.iter().any(|(root, segments)| {
+            *root == loan.root_symbol && segments.as_slice() == facts.borrow.loan_segments(loan)
+        })
+    {
+        return None;
+    }
+    let flow = state_flow(facts, machine, state.symbol)?;
+    let mut activations = facts
+        .flow
+        .borrow_lifetimes
+        .activations
+        .span_or_empty(flow.borrow_activations)
+        .iter()
+        .filter(|activation| activation.loan == handle);
+    let activation = activations.next()?;
+    if activations.next().is_some()
+        || activation.source
+            != (checked_trees::FlowInvalidationSource::Statement {
+                statement_index: loan.statement_index,
+            })
+    {
+        return None;
+    }
+    release_boundary(program, facts, machine, state.symbol, handle)?;
+    Some(handle)
+}
+
+/// The caller-side places a `-> &mut T` call's declared return source can
+/// name, spelled as recorded-loan (root, segments) candidates: the receiver
+/// for a `&mut self` callee, else the one unambiguous reference argument's
+/// actual, rebased through any loans the actual's root already carries. This
+/// mirrors the resolution `helper_call_borrow_loan_place` performs so the
+/// produced custody and this replay answer the same place.
+pub fn mutable_result_source_places(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    call: &typed_trees::expression::TableCallExpression,
+    callee_machine: &typed_trees::machine::Machine,
+    callee: &typed_trees::state::State,
+) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
+    let parameters = program.state_parameters(callee);
+    let mut candidates = Vec::new();
+    // The callee's own completion names the authored parameter its `&mut`
+    // tail rejoined: replay it here and substitute the caller's actual for
+    // that position — the receiver for `self`, else the positional
+    // non-receiver argument. This is the primary derivation: it is exact
+    // for non-`self` return sources, which the elision rule below cannot
+    // see once a `&mut self` receiver is present.
+    if let Some((tail_index, tail_expression)) = mutable_return_tail(program, callee)
+        && let Some((position, _)) = mutable_return_source(
+            program,
+            facts,
+            callee_machine.symbol,
+            callee,
+            tail_index,
+            tail_expression,
+        )
+        && let Some(actual) = if parameters[position].is_self {
+            call.receiver.is_valid().then_some(call.receiver)
+        } else {
+            let index = parameters
+                .iter()
+                .take(position)
+                .filter(|parameter| !parameter.is_self)
+                .count();
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .get(index)
+                .copied()
+        }
+        && let Some((root, segments)) =
+            mutable_source_place(program, machine, state, statement_index, actual)
+    {
+        candidates.extend(rebase_place_through_local_loans(
+            program,
+            facts,
+            machine,
+            state.symbol,
+            statement_index,
+            root,
+            segments,
+        ));
+    }
+    let actual = if parameters.iter().any(|parameter| parameter.is_self) {
+        if !call.receiver.is_valid() {
+            return if candidates.is_empty() {
+                None
+            } else {
+                Some(candidates)
+            };
+        }
+        Some(call.receiver)
+    } else {
+        let mut ref_positions: Vec<(usize, Option<String>)> = Vec::new();
+        let mut position = 0usize;
+        for parameter in parameters {
+            if parameter.is_self {
+                continue;
+            }
+            let index = position;
+            position = position.saturating_add(1);
+            if is_reference_node(program, parameter.type_reference) {
+                ref_positions.push((
+                    index,
+                    reference_lifetime(program, parameter.type_reference).map(str::to_owned),
+                ));
+            } else if parameter_returns_borrow(program, parameter.type_reference) {
+                // A borrow-carrying owned carrier resolves leaf by leaf; that
+                // structural frontier names no single direct place.
+                return if candidates.is_empty() {
+                    None
+                } else {
+                    Some(candidates)
+                };
+            }
+        }
+        let position = match reference_lifetime(program, callee.return_type) {
+            Some(output) => {
+                let mut matching = ref_positions
+                    .iter()
+                    .filter(|(_, lifetime)| lifetime.as_deref() == Some(output));
+                let Some((index, _)) = matching.next().filter(|_| matching.next().is_none()) else {
+                    return if candidates.is_empty() {
+                        None
+                    } else {
+                        Some(candidates)
+                    };
+                };
+                Some(*index)
+            }
+            None => match ref_positions.as_slice() {
+                [(single, _)] => Some(*single),
+                _ => None,
+            },
+        };
+        position.and_then(|position| {
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .get(position)
+                .copied()
+        })
+    };
+    if let Some(actual) = actual
+        && let Some((root, segments)) =
+            mutable_source_place(program, machine, state, statement_index, actual)
+    {
+        candidates.extend(rebase_place_through_local_loans(
+            program,
+            facts,
+            machine,
+            state.symbol,
+            statement_index,
+            root,
+            segments,
+        ));
+    }
+    (!candidates.is_empty()).then_some(candidates)
+}
+
+/// The final `&mut` tail one `-> &mut T` state's authored body spells: a
+/// terminal expression statement or an unconditional ordinary value
+/// transition target, the same shapes `mutable_reference_result_operation`
+/// produces `EstablishReference` for.
+pub fn mutable_return_tail(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<(usize, typed_trees::expression::ExpressionHandle)> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let index = statements.len().checked_sub(1)?;
+    match statements.get(index)? {
+        StatementNode::Expression(expression) => Some((index, *expression)),
+        StatementNode::Transition(transition)
+            if transition.guard == TransitionGuardNode::Always
+                && transition.exit == TransitionExit::Ordinary
+                && !transition.continuation.is_valid() =>
+        {
+            let TransitionTargetNode::Value(expression) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            Some((index, *expression))
+        }
+        _ => None,
+    }
+}
+
+/// One actual's place spelled the way `borrow_access_place` spells it: borrows
+/// unwrap to their target, members append the resolved field (pushing a `Case`
+/// segment for payload fields), an attached-machine receiver roots at the
+/// member itself, and index steps keep their normalized selector segment.
+/// Every other shape stays opaque to the result loan.
+fn mutable_source_place(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => {
+            mutable_source_place(program, machine, state, statement_index, inner.target)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let (root, mut segments) =
+                mutable_source_place(program, machine, state, statement_index, indexed.collection)?;
+            segments.push(index_place_segment(program, indexed.index));
+            Some((root, segments))
+        }
+        ExpressionNode::Member(member) => {
+            let member_symbol = mutable_effective_member_symbol(
+                program,
+                machine,
+                state,
+                statement_index,
+                member.receiver,
+                member,
+            );
+            if !member_symbol.is_valid() {
+                return None;
+            }
+            match program.expression_table.expression(member.receiver) {
+                ExpressionNode::Name(path)
+                    if path.members.count() == 1
+                        && mutable_name_root(
+                            program,
+                            state,
+                            statement_index,
+                            member.receiver,
+                            path,
+                        ) == Some(machine) =>
+                {
+                    Some((member_symbol, Vec::new()))
+                }
+                _ => {
+                    let (root, mut segments) = mutable_source_place(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        member.receiver,
+                    )?;
+                    push_field_place_segments(program, &mut segments, member_symbol);
+                    Some((root, segments))
+                }
+            }
+        }
+        ExpressionNode::Name(path) => {
+            if crate::proof_contracts::bound_expression_meaning::exact_case_reference_owner(
+                program, expression,
+            )
+            .is_some()
+            {
+                return None;
+            }
+            let root = mutable_name_root(program, state, statement_index, expression, path)?;
+            let member_symbols = program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols);
+            let skip = member_symbols
+                .iter()
+                .position(|member_symbol| *member_symbol == root)
+                .map(|index| index + 1)
+                .unwrap_or(1);
+            let mut segments = Vec::new();
+            for symbol in member_symbols.iter().skip(skip).copied() {
+                push_field_place_segments(program, &mut segments, symbol);
+            }
+            Some((root, segments))
+        }
+        _ => None,
+    }
+}
+
+/// The root symbol one `Name` resolves to: the typed path's first retained
+/// symbol, else the self receiver's parameter, a same-named parameter, or the
+/// latest local spelling the name before this statement.
+fn mutable_name_root(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    path: &typed_trees::expression::TableNamePath,
+) -> Option<SymbolHandle> {
+    if let Some(symbol) = program
+        .expression_table
+        .name_path_member_symbols(path.member_symbols)
+        .first()
+        .copied()
+        .filter(|symbol| symbol.is_valid())
+        .or_else(|| path.head_symbol.is_valid().then_some(path.head_symbol))
+        .or_else(|| path.symbol.is_valid().then_some(path.symbol))
+    {
+        return Some(symbol);
+    }
+    let name = program.expression_table.display_name(expression);
+    if language_core::is_self_receiver(&name) {
+        return program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.is_self)
+            .map(|parameter| parameter.symbol);
+    }
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| !parameter.is_self && parameter.name.as_str() == name)
+    {
+        return Some(parameter.symbol);
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.name.as_str() == name => Some(local.symbol),
+            _ => None,
+        })
+}
+
+/// An index step's normalized segment: a literal or constant-valued index is
+/// its fixed ordinal, a half-open literal range is a window, and anything
+/// else stays a runtime `Index` expression.
+fn index_place_segment(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> facts::PlaceSegment {
+    if let ExpressionNode::Range(range) = program.expression_table.expression(expression)
+        && let Some((start, end)) = fixed_half_open_range(program, range)
+    {
+        return facts::PlaceSegment::FixedRange { start, end };
+    }
+    program
+        .expression_table
+        .constant_integer_value(expression)
+        .and_then(|value| usize::try_from(value).ok())
+        .map(|index| facts::PlaceSegment::FixedIndex { index })
+        .unwrap_or(facts::PlaceSegment::Index { expression })
+}
+
+fn fixed_half_open_range(
+    program: &TypedTrees,
+    range: &typed_trees::expression::TableRangeExpression,
+) -> Option<(usize, usize)> {
+    let start = if range.start.is_valid() {
+        usize::try_from(
+            program
+                .expression_table
+                .constant_integer_value(range.start)?,
+        )
+        .ok()?
+    } else {
+        0
+    };
+    if !range.end.is_valid() {
+        return None;
+    }
+    let end = usize::try_from(program.expression_table.constant_integer_value(range.end)?).ok()?;
+    let end = if range.end_inclusive {
+        end.checked_add(1)?
+    } else {
+        end
+    };
+    Some((start, end))
+}
+
+/// `borrow_access_place`'s member spelling: the member resolved through the
+/// receiver's own type — an attached machine's `self` data, a parameter's
+/// named type, or the data a previous hop landed in — before falling back to
+/// the expression's retained symbol. `self.bag` in an attached machine
+/// spells the data field `Main::bag`, not the machine's `Main::main::bag`
+/// state spelling, so both resolvers must answer the same symbol.
+fn mutable_effective_member_symbol(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    receiver: typed_trees::expression::ExpressionHandle,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> SymbolHandle {
+    if let Some(type_symbol) =
+        mutable_receiver_type_symbol(program, machine, state, statement_index, receiver)
+        && let Some(symbol) =
+            mutable_member_from_type_symbol(program, type_symbol, member.member.as_str())
+    {
+        return symbol;
+    }
+    member.member_symbol
+}
+
+/// The named type one receiver expression's value inhabits: borrows unwrap,
+/// indexed collections keep their element's named owner, and names and
+/// members resolve through the symbols their roots already spell.
+fn mutable_receiver_type_symbol(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => {
+            mutable_receiver_type_symbol(program, machine, state, statement_index, inner.target)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = mutable_receiver_type_symbol(
+                program,
+                machine,
+                state,
+                statement_index,
+                indexed.collection,
+            )?;
+            let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
+                program, collection,
+            )?;
+            Some(definition.symbol)
+        }
+        ExpressionNode::Member(member) => {
+            let symbol = mutable_effective_member_symbol(
+                program,
+                machine,
+                state,
+                statement_index,
+                member.receiver,
+                member,
+            );
+            mutable_symbol_type_symbol(program, machine, state, statement_index, symbol)
+        }
+        ExpressionNode::Name(path) => {
+            let root = mutable_name_root(program, state, statement_index, expression, path)?;
+            mutable_symbol_type_symbol(program, machine, state, statement_index, root)
+        }
+        _ => None,
+    }
+}
+
+/// The named type a resolved root or member symbol's value inhabits: the
+/// attached machine's own data for its `self` root, the declared type of a
+/// parameter or earlier local, or the named owner of a data field's type.
+fn mutable_symbol_type_symbol(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    if symbol == machine {
+        let owner = program
+            .machines()
+            .iter()
+            .find(|owner| owner.symbol == machine)?;
+        return program
+            .attached_data_definition(owner)
+            .map(|definition| definition.symbol);
+    }
+    if let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+    {
+        let type_symbol = program
+            .type_reference_table
+            .type_symbol(parameter.type_reference);
+        return type_symbol.is_valid().then_some(type_symbol);
+    }
+    if let Some(local) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+            _ => None,
+        })
+    {
+        let type_symbol = program
+            .type_reference_table
+            .type_symbol(local.type_reference);
+        return type_symbol.is_valid().then_some(type_symbol);
+    }
+    program
+        .data_definitions()
+        .iter()
+        .flat_map(|definition| program.data_members(definition))
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                let type_symbol = program
+                    .type_reference_table
+                    .type_symbol(field.type_reference);
+                type_symbol.is_valid().then_some(type_symbol)
+            }
+            typed_trees::data::DataMember::Variant(variant) => program
+                .data_payload_fields(variant)
+                .iter()
+                .find(|field| field.symbol == symbol)
+                .and_then(|field| {
+                    let type_symbol = program
+                        .type_reference_table
+                        .type_symbol(field.type_reference);
+                    type_symbol.is_valid().then_some(type_symbol)
+                }),
+            _ => None,
+        })
+}
+
+/// A member name resolved inside one named type — `Main::bag` for `bag` in
+/// `Main` — covering declared fields, variants and payload fields of a data
+/// definition, an attached machine's data, and machine-owned data, exactly
+/// as `resolve_member_symbol_from_type_symbol` spells them.
+fn mutable_member_from_type_symbol(
+    program: &TypedTrees,
+    type_symbol: SymbolHandle,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let resolved = |definition: &typed_trees::data::DataDefinition| {
+        program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == member_name =>
+                {
+                    Some(field.symbol)
+                }
+                typed_trees::data::DataMember::Variant(variant)
+                    if variant.name.as_str() == member_name =>
+                {
+                    Some(variant.symbol)
+                }
+                typed_trees::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name.as_str() == member_name)
+                    .map(|field| field.symbol),
+                _ => None,
+            })
+    };
+    if let Some(definition) =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, type_symbol)
+        && let Some(symbol) = resolved(definition)
+    {
+        return Some(symbol);
+    }
+    if let Some(owner) = program
+        .machines()
+        .iter()
+        .find(|owner| owner.symbol == type_symbol)
+    {
+        if let Some(definition) = program.attached_data_definition(owner)
+            && let Some(symbol) = resolved(definition)
+        {
+            return Some(symbol);
+        }
+        if let Some(owned) = program
+            .machine_owned_data(owner)
+            .iter()
+            .find(|owned| owned.name.as_str() == member_name)
+        {
+            return Some(owned.symbol);
+        }
+    }
+    None
+}
+
+/// A field step pushes the payload's `Case` segment first when the field
+/// lives under a sum case, then the field itself — the spelling
+/// `push_field_place_segments` shares for place construction.
+fn push_field_place_segments(
+    program: &TypedTrees,
+    segments: &mut Vec<facts::PlaceSegment>,
+    symbol: SymbolHandle,
+) {
+    if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+        segments.push(facts::PlaceSegment::Case { variant });
+    }
+    segments.push(facts::PlaceSegment::Field { symbol });
+}
+
+/// Rebase one actual place through the loans the actual's root already
+/// carries: a view local's own loan names the loaned storage this new place
+/// joins. Each qualifying earlier loan yields one candidate; none means the
+/// root names the place directly (a parameter's own storage).
+fn rebase_place_through_local_loans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    root: SymbolHandle,
+    segments: Vec<facts::PlaceSegment>,
+) -> Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    let mut states = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, candidate)| candidate)
+        .filter(|candidate| candidate.machine_symbol == machine && candidate.state_symbol == state);
+    let Some(borrowing) = states.next().filter(|_| states.next().is_none()) else {
+        return Vec::new();
+    };
+    let rebased: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> = facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(handle, loan)| {
+            facts.borrow.state_owns_loan(borrowing, *handle)
+                && loan.owner_symbol == root
+                && loan.statement_index < statement_index
+                && loan_owner_path_is_prefix(program, facts.borrow.loan_owner_path(loan), &segments)
+        })
+        .map(|(_, loan)| {
+            let mut rebased = facts.borrow.loan_segments(loan).to_vec();
+            rebased.extend_from_slice(&segments[facts.borrow.loan_owner_path(loan).len()..]);
+            (loan.root_symbol, rebased)
+        })
+        .collect();
+    if rebased.is_empty() {
+        vec![(root, segments)]
+    } else {
+        rebased
+    }
+}
+
+/// The authored `&mut place` tail of a `-> &mut T` return, replayed the way
+/// `mutable_reference_result_operation` spells it: the tail place resolves
+/// through `mutable_source_place` and any loans the root already carries
+/// (a view local's own `&mut [T]` names the loaned storage it views), then
+/// must bottom out at exactly the declared referee below one `&mut`
+/// parameter this state retains. An attached-machine member root spells
+/// `self.<field>` with the field as root and no `self` segment, so that
+/// candidate rejoins under the `self` parameter. The answer is the
+/// parameter's authored position and the projected path.
+pub fn mutable_return_source(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(usize, Vec<checked_trees::CheckedUnitStructuralPathSegment>)> {
+    let (referee, access) = mutable_borrowed_parts(program, state.return_type)?;
+    if access != CheckedStructuralAccess::MutableBorrow {
+        return None;
+    }
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if borrow.access != language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
+    let (root, segments) =
+        mutable_source_place(program, machine, state, statement_index, borrow.target)?;
+    let candidates = rebase_place_through_local_loans(
+        program,
+        facts,
+        machine,
+        state.symbol,
+        statement_index,
+        root,
+        segments,
+    );
+    let parameters = program.state_parameters(state);
+    let self_position = parameters.iter().position(|parameter| parameter.is_self);
+    let mut matches = candidates.iter().filter_map(|(root, segments)| {
+        let mut sources = Vec::new();
+        if let Some(position) = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == *root)
+        {
+            sources.push((position, segments.clone()));
+        }
+        if let Some(position) = self_position {
+            let mut rebased = Vec::with_capacity(segments.len() + 1);
+            rebased.push(facts::PlaceSegment::Field { symbol: *root });
+            rebased.extend_from_slice(segments);
+            sources.push((position, rebased));
+        }
+        let mut retained = sources.iter().filter_map(|(position, segments)| {
+            let carrier = &parameters[*position];
+            // `is_mutable` records the `&mut` spelling itself, the same
+            // mutability `mutable_reference_result_operation` reads:
+            // reseating is only a hazard for a mutable binding on a
+            // non-reference carrier. The reference's own readability
+            // stays exact through `mutable_borrowed_parts` below.
+            if carrier.is_mutable && !is_reference_node(program, carrier.type_reference) {
+                return None;
+            }
+            let Some((carrier_referee, carrier_access)) =
+                mutable_borrowed_parts(program, carrier.type_reference)
+            else {
+                return None;
+            };
+            if carrier_access != CheckedStructuralAccess::MutableBorrow {
+                return None;
+            }
+            let (storage, path) =
+                mutable_return_path(program, machine, carrier_referee, segments.as_slice())?;
+            let identity_match = program.normalized_type_identity(storage)
+                == program.normalized_type_identity(referee);
+            identity_match.then_some((*position, path))
+        });
+        let found = retained.next()?;
+        retained.next().is_none().then_some(found)
+    });
+    let Some(found) = matches.next() else {
+        return None;
+    };
+    matches.next().is_none().then_some(found)
+}
+
+/// The typed projection a `&mut` return source spells: each field resolves
+/// against its named owner and each fixed index against its literal fixed
+/// array length, with constrained and reference shells peeled exactly as
+/// `projected_argument_path` peels them before the same check. The answer is
+/// the projected leaf type and the retained structural path.
+fn mutable_return_path(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    mut reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<(
+    TypeReferenceHandle,
+    Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+)> {
+    let mut path = Vec::with_capacity(segments.len());
+    for segment in segments {
+        loop {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. }
+                | TypeReferenceNode::Reference {
+                    referee: base_type, ..
+                } => reference = *base_type,
+                _ => break,
+            }
+        }
+        match (
+            segment,
+            program.type_reference_table.type_reference(reference),
+        ) {
+            (
+                facts::PlaceSegment::Field { symbol },
+                TypeReferenceNode::Named {
+                    symbol: owner,
+                    name,
+                },
+            ) => {
+                // `self`'s referee names the machine's `Self` alias, whose
+                // symbol is the machine itself — the same correspondence
+                // `correspondence_data_type` spells — rather than the
+                // attached data definition's symbol.
+                let owner = if *owner == machine && name.as_str() == "Self" {
+                    program
+                        .machines()
+                        .iter()
+                        .find(|candidate| candidate.symbol == machine)?
+                        .attached_data_symbol
+                } else {
+                    *owner
+                };
+                let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
+                    program, owner,
+                )?;
+                let field = program.data_members(definition).iter().find_map(|member| {
+                    let typed_trees::data::DataMember::Field(field) = member else {
+                        return None;
+                    };
+                    (field.symbol == *symbol).then_some(field)
+                })?;
+                if field.relevance != language_core::BindingRelevance::Relevant {
+                    return None;
+                }
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    field.path_identity(),
+                ));
+                reference = field.type_reference;
+            }
+            (
+                facts::PlaceSegment::FixedIndex { index },
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                },
+            ) if *index < *length => {
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(*index).ok()?,
+                ));
+                reference = *element_type;
+            }
+            _ => return None,
+        }
+    }
+    Some((reference, path))
+}
+
+/// Whether a recorded loan's owner path is a prefix of one actual's place
+/// segments, so the loan's own (root, segments) rebase the actual's
+/// remainder. Dynamic owners overlap any index-shaped place step.
+fn loan_owner_path_is_prefix(
+    program: &TypedTrees,
+    owner_path: &[checked_trees::BorrowLoanOwnerSegment],
+    segments: &[facts::PlaceSegment],
+) -> bool {
+    owner_path.len() <= segments.len()
+        && owner_path
+            .iter()
+            .zip(segments.iter())
+            .all(|(owner, place)| {
+                use checked_trees::BorrowLoanOwnerSegment as Owner;
+                match (owner, place) {
+                    (Owner::Field(owner_symbol), facts::PlaceSegment::Field { symbol }) => {
+                        !symbol.is_valid() || owner_symbol == symbol
+                    }
+                    (Owner::Case(owner_variant), facts::PlaceSegment::Case { variant }) => {
+                        owner_variant == variant
+                    }
+                    (Owner::FixedIndex(owner_index), facts::PlaceSegment::FixedIndex { index }) => {
+                        owner_index == index
+                    }
+                    (Owner::FixedIndex(owner_index), facts::PlaceSegment::Index { expression }) => {
+                        program
+                            .expression_table
+                            .constant_integer_value(*expression)
+                            .and_then(|value| usize::try_from(value).ok())
+                            .is_none_or(|place_index| *owner_index == place_index)
+                    }
+                    (
+                        Owner::DynamicIndex,
+                        facts::PlaceSegment::FixedIndex { .. }
+                        | facts::PlaceSegment::FixedRange { .. }
+                        | facts::PlaceSegment::Index { .. },
+                    ) => true,
+                    _ => false,
+                }
+            })
+}
+
+/// Whether a type reference is a reference, seeing through `Constrained`
+/// shells exactly like the elision classifier does.
+fn is_reference_node(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => is_reference_node(program, *base_type),
+        _ => false,
+    }
+}
+
+/// The explicit lifetime name on a reference type, seeing through a
+/// `Constrained` shell. `None` for an elided reference or a non-reference.
+fn reference_lifetime<'a>(
+    program: &'a TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&'a str> {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { lifetime, .. } => {
+            lifetime.as_ref().map(|name| name.as_str())
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => reference_lifetime(program, *base_type),
+        _ => None,
+    }
+}
+
+/// Whether one non-reference parameter type structurally carries a borrow:
+/// a record, array, or slice containing a reference field somewhere. That
+/// shape resolves through the structural leaf frontier, not this lane's
+/// direct source.
+fn parameter_returns_borrow(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        seen: &mut Vec<SymbolHandle>,
+    ) -> Option<bool> {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { .. } => Some(true),
+            TypeReferenceNode::Constrained { base_type, .. } => visit(program, *base_type, seen),
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => visit(program, *element_type, seen),
+            TypeReferenceNode::Named { symbol, .. } => {
+                if seen.contains(symbol) {
+                    return None;
+                }
+                let data = crate::program_scope::data_definitions::data_definition_by_symbol(
+                    program, *symbol,
+                )?;
+                seen.push(*symbol);
+                let mut carries = false;
+                for member in program.data_members(data) {
+                    let typed_trees::data::DataMember::Field(field) = member else {
+                        return None;
+                    };
+                    carries |= visit(program, field.type_reference, seen)?;
+                }
+                seen.pop();
+                Some(carries)
+            }
+            _ => Some(false),
+        }
+    }
+    visit(program, reference, &mut Vec::new()) == Some(true)
 }
 
 pub fn release_statement(
@@ -2362,6 +3390,39 @@ pub fn release_statement(
         return None;
     }
     u32::try_from(statement_index).ok()
+}
+
+/// The weakening statement a borrowed result's loan release lands on, or the
+/// frame's own edge when the loan's last use is the final statement and no
+/// weakening had to restore access — the state exit retires that custody
+/// implicitly. Every release-side query shares this answer so the produced
+/// operations, their custody accounting and the lowered validation see one
+/// boundary.
+pub fn release_boundary(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    handle: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> Option<u32> {
+    if let Some(boundary) = release_statement(facts, machine, state, handle) {
+        return Some(boundary);
+    }
+    let state = program
+        .machines()
+        .iter()
+        .flat_map(|candidate| program.machine_states(candidate))
+        .find(|candidate| candidate.symbol == state)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    (facts
+        .borrow
+        .loans
+        .get(handle)
+        .last_use_statement_index
+        .checked_add(1)?
+        >= statements.len())
+    .then(|| u32::try_from(statements.len()).ok())
+    .flatten()
 }
 
 fn state_flow(

@@ -65,9 +65,21 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         .map(str::to_owned)
         .into_iter()
         .collect::<Vec<_>>();
-    type_roots.extend(
-        crate::scalar_graph::scalar_computations::operand_types::type_roots(checked, machine)?,
-    );
+    // Internal targets' case computations record under each state's authored
+    // owner machine, not the composed plan's dispatch machine.
+    let mut owners = vec![machine];
+    for state in states {
+        let (owner, _) =
+            crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+        if !owners.contains(&owner.symbol) {
+            owners.push(owner.symbol);
+        }
+    }
+    for owner in owners {
+        type_roots.extend(
+            crate::scalar_graph::scalar_computations::operand_types::type_roots(checked, owner)?,
+        );
+    }
     type_roots.extend(
         states
             .iter()

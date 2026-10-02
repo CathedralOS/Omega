@@ -344,7 +344,21 @@ pub(super) fn available_target(
             free_structural_scalar_signature(program, &mut shapes, state, &[])
                 .map(|(structural, scalar)| (None, structural, scalar))
         } else {
-            structural_scalar_signature(program, &mut shapes, machine, state, &[], true)
+            // The graph decides per state whether a borrowed `self` keeps its
+            // structural place; rebuild with the entry's own decision so a
+            // receiver the graph legitimately erased does not falsify the
+            // comparison.
+            structural_scalar_signature(
+                program,
+                &mut shapes,
+                machine,
+                state,
+                &[],
+                entry
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self),
+            )
         };
         let (attachment, structural, scalar) = signature?;
         if attachment != plan.attachment_type_identity

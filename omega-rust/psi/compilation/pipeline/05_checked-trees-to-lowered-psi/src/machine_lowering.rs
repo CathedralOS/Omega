@@ -218,18 +218,24 @@ fn lower_terminal_selection(
     // Unit closures can be provisional inputs to cleanup/borrow assembly.
     // Discharge operand obligations only after the selected module is complete.
     if completion.operands == OperandProofCompletion::Finalize {
-        finalize_operation_proofs(&mut lowered)?;
+        if let Err(error) = finalize_operation_proofs(&mut lowered) {
+            return Err(error);
+        }
     } else if lowered
         .semantic_module
         .machines
         .iter()
         .any(|machine| machine.ranked_scc.is_some())
     {
-        terminal_verifier::validate_module_for_interpretation(&lowered.semantic_module)
-            .map_err(LoweringError::InvalidTerminalModule)?;
+        if let Err(error) =
+            terminal_verifier::validate_module_for_interpretation(&lowered.semantic_module)
+        {
+            return Err(LoweringError::InvalidTerminalModule(error));
+        }
     } else {
-        terminal_verifier::validate_module(&lowered.semantic_module)
-            .map_err(LoweringError::InvalidTerminalModule)?;
+        if let Err(error) = terminal_verifier::validate_module(&lowered.semantic_module) {
+            return Err(LoweringError::InvalidTerminalModule(error));
+        }
     }
     // The crash-certificate roster answers the questions the verifier
     // reconstructs from this exact finished module. Producing it here — after

@@ -77,7 +77,7 @@ pub(crate) struct Construction {
 
 pub(crate) fn prepare(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
+    machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Vec<Slot>, LoweringError> {
@@ -85,7 +85,7 @@ pub(crate) fn prepare(
     let roots = plans
         .roots
         .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .filter_map(|(_, root)| (machines.contains(&root.machine)).then_some(root.root))
         .collect::<Vec<_>>();
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
@@ -260,15 +260,15 @@ impl Slot {
 
 /// Namespace discovery follows retained computation roots. Source replay and
 /// establishment validation remain separate from catalog selection.
-pub(super) fn type_roots(
+pub(crate) fn type_roots(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
+    machines: &[symbols::SymbolHandle],
 ) -> Result<Vec<String>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let roots = plans
         .roots
         .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .filter_map(|(_, root)| (machines.contains(&root.machine)).then_some(root.root))
         .collect::<Vec<_>>();
     let mut types = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {

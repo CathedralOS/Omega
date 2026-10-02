@@ -107,7 +107,10 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
             }
             integer_scalar_type(*primitive_type).map(|_| ())
         }
-        CheckedScalarExpression::IntegerLiteral { .. } => Ok(()),
+        CheckedScalarExpression::IntegerLiteral { .. }
+        | CheckedScalarExpression::IeeeFloatLiteral { .. } => Ok(()),
+        // These operations are total on their fixed carriers. Partial
+        // arithmetic cannot assume its own entry clause to justify itself.
         CheckedScalarExpression::IntegerBinary {
             kind,
             primitive_type,
@@ -128,8 +131,20 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
                 | checked_trees::CheckedIntegerBinaryKind::WrappingShiftRight
         ) && *primitive_type != PrimitiveType::Addr =>
         {
-            // These operations are total on their fixed carriers. Partial
-            // arithmetic cannot assume its own entry clause to justify itself.
+            integer_scalar_type(*primitive_type)?;
+            validate_integer_namespace(left)?;
+            validate_integer_namespace(right)
+        }
+        // Other fixed-width arithmetic over invocation operands is the same
+        // namespace the scalar-graph entry roster admits: `self.length - 1`
+        // stays a contract term, and the term lowering below still fails
+        // closed on kinds the checked requirement roster cannot produce.
+        CheckedScalarExpression::IntegerBinary {
+            primitive_type,
+            left,
+            right,
+            ..
+        } if *primitive_type != PrimitiveType::Addr => {
             integer_scalar_type(*primitive_type)?;
             validate_integer_namespace(left)?;
             validate_integer_namespace(right)
@@ -137,19 +152,30 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,
+        }
+        | CheckedScalarExpression::IntegerWiden {
+            primitive_type,
+            operand,
+            ..
+        }
+        | CheckedScalarExpression::IntegerExactCast {
+            primitive_type,
+            operand,
+            ..
         } if *primitive_type != PrimitiveType::Addr => {
             integer_scalar_type(*primitive_type)?;
             validate_integer_namespace(operand)
         }
+        CheckedScalarExpression::Boolean(expression) => validate_namespace(expression),
         // Whole-view extents carry the caller-proven bound the boundary
         // argument's domain needs; nested member extents keep the historical
         // fail-closed lane.
         CheckedScalarExpression::StructuralParameterByteLength { path, .. } if path.is_empty() => {
             Ok(())
         }
-        _ => {
-            unsupported("runtime requirement needs total integer operations over entry parameters")
-        }
+        _ => unsupported(
+            "runtime requirements admit only fixed integer parameters, members, and literals",
+        ),
     }
 }
 

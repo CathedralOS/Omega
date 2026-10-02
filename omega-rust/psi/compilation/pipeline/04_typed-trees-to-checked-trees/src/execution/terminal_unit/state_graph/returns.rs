@@ -58,14 +58,20 @@ pub(in crate::execution::terminal_unit) fn signature(
     let owned_bytes = multiplicity == Multiplicity::Unrestricted
         && validation::bounded_byte_buffer_capacity(program, reference).is_some()
         && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
+    // A `&mut T` result is the reference family's mutable custody kind: it
+    // loans one exact place of callee storage rather than owning fresh
+    // contents, whatever the referee spells, so the owned-contents and
+    // nominal-drop gates do not apply.
+    let mutable_reference =
+        validation::reference_result_custody::mutable_borrowed_parts(program, reference).is_some();
     // Borrowed slice views are the reference family's other custody kind: a
     // `&[T]` result borrows its carrier's storage rather than owning fresh
     // contents, so the owned-contents and nominal-drop gates do not apply.
     // `&'a V` named results are the same custody kind over a record carrier.
-    let view_result =
-        crate::execution::terminal_unit::types::borrowed_slice_view(program, reference)
-            || crate::execution::terminal_unit::types::borrowed_named_view(program, reference)
-            || crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference);
+    let view_result = mutable_reference
+        || crate::execution::terminal_unit::types::borrowed_slice_view(program, reference)
+        || crate::execution::terminal_unit::types::borrowed_named_view(program, reference)
+        || crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference);
     if (is_reference(program, reference) && !view_result)
         || type_graph_requires_nominal_drop(program, reference)
         || (multiplicity != Multiplicity::Linear
@@ -83,6 +89,9 @@ pub(in crate::execution::terminal_unit) fn signature(
     // A borrowed named view spells its `&'a V` type reference in the plan —
     // the reference custody is exactly what the result type carries — and its
     // result is an affine view loan rather than an unrestricted owned value.
+    // A `&mut T` result spells its own reference shell the same way; its
+    // `Reference` shape is admitted by `view_result` above like the shared
+    // views' are.
     let (type_identity, multiplicity) =
         if crate::execution::terminal_unit::types::borrowed_named_view(program, reference) {
             (
@@ -101,6 +110,11 @@ pub(in crate::execution::terminal_unit) fn signature(
                     &[],
                     language_semantics::ReferenceAccess::Mutable,
                 )?,
+                Multiplicity::Affine,
+            )
+        } else if mutable_reference {
+            (
+                shapes.add_reference_type(reference, &[])?,
                 Multiplicity::Affine,
             )
         } else {
@@ -436,6 +450,27 @@ pub(super) fn return_value_operation(
     CheckedUnitEffectOperationPlan,
     Vec<CheckedUnitEffectOperationPlan>,
 )> {
+    // A `&mut T` result loans the borrowed place itself; view-shaped `&mut V`
+    // and `&mut [T]` results mint a view identity instead and keep their own
+    // operation below.
+    if validation::reference_result_custody::mutable_borrowed_parts(program, state.return_type)
+        .is_some()
+        && !crate::execution::terminal_unit::types::mutable_borrowed_view(
+            program,
+            state.return_type,
+        )
+    {
+        return mutable_reference_result_operation(
+            program,
+            shapes,
+            state,
+            parameters,
+            count,
+            statement_ordinal,
+            expression,
+        )
+        .map(|operation| (operation, Vec::new()));
+    }
     if let Some(operation) =
         literal_result_operation(program, shapes, state, count, statement_ordinal, expression)
     {
@@ -795,6 +830,97 @@ fn named_view_result_operation(
             path,
             type_identity: referent_identity,
             access: CheckedStructuralAccess::SharedBorrow,
+        },
+    })
+}
+
+/// The `EstablishReference` producer for one authored `&mut place` return
+/// target of a `&mut T` result: the target's canonical place — with a view
+/// local (`let slots: &mut [T] = self.items.as_mut_slice()`) rebased to the
+/// storage it views — must root at a `&mut` structural parameter this state
+/// retains, and the projected path must bottom out in exactly the declared
+/// referee. The result loans that caller-side storage; it does not
+/// establish owned contents, so it carries the `Reference` plan shape the
+/// signature's `add_reference_type` spells and the affine multiplicity
+/// `result_multiplicity` records.
+fn mutable_reference_result_operation(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    count: &mut usize,
+    statement_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let return_type = state.return_type;
+    let (referee, access) =
+        validation::reference_result_custody::mutable_borrowed_parts(program, return_type)?;
+    if access != CheckedStructuralAccess::MutableBorrow {
+        return None;
+    }
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if borrow.access != language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
+    let statement_index = usize::try_from(statement_ordinal).ok()?;
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        borrow.target,
+    )?;
+    let place =
+        crate::flow::rebase_exact_local_place(program, state.symbol, statement_index, place, None)?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let authored = program.state_parameters(state);
+    let position = authored
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    let carrier = &authored[position];
+    // A `mut` marker on the carrier is the `&mut self` spelling itself —
+    // `is_mutable` records it — so the rejection is only a mutable binding
+    // on a non-reference carrier, where reseating would break the loan's
+    // provenance. The reference's own readability check stays exact.
+    if (carrier.is_mutable
+        && !crate::execution::terminal_unit::types::is_reference(program, carrier.type_reference))
+        || !crate::checks::contracts::is_readable_mutable_reference(program, carrier.type_reference)
+    {
+        return None;
+    }
+    let parameter_index = parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    let (storage, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+        program,
+        state.symbol,
+        statement_index,
+        &place,
+    )?;
+    if program.normalized_type_identity(storage) != program.normalized_type_identity(referee) {
+        return None;
+    }
+    let type_identity = shapes.add_reference_type(return_type, &[])?;
+    let referent_identity = shapes.add_type(referee, &[], &[])?;
+    let result = CheckedUnitStructuralResultBindingPlan {
+        statement_index: statement_ordinal,
+        binding_ordinal: u32::try_from(*count).ok()?,
+        type_identity,
+        multiplicity: Multiplicity::Affine,
+    };
+    *count = count.checked_add(1)?;
+    Some(CheckedUnitEffectOperationPlan::EstablishReference {
+        result,
+        source: CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            path,
+            type_identity: referent_identity,
+            access: CheckedStructuralAccess::MutableBorrow,
         },
     })
 }

@@ -805,7 +805,7 @@ fn checked_path_segment(
 
 pub(crate) fn prepare(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
+    machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<Binding>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
@@ -813,7 +813,7 @@ pub(crate) fn prepare(
     for (_, root) in plans
         .roots
         .iter()
-        .filter(|(_, root)| root.machine == machine)
+        .filter(|(_, root)| machines.contains(&root.machine))
     {
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let node = plans.nodes.get(handle);
@@ -856,7 +856,7 @@ pub(crate) fn prepare(
             let identity = authored.path_identity();
             let source = validation::local_scalar_record_field(
                 &checked.typed,
-                machine,
+                root.machine,
                 root.state,
                 root.statement_ordinal,
                 *source_expression,
@@ -867,7 +867,7 @@ pub(crate) fn prepare(
             let loan = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
-                } => record_loan_subject(checked, machine, root.state, symbol, types)?,
+                } => record_loan_subject(checked, root.machine, root.state, symbol, types)?,
                 _ => None,
             };
             let (

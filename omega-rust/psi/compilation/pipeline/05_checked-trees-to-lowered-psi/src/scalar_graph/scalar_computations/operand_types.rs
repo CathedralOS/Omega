@@ -11,7 +11,7 @@ pub(crate) fn type_roots(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<String>, LoweringError> {
-    let mut types = super::cases::type_roots(checked, machine)?;
+    let mut types = super::cases::type_roots(checked, &[machine])?;
     types.extend(super::fields::type_roots(checked, machine)?);
     let plans = &checked.facts.values.scalar_computations;
     let roots = plans

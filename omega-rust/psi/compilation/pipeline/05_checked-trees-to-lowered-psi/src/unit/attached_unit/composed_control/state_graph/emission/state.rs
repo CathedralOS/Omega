@@ -33,6 +33,16 @@ impl StateGraphEmission<'_, '_> {
         let checked = self.checked;
         let plan = self.plan;
         let state = &plan.states[position];
+        // A fused roster mixes owners: fact lookups for this state resolve
+        // its own machine, while scalar computation tables merge every
+        // owner the roster admits.
+        let owner = self.admitted.authored[position].0.symbol;
+        let owners = self
+            .admitted
+            .authored
+            .iter()
+            .map(|(owner, _)| owner.symbol)
+            .collect::<Vec<_>>();
         let state_parameters = self.state_views[position]
             .iter()
             .zip(&state.structural_parameters)
@@ -60,7 +70,7 @@ impl StateGraphEmission<'_, '_> {
                 )?,
             record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
                 checked,
-                plan.machine,
+                &owners,
                 &self.catalogs.structural_types,
             )?,
             literals: crate::scalar_graph::scalar_computations::literals::prepare(
@@ -77,19 +87,19 @@ impl StateGraphEmission<'_, '_> {
             )?,
             arrays: crate::scalar_graph::scalar_computations::arrays::prepare(
                 checked,
-                plan.machine,
+                &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             subslices: crate::scalar_graph::scalar_computations::subslices::prepare(
                 checked,
-                plan.machine,
+                &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
             cases: crate::scalar_graph::scalar_computations::cases::prepare(
                 checked,
-                plan.machine,
+                &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
@@ -183,7 +193,7 @@ impl StateGraphEmission<'_, '_> {
         );
         super::super::super::emission::emit_call_operations(
             checked,
-            plan.machine,
+            owner,
             state,
             &state.operations,
             self.catalogs,
@@ -260,7 +270,7 @@ impl StateGraphEmission<'_, '_> {
         let condition = if let Some(true_ordinal) = conditional_true_ordinal {
             branch_guard = evaluation.branch_guard(
                 checked,
-                plan.machine,
+                owner,
                 state.state,
                 true_ordinal,
                 &values,
@@ -272,7 +282,7 @@ impl StateGraphEmission<'_, '_> {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let condition = evaluation.guard_value(
                     checked,
-                    plan.machine,
+                    owner,
                     state.state,
                     true_ordinal,
                     &mut values,
@@ -300,7 +310,7 @@ impl StateGraphEmission<'_, '_> {
             }
             branch_guard = evaluation.branch_guard(
                 checked,
-                plan.machine,
+                owner,
                 state.state,
                 first.statement_ordinal(),
                 &values,
@@ -312,7 +322,7 @@ impl StateGraphEmission<'_, '_> {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let condition = evaluation.guard_value(
                     checked,
-                    plan.machine,
+                    owner,
                     state.state,
                     first.statement_ordinal(),
                     &mut values,
@@ -373,7 +383,7 @@ impl StateGraphEmission<'_, '_> {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let value = evaluation.scalar_control_result(
                     checked,
-                    plan.machine,
+                    owner,
                     state.state,
                     exits,
                     &mut values,
@@ -739,7 +749,6 @@ impl StateGraphEmission<'_, '_> {
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 let local_discards = return_root_discards(
                     checked,
-                    plan,
                     state,
                     &operations,
                     &evaluation,
@@ -772,7 +781,7 @@ impl StateGraphEmission<'_, '_> {
             CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {
                 let crash = lower_checked_crash_exit(
                     checked,
-                    plan.machine,
+                    owner,
                     state.state,
                     *statement_ordinal,
                     &self.claims.source_claims,
@@ -1121,28 +1130,16 @@ impl StateGraphEmission<'_, '_> {
 /// results, then the parameters its exit drops.
 pub(super) fn return_root_discards(
     checked: &checked_trees::CheckedTrees,
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     operations: &OperationBuffer,
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     state_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
-    let source = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == plan.machine)
-        .and_then(|machine| {
-            checked
-                .machine_states(machine)
-                .iter()
-                .find(|source| source.symbol == state.state)
-        })
-        .ok_or(LoweringError::Unsupported(
-            "Unit return source state missing",
-        ))?;
-    let discards = edges::return_discards(checked, plan.machine, source, state)?;
+    let (owner, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    let discards = edges::return_discards(checked, owner.symbol, source, state)?;
     let mut local_discards =
-        result_custody::local_discards(checked, plan.machine, source, state, None)?
+        result_custody::local_discards(checked, owner.symbol, source, state, None)?
             .into_iter()
             .map(|ordinal| {
                 let result = case_emission::result(state, ordinal, operations)?;

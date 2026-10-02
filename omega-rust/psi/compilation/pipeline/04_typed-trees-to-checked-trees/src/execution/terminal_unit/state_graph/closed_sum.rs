@@ -17,7 +17,9 @@ use super::{
     returns,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::state_graph::{EdgeCalls, SuccessorEdge, successor_bindings};
+use crate::execution::terminal_unit::state_graph::{
+    EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
+};
 use crate::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
@@ -25,7 +27,7 @@ pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    fused: &FusedStates<'_>,
     state_index: usize,
     signatures: &[Signature],
     edge_calls: EdgeCalls<'_>,
@@ -39,8 +41,7 @@ pub(super) fn build(
         entry_claims,
         ..
     } = edge_calls;
-    let states = program.machine_states(machine);
-    let state = states.get(state_index)?;
+    let &(machine, state) = fused.get(state_index)?;
     let (structural, _) = &signatures[state_index];
     let statements = program.statement_table.statements(state.statement_nodes);
     let StatementNode::Transition(first) = statements.get(transition_start)? else {
@@ -364,12 +365,12 @@ pub(super) fn build(
                     path, arguments, ..
                 } => {
                     let target_index =
-                        crate::checks::termination::named_transition_target_state_index(
+                        crate::execution::terminal_unit::state_graph::fused_target_index(
                             program,
-                            machine,
+                            fused,
                             path.symbol,
                         )?;
-                    let target = &states[target_index];
+                    let &(_, target) = fused.get(target_index)?;
                     let arguments = program.statement_table.expression_handles(*arguments);
                     let target_parameters = program.state_parameters(target);
                     let mut payloads = Vec::new();
@@ -412,7 +413,7 @@ pub(super) fn build(
                     let successor = successor_bindings(
                         program,
                         facts,
-                        machine,
+                        fused,
                         state_index,
                         signatures,
                         operations.as_slice(),

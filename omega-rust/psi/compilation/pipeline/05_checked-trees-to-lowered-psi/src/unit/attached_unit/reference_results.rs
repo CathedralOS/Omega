@@ -304,6 +304,177 @@ fn ordinary_structural_result(
     Some((call.structural_result()?, call.structural_custody()?))
 }
 
+/// Rejoin one composed state's `EstablishReference` to the authored
+/// `&mut place` tail its return statement carries: the retained parameter,
+/// the exact projected path and the declared referee must re-derive from
+/// the typed source alone, the same replay `mutable_return_source` runs
+/// for the caller-side loan.
+pub(super) fn validate_composed_establishment(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    expression: checked_trees::expression::ExpressionHandle,
+) -> Result<(), LoweringError> {
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    if validation::reference_result_custody::shared_borrowed_parts(
+        &checked.typed,
+        authored.return_type,
+    )
+    .is_some()
+    {
+        // A shared `&'a V` return forwards the whole borrowed ingress under
+        // the same reference convention `&mut` uses: the tail names the
+        // parameter itself, so there is no projected path to rejoin — only
+        // the parameter position, access, and type identities.
+        let position =
+            validation::reference_result_custody::source_parameter(&checked.typed, authored)
+                .ok_or(LoweringError::Unsupported(
+                    "shared reference return has no exact ingress source",
+                ))?;
+        let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
+        else {
+            return unsupported("shared reference return requires retained ingress custody");
+        };
+        let parameter = state
+            .structural_parameters
+            .get(parameter_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "shared reference ingress parameter is absent",
+            ))?;
+        let (referee, _) = validation::reference_result_custody::shared_borrowed_parts(
+            &checked.typed,
+            authored.return_type,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "shared reference return lost its declared referee",
+        ))?;
+        if parameter.position as usize != position
+            || parameter.access != CheckedStructuralAccess::SharedBorrow
+            || source.access != parameter.access
+            || !source.path.is_empty()
+            || checked.normalized_type_identity(referee).as_str() != source.type_identity
+            || checked
+                .normalized_type_identity(authored.return_type)
+                .as_str()
+                != result.type_identity
+            || result.multiplicity != Multiplicity::Affine
+            || result.statement_index as usize + 1
+                != checked
+                    .statement_table
+                    .statements(authored.statement_nodes)
+                    .len()
+        {
+            return unsupported("shared reference return differs from its exact ingress");
+        }
+        return Ok(());
+    }
+    let Some((position, path)) = validation::reference_result_custody::mutable_return_source(
+        &checked.typed,
+        &checked.facts,
+        machine,
+        authored,
+        result.statement_index as usize,
+        expression,
+    ) else {
+        return unsupported("mutable reference return has no exact ingress source");
+    };
+    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
+    else {
+        return unsupported("mutable reference return requires retained ingress custody");
+    };
+    let parameter = state
+        .structural_parameters
+        .get(parameter_index as usize)
+        .ok_or(LoweringError::Unsupported(
+            "mutable reference ingress parameter is absent",
+        ))?;
+    let (referee, _) = validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        authored.return_type,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "mutable reference return lost its declared referee",
+    ))?;
+    if parameter.position as usize != position
+        || parameter.access != CheckedStructuralAccess::MutableBorrow
+        || source.access != parameter.access
+        || source.path != path
+        || checked.normalized_type_identity(referee).as_str() != source.type_identity
+        || checked
+            .normalized_type_identity(authored.return_type)
+            .as_str()
+            != result.type_identity
+        || result.multiplicity != Multiplicity::Affine
+        || result.statement_index as usize + 1
+            != checked
+                .statement_table
+                .statements(authored.statement_nodes)
+                .len()
+    {
+        return unsupported("mutable reference return differs from its exact ingress");
+    }
+    Ok(())
+}
+
+/// A reference result's release in a composed state replays the weakening
+/// the borrow checker recorded for the producing call's loan: the release
+/// must pair with the unique earlier `StructuralCall` carrying that loan
+/// under the same binding, at exactly the recorded boundary statement.
+pub(super) fn validate_composed_release(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    release_index: usize,
+    binding_ordinal: u32,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    statement_index: u32,
+) -> Result<(), LoweringError> {
+    let mut producers = state
+        .operations
+        .iter()
+        .enumerate()
+        .filter(|(index, operation)| {
+            *index < release_index
+                && ordinary_structural_result(operation).is_some_and(|(result, custody)| {
+                    result.binding_ordinal == binding_ordinal && custody.reference_loan == loan
+                })
+        });
+    let Some((producer_index, producer)) = producers.next() else {
+        return unsupported("reference release has no retained result loan");
+    };
+    if producers.next().is_some() {
+        return unsupported("reference release pairs with more than one result loan");
+    }
+    super::structural_calls::validate_custody(checked, machine, state.state, producer)?;
+    let boundary = validation::reference_result_custody::release_statement(
+        &checked.facts,
+        machine,
+        state.state,
+        loan,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "reference carrier has no exact weakening boundary",
+    ))?;
+    if boundary != statement_index || release_index <= producer_index {
+        return unsupported("reference release differs from captured weakening");
+    }
+    // The boundary is before the first source operation at that statement,
+    // never merely a matching coordinate emitted after a conflicting read.
+    if state.operations[producer_index + 1..release_index]
+        .iter()
+        .any(|operation| {
+            super::scalar_arrays::source_statement(operation)
+                .is_some_and(|statement| statement >= boundary)
+        })
+    {
+        return unsupported("reference loan release follows an already resumed source statement");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_releases(
     checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
@@ -322,7 +493,8 @@ pub(super) fn validate_releases(
             machine.state,
             operation,
         )?;
-        let boundary = validation::reference_result_custody::release_statement(
+        let boundary = validation::reference_result_custody::release_boundary(
+            &checked.typed,
             &checked.facts,
             machine.machine,
             machine.state,
@@ -331,6 +503,18 @@ pub(super) fn validate_releases(
         .ok_or(LoweringError::Unsupported(
             "reference carrier has no exact weakening boundary",
         ))?;
+        let (_, authored) =
+            crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+        if boundary as usize
+            >= checked
+                .statement_table
+                .statements(authored.statement_nodes)
+                .len()
+        {
+            // The loan's last use is the final statement: the state exit
+            // retires the custody itself, so no release operation exists.
+            continue;
+        }
         let mut releases = machine.operations.iter().enumerate().filter_map(
             |(index, operation)| match operation {
                 CheckedUnitEffectOperationPlan::ReleaseReference {
@@ -515,7 +699,8 @@ pub(super) fn validate_consumer(
     let mut expected_path = Vec::with_capacity(projected_path.len() + 1);
     expected_path.push(CheckedUnitStructuralPathSegment::Referent);
     expected_path.extend(projected_path);
-    let boundary = validation::reference_result_custody::release_statement(
+    let boundary = validation::reference_result_custody::release_boundary(
+        &checked.typed,
         &checked.facts,
         caller.machine,
         caller.state,

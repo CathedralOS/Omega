@@ -67,6 +67,7 @@ pub(in crate::execution) fn build_local_scalar_field_store(
         statement_index,
         assignment,
         AssignmentSource::Authored,
+        None,
         &LocalConstructionTrace::default(),
     )?;
     let [CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] =
@@ -136,6 +137,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             structural_parameters,
             statement_index,
             assignment,
+            call_frames,
         ) {
             stores.push(store);
             continue;
@@ -148,6 +150,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             structural_parameters,
             statement_index,
             assignment,
+            call_frames,
         ) {
             stores.extend(elements);
             continue;
@@ -162,6 +165,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             statement_index,
             assignment,
             AssignmentSource::Authored,
+            call_frames,
             trace,
         ) {
             stores.extend(planned);
@@ -214,6 +218,7 @@ pub(super) fn build_structural_call_result_field_store(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     (position, primitive_type): (u32, PrimitiveType),
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let [store] = <[_; 1]>::try_from(plan_assignment(
@@ -231,6 +236,7 @@ pub(super) fn build_structural_call_result_field_store(
             position,
             primitive_type,
         },
+        call_frames,
         trace,
     )?)
     .ok()?;
@@ -251,6 +257,7 @@ pub(super) fn build_owned_byte_call_result_store(
     assignment: &typed_trees::statement::TableAssignment,
     binding_ordinal: u32,
     result_type: typed_trees::types::TypeReferenceHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let [store] = <[_; 1]>::try_from(plan_assignment(
@@ -268,6 +275,7 @@ pub(super) fn build_owned_byte_call_result_store(
             binding_ordinal,
             result_type,
         },
+        call_frames,
         trace,
     )?)
     .ok()?;
@@ -310,6 +318,7 @@ fn plan_assignment(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let destination = destination::resolve(
@@ -320,6 +329,7 @@ fn plan_assignment(
         roots,
         statement_index,
         assignment,
+        call_frames,
         trace,
     )?;
     // A runtime selector directly on the root indexes a whole borrowed view;

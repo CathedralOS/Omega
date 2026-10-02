@@ -356,6 +356,15 @@ pub(crate) fn lower_scalar_graph_successor(
                     _ => scalar_bindings.owned_argument(&argument)?,
                 });
             }
+            // A field range's whole-view establishment exists only in the
+            // Unit-graph edge lane; a scalar successor still names a bare
+            // established view.
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                ref path,
+                ..
+            } if !path.is_empty() => {
+                return unsupported("scalar successor subslice cannot carry a field projection");
+            }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 root:
                     checked_trees::CheckedStorageRoot::Parameter {
@@ -369,6 +378,7 @@ pub(crate) fn lower_scalar_graph_successor(
                         index: parameter_index,
                     },
                 expression,
+                ..
             } => {
                 let element = matches!(
                     transfer.source,

@@ -184,15 +184,16 @@ pub(crate) fn build(
     let provider_attachment_requirements = checked_composed_provider_attachment_requirements(
         program,
         shapes,
-        machine,
         attachment.as_ref()?,
         &[
             (
+                machine,
                 when_true_state,
                 facts.flow.control.calls.span_or_empty(true_flow.calls),
                 &leaves[0].operations,
             ),
             (
+                machine,
                 when_false_state,
                 facts.flow.control.calls.span_or_empty(false_flow.calls),
                 &leaves[1].operations,

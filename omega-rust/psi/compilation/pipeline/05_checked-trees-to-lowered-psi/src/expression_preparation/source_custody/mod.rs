@@ -80,6 +80,33 @@ pub(crate) use storage_reads::validate_entry_read_expression;
 pub(crate) use storage_reads::validate_expression as validate_storage_read_expression;
 pub(crate) use storage_reads::validate_normal_result_read_expression;
 
+/// The erased carrier for `let slots: &mut [T] = self.items
+/// .as_mut_slice()`: the compiler-owned mutable view call lends the exact
+/// collection it views, so the local binds no storage and each write through
+/// it rejoins that place. The typed call node keeps its authored spelling;
+/// the `target_symbol` stays invalid because the language owns the
+/// operation, so a declared callee spelled the same way is not this carrier.
+pub(crate) fn is_exclusive_view_call_loan_marker(
+    checked: &CheckedTrees,
+    local: &checked_trees::statement::TableLocalData,
+) -> bool {
+    matches!(
+        checked.expression_table.expression(local.initial_value),
+        checked_trees::expression::ExpressionNode::Call(call)
+            if !call.target_symbol.is_valid()
+                && call.receiver.is_valid()
+                && checked
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .is_empty()
+                && language_semantics::declaration_selection::CollectionViewOperation::from_authored_spelling(
+                    call.target.as_str(),
+                ) == Some(
+                    language_semantics::declaration_selection::CollectionViewOperation::MutableSlice,
+                )
+    )
+}
+
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
     matches!(
         primitive,

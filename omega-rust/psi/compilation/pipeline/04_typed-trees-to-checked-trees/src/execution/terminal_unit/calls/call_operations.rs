@@ -240,7 +240,7 @@ pub(in crate::execution) fn build_call_operation(
                 program.primitive_type_reference(target_state.return_type) != Some(*expected)
             }
             Some(ExpectedCallValueResult::Structural(expected))
-                if crate::execution::terminal_unit::reference_results::parts(
+                if crate::execution::terminal_unit::reference_results::mutable_borrowed_parts(
                     program,
                     target_state.return_type,
                 )

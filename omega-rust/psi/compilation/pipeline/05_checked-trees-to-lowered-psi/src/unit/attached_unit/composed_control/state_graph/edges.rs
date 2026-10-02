@@ -40,7 +40,7 @@ pub(super) fn validate(
         &[],
         None,
     )?;
-    validate_cleanup(checked, plan, source, state, edge)
+    validate_cleanup(checked, source, state, edge)
 }
 
 /// Case dispatch validates local-result cleanup separately from parameter cleanup.
@@ -64,10 +64,25 @@ pub(super) fn validate_bindings(
     else {
         return unsupported("Unit graph edge has no named source target");
     };
-    let authored_target = if path.symbol == plan.machine {
-        plan.states[0].state
-    } else {
-        path.symbol
+    // An edge that spells a machine's own symbol enters that machine's
+    // authored entry state; a fused roster holds foreign machines' entries
+    // too, so resolve the named machine's entry rather than assuming the
+    // dispatch machine's first position.
+    let authored_target = match checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == path.symbol)
+    {
+        Some(machine) => {
+            checked
+                .machine_states(machine)
+                .first()
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph edge machine has no authored entry",
+                ))?
+                .symbol
+        }
+        None => path.symbol,
     };
     if edge.statement_ordinal as usize != ordinal
         || edge.target_state != authored_target
@@ -98,7 +113,11 @@ pub(super) fn validate_bindings(
         .facts
         .flow
         .terminal_structural_control_cleanups
-        .for_edge(plan.machine, state.state, edge.statement_ordinal);
+        .for_edge(
+            super::owner(checked, state.state)?,
+            state.state,
+            edge.statement_ordinal,
+        );
     let mut evidence = cleanup
         .map(|cleanup| cleanup.trivial_affine_discard_parameter_positions.to_vec())
         .unwrap_or_default();
@@ -138,12 +157,19 @@ pub(super) fn validate_bindings(
         return unsupported("Unit graph successor arity drifted");
     }
     let source_parameters = checked.state_parameters(source);
+    // Authored operands omit an implicit `self` whether or not the target's
+    // signature retained it: a graph-erased receiver still occupies its
+    // authored formal position but no operand slot. Count authored `self`
+    // formals, not signature rows, so both shapes map to the same operand.
+    let target_formals =
+        crate::expression_preparation::source_custody::authored_state(checked, edge.target_state)
+            .map(|(_, state)| checked.state_parameters(state))?;
     let explicit_argument_position = |position: u32| {
         position as usize
-            - target
-                .structural_parameters
+            - target_formals
                 .iter()
-                .filter(|parameter| parameter.is_self && parameter.position < position)
+                .take(position as usize)
+                .filter(|parameter| parameter.is_self)
                 .count()
     };
     let validate_argument =
@@ -337,15 +363,26 @@ pub(super) fn validate_bindings(
                     target.access,
                 )?;
             } else {
-                result_custody::validate(checked, plan.machine, source, local, result)?;
+                result_custody::validate(
+                    checked,
+                    super::owner(checked, state.state)?,
+                    source,
+                    local,
+                    result,
+                )?;
             }
             continue;
         }
-        if let Some((root, _, expression)) = subslices::transfer_range(&transfer.source) {
+        if let Some((root, _, collection, expression)) = subslices::transfer_range(&transfer.source)
+        {
             // A view subslice narrows a whole view parameter or a view local
             // the state body established; either way the target receives a
-            // fresh shared view of the source's own type. The range itself is
-            // replayed at its edge site when the edge emits it.
+            // fresh shared view of the source's own type. A range over a
+            // fixed-array field instead names the parameter owning the field
+            // plus the checked field path, which emission views whole before
+            // narrowing — the source's own type then names the record, not
+            // the view. The range itself is replayed at its edge site when
+            // the edge emits it.
             // Retained positions count the receiver formal; the authored
             // argument list does not.
             if arguments.get(explicit_argument_position(target.position)) != Some(&expression) {
@@ -356,20 +393,71 @@ pub(super) fn validate_bindings(
                     let source = state.structural_parameters.get(index as usize).ok_or(
                         LoweringError::Unsupported("Unit graph borrowed transfer source missing"),
                     )?;
-                    if source.access != target.access || source.multiplicity != target.multiplicity
-                    {
-                        return unsupported("Unit graph borrowed transfer type or order drifted");
+                    if collection.is_empty() {
+                        if source.access != target.access
+                            || source.multiplicity != target.multiplicity
+                        {
+                            return unsupported(
+                                "Unit graph borrowed transfer type or order drifted",
+                            );
+                        }
+                        Some(source.type_identity.clone())
+                    } else {
+                        // The field owner's root only lends the array: it
+                        // must be readable and unqualified, and the target's
+                        // view identity is its own peeled carrier identity —
+                        // the authored path's agreement with the projection
+                        // is replayed when the edge emits.
+                        if !collection.iter().all(|segment| {
+                            matches!(
+                                segment,
+                                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            )
+                        }) || !matches!(
+                            source.access,
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                                | checked_trees::CheckedStructuralAccess::MutableBorrow
+                                | checked_trees::CheckedStructuralAccess::Owned
+                        ) || !source.qualifications.is_empty()
+                            || !source.projected_qualifications.is_empty()
+                        {
+                            return unsupported(
+                                "Unit graph subslice field owner cannot lend a shared view",
+                            );
+                        }
+                        let mut peeled = target_formals[target.position as usize].type_reference;
+                        loop {
+                            match checked.type_reference_table.type_reference(peeled) {
+                                checked_trees::types::TypeReferenceNode::Constrained {
+                                    base_type,
+                                    ..
+                                }
+                                | checked_trees::types::TypeReferenceNode::Reference {
+                                    referee: base_type,
+                                    ..
+                                } => peeled = *base_type,
+                                _ => break,
+                            }
+                        }
+                        Some(checked.normalized_type_identity(peeled).into_string())
                     }
-                    &source.type_identity
                 }
-                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => view_local_result(
-                    checked,
-                    source,
-                    state,
-                    symbol,
-                    edge.statement_ordinal,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow,
-                )?,
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+                    if !collection.is_empty() {
+                        return unsupported("Unit graph subslice field range lost its owner");
+                    }
+                    Some(
+                        view_local_result(
+                            checked,
+                            source,
+                            state,
+                            symbol,
+                            edge.statement_ordinal,
+                            checked_trees::CheckedStructuralAccess::SharedBorrow,
+                        )?
+                        .to_string(),
+                    )
+                }
                 checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
                     return unsupported(
                         "Unit graph borrowed transfer source is an owned local, not a view",
@@ -380,7 +468,7 @@ pub(super) fn validate_bindings(
                 || target.is_self
                 || target.access != checked_trees::CheckedStructuralAccess::SharedBorrow
                 || target.multiplicity != Multiplicity::Unrestricted
-                || *source_type != target.type_identity
+                || source_type.as_deref() != Some(target.type_identity.as_str())
             {
                 return unsupported("Unit graph borrowed transfer type or order drifted");
             }
@@ -1236,18 +1324,18 @@ fn view_local_result<'a>(
 
 fn validate_cleanup(
     checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &CheckedStructuralControlSuccessorPlan,
 ) -> Result<(), LoweringError> {
-    result_custody::validate_disposition_roster(checked, plan.machine, source, state)?;
-    result_custody::local_discards(checked, plan.machine, source, state, Some(edge))?;
+    let owner = super::owner(checked, state.state)?;
+    result_custody::validate_disposition_roster(checked, owner, source, state)?;
+    result_custody::local_discards(checked, owner, source, state, Some(edge))?;
     let cleanup = checked
         .facts
         .flow
         .terminal_structural_control_cleanups
-        .for_edge(plan.machine, state.state, edge.statement_ordinal)
+        .for_edge(owner, state.state, edge.statement_ordinal)
         .ok_or(LoweringError::Unsupported(
             "Unit graph edge cleanup evidence missing",
         ))?;

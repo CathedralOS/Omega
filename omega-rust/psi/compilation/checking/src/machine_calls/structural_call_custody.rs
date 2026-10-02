@@ -967,6 +967,21 @@ pub fn reconstruct_structural_call_custody(
                 result,
             )
             .ok_or("reference result has no exact returned ingress and loan lifetime")?
+        } else if crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
+            program,
+            destination.return_type,
+        )
+        .is_some()
+        {
+            crate::machine_calls::reference_result_custody::mutable_result_loan(
+                program,
+                facts,
+                caller_machine,
+                source_state,
+                call,
+                result,
+            )
+            .ok_or("reference result has no exact returned ingress and loan lifetime")?
         } else {
             arena::Handle::invalid()
         };

@@ -247,6 +247,14 @@ pub(super) fn validate(
                     )?;
                 }
             }
+            // A field range's whole-view establishment exists only in the
+            // Unit-graph edge lane; a scalar successor still names a bare
+            // established view.
+            CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                ref path, ..
+            } if !path.is_empty() => {
+                return unsupported("scalar successor subslice cannot carry a field projection");
+            }
             CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 root:
                     checked_trees::CheckedStorageRoot::Parameter {
@@ -260,6 +268,7 @@ pub(super) fn validate(
                         index: source_index,
                     },
                 expression,
+                ..
             } => {
                 let retained_source = source
                     .structural_parameters

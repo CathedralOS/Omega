@@ -385,7 +385,13 @@ fn arguments<'a>(
                     argument_ordinal: target_parameter.position,
                 },
             )?;
-            if subslice.range.type_identity != target_parameter.type_identity {
+            // A range over a fixed-array field narrows a whole view the Unit
+            // graph's edge establishes on the fly; the scalar lane's
+            // transfers carry no projection, so it keeps admitting only bare
+            // established views.
+            if subslice.range.type_identity != target_parameter.type_identity
+                || !subslice.range.collection.is_empty()
+            {
                 return None;
             }
             rows.structural.push(CheckedStructuralControlTransferPlan {

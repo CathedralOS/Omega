@@ -457,11 +457,15 @@ fn validate_value(
     )
 }
 
+/// The retained entry predicate must name invocation operands only: formal
+/// parameters, structural member reads, and closed literals combine through
+/// fixed integer arithmetic, never through body locals or runtime stores.
 fn validate_scalar_namespace(predicate: &CheckedBooleanExpression) -> Result<(), LoweringError> {
     match predicate {
-        CheckedBooleanExpression::Constant(_) | CheckedBooleanExpression::Parameter { .. } => {
-            Ok(())
-        }
+        CheckedBooleanExpression::Constant(_)
+        | CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
+        | CheckedBooleanExpression::StructuralParameterField { .. } => Ok(()),
         CheckedBooleanExpression::Not(operand) => validate_scalar_namespace(operand),
         CheckedBooleanExpression::Equal { left, right }
         | CheckedBooleanExpression::And { left, right }
@@ -470,11 +474,42 @@ fn validate_scalar_namespace(predicate: &CheckedBooleanExpression) -> Result<(),
             validate_scalar_namespace(right)
         }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
-            for operand in [left, right] {
-                super::validate_integer_namespace(operand)?;
-            }
-            Ok(())
+            validate_scalar_operand(left)?;
+            validate_scalar_operand(right)
         }
         _ => unsupported("scalar entry predicate is outside its invocation parameter namespace"),
+    }
+}
+
+/// One integer operand of an entry comparison. The set mirrors the checked
+/// entry-operand namespace: dense parameters, erased formals, structural
+/// member reads, literals, and fixed-width arithmetic over them.
+fn validate_scalar_operand(operand: &CheckedScalarExpression) -> Result<(), LoweringError> {
+    match operand {
+        CheckedScalarExpression::Parameter { primitive_type, .. }
+        | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
+        | CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
+            if *primitive_type == PrimitiveType::Addr {
+                return unsupported(
+                    "scalar entry predicate needs a separate field or arithmetic evidence owner",
+                );
+            }
+            integer_scalar_type(*primitive_type).map(|_| ())
+        }
+        CheckedScalarExpression::IntegerLiteral { .. }
+        | CheckedScalarExpression::IeeeFloatLiteral { .. } => Ok(()),
+        CheckedScalarExpression::IntegerBinary { left, right, .. } => {
+            validate_scalar_operand(left)?;
+            validate_scalar_operand(right)
+        }
+        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+        | CheckedScalarExpression::IntegerWiden { operand, .. }
+        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+            validate_scalar_operand(operand)
+        }
+        CheckedScalarExpression::Boolean(expression) => validate_scalar_namespace(expression),
+        _ => unsupported(
+            "scalar entry predicate needs a separate field or arithmetic evidence owner",
+        ),
     }
 }

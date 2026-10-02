@@ -39,6 +39,7 @@ impl StateGraphEmission<'_, '_> {
         let checked = self.checked;
         let plan = self.plan;
         let state = &plan.states[position];
+        let owner = self.admitted.authored[position].0.symbol;
         let mut guarded_decisions = Vec::new();
         let mut guarded_drafts = Vec::new();
         let guarded_first_namespace = values.clone();
@@ -63,7 +64,7 @@ impl StateGraphEmission<'_, '_> {
             let reads_payloads = arm.successor().is_some_and(successor_may_read_payloads);
             let guard = if let Some(expression) = evaluation.branch_guard(
                 checked,
-                plan.machine,
+                owner,
                 state.state,
                 arm.statement_ordinal(),
                 values,
@@ -81,7 +82,7 @@ impl StateGraphEmission<'_, '_> {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let guard = evaluation.guard_value(
                     checked,
-                    plan.machine,
+                    owner,
                     state.state,
                     arm.statement_ordinal(),
                     values,

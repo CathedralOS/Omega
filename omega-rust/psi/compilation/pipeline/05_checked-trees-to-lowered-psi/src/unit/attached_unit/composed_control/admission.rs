@@ -302,7 +302,7 @@ pub(super) fn admit_call_targets<'a>(
     ),
     LoweringError,
 > {
-    let boundaries = admit_calls(checked, machine, call_states)?;
+    let boundaries = admit_calls(checked, call_states)?;
     for (boundary, _) in &boundaries {
         validate_claim_free_boundary(boundary)?;
     }
@@ -384,13 +384,19 @@ pub(super) fn validate_claim_free_boundary(
 /// graph's to decide; any other operation is refused here.
 pub(super) fn admit_calls<'a>(
     checked: &'a CheckedTrees,
-    machine: symbols::SymbolHandle,
     call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut boundaries = Vec::new();
     for state in call_states.iter().copied() {
-        let caller = CallerView::state(machine, state);
+        // A fused roster's call sites record their facts under the machine
+        // that authored the state, not the composed plan's dispatch machine.
+        let caller = CallerView::state(
+            crate::expression_preparation::source_custody::authored_state(checked, state.state)?
+                .0
+                .symbol,
+            state,
+        );
         let arm_calls = state.arm_calls();
         let edge_sequences = state
             .successors()

@@ -970,10 +970,27 @@ pub(super) fn validate(
             // attributed ordinal rejoins.
             (
                 CheckedUnitEffectOperationPlan::ReleaseReference {
-                    statement_index, ..
+                    statement_index,
+                    binding_ordinal,
+                    loan,
+                    ..
                 },
                 _,
-            ) if *statement_index as usize >= ordinal => {}
+            ) if *statement_index as usize >= ordinal => {
+                // The release also pairs with the unique earlier structural
+                // call carrying this loan, at exactly the boundary the borrow
+                // checker recorded — the ordering walk's `>=` rejoin is the
+                // position check, not the custody proof.
+                super::super::super::reference_results::validate_composed_release(
+                    checked,
+                    machine,
+                    state,
+                    index,
+                    *binding_ordinal,
+                    *loan,
+                    *statement_index,
+                )?;
+            }
             _ => {
                 return unsupported("Unit graph reordered a source effect");
             }

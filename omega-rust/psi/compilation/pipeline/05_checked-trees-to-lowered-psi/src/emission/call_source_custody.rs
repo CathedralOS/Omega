@@ -64,6 +64,18 @@ pub(crate) fn validate_store_and_initializer_calls(
                         checked_trees::expression::ExpressionNode::Call(_)
                     ) =>
             {
+                // An exclusive `&mut` view-call loan (`let slots: &mut [T] =
+                // self.items.as_mut_slice()`) plans no operation: the
+                // language operation records no flow call, the local binds a
+                // loan rather than a value, and every write through it
+                // rejoins the viewed place. Nothing owes its initializer a
+                // call operation, so it leaves this audit like the marker
+                // locals the body count already skips.
+                if crate::expression_preparation::source_custody::is_exclusive_view_call_loan_marker(
+                    checked, local,
+                ) {
+                    continue;
+                }
                 Some(local.initial_value)
             }
             StatementNode::Assignment(_) | StatementNode::LocalData(_) => continue,

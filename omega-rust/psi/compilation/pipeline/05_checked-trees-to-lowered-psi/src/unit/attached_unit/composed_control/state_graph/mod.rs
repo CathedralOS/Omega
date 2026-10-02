@@ -128,3 +128,19 @@ pub(super) use admission::has_shared_graph_custody;
 pub(super) use edges::successors;
 pub(super) use emission::emit;
 pub(crate) use topology::live;
+
+/// The machine that authored `state`. A fused roster mixes owners — a
+/// `self.callee` transition moves control into another machine's authored
+/// state — so machine-keyed fact, custody, and statement lookups must resolve
+/// each position's owner instead of assuming the composed plan's dispatch
+/// machine.
+pub(super) fn owner(
+    checked: &super::CheckedTrees,
+    state: symbols::SymbolHandle,
+) -> Result<symbols::SymbolHandle, super::LoweringError> {
+    Ok(
+        crate::expression_preparation::source_custody::authored_state(checked, state)?
+            .0
+            .symbol,
+    )
+}

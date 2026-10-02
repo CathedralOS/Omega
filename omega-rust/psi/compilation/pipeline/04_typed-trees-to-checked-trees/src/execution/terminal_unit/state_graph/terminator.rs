@@ -9,20 +9,23 @@
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls, FusedStates,
     ScalarCalleePlans, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees, closed_sum, control,
     guard_is_boolean, retained_guard, return_cleanup_is_whole, returns, successor, terminal_calls,
 };
 
 /// The terminator one state's authored tail plans, after its operations.
+/// `fused` carries the whole roster this graph spans: a successor naming a
+/// foreign machine's entry resolves to that owner's fused states, so the
+/// edge stays inside the one dispatch loop.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
+    fused: &FusedStates<'_>,
     state_index: usize,
     state: &typed_trees::state::State,
     result: &checked_trees::CheckedControlResultPlan,
@@ -40,6 +43,9 @@ pub(super) fn build(
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
     let result = result.clone();
+    // The state's own owner answers its machine-scoped facts; the dispatch
+    // machine's identity only names the composed plan itself.
+    let &(machine, _) = fused.get(state_index)?;
     let (structural, _) = &signatures[state_index];
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: terminator");
@@ -57,7 +63,7 @@ pub(super) fn build(
         successor(
             program,
             facts,
-            machine,
+            fused,
             state_index,
             signatures,
             operations,
@@ -73,7 +79,7 @@ pub(super) fn build(
         program,
         facts,
         shapes,
-        machine,
+        fused,
         state_index,
         signatures,
         edge_calls,
@@ -393,7 +399,7 @@ pub(super) fn build(
                     successor(
                         program,
                         facts,
-                        machine,
+                        fused,
                         state_index,
                         signatures,
                         operations,
