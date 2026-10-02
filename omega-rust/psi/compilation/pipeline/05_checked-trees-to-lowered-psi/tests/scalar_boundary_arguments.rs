@@ -483,7 +483,7 @@ fn boundary_normal_guarantees_rejoin_authored_predicates_and_results() {
                 boundary.scalar_ensures.clear();
             } else {
                 boundary.scalar_ensures =
-                    vec![checked_trees::ClosedScalarContractValue::Predicate(
+                    vec![checked_trees::CheckedBoundaryScalarGuarantee::Predicate(
                         checked_trees::CheckedBooleanExpression::Constant(true),
                     )];
             }

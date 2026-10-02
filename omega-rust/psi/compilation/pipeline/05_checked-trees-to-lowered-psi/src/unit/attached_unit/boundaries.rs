@@ -195,7 +195,33 @@ fn lower_scalar_ensures(
     if let Some(result) = plan.result.scalar() {
         namespace.push(terminal_scalar_type(result)?);
     }
-    lower_scalar_contract(&plan.scalar_ensures, &namespace)
+    let formals = scalar_contract_formals(&namespace)?;
+    let predicate = |value| {
+        crate::scalar_graph::scalar_contracts::proposition(
+            value,
+            &formals,
+            &[],
+            &crate::scalar_graph::scalar_contracts::ContractViewNamespace::EMPTY,
+        )
+    };
+    let rows = plan
+        .scalar_ensures
+        .iter()
+        .map(|guarantee| {
+            use checked_trees::CheckedBoundaryScalarGuarantee;
+            Ok(match guarantee {
+                CheckedBoundaryScalarGuarantee::Predicate(value) => predicate(value)?,
+                CheckedBoundaryScalarGuarantee::Implication {
+                    premise,
+                    conclusion,
+                } => Proposition::Implication {
+                    premise: Box::new(predicate(premise)?),
+                    conclusion: Box::new(predicate(conclusion)?),
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    canonical_scalar_contract_rows(rows)
 }
 
 fn lower_scalar_contract(
@@ -205,18 +231,8 @@ fn lower_scalar_contract(
     if clauses.is_empty() {
         return Ok(Vec::new());
     }
-    let formals = scalar_types
-        .iter()
-        .enumerate()
-        .map(|(position, scalar_type)| {
-            Ok(ValueDeclaration {
-                id: value_id(dense_identity(position)?),
-                scalar_type: *scalar_type,
-                qualifications: Default::default(),
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut pending = clauses
+    let formals = scalar_contract_formals(scalar_types)?;
+    let rows = clauses
         .iter()
         .map(|row| {
             crate::scalar_graph::scalar_contracts::clauses(
@@ -229,8 +245,30 @@ fn lower_scalar_contract(
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .flatten()
-        .rev()
         .collect::<Vec<_>>();
+    canonical_scalar_contract_rows(rows)
+}
+
+fn scalar_contract_formals(
+    scalar_types: &[ScalarType],
+) -> Result<Vec<ValueDeclaration>, LoweringError> {
+    scalar_types
+        .iter()
+        .enumerate()
+        .map(|(position, scalar_type)| {
+            Ok(ValueDeclaration {
+                id: value_id(dense_identity(position)?),
+                scalar_type: *scalar_type,
+                qualifications: Default::default(),
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()
+}
+
+fn canonical_scalar_contract_rows(
+    propositions: Vec<Proposition>,
+) -> Result<Vec<Proposition>, LoweringError> {
+    let mut pending = propositions.into_iter().rev().collect::<Vec<_>>();
     let mut rows = Vec::new();
     while let Some(row) = pending.pop() {
         match row {
