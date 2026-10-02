@@ -446,11 +446,149 @@ fn whole_state_demand_retains_successor_effects() {
             &mut inference,
             &mut summaries,
             include_shared,
+            &|_| true,
         )
         .unwrap();
         assert_eq!(prefix.written, ["value"]);
         assert_eq!(boundaries.len(), 2);
     }
+}
+
+#[test]
+fn selected_boundaries_preserve_alias_versions_and_complete_effects() {
+    let program = crate::front_end::typed_program(
+        "data Pair { left: u64; right: u64; }
+         data Carrier { value: &mut u64; }
+         machine inspect(pair: &mut Pair) {
+             let mut selected: &mut u64 = &mut pair.left;
+             let carrier: Carrier = Carrier { value: selected };
+             selected = &mut pair.right;
+             carrier.value = 7;
+             selected = 9;
+         }",
+    );
+    let mut diagnostics = Vec::new();
+    let symbols = TopLevelSymbols::build(&program, &mut diagnostics);
+    assert!(diagnostics.is_empty());
+    let machine = symbols.machine("inspect").unwrap();
+    let state = &program.machine_states(machine)[0];
+    for include_shared in [false, true] {
+        let collect = |requested: &dyn Fn(usize) -> bool| {
+            walk_state_write_prefix_collected(
+                &program,
+                machine,
+                state,
+                &symbols,
+                &mut FrameInference::default(),
+                &mut HashMap::default(),
+                include_shared,
+                requested,
+            )
+            .expect("complete transfer")
+        };
+        let (complete, all) = collect(&|_| true);
+        let (selected, boundaries) = collect(&|position| position == 2 || position == 4);
+        assert_eq!(all.iter().flatten().count(), 5);
+        assert_eq!(boundaries.iter().flatten().count(), 2);
+        assert_eq!(boundaries.len(), all.len());
+        assert_eq!(selected.written, complete.written);
+        assert_eq!(selected.written, ["pair.left", "pair.right"]);
+        for position in [2, 4] {
+            // Compare every evidence field, including stored case/move rows,
+            // without imposing equality on production-only working records.
+            assert_eq!(
+                format!("{:?}", boundaries[position]),
+                format!("{:?}", all[position])
+            );
+            let boundary = boundaries[position].as_ref().unwrap();
+            let alias = boundary
+                .aliases
+                .iter()
+                .find(|(name, _)| name == "selected")
+                .unwrap();
+            assert_eq!(
+                alias.1.path,
+                if position == 2 {
+                    "pair.left"
+                } else {
+                    "pair.right"
+                }
+            );
+            assert!(!boundary.stored.is_empty());
+        }
+        let (without_snapshots, boundaries) = collect(&|_| false);
+        assert!(boundaries.iter().all(Option::is_none));
+        assert_eq!(without_snapshots.written, complete.written);
+    }
+}
+
+#[test]
+fn selected_boundaries_do_not_hide_later_unknown_effects() {
+    let program = crate::front_end::typed_program(
+        "pub data Carrier { destination: &mut u64; }
+         boundary trait Host {}
+         boundary machine Carrier::replace(&mut self) reaches Host;
+         machine inspect(value: &mut u64) reaches Host {
+             let mut carrier: Carrier = Carrier { destination: value };
+             carrier.replace();
+             carrier.destination = 11;
+         }",
+    );
+    let mut diagnostics = Vec::new();
+    let symbols = TopLevelSymbols::build(&program, &mut diagnostics);
+    assert!(diagnostics.is_empty());
+    let machine = symbols.machine("inspect").unwrap();
+    let state = &program.machine_states(machine)[0];
+    for include_shared in [false, true] {
+        let result = walk_state_write_prefix_collected(
+            &program,
+            machine,
+            state,
+            &symbols,
+            &mut FrameInference::default(),
+            &mut HashMap::default(),
+            include_shared,
+            &|position| position == 1,
+        );
+        assert!(
+            result.is_none(),
+            "a selected prefix is not a complete result"
+        );
+    }
+}
+
+#[test]
+fn result_boundaries_compose_named_and_value_carrier_returns() {
+    let program = crate::front_end::typed_program(
+        "data Carrier { destination: &mut u64; }
+         machine make(first: &mut u64, second: &mut u64, choose: bool) -> Carrier {
+             let left: Carrier = Carrier { destination: first };
+             transition choose {
+                 true -> (left)
+                 _ -> finish(second)
+             }
+             state finish(other: &mut u64) -> Carrier {
+                 let right: Carrier = Carrier { destination: other };
+                 right
+             }
+         }
+         machine write(first: &mut u64, second: &mut u64, choose: bool) {
+             let carrier: Carrier = make(first, second, choose);
+             carrier.destination = 11;
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write")
+        .unwrap();
+    let frames = crate::CallFrameResolver::new(&program)
+        .expect("resolver")
+        .inferred_machine_state_write_frames(machine);
+    assert_eq!(
+        frames[0].complete_paths(),
+        Some(["$P0".to_owned(), "$P1".to_owned()].as_slice())
+    );
 }
 
 /// A completed owned result does not expose the construction writes to its
