@@ -110,6 +110,7 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     let boundary_id = boundary_machine_id(1);
     let boundary_declaration = BoundaryMachineDeclaration {
         kind: boundary.kind,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
             &boundary.scalar_parameters,

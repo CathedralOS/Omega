@@ -112,6 +112,83 @@ pub(crate) fn normal_return_facts(
     Ok(facts)
 }
 
+/// Saturation has a conditional range, independently of who produced the raw
+/// payload. A raw NaN stays NaN. Finite division by zero preserves infinity.
+/// The arithmetic producer's normal contract must establish those premises.
+pub(crate) fn saturating_return_facts(
+    operation: &Operation,
+    policy: FloatResultPolicy,
+) -> Result<Vec<Proposition>, ModuleError> {
+    let FloatResultPolicy::Saturating {
+        raw_result,
+        left,
+        right,
+        rule,
+    } = policy
+    else {
+        return Ok(Vec::new());
+    };
+    let format = format(operation)?;
+    let scalar_type = ScalarType::IeeeFloat(format);
+    let result =
+        operation
+            .result
+            .scalar_ref()
+            .ok_or(ModuleError::FloatResultPolicyRequiresFloatResult(
+                operation.id,
+            ))?;
+    let comparison = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+        kind,
+        format,
+        left,
+        right,
+    };
+    let (minimum, maximum, zero) = match format {
+        IeeeFloatFormat::Binary32 => (
+            IeeeFloatValue::Binary32(0xff7f_ffff),
+            IeeeFloatValue::Binary32(0x7f7f_ffff),
+            IeeeFloatValue::Binary32(0),
+        ),
+        IeeeFloatFormat::Binary64 => (
+            IeeeFloatValue::Binary64(0xffef_ffff_ffff_ffff),
+            IeeeFloatValue::Binary64(0x7fef_ffff_ffff_ffff),
+            IeeeFloatValue::Binary64(0),
+        ),
+    };
+    let bounds = |value| {
+        vec![
+            comparison(
+                IeeeFloatComparisonKind::LessOrEqual,
+                ScalarTerm::IeeeFloatLiteral(minimum),
+                ScalarTerm::value(value, scalar_type),
+            ),
+            comparison(
+                IeeeFloatComparisonKind::LessOrEqual,
+                ScalarTerm::value(value, scalar_type),
+                ScalarTerm::IeeeFloatLiteral(maximum),
+            ),
+        ]
+    };
+    let mut requirements = bounds(left);
+    requirements.extend(bounds(right));
+    requirements.push(comparison(
+        IeeeFloatComparisonKind::Equal,
+        ScalarTerm::value(raw_result, scalar_type),
+        ScalarTerm::value(raw_result, scalar_type),
+    ));
+    if rule == terminal_psi::FloatSaturationRule::FiniteDivisionOverflow {
+        requirements.push(comparison(
+            IeeeFloatComparisonKind::NotEqual,
+            ScalarTerm::value(right, scalar_type),
+            ScalarTerm::IeeeFloatLiteral(zero),
+        ));
+    }
+    Ok(vec![Proposition::Implication {
+        premise: Box::new(Proposition::Conjunction(requirements)),
+        conclusion: Box::new(Proposition::Conjunction(bounds(result.id))),
+    }])
+}
+
 fn finite_bounds(
     format: IeeeFloatFormat,
     value: ValueId,
@@ -210,6 +287,96 @@ mod tests {
                     "{bits:?}",
                 );
             }
+        }
+    }
+    #[test]
+    fn saturation_guarantee_requires_ordered_raw_payload_and_nonzero_division() {
+        use terminal_psi::FloatSaturationRule;
+        let scalar_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+        let identifiers = [1, 2, 3, 4].map(|id| ValueId::new(id).unwrap());
+        let [raw_result, left, right, result] = identifiers;
+        let context =
+            PropositionContext::from_value_types(identifiers.map(|id| (id, scalar_type))).unwrap();
+        let one = 1.0_f32.to_bits();
+        let two = 2.0_f32.to_bits();
+        let maximum = f32::MAX.to_bits();
+        let infinity = f32::INFINITY.to_bits();
+        let nan = f32::NAN.to_bits();
+        for (rule, payloads, expected) in [
+            (
+                FloatSaturationRule::FiniteOperandOverflow,
+                [infinity, maximum, two, maximum],
+                true,
+            ),
+            (
+                FloatSaturationRule::FiniteOperandOverflow,
+                [infinity, maximum, two, infinity],
+                false,
+            ),
+            (
+                FloatSaturationRule::FiniteOperandOverflow,
+                [nan, one, two, nan],
+                true,
+            ),
+            (
+                FloatSaturationRule::FiniteOperandOverflow,
+                [infinity, infinity, two, infinity],
+                true,
+            ),
+            (
+                FloatSaturationRule::FiniteDivisionOverflow,
+                [infinity, one, 0, infinity],
+                true,
+            ),
+            (
+                FloatSaturationRule::FiniteDivisionOverflow,
+                [infinity, maximum, two, maximum],
+                true,
+            ),
+            (
+                FloatSaturationRule::FiniteDivisionOverflow,
+                [infinity, maximum, two, infinity],
+                false,
+            ),
+        ] {
+            let policy = FloatResultPolicy::Saturating {
+                raw_result,
+                left,
+                right,
+                rule,
+            };
+            let operation = Operation {
+                id: OperationId::new(1).unwrap(),
+                static_reach_binding: None,
+                suspension_crossing: None,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: result,
+                    scalar_type,
+                    qualifications: Default::default(),
+                }),
+                kind: OperationKind::FloatResultPolicy { policy },
+            };
+            let facts = identifiers
+                .into_iter()
+                .zip(payloads)
+                .map(|(id, bits)| {
+                    Proposition::Equal(
+                        ScalarTerm::value(id, scalar_type),
+                        ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(bits)),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let guarantees = saturating_return_facts(&operation, policy).unwrap();
+            let guarantee = &guarantees[0];
+            assert_eq!(
+                check_value_equality_denotation(&context, guarantee, &facts).unwrap(),
+                if expected {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                },
+                "{rule:?}: {payloads:?}"
+            );
         }
     }
 }

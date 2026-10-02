@@ -24,6 +24,7 @@ fn boundary_fixture() -> TerminalModule {
     let mut module = fixture();
     module.boundary_machines = vec![BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_machine_id(1),

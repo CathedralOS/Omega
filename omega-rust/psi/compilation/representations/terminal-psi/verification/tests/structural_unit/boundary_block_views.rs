@@ -133,6 +133,7 @@ fn view_module(kind: ViewKind) -> TerminalModule {
     module.structural_types = vec![view_type(kind)];
     module.boundary_machines = vec![BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),

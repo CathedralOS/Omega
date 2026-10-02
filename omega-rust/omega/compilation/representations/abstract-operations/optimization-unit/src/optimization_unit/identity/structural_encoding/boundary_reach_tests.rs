@@ -4,6 +4,7 @@ fn boundary_identity_binds_fixed_reach_and_formal_order() {
     let service = semantic_vocabulary::ServiceId::new(1).unwrap();
     let mut boundary = BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
         identity: "Installer::step".into(),

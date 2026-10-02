@@ -20,6 +20,7 @@ pub(super) fn fixture() -> AbstractOperationPlan {
         provider_candidates: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,

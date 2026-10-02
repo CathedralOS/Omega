@@ -116,6 +116,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: semantic_vocabulary::BoundaryMachineId::new(1).expect("boundary identity"),

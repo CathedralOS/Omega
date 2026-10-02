@@ -125,6 +125,7 @@ fn boundary_module() -> TerminalModule {
     let mut module = minimal_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).expect("boundary identity"),
         identity: "IndexedRequirement::apply".into(),
@@ -165,6 +166,7 @@ fn provider_module() -> TerminalModule {
     let mut module = minimal_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).expect("boundary identity"),
         identity: "IndexedRequirement::apply".into(),
@@ -234,6 +236,7 @@ fn bounded_provider_module() -> TerminalModule {
     let bounded = BoundaryMachineId::new(2).expect("boundary identity");
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: bounded,
         identity: "MachineControl::mask".into(),
@@ -833,6 +836,7 @@ fn described_module() -> TerminalModule {
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(2).expect("boundary identity"),
         identity: "Unsealed::requirement".into(),
@@ -850,6 +854,7 @@ fn described_module() -> TerminalModule {
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(3).expect("boundary identity"),
         identity: "Bound::requirement".into(),

@@ -86,6 +86,7 @@ pub(crate) fn build_boundary_machine(
         scalar_parameters,
         result,
         domain_requirements,
+        scalar_ensures: super::boundary_scalar_ensures::lower(program, facts, machine, contract),
         scalar_requires,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
@@ -346,6 +347,7 @@ pub(crate) fn build_static_boundary_requirements(
                 domain_requirements,
                 // Admission above accepted only contracts that are exact
                 // parameter qualifications, so no scalar predicate remains.
+                scalar_ensures: Vec::new(),
                 scalar_requires: Vec::new(),
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
@@ -540,6 +542,7 @@ fn build_boundary_operator(
         scalar_parameters,
         result,
         domain_requirements,
+        scalar_ensures: Vec::new(),
         scalar_requires,
         contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
         contract_commitment: capsule.target_contract_commitment(),

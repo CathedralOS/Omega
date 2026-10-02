@@ -52,6 +52,7 @@ fn boundary_loan_module(
             scalar_parameters: Vec::new(),
             structural_parameters: formals,
             result: terminal_psi::BoundaryMachineResult::Unit,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),

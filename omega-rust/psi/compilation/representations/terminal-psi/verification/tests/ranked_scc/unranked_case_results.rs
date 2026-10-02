@@ -44,6 +44,7 @@ fn fixture() -> TerminalModule {
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),

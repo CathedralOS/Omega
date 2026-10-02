@@ -101,8 +101,15 @@ structural membership stays a structural domain requirement and has no row.
 
 Selecting a provider does not remove or weaken these obligations. A checked
 candidate may be installed for the call only when its own requirements follow
-from the declaration's rows. Scalar `ensures` are not yet retained on the
-declaration, so callers cannot rely on them in Terminal verification.
+from the declaration's rows. Scalar normal-return guarantees use the same
+formal namespace, with the scalar result immediately after the inputs. A
+successful call substitutes the exact actuals and its produced result and
+imports those guarantees. Checked provider admission requires each declared
+guarantee in the provider's verified ensures roster after substitution; a
+stronger provider contract never silently strengthens the caller's assumptions.
+The declaration carries only supported scalar consequences of its authored
+contract. A sealed mathematical meaning equation may supply a weaker runtime
+predicate, but policy flags and selected provider identity supply no guarantee.
 
 A proof condition may constrain a permitted use but cannot replace a domain's
 sealed introduction or routed provenance. Qualification transfer must preserve

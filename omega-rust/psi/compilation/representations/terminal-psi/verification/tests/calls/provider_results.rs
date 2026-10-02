@@ -663,3 +663,44 @@ fn provider_crash_refinement_applies_to_structural_results() {
         }
     );
 }
+
+#[test]
+fn scalar_provider_must_supply_each_declared_normal_guarantee() {
+    let mut module = scalar_provider_module();
+    module.machines[0].blocks[0].operations.clear();
+    let formal = module.boundary_machines[0]
+        .scalar_contract_result()
+        .unwrap();
+    let TerminalMachineResult::Scalar(result) = &module.machines[1].result else {
+        panic!("scalar provider fixture");
+    };
+    let result = result.clone();
+    let guarantee = Proposition::Equal(
+        ScalarTerm::value(formal.id, formal.scalar_type),
+        ScalarTerm::boolean(true),
+    );
+    module.boundary_machines[0].scalar_ensures = vec![guarantee];
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidProviderCandidate {
+            boundary: boundary_id(1),
+            candidate: machine_id(2),
+        }
+    );
+    module.machines[1].contract.ensures = vec![Proposition::Equal(
+        ScalarTerm::value(result.id, result.scalar_type),
+        ScalarTerm::boolean(true),
+    )];
+    validate_module(&module).expect("exact provider result guarantee rejoined by position");
+    module.boundary_machines[0].scalar_ensures[0] = Proposition::Equal(
+        ScalarTerm::value(formal.id, formal.scalar_type),
+        ScalarTerm::boolean(false),
+    );
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidProviderCandidate {
+            boundary: boundary_id(1),
+            candidate: machine_id(2),
+        }
+    );
+}

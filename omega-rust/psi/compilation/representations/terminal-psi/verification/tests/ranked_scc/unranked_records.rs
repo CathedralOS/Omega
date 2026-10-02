@@ -207,6 +207,7 @@ fn cyclic_boundary_call_reborrows_a_produced_home_without_transferring_it() {
             }],
             result: terminal_psi::BoundaryMachineResult::Unit,
             requires: Vec::new(),
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),

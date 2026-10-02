@@ -75,6 +75,9 @@ pub struct CheckedBoundaryMachinePlan {
     /// scalar parameter ranges. `Parameter` positions index
     /// `scalar_parameters`. Callers owe one obligation per lowered row.
     pub scalar_requires: Vec<crate::ClosedScalarContractValue>,
+    /// Retained normal-return scalar guarantees. The result follows all inputs
+    /// in the same dense scalar namespace.
+    pub scalar_ensures: Vec<crate::ClosedScalarContractValue>,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,

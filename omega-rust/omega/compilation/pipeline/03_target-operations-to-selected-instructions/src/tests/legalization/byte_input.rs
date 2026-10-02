@@ -57,6 +57,7 @@ pub(crate) fn fixture(
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,

@@ -53,11 +53,13 @@ pub(super) fn lower_declarations(
             .collect::<Result<Vec<_>, _>>()?;
         let requires = lower_requirements(plan, &parameters, domain_ids)?;
         let scalar_requires = lower_scalar_requires(plan, &scalar_parameters)?;
+        let scalar_ensures = lower_scalar_ensures(plan, &scalar_parameters)?;
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
         declarations.push(BoundaryMachineDeclaration {
             kind: plan.kind,
             scalar_requires,
+            scalar_ensures,
             parameter_order: lower_boundary_parameter_order(
                 &plan.scalar_parameters,
                 &plan.structural_parameters,
@@ -151,7 +153,25 @@ fn lower_scalar_requires(
     plan: &CheckedBoundaryMachinePlan,
     scalar_types: &[ScalarType],
 ) -> Result<Vec<Proposition>, LoweringError> {
-    if plan.scalar_requires.is_empty() {
+    lower_scalar_contract(&plan.scalar_requires, scalar_types)
+}
+
+fn lower_scalar_ensures(
+    plan: &CheckedBoundaryMachinePlan,
+    scalar_types: &[ScalarType],
+) -> Result<Vec<Proposition>, LoweringError> {
+    let mut namespace = scalar_types.to_vec();
+    if let Some(result) = plan.result.scalar() {
+        namespace.push(terminal_scalar_type(result)?);
+    }
+    lower_scalar_contract(&plan.scalar_ensures, &namespace)
+}
+
+fn lower_scalar_contract(
+    clauses: &[checked_trees::ClosedScalarContractValue],
+    scalar_types: &[ScalarType],
+) -> Result<Vec<Proposition>, LoweringError> {
+    if clauses.is_empty() {
         return Ok(Vec::new());
     }
     let formals = scalar_types
@@ -165,8 +185,7 @@ fn lower_scalar_requires(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut pending = plan
-        .scalar_requires
+    let mut pending = clauses
         .iter()
         .map(|row| {
             crate::scalar_graph::scalar_contracts::clauses(

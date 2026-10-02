@@ -8,6 +8,7 @@
 //! locals.
 
 mod boundary_machine;
+mod boundary_scalar_ensures;
 mod call_occurrences;
 mod call_results;
 pub(crate) mod case_observation_alias;

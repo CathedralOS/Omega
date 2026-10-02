@@ -33,6 +33,7 @@ fn fixture() -> (
         structural_types: Vec::new().into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             kind: terminal_psi::BoundaryRequirementKind::Trait,
+            scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,

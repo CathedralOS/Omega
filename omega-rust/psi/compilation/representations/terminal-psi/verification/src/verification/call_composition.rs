@@ -537,6 +537,26 @@ pub(super) fn compose_call_operation(
                 storage,
                 capture_snapshots,
             );
+            if !boundary.scalar_ensures.is_empty() {
+                let mut substitutions = boundary
+                    .scalar_contract_parameters()
+                    .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?
+                    .iter()
+                    .zip(arguments)
+                    .map(|(formal, actual)| (formal.id, value_term(*actual, value_types)))
+                    .collect::<BTreeMap<_, _>>();
+                if let Some(formal) = boundary.scalar_contract_result()
+                    && let Some(result) = operation.result.scalar_ref()
+                {
+                    substitutions.insert(formal.id, value_term(result.id, value_types));
+                }
+                axioms.extend(
+                    boundary
+                        .scalar_ensures
+                        .iter()
+                        .map(|row| substitute_proposition_values(row, &substitutions)),
+                );
+            }
         }
         _ => {
             return Err(ModuleError::OperationSemanticSchema(

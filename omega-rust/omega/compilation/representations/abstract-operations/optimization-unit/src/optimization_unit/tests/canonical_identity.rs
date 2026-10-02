@@ -108,6 +108,7 @@ fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceil
     let service = id(1, ServiceId::new);
     unit.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Trait,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         id: id(1, BoundaryMachineId::new),
         identity: "Installer::step".into(),
@@ -1231,6 +1232,7 @@ fn canonical_identity_binds_every_retained_field_class() {
     let mut unit = baseline.clone();
     unit.boundary_machines.push(BoundaryMachineDeclaration {
         kind: terminal_psi::BoundaryRequirementKind::Machine,
+        scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary,

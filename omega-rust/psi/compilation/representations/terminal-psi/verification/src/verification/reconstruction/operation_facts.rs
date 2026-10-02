@@ -688,8 +688,9 @@ pub(super) fn append_operation(
                     policy.raw_result(),
                 )?);
             }
-            // Saturation preserves NaNs and propagated infinity. It cannot
-            // establish an unconditional finite-result fact or raw equality.
+            axioms.extend(
+                crate::validation::float_result_policy::saturating_return_facts(operation, policy)?,
+            );
             Ok(())
         }
         OperationKind::TrappingInteger { .. } => {
