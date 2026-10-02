@@ -324,7 +324,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/accesses.rs",
-        sha256: Some("d4e67ca216873d57b3774376978ce51f5728b4f3bc4913e90bd9a489ee41019c"),
+        sha256: Some("74c72a540d4d0e6e980c750e64385e56624e37b4c699a9114317de89c7f9dc09"),
         inventory_machinery: false,
     },
     ImplementationSite {

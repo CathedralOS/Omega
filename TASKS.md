@@ -2018,18 +2018,24 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Borrowed views are another field producer, not owned array storage.
   `computations/slice_view.rs` constructs field-site views, and a generated
   codec machine's `&Sample` parameter keeps the entry's place through its
-  states (`state_graph/entry_aliases.rs`). On macOS ARM64 at `0f045d449cd` with that
-  aliasing, none of the three wire programs runs yet:
-  `wire/runtime_wire_encode_byte_slice_exit` stops in trusted Terminal
-  verification (`argument_checks.rs`, `UnknownStructuralArgument`), which
-  admits an `EstablishRecord` result as a call argument only as the owned
-  argument of a reference-result call, not as a shared loan of a constructed
-  record whose member is a borrowed view; that needs a verifier rule with the
-  member's stored-loan origin. `wire/runtime_wire_encode_borrowed_scalar_slice_exit`
-  stops in stage 05 at "borrowed slice view path does not match its projected
-  path", and `wire/runtime_wire_decode_byte_slice_exit` at stage 04
+  states (`state_graph/entry_aliases.rs`). On macOS ARM64 at `d5edf66da5`
+  plus the byte-loan access repair, `python3 tools/corpus_gate.py --both
+  --filter wire/runtime_wire_encode_byte_slice_exit` executes the unchanged
+  program with native/interpreter exit 70: exactly `[0, 0, 2, 72, 105]` and
+  written count 5. Terminal's `frontier/descriptor_loans/accesses.rs`
+  distinguishes unrestricted by-value copies from exclusive backing access and
+  retains fixed byte-range geometry under the original field. Aggregate capture
+  still extends the backing loan; overlapping writes and owner consumption
+  reject. The public `omega run --both` command reaches pending ordinary package
+  review (exit 200), not native execution; see the fixture README.
+  `wire/runtime_wire_encode_borrowed_scalar_slice_exit`
+  still executes incorrectly: native 71 versus interpreter 70, reproduced
+  with unchanged `d5edf66da5` compiler sources. Preserve the authored range and
+  the single packed-byte-length prefix; its retained repair also needs record
+  field descriptor-demand discovery in native selection.
+  `wire/runtime_wire_decode_byte_slice_exit` stops at stage 04
   `structural field store: borrowed view field: declared domains`.
-  **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals. These three wire
+  **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals. Those two wire
   programs remain required native runs, not successes merely because their
   rejection matches an old golden.
 
@@ -3997,11 +4003,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     `values/scalar/computations/structural_values.rs::view_element_copy` admits
     plain scalar fields and fields under exactly one arithmetic policy; a
     ranged, erased or structural field still declines.
-  - Preserve byte-field backing loans in
-    `wire/runtime_wire_encode_byte_slice_exit`: `4202376a2d` reaches Terminal
-    validation and rejects `BorrowedDescriptorLoanDisturbed` at operation 6,
-    place 7, while the checked interpreter exits 70. Preserve the fixture's
-    five exact bytes and count, not merely its descriptor shape.
   - Verify consuming mutable-view forwarding on the Unit-graph route with exact
     reborrow places available at successors. Reuse `tests/unit_state_graph/bindings.rs`
     for byte-view controls.

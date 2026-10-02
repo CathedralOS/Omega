@@ -230,3 +230,156 @@ fn descriptor_call_effects_keep_recursive_or_missing_callees_conservative() {
         assert!(effects[0].projection.path.is_empty());
     }
 }
+
+#[test]
+fn captured_byte_window_allows_descriptor_copy_but_pins_original_backing() {
+    use super::super::DescriptorLoans;
+    use terminal_psi::{
+        ByteSequenceCarrier, RecordFieldInitializer, RecordFieldValue, StructuralOperationResult,
+    };
+
+    let root = PlaceId::new(1).unwrap();
+    let descriptor = PlaceId::new(2).unwrap();
+    let record = PlaceId::new(3).unwrap();
+    let byte_type = StructuralTypeId::new(4).unwrap();
+    let array_type = StructuralTypeId::new(2).unwrap();
+    let view_type = StructuralTypeId::new(3).unwrap();
+    let record_type = StructuralTypeId::new(5).unwrap();
+    let carrier = ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    let mut module = module(machine(1, Vec::new()));
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    for field in fields {
+        field.field_type = StructuralFieldType::Structural(array_type);
+    }
+    module.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: array_type,
+            identity: "Bytes".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: byte_type,
+                length: 4,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: view_type,
+            identity: "ByteView".into(),
+            shape: StructuralTypeShape::ByteSequence(carrier),
+        },
+        StructuralTypeDeclaration {
+            id: byte_type,
+            identity: "Byte".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            )),
+        },
+        StructuralTypeDeclaration {
+            id: record_type,
+            identity: "Sample".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(3).unwrap(),
+                    identity: "bytes".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(carrier),
+                }],
+            },
+        },
+    ]);
+    let result = |place, structural_type, multiplicity| {
+        OperationResult::Structural(StructuralOperationResult {
+            place,
+            structural_type,
+            multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        })
+    };
+    let mut establish = operation(OperationKind::EstablishElementView {
+        destination: descriptor,
+        source: StructuralArgument {
+            place: root,
+            path: vec![
+                StructuralPathSegment::Field("left".into()),
+                StructuralPathSegment::FixedByteRange { start: 1, end: 3 },
+            ],
+            access: StructuralAccess::SharedBorrow,
+        },
+        element: byte_type,
+    });
+    establish.result = result(descriptor, view_type, StructuralMultiplicity::Unrestricted);
+    let mut capture = operation(OperationKind::EstablishRecord {
+        fields: vec![RecordFieldInitializer {
+            field: StructuralFieldId::new(3).unwrap(),
+            value: RecordFieldValue::Structural(StructuralArgument {
+                place: descriptor,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }),
+        }],
+    });
+    capture.id = OperationId::new(2).unwrap();
+    capture.result = result(record, record_type, StructuralMultiplicity::Affine);
+    let mut write = operation(OperationKind::WriteOnlyPrimitiveStore {
+        destination: root,
+        path: vec![
+            StructuralPathSegment::Field("right".into()),
+            StructuralPathSegment::FixedIndex(1),
+        ],
+        value: ValueId::new(1).unwrap(),
+    });
+    write.id = OperationId::new(3).unwrap();
+    let mut observe = call(99, Vec::new());
+    observe.id = OperationId::new(4).unwrap();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut observe.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].place = record;
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    let caller = &mut module.machines[0];
+    for producer in [&establish, &capture] {
+        let result = producer.result.structural().unwrap();
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: result.place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: producer.id,
+                structural_type: result.structural_type,
+            },
+        });
+    }
+    caller.blocks[0].operations = vec![establish, capture, write, observe];
+    let caller = &module.machines[0];
+    // This test isolates current-operation access and cohort reconstruction.
+    // The corpus encoder supplies full declaration, proof and native replay.
+    let loans = DescriptorLoans::new(&module, caller);
+    let capture = &caller.blocks[0].operations[1];
+    let write = &caller.blocks[0].operations[2];
+    assert_eq!(loans.disturbed(&module, caller, capture, &[]), None);
+    assert_eq!(loans.disturbed(&module, caller, write, &[]), None);
+    let mut overlapping = write.clone();
+    let OperationKind::WriteOnlyPrimitiveStore { path, .. } = &mut overlapping.kind else {
+        unreachable!()
+    };
+    path[0] = StructuralPathSegment::Field("left".into());
+    assert_eq!(
+        loans.disturbed(&module, caller, &overlapping, &[]),
+        Some(root)
+    );
+    assert_eq!(
+        loans.disturbed(&module, caller, capture, &[root]),
+        Some(root)
+    );
+}
