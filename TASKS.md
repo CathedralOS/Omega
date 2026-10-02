@@ -1951,95 +1951,40 @@ crash and native exit behavior. Use affected check/native corpus slices under
   re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
   and interpreter/native legs; leaving an omission cluster is not execution.
 
-- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) Carry float invariants and
-  constrained const applications through attached/nested data execution.
-  First migrate the customers under **CANONICALIZE-SCALAR-RANGE-CONTRACTS**:
-  [domains](wiki/spec/language/domains.md) require ordinary field `where`
-  facts and contracts, not scalar range suffixes or replacement nominal domains.
-  `terminal_unit/types/scalar_fields.rs` retains bounded integers but refuses
-  float bounds; `data_where_field_intervals` in
-  `proof_contracts/default_domains/where_fact_intervals.rs` reads integer
-  literals only. Preserve IEEE storage and float facts without treating them
-  as integer bounds. Separately, `terminal_unit/types/mod.rs` requires an exact
-  attached generic application; the old shared phase label does not establish
-  that float predicates and const constraints need the same repair.
-  Migrate `tests/omega/pass/generics/ranged_const_parameter_attached_shape`,
-  then exercise its currently unused fields. Keep bare integer/float, integer
-  `where`, `Finite`, unconstrained const, and plain/`Wrapping` element controls.
-  Required customers under `tests/omega/pass/`:
+- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) Carry IEEE value facts through
+  machine signatures, results, locals, and exclusive state loops. Follow
+  [domains](wiki/spec/language/domains.md) and
+  [numeric values](wiki/spec/language/numeric_values.md): `Finite` excludes
+  NaN and both infinities without changing IEEE storage or arithmetic policy.
+  Ordinary interval relationships use `where`, `requires`, and `ensures`.
 
-  - `float/finite_core_domain_range_discharge`: restore finite/range facts
-    before the transition, pass the value to a `Finite` parameter, exit **77**.
-    Its transient NaN and out-of-range assignments exercise the
-    [invariant window](wiki/spec/language/numeric_values.md), not permission
-    to expose invalid values at a boundary.
-  - `recast/{runtime_float_range_representation_recast_exit,
-    runtime_shared_record_float_range_weakening_exit,
-    runtime_mutable_equivalent_record_recast_exit}`: exit **70**, preserving
-    shared weakening and bit views, equivalent mutable representation sets,
-    and original-storage reads after the exclusive loan's last use. Follow
-    [recast compatibility](wiki/spec/layouts/recasts.md); equal sizes alone
-    cannot admit strengthening or mutable widening.
-  - `generics/runtime_const_container_methods_exit`: distinct capacities
-    **2/4**, generic method witnesses of those lengths, stored values **30/40**,
-    exit **70**. Retain exact specialization identity/layout and reject const
-    tuples violating their declared constraints.
+  Current frontier (macOS ARM64, 2026-10-01): a machine
+  `retain(value: f32 in Finite) -> f32 in Finite` returning `value`, called
+  with `0.5` into a `f32 in Finite` local, fails Terminal production with
+  `scalar qualification requires non-vacuous or unsupported evidence`.
+  `expression_preparation/qualifications.rs` admits the core predicate only
+  where a state-arrival row carries it. Carry the required entry, result,
+  and local facts through their real proof owners and independent replay;
+  do not erase the predicate to make catalog construction succeed.
+  Separately, machines with unranked state loops drop exclusive declaration
+  rows because current cycle requirements cannot observe a mutable loan;
+  their acyclic callers therefore restore no such rows. State-arrival
+  facts over those loans remain unfinished. Coordinate signature and result
+  consumers with **STATIC-MACHINE-MIGRATION**, and state-edge consumers with
+  **COMPOSITE-TRANSITION-ARGUMENT**.
 
-  Acceptance: canonical source checks, published Terminal reloads/verifies,
-  and all five customers execute with those oracles. A migrated unused field
-  or disappearance of the old phase label alone does not close this task.
-
-  Current frontier (macOS ARM64, 2026-09-30): the declaration predicate
-  roster (`machine_calls/structural_call_custody/declaration_predicates.rs`)
-  carries `where` facts into Terminal. Every machine whose entry parameters
-  reach a data declaration requires its rows at entry, and an exclusive borrow
-  also restores them at normal return; stage 05 rederives the roster to replay
-  the requirement tail and publish the restored guarantees. A relational,
-  Boolean or IEEE fact is one row as spelled; a collection predicate
-  contributes each element's checked interval through static element leaves.
-  The store gate (`structural_scalar_store/destination.rs`) admits a
-  declaration only when its rows imply every fact. An internal state's
-  `Finite` IEEE parameter carries its domain as a scalar block invariant
-  `-largest <= value <= largest` that every arrival proves. `game_of_life`,
-  `pass/float/finite_core_domain_range_discharge` (exit **77**, native and
-  interpreted) and
-  `pass/dependent/{collection_predicate_terminal_rows_exit,data_where_relational_callee_restored_exit,data_where_invariant_window_restored_exit}`
-  run natively. A machine whose named states loop drops its exclusive rows,
-  because Terminal's unranked cycles admit no requirement observing a `&mut`
-  loan, and an acyclic caller of such a machine keeps its entry rows but
-  restores none; state-arrival rows over the loop are the missing consumer
-  that would carry the facts through it. A machine entry parameter, result or
-  local in `Finite` still refuses in the scalar qualification catalog: only
-  arrivals carry it. The former pending `float/float_range_attached_field`
-  is migrated to `pass/float/data_where_float_field_restored_exit`: its
-  field's data `where` row crosses a callee's invariant window and the
-  program exits 70 natively. The two record recast customers
-  (`runtime_shared_record_float_range_weakening_exit`,
-  `runtime_mutable_equivalent_record_recast_exit`) now bound their fields with
-  data `where` facts in static form and check: interval-only `where` bounds
-  narrow recast leaves (`checking/src/value_custody/recasts/record_representation.rs`).
-  Both run natively (exit **70**, interpreter agrees): stage 05 reads a view
-  field as the source leaf at the same offset
-  (`scalar_computations/fields.rs`), a mutable view's field store rejoins
-  that leaf in stage 04 (`structural_scalar_store/destination.rs`), and an
-  equal-width integer leaf of the other sign takes the modular image. The scalar customer
-  `runtime_float_range_representation_recast_exit` still spells
-  `f32 [0..=1]`: its `&u32` view of an `f32` needs a Terminal bit re-view,
-  which Terminal does not have. `generics/ranged_const_parameter_attached_shape`
-  also still spells bracketed float ranges. Coordinate the
-  state-arrival consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,
-  guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`.
-
-  The const-container customer is now a native control (macOS ARM64,
-  2026-09-30): `omega run --both
-  tests/omega/pass/generics/runtime_const_container_methods_exit/main.omg`
-  exits **70** in both engines with source unchanged. Target lowering,
-  descriptor construction and independent replay derive geometry from the
-  declared view: bounded byte views carry one pointer cell, dynamic views
-  also carry their extent. Exact capacities **2/4**, generic witnesses and
-  values **30/40** survive execution; corrupted extent and pointer-cell
-  layout reject in four-host ABI replay tests. The float and recast customers
-  above remain this item's unfinished work.
+  Acceptance: published Terminal reloads/verifies and the finite signature
+  program executes with exit **77**; invalid non-finite arguments/results
+  reject, and a restored exclusive field invariant survives a state loop and
+  normal return. Retain the existing controls, all executing in both engines:
+  `float/finite_core_domain_range_discharge` (**77**), the three
+  `recast/runtime_float_range_representation_recast_exit`,
+  `recast/runtime_shared_record_float_range_weakening_exit`, and
+  `recast/runtime_mutable_equivalent_record_recast_exit` customers (**70**), and `generics/runtime_const_container_methods_exit`
+  (**70**). The canonical `generics/ranged_const_parameter_attached_shape`
+  now exercises distinct capacities **2/64**, writes **30/40**, checks adjacent
+  zero-initialized fields, and exits **70**; `const_container_zero_extent`
+  rejects its false const fact. These are controls, not remaining repairs.
 
 - **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the composite internal
   state arguments that selected-edge establishment does not reach. Record and

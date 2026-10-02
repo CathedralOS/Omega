@@ -629,7 +629,7 @@ pass/generics/nominal_machine_parameter_satisfaction_compile checked 156ms
 pass/generics/omitted_data_binder_range_equation checked 224ms
 pass/generics/open_computed_quantity_result rejected 762ms @48008365d839
 	terminal-artifact production failed: Lowering(Unsupported("scalar qualification changed its normalized result carrier"))
-pass/generics/ranged_const_parameter_attached_shape built 1488ms exit:0 @bed5f45e9185+wt
+pass/generics/ranged_const_parameter_attached_shape built 1152ms exit:70 @e8ed051cf626+wt
 pass/generics/runtime_const_container_methods_exit built 1455ms exit:70 @48008365d839
 pass/generics/runtime_const_data_array_length_exit built 583ms exit:70
 pass/generics/runtime_const_data_machine_call_exit built 809ms exit:70
