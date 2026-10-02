@@ -26,13 +26,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
-    self.trial.n = 169;
-    self.trial.d = 2;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
+    main.trial.n = 169;
+    main.trial.d = 2;
 
     transition {
-        _ -> probe(&mut self)
+        _ -> probe(main)
     }
 
     // Re-assert d's bounds on the edge into the square test: d starts at 2 and

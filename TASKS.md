@@ -262,7 +262,7 @@ execution and native exit/output. A moved refusal is still unfinished work.
   runs with both engines at exit 70. Do not reopen those resolved mechanisms
   from the earlier receiver-versus-static measurements.
   Remaining measured customers, not yet rerun after those repairs:
-  `samples/cli/{arithmetic/smallest_prime_factor,games/dice_histogram,
+  `samples/cli/{games/dice_histogram,
   rendering/bouncing_ball_2d,rendering/mandelbrot,rendering/mandelbrot_zoom,
   text/caesar_cipher,algorithms/maze_flood,arithmetic/prime_sieve,simulation/calendar}`.
   Their earlier static-entry attempts reached unavailable operation proofs or
