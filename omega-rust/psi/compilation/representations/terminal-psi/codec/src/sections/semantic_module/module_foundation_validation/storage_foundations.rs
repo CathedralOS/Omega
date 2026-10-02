@@ -174,9 +174,84 @@ pub(super) fn validate_release_reference(
     Ok(())
 }
 
-/// Canonical shape only: a Unit store of a shared borrowed-view field below an
-/// exclusive parameter or a mutable-record Referent crossing, sourced from a
-/// declared literal place. Lifetime authority, the literal's single
+/// Canonical storage shape shared by scalar and descriptor field replacement.
+/// Exact result/place linkage is checked by foundation validation; current
+/// authority and selector bounds are independently replayed by the verifier.
+fn field_store_parent(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Result<semantic_vocabulary::StructuralTypeId, CodecError> {
+    let reference = reference_store_carrier(module, machine, destination, path);
+    let destination_type = if let Some((referent, _)) = reference {
+        referent
+    } else if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == destination)
+    {
+        if !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return malformed("structural field store has invalid destination custody");
+        }
+        parameter.structural_type
+    } else {
+        let Some(result) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|producer| producer.result.structural())
+            .find(|result| result.place == destination)
+        else {
+            return malformed("structural field store destination has no record home");
+        };
+        if !matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+        {
+            return malformed("structural field store has invalid local custody");
+        }
+        // Foundation validation also checks the exact producer/place binding;
+        // ordered availability and whole affine liveness belong to verification.
+        result.structural_type
+    };
+    let carrier_path = reference.map_or(path, |(_, suffix)| suffix);
+    if !terminal_psi::is_structural_scalar_store_path(carrier_path)
+        || machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == destination)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == destination)
+    {
+        return malformed("structural field store has invalid destination custody");
+    }
+    validate_structural_path(module, destination_type, carrier_path)
+}
+
+/// Canonical shape only: a Unit store of a shared borrowed-view field below a
+/// current declared storage carrier, sourced from a declared literal place. Lifetime authority, the literal's single
 /// establishment and predicate implication remain verifier judgments.
 pub(super) fn validate_structural_byte_view_field_store(
     module: &TerminalModule,
@@ -195,30 +270,7 @@ pub(super) fn validate_structural_byte_view_field_store(
     if operation.result != OperationResult::Unit || destination == source {
         return malformed("byte view field store requires Unit and a distinct source");
     }
-    let (destination_type, carrier_path) =
-        if let Some(reference) = reference_store_carrier(module, machine, *destination, path) {
-            reference
-        } else {
-            let Some(parameter) = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *destination)
-            else {
-                return malformed("byte view field store destination is not a parameter");
-            };
-            if !matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) {
-                return malformed("byte view field store has invalid destination custody");
-            }
-            (parameter.structural_type, path.as_slice())
-        };
-    if !is_bounded_structural_scalar_store_path(carrier_path) {
-        return malformed("byte view field store has an invalid carrier path");
-    }
-    let parent_type = validate_structural_path(module, destination_type, carrier_path)?;
+    let parent_type = field_store_parent(module, machine, *destination, path)?;
     let view_field = module
         .structural_types
         .iter()
@@ -976,85 +1028,7 @@ pub(super) fn validate_structural_scalar_field_store(
     if operation.result != OperationResult::Unit {
         return malformed("structural scalar field store declares a non-Unit result");
     }
-    let reference = reference_store_carrier(module, machine, *destination, path);
-    let destination_type = if let Some((referent, _)) = reference {
-        referent
-    } else if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == *destination)
-    {
-        if !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::Owned
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return malformed("structural scalar field store has invalid destination custody");
-        }
-        parameter.structural_type
-    } else {
-        let Some(result) = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .filter(|producer| {
-                matches!(
-                    producer.kind,
-                    OperationKind::EstablishRecord { .. }
-                        | OperationKind::EstablishZeroedStructural { .. }
-                        | OperationKind::CallStructural { .. }
-                        | OperationKind::CallStructuralWithScalarArguments { .. }
-                        // A view local is a loan descriptor, not a record
-                        // home, but it is the exact authored carrier an
-                        // indexed field store writes through.
-                        | OperationKind::EstablishElementView { .. }
-                        | OperationKind::EstablishMutableElementView { .. }
-                )
-            })
-            .filter_map(|producer| producer.result.structural())
-            .find(|result| result.place == *destination)
-        else {
-            return malformed("structural scalar field store destination has no record home");
-        };
-        if !matches!(
-            result.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-        {
-            return malformed("structural scalar field store has invalid local custody");
-        }
-        // Foundation validation also checks the exact producer/place binding;
-        // ordered availability and whole affine liveness belong to verification.
-        result.structural_type
-    };
-    let carrier_path = reference.map_or(path.as_slice(), |(_, suffix)| suffix);
-    if !terminal_psi::is_structural_scalar_store_path(carrier_path)
-        || machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == *destination)
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == *destination)
-    {
-        return malformed("structural scalar field store has invalid destination custody");
-    }
-    let parent_type = validate_structural_path(module, destination_type, carrier_path)?;
+    let parent_type = field_store_parent(module, machine, *destination, path)?;
     let Some(expected) = module
         .structural_types
         .iter()
