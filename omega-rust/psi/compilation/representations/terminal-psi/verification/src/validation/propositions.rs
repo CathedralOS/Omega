@@ -18,6 +18,7 @@ pub(crate) fn proposition_observes_places(proposition: &Proposition, places: &[P
 /// current; only observations that cover or enter the written path expire.
 /// Observations without an exact canonical path (content projections keep
 /// name-spelled segments) still forget the complete root.
+#[cfg(test)]
 pub(crate) fn proposition_observes_write(
     proposition: &Proposition,
     root: PlaceId,
@@ -163,7 +164,7 @@ pub(crate) fn proposition_observes_unversioned_places(
         .any(|root| places.contains(&root))
 }
 
-pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
+pub(crate) fn proposition_contains_content(proposition: &Proposition) -> bool {
     match proposition {
         Proposition::ContentConservation(_) => true,
         Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
