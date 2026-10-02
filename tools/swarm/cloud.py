@@ -149,8 +149,6 @@ def admit(record, manifest, snapshot):
                         require(any(d["producer"] == first["id"] and d["consumer"] == second["id"]
                                     and any(claims.paths_overlap(write, p) and claims.paths_overlap(read, p)
                                             for p in d["paths"]) for d in dependencies), "undeclared producer/consumer dependency")
-    if size == 2:
-        require(any(d["kind"] == "digest" for d in dependencies), "canary requires coordinated shared-digest dependency")
     require(all(batch_complete(record, batch) for batch in cloud["batches"]),
             "unfinished batch remains; do not overlap staged batches")
     cloud["batches"][manifest["id"]] = dict(manifest=copy.deepcopy(manifest), admitted_utc=now(), claims=snapshot)

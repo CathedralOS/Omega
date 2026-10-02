@@ -369,14 +369,23 @@ logs, incomplete cleanup or historical-only evidence fail.
 ## Staged trial gates
 
 The parent selects and reproduces two **currently red real programs**, with
-different authored outcomes and disjoint implementation/test ownership. For the
-canary, A owns a trusted implementation site; B owns its own disjoint program
-site plus the shared digest/golden file as designated integration owner. B reads
-A's site, declares the digest edge A → B, and waits for A's exact verified
-candidate and bilateral handoff before implementation continuation; both may run bounded preflight turns first. B independently
-revalidates the producer/consumer closure and records the digest. If a live peer
-owns the digest, canary waits for explicit peer coordination. Already-green
-smoke fixtures are preflight evidence, not these two advances.
+distinct real outcomes and disjoint, eligible implementation/test ownership.
+Review the complete producer/consumer closure, including required digest and
+golden updates, before admission. Independent assignments declare
+`"dependencies":[]`; admission does not require a shared-file change or a
+fabricated handoff. Already-green smoke fixtures are preflight evidence, not
+these two advances.
+
+When a real dependency requires coordination, declare its exact producer,
+consumer, paths and verification. For example, if A changes a trusted site and
+B is its designated digest integration owner, B reads A's site and declares
+the actual digest edge A → B. B waits for A's exact verified candidate and
+bilateral handoff before implementation continuation, independently revalidates
+the citing entries and records the digest; both may run bounded preflight
+turns first. A live peer's digest ownership still blocks that scope. Select
+independent eligible work when available rather than inventing a digest change
+solely to test the controller. Deterministic dependency tests exercise handoff
+and overlap rejection without requiring a shared dependency in every live batch.
 
 Bound manifests to exactly 2, then exactly 5, then exactly 10 assignments.
 Admit 5 only with `previous` naming an accepted 2-session batch; admit 10 only
