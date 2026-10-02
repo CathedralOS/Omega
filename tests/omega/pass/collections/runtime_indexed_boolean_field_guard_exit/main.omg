@@ -1,0 +1,73 @@
+// A Boolean field of a RUNTIME-selected record element drives a transition
+// guard, and a second Boolean field of the same element is kept in a local
+// and carried to a successor: `main.cells[k].ready` and
+// `main.cells[k].armed`, where `k` is the scanning state's own scalar
+// parameter, advanced by one per loop step. Each read is one Terminal
+// `PrimitiveScalarRead` whose path is `cells`, `RuntimeIndex`, then the
+// field; the verifier bounds `k` against the array's declared extent and
+// Omega loads the byte at the field's declared offset plus `k` times the
+// element stride.
+//
+//   element   ready  armed
+//   cells[0]  false  true
+//   cells[1]  true   true
+//   cells[2]  true   false   <- first ready, unarmed element
+//   cells[3]  true   false
+//
+// The scan stops at the first element that is ready and unarmed. Reading a
+// wrong element, the wrong field or the wrong stride stops elsewhere (exit
+// 71) or nowhere (exit 72). Stopping at element 2 -> exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    hp: i32;
+    ready: bool;
+    armed: bool;
+}
+
+data Main {
+    console: Binding<Console>;
+    cells: [Cell; 4];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[0].armed = true;
+    main.cells[1].ready = true;
+    main.cells[1].armed = true;
+    main.cells[2].hp = 2;
+    main.cells[2].ready = true;
+    main.cells[3].ready = true;
+    transition { _ -> inspect(main, 0) }
+
+    state inspect(main: &mut Main, k: u64) requires k <= 3 {
+        let armed: bool = main.cells[k].armed;
+        transition main.cells[k].ready {
+            true -> confirm(main, k, armed)
+            false -> advance(main, k)
+        }
+    }
+
+    state confirm(main: &mut Main, k: u64, armed: bool) requires k <= 3 {
+        transition armed {
+            true -> advance(main, k)
+            false -> found(main, k)
+        }
+    }
+
+    state advance(main: &mut Main, k: u64) requires k <= 3 {
+        transition k < 3 {
+            true -> inspect(main, k + 1)
+            false -> finish(main, 72)
+        }
+    }
+
+    state found(main: &mut Main, k: u64) {
+        transition k == 2 {
+            true -> finish(main, 70)
+            false -> finish(main, 71)
+        }
+    }
+
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

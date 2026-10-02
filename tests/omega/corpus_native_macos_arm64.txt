@@ -282,6 +282,7 @@ pass/collections/record_array_field_access_exit rejected 660ms @765e6c51624f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`result_code`), which was itself omitted at local construction at `scalar field store sequence: write frame agreement`
 pass/collections/record_array_literal_field_store_exit built 1286ms exit:25 @48008365d839
 pass/collections/runtime_argmax_index_exit built 750ms exit:70
+pass/collections/runtime_borrowed_element_float_guard_exit built 4519ms exit:70 @bea382792161+wt
 pass/collections/runtime_borrowed_fixed_array_state_reads_exit built 1010ms exit:70 @e94b9f79576e+wt
 pass/collections/runtime_case_array_element_write_exit built 3798ms exit:36 @fb2178def922
 pass/collections/runtime_computed_index_direct_exit built 953ms exit:1
@@ -292,7 +293,10 @@ pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178d
 pass/collections/runtime_fixed_vec_round_trip_exit built 1644ms exit:70 @a5f40f5895bf+wt
 pass/collections/runtime_frame_indexed_param_read_exit built 2209ms exit:1 @fb2178def922
 pass/collections/runtime_hoisted_index_write_exit built 729ms exit:7
+pass/collections/runtime_indexed_boolean_field_guard_exit built 1484ms exit:70 @bea382792161+wt
 pass/collections/runtime_indexed_bounded_element_read_exit built 1486ms exit:70 @48008365d839
+pass/collections/runtime_indexed_bounded_field_local_exit built 1440ms exit:70 @bea382792161+wt
+pass/collections/runtime_indexed_float_field_compare_exit built 5327ms exit:70 @bea382792161+wt
 pass/collections/runtime_indexed_record_field_read_exit built 1668ms exit:70 @48008365d839
 pass/collections/runtime_indexed_struct_field_rmw_exit built 2368ms exit:1 @fb2178def922
 pass/collections/runtime_indexed_successor_argument_exit built 1723ms exit:70 @48008365d839

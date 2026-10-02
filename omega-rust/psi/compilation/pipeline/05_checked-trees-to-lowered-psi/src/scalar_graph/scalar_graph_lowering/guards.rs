@@ -52,7 +52,15 @@ pub(crate) fn lower(
     )
 }
 
-fn is_computed(checked: &CheckedTrees, state: symbols::SymbolHandle, statement: u32) -> bool {
+/// Whether the guard at `statement` replays a checked computation root (a
+/// selected IEEE or boundary comparison) rather than a pure expression. A
+/// computed guard has no pure guard expression to inspect; `evaluate` binds
+/// its Boolean result as an appended parameter instead.
+pub(crate) fn is_computed(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+) -> bool {
     checked
         .facts
         .values

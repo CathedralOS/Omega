@@ -127,8 +127,8 @@ impl Evaluation {
     /// the payload fields as block parameters and the arm continues from
     /// parameters only, so the payload reads never replay outside the case's
     /// dominance. Arms outside this shape — nested-path memberships,
-    /// computation-rooted returns, non-scalar payload reads — keep the
-    /// ordinary guarded-exit lowering.
+    /// computed guards, computation-rooted returns, non-scalar payload
+    /// reads — keep the ordinary guarded-exit lowering.
     #[allow(clippy::too_many_arguments)]
     fn payload_case_dispatch(
         &self,
@@ -163,6 +163,18 @@ impl Evaluation {
                     && root.role == role
             })
         {
+            return Ok(None);
+        }
+        // A computed guard (a selected IEEE comparison such as
+        // `cells[k].reading == 18.5`, or a membership of a runtime-selected
+        // element) has no pure guard expression, so it is not the whole-root
+        // membership this dispatch binds; the ordinary guard evaluation
+        // replays its computation instead.
+        if crate::scalar_graph::scalar_graph_lowering::guards::is_computed(
+            checked,
+            state,
+            guard_statement_ordinal,
+        ) {
             return Ok(None);
         }
         let LoweredDirectExpression::Boolean { expression: guard } = bindings.expression_at(
@@ -551,6 +563,18 @@ impl Evaluation {
                     when_false,
                 )? {
                     dispatch @ Some(_) => dispatch,
+                    // A computed guard is no whole-root membership, so its
+                    // false edge leaves the else arm no case to dispatch
+                    // its reads on; dispatching there would also skip the
+                    // guard's own evaluation.
+                    None if crate::scalar_graph::scalar_graph_lowering::guards::is_computed(
+                        checked,
+                        state,
+                        *guard_statement_ordinal,
+                    ) =>
+                    {
+                        None
+                    }
                     // The else arm has no membership test of its own — the
                     // case it observes is read from its deferred payload
                     // reads alone.

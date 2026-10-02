@@ -1,0 +1,58 @@
+// A BOUNDED integer field of a RUNTIME-selected record element is kept in a
+// bounded local and drives both a guard and the exit code:
+// `let level: u8 [0..=9] = main.cells[k].level;` where `k` is the scanning
+// state's own scalar parameter, advanced by one per loop step. The declared
+// range belongs to the canonical field read, so the element is hoisted
+// through a `StructuralLeafCopy` at the runtime index and `level` is read
+// canonically on the fresh element place; that declaration discharges the
+// local's own range.
+//
+//   element   hp   level
+//   cells[0]   0     3
+//   cells[1]  70     5
+//   cells[2]   1     7   <- first level at least 7
+//   cells[3]   0     9
+//
+// The scan stops at the first element whose level is at least 7 and exits
+// `level * 10`. Element 1 holds 70 in `hp`, and its neighbours hold 5 and 9,
+// so reading the wrong field, element or stride cannot produce 70; an
+// exhausted scan exits 1. Element 2's level -> exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    hp: i32;
+    level: u8 [0..=9];
+}
+
+data Main {
+    console: Binding<Console>;
+    cells: [Cell; 4];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.cells[0].level = 3;
+    main.cells[1].hp = 70;
+    main.cells[1].level = 5;
+    main.cells[2].hp = 1;
+    main.cells[2].level = 7;
+    main.cells[3].level = 9;
+    transition { _ -> inspect(main, 0) }
+
+    state inspect(main: &mut Main, k: u64) requires k <= 3 {
+        let level: u8 [0..=9] = main.cells[k].level;
+        transition level >= 7 {
+            true -> finish(main, (level as i32) * 10)
+            false -> advance(main, k)
+        }
+    }
+
+    state advance(main: &mut Main, k: u64) requires k <= 3 {
+        transition k < 3 {
+            true -> inspect(main, k + 1)
+            false -> finish(main, 1)
+        }
+    }
+
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

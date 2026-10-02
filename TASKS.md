@@ -297,28 +297,6 @@ the complete product bar; focused successes below do not establish that baseline
   custody/ABI matrix. **SAMPLE-CORPUS** and **CANARY-CORPUS** retain the full
   outer program oracles; a moved omission or verified helper is not closure.
 
-  - **Runtime-selected record fields and typed observations.** Integer
-    element-field reads (`self.cells[self.i].hp`) lower as a
-    `PrimitiveScalarRead` ending at the field and runtime case dispatch
-    (`transition self.items[self.w] { Color::Red -> .. }`) as a
-    `StructuralCaseMembership` whose path carries the runtime element
-    ([structural access](wiki/spec/terminal-psi/structural_access.md#case-observation));
-    `entity_list` exits 35, `bouncing_particles` meets its oracle, and
-    `pass/control_flow/runtime_indexed_case_dispatch_exit` exits 2 on macOS
-    arm64. Remaining: Boolean element fields, which Terminal and Omega admit
-    but stage 04's `view_element_field_read` does not produce; bounded and
-    IEEE element fields.
-
-    Float field observation needs the same typed-read design, not another
-    integer/Boolean-shaped copy. Store admission already accepts structural
-    float reads, but `expression_preparation/prepare_expression.rs` still
-    rejects non-integer `StructuralParameterField` observations. The current
-    `src/tests/structural_float_member_read.rs` pins an integer-member clone
-    that verifies, a float-member clone that declines, and nested calls in
-    a record tail that fail call ordering. Carry the float source, computation,
-    policy and observation through replay and execution; coordinate
-    **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS** for executable arithmetic.
-
   - **Computed calls and state transfers.** A structural call supplied directly
     as a state argument, such as `vending_machine`'s
     `report(context, Main::make_change(100, 55), 17)`, is an ordinary
@@ -345,6 +323,10 @@ the complete product bar; focused successes below do not establish that baseline
     dynamic plans; `unit/structural_unit_control.rs` still refuses checked
     expressions in its specialized scalar-successor route. Remove those shape
     limits through ordinary argument evaluation, not another whole-body plan.
+
+    Calls nested inside a record literal's tail fields (`Handle { name:
+    self.get_name(), .. }`) still decline at `outer calls: ordered statement
+    call` (`05_checked-trees-to-lowered-psi/src/tests/structural_float_member_read.rs`).
 
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns shared/exclusive local establishment, reads, returned references and
