@@ -92,7 +92,7 @@ fn composite_edge_arguments_deliver_the_selected_values() {
         let [transfer] = edge.transfers.as_slice() else {
             panic!("one composite argument per edge");
         };
-        let CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment } =
+        let CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment, .. } =
             &transfer.source
         else {
             panic!("the record literal is established on its own edge");
@@ -139,7 +139,7 @@ fn composite_edge_arguments_reject_drifted_custody() {
             panic!("conditional entry");
         };
         let false_source = when_false.transfers[0].source.clone();
-        let CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment } =
+        let CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment, .. } =
             &mut when_true.transfers[0].source
         else {
             panic!("established edge argument");
@@ -218,7 +218,7 @@ fn indexed_composite_edge_arguments_reject_a_same_typed_selector() {
     else {
         panic!("the length guard selects the indexed transfer");
     };
-    let CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment } =
+    let CheckedStructuralControlTransferSourcePlan::EstablishedValue { establishment, .. } =
         &jump.transfers[0].source
     else {
         panic!("the indexed record is copied into a fresh edge value");

@@ -1176,11 +1176,7 @@ pub(crate) fn validate_consumer(
     let operation_index = caller
         .operations
         .iter()
-        .position(|candidate| {
-            candidate
-                .with_value_calls()
-                .any(|candidate| candidate == operation)
-        })
+        .position(|candidate| candidate == operation)
         .ok_or(LoweringError::Unsupported(
             "structural result consumer has no operation position",
         ))?;
@@ -1189,11 +1185,12 @@ pub(crate) fn validate_consumer(
         caller.state,
         coordinate,
     )?;
-    let authored_nested = authored
-        .structural_arguments
-        .iter()
-        .any(|(_, expression)| expression_producer(checked, *expression).is_some());
-    validate_nested_execution_order(checked, caller, coordinate.statement_index, authored_nested)?;
+    super::super::argument_schedule::build_operations(
+        checked,
+        caller.machine,
+        caller.state,
+        caller.operations,
+    )?;
     let (source_machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
@@ -2713,65 +2710,4 @@ fn named_result_operand(
     } else {
         (expression, checked_trees::CheckedStructuralAccess::Owned)
     }
-}
-
-fn validate_nested_execution_order(
-    checked: &CheckedTrees,
-    caller: &CallerView<'_>,
-    statement_index: u32,
-    authored_nested: bool,
-) -> Result<(), LoweringError> {
-    if !authored_nested
-        && !caller.operations.iter().any(|operation| {
-            operation.call().is_some_and(|call| {
-                call.structural_result().is_some()
-                    && call.coordinate.statement_index == statement_index
-                    && call.coordinate.call_ordinal != 0
-            })
-        })
-    {
-        return Ok(());
-    }
-    let expected = crate::emission::call_source_custody::authored::nested::authored_postorder(
-        checked,
-        caller.state,
-        statement_index,
-    )?;
-    let mut actual = Vec::new();
-    for operation in caller.operations {
-        let Some(call) = operation.call() else {
-            continue;
-        };
-        let coordinate = call.coordinate;
-        if coordinate.statement_index == statement_index {
-            actual.push(coordinate.call_ordinal);
-        }
-    }
-    if !actual
-        .iter()
-        .copied()
-        .eq(expected.iter().filter_map(|(ordinal, expression)| {
-            if *ordinal != 0
-                && let ExpressionNode::Call(call) = checked.expression_table.expression(*expression)
-                && crate::expression_preparation::source_custody::authored_state(
-                    checked,
-                    call.target_symbol,
-                )
-                .is_ok_and(|(_, target)| {
-                    checked
-                        .primitive_type_reference(target.return_type)
-                        .is_some()
-                })
-            {
-                None
-            } else {
-                Some(*ordinal)
-            }
-        }))
-    {
-        return unsupported(
-            "nested structural operations disagree with authored argument execution order",
-        );
-    }
-    Ok(())
 }

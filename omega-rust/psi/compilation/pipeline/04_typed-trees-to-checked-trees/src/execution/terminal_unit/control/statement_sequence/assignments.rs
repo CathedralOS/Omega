@@ -184,9 +184,7 @@ pub(super) fn plan(
         } else {
             consume_value_places(facts, root.root, structural_results, &mut *operations)?;
         }
-        for call in &calls {
-            consume_results(&mut *operations, call.operation())?;
-        }
+        super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
         assignment_phase("statement sequence: assignment: structural result type");
         let mut produced = if matches!(
             facts.values.structural_values.nodes.get(root.root).kind,
@@ -220,13 +218,17 @@ pub(super) fn plan(
         )?;
         *structural_count =
             structural_count.checked_add(1 + usize::from(replacement.move_out.is_some()))?;
-        operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            discard_result_on_return: produced.multiplicity == Multiplicity::Affine,
-            result: produced,
-            value: root.root,
+        let discard_result_on_return = produced.multiplicity == Multiplicity::Affine;
+        let establishment = structural_operands::establish_value(
+            facts,
+            produced,
+            root.root,
             calls,
-            operand_source: None,
-        });
+            None,
+            discard_result_on_return,
+            operations,
+        )?;
+        operations.push(establishment);
         operations.extend(replacement.move_out);
         // The store consumes the whole constructed value, retiring
         // the establishment's own disposal debt.
@@ -469,21 +471,22 @@ fn element_replacements(
             trace,
         )?;
         consume_value_places(facts, leaf.value, structural_results, &mut *operations)?;
-        for call in &calls {
-            consume_results(&mut *operations, call.operation())?;
-        }
+        super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
         let mut produced =
             checked_constructed_result_type(program, shapes, leaf.type_reference, binders)?;
         produced.statement_index = statement_index;
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
         *structural_count = structural_count.checked_add(1)?;
-        operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            discard_result_on_return: produced.multiplicity == Multiplicity::Affine,
-            result: produced.clone(),
-            value: leaf.value,
+        let establishment = structural_operands::establish_value(
+            facts,
+            produced.clone(),
+            leaf.value,
             calls,
-            operand_source: None,
-        });
+            None,
+            produced.multiplicity == Multiplicity::Affine,
+            operations,
+        )?;
+        operations.push(establishment);
         established.push(produced);
     }
     for (leaf, produced) in leaves.iter().zip(&established) {

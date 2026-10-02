@@ -61,6 +61,63 @@ struct Replay<'r> {
     operand_roles: &'r mut Vec<CheckedScalarExpressionRole>,
 }
 
+/// A whole call value is already established by its ordinary call operation.
+/// Rejoin that producer to the exact registered expression before replaying
+/// its authored target and operands; storage placement grants no source identity.
+pub(crate) fn validate_call_value(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    operation: &CheckedUnitEffectOperationPlan,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+) -> Result<(), LoweringError> {
+    let call = operation.call().ok_or(LoweringError::Unsupported(
+        "structural value producer is not a call",
+    ))?;
+    let result = call.structural_result().ok_or(LoweringError::Unsupported(
+        "structural value call has no result",
+    ))?;
+    let root = checked
+        .facts
+        .values
+        .structural_values
+        .root_for_expression(state, result.statement_index, expression)
+        .ok_or(LoweringError::Unsupported(
+            "structural call value lost its registered expression",
+        ))?;
+    let CheckedStructuralValueKind::Call { source_call } = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get(root.root)
+        .kind
+    else {
+        return unsupported("structural call value changed its producer kind");
+    };
+    if root.machine != machine
+        || checked
+            .normalized_type_identity(root.type_reference)
+            .into_string()
+            != result.type_identity
+        || !checked.facts.flow.control.calls.is_valid(source_call)
+        || call.is_boundary()
+    {
+        return unsupported("structural call value changed its source or type");
+    }
+    let source_call = checked.facts.flow.control.calls.get(source_call);
+    if source_call.authored_expression != expression
+        || source_call.statement_index != call.coordinate.statement_index as usize
+        || source_call.call_ordinal != call.coordinate.call_ordinal as usize
+    {
+        return unsupported("structural call value changed its source occurrence");
+    }
+    crate::emission::call_source_custody::validate_operation(
+        checked, machine, state, operation, parameters,
+    )
+}
+
 pub(crate) fn validate(
     checked: &CheckedTrees,
     machine: SymbolHandle,
@@ -419,6 +476,13 @@ pub(crate) fn validate(
                         "structural operand substituted its call or returned carrier",
                     );
                 }
+                crate::unit::attached_unit::validate_operand_preparation(
+                    checked,
+                    machine,
+                    state,
+                    retained.operands(),
+                    retained.operation(),
+                )?;
                 consumed_calls.push(handle);
             }
             CheckedStructuralValueKind::ScalarCasePlace {

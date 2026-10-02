@@ -63,6 +63,7 @@ mod signatures;
 // with the provider attachment roots a body establishes first.
 pub(crate) mod argument_evaluation;
 mod argument_schedule;
+pub(crate) use argument_schedule::validate_operand_preparation;
 pub(crate) mod bodies;
 mod composed_control;
 mod operation_frame;

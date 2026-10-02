@@ -121,6 +121,53 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } = operation {
         for call in calls {
             let member = call.operation();
+            super::super::argument_schedule::validate_operand_preparation(
+                checked,
+                caller.machine,
+                caller.state,
+                call.operands(),
+                member,
+            )?;
+            let mut operations = caller.operations.to_vec();
+            operations.extend(call.operands().iter().cloned());
+            operations.push(member.clone());
+            let caller = CallerView {
+                operations: &operations,
+                ..*caller
+            };
+            for operand in call.operands().iter() {
+                match operand {
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                        crate::expression_preparation::source_custody::structural::validate(
+                            checked,
+                            caller.machine,
+                            caller.state,
+                            operand,
+                        )?;
+                    }
+                    CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                        source,
+                        result,
+                        elements,
+                    } => {
+                        super::super::scalar_arrays::validate(
+                            checked,
+                            caller.machine,
+                            caller.state,
+                            *source,
+                            result,
+                            elements,
+                        )?;
+                    }
+                    CheckedUnitEffectOperationPlan::Call(_) => {}
+                    _ => {
+                        return unsupported(
+                            "structural call preparation contains another operation",
+                        );
+                    }
+                }
+                admit(checked, plans, &caller, operand, boundaries)?;
+            }
             let target = unit_target(checked, plans, member)?;
             if member.call_structural_arguments().iter().any(|argument| {
                 argument
@@ -129,7 +176,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
             }) {
                 structural_calls::validate_consumer(
                     checked,
-                    caller,
+                    &caller,
                     member,
                     target.structural_parameters,
                     target.entry_claims,

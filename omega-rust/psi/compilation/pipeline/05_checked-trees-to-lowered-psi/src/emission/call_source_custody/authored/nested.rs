@@ -13,26 +13,6 @@ pub(super) enum AuthoredOccurrence {
     TransitionTarget(TransitionTargetHandle),
 }
 
-/// The straight-line structural execution consumer accepts expression calls
-/// and its existing statement root. A conditional target has no expression
-/// or unconditional execution position in that consumer's operation sequence.
-pub(crate) fn authored_postorder(
-    checked: &CheckedTrees,
-    caller_state: SymbolHandle,
-    statement_index: u32,
-) -> Result<Vec<(u32, ExpressionHandle)>, LoweringError> {
-    authored_occurrences(checked, caller_state, statement_index)?
-        .into_iter()
-        .map(|(ordinal, occurrence)| match occurrence {
-            AuthoredOccurrence::Expression(expression) => Ok((ordinal, expression)),
-            AuthoredOccurrence::StatementRoot => Ok((ordinal, ExpressionHandle::invalid())),
-            AuthoredOccurrence::TransitionTarget(_) => unsupported(
-                "conditional named calls have no straight-line structural execution order",
-            ),
-        })
-        .collect()
-}
-
 /// The scalar computation walker checks membership, not preorder identity.
 /// Structural calls may be argument roots or the roots of exact projections.
 /// Scalar computations retain

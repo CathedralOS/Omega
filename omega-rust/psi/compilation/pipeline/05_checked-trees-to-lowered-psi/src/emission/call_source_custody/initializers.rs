@@ -104,61 +104,38 @@ pub(crate) fn validate_structural(
 ) -> Result<(), LoweringError> {
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    // A call establishes its declared result regardless of whether that
+    // value is named, returned, assigned, or supplied to another call. The
+    // consuming operation owns its destination and cleanup; nesting cannot
+    // impose another content/constraint classifier on the same result.
+    let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
+    let target =
+        super::authored::target_signature(checked, caller_machine, authored.source_target)?;
+    let carrier = crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+        checked,
+        target.return_type,
+    )
+    .unwrap_or(target.return_type);
+    let carrier = crate::unit::attached_unit::structural_carrier_type(checked, carrier)?;
+    if machine.symbol != caller_machine
+        || result.statement_index != coordinate.statement_index
+        || checked
+            .primitive_type_reference(target.return_type)
+            .is_some()
+        || checked.normalized_type_identity(carrier).as_str() != result.type_identity
+        || validation::reference_result_custody::result_multiplicity(
+            &checked.typed,
+            target.return_type,
+        ) != result.multiplicity
+    {
+        return unsupported("structural call result disagrees with its declared carrier");
+    }
     if coordinate.call_ordinal != 0 {
-        let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
         let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
             authored.source_site
         else {
-            return unsupported("nested boundary structural result has no authored expression");
+            return unsupported("nested structural result has no authored expression");
         };
-        let target =
-            super::authored::target_signature(checked, caller_machine, authored.source_target)?;
-        // Primitive byte predicates are retained by the ordinary call's
-        // independently reconstructed result custody. Its place names the
-        // bounded carrier, not a second type containing those predicates.
-        let owned_bytes = !authored.boundary
-            && result.multiplicity == Multiplicity::Unrestricted
-            && validation::bounded_byte_buffer_capacity(&checked.typed, target.return_type)
-                .is_some()
-            && validation::has_plain_owned_contents_with_represented_constraints(
-                &checked.typed,
-                target.return_type,
-            );
-        let carrier = if owned_bytes {
-            crate::unit::attached_unit::structural_carrier_type(checked, target.return_type)?
-        } else {
-            target.return_type
-        };
-        if machine.symbol != caller_machine
-            || result.statement_index != coordinate.statement_index
-            // A reference-bearing record temporary carries its custody in the
-            // call's published leaf-loan roster rather than plain owned
-            // contents; `validate_custody` rejoins that roster separately.
-            || !(owned_bytes || (result.multiplicity == Multiplicity::Affine
-                && (validation::has_plain_owned_contents(&checked.typed, target.return_type)
-                    || validation::reference_result_custody::is_reference_record(
-                        &checked.typed,
-                        target.return_type,
-                    )))
-                // An ordinary callee's copyable result owns no cleanup: a
-                // closed primitive array or plain-owned `[copy]` data.
-                || (result.multiplicity == Multiplicity::Unrestricted
-                    && !authored.boundary
-                    && (validation::is_closed_primitive_array_type(
-                        &checked.typed,
-                        target.return_type,
-                    ) || validation::has_plain_owned_contents(
-                        &checked.typed,
-                        target.return_type,
-                    ))))
-            || checked
-                .normalized_type_identity(carrier)
-                .into_string()
-                != result.type_identity
-            || checked.type_multiplicity(target.return_type) != result.multiplicity
-        {
-            return unsupported("nested boundary result disagrees with its source custody");
-        }
         return super::occurrences::validate(
             checked,
             caller_machine,

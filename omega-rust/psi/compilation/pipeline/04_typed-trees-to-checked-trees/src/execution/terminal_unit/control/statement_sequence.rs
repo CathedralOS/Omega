@@ -1272,7 +1272,6 @@ pub(in crate::execution::terminal_unit) fn build(
                 trivial_affine_locals,
                 calls,
                 trace,
-                binders: &binders,
                 operations: &mut operations,
                 structural_count: &mut structural_count,
                 call_count: &mut call_count,
@@ -1712,6 +1711,61 @@ fn retain_selected_sources(
     Some(())
 }
 
+/// Discharge only producers owned by this sequence. Call-owned operand
+/// preparation has its own result namespace segment; its enclosing sequence
+/// owns earlier locals. Each owner updates its own disposal debt, while source
+/// custody independently rejoins every operand across that boundary.
+pub(super) fn consume_retained_results(
+    operations: &mut [CheckedUnitEffectOperationPlan],
+    consumer: &CheckedUnitEffectOperationPlan,
+) -> Option<()> {
+    let Some(call) = consumer.call() else {
+        return Some(());
+    };
+    for argument in &call.structural_arguments {
+        let Some(binding) = argument.source_structural_result_binding_ordinal() else {
+            continue;
+        };
+        if operations.iter().any(|operation| {
+            operation
+                .structural_result_binding()
+                .is_some_and(|result| result.binding_ordinal == binding)
+        }) {
+            consume_result(
+                operations,
+                binding,
+                argument.access,
+                !argument.path.is_empty(),
+            )?;
+        }
+    }
+    Some(())
+}
+
+pub(super) fn consume_value_call_sources(
+    facts: &CheckFacts,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    operations: &mut [CheckedUnitEffectOperationPlan],
+    calls: &[checked_trees::CheckedStructuralValueCall],
+) -> Option<()> {
+    for call in calls {
+        for operation in call
+            .operands()
+            .iter()
+            .chain(std::iter::once(call.operation()))
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        {
+            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } =
+                operation
+            {
+                consume_value_places(facts, *value, results, operations)?;
+            }
+            consume_retained_results(operations, operation)?;
+        }
+    }
+    Some(())
+}
+
 pub(super) fn consume_results(
     operations: &mut [CheckedUnitEffectOperationPlan],
     consumer: &CheckedUnitEffectOperationPlan,
@@ -1835,7 +1889,7 @@ fn consume_result(
     Some(())
 }
 
-fn consume_value_places(
+pub(super) fn consume_value_places(
     facts: &CheckFacts,
     root: checked_trees::CheckedStructuralValueHandle,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],

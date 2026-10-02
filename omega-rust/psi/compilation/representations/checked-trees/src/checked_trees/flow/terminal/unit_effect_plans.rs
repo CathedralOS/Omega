@@ -290,9 +290,50 @@ pub enum CheckedUnitEffectOperationPlan {
     },
 }
 
+/// Operand preparation belongs to its consuming call and runs when that call
+/// is evaluated. Operation slots use an arena span; scratch vectors are consumed
+/// at publication.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedOperandSequence {
+    operations: arena::Arena<OperandOperation>,
+    order: arena::HandleSpan<OperandOperation>,
+}
+
+// The arena's zero slot denotes absence. Published spans contain only occupied
+// operations, and the private fields keep that construction invariant local.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct OperandOperation(Option<crate::CheckedUnitEffectOperationPlan>);
+
+impl CheckedOperandSequence {
+    pub fn new(
+        operations: impl IntoIterator<Item = crate::CheckedUnitEffectOperationPlan>,
+    ) -> Self {
+        let mut sequence = Self::default();
+        for operation in operations {
+            sequence
+                .operations
+                .append_to_span(&mut sequence.order, OperandOperation(Some(operation)));
+        }
+        sequence
+    }
+
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &crate::CheckedUnitEffectOperationPlan> {
+        self.operations
+            .span_or_empty(self.order)
+            .iter()
+            .map(|operation| {
+                operation
+                    .0
+                    .as_ref()
+                    .expect("published operand span contains operations")
+            })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralValueCall {
     pub value: crate::CheckedStructuralValueHandle,
+    operands: CheckedOperandSequence,
     operation: CheckedUnitEffectOperationPlan,
 }
 
@@ -301,12 +342,28 @@ impl CheckedStructuralValueCall {
         value: crate::CheckedStructuralValueHandle,
         operation: CheckedUnitEffectOperationPlan,
     ) -> Option<Self> {
+        Self::with_operands(value, CheckedOperandSequence::default(), operation)
+    }
+
+    pub fn with_operands(
+        value: crate::CheckedStructuralValueHandle,
+        operands: CheckedOperandSequence,
+        operation: CheckedUnitEffectOperationPlan,
+    ) -> Option<Self> {
         // Only an ordinary structural call produces a value operand; a
         // boundary result keeps its own statement-level binding.
         operation
             .call()
             .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
-            .then_some(Self { value, operation })
+            .then_some(Self {
+                value,
+                operands,
+                operation,
+            })
+    }
+
+    pub fn operands(&self) -> &CheckedOperandSequence {
+        &self.operands
     }
 
     pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
@@ -418,11 +475,17 @@ impl CheckedUnitEffectOperationPlan {
     /// This is not execution order: structural expressions evaluate their call
     /// operands in their own authored field and selected-arm order.
     pub fn with_value_calls(&self) -> impl Iterator<Item = &Self> {
-        let calls = match self {
-            Self::EstablishStructuralValue { calls, .. } => calls.as_slice(),
-            _ => &[],
-        };
-        std::iter::once(self).chain(calls.iter().map(|call| &call.operation))
+        let mut pending = vec![self];
+        std::iter::from_fn(move || {
+            let operation = pending.pop()?;
+            if let Self::EstablishStructuralValue { calls, .. } = operation {
+                for call in calls.iter().rev() {
+                    pending.push(call.operation());
+                    pending.extend(call.operands().iter().rev());
+                }
+            }
+            Some(operation)
+        })
     }
 }
 

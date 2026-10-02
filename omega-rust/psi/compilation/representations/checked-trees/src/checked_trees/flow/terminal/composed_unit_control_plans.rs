@@ -347,10 +347,15 @@ impl CheckedComposedUnitControlStatePlan {
             .flat_map(|successor| &successor.transfers)
             .filter_map(|transfer| match &transfer.source {
                 crate::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                    operands,
                     establishment,
-                } => Some(establishment.as_ref()),
+                } => Some((operands, establishment.as_ref())),
                 _ => None,
+            })
+            .flat_map(|(operands, establishment)| {
+                operands.iter().chain(std::iter::once(establishment))
             });
+
         self.operations.iter().chain(selected).chain(established)
     }
 

@@ -122,16 +122,7 @@ pub(super) fn build_operations(
             }
         };
         let start = index;
-        let root = (start..operations.len())
-            .find(|index| {
-                operations[*index].call().is_some_and(|call| {
-                    let coordinate = call.coordinate;
-                    coordinate.statement_index == statement && coordinate.call_ordinal == 0
-                })
-            })
-            .ok_or(LoweringError::Unsupported(
-                "nested argument schedule has no enclosing call",
-            ))?;
+        let root = call_group_root(operations, start, statement)?;
         steps.push(Step::Begin);
         let mut emitted = Vec::new();
         append(
@@ -152,6 +143,91 @@ pub(super) fn build_operations(
         index = root + 1;
     }
     Ok(steps)
+}
+
+/// A retained preparation sequence belongs to one exact consumer, not to
+/// any other call on the same statement. Reconstruct its dependencies from
+/// authored formals and produced bindings, and require every retained operand
+/// to occur once in that consumer's argument evaluation.
+pub(crate) fn validate_operand_preparation(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    operands: &checked_trees::CheckedOperandSequence,
+    consumer: &CheckedUnitEffectOperationPlan,
+) -> Result<(), LoweringError> {
+    let operations = operands
+        .iter()
+        .cloned()
+        .chain(std::iter::once(consumer.clone()))
+        .collect::<Vec<_>>();
+    let mut emitted = Vec::new();
+    append(
+        checked,
+        machine,
+        state,
+        &operations,
+        0..operations.len(),
+        operations.len() - 1,
+        &mut Vec::new(),
+        &mut emitted,
+        &mut Vec::new(),
+    )?;
+    if !emitted.iter().copied().eq(0..operations.len()) {
+        return unsupported("call preparation contains an unrelated or reordered producer");
+    }
+    Ok(())
+}
+
+/// Source ordinals identify occurrences, not an execution stream's root. A
+/// state arrival, return arm, or ordinary statement may retain a different
+/// portion of that occurrence tree. Constructor ownership and exact produced
+/// binding uses identify the enclosing calls without renumbering them.
+fn call_group_root(
+    operations: &[CheckedUnitEffectOperationPlan],
+    start: usize,
+    statement: u32,
+) -> Result<usize, LoweringError> {
+    let mut root = if let Some((owner, _, _)) = argument_construction(&operations[start]) {
+        let mut owners = (start + 1..operations.len()).filter(|index| {
+            operations[*index]
+                .call()
+                .is_some_and(|call| call.coordinate == owner)
+        });
+        let owner = owners.next().ok_or(LoweringError::Unsupported(
+            "argument construction has no retained consuming call",
+        ))?;
+        if owners.next().is_some() {
+            return unsupported("argument construction has duplicate consuming calls");
+        }
+        owner
+    } else {
+        start
+    };
+    loop {
+        let call = operations[root].call().ok_or(LoweringError::Unsupported(
+            "argument group root is not a call",
+        ))?;
+        let Some(result) = call.structural_result() else {
+            return Ok(root);
+        };
+        let mut consumers = (root + 1..operations.len()).filter(|index| {
+            operations[*index].call().is_some_and(|consumer| {
+                consumer.coordinate.statement_index == statement
+                    && consumer.structural_arguments.iter().any(|argument| {
+                        argument.source_structural_result_binding_ordinal()
+                            == Some(result.binding_ordinal)
+                    })
+            })
+        });
+        let Some(consumer) = consumers.next() else {
+            return Ok(root);
+        };
+        if consumers.next().is_some() {
+            return unsupported("argument result has multiple enclosing call occurrences");
+        }
+        root = consumer;
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
