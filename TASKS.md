@@ -1987,39 +1987,21 @@ crash and native exit behavior. Use affected check/native corpus slices under
   zero-initialized fields, and exits **70**; `const_container_zero_extent`
   rejects its false const fact. These are controls, not remaining repairs.
 
-- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the composite internal
-  state arguments that selected-edge establishment does not reach. Record and
-  case literals, literals embedding calls, structural call results, `[copy]`
-  member projections of a source parameter, and edge calls over the source
-  state's own locals now establish on their selected edge:
-  `tests/omega/pass/control_flow/composite_state_parameter` and
-  `state_local_operand_edge_call_exit` exit **70** natively and interpreted.
-  The second covers a `[copy]` local, a local holding a call result, and an
-  affine local an edge call takes on one edge while sibling edges dispose of
-  it; edge cleanup subtracts `CheckedStructuralControlSuccessorPlan::result_moves`
-  and stage 05 rejoins each move to its ledger Transfer row
-  (`validation::transition_operand_moves`). Borrowed initialized-array locals
-  also reach native execution: `collections/runtime_initialized_array_state_loan_exit`
-  exits **70** on macOS ARM64, preserving untouched nested elements after a
-  runtime-indexed store and short-circuit reads through the state loan. The
-  ordinary result-binding join and private-block loan transport retain original
-  storage; this does not close owned array transfer. Three legal sources still stop.
-  A by-value fixed array (`handle([30, 40])`, or a transferred `[i32; 2]`
-  local) stops at `jump successor: parameter transfer`, and Terminal
-  verification rejects an owned scalar-array block parameter, so the carrier
-  needs a Terminal decision first (coordinate
-  **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER**). A shared `&self.pair` argument
-  delivers, but a target state that then stores a disjoint receiver field
-  fails Terminal verification with `SharedStructuralLoanDisturbed`. A nested
-  structural operand inside an edge call
-  (`take(shift(counter, Pair { a: 1, b: 2 }, 10), counter)`) stops at
-  `call operation: structural arguments: source symbol`: the edge planner
-  declines operands that would be established before the edge is selected.
-  Separately, a cyclic state that builds an affine record with fields fails
-  Terminal's `ControlCycleIneligible`.
-  Acceptance: each source delivers its value natively and through Terminal
-  reload, selected operands execute once after selection, and unselected
-  operands have no effects.
+- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the remaining
+  composite internal state transfers. A by-value fixed array
+  (`handle([30, 40])`, or a transferred `[i32; 2]` local) stops at
+  `jump successor: parameter transfer`; represent and independently replay
+  owned scalar-array block parameters with
+  **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER**. A shared `&self.pair` argument
+  delivers, but a target state that stores a disjoint receiver field fails
+  Terminal verification with `SharedStructuralLoanDisturbed`. A cyclic
+  state that builds an affine record with fields fails
+  `ControlCycleIneligible`.
+  Keep `control_flow/{composite_state_parameter,state_local_operand_edge_call_exit,edge_call_nested_structural_operand_exit}`
+  and `collections/runtime_initialized_array_state_loan_exit` as controls.
+  Acceptance: each remaining source delivers its value natively and through
+  Terminal reload, selected operands execute once after selection, and
+  unselected operands have no effects.
 
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under

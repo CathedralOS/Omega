@@ -361,7 +361,7 @@ pub(super) fn plan(
             trivial_affine_locals,
             entry_claims,
             structural_results,
-            &mut *operations,
+            &*operations,
             &mut *structural_count,
             root.root,
             trace,

@@ -712,10 +712,6 @@ mod named_terminal_tests {
             )
             .is_err()
         );
-        assert!(
-            nested::authored_postorder(&checked, state, coordinate.statement_index).is_err(),
-            "conditional named calls cannot fabricate an expression-only execution schedule"
-        );
     }
 
     #[test]

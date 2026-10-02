@@ -335,6 +335,7 @@ pass/control_flow/case_pattern_rename_waive_exit built 1119ms exit:70 @48008365d
 pass/control_flow/composite_state_parameter built 2594ms exit:70 @48008365d839
 pass/control_flow/conditional_unit_completion_exit built 554ms exit:70 @76bba5577e21+wt
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 183ms
+pass/control_flow/edge_call_nested_structural_operand_exit built 1057ms exit:24 @ff183e7f95fb
 pass/control_flow/explicit_state_value_frontier checked 196ms
 pass/control_flow/field_subject_named_arm_chain built 1498ms exit:70 @bed5f45e9185+wt
 pass/control_flow/field_view_transfer_exit built 582ms exit:0
@@ -347,6 +348,7 @@ pass/control_flow/guarded_unit_completion_exit built 927ms exit:70 @1a4aae106a02
 pass/control_flow/guarded_value_transition_roster built 1490ms exit:11 @15f38e49aac2
 pass/control_flow/indexed_record_state_argument_exit built 1014ms exit:70 @1a4aae106a02+wt
 pass/control_flow/nested_parameter_receiver_call checked 179ms
+pass/control_flow/nested_structural_call_operand_exit built 1218ms exit:58 @ff183e7f95fb
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 758ms exit:70
 pass/control_flow/ordered_unconditional_arm_exit built 370ms exit:70 @ed218c8b1f5+wt
 pass/control_flow/projected_loan_state_argument_exit built 2223ms exit:11 @af9f91f2fb06+wt

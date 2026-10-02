@@ -1922,7 +1922,7 @@ fn successor_bindings(
                     &[],
                     edge_calls.entry_claims,
                     edge_calls.local_results,
-                    &mut operand_calls,
+                    &operand_calls,
                     &mut result_count,
                     root.root,
                     trace,

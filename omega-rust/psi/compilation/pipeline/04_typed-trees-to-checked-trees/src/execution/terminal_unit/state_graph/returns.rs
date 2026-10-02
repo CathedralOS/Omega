@@ -501,7 +501,7 @@ pub(super) fn return_value_operation(
         &[],
         claims,
         &[],
-        &mut operand_calls,
+        &operand_calls,
         count,
         root.root,
         trace,
