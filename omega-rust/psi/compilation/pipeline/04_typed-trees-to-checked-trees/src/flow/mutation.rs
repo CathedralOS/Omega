@@ -85,6 +85,7 @@ pub(crate) fn call_mutated_places(
         state_mutation_summaries,
         WritePlaceNamespace::Storage,
         call_frames,
+        None,
     )
     .or_else(|| {
         ceiling::signature_ceiling_places_with_loans(
@@ -103,6 +104,11 @@ pub(crate) fn call_mutated_places(
 /// Only exclusive writes belong here. Shared atomic operations keep their
 /// ordinary call-access checks and remain writes in `call_mutated_places`,
 /// but do not freeze other shared loans as an ordinary store would.
+/// A captured loan limits a local jump to the states that still carry it;
+/// ordinary calls retain it through their complete run. The caller must first
+/// authenticate the source binding's closure; this spatial query grants no
+/// lifetime authority. Without a loan, callers
+/// inspect the complete write set (for example, restored-use certificates).
 pub(crate) fn call_write_accesses(
     program: &typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
@@ -110,6 +116,7 @@ pub(crate) fn call_write_accesses(
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &StateMutationSummaryCache,
+    loan: Option<&CanonicalPlace>,
 ) -> Vec<CanonicalPlace> {
     call_write_places(
         program,
@@ -120,6 +127,7 @@ pub(crate) fn call_write_accesses(
         state_mutation_summaries,
         WritePlaceNamespace::AccessRoute,
         None,
+        loan,
     )
     .expect("access-route projection always retains the ownership fallback")
 }
@@ -167,6 +175,7 @@ fn call_write_places(
     state_mutation_summaries: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    loan: Option<&CanonicalPlace>,
 ) -> Option<Vec<CanonicalPlace>> {
     let summarized_places = instantiate_known_call_mutation_summary_places(
         program,
@@ -177,6 +186,7 @@ fn call_write_places(
         state_mutation_summaries,
         namespace,
         call_frames,
+        loan,
     );
     let use_mutable_argument_fallback = summarized_places.is_none();
     let known_target_summary = summarized_places.is_some();

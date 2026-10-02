@@ -195,6 +195,15 @@ pub(super) fn check_call_access_conflicts<'p>(
                 )));
                 continue;
             }
+            // Forwarding the activation's exact data parent is judged by
+            // the successor's read/write footprint against the loan's captured
+            // storage, just as a freshly authored projected argument is above.
+            // A local carrier does not turn that same parent into a new whole
+            // loan. Keep the carrier-lifetime check first: footprint precision
+            // cannot extend backing storage beyond the source state's exit.
+            if data_access == Some(index) {
+                continue;
+            }
             if recording.non_interfering(
                 program,
                 argument_operand(&facts.borrow, index, access),

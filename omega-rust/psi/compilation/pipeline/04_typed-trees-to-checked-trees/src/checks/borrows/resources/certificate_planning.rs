@@ -578,6 +578,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             borrow,
             borrow_call,
             mutation_summaries,
+            None,
         );
         let [mutated_place] = mutated_places.as_slice() else {
             continue;

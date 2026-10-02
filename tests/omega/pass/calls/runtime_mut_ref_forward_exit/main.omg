@@ -5,9 +5,9 @@
 // check would false-positive here -- the enforcement resolves the name's
 // declaration instead. The callee writes through the double-hopped
 // reference and the caller observes it via the aliased field once the
-// loan has ended: `step` holds `c` exclusively, so it cannot read `self.c`
+// loan has ended: `step` holds `c` exclusively, so it cannot read `main.c`
 // itself, and `verify` reads it after the edge that drops `c`.
-// exit 71 = the forwarded write missed self.c.
+// exit 71 = the forwarded write missed main.c.
 
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -15,20 +15,20 @@ use omega::language::core::binding;
 data Counter { n: i32 in Wrapping; }
 data Main { console: Binding<Console>; c: Counter; }
 
-machine Main::main(&mut self) reaches Console {
-    transition { _ -> enter(&mut self.c) }
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> enter(main, &mut main.c) }
 
-    state enter(&mut self, c: &mut Counter) {
-        transition { _ -> step(c) }
+    state enter(main: &mut Main, c: &mut Counter) {
+        transition { _ -> step(main, c) }
     }
-    state step(&mut self, c: &mut Counter) {
+    state step(main: &mut Main, c: &mut Counter) {
         c.n = c.n + 59;
-        transition { _ -> verify() }
+        transition { _ -> verify(main) }
     }
-    state verify(&mut self) {
-        transition self.c.n == 59 { true -> good() _ -> bad() }
+    state verify(main: &mut Main) {
+        transition main.c.n == 59 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self)  { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main)  { main.console.exit_process(71); }
 }
