@@ -241,6 +241,42 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
 }
 
 impl CheckedComposedUnitControlTerminatorPlan {
+    /// Control-flow successors of this terminator, in terminator order.
+    /// Return, crash, and value exits contribute no edges.
+    pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
+        match self {
+            Self::ReturnUnit
+            | Self::ReturnScalar { .. }
+            | Self::Guarded { .. }
+            | Self::ReturnCase { .. }
+            | Self::Crash { .. }
+            | Self::ReturnStructural { .. }
+            | Self::ConditionalCompletion { .. } => Vec::new(),
+            Self::Jump { successor } => vec![successor],
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            Self::ConditionalReturn { jump, .. } => vec![jump],
+            Self::GuardedJumps { arms, fallback } => arms
+                .iter()
+                .filter_map(|arm| arm.successor())
+                .chain(match fallback {
+                    CheckedGuardedJumpFallbackPlan::Successor(successor) => Some(successor),
+                    CheckedGuardedJumpFallbackPlan::Return(_) => None,
+                })
+                .collect(),
+            Self::ClosedSum { cases, .. } => cases
+                .iter()
+                .filter_map(|case| match &case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
+                    CheckedClosedSumCaseOutcomePlan::Return(_) => None,
+                })
+                .collect(),
+        }
+    }
+
     /// The terminal machine calls this terminator's conditional arms run
     /// (`CheckedConditionalReturnArm::Call`), in arm order.
     pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
@@ -369,37 +405,7 @@ impl CheckedComposedUnitControlStatePlan {
     /// Control-flow successors of this state's terminator, in terminator
     /// order. Return, crash, and value exits contribute no edges.
     pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
-        match &self.terminator {
-            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
-            | CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
-            | CheckedComposedUnitControlTerminatorPlan::Crash { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => Vec::new(),
-            CheckedComposedUnitControlTerminatorPlan::Jump { successor } => vec![successor],
-            CheckedComposedUnitControlTerminatorPlan::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![when_true, when_false],
-            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => vec![jump],
-            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => arms
-                .iter()
-                .filter_map(|arm| arm.successor())
-                .chain(match fallback {
-                    CheckedGuardedJumpFallbackPlan::Successor(successor) => Some(successor),
-                    CheckedGuardedJumpFallbackPlan::Return(_) => None,
-                })
-                .collect(),
-            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
-                .iter()
-                .filter_map(|case| match &case.outcome {
-                    CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
-                    CheckedClosedSumCaseOutcomePlan::Return(_) => None,
-                })
-                .collect(),
-        }
+        self.terminator.successors()
     }
 
     /// Reachable-state mask over `states` in authored roster order: `true`

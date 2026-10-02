@@ -167,3 +167,68 @@ fn an_edge_call_reads_or_takes_a_state_local_on_its_edge_alone() {
         "the affine local keeps its exit disposal on the non-moving edge"
     );
 }
+
+/// A whole `&mut [T]` view local forwards its own binding into a `&mut [T]`
+/// successor parameter on every edge that names it. The edge continues the
+/// loan the `let` captured -- the binding stays the loan subject rather than
+/// the lent `room.exits` root -- and the view's release remains its one
+/// owner, so the arm that drops the view still composes.
+#[test]
+fn a_mutable_view_local_forwards_its_own_binding() {
+    let checked = crate::tests::front_end::checked_program(
+        r#"
+        data Counter { n: i32 in Wrapping; }
+        data Room { exits: [Counter; 2]; }
+        machine walk(select: bool) {
+            let room: Room = Room { exits: [Counter { n: 10 }, Counter { n: 20 }] };
+            let exits: &mut [Counter] = room.exits.as_mut_slice();
+            transition select {
+                true -> bump(exits)
+                false -> stop()
+            }
+            state bump(exits: &mut [Counter]) {}
+            state stop() {}
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "walk")
+        .expect("walk machine");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine.symbol)
+        .expect("the view local forwards on its selected edge");
+    let entry = &plan.states[0];
+    let view = entry
+        .operations
+        .iter()
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::structural_result_binding)
+        .find(|result| result.statement_index == 1)
+        .expect("the view local's binding");
+    assert_eq!(view.multiplicity, language_semantics::Multiplicity::Affine);
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &entry.terminator
+    else {
+        panic!("the entry selects between the forwarding and dropping edges");
+    };
+    assert_eq!(
+        when_true
+            .transfers
+            .iter()
+            .map(|transfer| &transfer.source)
+            .collect::<Vec<_>>(),
+        vec![
+            &checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                binding_ordinal: view.binding_ordinal,
+            }
+        ]
+    );
+    assert!(when_false.transfers.is_empty());
+}

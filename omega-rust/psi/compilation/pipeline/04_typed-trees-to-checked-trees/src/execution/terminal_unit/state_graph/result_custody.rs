@@ -149,10 +149,6 @@ pub(super) fn account(
                     disposable_locals,
                 )
         };
-        // A successor moves the result either as a direct transfer or, for
-        // a result with ownership debt, into one of its own operand calls.
-        let transferred =
-            |edge: &CheckedStructuralControlSuccessorPlan| edge.result_moves(result) == 1;
         // An owned selection moved each candidate source's custody into
         // the join's residual parameters, which die at the same authored
         // exit. The receipt, not a transfer or disposal row on the dead
@@ -273,6 +269,26 @@ pub(super) fn account(
                 .count()
         } else {
             0
+        };
+        // The release (`view_releases` below) owns an affine view. An edge
+        // carrying the view whole continues that same loan in its target:
+        // the carry is checked as at most one move per edge, and the
+        // ordinary transfer count below must not book it as a second owner.
+        let release_owned_view = view_source.is_some()
+            && result.multiplicity == Multiplicity::Affine
+            && reference_reborrows == 0;
+        if release_owned_view
+            && terminator
+                .successors()
+                .iter()
+                .any(|edge| edge.result_moves(result) > 1)
+        {
+            return None;
+        }
+        // A successor moves the result either as a direct transfer or, for
+        // a result with ownership debt, into one of its own operand calls.
+        let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
+            !release_owned_view && edge.result_moves(result) == 1
         };
         let mut closed_sum_all_reference_returns = false;
         let consumed = match terminator {
@@ -530,10 +546,7 @@ pub(super) fn account(
         // A counted reborrow already owns the custody — the release the
         // permissions still record is the same loan's lexical end, not a
         // second owner, so it does not book twice beside the reborrow.
-        let view_releases = if view_source.is_some()
-            && result.multiplicity == Multiplicity::Affine
-            && reference_reborrows == 0
-        {
+        let view_releases = if release_owned_view {
             facts
                 .flow
                 .ownership

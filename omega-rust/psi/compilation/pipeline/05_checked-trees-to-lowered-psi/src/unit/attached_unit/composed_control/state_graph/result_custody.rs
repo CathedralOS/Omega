@@ -789,7 +789,9 @@ pub(super) fn local_discards(
             + edge
                 .into_iter()
                 .flat_map(|edge| &edge.transfers)
-                .filter(|transfer| transfer_holds_result(transfer, result.binding_ordinal))
+                .filter(|transfer| {
+                    transfer_holds_result(checked, source, state, transfer, result.binding_ordinal)
+                })
                 .count();
         if transferred > 1 {
             return unsupported("Unit graph edge duplicates local ownership");
@@ -801,18 +803,71 @@ pub(super) fn local_discards(
     Ok(discards)
 }
 
+/// The source-state result whose home the view `binding_ordinal` lends. A
+/// `let` view (`room.exits.as_mut_slice()`) is a loan of the local it was
+/// formed from, so an edge carrying the view must keep that local's home live
+/// with the loan, exactly as a projected loan keeps its backing local. `None`
+/// for a non-view result or a view of storage the state does not own (a
+/// parameter outlives every state of the activation).
+pub(super) fn view_backing(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    binding_ordinal: u32,
+) -> Option<u32> {
+    let value =
+        state
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result, value, ..
+                } if result.binding_ordinal == binding_ordinal => Some(*value),
+                _ => None,
+            })?;
+    let nodes = &checked.facts.values.structural_values.nodes;
+    let lent = match &nodes.get(nodes.is_valid(value).then_some(value)?).kind {
+        checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
+        | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => source,
+        _ => return None,
+    };
+    match lent.source {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } => Some(binding_ordinal),
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            let statements = checked.statement_table.statements(source.statement_nodes);
+            let mut homes = state.operations.iter().filter_map(result).filter(|home| {
+                matches!(
+                    statements.get(home.statement_index as usize),
+                    Some(StatementNode::LocalData(local)) if local.symbol == symbol
+                )
+            });
+            let home = homes.next()?;
+            homes.next().is_none().then_some(home.binding_ordinal)
+        }
+        _ => None,
+    }
+}
+
 /// Whether `transfer` takes the source state's result `binding_ordinal` off
-/// its edge's cleanup roster: a whole transfer to the target, or a projected
-/// loan whose backing local stays live through the edge and dies with the
-/// loan, never on this edge itself.
+/// its edge's cleanup roster: a whole transfer to the target, or a loan --
+/// projected, or a carried view -- whose backing local stays live through the
+/// edge and dies with the loan, never on this edge itself.
 fn transfer_holds_result(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
     transfer: &checked_trees::CheckedStructuralControlTransferPlan,
     binding_ordinal: u32,
 ) -> bool {
     match &transfer.source {
         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
             binding_ordinal: transferred,
-        } => *transferred == binding_ordinal,
+        } => {
+            *transferred == binding_ordinal
+                || view_backing(checked, source, state, *transferred) == Some(binding_ordinal)
+        }
         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
             subject,
             ..

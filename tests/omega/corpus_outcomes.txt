@@ -2093,8 +2093,8 @@ pass/storage/forwarded_context_byte_field_cross_state_store_exit checked 842ms @
 pass/storage/forwarded_context_byte_field_read_store_exit checked 819ms @2a7dbf752a77
 pass/storage/runtime_alias_field_binary checked 293ms @2d8ed253669f
 pass/storage/runtime_alias_integer_write checked 298ms @2d8ed253669f
-pass/storage/runtime_local_slice_forward_exit rejected 752ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
+pass/storage/runtime_local_slice_forward_exit rejected 431ms @32531e204685+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(8) }))
 pass/storage/runtime_machine_owned_indexed_integer_write_exit checked 947ms @2d8ed253669f
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit checked 1242ms @2d8ed253669f
 pass/storage/runtime_primitive_local_literal_composition_exit checked 1234ms @2d8ed253669f

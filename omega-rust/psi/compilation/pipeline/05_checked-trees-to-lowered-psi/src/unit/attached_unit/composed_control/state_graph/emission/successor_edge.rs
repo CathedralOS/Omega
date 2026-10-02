@@ -725,12 +725,35 @@ impl StateGraphEmission<'_, '_> {
                     };
                     if let Some(binding_ordinal) = loaned_binding {
                         let result = case_emission::result(state, binding_ordinal, operations)?;
+                        // A carried view lends the home of the local it was
+                        // formed from; that home stays live with the loan
+                        // and dies with it, exactly as a directly lent one.
+                        let backing = match transfer.source {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { .. } => {
+                                super::super::result_custody::view_backing(
+                                    checked,
+                                    &self.admitted.source_states[position],
+                                    state,
+                                    binding_ordinal,
+                                )
+                                .map(|backing| {
+                                    case_emission::result(state, backing, operations)
+                                        .map(|home| (backing, home))
+                                })
+                                .transpose()?
+                                .filter(|(_, home)| {
+                                    home.multiplicity() == StructuralMultiplicity::Affine
+                                })
+                            }
+                            _ => None,
+                        };
                         // A whole shared loan of unrestricted storage, such
                         // as a byte literal local, has no death to place and
                         // records no home, so any state may lend it.
                         let needs_home = target_parameter.access
                             == checked_trees::CheckedStructuralAccess::MutableBorrow
                             || result.multiplicity() == StructuralMultiplicity::Affine
+                            || backing.is_some()
                             || !matches!(
                                 transfer.source,
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { .. }
@@ -740,12 +763,23 @@ impl StateGraphEmission<'_, '_> {
                                 "Unit graph local loan requires an activation entry home",
                             );
                         }
-                        if result.multiplicity() == StructuralMultiplicity::Affine
-                            && let Some(previous) =
-                                self.loaned_local_homes.insert(binding_ordinal, place)
-                            && previous != place
-                        {
-                            return unsupported("Unit graph local loan changed its backing home");
+                        let homes = (result.multiplicity() == StructuralMultiplicity::Affine)
+                            .then_some((binding_ordinal, place))
+                            .into_iter()
+                            .chain(backing.map(|(backing, home)| {
+                                (
+                                    backing,
+                                    edge_evaluation.current_structural_place(home.place()),
+                                )
+                            }));
+                        for (binding, home) in homes {
+                            if let Some(previous) = self.loaned_local_homes.insert(binding, home)
+                                && previous != home
+                            {
+                                return unsupported(
+                                    "Unit graph local loan changed its backing home",
+                                );
+                            }
                         }
                     }
                 }
