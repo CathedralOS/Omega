@@ -30,8 +30,8 @@ use terminal_psi::{
     OperationResult, ScalarFloatRange, ScalarIntegerRange, StructuralAccess, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 
