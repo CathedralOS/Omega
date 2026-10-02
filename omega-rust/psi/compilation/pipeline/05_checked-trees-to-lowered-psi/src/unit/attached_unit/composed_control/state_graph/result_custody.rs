@@ -19,7 +19,6 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{StatementNode, TransitionTargetNode};
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-    PermissionProvenance,
 };
 
 /// A call or constructed-value result that no automatic return discard
@@ -560,18 +559,16 @@ pub(super) fn validate(
                 .map(|source| (PermissionEventKind::Transfer, source)),
         );
     }
-    let provenance = match role {
-        // The destination keeps its receipt's Unknown provenance; its sources
-        // keep the ordinary establishment provenance of their own statements.
-        Some(SelectionRole::Destination) => PermissionProvenance::Unknown,
-        _ => PermissionProvenance::Established {
-            machine_symbol: machine,
-            state_symbol: source.symbol,
-            source: PermissionEventSource::Statement {
-                statement_index: result.statement_index as usize,
-            },
-        },
-    };
+    // A local's initializer can conserve an earlier value's origin. Reuse
+    // the ordinary construction replay rather than manufacturing provenance
+    // from the destination declaration's location.
+    let provenance =
+        crate::expression_preparation::source_custody::structural::local_value_provenance(
+            checked,
+            machine,
+            source.symbol,
+            result.statement_index as usize,
+        )?;
     if events().count() != expected.len() {
         return unsupported("Unit graph local ownership roster drifted");
     }

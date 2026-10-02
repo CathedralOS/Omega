@@ -7,6 +7,7 @@ mod closed_cases;
 mod composite_arguments;
 mod displaced_field_replacement;
 mod local_operand_edges;
+mod nested_local_construction;
 mod qualified_invocation;
 mod receiver_subslice_edges;
 mod service_edges;
