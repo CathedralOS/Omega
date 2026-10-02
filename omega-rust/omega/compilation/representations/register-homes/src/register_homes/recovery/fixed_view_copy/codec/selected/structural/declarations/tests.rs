@@ -157,3 +157,36 @@ fn byte_view_type_round_trip_retains_its_access() {
         assert_eq!(cursor.remaining(), 0);
     }
 }
+
+#[test]
+fn case_path_round_trip_retains_canonical_identity_and_rejects_zero() {
+    let case = semantic_vocabulary::StructuralCaseId::new(41).unwrap();
+    let path = vec![
+        StructuralPathSegment::Case(case),
+        StructuralPathSegment::Field("payload".into()),
+    ];
+    let mut bytes = Vec::new();
+    encode_path(&mut bytes, &path);
+    let mut cursor = Cursor::new(&bytes);
+    assert_eq!(decode_path(&mut cursor).unwrap(), path);
+    assert_eq!(cursor.remaining(), 0);
+    let mut other = Vec::new();
+    encode_path(
+        &mut other,
+        &[
+            StructuralPathSegment::FixedIndex(case.get()),
+            StructuralPathSegment::Field("payload".into()),
+        ],
+    );
+    assert_ne!(bytes, other);
+    let mut zero = Vec::new();
+    encode_path(&mut zero, &[StructuralPathSegment::Case(case)]);
+    let start = zero.len() - 8;
+    zero[start..].fill(0);
+    assert!(matches!(
+        decode_path(&mut Cursor::new(&zero)),
+        Err(FixedViewCopyDecodeError::InvalidSemanticId(0))
+    ));
+    bytes.pop();
+    assert!(decode_path(&mut Cursor::new(&bytes)).is_err());
+}

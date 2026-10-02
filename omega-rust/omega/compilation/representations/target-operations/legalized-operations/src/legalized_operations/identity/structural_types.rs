@@ -140,6 +140,10 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
     encode_len(bytes, path.len());
     for segment in path {
         match segment {
+            StructuralPathSegment::Case(case) => {
+                bytes.push(7);
+                bytes.extend_from_slice(&case.get().to_le_bytes());
+            }
             StructuralPathSegment::Referent => bytes.push(3),
             StructuralPathSegment::FixedByteRange { start, end } => {
                 bytes.push(4);

@@ -55,6 +55,7 @@ impl StateGraphEmission<'_, '_> {
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(self.catalogs.next_operation - 1);
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
+            structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
@@ -177,6 +178,7 @@ impl StateGraphEmission<'_, '_> {
             &mut operations,
         )?;
         evaluation.scalar_bindings = Some(bindings.clone());
+        evaluation.structural_types = self.catalogs.structural_types.as_slice().into();
         evaluation.structural_fields =
             crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
                 &evaluation.structural_parameters,

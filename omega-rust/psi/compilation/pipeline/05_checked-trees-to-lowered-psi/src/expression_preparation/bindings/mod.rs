@@ -251,6 +251,15 @@ impl ScalarBindings {
         Ok(place)
     }
 
+    pub(crate) fn structural_parameter_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
+        let mut sources = self
+            .structural_parameters
+            .iter()
+            .filter(|(_, source)| source.place == place);
+        let (_, source) = sources.next()?;
+        sources.next().is_none().then_some(source.structural_type)
+    }
+
     /// Borrow the established referent, not a copy of its scalar field values.
     /// Source replay checks the declaration and loan occurrence; this join binds
     /// that source to the current activation's exact local or parameter place.

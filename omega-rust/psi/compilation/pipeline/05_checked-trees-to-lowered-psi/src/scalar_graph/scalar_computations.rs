@@ -61,6 +61,7 @@ struct Site<'a> {
 
 pub(crate) struct Expansion<'a> {
     checked: &'a CheckedTrees,
+    structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     qualifications: &'a PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     base: usize,
@@ -89,6 +90,7 @@ impl<'a> Expansion<'a> {
     ) -> Self {
         Self {
             checked,
+            structural_types: &[],
             qualifications,
             machine,
             base,
@@ -103,6 +105,14 @@ impl<'a> Expansion<'a> {
             fields: &[],
             completed: Vec::new(),
         }
+    }
+
+    pub(crate) fn with_structural_types(
+        mut self,
+        types: &'a [terminal_psi::StructuralTypeDeclaration],
+    ) -> Self {
+        self.structural_types = types;
+        self
     }
 
     /// Enter the erased-proof scope of one enclosing checked state before

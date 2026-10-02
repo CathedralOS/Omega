@@ -77,6 +77,10 @@ pub(crate) fn encode_suspension_call_plan(
                 writer.len("suspension structural path", path.len())?;
                 for segment in path {
                     match segment {
+                        terminal_psi::StructuralPathSegment::Case(case) => {
+                            writer.u8(7);
+                            writer.id(*case);
+                        }
                         terminal_psi::StructuralPathSegment::Field(field) => {
                             writer.u8(1);
                             writer.string("suspension structural field", field)?;
@@ -219,6 +223,9 @@ pub(crate) fn decode_suspension_call_plan(
                         index: reader.id("ValueId")?,
                         obligation: reader.id("ObligationId")?,
                     }),
+                    7 => Ok(terminal_psi::StructuralPathSegment::Case(
+                        reader.id("StructuralCaseId")?,
+                    )),
                     tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
                 })?,
             },

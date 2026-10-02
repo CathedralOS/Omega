@@ -24,6 +24,7 @@ impl MachineEmission<'_> {
         }
         let arguments = parameters::lower_structural_arguments(
             std::slice::from_ref(source),
+            self.structural_types,
             self.parameters,
             &self.local_places,
             &self.structural_result_places,

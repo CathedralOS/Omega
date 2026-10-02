@@ -33,10 +33,14 @@
 //! through it forgets the facts observed beneath the array's root.
 
 use crate::{OperationKind, StructuralAccess};
-use semantic_vocabulary::{ObligationId, PlaceId, StructuralPlaceKind, ValueId};
+use semantic_vocabulary::{ObligationId, PlaceId, StructuralCaseId, StructuralPlaceKind, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralPathSegment {
+    /// Select one declared sum payload namespace. The next segment must name
+    /// its field. Geometry alone grants no authority: the consuming operation
+    /// independently proves this exact case active at the original root.
+    Case(StructuralCaseId),
     Field(String),
     FixedIndex(u64),
     /// A call-scoped borrowed window into fixed byte-array backing. It must
@@ -67,9 +71,11 @@ impl StructuralPathSegment {
     pub const fn runtime_index(&self) -> Option<(ValueId, ObligationId)> {
         match self {
             Self::RuntimeIndex { index, obligation } => Some((*index, *obligation)),
-            Self::Field(_) | Self::FixedIndex(_) | Self::FixedByteRange { .. } | Self::Referent => {
-                None
-            }
+            Self::Case(_)
+            | Self::Field(_)
+            | Self::FixedIndex(_)
+            | Self::FixedByteRange { .. }
+            | Self::Referent => None,
         }
     }
 }
@@ -93,7 +99,9 @@ pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
     path.iter().all(|segment| match segment {
         StructuralPathSegment::Field(identity) => !identity.is_empty(),
         StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => true,
-        StructuralPathSegment::FixedByteRange { .. } | StructuralPathSegment::Referent => false,
+        StructuralPathSegment::Case(_)
+        | StructuralPathSegment::FixedByteRange { .. }
+        | StructuralPathSegment::Referent => false,
     })
 }
 

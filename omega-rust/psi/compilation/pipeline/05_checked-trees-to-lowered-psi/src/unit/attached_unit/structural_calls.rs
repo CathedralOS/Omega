@@ -369,6 +369,7 @@ pub(super) fn emit(
     )?;
     let structural_arguments = lower_structural_arguments(
         structural_arguments,
+        structural_types,
         parameters,
         &[],
         earlier_results,

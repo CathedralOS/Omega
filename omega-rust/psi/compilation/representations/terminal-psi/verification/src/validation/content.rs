@@ -306,7 +306,10 @@ pub(super) fn validate_content_entry_claims(
                             StructuralPathSegment::FixedIndex(index) => {
                                 Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index))
                             }
-                            StructuralPathSegment::Referent
+                            // Case authority is a current operation judgment;
+                            // it does not mint a content ownership binding.
+                            StructuralPathSegment::Case(_)
+                            | StructuralPathSegment::Referent
                             | StructuralPathSegment::FixedByteRange { .. }
                             | StructuralPathSegment::RuntimeIndex { .. } => None,
                         })
@@ -894,7 +897,9 @@ fn partition_substitutions_match_arguments(
                 StructuralPathSegment::FixedIndex(index) => {
                     Some(semantic_vocabulary::ContentPlaceSegment::FixedIndex(*index))
                 }
-                StructuralPathSegment::Referent
+                // Borrowing a payload does not transfer its content claims.
+                StructuralPathSegment::Case(_)
+                | StructuralPathSegment::Referent
                 | StructuralPathSegment::FixedByteRange { .. }
                 | StructuralPathSegment::RuntimeIndex { .. } => None,
             })

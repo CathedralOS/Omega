@@ -619,6 +619,7 @@ impl OperationFrame<'_, '_> {
         let earlier = self.results.earlier(slice, self.operations)?;
         let arguments = parameters::lower_structural_arguments(
             slice,
+            self.structural_types.declarations(),
             self.parameters,
             self.caller.local_places,
             &earlier,

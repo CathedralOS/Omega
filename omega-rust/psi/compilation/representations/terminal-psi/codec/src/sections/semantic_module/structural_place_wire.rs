@@ -62,6 +62,10 @@ pub(crate) fn encode_structural_path(
     writer.len(label, path.len())?;
     for segment in path {
         match segment {
+            StructuralPathSegment::Case(case) => {
+                writer.u8(7);
+                writer.id(*case);
+            }
             StructuralPathSegment::Field(identity) => {
                 writer.u8(1);
                 writer.string("structural path field", identity)?;
@@ -211,6 +215,7 @@ pub(crate) fn decode_structural_path(
             index: reader.id("ValueId")?,
             obligation: reader.id("ObligationId")?,
         }),
+        7 => Ok(StructuralPathSegment::Case(reader.id("StructuralCaseId")?)),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
 }
@@ -314,5 +319,36 @@ mod structural_place_wire_tests {
             decode_structural_place_kind(&mut Reader::new(&invalid)),
             Err(CodecError::InvalidTag("StructuralPlaceKind", 9))
         );
+    }
+}
+
+#[cfg(test)]
+mod case_path_tests {
+    use super::*;
+    #[test]
+    fn case_projection_wire_preserves_identity_and_rejects_retired_tag() {
+        let path = vec![
+            StructuralPathSegment::Field("container".into()),
+            StructuralPathSegment::Case(semantic_vocabulary::StructuralCaseId::new(1).unwrap()),
+            StructuralPathSegment::Field("payload".into()),
+            StructuralPathSegment::FixedIndex(2),
+        ];
+        let mut writer = Writer::default();
+        encode_structural_path(&mut writer, "case path", &path).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(
+            decode_structural_path(&mut Reader::new(&bytes)).unwrap(),
+            path
+        );
+        for length in 0..bytes.len() {
+            assert!(decode_structural_path(&mut Reader::new(&bytes[..length])).is_err());
+        }
+        let mut writer = Writer::default();
+        writer.len("case path", 1).unwrap();
+        writer.u8(5);
+        assert!(matches!(
+            decode_structural_path(&mut Reader::new(&writer.finish())),
+            Err(CodecError::InvalidTag("StructuralPathSegment", 5))
+        ));
     }
 }

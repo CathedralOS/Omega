@@ -447,42 +447,53 @@ pub(crate) fn resolve_structural_path_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<StructuralTypeId, TerminalInterpretError> {
-    let mut structural_type = root;
-    for segment in path {
-        let declaration = structural_types
-            .get(&structural_type)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        structural_type = match (segment, &declaration.shape) {
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            (
-                StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
-            ) => {
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())
-                    .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
-                match &field.field_type {
-                    terminal_psi::StructuralFieldType::Structural(next) => *next,
-                    leaf => {
-                        let Some(shape) = leaf.canonical_leaf_shape() else {
-                            return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
-                        };
-                        structural_types
-                            .iter()
-                            .find(|(_, declaration)| declaration.shape == shape)
-                            .map(|(id, _)| *id)
-                            .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?
-                    }
-                }
-            }
-            _ => return Err(TerminalInterpretError::AffineProjectionNotRepresentable),
-        };
+    if let Some(declaration) =
+        terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
+    {
+        return Ok(declaration.id);
     }
-    Ok(structural_type)
+    // Inline scalar/byte fields have no structural child ID in the catalog.
+    // The interpreter's argument representation uses their existing canonical
+    // carrier declaration. Keep that endpoint conversion here: shared path
+    // geometry must not erase bounded-field observation or store obligations.
+    let invalid = || TerminalInterpretError::AffineProjectionNotRepresentable;
+    let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
+        return Err(invalid());
+    };
+    let (carrier, case) = match carrier.split_last() {
+        Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+        _ => (carrier, None),
+    };
+    let declaration =
+        terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, carrier)
+            .ok_or_else(invalid)?;
+    let fields = match (&declaration.shape, case) {
+        (
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+            None,
+        ) => fields,
+        (
+            StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
+            Some(case),
+        ) => {
+            &cases
+                .iter()
+                .find(|candidate| candidate.id == case)
+                .ok_or_else(invalid)?
+                .fields
+        }
+        _ => return Err(invalid()),
+    };
+    let shape = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())
+        .and_then(|field| field.field_type.canonical_leaf_shape())
+        .ok_or_else(invalid)?;
+    structural_types
+        .values()
+        .find(|declaration| declaration.shape == shape)
+        .map(|declaration| declaration.id)
+        .ok_or_else(invalid)
 }
 
 pub(crate) fn bind_entry_claims(
@@ -541,54 +552,24 @@ pub(crate) fn resolve_structural_arguments(
             let mut value = values.get(&argument.place).cloned().ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
             )?;
-            let mut structural_type = value.structural_type;
-            for segment in &argument.path {
-                let declaration = structural_types
-                    .get(&structural_type)
-                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                structural_type = match (segment, &declaration.shape) {
-                    (
-                        StructuralPathSegment::FixedIndex(index),
-                        StructuralTypeShape::FixedArray { element, length },
-                    ) if index < length => *element,
-                    (
-                        StructuralPathSegment::Field(identity),
-                        StructuralTypeShape::Record { fields },
-                    ) => {
-                        let field = fields
-                            .iter()
-                            .find(|field| {
-                                field.identity == *identity && !field.relevance.is_erased()
-                            })
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        match &field.field_type {
-                            terminal_psi::StructuralFieldType::Structural(next) => *next,
-                            leaf => {
-                                // A scalar leaf resolves to the canonical
-                                // PrimitiveScalar declaration sharing its
-                                // shape — the same referent type a `&T`
-                                // shared loan binds. Other leaf carriers
-                                // have no structural referent type and fail
-                                // closed.
-                                let Some(shape) = leaf.canonical_leaf_shape() else {
-                                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                                };
-                                structural_types
-                                    .iter()
-                                    .find(|(_, declaration)| declaration.shape == shape)
-                                    .map(|(id, _)| *id)
-                                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?
-                            }
-                        }
-                    }
-                    _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
-                };
-            }
-            value.structural_type = structural_type;
+            value.structural_type = resolve_structural_path_type(
+                structural_types,
+                value.structural_type,
+                &argument.path,
+            )?;
             if !argument.path.is_empty() {
                 value.qualifications.clear();
             }
-            value.path.extend(argument.path.clone());
+            // A Case selects the active payload namespace, not another storage
+            // allocation. Execution checks its discriminator before dispatch;
+            // the borrowed value retains the original identity and field path.
+            value.path.extend(
+                argument
+                    .path
+                    .iter()
+                    .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
+                    .cloned(),
+            );
             Ok(value)
         })
         .collect()

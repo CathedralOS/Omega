@@ -236,6 +236,13 @@ fn leaf_reference_type(
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
+    if let Some((_, declaration)) = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        current,
+        fields,
+    ) {
+        return Some(declaration.id);
+    }
     for segment in fields {
         let declaration = module
             .structural_types
@@ -1334,11 +1341,11 @@ fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
     let overlaps_path = |path: &[StructuralPathSegment]| match right {
         ReferenceOrigin::Primitive(_) => true,
         ReferenceOrigin::IngressLeaf(identity) => {
-            path.starts_with(&identity.path) || identity.path.starts_with(path)
+            terminal_semantics::structural_paths_may_overlap(path, &identity.path)
         }
         ReferenceOrigin::Alternatives { paths, .. } => paths
             .iter()
-            .any(|other| path.starts_with(other) || other.starts_with(path)),
+            .any(|other| terminal_semantics::structural_paths_may_overlap(path, other)),
     };
     match left {
         ReferenceOrigin::Primitive(_) => true,

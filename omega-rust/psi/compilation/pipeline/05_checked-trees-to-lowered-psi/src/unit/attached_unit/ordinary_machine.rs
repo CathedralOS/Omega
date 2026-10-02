@@ -389,6 +389,7 @@ pub(super) fn emit(
             structural_types,
         )?;
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
+    evaluation.structural_types = structural_types.as_slice().into();
     evaluation.structural_fields =
         crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
             &evaluation.structural_parameters,
@@ -709,6 +710,7 @@ pub(super) fn emit(
                         .map(|reference| {
                             let arguments = parameters::lower_structural_arguments(
                                 std::slice::from_ref(&reference.source),
+                                structural_types,
                                 parameters,
                                 &[],
                                 &[],

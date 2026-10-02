@@ -26,30 +26,21 @@ use terminal_psi::{Block, Operation, StructuralArgument, Terminator, ValueDeclar
 pub(crate) struct PreparedStructuralArgument {
     pub(crate) place: semantic_vocabulary::PlaceId,
     pub(crate) access: terminal_psi::StructuralAccess,
-    pub(crate) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    pub(crate) path: Vec<
+        crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment,
+    >,
     /// Field-selector snapshots in path order, carried in the call input frame.
     pub(crate) selector_positions: Vec<usize>,
 }
 
 impl PreparedStructuralArgument {
     pub(crate) fn from_static(argument: StructuralArgument) -> Result<Self, LoweringError> {
-        use checked_trees::CheckedUnitStructuralPathSegment as CheckedPath;
-        use terminal_psi::StructuralPathSegment as TerminalPath;
-        let path = argument
-            .path
-            .into_iter()
-            .map(|segment| match segment {
-                TerminalPath::Field(field) => Ok(CheckedPath::Field(field)),
-                TerminalPath::FixedIndex(index) => Ok(CheckedPath::FixedIndex(index)),
-                TerminalPath::FixedByteRange { start, end } => {
-                    Ok(CheckedPath::FixedByteRange { start, end })
-                }
-                TerminalPath::Referent => Ok(CheckedPath::Referent),
-                TerminalPath::RuntimeIndex { .. } => {
-                    unsupported("prepared call cannot capture another operation's runtime path")
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let path = argument.path.into_iter().map(|segment| {
+            if matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. }) {
+                return unsupported("prepared call cannot capture another operation's runtime path");
+            }
+            Ok(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static(segment))
+        }).collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             place: argument.place,
             access: argument.access,
@@ -80,7 +71,7 @@ impl PreparedStructuralArgument {
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         let mut selectors = selectors.into_iter();
-        let path = crate::expression_preparation::bindings::structural_paths::lower_argument_path(
+        let path = crate::expression_preparation::bindings::structural_paths::emit_argument_path(
             &self.path,
             Some(values),
             &mut selectors,

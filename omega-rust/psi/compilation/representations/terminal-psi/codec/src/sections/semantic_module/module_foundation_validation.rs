@@ -205,6 +205,7 @@ pub(crate) fn validate_structural_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<StructuralTypeId, CodecError> {
+    let mut payload_fields = None;
     for segment in path {
         let Some(declaration) = module
             .structural_types
@@ -213,7 +214,28 @@ pub(crate) fn validate_structural_path(
         else {
             return malformed("structural path has an unknown structural type");
         };
+        if let StructuralPathSegment::Case(case) = segment {
+            if payload_fields.is_some() {
+                return malformed("structural case path requires its payload field");
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return malformed("structural case path requires a sum");
+            };
+            let Some(selected) = cases.iter().find(|candidate| candidate.id == *case) else {
+                return malformed("structural path has an unknown case");
+            };
+            payload_fields = Some(selected.fields.as_slice());
+            continue;
+        }
+        if payload_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+            return malformed("structural case path requires its payload field");
+        }
         structural_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::Case(_), _) => {
+                return malformed("structural case path requires its payload field");
+            }
             (StructuralPathSegment::FixedByteRange { .. }, _) => {
                 return malformed("fixed byte ranges require call-scoped byte-view custody");
             }
@@ -228,10 +250,19 @@ pub(crate) fn validate_structural_path(
             (_, StructuralTypeShape::Reference { .. }) => {
                 return malformed("referent projection requires a reference carrier");
             }
-            (
-                StructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
-            ) => {
+            (StructuralPathSegment::Field(identity), shape) => {
+                let fields = match payload_fields.take() {
+                    Some(fields) => fields,
+                    None => match shape {
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                        _ => {
+                            return malformed(
+                                "structural field path requires a record or case payload",
+                            );
+                        }
+                    },
+                };
                 if identity.is_empty() {
                     return malformed("structural path field identity cannot be empty");
                 }
@@ -274,9 +305,6 @@ pub(crate) fn validate_structural_path(
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. },
             ) => *element,
-            (StructuralPathSegment::Field(_), StructuralTypeShape::FixedArray { .. }) => {
-                return malformed("structural path field requires a record type");
-            }
             (StructuralPathSegment::FixedIndex(_), StructuralTypeShape::Record { .. }) => {
                 return malformed("structural path fixed index requires a fixed-array type");
             }
@@ -316,6 +344,9 @@ pub(crate) fn validate_structural_path(
                 return malformed("element-view structural type has no projected children");
             }
         };
+    }
+    if payload_fields.is_some() {
+        return malformed("structural case path requires its payload field");
     }
     Ok(structural_type)
 }

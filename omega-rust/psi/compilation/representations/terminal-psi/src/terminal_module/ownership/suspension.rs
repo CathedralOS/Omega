@@ -115,6 +115,10 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                 hash.update((path.len() as u64).to_le_bytes());
                 for segment in path {
                     match segment {
+                        StructuralPathSegment::Case(case) => {
+                            hash.update([7]);
+                            hash.update(case.get().to_le_bytes());
+                        }
                         StructuralPathSegment::Field(field) => {
                             hash.update([1]);
                             hash.update((field.len() as u64).to_le_bytes());

@@ -234,6 +234,7 @@ pub(super) fn prepare(
     )?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,
+        structural_types,
         parameters,
         local_places,
         structural_result_places,

@@ -348,7 +348,7 @@ pub(crate) fn is_static_borrow_path(path: &[StructuralPathSegment]) -> bool {
     !path.is_empty()
         && path.iter().all(|segment| match segment {
             StructuralPathSegment::Field(identity) => !identity.is_empty(),
-            StructuralPathSegment::FixedIndex(_) => true,
+            StructuralPathSegment::Case(_) | StructuralPathSegment::FixedIndex(_) => true,
             StructuralPathSegment::Referent
             | StructuralPathSegment::FixedByteRange { .. }
             | StructuralPathSegment::RuntimeIndex { .. } => false,
@@ -371,7 +371,9 @@ pub(crate) fn is_runtime_indexed_borrow_path(path: &[StructuralPathSegment]) -> 
             }
             StructuralPathSegment::FixedIndex(_) => {}
             StructuralPathSegment::RuntimeIndex { .. } => saw_runtime_index = true,
-            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+            StructuralPathSegment::Case(_)
+            | StructuralPathSegment::Referent
+            | StructuralPathSegment::FixedByteRange { .. } => {
                 return false;
             }
         }

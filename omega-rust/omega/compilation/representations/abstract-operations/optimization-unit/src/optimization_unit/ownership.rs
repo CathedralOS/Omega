@@ -154,6 +154,10 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     encode_frontier_len(bytes, path.len());
     for segment in path {
         match segment {
+            StructuralPathSegment::Case(case) => {
+                bytes.push(7);
+                bytes.extend_from_slice(&case.get().to_le_bytes());
+            }
             StructuralPathSegment::Field(identity) => {
                 bytes.push(1);
                 encode_frontier_len(bytes, identity.len());

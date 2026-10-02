@@ -13,13 +13,21 @@ pub(crate) fn structural_argument_canonical_prefix(
     argument: &StructuralArgument,
 ) -> Option<Vec<CanonicalStructuralPathSegment>> {
     let mut structural_type = caller_structural_root_type(caller, argument.place)?;
+    if let Some((path, _)) = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        structural_type,
+        &argument.path,
+    ) {
+        return Some(path);
+    }
     let mut prefix = Vec::with_capacity(argument.path.len());
     for (position, segment) in argument.path.iter().enumerate() {
         match segment {
             // A runtime index has no canonical owned-field spelling: callers
             // either omit an unreferenced binder or reject, never substitute
             // the whole backing for a dynamically selected element.
-            StructuralPathSegment::Referent
+            StructuralPathSegment::Case(_)
+            | StructuralPathSegment::Referent
             | StructuralPathSegment::FixedByteRange { .. }
             | StructuralPathSegment::RuntimeIndex { .. } => {
                 return None;
@@ -107,10 +115,18 @@ pub(crate) fn canonical_field_path_from_type(
     mut structural_type: semantic_vocabulary::StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<Vec<CanonicalStructuralPathSegment>> {
+    if let Some((path, _)) = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        structural_type,
+        path,
+    ) {
+        return Some(path);
+    }
     let mut written = Vec::with_capacity(path.len());
     for segment in path {
         match segment {
-            StructuralPathSegment::Referent
+            StructuralPathSegment::Case(_)
+            | StructuralPathSegment::Referent
             | StructuralPathSegment::FixedByteRange { .. }
             | StructuralPathSegment::RuntimeIndex { .. } => {
                 return None;

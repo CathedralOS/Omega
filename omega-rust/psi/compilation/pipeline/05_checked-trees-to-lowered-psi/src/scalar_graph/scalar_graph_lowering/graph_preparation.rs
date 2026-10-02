@@ -246,6 +246,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let fields = computations::fields::prepare(checked, &[machine], structural_types)?;
     let mut computations =
         computations::Expansion::new(checked, qualifications, machine, lowered_state_count)
+            .with_structural_types(structural_types)
             .with_arrays(&arrays)
             .with_subslices(&subslices)
             .with_cases(&cases)

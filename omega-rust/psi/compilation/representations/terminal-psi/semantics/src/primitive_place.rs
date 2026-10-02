@@ -269,13 +269,43 @@ fn walk_primitive_projection<'a>(
         matching.next().is_none().then_some(declaration)
     };
     let mut position = Position::Declared(root);
+    let mut payload_fields = None;
     for segment in path {
         let Position::Declared(root) = position else {
             return None;
         };
         let declaration = unique(root)?;
+        if let StructuralPathSegment::Case(case) = segment {
+            if payload_fields.is_some() {
+                return None;
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return None;
+            };
+            let mut matching = cases.iter().filter(|candidate| candidate.id == *case);
+            let selected = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            payload_fields = Some(selected.fields.as_slice());
+            step(Some(CanonicalStructuralPathSegment::Case(*case)));
+            continue;
+        }
+        if payload_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+            return None;
+        }
         position = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            (StructuralPathSegment::Field(identity), shape) => {
+                let fields = match payload_fields.take() {
+                    Some(fields) => fields,
+                    None => match shape {
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                        _ => return None,
+                    },
+                };
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let field = matching.next()?;
                 if matching.next().is_some()
@@ -326,6 +356,9 @@ fn walk_primitive_projection<'a>(
             }
             _ => return None,
         };
+    }
+    if payload_fields.is_some() {
+        return None;
     }
     match position {
         Position::Declared(root) => unique(root).map(ProjectionTip::Declared),
@@ -606,5 +639,120 @@ mod tests {
                 "{rejected:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod case_projection_tests {
+    use super::*;
+    use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, ValueId};
+    use terminal_psi::{BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration};
+
+    #[test]
+    fn case_projection_retains_declared_namespace_and_exact_canonical_path() {
+        let root = StructuralTypeId::new(1).unwrap();
+        let leaf = StructuralTypeId::new(2).unwrap();
+        let case = StructuralCaseId::new(1).unwrap();
+        let field = StructuralFieldId::new(1).unwrap();
+        let types = [
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "Choice".into(),
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![StructuralCaseDeclaration {
+                        id: case,
+                        identity: "Found".into(),
+                        fields: vec![StructuralFieldDeclaration {
+                            id: field,
+                            identity: "payload".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(leaf),
+                        }],
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: leaf,
+                identity: "Payload".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ];
+        let path = [
+            StructuralPathSegment::Case(case),
+            StructuralPathSegment::Field("payload".into()),
+        ];
+        let (canonical, selected) = canonical_static_projection(types.iter(), root, &path).unwrap();
+        assert_eq!(selected.id, leaf);
+        assert_eq!(
+            canonical,
+            vec![
+                CanonicalStructuralPathSegment::Case(case),
+                CanonicalStructuralPathSegment::Field(field)
+            ]
+        );
+        for invalid in [
+            vec![path[0].clone()],
+            vec![path[1].clone()],
+            vec![path[0].clone(), StructuralPathSegment::FixedIndex(0)],
+            vec![
+                StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap()),
+                path[1].clone(),
+            ],
+        ] {
+            assert!(canonical_static_projection(types.iter(), root, &invalid).is_none());
+        }
+        let other = [
+            StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap()),
+            StructuralPathSegment::Field("other".into()),
+        ];
+        assert!(crate::structural_paths_may_overlap(&path, &other));
+        assert!(crate::structural_paths_may_overlap(&other, &path));
+        let mut dynamic_left = vec![StructuralPathSegment::RuntimeIndex {
+            index: ValueId::new(1).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        }];
+        dynamic_left.extend(path.clone());
+        let mut dynamic_right = vec![StructuralPathSegment::RuntimeIndex {
+            index: ValueId::new(2).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(2).unwrap(),
+        }];
+        dynamic_right.extend(other);
+        assert!(crate::structural_paths_may_overlap(
+            &dynamic_left,
+            &dynamic_right
+        ));
+        let wrapper = StructuralTypeId::new(3).unwrap();
+        let mut nested_types = types.to_vec();
+        nested_types.push(StructuralTypeDeclaration {
+            id: wrapper,
+            identity: "Wrapper".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "choice".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(root),
+                }],
+            },
+        });
+        let mut nested = vec![StructuralPathSegment::Field("choice".into())];
+        nested.extend(path.clone());
+        let (canonical, selected) =
+            canonical_static_projection(nested_types.iter(), wrapper, &nested).unwrap();
+        assert_eq!(selected.id, leaf);
+        assert_eq!(
+            canonical,
+            vec![
+                CanonicalStructuralPathSegment::Field(field),
+                CanonicalStructuralPathSegment::Case(case),
+                CanonicalStructuralPathSegment::Field(field)
+            ]
+        );
+        let mut erased = types.clone();
+        let StructuralTypeShape::Sum { cases } = &mut erased[0].shape else {
+            panic!("sum");
+        };
+        cases[0].fields[0].relevance = BindingRelevance::Erased;
+        assert!(canonical_static_projection(erased.iter(), root, &path).is_none());
     }
 }

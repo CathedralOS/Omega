@@ -1,4 +1,4 @@
-//! Exact static `Field`/`FixedIndex` path resolution shared by the semantic
+//! Exact static `Case`/`Field`/`FixedIndex` path resolution shared by the semantic
 //! rows.
 //!
 //! One rule: each hop descends through the declared type catalog — a `Field`
@@ -10,8 +10,8 @@
 //! Two entry points mirror the two segment vocabularies. The canonical form
 //! resolves declaration-local field ids and rejects a duplicated declaration
 //! or field id rather than picking one; the runtime form resolves field
-//! identities and takes the first match, as the validated catalog admits no
-//! duplicates. Neither grants the place any storage, view adapter, or type
+//! identities and declaration-local case IDs, also refusing ambiguity. Neither
+//! grants the place any storage, view adapter, or type
 //! identity of its own.
 
 use semantic_vocabulary::{
@@ -83,9 +83,16 @@ pub fn structural_paths_may_overlap(
     left: &[StructuralPathSegment],
     right: &[StructuralPathSegment],
 ) -> bool {
-    left.iter()
-        .zip(right)
-        .all(|(left, right)| match (left, right) {
+    for (left, right) in left.iter().zip(right) {
+        // Variant namespaces describe the same overlay. Even different
+        // runtime selectors can alias, so stop before comparing their fields.
+        if let (StructuralPathSegment::Case(left), StructuralPathSegment::Case(right)) =
+            (left, right)
+            && left != right
+        {
+            return true;
+        }
+        let overlaps = match (left, right) {
             // Empty loans still retain their backing: do not derive exclusive
             // alias freedom from the absence of writable bytes. Invalid ranges
             // are rejected by presentation validation, never trusted here.
@@ -117,7 +124,12 @@ pub fn structural_paths_may_overlap(
             (StructuralPathSegment::RuntimeIndex { .. }, _)
             | (_, StructuralPathSegment::RuntimeIndex { .. }) => true,
             _ => left == right,
-        })
+        };
+        if !overlaps {
+            return false;
+        }
+    }
+    true
 }
 /// Whether `child` is a borrow formed strictly inside the extent `parent`
 /// already loans on the same place. A receiver's own claim is the callee's
@@ -196,33 +208,16 @@ pub fn canonical_structural_path_tip<'a>(
 }
 
 /// Resolve `path` from `root` to its tip declaration over runtime field
-/// identities, taking the first match the validated catalog presents. This
-/// grants no access or establishment authority for the root.
+/// identities and declaration-local case IDs. The common projection walk
+/// rejects ambiguous declarations and preserves the declared structural tip;
+/// scalar field endpoints retain their separate carrier policies. This grants
+/// no active-case, access or establishment authority for the root.
 pub fn runtime_structural_path_tip<'a>(
-    mut types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    mut root: StructuralTypeId,
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a StructuralTypeDeclaration> {
-    for segment in path {
-        let declaration = types.clone().find(|declaration| declaration.id == root)?;
-        root = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                next
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    types.find(|declaration| declaration.id == root)
+    crate::canonical_static_projection(types, root, path).map(|(_, declaration)| declaration)
 }
 
 /// Resolve a case-qualified structural leaf by declaration-local identities.

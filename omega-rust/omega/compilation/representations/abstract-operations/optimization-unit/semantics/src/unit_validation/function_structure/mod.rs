@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 
 mod byte_concatenation;
 mod byte_field_freshness;
+mod case_arguments;
 pub use byte_field_freshness::byte_field_root;
 mod byte_predicates;
 mod byte_views;
@@ -92,6 +93,7 @@ pub(crate) fn validate_function(
     )?;
     byte_concatenation::validate(function, structural_types, &control_flow.predecessors)?;
     byte_field_freshness::validate(function, structural_types, &control_flow.predecessors)?;
+    case_arguments::validate(function, structural_types, &control_flow.predecessors)?;
     byte_predicates::validate_indexed_byte_stores(
         unit,
         function,

@@ -734,8 +734,41 @@ fn projection_path(
     let root_type = structural_type;
     let mut total_offset = 0_u32;
     let mut selected_shape = None;
-    for segment in path {
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
         let (selected_type, shape, local_offset) = match segment {
+            StructuralPathSegment::Case(case) => {
+                let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
+                let declaration = declarations.get(&structural_type).ok_or_else(invalid)?;
+                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                    &declaration.shape
+                else {
+                    return Err(invalid());
+                };
+                let case_position = cases
+                    .iter()
+                    .position(|candidate| candidate.id == *case)
+                    .ok_or_else(invalid)?;
+                let Some(StructuralPathSegment::Field(identity)) = segments.next() else {
+                    return Err(invalid());
+                };
+                let (field_position, field) = cases[case_position]
+                    .fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .find(|(_, field)| field.identity == *identity)
+                    .ok_or_else(invalid)?;
+                let StructuralFieldType::Structural(selected) = field.field_type else {
+                    return Err(invalid());
+                };
+                let layout = structural_sum_layout(structural_type, declarations, cache, active)?;
+                (
+                    selected,
+                    structural_shape(selected, declarations, cache, active)?,
+                    layout.cases[case_position].fields[field_position].byte_offset,
+                )
+            }
             StructuralPathSegment::Referent
             | StructuralPathSegment::FixedByteRange { .. }
             | StructuralPathSegment::RuntimeIndex { .. } => {

@@ -66,6 +66,38 @@ pub(super) fn append_operation(
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
     let value_types = &context.value_types;
+    if matches!(purpose, OperationFactPurpose::ProofObligations) {
+        // A payload projection names an overlay, not authority to use it.
+        // Check the current case before this operation can invalidate facts
+        // (including establishing a mutable loan or composing a call).
+        for projection in operation.kind.structural_projections() {
+            let Some(case) = projection.path.iter().find_map(|segment| match segment {
+                terminal_psi::StructuralPathSegment::Case(case) => Some(*case),
+                _ => None,
+            }) else {
+                continue;
+            };
+            let path = crate::validation::canonical_field_path(
+                module,
+                machine,
+                projection.root,
+                projection.path,
+            )
+            .ok_or(ModuleError::InvalidStructuralCaseObservation {
+                operation: operation.id,
+                source: projection.root,
+                case,
+            })?;
+            if !case_hops::active(module, machine, context, axioms, projection.root, &path) {
+                return Err(ModuleError::InvalidStructuralCaseObservation {
+                    operation: operation.id,
+                    source: projection.root,
+                    case,
+                });
+            }
+        }
+    }
+
     // Private crash questions retain their own entry-origin discipline. A
     // current-value capture cannot manufacture an invocation-entry observation.
     let capture_snapshots = matches!(purpose, OperationFactPurpose::ProofObligations);

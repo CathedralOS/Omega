@@ -767,3 +767,108 @@ fn fixed_array_root_reads_its_literal_elements_record_fields() {
         None,
     );
 }
+
+#[test]
+fn case_payload_projection_retains_prefix_stride_and_exact_case_field() {
+    use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
+    use terminal_psi::{BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration};
+    let leaf = StructuralTypeId::new(3).unwrap();
+    let sum = StructuralTypeId::new(2).unwrap();
+    let root = StructuralTypeId::new(1).unwrap();
+    let selected_case = StructuralCaseId::new(21).unwrap();
+    let mut types = vec![
+        StructuralTypeDeclaration {
+            id: root,
+            identity: "Slots".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: sum,
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: sum,
+            identity: "Choice".into(),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![
+                    StructuralCaseDeclaration {
+                        id: selected_case,
+                        identity: "Present".into(),
+                        fields: vec![StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(31).unwrap(),
+                            identity: "item".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(leaf),
+                        }],
+                    },
+                    StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(22).unwrap(),
+                        identity: "Absent".into(),
+                        fields: Vec::new(),
+                    },
+                ],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: leaf,
+            identity: "Item".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(32).unwrap(),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::IeeeFloat(
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    )),
+                }],
+            },
+        },
+    ];
+    // Each sum is 16 bytes: tag at zero, eight-byte payload at eight.
+    // Borrowing the second element's payload retains backing offset 24.
+    let path = vec![
+        StructuralPathSegment::FixedIndex(1),
+        StructuralPathSegment::Case(selected_case),
+        StructuralPathSegment::Field("item".into()),
+    ];
+    assert_eq!(super::project(root, &path, &types), Some((leaf, 24)));
+    assert_eq!(
+        super::runtime_projection(root, &path, &types).map(|(leaf, offset, indices)| (
+            leaf,
+            offset,
+            indices.len()
+        )),
+        Some((leaf, 24, 0))
+    );
+    for invalid in [
+        vec![
+            StructuralPathSegment::FixedIndex(2),
+            StructuralPathSegment::Case(selected_case),
+            StructuralPathSegment::Field("item".into()),
+        ],
+        vec![
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::Case(StructuralCaseId::new(22).unwrap()),
+            StructuralPathSegment::Field("item".into()),
+        ],
+        vec![
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::Case(selected_case),
+        ],
+        vec![
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::Case(selected_case),
+            StructuralPathSegment::Field("missing".into()),
+        ],
+        vec![
+            StructuralPathSegment::Case(selected_case),
+            StructuralPathSegment::Field("item".into()),
+        ],
+    ] {
+        assert_eq!(super::project(root, &invalid, &types), None);
+    }
+    let StructuralTypeShape::Sum { cases } = &mut types[1].shape else {
+        unreachable!()
+    };
+    cases[0].fields[0].relevance = BindingRelevance::Erased;
+    assert_eq!(super::project(root, &path, &types), None);
+}

@@ -760,6 +760,7 @@ impl OperationFrame<'_, '_> {
             (
                 lower_structural_arguments(
                     structural_arguments,
+                    self.structural_types.declarations(),
                     self.parameters,
                     self.caller.local_places,
                     &earlier,

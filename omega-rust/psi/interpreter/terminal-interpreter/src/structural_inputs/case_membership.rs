@@ -7,7 +7,14 @@ use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralTypeId,
 };
-use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeShape};
+use std::collections::BTreeMap;
+use terminal_psi::{
+    Operation, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
+};
+
+#[cfg(test)]
+mod tests;
 
 /// Initialized payloadless case contents below one structural entry argument.
 /// The path selects the sum itself, not its case payload. Neither an opaque
@@ -27,6 +34,26 @@ pub(crate) struct StructuralCaseContents {
 }
 
 impl TerminalExecution {
+    /// Check every selected overlay against its current stored discriminator.
+    /// Verification already proved the source permission and membership; this
+    /// joins the admitted operation to the interpreter's actual backing before
+    /// a call or write can change it. Runtime indices have already been selected.
+    pub(crate) fn validate_case_projections(
+        &self,
+        operation: &Operation,
+    ) -> Result<(), TerminalInterpretError> {
+        for projection in operation.kind.structural_projections() {
+            validate_case_projection(
+                &self.program.structural_types,
+                &self.structural_values,
+                &self.structural_cases,
+                projection.root,
+                projection.path,
+            )?;
+        }
+        Ok(())
+    }
+
     /// Runtime sum storage contains only the active case's payload under its
     /// declared field names. A canonical Case segment therefore checks the
     /// stored discriminator rather than adding a storage-path component. Do
@@ -203,4 +230,53 @@ impl TerminalExecution {
         }
         Ok(contents.case)
     }
+}
+
+/// Runtime payload fields overlay their sum's backing. Check each Case before
+/// omitting it from the physical path; two cases may use the same field names.
+fn validate_case_projection(
+    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+    source: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Result<(), TerminalInterpretError> {
+    let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+    let mut selected = path
+        .iter()
+        .enumerate()
+        .filter_map(|(position, segment)| {
+            if let StructuralPathSegment::Case(case) = segment {
+                Some((position, *case))
+            } else {
+                None
+            }
+        })
+        .peekable();
+    if selected.peek().is_none() {
+        return Ok(());
+    }
+    let root =
+        values
+            .get(&source)
+            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                source,
+            ))?;
+    resolve_structural_path_type(types, root.structural_type, path)?;
+    for (position, case) in selected {
+        let prefix = &path[..position];
+        let selected_type = resolve_structural_path_type(types, root.structural_type, prefix)?;
+        let mut storage = StructuralRuntimePlace::from(root);
+        storage.path.extend(
+            prefix
+                .iter()
+                .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
+                .cloned(),
+        );
+        let contents = cases.get(&storage).ok_or_else(invalid)?;
+        if contents.structural_type != selected_type || contents.case != case {
+            return Err(invalid());
+        }
+    }
+    Ok(())
 }

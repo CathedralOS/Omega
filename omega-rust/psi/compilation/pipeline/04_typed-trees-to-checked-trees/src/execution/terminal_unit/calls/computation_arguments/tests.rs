@@ -930,3 +930,154 @@ machine snapshot(context: &mut Context) reaches Host {
         Some(&checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding)
     );
 }
+
+const CASE_BORROW: &str = r#"
+data Payload { case Leaf(value: u64); case Empty; }
+machine Payload::read(payload: &Payload) -> u64 {
+    transition payload { Payload::Leaf { value } -> (value) Payload::Empty -> (0) }
+}
+data Sum { case Found(p: Payload); case Other(p: Payload); case Missing; }
+machine Sum::probe(sum: &Sum) -> u64 {
+    transition sum {
+        Sum::Found { p } -> (Payload::read(&p))
+        Sum::Other { p } -> (Payload::read(&p))
+        Sum::Missing -> (0)
+    }
+}
+"#;
+
+#[test]
+fn case_payload_arguments_retain_exact_case_and_original_parameter() {
+    let checked = checked(CASE_BORROW);
+    let caller = machine(&checked.typed, "Sum::probe");
+    let callee = machine(&checked.typed, "Payload::read");
+    let state = &checked.machine_states(caller)[0];
+    let plans = &checked.facts.values.scalar_computations;
+    let mut paths = Vec::new();
+    for (_, node) in plans.nodes.iter() {
+        let checked_trees::CheckedScalarComputationKind::Call {
+            target_machine,
+            source_call,
+            structural_arguments,
+            ..
+        } = node.kind
+        else {
+            continue;
+        };
+        if target_machine != callee.symbol {
+            continue;
+        }
+        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+            .structural_arguments
+            .span(structural_arguments)
+            .unwrap()
+        else {
+            panic!("one payload loan");
+        };
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        assert!(matches!(
+            argument.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0
+            }
+        ));
+        let [
+            checked_trees::CheckedUnitStructuralPathSegment::Case(case),
+            checked_trees::CheckedUnitStructuralPathSegment::Field(field),
+        ] = argument.path.as_slice()
+        else {
+            panic!("complete case payload path: {:?}", argument.path);
+        };
+        let call = checked.facts.flow.control.calls.get(source_call);
+        let accesses = checked
+            .facts
+            .borrow
+            .argument_accesses
+            .span(call.accesses)
+            .unwrap();
+        let [access] = accesses else {
+            panic!("one original payload access");
+        };
+        assert_eq!(
+            access.root_symbol,
+            checked.state_parameters(state)[0].symbol
+        );
+        assert!(matches!(
+            checked.facts.borrow.access_segments(access),
+            [
+                facts::PlaceSegment::Case { .. },
+                facts::PlaceSegment::Field { .. }
+            ]
+        ));
+        paths.push((case.clone(), field.clone()));
+    }
+    paths.sort();
+    paths.dedup();
+    assert_eq!(paths.len(), 2, "both arms retain their ordinary call nodes");
+    assert_ne!(
+        paths[0].0, paths[1].0,
+        "equal payload types do not merge cases"
+    );
+    assert_ne!(
+        paths[0].1, paths[1].1,
+        "equal payload field names do not merge declarations"
+    );
+}
+
+#[test]
+fn case_argument_path_rejects_sibling_case_field_substitution() {
+    let checked = checked(CASE_BORROW);
+    let caller = machine(&checked.typed, "Sum::probe");
+    let state = &checked.machine_states(caller)[0];
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|owner| owner.name == "Sum")
+        .unwrap();
+    let cases = checked
+        .data_members(owner)
+        .iter()
+        .filter_map(|member| match member {
+            checked_trees::data::DataMember::Variant(case)
+                if case.name == "Found" || case.name == "Other" =>
+            {
+                Some(case)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let root = facts::PlaceRoot::Symbol(checked.state_parameters(state)[0].symbol);
+    let mut place = crate::flow::CanonicalPlace {
+        root,
+        segments: vec![
+            facts::PlaceSegment::Case {
+                variant: cases[0].symbol,
+            },
+            facts::PlaceSegment::Field {
+                symbol: checked.data_payload_fields(cases[0])[0].symbol,
+            },
+        ],
+    };
+    let resolve = |place: &crate::flow::CanonicalPlace| {
+        super::super::argument_paths::projected_borrowed_path(
+            &checked.typed,
+            caller.symbol,
+            state.symbol,
+            0,
+            place,
+        )
+    };
+    assert!(resolve(&place).is_some());
+    place.segments[0] = facts::PlaceSegment::Case {
+        variant: cases[1].symbol,
+    };
+    assert!(
+        resolve(&place).is_none(),
+        "a sibling case cannot authorize the same-typed field"
+    );
+    place.segments.pop();
+    assert!(
+        resolve(&place).is_none(),
+        "a case alone is not a borrowed value"
+    );
+}
