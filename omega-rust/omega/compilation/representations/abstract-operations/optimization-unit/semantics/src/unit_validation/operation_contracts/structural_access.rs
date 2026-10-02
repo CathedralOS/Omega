@@ -608,10 +608,36 @@ pub(crate) fn structural_arguments_match(
                 )
             }))
             .is_some_and(|(required, available)| available.implies(required));
+        // Replay primitive byte membership in the current graph; producer
+        // annotations cannot manufacture a source's content predicates.
+        let byte_content_qualifications = argument.path.is_empty()
+            && argument.access == terminal_psi::StructuralAccess::SharedBorrow
+            && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+            && types.values().any(|row| {
+                row.id == parameter.structural_type
+                    && matches!(
+                        row.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(_)
+                    )
+            })
+            && terminal_semantics::byte_parameter_predicates_in(
+                domains.values().copied(),
+                parameter,
+            )
+            .zip(
+                crate::unit_validation::function_structure::whole_source_predicates(
+                    types.values().copied(),
+                    domains.values().copied(),
+                    caller,
+                    argument.place,
+                ),
+            )
+            .is_some_and(|(required, available)| available.implies(required));
         if actual_multiplicity != parameter.multiplicity
             || (!bounded_owner_presentation
                 && !view_field_presentation
                 && !copied_byte_predicates
+                && !byte_content_qualifications
                 && parameter.qualifications.iter().any(|qualification| {
                     !source.carries_qualification(&argument.path, *qualification)
                 }))

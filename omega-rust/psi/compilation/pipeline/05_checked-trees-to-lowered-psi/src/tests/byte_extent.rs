@@ -8,6 +8,7 @@ use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::IntegerValue;
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+mod qualifications;
 mod rejections;
 
 const SOURCE: &str = r#"

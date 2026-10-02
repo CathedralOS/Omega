@@ -1,4 +1,4 @@
-//! Concatenation derives predicates from the operands at assignment time.
+//! Byte operations derive predicates from their operands at assignment time.
 //! The destination retains a materialized-value fact, not expressions that
 //! would read the mutable operands again at a later contract boundary.
 use super::PlaceHandle;
@@ -16,7 +16,7 @@ use facts::{
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn append_concatenated_predicates(
+pub(super) fn append_derived_predicates(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
     contexts: &FlowBuildContext,
@@ -26,11 +26,17 @@ pub(super) fn append_concatenated_predicates(
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
-    if !matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Binary(binary)
-            if binary.operator == typed_trees::expression::BinaryOperator::Add
-    ) {
+    let byte_operation = match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            binary.operator == typed_trees::expression::BinaryOperator::Add
+        }
+        ExpressionNode::Indexed(indexed) => matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        ),
+        _ => false,
+    };
+    if !byte_operation || !crate::values::operator_is_builtin(contexts.operators, expression) {
         return;
     }
     let active_facts: Vec<_> = contexts
@@ -46,15 +52,15 @@ pub(super) fn append_concatenated_predicates(
         .copied()
         .collect();
     for domain in program.domain_definitions() {
-        // Concatenation proves a byte predicate, never a routed qualification.
+        // Primitive operations prove byte predicates, never routed qualifications.
         if !domain.establishment_routes.is_empty()
             || !typed_trees::domain::index_parameters(program, domain).is_empty()
             || domain.alias.is_some()
             || !domain.predicate_body.is_present()
-            || !crate::facts::field_domain::domain_is_concat_preserving(program, domain.symbol)
             || !value_proves_predicate(
                 program,
                 semantic,
+                contexts.operators,
                 &active_facts,
                 expression,
                 domain.symbol,
@@ -82,6 +88,7 @@ pub(super) fn append_concatenated_predicates(
 fn value_proves_predicate(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
+    operators: &checked_trees::CheckedOperatorFacts,
     active: &[Fact],
     expression: ExpressionHandle,
     domain: SymbolHandle,
@@ -94,9 +101,47 @@ fn value_proves_predicate(
     }
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
         && binary.operator == typed_trees::expression::BinaryOperator::Add
+        && crate::values::operator_is_builtin(operators, expression)
     {
-        return value_proves_predicate(program, semantic, active, binary.left, domain, point)
-            && value_proves_predicate(program, semantic, active, binary.right, domain, point);
+        return crate::facts::field_domain::domain_is_concat_preserving(program, domain)
+            && value_proves_predicate(
+                program,
+                semantic,
+                operators,
+                active,
+                binary.left,
+                domain,
+                point,
+            )
+            && value_proves_predicate(
+                program,
+                semantic,
+                operators,
+                active,
+                binary.right,
+                domain,
+                point,
+            );
+    }
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        && matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        )
+        && crate::values::operator_is_builtin(operators, expression)
+    {
+        // Preserve the class at descriptor formation. Replaying an initializer
+        // later would observe a source binding that may have been replaced.
+        return crate::facts::field_domain::domain_is_subslice_preserving(program, domain)
+            && value_proves_predicate(
+                program,
+                semantic,
+                operators,
+                active,
+                indexed.collection,
+                domain,
+                point,
+            );
     }
     let ProgramPoint::Statement {
         machine_symbol,
@@ -144,6 +189,10 @@ fn value_proves_predicate(
                 crate::facts::field_domain::string_literal_expression_grants_domain(
                     program, value, domain,
                 )
+            }
+            FactPayload::BytePredicate { predicate } => {
+                crate::facts::field_domain::domain_byte_predicate(program, domain)
+                    .is_some_and(|required| predicate.implies(required))
             }
             _ => false,
         }

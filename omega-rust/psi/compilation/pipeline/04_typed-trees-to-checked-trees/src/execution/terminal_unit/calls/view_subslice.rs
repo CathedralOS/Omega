@@ -10,8 +10,10 @@
 //! Arrays first lend a whole descriptor; established views narrow directly.
 //! This is a carrier distinction, not a local-versus-parameter alternative.
 //! Present endpoints retain their checked site and evaluation order. Byte and
-//! element counts remain separate. Qualification transfer still requires the
-//! narrowed result's own evidence; a source domain alone grants none.
+//! element counts remain separate. Checking proves the authored call's domain
+//! requirements; Terminal independently reconstructs subslice-preserving byte
+//! predicates from the exact source. The result never asserts a qualification
+//! merely because its consumer wants one.
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedScalarExpression;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
@@ -383,34 +385,6 @@ pub(in crate::execution) fn shape(
     )
 }
 
-/// Whether `expression` is a range `shape` would admit if the formal it
-/// supplies were not domain-qualified (`prefix: &[u8] in Path`). Such a
-/// range has no lowering (module header): a Terminal subslice result carries
-/// no qualifications (wiki/spec/terminal-psi/byte_views.md, "Values and
-/// observations"), so the verifier would find the formal's domain missing.
-pub(in crate::execution) fn narrows_into_qualified_formal(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    target: TypeReferenceHandle,
-    expression: ExpressionHandle,
-    statement_index: usize,
-) -> bool {
-    domain_qualified_byte_view(program, target)
-        && shape_of_kind(
-            program,
-            machine,
-            state,
-            parameters,
-            target,
-            ViewKind::Bytes,
-            expression,
-            statement_index,
-        )
-        .is_some()
-}
-
 /// `shape` for a target of the view family `kind`.
 #[allow(clippy::too_many_arguments)]
 fn shape_of_kind(
@@ -495,16 +469,7 @@ fn shape_of_kind(
             .iter()
             .position(|parameter| parameter.position as usize == position)?;
         let parameter = &parameters[parameter_index];
-        // A byte view parameter's primitive byte domains (`path: &[u8] in
-        // Path`) qualify the source only: the narrowed view is a fresh
-        // unqualified subslice, so narrowing forgets them, and the target's
-        // own exact view type above admits no qualified formal.
-        let source_kind = if parameter.qualifications.is_empty() {
-            view_kind(program, authored[position].type_reference)
-        } else {
-            domain_qualified_byte_view(program, authored[position].type_reference)
-                .then_some(ViewKind::Bytes)
-        };
+        let source_kind = view_kind(program, authored[position].type_reference);
         if parameter.access != access
             || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
@@ -712,6 +677,9 @@ pub(in crate::execution) fn view_kind(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<ViewKind> {
+    if domain_qualified_byte_view(program, reference) {
+        return Some(ViewKind::Bytes);
+    }
     let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(reference)
     else {

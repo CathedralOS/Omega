@@ -359,6 +359,12 @@ impl RangeFacts<'_> {
         if bound < 0 {
             return false;
         }
+        // Every collection has a nonnegative extent, including an opaque or
+        // empty view. Zero is an exclusive endpoint without a positive length
+        // premise; the strict indexing query still requires an existing item.
+        if bound == 0 {
+            return true;
+        }
         // A range bound is the *exclusive* end of a subslice, so it is valid up
         // to and including the length (`bound <= len`). A `minimum_length` floor
         // proves `bound <= floor <= len`; an `exact_length` proves it precisely.

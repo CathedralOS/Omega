@@ -203,22 +203,27 @@ fn subslice_grants_domain(
     if !crate::facts::field_domain::domain_is_subslice_preserving(program, domain_symbol) {
         return false;
     }
-    // A subslice place is `base` followed by a trailing `Index` segment whose
-    // expression is a Range (`base[a..b]`). The base = root + the preceding
-    // segments.
+    // Place canonicalization turns literal half-open ranges into FixedRange;
+    // bounds requiring runtime observations retain Index(Range). Both select
+    // a subslice of the same base, whose membership is checked below.
     let resolved = *facts.semantic.places.get(place_handle);
     let segments: Vec<PlaceSegment> = facts
         .semantic
         .place_segments
         .span_or_empty(resolved.segments)
         .to_vec();
-    let Some((PlaceSegment::Index { expression }, base_segments)) = segments.split_last() else {
+    let Some((selection, base_segments)) = segments.split_last() else {
         return false;
     };
-    if !matches!(
-        program.expression_table.expression(*expression),
-        ExpressionNode::Range(_)
-    ) {
+    let is_subslice = match selection {
+        PlaceSegment::FixedRange { .. } => true,
+        PlaceSegment::Index { expression } => matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::Range(_)
+        ),
+        _ => false,
+    };
+    if !is_subslice {
         return false;
     }
     // The BASE place (root + base_segments) must be provably in a domain implying

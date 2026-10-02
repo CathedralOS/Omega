@@ -149,6 +149,19 @@ impl ByteSequencePredicateSet {
             .all(|target| self.predicates().any(|source| source.implies(target)))
     }
 
+    /// Predicates retained by every half-open window, including an empty one.
+    /// Sequence-shaped predicates need separate endpoint evidence; they never
+    /// survive just because the unsliced source satisfies them.
+    pub fn subslice(self) -> Self {
+        let mut result = Self::EMPTY;
+        for predicate in self.predicates() {
+            if predicate.is_subslice_preserving() {
+                result.insert(predicate);
+            }
+        }
+        result
+    }
+
     pub fn concatenation(self, right: Self) -> Self {
         let mut result = Self::EMPTY;
         for predicate in ByteSequencePredicate::ALL {
@@ -160,5 +173,41 @@ impl ByteSequencePredicateSet {
             }
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subslice_predicates_hold_for_every_window_including_empty_and_split_utf8() {
+        for bytes in [b"A\0Z".as_slice(), b"alpha", "é".as_bytes(), b"", &[0xff]] {
+            let mut source = ByteSequencePredicateSet::EMPTY;
+            for predicate in ByteSequencePredicate::ALL {
+                if predicate.holds_for(bytes) {
+                    source.insert(predicate);
+                }
+            }
+            let result = source.subslice();
+            assert!(!result.predicates().any(|predicate| matches!(
+                predicate,
+                ByteSequencePredicate::ValidUtf8 | ByteSequencePredicate::NonEmpty
+            )));
+            for start in 0..=bytes.len() {
+                for end in start..=bytes.len() {
+                    assert!(result.holds_for(&bytes[start..end]));
+                }
+            }
+            for predicate in [
+                ByteSequencePredicate::NoNul,
+                ByteSequencePredicate::AsciiOnly,
+            ] {
+                assert_eq!(
+                    result.predicates().any(|candidate| candidate == predicate),
+                    source.predicates().any(|candidate| candidate == predicate)
+                );
+            }
+        }
     }
 }

@@ -619,7 +619,7 @@ static OP_BYTE_SEQUENCE_READ: TrustedSurfaceEntry = entry(
 static OP_BYTE_SEQUENCE_SUBSLICE: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-subslice",
     "a validated byte-sequence subslice over a known extent",
-    "the subslice observation and its extent equation where the schema declares one",
+    "the subslice observation and its extent equation where the schema declares one; shared byte membership separately reconstructs only subslice-preserving source predicates without result qualification annotations",
     &[
         "fact:structural-effect-observation",
         "fact:byte-extent-length",

@@ -52,6 +52,14 @@ fn check(
 #[test]
 fn exact_length_endpoints_keep_start_bounds_and_exclusive_semantics() {
     for (access, minimum_length, expected) in [
+        ("[0..0]", 0, BoundsCheckResult::ProvenRange),
+        ("[..0]", 0, BoundsCheckResult::ProvenRange),
+        ("[0..]", 0, BoundsCheckResult::ProvenRange),
+        ("[1..0]", 0, BoundsCheckResult::Rejected),
+        ("[-1..0]", 0, BoundsCheckResult::Rejected),
+        ("[0..1]", 0, BoundsCheckResult::Rejected),
+        ("[0..=0]", 0, BoundsCheckResult::Rejected),
+        ("[0]", 0, BoundsCheckResult::Rejected),
         ("[..items.len]", 0, BoundsCheckResult::ProvenRange),
         ("[0..items.len]", 0, BoundsCheckResult::ProvenRange),
         ("[1..items.len]", 0, BoundsCheckResult::Rejected),

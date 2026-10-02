@@ -1987,6 +1987,13 @@ crash and native exit behavior. Use affected check/native corpus slices under
   element-view parameter destination with a runtime-indexed record-element
   field path. Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
 
+  Whole shared view locals still need qualified call-type adaptation. A
+  checked reduction passing `prefix` directly after a subslice binding rejects
+  with `expects &[u8][in Text], got named value`, despite retained primitive
+  membership. `checking/src/machine_calls/calls.rs::validate_call_arguments_with_type_correspondence`
+  rejects before contract proof. Range-produced arguments execute; rejoin a
+  local descriptor's reference type without discarding its byte facts.
+
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70
   controls: callee writes through captured whole-local loans remain visible
@@ -2066,25 +2073,20 @@ crash and native exit behavior. Use affected check/native corpus slices under
   result compatibility, arm calls whose guard or operands make calls, and
   claim-transferring arm calls remain declined there.
 
-  Acceptance: `slices/domained_runtime_end_subslice_exit` exits 70 with its
-  Path-qualified runtime-end slice. Calls stage runtime view and field ranges
-  (`calls/view_subslice.rs`, `attached_unit/byte_subslices.rs`):
-  `slices/runtime_bounded_fixed_array_subslice_arg_exit` exits **3** and
-  `calls/guarded_arm_view_range_tail_call_exit` exits **70** natively and on
-  the interpreter on macOS ARM64, and the domained fixture exits 70 with its
-  formal's `in Path` removed. As written it stops at `call operation:
-  structural arguments: range into a qualified view formal`. Psi already
-  grants a subslice-preserving byte domain to the range
-  (`ByteSequencePredicate::is_subslice_preserving`), but a Terminal subslice
-  result carries no qualifications
-  ([byte views](wiki/spec/terminal-psi/byte_views.md)), so admitting it
-  makes the verifier report `StructuralArgumentMissingQualification` for
-  `prefix: &[u8] in Path`. Next dependency, on the trusted surface: Terminal
-  subslice results keep their source's subslice-preserving primitive
-  predicates, and argument checks replay them. Ordinary single-state bodies
-  still refuse field and element ranges by name (`ordinary_machine.rs`), and
-  a statement call passing a range in a multi-state body stops at `state
-  graph: operation custody: call non-parameter argument` (`state_graph/mod.rs`).
+  Qualified runtime-end byte slices now execute: after package preparation,
+  `omega run --both tests/omega/pass/slices/domained_runtime_end_subslice_exit/main.omg`
+  exits **70** on macOS ARM64 with `prefix: &[u8] in Path` retained.
+  `slices/qualified_subslice_composition_exit` also exits **70** in both
+  engines, observing preserved ASCII contents and an empty subslice across
+  consecutive calls. Terminal and Omega independently reconstruct primitive
+  predicates from exact sources; physical descriptors need no qualification
+  annotations. Nonempty and UTF-8 domains do not survive arbitrary byte cuts.
+  Keep the fixed-array range and guarded tail-call controls at **3** and **70**.
+
+  Remaining range customers include field/element ranges in ordinary bodies
+  (`ordinary_machine.rs`) and statement-call range operands in multi-state
+  bodies (`state_graph/mod.rs`, operation custody). Preserve exact endpoint,
+  source, access and evaluation-order replay as these routes converge.
   `termination/runtime_shrinking_slice_recursion_exit` now executes unchanged
   with native exit **70** on macOS ARM64, summing 10+20+15+25 through staged
   subslices and head reads. Whole element views use their existing element

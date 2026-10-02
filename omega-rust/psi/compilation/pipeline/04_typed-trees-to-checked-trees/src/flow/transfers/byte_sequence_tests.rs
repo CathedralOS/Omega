@@ -66,3 +66,61 @@ fn receiver_calls_resolve_self_fields_against_the_caller_place() {
         panic!("receiver self-field bounds feed the call result: {messages:?}")
     });
 }
+
+#[test]
+fn subslice_bindings_materialize_preserved_byte_predicates() {
+    for predicate in ["no_nul", "ascii_only"] {
+        let source = format!(
+            "domain [u8]::Text(bytes) requires {predicate}(bytes);
+             machine inspect(bytes: &[u8] in Text) {{}}
+             machine relay(bytes: &[u8] in Text) {{
+                 let prefix: &[u8] = bytes[0..0];
+                 let alias: &[u8] = prefix;
+                 let suffix: &[u8] = alias[0..0];
+                 inspect(suffix[..]);
+             }}"
+        );
+        check(&source).map(|_| ()).unwrap_or_else(|messages| {
+            panic!("{predicate} follows the exact captured descriptors: {messages:?}")
+        });
+    }
+}
+
+#[test]
+fn replacing_a_subslice_binding_retires_its_byte_predicates() {
+    let source = "domain [u8]::Text(bytes) requires no_nul(bytes);
+        machine inspect(bytes: &[u8] in Text) {}
+        machine relay(bytes: &[u8] in Text, other: &[u8]) {
+            let mut prefix: &[u8] = bytes[0..0];
+            prefix = other;
+            inspect(prefix[0..0]);
+        }";
+    let messages = check(source).expect_err("the replacement has no byte-class premise");
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("cannot prove requires contract")),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn subslice_bindings_do_not_materialize_nonpreserving_predicates() {
+    for (predicate, range) in [("valid_utf8", "0..1"), ("non_empty", "0..0")] {
+        let source = format!(
+            "domain [u8]::Text(bytes) requires {predicate}(bytes);
+             machine inspect(bytes: &[u8] in Text) {{}}
+             machine relay(bytes: &[u8] in Text) requires bytes.len > 0 {{
+                 let prefix: &[u8] = bytes[{range}];
+                 inspect(prefix[..]);
+             }}"
+        );
+        let messages = check(&source).expect_err("the byte cut does not preserve this predicate");
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains("cannot prove requires contract")),
+            "{predicate}: {messages:?}"
+        );
+    }
+}

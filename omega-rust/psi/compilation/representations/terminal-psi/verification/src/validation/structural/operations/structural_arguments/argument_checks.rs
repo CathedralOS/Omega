@@ -850,10 +850,31 @@ pub(in crate::validation) fn validate_structural_argument(
             actual: actual_multiplicity,
         });
     }
+    // Primitive byte membership is a property of the exact live contents.
+    // Reconstruct it through ordinary producers (including subslices), rather
+    // than requiring a consumer-selected domain annotation on their results.
+    let byte_content_qualifications = argument.path.is_empty()
+        && argument.access == StructuralAccess::SharedBorrow
+        && expected.access == StructuralAccess::SharedBorrow
+        && module.structural_types.iter().any(|row| {
+            row.id == expected.structural_type
+                && matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(_)
+                )
+        })
+        && terminal_semantics::byte_parameter_predicates(module, expected)
+            .zip(terminal_semantics::byte_sequence_source_predicates(
+                module,
+                caller,
+                argument.place,
+            ))
+            .is_some_and(|(required, available)| available.implies(required));
     for qualification in &expected.qualifications {
         if (!bounded_owner_presentation || copied_field_predicates.is_some())
             && !copied_field_qualifications
             && !view_field_presentation
+            && !byte_content_qualifications
             && !structural_occurrence_carries_qualification(
                 actual_qualifications,
                 actual_projected_qualifications,

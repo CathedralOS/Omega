@@ -157,3 +157,63 @@ fn unit_calls_reject_future_duplicate_and_sibling_view_producers() {
         );
     }
 }
+
+#[test]
+fn qualified_subslice_calls_retain_descriptor_geometry_and_exact_source() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for mut source in [subslice_calls(), unit_subslice_calls()] {
+            let plain = lower_to_target_operations(&source, TargetLoweringRequest::new(native))
+                .expect("plain subslice call");
+            // Raw target projection does not decide membership. Its semantic
+            // caller has proved the no-NUL formal from the exact backing;
+            // the derived result remains unannotated, with the same descriptor.
+            let domain = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
+            for function in &mut source.functions {
+                function.structural_parameters[0]
+                    .qualifications
+                    .push(domain);
+            }
+            let qualified = lower_to_target_operations(&source, TargetLoweringRequest::new(native))
+                .expect("qualified contents preserve descriptor geometry");
+            crate::validate_abstract_to_target_translation(&source, native, &qualified).unwrap();
+            let calls = |plan: &target_operations::TargetOperationPlan| {
+                plan.functions[0]
+                    .graph
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter_map(|operation| match operation {
+                        target_operations::TargetUnitOperation::Call { arguments, .. } => {
+                            Some(arguments.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(calls(&plain), calls(&qualified));
+            assert!(!calls(&qualified).is_empty());
+            let mut forged = qualified;
+            let arguments = forged.functions[0]
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    target_operations::TargetUnitOperation::Call { arguments, .. } => {
+                        Some(arguments)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            arguments[0].place = source.functions[0].structural_parameters[0].place;
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &forged).is_err()
+            );
+        }
+    }
+}
