@@ -508,30 +508,32 @@ fn owned_array_state_arguments_preserve_record_erased_declarations() {
             }
         }
     "#;
-    let checked = crate::front_end::checked_program(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("record carrying array lowers");
-    let mut module = lowered.semantic_module;
-    let fields = module
-        .structural_types
-        .iter_mut()
-        .find_map(|declaration| match &mut declaration.shape {
-            StructuralTypeShape::Record { fields } if !fields.is_empty() => Some(fields),
-            _ => None,
-        })
-        .expect("payload record");
-    fields.push(StructuralFieldDeclaration {
-        id: semantic_vocabulary::StructuralFieldId::new(9999).unwrap(),
-        identity: "erased_witness".into(),
-        relevance: BindingRelevance::Erased,
-        field_type: StructuralFieldType::Erased {
-            type_identity: "i32".into(),
-        },
-    });
-    validate_module(&module).expect("erased declarations add no runtime transfer custody");
+    for source in [source.to_owned(), source.replace("[copy]", "")] {
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .expect("record carrying array lowers");
+        let mut module = lowered.semantic_module;
+        let fields = module
+            .structural_types
+            .iter_mut()
+            .find_map(|declaration| match &mut declaration.shape {
+                StructuralTypeShape::Record { fields } if !fields.is_empty() => Some(fields),
+                _ => None,
+            })
+            .expect("payload record");
+        fields.push(StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(9999).unwrap(),
+            identity: "erased_witness".into(),
+            relevance: BindingRelevance::Erased,
+            field_type: StructuralFieldType::Erased {
+                type_identity: "i32".into(),
+            },
+        });
+        validate_module(&module).expect("erased declarations add no runtime transfer custody");
+    }
 }
 
 #[test]
