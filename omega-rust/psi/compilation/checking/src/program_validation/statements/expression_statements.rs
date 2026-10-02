@@ -165,6 +165,14 @@ pub(super) fn validate(
     // A cleanly-analyzed return value that cannot fit the declared return
     // type is a silent narrowing (`-> i8 { 300 }`), same as a store.
     if diagnostics.len() == before {
+        let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
+            program,
+            machine,
+            Some(state),
+            *expression,
+            source_primitive,
+            source_domain,
+        );
         arithmetic_domains::check_narrowing_assignment(
             return_primitive,
             return_domain,

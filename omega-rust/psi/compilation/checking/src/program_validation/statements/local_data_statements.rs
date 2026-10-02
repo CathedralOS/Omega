@@ -203,6 +203,14 @@ pub(super) fn validate(
     // A cleanly-analyzed initializer whose value cannot fit the declared
     // local type is a silent narrowing (`let x: i8 = 300`).
     if local_data.initial_value.is_valid() && diagnostics.len() == before {
+        let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
+            program,
+            machine,
+            current_state,
+            local_data.initial_value,
+            source_primitive,
+            source_domain,
+        );
         arithmetic_domains::check_narrowing_assignment(
             local_target_primitive,
             local_target_domain,

@@ -136,6 +136,52 @@ fn carrier_spelling(primitive: PrimitiveType, domain: Option<ArithmeticDomain>) 
     }
 }
 
+/// The carrier a stored value keeps when range analysis names none. Range
+/// analysis deliberately leaves an unbounded call result (a plain `-> u32`
+/// with no declared range or `ensures`) without a primitive, so it does not
+/// turn the carrier's full range into an overflow obligation; an anonymous
+/// operand combined with that call then has no analysed carrier either,
+/// although it lands on the call's type (`6 + self.rng.range(random, 3)` is a
+/// `u32`). Named values, fields, indexes, call results and cast outputs
+/// retain their types, so the consumer-facing result type supplies the
+/// carrier the store compares. A wholly anonymous value has no carrier of its
+/// own and keeps landing by range, and an analysed carrier is never replaced.
+///
+/// Only the carrier is supplied. The analysed policy stays as range analysis
+/// reported it, so a plain call result keeps the same policy judgment whether
+/// or not its callee publishes a range: supplying `Exact` here would reject an
+/// unranged call stored into a `Wrapping` slot while the same call with an
+/// `ensures` row still lands there.
+pub(crate) fn stored_value_carrier(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+    analyzed: Option<PrimitiveType>,
+    analyzed_domain: Option<ArithmeticDomain>,
+) -> (Option<PrimitiveType>, Option<ArithmeticDomain>) {
+    if analyzed.is_some()
+        || !value.is_valid()
+        || crate::value_custody::literals::has_anonymous_numeric_results(program, value)
+    {
+        return (analyzed, analyzed_domain);
+    }
+    let Some(reference) = state.and_then(|state| {
+        crate::value_custody::expression_types::expression_result_type_reference(
+            program, machine, state, value,
+        )
+    }) else {
+        return (analyzed, analyzed_domain);
+    };
+    let Some(primitive) = program
+        .primitive_type_reference(reference)
+        .filter(|primitive| primitive_range(*primitive).is_some())
+    else {
+        return (analyzed, analyzed_domain);
+    };
+    (Some(primitive), analyzed_domain)
+}
+
 /// Decision 17 at a VALUE-BINDING boundary (`self.f = v`, `let x: T = v`): a
 /// value whose proven range does not fit the destination integer type is a
 /// SILENT NARROWING (truncation). Storing a wider value into a narrower slot is
@@ -273,6 +319,8 @@ pub(crate) fn check_value_narrowing(
         &mut throwaway,
     );
     if throwaway.is_empty() {
+        let (source, source_domain) =
+            stored_value_carrier(program, machine, state, value, source, source_domain);
         check_narrowing_assignment(
             Some(target),
             target_domain,

@@ -1,6 +1,8 @@
 //! Inferred and declared return value ranges.
 
-use crate::proof_contracts::arithmetic_domains::assignments::check_narrowing_assignment;
+use crate::proof_contracts::arithmetic_domains::assignments::{
+    check_narrowing_assignment, stored_value_carrier,
+};
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     validate_anonymous_integer_range, validate_value_range,
@@ -386,6 +388,14 @@ pub(crate) fn validate_return_value_range(
             diagnostics,
         );
         if diagnostics.len() == before {
+            let (source, source_domain) = stored_value_carrier(
+                program,
+                machine,
+                Some(state),
+                return_expression,
+                source,
+                source_domain,
+            );
             check_narrowing_assignment(
                 return_primitive,
                 return_domain,
@@ -418,6 +428,14 @@ pub(crate) fn validate_return_value_range(
         diagnostics,
     );
     if diagnostics.len() == before {
+        let (source, source_domain) = stored_value_carrier(
+            program,
+            machine,
+            Some(state),
+            return_expression,
+            source,
+            source_domain,
+        );
         check_narrowing_assignment(
             return_primitive,
             return_domain,
