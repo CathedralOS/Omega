@@ -237,14 +237,29 @@ stop at `room.label = source.label`, the store this decision governs.
 
 Named decision: `trait-requirement-subject-binding`.
 
-**Customers:** `source/library/core/layout.omg` declares the three granular
-placed-field requirements and their boundary satisfiers entirely in receiver
-form -- `pub trait Readable<T> { machine read(&self) -> T; }` and `boundary
-machine PlacedField::read<T>(&self) -> T satisfies Readable<T>::read;` -- and
-likewise for `DestructiveRead::take` and `Writable::write`. Six declarations,
-one authored consumer (`pass/layouts/placed_view_source_access_compile`). They
-are the only receivers left in `source/library/core/` besides `Vec`'s two
-concrete ones, which migrate without a question.
+**Customers:** 137 declarations in 55 files, measured across `tests`,
+`samples` and `source`: 74 trait requirements in 38 files and 63 satisfiers in
+27. That is every remaining receiver the static-machine migration cannot
+mechanically remove for want of a spelling, against 1448 ordinary ones that
+are compiler or source work.
+
+`source/library/core/layout.omg` is the smallest case: `pub trait Readable<T>
+{ machine read(&self) -> T; }` with `boundary machine PlacedField::read<T>(&self)
+-> T satisfies Readable<T>::read;`, and the same for `DestructiveRead::take`
+and `Writable::write`.
+
+The widest is the boundary-trait clock in the samples. Thirteen of them --
+`cli/algorithms/{sort_visualizer,binary_search_viz}`,
+`cli/simulation/{cellular_automaton,random_walk,game_of_life_glider,langtons_ant}`,
+`cli/rendering/{bouncing_console,tick_marquee}` and five more -- each declare
+`pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes
+DarwinClock; }` with a provider satisfier `macos_arm64 machine
+PacingClockProvider::sleep(&mut self, milliseconds: u32) satisfies
+Clock::sleep`. The satisfier could migrate on its own reading of
+conformances, but it must match the requirement's shape, so the requirement
+blocks it. Their call sites are unaffected either way: `main.clock.sleep(180)`
+dispatches through a `Binding<Clock>`, which is boundary dispatch and not a
+machine receiver.
 
 **Contracts checked and found silent:**
 - [Machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
@@ -282,7 +297,8 @@ storage"; a reserved `Self` reintroduces exactly one implicitly bound name at
 the type level. The cost is mechanical and bounded: these are the only authored
 trait requirements with a receiver.
 
-Until this is settled the six declarations stay as they are, and
-STATIC-MACHINE-MIGRATION cannot claim the library is complete. They are not an
-implementation gap: no compiler change makes a receiver-form trait requirement
-into a static one without choosing a spelling.
+Until this is settled those 137 declarations stay as they are, and
+STATIC-MACHINE-MIGRATION cannot reach zero. They are not an implementation
+gap: no compiler change makes a receiver-form trait requirement into a static
+one without choosing a spelling, and a satisfier cannot diverge from the
+requirement it satisfies.
