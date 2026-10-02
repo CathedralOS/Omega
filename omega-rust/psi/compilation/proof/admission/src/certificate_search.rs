@@ -18,6 +18,7 @@ use crate::{
 use semantic_vocabulary::{Proposition, PropositionContext};
 use terminal_psi::CrashCertificate;
 
+mod implications;
 mod integer_order;
 mod order_chain;
 
@@ -215,7 +216,9 @@ fn prove(
                 index,
             }
         }
-        _ => return None,
+        _ => {
+            return implications::prove(goal, requirements, semantic_axioms, remaining, depth + 1);
+        }
     };
     Some(ProofNode {
         conclusion: goal.clone(),
