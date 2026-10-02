@@ -642,7 +642,7 @@ fn explicit_owned_self_call_rejoins_only_its_authored_receiver() {
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("Token::settle"))
             .expect_err("a same-typed parameter cannot replace the authored receiver"),
-        crate::LoweringError::Unsupported("owned call argument changed its authored parameter")
+        crate::LoweringError::Unsupported("call argument changed its authored parameter place")
     );
 }
 

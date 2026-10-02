@@ -17,6 +17,11 @@ use symbols::SymbolHandle;
 #[cfg(test)]
 mod tests;
 
+/// Return the operand ordinals whose complete storage projection was replayed.
+/// A byte window is an adapted view, not a plain storage projection: the common
+/// call owner consumes this result instead of asking another path reader to
+/// reinterpret the range. Unstaged direct loans and staged descriptors retain
+/// their independent source, access and bounds checks.
 pub(super) fn validate(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,
@@ -24,13 +29,10 @@ pub(super) fn validate(
     coordinate: CheckedUnitCallCoordinate,
     call: &authored::AuthoredCall,
     operation: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    // Every call but an ordinary scalar call replays its byte loans here.
-    let Some(planned) = operation
-        .call()
-        .filter(|call| call.is_boundary() || call.scalar_result().is_none())
-    else {
-        return Ok(());
+) -> Result<Vec<usize>, LoweringError> {
+    let mut replayed = Vec::new();
+    let Some(planned) = operation.call() else {
+        return Ok(replayed);
     };
     let arguments = &planned.structural_arguments;
     let (machine, state) =
@@ -62,12 +64,12 @@ pub(super) fn validate(
         .iter()
         .any(|parameter| byte_view_access(parameter).is_some())
     {
-        return Ok(());
+        return Ok(replayed);
     }
     let positions = crate::unit::attached_unit::call_parameters::structural_positions(
         checked, planned, &signature,
     )?;
-    for (position, argument) in positions.into_iter().zip(arguments) {
+    for (ordinal, (position, argument)) in positions.into_iter().zip(arguments).enumerate() {
         // Both ordinary and composed call schedules send these operands through
         // byte_subslices::emit: locate rejoins the authored argument and access,
         // then view_ranges checks storage identity, operator meaning and bound
@@ -328,8 +330,9 @@ pub(super) fn validate(
         {
             return unsupported("boundary byte loan differs from its authored backing");
         }
+        replayed.push(ordinal);
     }
-    Ok(())
+    Ok(replayed)
 }
 
 fn validate_owned_byte_loan(

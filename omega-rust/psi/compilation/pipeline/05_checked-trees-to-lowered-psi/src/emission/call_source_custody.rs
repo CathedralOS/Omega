@@ -1,4 +1,4 @@
-//! Source custody shared by Unit and boundary call operands.
+//! Source custody shared by ordinary and boundary calls, independent of result.
 
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
@@ -610,7 +610,7 @@ pub(crate) fn validate_operation(
         return unsupported("call operands disagree with their authored call site or signature");
     }
     literal_arguments::validate(checked, caller_machine, &call, operation)?;
-    boundary_buffers::validate(
+    let replayed_byte_arguments = boundary_buffers::validate(
         checked,
         caller_state,
         caller_parameters,
@@ -618,7 +618,14 @@ pub(crate) fn validate_operation(
         &call,
         operation,
     )?;
-    validate_owned_parameter_arguments(checked, caller_state, caller_parameters, &call, operation)?;
+    validate_parameter_arguments(
+        checked,
+        caller_state,
+        caller_parameters,
+        &call,
+        operation,
+        &replayed_byte_arguments,
+    )?;
     // Authored scalar operands include the erased positions; the checked plan
     // splits them onto the proof-only erased lane in erased-formal order.
     let mut retained_ordinal = 0usize;
@@ -743,22 +750,22 @@ pub(crate) fn validate_operation(
 /// Graph and straight-line calls share this source join. A compatible type and
 /// a valid final ownership frontier do not identify which same-typed parameter
 /// the author supplied; even an unrestricted value retains that distinction.
-fn validate_owned_parameter_arguments(
+fn validate_parameter_arguments(
     checked: &CheckedTrees,
     caller_state: symbols::SymbolHandle,
     caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     call: &authored::AuthoredCall,
     operation: &CheckedUnitEffectOperationPlan,
+    replayed_byte_arguments: &[usize],
 ) -> Result<(), LoweringError> {
     let Some(planned) = operation.call() else {
         return Ok(());
     };
     let structural_arguments = &planned.structural_arguments;
-    if !structural_arguments.iter().any(|argument| {
-        argument.source_parameter_index().is_some()
-            && argument.access == checked_trees::CheckedStructuralAccess::Owned
-            && argument.path.is_empty()
-    }) {
+    if !structural_arguments
+        .iter()
+        .any(|argument| argument.source_parameter_index().is_some())
+    {
         return Ok(());
     }
     let (machine, state) =
@@ -767,50 +774,191 @@ fn validate_owned_parameter_arguments(
     let positions = crate::unit::attached_unit::call_parameters::structural_positions(
         checked, planned, &target,
     )?;
-    for (argument, position) in structural_arguments.iter().zip(positions) {
+    for (ordinal, (argument, position)) in structural_arguments.iter().zip(positions).enumerate() {
         let Some(parameter_index) = argument.source_parameter_index() else {
             continue;
         };
-        if argument.access != checked_trees::CheckedStructuralAccess::Owned
-            || !argument.path.is_empty()
-        {
-            continue;
-        }
         let source =
             caller_parameters
                 .get(parameter_index as usize)
                 .ok_or(LoweringError::Unsupported(
-                    "owned call argument has no source parameter",
+                    "call argument has no source parameter",
                 ))?;
         let parameter = checked
             .state_parameters(state)
             .get(source.position as usize)
             .ok_or(LoweringError::Unsupported(
-                "owned call argument has no authored parameter",
+                "call argument has no authored parameter",
             ))?;
-        let expression = call
-            .structural_arguments
-            .iter()
-            .find_map(|(formal, expression)| (*formal == position).then_some(*expression));
+        if !parameter.symbol.is_valid() || source.is_self != parameter.is_self {
+            return unsupported("call argument changed its authored parameter place");
+        }
+        // The range owner above has already reconstructed both backing and
+        // exact view geometry. Its successful replay is result-independent;
+        // a view adaptation must not be read again as a plain storage path.
+        if replayed_byte_arguments.contains(&ordinal) {
+            continue;
+        }
+        let expression = call.structural_argument(
+            checked,
+            position,
+            target.parameters[position as usize].is_self,
+        );
         // Implicit receivers have no positional expression. Their dedicated
         // receiver custody rejoins the authored root and projection instead.
         if expression.is_none() && target.parameters[position as usize].is_self {
             continue;
         }
-        // Explicit `self` is rooted at the enclosing machine, while the
-        // signature keeps a distinct parameter symbol. Rejoin only that
-        // receiver alias, as for projected receivers; another same-typed
-        // parameter still cannot stand in for the authored argument.
-        if !expression.is_some_and(|expression| {
-            matches!(checked.expression_table.expression(expression),
-            checked_trees::expression::ExpressionNode::Name(name)
-                if (name.symbol == parameter.symbol
-                    || (parameter.is_self && name.symbol == machine.symbol))
-                    && name.head_symbol == name.symbol
-                    && checked.expression_table.name_path_members(name.members).len() == 1)
-        }) {
-            return unsupported("owned call argument changed its authored parameter");
+        let expression = expression.ok_or(LoweringError::Unsupported(
+            "call parameter argument has no authored expression",
+        ))?;
+        if !checked.expression_table.expression_is_valid(expression) {
+            return unsupported("call parameter argument has a stale authored expression");
+        }
+        let (expression, explicit_access) = match checked.expression_table.expression(expression) {
+            checked_trees::expression::ExpressionNode::Borrow(borrow) => {
+                let access = match borrow.access {
+                    language_core::ReferenceAccess::Shared => {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                    }
+                    language_core::ReferenceAccess::Mutable => {
+                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                    }
+                    language_core::ReferenceAccess::WriteOnly => {
+                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                    }
+                };
+                (borrow.target, Some(access))
+            }
+            _ => (expression, None),
+        };
+        let (root, path) = parameter_place(
+            checked,
+            machine,
+            state,
+            planned.coordinate.statement_index as usize,
+            expression,
+        )?;
+        // Parameter identity and projection are independent of the callee's
+        // result and the operand's access. Computed operands instead rejoin
+        // their own producer during ordered argument staging; they are not
+        // parameter aliases merely because their backing is a parameter.
+        if root != parameter.symbol
+            || path != argument.path
+            || explicit_access.is_some_and(|access| {
+                access != argument.access
+                    && !(access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                        && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
+            })
+        {
+            return unsupported("call argument changed its authored parameter place");
         }
     }
     Ok(())
+}
+
+/// Reconstruct storage identity, not permission to use that storage. Immutable
+/// reference bindings substitute their authored initializer regardless of the
+/// call's result or the loan's restoration class. Borrow retention separately
+/// checks the use interval, access and reactivation evidence. The receiver-only
+/// alias validator cannot own this join: it also forbids explicit argument uses.
+fn parameter_place(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    mut before_statement: usize,
+    mut expression: checked_trees::expression::ExpressionHandle,
+) -> Result<
+    (
+        symbols::SymbolHandle,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    ),
+    LoweringError,
+> {
+    use checked_trees::expression::ExpressionNode;
+    use checked_trees::types::TypeReferenceNode;
+
+    let mut path = Vec::new();
+    let mut visited = Vec::new();
+    loop {
+        if !checked.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            return unsupported("call parameter place has a stale or cyclic initializer");
+        }
+        visited.push(expression);
+        match checked.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => {
+                expression = borrow.target;
+                continue;
+            }
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                expression = cast.value;
+                continue;
+            }
+            _ => {}
+        }
+        // Rebuilding a path must not reinterpret an authored index operator
+        // as a builtin storage projection. This checks the entire place spine.
+        if !validation::place_has_builtin_coordinates(
+            &checked.typed,
+            machine,
+            Some(state),
+            expression,
+        ) {
+            return unsupported("call parameter place has no builtin coordinate meaning");
+        }
+        let (mut prefix, root) =
+            crate::expression_preparation::source_custody::structural_places::walk_exact_place(
+                checked, machine, state, expression, true,
+            )?;
+        prefix.append(&mut path);
+        path = prefix;
+        let ExpressionNode::Name(name) = checked.expression_table.expression(root) else {
+            return unsupported("call parameter place has no named storage root");
+        };
+        if !name.symbol.is_valid()
+            || name.head_symbol != name.symbol
+            || checked
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                != 1
+            || checked
+                .expression_table
+                .name_path_member_symbols(name.member_symbols)
+                .first()
+                .is_some_and(|symbol| *symbol != name.symbol)
+        {
+            return unsupported("call parameter place changed its root identity");
+        }
+        if let Some((declaration, local)) = checked.state_local_declaration(state, name.symbol) {
+            if declaration >= before_statement
+                || local.is_mutable
+                || !matches!(
+                    checked
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    TypeReferenceNode::Reference { .. }
+                )
+            {
+                return unsupported("call parameter alias is not an earlier immutable reference");
+            }
+            before_statement = declaration;
+            expression = local.initial_value;
+            continue;
+        }
+        // The existing root owner normalizes lexical self and inherited fields
+        // to the exact formal. No local alias reaches its receiver-use policy.
+        let source = projected_receivers::source(
+            checked,
+            machine.symbol,
+            state.symbol,
+            before_statement,
+            root,
+        )?;
+        let mut prefix = source.path;
+        prefix.append(&mut path);
+        return Ok((source.root, prefix));
+    }
 }
