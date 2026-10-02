@@ -1,4 +1,5 @@
 use super::*;
+use semantic_vocabulary::PlaceId;
 use semantic_vocabulary::StructuralTypeId;
 
 fn collection() -> TerminalStructuralValue {
@@ -322,6 +323,85 @@ fn element_view_scalar_home_pins_exact_frame_despite_place_collisions() {
             .is_err(),
         "the replacement current machine cannot impersonate the captured caller"
     );
+}
+
+#[test]
+fn element_view_state_binding_preserves_window_access_and_affine_source_debt() {
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::SharedBorrow,
+    ] {
+        let (mut execution, operation) = runtime_subslice();
+        execution.execute_element_view_subslice(&operation).unwrap();
+        let result = operation.result.structural().unwrap();
+        let target = semantic_vocabulary::BlockId::new(2).unwrap();
+        let destination = PlaceId::new(3).unwrap();
+        let parameter = terminal_psi::StructuralParameterDeclaration {
+            place: destination,
+            position: 0,
+            is_self: false,
+            structural_type: result.structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let program = Arc::get_mut(&mut execution.program).unwrap();
+        let machine = program
+            .machines
+            .get_mut(&execution.current_machine)
+            .unwrap();
+        let mut block = machine.blocks[&machine.entry].clone();
+        block.id = target;
+        block.operations.clear();
+        block.structural_parameters = vec![parameter];
+        machine.blocks.insert(target, block);
+        machine
+            .structural_places
+            .push(terminal_psi::StructuralPlaceDeclaration {
+                id: destination,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: target,
+                    position: 0,
+                },
+            });
+        let argument = terminal_psi::StructuralArgument {
+            place: result.place,
+            path: Vec::new(),
+            access,
+        };
+        let debt = execution.live_affine_frontier.clone();
+        let binding = execution
+            .prepare_block_bindings(target, &[], std::slice::from_ref(&argument), true)
+            .unwrap();
+        binding.validate_discards(&execution, &[], &[]).unwrap();
+        binding.commit(&mut execution);
+        assert_eq!(
+            execution.live_affine_frontier, debt,
+            "a borrowed state argument cannot consume its descriptor owner's cleanup"
+        );
+        assert!(execution.element_view_values.contains_key(&result.place));
+        let received = &execution.element_view_values[&destination];
+        assert_eq!(received.len(), 2);
+        assert_eq!(received.access, access);
+        let (backing, path) = received
+            .structural_projection(&[StructuralPathSegment::FixedIndex(0)], false)
+            .unwrap();
+        assert_eq!(backing, collection());
+        assert_eq!(path, [StructuralPathSegment::FixedIndex(1)]);
+        if access == StructuralAccess::MutableBorrow {
+            let shared = execution.element_view_values[&result.place]
+                .subslice(0, 2, StructuralAccess::SharedBorrow)
+                .unwrap();
+            execution.element_view_values.insert(result.place, shared);
+            assert!(
+                execution
+                    .prepare_block_bindings(target, &[], &[argument], true)
+                    .is_err(),
+                "state transfer cannot promote a shared descriptor"
+            );
+        }
+    }
 }
 
 #[test]

@@ -15,7 +15,6 @@ use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
-use semantic_vocabulary::PlaceId;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::ValueId;

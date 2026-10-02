@@ -28,6 +28,7 @@ pub(crate) struct BlockBindings {
     scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
+    element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
     affine_sources: BTreeSet<PlaceId>,
     /// Roots whose projected children moved on this edge. Their whole-root
     /// frontier entries are split by the caller, not removed as transfers.
@@ -56,6 +57,7 @@ impl BlockBindings {
             execution.structural_values.remove(&source);
             execution.scalar_case_values.remove(&source);
             execution.scalar_array_values.remove(&source);
+            execution.element_view_values.remove(&source);
             remove_affine_root(&mut execution.live_affine_frontier, source);
         }
         for destination in self.structural.keys() {
@@ -65,16 +67,19 @@ impl BlockBindings {
         for destination in self.scalar_cases.keys() {
             execution.structural_values.remove(destination);
             execution.scalar_array_values.remove(destination);
+            execution.element_view_values.remove(destination);
         }
         for destination in self.scalar_arrays.keys() {
             execution.structural_values.remove(destination);
             execution.scalar_case_values.remove(destination);
+            execution.element_view_values.remove(destination);
         }
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
         execution.scalar_case_values.extend(self.scalar_cases);
         execution.scalar_array_values.extend(self.scalar_arrays);
         execution.byte_sequence_values.extend(self.byte_sequences);
+        execution.element_view_values.extend(self.element_views);
         execution
             .live_affine_frontier
             .extend(self.affine_destinations);
@@ -355,6 +360,26 @@ impl TerminalExecution {
                         projected_value = Some(view);
                     }
                 }
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    if matches!(self.program.structural_types.get(&parameter.structural_type),
+                        Some(declaration) if matches!(declaration.shape, StructuralTypeShape::ElementView { .. })) =>
+                {
+                    // A descriptor lends its window, not its affine storage.
+                    // The common argument binder below preserves exact backing
+                    // and attenuates access. Its source debt remains here until
+                    // the independently verified cleanup frontier discharges it.
+                    if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                        || !argument.path.is_empty()
+                        || self.live_affine_frontier.iter().any(|entry| {
+                            entry.place == parameter.place
+                                || (entry.place == argument.place
+                                    && (!entry.path.is_empty()
+                                        || entry.structural_type != parameter.structural_type))
+                        })
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                }
                 StructuralAccess::SharedBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self
@@ -476,6 +501,11 @@ impl TerminalExecution {
             descriptor_arguments,
             &resolved_arguments,
         )?;
+        let element_views = self.bind_element_view_arguments(
+            descriptor_parameters,
+            descriptor_arguments,
+            &resolved_arguments,
+        )?;
         let mut identity_cursor = self.local_structural_identities.cursor();
         let record_payload = self.stage_owned_record_arguments(
             descriptor_parameters,
@@ -488,6 +518,7 @@ impl TerminalExecution {
             scalar_cases,
             scalar_arrays,
             byte_sequences,
+            element_views,
             affine_sources,
             projected_sources,
             affine_destinations,
