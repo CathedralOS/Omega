@@ -281,3 +281,71 @@ fn local_field_retains_policy_without_excluding_plain_siblings() {
         }
     }
 }
+
+#[test]
+fn named_interval_local_field_reads_preserve_declared_identity() {
+    for (primitive, predicate, expected) in [
+        ("u32", "value <= 100", super::PrimitiveType::U32),
+        (
+            "i32",
+            "0 - 10 <= value && value <= 10",
+            super::PrimitiveType::I32,
+        ),
+    ] {
+        let (program, machine, state, expression) = typed_source(&format!(
+            "domain {primitive}::Limited(value) requires {predicate};
+             data Child {{ payload: {primitive} in Limited; }}
+             data Record {{ child: Child; }}
+             machine observe(payload: {primitive} in Limited) -> {primitive} {{
+                 let record: Record = Record {{ child: Child {{ payload: payload }} }};
+                 record.child.payload
+             }}"
+        ));
+        let field = local_scalar_record_field(&program, machine, state, 1, expression)
+            .expect("an established interval-domain field has scalar storage");
+        assert_eq!(field.primitive_type, expected);
+        assert_eq!(
+            field.path,
+            [CheckedUnitStructuralPathSegment::Field("child".into())]
+        );
+        assert_eq!(field.domain, numerics::arithmetic::ArithmeticDomain::Exact);
+        let record = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Record")
+            .expect("declared record");
+        assert_eq!(
+            program.type_reference_symbol(field.type_reference),
+            record.symbol
+        );
+        assert!(local_scalar_record_field(&program, machine, state, 0, expression).is_none());
+    }
+}
+
+#[test]
+fn named_interval_local_field_rejects_unrepresented_domains() {
+    for (definition, field_type) in [
+        (
+            "domain u32::Limited(value) requires value != 50;",
+            "u32 in Limited",
+        ),
+        ("domain u32::Limited;", "u32 in Limited"),
+        (
+            "domain u32::Limited(value) requires value <= 100;",
+            "u32 in Limited & Wrapping",
+        ),
+    ] {
+        let (program, machine, state, expression) = typed_source(&format!(
+            "{definition}
+             data Record {{ payload: {field_type}; }}
+             machine observe(payload: {field_type}) -> u32 {{
+                 let record: Record = Record {{ payload: payload }};
+                 record.payload
+             }}"
+        ));
+        assert!(
+            local_scalar_record_field(&program, machine, state, 1, expression).is_none(),
+            "{field_type}: qualifications must have an exact supported storage interpretation"
+        );
+    }
+}

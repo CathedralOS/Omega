@@ -134,3 +134,74 @@ fn boolean_record_read_remains_before_its_selective_call() {
     );
     assert_eq!(normal_return::boolean_result(plans, root.root), None);
 }
+
+#[test]
+fn named_interval_local_fields_retain_ordered_guarded_tail() {
+    let checked = checked_source(
+        "domain u32::Limited(value) requires value <= 100;
+         data Record { payload: u32 in Limited; }
+         machine observe() -> u32 {
+             let record: Record = Record { payload: 42 };
+             transition {
+                 record.payload < 10 -> low()
+                 record.payload < 50 -> middle()
+                 record.payload <= 100 -> high()
+                 _ -> other()
+             }
+             state low() -> u32 { 1 }
+             state middle() -> u32 { 2 }
+             state high() -> u32 { 3 }
+             state other() -> u32 { 4 }
+         }",
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    for ordinal in 1..=3 {
+        let root = checked
+            .facts
+            .values
+            .scalar_computations
+            .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Guard)
+            .expect("qualified local guard computation");
+        assert_eq!(
+            checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(root.root)
+                .primitive_type,
+            PrimitiveType::Bool
+        );
+    }
+    let graphs = &checked.facts.flow.terminal_scalar_graphs;
+    let tails = graphs
+        .guarded_tails
+        .iter()
+        .filter(|tail| tail.state == state.symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(tails.len(), 1);
+    let exits = graphs.guarded_exits.span(tails[0].arms).unwrap();
+    assert_eq!(
+        exits
+            .iter()
+            .map(|exit| exit.guard_statement_ordinal)
+            .collect::<Vec<_>>(),
+        [1, 2, 3]
+    );
+    assert!(tails[0].fallback.is_some());
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .is_some(),
+        "record establishment and qualified reads compose with guarded successors"
+    );
+}

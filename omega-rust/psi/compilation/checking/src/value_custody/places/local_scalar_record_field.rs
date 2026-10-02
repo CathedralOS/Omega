@@ -37,11 +37,11 @@ pub struct LocalScalarRecordField {
 /// observed at this statement, never equated with its initializer: member
 /// writes need not rebind the local, so absence of `mut` does not freeze fields.
 /// The caller must bind the expression to this authored statement's evaluation
-/// graph. Open generic/qualified owners, erased fields and
-/// nominally qualified scalar fields require additional facts. Arithmetic policy
-/// changes operations, not storage: retain it alongside the observed carrier.
-/// Closed integer ranges keep their bounded declaration and construction proof;
-/// observing the established field uses its underlying scalar carrier.
+/// graph. Open generic/qualified owners, erased fields and scalar qualifications
+/// not represented by an exact interval require additional facts. Arithmetic
+/// policy changes operations, not storage: retain it alongside the observation.
+/// Closed ranges and exact interval domains keep their bounded declaration and
+/// construction proof; observing the established field reads its scalar carrier.
 pub fn local_scalar_record_field(
     program: &TypedTrees,
     machine: SymbolHandle,
@@ -393,9 +393,9 @@ fn local_plain_record(
 }
 
 /// Policy-only integer fields use their ordinary scalar storage, while the
-/// returned observation separately retains their arithmetic policy. Range shells
-/// keep the bounded-record construction/replay route; arbitrary qualifications
-/// and combinations of ranges with non-Exact policies remain unsupported.
+/// returned observation separately retains their arithmetic policy. Closed
+/// ranges and exact declared intervals share the bounded-field storage contract;
+/// other qualifications and bounded non-Exact policies remain unsupported.
 fn realized_scalar_carrier(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
@@ -403,6 +403,7 @@ fn realized_scalar_carrier(
     if crate::is_arithmetic_policy_only_integer(program, reference) {
         return program.primitive_type_reference(reference);
     }
+    let primitive = program.primitive_type_reference(reference)?;
     let mut bounded = false;
     while let TypeReferenceNode::Constrained {
         base_type,
@@ -414,16 +415,24 @@ fn realized_scalar_carrier(
             return None;
         }
         for constraint in rows {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                return None;
-            };
-            crate::closed_integer_range_bound(program, *minimum)?;
-            crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
+            match constraint {
+                TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } => {
+                    crate::closed_integer_range_bound(program, *minimum)?;
+                    crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
+                }
+                TypeConstraintNode::Domain(domain) => {
+                    let (minimum, maximum) =
+                        crate::exact_declared_domain_carrier_interval(program, primitive, domain)?;
+                    if minimum > maximum {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
         }
         bounded = true;
         reference = *base_type;
