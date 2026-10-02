@@ -5,7 +5,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarType};
 
 use super::super::{affine_custody::DefinitionIndex, cast_custody, root_selection};
-use super::{derived, order, range, shift, substitution, wrapping};
+use super::{derived, order, policy_translation, range, shift, substitution};
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -67,7 +67,9 @@ fn prove_uncached(
                 definitions,
             )
         })
-        .or_else(|| wrapping::prove(context, goal, assumptions, semantic_axioms, definitions))
+        .or_else(|| {
+            policy_translation::prove(context, goal, assumptions, semantic_axioms, definitions)
+        })
         .or_else(|| shift::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| range::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| order::prove_equal_integer_bound(context, goal, assumptions, semantic_axioms))

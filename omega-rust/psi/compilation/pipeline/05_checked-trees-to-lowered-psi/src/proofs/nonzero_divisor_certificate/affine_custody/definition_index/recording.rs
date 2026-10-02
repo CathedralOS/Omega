@@ -214,7 +214,7 @@ impl Tables {
 /// rather than recursion.
 struct ScopeProofs {
     affine: BTreeMap<Proposition, Option<ProofNode>>,
-    wrapping: BTreeMap<Proposition, Option<ProofNode>>,
+    policy_translation: BTreeMap<Proposition, Option<ProofNode>>,
     bound: BTreeMap<Proposition, Option<ProofNode>>,
     endpoint: BTreeMap<Proposition, Option<ProofNode>>,
     /// Whole `build_with_definitions` answers per goal under this fixed
@@ -352,7 +352,7 @@ fn shared_proofs(
                     semantic_axioms: semantic_axioms.to_vec(),
                     proofs: Rc::new(RefCell::new(ScopeProofs {
                         affine: BTreeMap::new(),
-                        wrapping: BTreeMap::new(),
+                        policy_translation: BTreeMap::new(),
                         bound: BTreeMap::new(),
                         endpoint: BTreeMap::new(),
                         cascade: BTreeMap::new(),
@@ -587,39 +587,42 @@ impl DefinitionIndex {
 
     // The wrapping leg shares the candidate index but not the affine proof
     // cache: `bound::prove` runs the exact affine selection first, and a
-    // negative entry there must not suppress the wrapping conjunction leg for
+    // negative entry there must not suppress the policy translation leg for
     // the same goal. The in-progress marker still breaks re-entrant cycles
     // reached through `prove_candidate_endpoint` -> `shift::prove` ->
-    // `bound::prove` -> `wrapping::prove` for the same goal.
-    pub(in crate::proofs::nonzero_divisor_certificate) fn cached_wrapping_proof(
+    // `bound::prove` -> `policy_translation::prove` for the same goal.
+    pub(in crate::proofs::nonzero_divisor_certificate) fn cached_policy_translation_proof(
         &self,
         goal: &Proposition,
     ) -> Option<Option<ProofNode>> {
-        self.proofs.borrow().wrapping.get(goal).cloned()
+        self.proofs.borrow().policy_translation.get(goal).cloned()
     }
 
-    pub(in crate::proofs::nonzero_divisor_certificate) fn begin_wrapping_proof(
+    pub(in crate::proofs::nonzero_divisor_certificate) fn begin_policy_translation_proof(
         &mut self,
         goal: &Proposition,
     ) {
-        self.proofs.borrow_mut().wrapping.insert(goal.clone(), None);
+        self.proofs
+            .borrow_mut()
+            .policy_translation
+            .insert(goal.clone(), None);
     }
 
-    pub(in crate::proofs::nonzero_divisor_certificate) fn cache_wrapping_proof(
+    pub(in crate::proofs::nonzero_divisor_certificate) fn cache_policy_translation_proof(
         &mut self,
         goal: &Proposition,
         proof: Option<ProofNode>,
     ) {
         self.proofs
             .borrow_mut()
-            .wrapping
+            .policy_translation
             .insert(goal.clone(), proof);
     }
 
     /// The bound cascade answers one `(goal, scope)` question; under this
     /// index the scope is fixed, so the goal alone keys the memo. The
     /// in-progress marker breaks re-entrant cycles reached through
-    /// `wrapping::prove` -> `map_checked_word` -> `prove_candidate_endpoint`
+    /// `policy_translation::prove` -> `map_checked_word` -> `prove_candidate_endpoint`
     /// -> `shift::prove` -> `bound::prove` for the same goal.
     pub(in crate::proofs::nonzero_divisor_certificate) fn cached_bound_proof(
         &self,

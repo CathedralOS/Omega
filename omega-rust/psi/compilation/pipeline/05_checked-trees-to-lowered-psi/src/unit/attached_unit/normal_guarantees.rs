@@ -182,6 +182,34 @@ mod tests {
         .unwrap();
     }
 
+    #[test]
+    fn saturating_field_guarantee_survives_unit_call() {
+        let checked = crate::front_end::checked_program(
+            "data Countdown { remaining: u32 in Saturating; }
+             machine Countdown::arm(countdown: &mut Countdown, start: u32 in Saturating)
+             requires start < 8
+             ensures countdown.remaining > 0; countdown.remaining - 1 < 8
+             { countdown.remaining = start + 1; }
+             machine Countdown::tick(countdown: &mut Countdown) -> u32 in Saturating
+             requires countdown.remaining > 0; countdown.remaining - 1 < 8
+             { countdown.remaining = countdown.remaining - 1; countdown.remaining }
+             data Main { timer: Countdown; result: u32 in Saturating; }
+             machine Main::run(main: &mut Main) {
+                 Countdown::arm(&mut main.timer, 4);
+                 let left: u32 in Saturating = Countdown::tick(&mut main.timer);
+                 main.result = left;
+             }",
+        );
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+            .expect("saturating field store proves guarantee at the Unit call");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("independent post-state replay");
+    }
+
     fn verify_post_state(clear_body: &str) {
         verify_post_state_with("", "", "", clear_body);
     }

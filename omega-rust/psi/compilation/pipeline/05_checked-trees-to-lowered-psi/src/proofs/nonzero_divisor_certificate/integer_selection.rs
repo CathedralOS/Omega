@@ -19,10 +19,10 @@ mod implications;
 mod logical;
 mod multiply;
 mod order;
+mod policy_translation;
 mod range;
 mod shift;
 mod substitution;
-mod wrapping;
 
 pub(super) use logical::{prove_conjunction, prove_disjunction};
 

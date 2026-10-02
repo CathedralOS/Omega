@@ -110,6 +110,7 @@ pub(in crate::proofs::nonzero_divisor_certificate) fn definition_words_to_target
 
 fn add_operand(side: &ScalarTerm, target: &ScalarTerm) -> bool {
     let (ScalarTerm::WrappingIntegerAdd { left, right, .. }
+    | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
     | ScalarTerm::ExactIntegerAdd { left, right, .. }) = side
     else {
         return false;
@@ -240,6 +241,7 @@ fn resume_values(definition: &Proposition) -> impl Iterator<Item = &ScalarTerm> 
             targets.push(side);
         }
         if let ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
         | ScalarTerm::ExactIntegerAdd { left, right, .. } = side
         {
             for operand in [left.as_ref(), right.as_ref()] {
@@ -385,19 +387,22 @@ fn forward_sibling<'a>(
         | ScalarTerm::IntegerBitwiseAnd { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
-        // The kernel traverses a wrapping add on either carrier sign and
-        // demands no-wrap evidence on the side the addend faces.
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+        // Both policies traverse addition on either carrier sign. The kernel
+        // asks for directional no-wrap evidence only for modular arithmetic;
+        // saturation instead clamps each inclusive endpoint.
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
-        // A wrapping difference resumes at its minuend; the kernel reads it
+        // A policy difference resumes at its minuend; the kernel reads it
         // as the wrapping sum with the negated literal.
         ScalarTerm::ExactIntegerDivide { left, right, .. }
         | ScalarTerm::WrappingIntegerDivide { left, right, .. }
         | ScalarTerm::ExactIntegerRemainder { left, right, .. }
         | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
         | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
+        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => {
             (left.as_ref(), right.as_ref(), true)
         }
         _ => return None,
@@ -418,6 +423,7 @@ fn add_operands(expression: &ScalarTerm, expected: ScalarType) -> Vec<(&ScalarTe
     let mut readings = Vec::new();
     let (left, right) = match expression {
         ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
         | ScalarTerm::ExactIntegerAdd { left, right, .. } => (left.as_ref(), right.as_ref()),
         _ => return readings,
     };

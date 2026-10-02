@@ -1,5 +1,7 @@
 //! Mapping bounds through a checked affine form: direct and correlated add,
-//! subtract, multiply and shift, with the wrapping evidence each step needs.
+//! subtract, multiply and shift, preserving each policy: modular steps need
+//! directional no-wrap evidence; Saturating translations clamp inclusive
+//! endpoints and reject strict transport across their plateaus.
 
 use crate::integer_rules::integer_affine::CheckedIntegerAffineForm;
 use crate::integer_rules::integer_affine::truth_bounds::integer_literal_as_i128;
@@ -134,6 +136,17 @@ fn map_integer_affine_bound_with_remainder_policy(
         }
         mapped = match step {
             CheckedIntegerEndpointStep::Add(value) => mapped.checked_add(*value),
+            CheckedIntegerEndpointStep::SaturatingAdd(value) => {
+                let minimum =
+                    super::truth_bounds::integer_value_to_i128(form.integer_type().minimum_value())
+                        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+                let maximum =
+                    super::truth_bounds::integer_value_to_i128(form.integer_type().maximum_value())
+                        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+                mapped
+                    .checked_add(*value)
+                    .map(|endpoint| endpoint.clamp(minimum, maximum))
+            }
             CheckedIntegerEndpointStep::Subtract(value) => mapped.checked_sub(*value),
             CheckedIntegerEndpointStep::Multiply(value) => {
                 if *value < 0 {

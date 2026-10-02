@@ -8,7 +8,7 @@ use semantic_vocabulary::{
 
 use super::super::super::affine_custody::DefinitionIndex;
 use super::super::super::integer_evidence::{closed_integer_relation, projected_facts};
-use super::super::{bound, exact, wrapping};
+use super::super::{bound, exact, policy_translation};
 
 mod antitone;
 mod remainder;
@@ -35,7 +35,9 @@ pub(super) fn prove(
         .or_else(|| subtract::prove(context, goal, assumptions, semantic_axioms, definitions))
         // Strict endpoints traverse checked wrapping-update chains that the
         // non-strict affine selection cannot cite.
-        .or_else(|| wrapping::prove(context, goal, assumptions, semantic_axioms, definitions))
+        .or_else(|| {
+            policy_translation::prove(context, goal, assumptions, semantic_axioms, definitions)
+        })
         .or_else(|| {
             prove_discrete_endpoint(context, goal, assumptions, semantic_axioms, |nonstrict| {
                 // Use bound selection directly: proposition dispatch itself
