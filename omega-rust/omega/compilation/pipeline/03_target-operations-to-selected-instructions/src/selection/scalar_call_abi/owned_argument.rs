@@ -54,11 +54,15 @@ pub(super) fn validate_owned_arguments(
                 if psi_operation == operation {
                     return None;
                 }
-                let producer = source
+                let mut producers = source
                     .blocks
                     .iter()
                     .flat_map(|block| &block.instructions)
-                    .find(|row| row.operation == psi_operation)?;
+                    .filter(|row| row.operation == psi_operation);
+                let producer = producers.next()?;
+                if producers.next().is_some() {
+                    return None;
+                }
                 // An empty-record local transports no bytes: its
                 // establishment must mint exactly this place of exactly this
                 // empty type.
@@ -76,31 +80,22 @@ pub(super) fn validate_owned_arguments(
                     }
                     continue;
                 }
-                let result = match &producer.kind {
-                    LegalizedScalarInstructionKind::EstablishCase { result, .. } => {
-                        crate::selection::aggregate_result_input::fields(source, producer)?;
-                        result
-                    }
-                    LegalizedScalarInstructionKind::EstablishRecord { result, .. } => {
-                        crate::selection::record_input::fields(source, producer)?;
-                        result
-                    }
-                    LegalizedScalarInstructionKind::EstablishScalarArray { result, .. } => {
-                        crate::selection::scalar_array_input::elements(source, producer)?;
-                        result
-                    }
-                    // The copy instruction validates its source extent. The
-                    // call consumes its fresh result home, not that source.
-                    LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. } => result,
-                    LegalizedScalarInstructionKind::Call(produced) => {
-                        crate::selection::aggregate_result_input::call_result(source, produced)?.0
-                    }
-                    _ => return None,
-                };
+                // The producer's computation is independently selected and
+                // replayed at its own instruction. Call transport rejoins its
+                // declared result, not a whitelist of how the value was made.
+                // Keep identity separate from `home`'s borrowing eligibility:
+                // whole owned arguments may carry qualifications or a Mixed
+                // shape without acquiring permission to borrow that value.
+                let (actual_producer, result) =
+                    crate::selection::aggregate_result_input::operation_result(
+                        source,
+                        semantic.place,
+                    )?;
                 // The result's signature preconditions were already bound
                 // against the destination roster at call-edge replay; the
                 // transport here re-checks only what selection owns.
-                if result.place != semantic.place
+                if actual_producer != psi_operation
+                    || result.place != semantic.place
                     || result.structural_type != target.root_structural_type
                     || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || !result.claims.is_empty()
