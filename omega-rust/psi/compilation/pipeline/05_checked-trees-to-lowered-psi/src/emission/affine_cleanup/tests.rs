@@ -443,3 +443,111 @@ fn descriptor_completion_preserves_existing_carrier_cleanup_without_duplicates()
         ]
     );
 }
+
+#[test]
+fn borrowed_descriptor_edges_retain_cleanup_debt_through_unit_completion() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let unit_exit = |identity| {
+            block(
+                identity,
+                Terminator::ReturnUnit {
+                    edge: edge_id(identity),
+                    trivial_affine_discards: vec![place_id(99)],
+                },
+            )
+        };
+        let mut blocks = vec![jump(1, 2), unit_exit(2)];
+        blocks[0].operations = vec![descriptor_birth(10), descriptor_birth(20)];
+        let actual = StructuralArgument {
+            place: place_id(20),
+            path: Vec::new(),
+            access,
+        };
+        let Terminator::Jump {
+            structural_arguments,
+            ..
+        } = &mut blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        structural_arguments.push(actual.clone());
+        let mut received = parameter(30, 0);
+        received.access = access;
+        received.multiplicity = StructuralMultiplicity::Unrestricted;
+        received.structural_type = StructuralTypeId::new(9).unwrap();
+        blocks[1].structural_parameters.push(received.clone());
+        super::complete(&[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+        let Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = &blocks[1].terminator
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            trivial_affine_discards,
+            &[place_id(20), place_id(10), place_id(99)]
+        );
+
+        // Branches lend the same descriptor; each selected Unit exit still
+        // disposes the original carriers after its last borrowed use.
+        let mut branches = vec![
+            block(
+                1,
+                Terminator::Conditional {
+                    condition: value_id(1),
+                    when_true: successor(1, 2),
+                    when_false: successor(2, 3),
+                },
+            ),
+            unit_exit(2),
+            unit_exit(3),
+        ];
+        branches[0].operations = vec![descriptor_birth(10), descriptor_birth(20)];
+        let Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &mut branches[0].terminator
+        else {
+            unreachable!()
+        };
+        when_true.structural_arguments.push(actual.clone());
+        when_false.structural_arguments.push(actual);
+        branches[1].structural_parameters.push(received.clone());
+        received.place = place_id(31);
+        branches[2].structural_parameters.push(received);
+        super::complete(&[], block_id(1), &mut branches, &descriptor_types()).unwrap();
+        for branch in &branches[1..] {
+            let Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } = &branch.terminator
+            else {
+                unreachable!()
+            };
+            assert_eq!(
+                trivial_affine_discards,
+                &[place_id(20), place_id(10), place_id(99)]
+            );
+        }
+    }
+    let mut owned = vec![jump(1, 2), returning(2)];
+    owned[0].operations.push(descriptor_birth(10));
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut owned[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(StructuralArgument {
+        place: place_id(10),
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    });
+    assert!(super::complete(&[], block_id(1), &mut owned, &descriptor_types()).is_err());
+}
