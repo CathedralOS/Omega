@@ -100,7 +100,12 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             } if declaration.place == place
         )
     });
-    forwarded || dispatched || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
+    let cleanup_borrow = source.blocks.iter().any(|block| matches!(&block.terminator,
+        legalized_operations::LegalizedScalarTerminator::ReturnCleanup { calls, .. }
+            if calls.iter().any(|(_, call)| call.arguments.iter().any(|argument|
+                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
+                    if semantic.place == place && semantic.access != StructuralAccess::Owned)))));
+    forwarded || dispatched || cleanup_borrow || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. }
