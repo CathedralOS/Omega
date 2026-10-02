@@ -120,6 +120,10 @@ pub(super) fn encode_structural_path_segment(
     segment: &StructuralPathSegment,
 ) {
     match segment {
+        StructuralPathSegment::Case(case) => {
+            bytes.u8(7);
+            bytes.u64(case.get());
+        }
         StructuralPathSegment::Field(identity) => {
             bytes.u8(1);
             bytes.string(identity);

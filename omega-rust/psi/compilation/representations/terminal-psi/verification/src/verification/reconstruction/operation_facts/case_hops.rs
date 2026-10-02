@@ -5,8 +5,9 @@
 //! observed canonical path must hold for this exact root and prefix in the
 //! incoming facts, after all-predecessor intersection and write invalidation.
 //! A write to the sum or any prefix retires every fact below. The observation
-//! itself introduces no membership. `StructuralCaseLeafCopy` and
-//! case-qualified scalar field reads share this one judgment.
+//! itself introduces no membership. Borrowed argument paths, reference
+//! formation, `StructuralCaseLeafCopy` and case-qualified scalar field reads
+//! share this one judgment.
 //!
 //! A case holds in one of two ways:
 //!

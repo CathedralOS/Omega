@@ -90,6 +90,22 @@ pub(crate) fn structural_arguments_match(
         return false;
     }
     for (argument, parameter) in arguments.iter().zip(parameters) {
+        // Case selection is a call-scoped loan over existing backing. It does
+        // not permit an owned extraction, boundary escape, or a new reference
+        // result merely because the selected payload has the requested shape.
+        let case_projection = argument
+            .path
+            .iter()
+            .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)));
+        if case_projection
+            && (argument.access == terminal_psi::StructuralAccess::Owned
+                || matches!(
+                    projection,
+                    StructuralProjectionPolicy::Boundary | StructuralProjectionPolicy::EmptyOnly
+                ))
+        {
+            return false;
+        }
         if let Some((carrier, qualifications, bytes)) = caller
             .blocks
             .iter()
@@ -175,6 +191,7 @@ pub(crate) fn structural_arguments_match(
             && argument.path.iter().all(|segment| match segment {
                 terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
                 terminal_psi::StructuralPathSegment::FixedIndex(_)
+                | terminal_psi::StructuralPathSegment::Case(_)
                 | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,
                 terminal_psi::StructuralPathSegment::Referent
                 | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
@@ -427,7 +444,16 @@ pub(crate) fn structural_arguments_match(
         if borrowed_owner_expected && !bounded_owner_presentation {
             return false;
         }
-        let actual_type = resolve_structural_path(types, source.structural_type, &argument.path);
+        let actual_type = if case_projection {
+            terminal_semantics::canonical_static_projection(
+                types.values().copied(),
+                source.structural_type,
+                &argument.path,
+            )
+            .map(|(_, declaration)| declaration.id)
+        } else {
+            resolve_structural_path(types, source.structural_type, &argument.path)
+        };
         if actual_type.is_none()
             && !byte_field_presentation
             && !fixed_array_presentation

@@ -1242,6 +1242,7 @@ fn project_with_leaf_shape(
         root,
         path.iter().map(|segment| match segment {
             StructuralPathSegment::Field(name) => Projection::FieldName(name),
+            StructuralPathSegment::Case(case) => Projection::Case(*case),
             StructuralPathSegment::FixedIndex(position) => Projection::FixedIndex(*position),
             _ => Projection::Unsupported,
         }),
@@ -1251,6 +1252,7 @@ fn project_with_leaf_shape(
 }
 
 enum Projection<'a> {
+    Case(semantic_vocabulary::StructuralCaseId),
     FieldName(&'a str),
     FixedIndex(u64),
     Unsupported,
@@ -1265,11 +1267,40 @@ fn project_inner<'a>(
     let mut carrier = root;
     let mut offset = 0_u32;
     shape(root, declarations)?;
-    for segment in path {
+    let mut path = path;
+    while let Some(segment) = path.next() {
         let declaration = declarations
             .iter()
             .find(|declaration| declaration.id == carrier)?;
         match (segment, &declaration.shape) {
+            (
+                Projection::Case(case),
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
+            ) => {
+                let case_position = cases.iter().position(|candidate| candidate.id == case)?;
+                let Projection::FieldName(identity) = path.next()? else {
+                    return None;
+                };
+                let (field_position, field) = cases[case_position]
+                    .fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .find(|(_, field)| field.identity == identity)?;
+                let StructuralFieldType::Structural(selected) = field.field_type else {
+                    return None;
+                };
+                let layout = case_layout(carrier, declarations)?;
+                offset = offset.checked_add(
+                    layout
+                        .cases
+                        .get(case_position)?
+                        .fields
+                        .get(field_position)?
+                        .byte_offset,
+                )?;
+                carrier = selected;
+            }
             (
                 Projection::FixedIndex(position),
                 StructuralTypeShape::FixedArray { element, length },

@@ -56,6 +56,7 @@ fn prepare_shared_qualifications(
 }
 
 pub(crate) struct Evaluation {
+    pub(crate) structural_types: std::sync::Arc<[StructuralTypeDeclaration]>,
     pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
     pub(crate) structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
@@ -134,6 +135,7 @@ impl Evaluation {
     /// without changing the sibling's compile-time view of that frontier.
     pub(crate) fn branch(&self, block: BlockId, operation_start: usize) -> Self {
         Self {
+            structural_types: self.structural_types.clone(),
             structural_value_owners: self.structural_value_owners.clone(),
             selection_cleanups: self.selection_cleanups.clone(),
             structural_locals: self.structural_locals.clone(),
@@ -730,6 +732,7 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
@@ -962,6 +965,7 @@ impl Evaluation {
             machine,
             1,
         )
+        .with_structural_types(&self.structural_types)
         .with_arrays(&self.arrays)
         .with_literals(&self.literals)
         .with_copies(&self.copies)
@@ -1090,6 +1094,7 @@ impl Evaluation {
                 machine,
                 1,
             )
+            .with_structural_types(&self.structural_types)
             .enter_proof_scope(&self.erased_proof_formals);
             let entry = expansion.direct_value(&source_types, 0, expression)?;
             let states = expansion.finish();
@@ -1115,6 +1120,7 @@ impl Evaluation {
             machine,
             1,
         )
+        .with_structural_types(&self.structural_types)
         .with_arrays(&self.arrays)
         .with_literals(&self.literals)
         .with_copies(&self.copies)

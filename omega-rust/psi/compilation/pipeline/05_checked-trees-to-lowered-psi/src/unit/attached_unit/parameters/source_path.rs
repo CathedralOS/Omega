@@ -32,7 +32,7 @@ pub(crate) fn expression_producer(
             {
                 borrow.target
             }
-            ExpressionNode::Member(member) if member.case_variant.is_none() => member.receiver,
+            ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed)
                 if matches!(
                     checked.expression_table.expression(indexed.index),
@@ -237,7 +237,7 @@ pub(crate) fn source_place_path(
                 });
                 expression = borrow.target;
             }
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+            ExpressionNode::Member(member) => {
                 projections.push(SourceProjection::Field(expression, member.member_symbol));
                 expression = member.receiver;
             }
@@ -431,29 +431,25 @@ pub(crate) fn source_place_path(
                 // Local field selection can remain unresolved in typed syntax.
                 // Its declared owner and unique authored field name resolve it;
                 // a present field symbol must still match exactly.
-                let mut fields =
-                    checked
-                        .data_members(data)
-                        .iter()
-                        .filter_map(|member| match member {
-                            checked_trees::data::DataMember::Field(field)
-                                if if symbol.is_valid() {
-                                    field.symbol == symbol
-                                } else {
-                                    field.name.as_str() == authored.member.as_str()
-                                } =>
-                            {
-                                Some(field)
-                            }
-                            _ => None,
-                        });
-                let field = fields.next().ok_or(LoweringError::Unsupported(
+                let field = validation::exact_data_member_field(
+                    &checked.typed,
+                    data,
+                    symbol,
+                    authored.member.as_str(),
+                    authored.case_variant.as_ref().map(|case| case.as_str()),
+                )
+                .ok_or(LoweringError::Unsupported(
                     "scalar wrapper field substituted its declaration owner",
                 ))?;
-                if fields.next().is_some() {
-                    return unsupported(
-                        "structural source field is ambiguous in its declared owner",
-                    );
+                if field.relevance.is_erased() {
+                    return unsupported("structural source selects an erased field");
+                }
+                if authored.case_variant.is_some() {
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
+                        crate::expression_preparation::source_custody::structural_places::payload_case(
+                            checked, field.symbol,
+                        )?.path_identity(),
+                    ));
                 }
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),

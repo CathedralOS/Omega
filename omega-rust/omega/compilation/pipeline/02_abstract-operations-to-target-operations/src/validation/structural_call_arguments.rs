@@ -2883,7 +2883,9 @@ impl Replay<'_> {
                 && semantic.path.iter().all(|segment| {
                     matches!(
                         segment,
-                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                        StructuralPathSegment::Field(_)
+                            | StructuralPathSegment::FixedIndex(_)
+                            | StructuralPathSegment::Case(_)
                     )
                 });
         if static_borrow

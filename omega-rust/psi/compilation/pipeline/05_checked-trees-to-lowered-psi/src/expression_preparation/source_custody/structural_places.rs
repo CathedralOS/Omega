@@ -11,6 +11,34 @@ use checked_trees::statement::StatementNode;
 use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
+/// The exact variant that owns a declaration-resolved payload field. A case
+/// spelling is interpreted under its source declaration by the member walk;
+/// this join retains that selected variant in both checked and captured paths.
+pub(crate) fn payload_case(
+    checked: &CheckedTrees,
+    field: SymbolHandle,
+) -> Result<&checked_trees::data::DataVariant, LoweringError> {
+    let selected = facts::payload_variant_for_field(&checked.typed, field).ok_or(
+        LoweringError::Unsupported("payload field has no declaring case"),
+    )?;
+    let mut cases = checked.data_definitions().iter().flat_map(|owner| {
+        checked
+            .data_members(owner)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Variant(case) if case.symbol == selected => Some(case),
+                _ => None,
+            })
+    });
+    let case = cases
+        .next()
+        .ok_or(LoweringError::Unsupported("payload case is absent"))?;
+    if cases.next().is_some() {
+        return unsupported("payload case is ambiguous");
+    }
+    Ok(case)
+}
+
 /// Resolve a retained static path from its exact authored parameter type.
 /// Field identities are local to their current declaration, including case
 /// payloads. Runtime coordinates require a separate source/evaluation contract.
@@ -191,9 +219,6 @@ pub(crate) fn walk_exact_place(
         visited.push(cursor);
         match checked.expression_table.expression(cursor) {
             ExpressionNode::Member(member) => {
-                if member.case_variant.is_some() {
-                    return unsupported("borrowed selection target uses a case member");
-                }
                 let receiver = validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
@@ -243,7 +268,7 @@ pub(crate) fn walk_exact_place(
                         member.member_symbol
                     },
                     member.member.as_str(),
-                    None,
+                    member.case_variant.as_ref().map(|case| case.as_str()),
                 )
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection lost its member declaration",
@@ -254,6 +279,11 @@ pub(crate) fn walk_exact_place(
                 checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
                     field.path_identity(),
                 ));
+                if member.case_variant.is_some() {
+                    checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::Case(
+                        payload_case(checked, field.symbol)?.path_identity(),
+                    ));
+                }
                 cursor = member.receiver;
             }
             // A literal fixed index is an exact place segment the same way a

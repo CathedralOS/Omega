@@ -321,6 +321,7 @@ impl OperationFrame<'_, '_> {
         .into_iter();
         let structural_arguments = lower_structural_arguments(
             structural_arguments,
+            self.structural_types.declarations(),
             self.parameters,
             &[],
             &earlier,

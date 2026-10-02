@@ -279,6 +279,7 @@ impl Evaluation {
             machine,
             1,
         )
+        .with_structural_types(&self.structural_types)
         .with_arrays(&self.arrays)
         .with_literals(&self.literals)
         .with_copies(&self.copies)

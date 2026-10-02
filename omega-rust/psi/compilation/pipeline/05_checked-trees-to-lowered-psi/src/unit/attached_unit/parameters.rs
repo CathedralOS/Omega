@@ -21,7 +21,7 @@ use crate::emission::operation_emission::expressions::{
 };
 use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use crate::expression_preparation::bindings::structural_paths::{
-    lower_argument_path, lower_structural_path, terminal_access,
+    lower_structural_path, lower_typed_argument_path, terminal_access,
 };
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use semantic_vocabulary::ValueId;
@@ -1541,6 +1541,7 @@ pub(crate) fn mint_element_view_length_observations(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_structural_arguments(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(StructuralPlaceDeclaration, bool)],
@@ -1609,9 +1610,14 @@ pub(crate) fn lower_structural_arguments(
             }
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
                 let source = structural_result_source(structural_results, binding_ordinal, argument)?;
+                let structural_type = match source.kind {
+                    StructuralPlaceKind::OperationResult { structural_type, .. }
+                    | StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. } => structural_type,
+                    _ => return unsupported("structural result argument has no declared type"),
+                };
                 return Ok(StructuralArgument {
                     place: source.id,
-                    path: lower_argument_path(&argument.path, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
+                    path: lower_typed_argument_path(&argument.path, structural_type, structural_types, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
                     access: terminal_access(argument.access),
                 });
             }
@@ -1630,7 +1636,7 @@ pub(crate) fn lower_structural_arguments(
                 ))?;
             Ok(StructuralArgument {
                 place: parameter.place,
-                path: lower_argument_path(&argument.path, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
+                path: lower_typed_argument_path(&argument.path, parameter.structural_type, structural_types, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
                 access: terminal_access(argument.access),
             })
         })

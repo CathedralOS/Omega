@@ -291,12 +291,16 @@ fn projected_argument_path_impl(
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
     let mut path = Vec::with_capacity(place.segments.len());
+    let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
         match segment {
             facts::PlaceSegment::Field { symbol } => {
-                path.push(CheckedUnitStructuralPathSegment::Field(
-                    terminal_field_identity(program, *symbol)?,
-                ));
+                let identity = match payload_field.take() {
+                    Some((expected, identity)) if expected == *symbol => identity,
+                    Some(_) => return None,
+                    None => terminal_field_identity(program, *symbol)?,
+                };
+                path.push(CheckedUnitStructuralPathSegment::Field(identity));
             }
             facts::PlaceSegment::FixedIndex { index } => {
                 let container = crate::flow::CanonicalPlace {
@@ -379,8 +383,48 @@ fn projected_argument_path_impl(
                     end: u64::try_from(*end).ok()?,
                 });
             }
-            facts::PlaceSegment::Case { .. } => {
-                return None;
+            facts::PlaceSegment::Case { variant } => {
+                // Resolve the exact case and its following field together.
+                // The canonical type walker alone skips Case markers; it is
+                // not evidence that a payload belongs to the selected case.
+                let container = crate::flow::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments[..position].to_vec(),
+                };
+                let reference = crate::flow::canonical_place_type_reference(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    &container,
+                )?;
+                let reference = validation::unwrapped_type_reference(program, reference)?;
+                let owner = program.closed_data_definition(reference)?;
+                let mut cases =
+                    program
+                        .data_members(owner)
+                        .iter()
+                        .filter_map(|member| match member {
+                            typed_trees::data::DataMember::Variant(case)
+                                if variant.is_valid() && case.symbol == *variant =>
+                            {
+                                Some(case)
+                            }
+                            _ => None,
+                        });
+                let case = cases.next()?;
+                let Some(facts::PlaceSegment::Field { symbol }) = place.segments.get(position + 1)
+                else {
+                    return None;
+                };
+                let mut fields = program.data_payload_fields(case).iter().filter(|field| {
+                    symbol.is_valid() && field.symbol == *symbol && !field.relevance.is_erased()
+                });
+                let field = fields.next()?;
+                if cases.next().is_some() || fields.next().is_some() {
+                    return None;
+                }
+                path.push(CheckedUnitStructuralPathSegment::Case(case.path_identity()));
+                payload_field = Some((*symbol, field.path_identity()));
             }
         }
     }

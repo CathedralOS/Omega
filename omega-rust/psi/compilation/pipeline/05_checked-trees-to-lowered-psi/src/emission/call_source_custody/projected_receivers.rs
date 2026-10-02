@@ -103,10 +103,10 @@ fn resolve_source(
         visited.push(cursor);
         match checked.expression_table.expression(cursor) {
             ExpressionNode::Member(member)
-                if member.case_variant.is_none()
-                    && (!require_endpoint_stamp
-                        || cursor != expression
-                        || member.member_symbol.is_valid()) =>
+                if (!require_endpoint_stamp
+                    || cursor != expression
+                    || member.case_variant.is_some()
+                    || member.member_symbol.is_valid()) =>
             {
                 let field = validation::exact_self_field(&checked.typed, machine, cursor)
                     .or_else(|| {
@@ -124,9 +124,12 @@ fn resolve_source(
                             owner,
                             member.member_symbol,
                             member.member.as_str(),
-                            None,
+                            member.case_variant.as_ref().map(|case| case.as_str()),
                         )
                         .or_else(|| {
+                            if member.case_variant.is_some() {
+                                return None;
+                            }
                             // Checked places select the concrete field, while
                             // authored members may retain the template symbol.
                             // Replay the exact correspondence, never a same-name
@@ -148,7 +151,18 @@ fn resolve_source(
                     stamp = field.symbol;
                 }
                 path.push(field_segment(field));
-                if matches!(checked.expression_table.expression(member.receiver), ExpressionNode::Name(name)
+                let selected_case = if member.case_variant.is_some() {
+                    Some(crate::expression_preparation::source_custody::structural_places::payload_case(
+                        checked, field.symbol,
+                    )?)
+                } else {
+                    None
+                };
+                if let Some(case) = selected_case {
+                    path.push(CheckedUnitStructuralPathSegment::Case(case.path_identity()));
+                }
+                if selected_case.is_none()
+                    && matches!(checked.expression_table.expression(member.receiver), ExpressionNode::Name(name)
                     if name.symbol == machine.symbol && name.head_symbol == name.symbol)
                 {
                     owner = field.symbol;
@@ -165,6 +179,11 @@ fn resolve_source(
                 captured_segments.push(facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 });
+                if let Some(case) = selected_case {
+                    captured_segments.push(facts::PlaceSegment::Case {
+                        variant: case.symbol,
+                    });
+                }
                 cursor = member.receiver;
             }
             // An assignment destination's runtime selector is the statement's

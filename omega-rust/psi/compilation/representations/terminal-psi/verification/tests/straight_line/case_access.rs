@@ -872,8 +872,9 @@ fn mixed_case_module(
     let structural_type = StructuralTypeId::new(1).expect("mixed type");
     let place = PlaceId::new(1).expect("case place");
     let field = StructuralFieldId::new(1).expect("field id");
-    let integer = semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
-        .expect("i32");
+    let integer =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+            .expect("i32");
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type,
         identity: "Event".to_owned(),
@@ -1092,10 +1093,250 @@ fn case_establishment_refuses_a_binding_for_an_erased_payload_member() {
     let mut mismatched = with_erased_payload_member(mixed_case_module(|flag, gold| {
         vec![scalar_initializer(flag), scalar_initializer(gold)]
     }));
-    let StructuralTypeShape::Mixed { cases, .. } = &mut mismatched.structural_types[0].shape
-    else {
+    let StructuralTypeShape::Mixed { cases, .. } = &mut mismatched.structural_types[0].shape else {
         panic!("mixed fixture");
     };
     cases[1].fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Boolean);
     assert!(validate_module(&mismatched).is_err());
+}
+
+fn borrowed_case_payload_module(reference: bool) -> TerminalModule {
+    use terminal_psi::StructuralPathSegment;
+    let mut module = dispatch_module(StructuralAccess::SharedBorrow);
+    let payload = StructuralTypeId::new(2).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: payload,
+        identity: "Payload".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: StructuralFieldId::new(1).unwrap(),
+                identity: "value".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            }],
+        },
+    });
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum");
+    };
+    // Equal payload types make wrong-case rejection depend on current case
+    // custody, rather than an incidental carrier mismatch.
+    for case in cases {
+        case.fields.push(StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).unwrap(),
+            identity: "payload".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(payload),
+        });
+    }
+    let source = StructuralArgument {
+        place: PlaceId::new(1).unwrap(),
+        access: StructuralAccess::SharedBorrow,
+        path: vec![
+            StructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+            StructuralPathSegment::Field("payload".into()),
+        ],
+    };
+    if reference {
+        let reference_type = StructuralTypeId::new(3).unwrap();
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: reference_type,
+            identity: "SharedPayload".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: payload,
+                access: StructuralAccess::SharedBorrow,
+            },
+        });
+        let result = PlaceId::new(2).unwrap();
+        module.machines[0]
+            .structural_places
+            .push(StructuralPlaceDeclaration {
+                id: result,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: OperationId::new(1).unwrap(),
+                    structural_type: reference_type,
+                },
+            });
+        module.machines[0].blocks[1].operations.extend([
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: OperationId::new(1).unwrap(),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: result,
+                    structural_type: reference_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishReference { source },
+            },
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: OperationId::new(2).unwrap(),
+                result: OperationResult::Unit,
+                kind: OperationKind::ReleaseReference { source: result },
+            },
+        ]);
+    } else {
+        let mut callee = unit_module().machines.remove(0);
+        callee.id = MachineId::new(901).unwrap();
+        callee.contract.id = ContractId::new(901).unwrap();
+        callee.entry = BlockId::new(901).unwrap();
+        callee.blocks[0].id = callee.entry;
+        callee.blocks[0].terminator = Terminator::ReturnUnit {
+            edge: EdgeId::new(901).unwrap(),
+            trivial_affine_discards: Vec::new(),
+        };
+        callee.structural_parameters = vec![StructuralParameterDeclaration {
+            place: PlaceId::new(1).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: payload,
+            access: StructuralAccess::SharedBorrow,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }];
+        callee.structural_places = vec![StructuralPlaceDeclaration {
+            id: PlaceId::new(1).unwrap(),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }];
+        module.machines[0].blocks[1].operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(1).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                callee: callee.id,
+                arguments: Vec::new(),
+                structural_arguments: vec![source],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        });
+        module.machines.push(callee);
+    }
+    module
+}
+
+#[test]
+fn borrowed_case_payload_requires_current_membership_for_call_and_reference() {
+    use terminal_psi::StructuralPathSegment;
+    for reference in [false, true] {
+        let module = borrowed_case_payload_module(reference);
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("valid projected borrow reference={reference}: {error:?}"));
+        for mutation in 0..6 {
+            let mut invalid = module.clone();
+            let operation = &mut invalid.machines[0].blocks[1].operations[0];
+            let source = match &mut operation.kind {
+                OperationKind::EstablishReference { source } => source,
+                OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } => &mut structural_arguments[0],
+                _ => panic!("borrow"),
+            };
+            match mutation {
+                0 => {
+                    source.path[0] = StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap())
+                }
+                1 => source.path[1] = StructuralPathSegment::Field("missing".into()),
+                2 => source.path.truncate(1),
+                3 => source.access = StructuralAccess::MutableBorrow,
+                4 => {
+                    // Move the use before dispatch; later membership must not
+                    // retroactively authorize either call or loan formation.
+                    let operations = std::mem::take(&mut invalid.machines[0].blocks[1].operations);
+                    invalid.machines[0].blocks[0].operations = operations;
+                }
+                _ => {
+                    source.place = PlaceId::new(3).unwrap();
+                    let mut parameter = invalid.machines[0].structural_parameters[0].clone();
+                    parameter.place = PlaceId::new(3).unwrap();
+                    parameter.position = 1;
+                    invalid.machines[0].structural_parameters.push(parameter);
+                    invalid.machines[0]
+                        .structural_places
+                        .push(StructuralPlaceDeclaration {
+                            id: PlaceId::new(3).unwrap(),
+                            kind: StructuralPlaceKind::Parameter {
+                                position: 1,
+                                is_self: false,
+                            },
+                        });
+                }
+            }
+            assert!(
+                verify_module(
+                    &invalid,
+                    &ProofBundle::default(),
+                    &AdmissionProfile::default()
+                )
+                .is_err(),
+                "forged case borrow reference={reference}, mutation={mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn borrowed_case_payload_membership_expires_after_mutable_call() {
+    let mut module = borrowed_case_payload_module(false);
+    module.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    let mut mutation = module.machines[1].clone();
+    mutation.id = MachineId::new(902).unwrap();
+    mutation.contract.id = ContractId::new(902).unwrap();
+    mutation.entry = BlockId::new(902).unwrap();
+    mutation.blocks[0].id = mutation.entry;
+    mutation.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: EdgeId::new(902).unwrap(),
+        trivial_affine_discards: Vec::new(),
+    };
+    mutation.structural_parameters[0].structural_type = StructuralTypeId::new(1).unwrap();
+    mutation.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    let mut call = module.machines[0].blocks[1].operations[0].clone();
+    call.id = OperationId::new(2).unwrap();
+    let OperationKind::CallUnit {
+        callee,
+        structural_arguments,
+        ..
+    } = &mut call.kind
+    else {
+        panic!("call");
+    };
+    *callee = mutation.id;
+    structural_arguments[0].path.clear();
+    structural_arguments[0].access = StructuralAccess::MutableBorrow;
+    module.machines.push(mutation);
+    module.machines[0].blocks[1].operations.push(call);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the projected call is before the potentially mutating call");
+    module.machines[0].blocks[1].operations.swap(0, 1);
+    validate_module(&module).expect("operation shapes and borrowed access remain valid");
+    assert!(matches!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(ModuleError::InvalidStructuralCaseObservation { .. })
+    ));
 }

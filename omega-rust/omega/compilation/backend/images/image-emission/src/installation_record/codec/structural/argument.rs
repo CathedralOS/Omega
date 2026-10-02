@@ -33,6 +33,10 @@ pub(crate) fn encode_path(
     );
     for segment in path {
         match segment {
+            StructuralPathSegment::Case(case) => {
+                bytes.extend_from_slice(&[7, 0, 0, 0]);
+                push_u64(bytes, case.get());
+            }
             StructuralPathSegment::Referent => {
                 bytes.push(3);
                 bytes.extend_from_slice(&[0; 3]);
@@ -98,6 +102,11 @@ pub(crate) fn decode_path(
             }
             2 => StructuralPathSegment::FixedIndex(reader.u64()?),
             3 => StructuralPathSegment::Referent,
+            7 => StructuralPathSegment::Case(
+                semantic_vocabulary::StructuralCaseId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroSettlementIdentity("StructuralCaseId"),
+                )?,
+            ),
             4 => StructuralPathSegment::FixedByteRange {
                 start: reader.u64()?,
                 end: reader.u64()?,

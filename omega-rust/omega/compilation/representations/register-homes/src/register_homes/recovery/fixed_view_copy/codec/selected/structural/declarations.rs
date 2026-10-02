@@ -555,6 +555,10 @@ pub(super) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     length(bytes, path.len());
     for segment in path {
         match segment {
+            StructuralPathSegment::Case(case) => {
+                bytes.push(7);
+                bytes.extend_from_slice(&case.get().to_le_bytes());
+            }
             StructuralPathSegment::Field(value) => {
                 bytes.push(1);
                 encode_string(bytes, value);
@@ -588,6 +592,10 @@ pub(super) fn decode_path(
             1 => StructuralPathSegment::Field(decode_string(cursor)?),
             2 => StructuralPathSegment::FixedIndex(cursor.u64()?),
             3 => StructuralPathSegment::Referent,
+            7 => StructuralPathSegment::Case(decode_id(
+                cursor,
+                semantic_vocabulary::StructuralCaseId::new,
+            )?),
             4 => StructuralPathSegment::FixedByteRange {
                 start: cursor.u64()?,
                 end: cursor.u64()?,

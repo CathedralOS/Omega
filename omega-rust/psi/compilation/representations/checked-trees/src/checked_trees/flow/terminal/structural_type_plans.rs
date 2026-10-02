@@ -304,7 +304,9 @@ pub struct CheckedUnitStructuralParameterPlan {
 }
 
 /// Source-handle-free structural path retained by checked terminal plans.
-/// Cases deliberately have no variant in this vocabulary. A runtime index is
+/// A case retains its exact declaration identity; lowering resolves it within
+/// the current sum and receiving verification requires live membership at the
+/// operation that uses the path. A runtime index is
 /// not a widened predicate or a trusted byte offset: `RuntimeIndex` names
 /// where the checked selector's scalar value lives, and Terminal lowering
 /// evaluates that value into the segment's `RuntimeIndex { index, obligation }`
@@ -313,6 +315,7 @@ pub struct CheckedUnitStructuralParameterPlan {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedUnitStructuralPathSegment {
     Field(String),
+    Case(String),
     FixedIndex(u64),
     /// Terminal, call-scoped window over initialized fixed byte-array backing.
     FixedByteRange {

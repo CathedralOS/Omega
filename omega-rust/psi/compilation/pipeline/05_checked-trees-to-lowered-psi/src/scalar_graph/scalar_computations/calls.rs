@@ -340,6 +340,7 @@ impl Expansion<'_> {
             &self.cases,
             &self.subslices,
             &self.literals,
+            self.structural_types,
         )?;
         let scalars = plans
             .operands
@@ -520,7 +521,7 @@ impl Expansion<'_> {
                     actual.place = slot.place;
                 }
                 for segment in &structural_arguments[structural_ordinal].path {
-                    if let checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    if let crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::RuntimeIndex(
                         checked_trees::CheckedRuntimeIndex::StructuralField(field),
                     ) = segment
                     {

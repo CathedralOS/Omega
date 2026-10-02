@@ -272,6 +272,7 @@ pub(crate) fn emit_boundary_scalar_return(
             arguments,
             structural_arguments: lower_structural_arguments(
                 structural_arguments,
+                structural_types,
                 &parameters,
                 &[],
                 &[],

@@ -480,6 +480,7 @@ impl TerminalExecution {
                     selected = self.select_runtime_elements(operation)?;
                     &selected
                 };
+                self.validate_case_projections(operation)?;
                 let flow = match operation.kind {
                     OperationKind::EstablishReference { ref source } => {
                         self.establish_reference(operation, source)?;

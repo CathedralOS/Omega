@@ -659,3 +659,89 @@ fn receiver_overlap_distinguishes_scalar_observations_from_retained_references()
         "{errors:#?}"
     );
 }
+
+#[test]
+fn case_payload_call_lends_the_selected_original_storage() {
+    let checked = checked_source_with_core_service(
+        r#"
+        data Payload { case Leaf(value: u64); case Empty; }
+        machine Payload::read(payload: &Payload) -> u64 {
+            transition payload { Payload::Leaf { value } -> (value) Payload::Empty -> (0) }
+        }
+        data Sum { case Found(p: Payload); case Missing; }
+        machine Sum::probe(sum: &Sum) -> u64 {
+            transition sum { Sum::Found { p } -> (Payload::read(&p)) Sum::Missing -> (0) }
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Sum::probe"))
+        .expect("the selected payload call keeps its ordinary computation and borrow");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the call requires exact live case membership");
+    let projected = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::CallStructuralScalar {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .flatten()
+        .filter(|argument| {
+            argument
+                .path
+                .iter()
+                .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(projected.len(), 1);
+    assert_eq!(
+        projected[0].access,
+        terminal_psi::StructuralAccess::SharedBorrow
+    );
+    assert!(matches!(
+        projected[0].path.as_slice(),
+        [
+            terminal_psi::StructuralPathSegment::Case(_),
+            terminal_psi::StructuralPathSegment::Field(_)
+        ]
+    ));
+    let mut changed = checked.clone();
+    let plans = &mut changed.facts.values.scalar_computations;
+    let handle = plans
+        .structural_arguments
+        .iter()
+        .find_map(|(handle, argument)| match argument {
+            checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
+                if argument.path.iter().any(|step| {
+                    matches!(
+                        step,
+                        checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                    )
+                }) =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        })
+        .expect("one checked projected call");
+    let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+        plans.structural_arguments.get_mut(handle)
+    else {
+        unreachable!()
+    };
+    argument.path.remove(0);
+    assert!(
+        lower_machine(&changed, TerminalMachineSelection::Name("Sum::probe")).is_err(),
+        "receiving source replay refuses a producer that erased the selected case"
+    );
+}

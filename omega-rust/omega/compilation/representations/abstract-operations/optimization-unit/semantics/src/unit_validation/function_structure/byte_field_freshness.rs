@@ -412,6 +412,30 @@ pub(super) fn established_on_every_path(
     establishes: impl Fn((usize, usize), &O, PlaceId) -> bool,
     invalidates: impl Fn(&O, PlaceId) -> bool,
 ) -> bool {
+    established_on_every_path_with_edges(
+        function,
+        predecessors,
+        use_site,
+        root,
+        establishes,
+        |_, _, _, _| false,
+        invalidates,
+    )
+}
+
+/// The same frontier walk with an edge-local establishment, for observations
+/// whose successful guard supplies evidence on only one outgoing edge.
+/// The callback sees the predecessor spelling of the storage, after exact
+/// whole-place rebinding; every other arrival still has to establish the fact.
+pub(super) fn established_on_every_path_with_edges(
+    function: &PsiOptimizationFunction,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    use_site: (usize, usize),
+    root: PlaceId,
+    establishes: impl Fn((usize, usize), &O, PlaceId) -> bool,
+    establishes_edge: impl Fn((usize, usize), &O, &optimization_unit::OptimizationEdge, PlaceId) -> bool,
+    invalidates: impl Fn(&O, PlaceId) -> bool,
+) -> bool {
     let mut pending = vec![(use_site.0, use_site.1, root)];
     let mut visited = BTreeSet::new();
     let mut established = false;
@@ -466,7 +490,11 @@ pub(super) fn established_on_every_path(
                         else {
                             return false;
                         };
-                        pending.push((owner, position + 1, before));
+                        if establishes_edge((owner, position), &node.operation, edge, before) {
+                            established = true;
+                        } else {
+                            pending.push((owner, position + 1, before));
+                        }
                     }
                 }
                 if !found_edge {

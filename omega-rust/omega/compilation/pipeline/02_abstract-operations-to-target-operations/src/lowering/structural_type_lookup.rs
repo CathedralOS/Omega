@@ -51,6 +51,17 @@ impl<'a> StructuralTypeLookup<'a> {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
     ) -> Option<StructuralTypeId> {
+        if path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::Case(_)))
+        {
+            return terminal_semantics::canonical_static_projection(
+                self.values().copied(),
+                root,
+                path,
+            )
+            .map(|(_, declaration)| declaration.id);
+        }
         let mut current = root;
         self.get(&current)?;
         for segment in path {

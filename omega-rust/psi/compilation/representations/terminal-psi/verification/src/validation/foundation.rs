@@ -1137,13 +1137,43 @@ fn resolve_structural_path_with_leaf(
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
     runtime_indexes: RuntimeIndexes,
 ) -> Option<StructuralTypeId> {
+    let mut payload_fields = None;
     for segment in path {
         let declaration = module
             .structural_types
             .iter()
             .find(|declaration| declaration.id == structural_type)?;
+        if let StructuralPathSegment::Case(case) = segment {
+            if payload_fields.is_some() {
+                return None;
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return None;
+            };
+            payload_fields = Some(
+                cases
+                    .iter()
+                    .find(|candidate| candidate.id == *case)?
+                    .fields
+                    .as_slice(),
+            );
+            continue;
+        }
+        if payload_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+            return None;
+        }
         structural_type = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            (StructuralPathSegment::Field(identity), shape) => {
+                let fields = match payload_fields.take() {
+                    Some(fields) => fields,
+                    None => match shape {
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                        _ => return None,
+                    },
+                };
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
@@ -1181,7 +1211,7 @@ fn resolve_structural_path_with_leaf(
             _ => return None,
         };
     }
-    Some(structural_type)
+    payload_fields.is_none().then_some(structural_type)
 }
 
 pub(super) fn is_nonempty_field_path(path: &[StructuralPathSegment]) -> bool {

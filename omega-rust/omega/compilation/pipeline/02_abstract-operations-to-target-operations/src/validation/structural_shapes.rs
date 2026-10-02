@@ -61,7 +61,41 @@ pub(super) fn project_static_path(
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let mut byte_offset = 0_u32;
-    for segment in path {
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
+        if let StructuralPathSegment::Case(case) = segment {
+            let declaration = indexed
+                .get(&structural_type)
+                .ok_or(InvalidStructuralShape)?;
+            let (common, cases) = match &declaration.shape {
+                StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+                _ => return Err(InvalidStructuralShape),
+            };
+            let case_position = cases
+                .iter()
+                .position(|candidate| candidate.id == *case)
+                .ok_or(InvalidStructuralShape)?;
+            let Some(StructuralPathSegment::Field(identity)) = segments.next() else {
+                return Err(InvalidStructuralShape);
+            };
+            let (field_position, field) = cases[case_position]
+                .fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .enumerate()
+                .find(|(_, field)| field.identity == *identity)
+                .ok_or(InvalidStructuralShape)?;
+            let StructuralFieldType::Structural(selected) = field.field_type else {
+                return Err(InvalidStructuralShape);
+            };
+            let layout = conventional_sum_layout(common, cases, &indexed, &mut cache, &mut active)?;
+            byte_offset = byte_offset
+                .checked_add(layout.cases[case_position].fields[field_position].byte_offset)
+                .ok_or(InvalidStructuralShape)?;
+            structural_type = selected;
+            continue;
+        }
         if let StructuralPathSegment::FixedIndex(index) = segment {
             let declaration = indexed
                 .get(&structural_type)
@@ -160,7 +194,8 @@ pub(super) fn project_runtime_path(
     let mut active = BTreeSet::new();
     let mut byte_offset = 0_u32;
     let mut elements = Vec::new();
-    for segment in path {
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
         let declaration = indexed
             .get(&structural_type)
             .ok_or(InvalidStructuralShape)?;
@@ -181,11 +216,18 @@ pub(super) fn project_runtime_path(
                 structural_type = element;
             }
             _ => {
-                let (selected, run_offset) = project_static_path(
-                    structural_type,
-                    std::slice::from_ref(segment),
-                    declarations,
-                )?;
+                let pair;
+                let projection = if matches!(segment, StructuralPathSegment::Case(_)) {
+                    pair = [
+                        segment.clone(),
+                        segments.next().ok_or(InvalidStructuralShape)?.clone(),
+                    ];
+                    pair.as_slice()
+                } else {
+                    std::slice::from_ref(segment)
+                };
+                let (selected, run_offset) =
+                    project_static_path(structural_type, projection, declarations)?;
                 byte_offset = byte_offset
                     .checked_add(run_offset)
                     .ok_or(InvalidStructuralShape)?;

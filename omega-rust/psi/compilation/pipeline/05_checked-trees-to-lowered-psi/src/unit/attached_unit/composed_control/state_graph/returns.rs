@@ -663,6 +663,7 @@ pub(super) fn result(
         .map(|reference| {
             let arguments = crate::unit::attached_unit::parameters::lower_structural_arguments(
                 std::slice::from_ref(&reference.source),
+                &catalogs.structural_types,
                 parameters,
                 &[],
                 &[],
