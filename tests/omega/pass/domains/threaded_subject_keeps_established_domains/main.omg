@@ -1,0 +1,45 @@
+// A subject threaded from the caller's own data keeps its ESTABLISHED
+// domains across a transition, where an ordinary parameter owes them.
+//
+// The boundary read writes `game.input` through a `&mut`, which retires the
+// record's facts. Passing the record on as the successor's subject then had
+// to re-prove the default domain of every nested domained field --
+// `game.room.label requires [u8; N]::Utf8` -- because an argument must satisfy
+// its parameter's declared domain while a receiver never was an argument.
+//
+// That obligation belongs to a value whose establishment the callee cannot
+// see: a zeroed local, a projection, another record of the same type. It does
+// not belong to the record this activation already holds. A default domain is
+// store-enforced, so every write to a domained field is independently checked
+// to maintain it, and the caller's own subject is established by its entry.
+//
+// Expected exit: 0.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+data Room { label: [u8; 8] in Utf8; }
+data Game {
+    console: Binding<Console>;
+    room: Room;
+    input: [u8; 32];
+    count: u64;
+}
+
+machine Game::main(game: &mut Game) reaches Console {
+    transition block game.console.read_line(&mut game.input) {
+        LineReadResult::LineComplete { count } -> received(game, count)
+        LineReadResult::EndOfInput { count } -> received(game, count)
+        _ -> done(game)
+    }
+
+    state received(game: &mut Game, count: u64) {
+        game.count = count;
+        transition { _ -> done(game) }
+    }
+    state done(game: &mut Game) { game.console.exit_process(0); }
+}

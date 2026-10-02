@@ -97,6 +97,24 @@ impl DeclaredFieldRequirements {
     }
 }
 
+/// The place root of the caller's own subject, when its state threads one.
+///
+/// This is what makes an explicit subject argument distinguishable from any
+/// other value of the same type: the caller is handing on the very record its
+/// own activation received, whose domains its own entry already established.
+fn caller_subject_root(
+    program: &TypedTrees,
+    state: &FlowStateFact,
+) -> Option<facts::PlaceRoot> {
+    let machine = crate::lookup::machine_by_symbol(program, state.machine_symbol)?;
+    let caller = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let subject = program.data_binding_parameter(machine, program.state_parameters(caller))?;
+    subject
+        .symbol
+        .is_valid()
+        .then(|| facts::PlaceRoot::Symbol(subject.symbol))
+}
+
 pub(super) fn check(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -154,7 +172,29 @@ pub(super) fn check(
                 )
             })
         };
-        let owner = if parameter.is_self {
+        // A receiver's data is ESTABLISHED: the machine's own record was
+        // constructed and every write maintains its declared domains, so the
+        // requirements that apply are the machine's. An ordinary parameter is
+        // an arbitrary incoming value that may not be established yet, so it
+        // owes its type's domain requirements outright.
+        //
+        // An explicit subject threaded from the caller's own data is the first
+        // kind, not the second. Both halves are required: the parameter must be
+        // the CALLEE's subject, and the argument must be the CALLER's own
+        // subject supplied whole. A different record of the same type, or a
+        // projection of one, keeps the ordinary parameter obligation -- it is
+        // exactly the value whose establishment is unknown here.
+        let threaded_subject = !parameter.is_self
+            && target_machine.is_some_and(|machine| {
+                program
+                    .data_binding_parameter(machine, parameters)
+                    .is_some_and(|subject| subject.symbol == parameter.symbol)
+            })
+            && actual.as_ref().is_some_and(|place| {
+                place.segments.is_empty()
+                    && caller_subject_root(program, state).is_some_and(|root| root == place.root)
+            });
+        let owner = if parameter.is_self || threaded_subject {
             Owner::Machine(target_machine.map_or(SymbolHandle::invalid(), |machine| machine.symbol))
         } else {
             Owner::Parameter(parameter.symbol)

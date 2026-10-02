@@ -1676,6 +1676,7 @@ pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb
 pass/domains/semantic_cast_guard_chain_mint checked 341ms @2d8ed253669f
 pass/domains/slice_domain_validator checked 1242ms @2d8ed253669f
+pass/domains/threaded_subject_keeps_established_domains checked 1144ms @cc63aeb9971c+wt
 pass/domains/transparent_alias_expansion checked 332ms @2d8ed253669f
 pass/domains/unit_membership_postcondition_exit checked 1307ms @4e4bfed13aee+wt
 pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
