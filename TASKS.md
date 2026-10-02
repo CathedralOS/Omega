@@ -93,9 +93,10 @@ does not close an item. Keep independent receiving verification.
   and helper call, then the caller observes both windows' writes and its
   untouched neighboring field. Reproduce with `omega run --both
   tests/omega/pass/slices/mutable_field_range_call_state_exit/main.omg` after
-  ordinary package review on macOS ARM64. A mutable range call inside a scalar
-  local initializer still stops at `scalar local: pure initializer`; finish
-  that computed-value composition through the common call and temporary owners.
+  ordinary package review on macOS ARM64. The same range used by an effectful
+  scalar helper inside a comparison runs in
+  `pass/slices/mutable_field_range_scalar_initializer_exit`: both engines exit 0
+  and the caller observes the helper's writes and untouched adjacent storage.
   Local binding and composed byte ranges still need common temporary ownership,
   endpoint binding and cleanup around the existing range operation.
   Byte/element carrier differences and qualification-preservation obligations
