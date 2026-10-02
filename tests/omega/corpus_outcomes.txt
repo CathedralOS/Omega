@@ -1206,6 +1206,7 @@ pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1102ms @ae42075f1dcc+wt
 pass/borrows/branch_selected_record_receiver_exit checked 780ms @e7c13a0f55b2+wt
 pass/borrows/enum_selected_view_reference_exit checked 810ms @be20683757eb+wt
+pass/borrows/interleaved_parameter_field_replacement_exit checked 800ms @7779c69781b9
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
@@ -1214,6 +1215,7 @@ pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
 pass/borrows/returned_record_byte_field_store_exit checked 884ms @e7c13a0f55b2+wt
+pass/borrows/returned_record_case_field_store_exit checked 831ms @7779c69781b9
 pass/borrows/returned_record_field_read_exit checked 935ms @2067346ef4fa+wt
 pass/borrows/returned_record_method_receiver_exit checked 904ms @db98ccdfb56c+wt
 pass/borrows/returned_record_projected_call_exit checked 760ms @e7c13a0f55b2+wt
