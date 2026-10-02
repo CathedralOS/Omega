@@ -535,8 +535,10 @@ pub(super) fn validate_byte_sequence_subslice(
     let Some(result) = operation.result.structural() else {
         return malformed("byte-sequence subslice requires a structural result");
     };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
+    if !matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !module.structural_types.iter().any(|row| {
@@ -552,10 +554,10 @@ pub(super) fn validate_byte_sequence_subslice(
             && matches!(row.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
                 if producer == operation.id && structural_type == result.structural_type)
     }) {
-        return malformed(
-            "byte-sequence subslice requires its exact immutable borrowed result place",
-        );
+        return malformed("byte-sequence subslice requires its exact borrowed result place");
     }
+    // Shape admission does not grant access. Independent module validation
+    // reconstructs the source loan and forbids a shared-to-mutable result.
     Ok(())
 }
 
@@ -688,17 +690,15 @@ pub(super) fn validate_element_view_subslice(
     let Some(result) = operation.result.structural() else {
         return malformed("element-view subslice requires a structural result");
     };
-    if !element_view_result_place(
-        module,
-        machine,
-        operation,
-        result,
-        StructuralMultiplicity::Unrestricted,
-    ) {
-        return malformed(
-            "element-view subslice requires its exact immutable borrowed result place",
-        );
+    if !matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !element_view_result_place(module, machine, operation, result, result.multiplicity)
+    {
+        return malformed("element-view subslice requires its exact borrowed result place");
     }
+    // Mutable range holders are affine, as mutable whole views are. Their
+    // source authority, bounds and lifetime remain independent verifier work.
     Ok(())
 }
 
