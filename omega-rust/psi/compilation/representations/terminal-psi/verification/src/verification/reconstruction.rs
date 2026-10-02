@@ -402,7 +402,8 @@ pub(super) fn reconstruct_validated_terminal_obligations(
 /// Reconstruct facts at each executable obligation site and facts established
 /// on every return path. A true conditional edge establishes the predicate
 /// computed by its condition operation; edge bindings rewrite those facts to
-/// successor parameters. Merge and return facts remain intersection-only.
+/// successor parameters. Merges retain only common facts; returns also retain
+/// the factored alternatives needed to prove a guarantee on every exit.
 pub(super) fn reconstruct_machine_semantics(
     module: &TerminalModule,
     machine: &TerminalMachine,

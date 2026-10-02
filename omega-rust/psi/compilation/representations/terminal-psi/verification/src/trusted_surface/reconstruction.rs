@@ -119,7 +119,7 @@ static OWNER_CONTRACT_ENSURES: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ObligationOwner,
     binding: owner(),
     premises: "a machine contract ensures clause at a validated clause position and the exit facts reconstructed at a return terminator",
-    conclusion: "a derivable obligation whose proposition is the ensures clause under the machine's result substitution, proven from the reconstructed exit facts",
+    conclusion: "a derivable obligation whose proposition is the ensures clause under the machine's result substitution; shared exit facts and the disjunction of every return's residual facts require a certificate valid for all alternatives",
     dependencies: &["fact:return-result-binding", "scope:place-substitution"],
     implementation: &[RECONSTRUCTION, MACHINE_FLOW],
     soundness: TRUSTED,

@@ -53,6 +53,17 @@ use terminal_psi::StructuralArgument;
 pub(crate) type WindowAliases =
     BTreeMap<PlaceId, BTreeSet<(PlaceId, Vec<CanonicalStructuralPathSegment>)>>;
 
+/// A possible borrowed region. An inexact prefix bounds interference but
+/// cannot identify a value; composing another projection never narrows it.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub(crate) struct BorrowedStorageRegion {
+    pub(crate) root: PlaceId,
+    pub(crate) path: Vec<CanonicalStructuralPathSegment>,
+    pub(crate) exact: bool,
+}
+
+pub(crate) type BorrowedStorageOrigins = BTreeMap<PlaceId, BTreeSet<BorrowedStorageRegion>>;
+
 /// The transitive place/prefix set a spelled `place` resolves to. An
 /// unmapped place names only itself at its own root.
 fn bound_sources(
@@ -90,7 +101,28 @@ fn argument_region(
 /// edge arguments may carry, transitively closed through earlier borrowed
 /// parameters. The closure is monotone and bounded by the finite edge
 /// spellings, so the fixpoint always terminates.
+/// Existing interference consumers need only the conservative region bound.
+/// Keep precision in the shared traversal so equality consumers cannot mistake
+/// a widened prefix for an exact storage identity.
 pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine) -> WindowAliases {
+    borrowed_storage_origins(module, machine)
+        .into_iter()
+        .map(|(place, origins)| {
+            (
+                place,
+                origins
+                    .into_iter()
+                    .map(|origin| (origin.root, origin.path))
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+pub(crate) fn borrowed_storage_origins(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> BorrowedStorageOrigins {
     let borrowed_parameters: BTreeSet<PlaceId> = machine
         .blocks
         .iter()
@@ -106,11 +138,11 @@ pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine)
         .map(|parameter| parameter.place)
         .collect();
     if borrowed_parameters.is_empty() {
-        return WindowAliases::new();
+        return BorrowedStorageOrigins::new();
     }
     // Seed borrowed parameters as unresolved, not as roots of their own.
     // Otherwise a loop backedge permanently contributes a phantom origin.
-    let mut aliases: WindowAliases = borrowed_parameters
+    let mut aliases: BorrowedStorageOrigins = borrowed_parameters
         .iter()
         .map(|place| (*place, BTreeSet::new()))
         .collect();
@@ -121,7 +153,7 @@ pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine)
                 if !borrowed_parameters.contains(&parameter.place) {
                     continue;
                 }
-                let mut sources = bound_sources(&expanded, parameter.place);
+                let mut sources = expanded.get(&parameter.place).cloned().unwrap_or_default();
                 for predecessor in &machine.blocks {
                     match &predecessor.terminator {
                         Terminator::Jump {
@@ -131,7 +163,7 @@ pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine)
                         } if *target == block.id => {
                             if let Some(argument) = structural_arguments.get(position) {
                                 sources
-                                    .extend(resolve_source(module, machine, &expanded, argument));
+                                    .extend(resolve_origin(module, machine, &expanded, argument));
                             }
                         }
                         Terminator::Conditional {
@@ -143,7 +175,7 @@ pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine)
                                 if arm.target == block.id
                                     && let Some(argument) = arm.structural_arguments.get(position)
                                 {
-                                    sources.extend(resolve_source(
+                                    sources.extend(resolve_origin(
                                         module, machine, &expanded, argument,
                                     ));
                                 }
@@ -164,22 +196,36 @@ pub(crate) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine)
 
 /// One edge argument's source set under the current alias map: a borrowed
 /// intermediate composes its stored prefix with the argument's own region.
-fn resolve_source(
+fn resolve_origin(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    aliases: &WindowAliases,
+    origins: &BorrowedStorageOrigins,
     argument: &StructuralArgument,
-) -> BTreeSet<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
+) -> BTreeSet<BorrowedStorageRegion> {
     let (place, region) = argument_region(module, machine, argument);
-    let Some(prefixes) = aliases.get(&place) else {
-        return BTreeSet::from([(place, region)]);
+    // A referent carrier does not itself identify the captured value's home.
+    // Its widened region remains useful for interference, never equality.
+    let exact = !argument.path.contains(&StructuralPathSegment::Referent)
+        && canonical_field_path(module, machine, argument.place, &argument.path).is_some();
+    let Some(prefixes) = origins.get(&place) else {
+        return BTreeSet::from([BorrowedStorageRegion {
+            root: place,
+            path: region,
+            exact,
+        }]);
     };
     prefixes
         .iter()
-        .map(|(root, prefix)| {
-            let mut composed = prefix.clone();
-            composed.extend_from_slice(&region);
-            (*root, composed)
+        .map(|prefix| {
+            let mut composed = prefix.path.clone();
+            if prefix.exact {
+                composed.extend_from_slice(&region);
+            }
+            BorrowedStorageRegion {
+                root: prefix.root,
+                path: composed,
+                exact: prefix.exact && exact,
+            }
         })
         .collect()
 }
