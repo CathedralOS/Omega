@@ -31,18 +31,18 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("framed_payload: subslicing the payload out of a framed message and summing it");
-    self.frame.bytes[0] = 255;
-    self.frame.bytes[1] = 10;
-    self.frame.bytes[2] = 20;
-    self.frame.bytes[3] = 30;
-    self.frame.bytes[4] = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("framed_payload: subslicing the payload out of a framed message and summing it");
+    main.frame.bytes[0] = 255;
+    main.frame.bytes[1] = 10;
+    main.frame.bytes[2] = 20;
+    main.frame.bytes[3] = 30;
+    main.frame.bytes[4] = 0;
 
-    let full: &[i32 in Wrapping] = self.frame.bytes.as_slice();
+    let full: &[i32 in Wrapping] = main.frame.bytes.as_slice();
     let checksum: i32 = sum(full[1..4], 0) as i32;
-    self.console.write_line("result: the payload checksum, 60 for this frame (the exit code)");
-    self.console.write_line("[press Enter to close]");
-    _ = block self.console.read_line(&mut self.pause);
-    self.console.exit_process(checksum);
+    main.console.write_line("result: the payload checksum, 60 for this frame (the exit code)");
+    main.console.write_line("[press Enter to close]");
+    _ = block main.console.read_line(&mut main.pause);
+    main.console.exit_process(checksum);
 }

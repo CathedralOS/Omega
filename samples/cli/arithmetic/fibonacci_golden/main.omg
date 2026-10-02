@@ -30,14 +30,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
-    self.fib.a = 1;
-    self.fib.b = 1;
-    self.fib.i = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
+    main.fib.a = 1;
+    main.fib.b = 1;
+    main.fib.i = 0;
 
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     state step(main: &mut Main) {

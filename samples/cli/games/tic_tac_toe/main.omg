@@ -40,19 +40,19 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("tic_tac_toe: replays a scripted game where X wins the top row");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
-    Main::play(&mut self, 0, 1);  // X plays cell 0
-    Main::play(&mut self, 3, 2);  // O plays cell 3
-    Main::play(&mut self, 1, 1);  // X plays cell 1
-    Main::play(&mut self, 4, 2);  // O plays cell 4
-    Main::play(&mut self, 2, 1);  // X plays cell 2 -> X wins
+    Main::play(main, 0, 1);  // X plays cell 0
+    Main::play(main, 3, 2);  // O plays cell 3
+    Main::play(main, 1, 1);  // X plays cell 1
+    Main::play(main, 4, 2);  // O plays cell 4
+    Main::play(main, 2, 1);  // X plays cell 2 -> X wins
 
     // Verify move count is 5.
-    transition self.board.move_count == 5 {
-        true -> check_winner(&mut self)
-        _ -> bad_count(&mut self)
+    transition main.board.move_count == 5 {
+        true -> check_winner(main)
+        _ -> bad_count(main)
     }
 
     state check_winner(main: &mut Main) {

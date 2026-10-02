@@ -41,23 +41,23 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
     // Initialize the array.
-    self.arr[0] = 3;
-    self.arr[1] = 7;
-    self.arr[2] = 12;
-    self.arr[3] = 18;
-    self.arr[4] = 5;
-    self.arr[5] = 25;
+    main.arr[0] = 3;
+    main.arr[1] = 7;
+    main.arr[2] = 12;
+    main.arr[3] = 18;
+    main.arr[4] = 5;
+    main.arr[5] = 25;
 
     // Sum all 6 elements via shrinking-window recursion: 3+7+12+18+5+25 = 70.
-    let s: &[i32 in Wrapping] = self.arr.as_slice();
+    let s: &[i32 in Wrapping] = main.arr.as_slice();
     let t: i32 = walk(s, 0);
 
     transition t == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

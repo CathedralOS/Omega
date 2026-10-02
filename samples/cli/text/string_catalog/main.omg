@@ -59,44 +59,44 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::set_entry1(&mut self)
+machine Main::set_entry1(main: &mut Main)
 ensures
-    self.catalog.entry1.name in Utf8
+    main.catalog.entry1.name in Utf8
 {
-    self.catalog.entry1.name = "Alpha";
-    self.catalog.entry1.score = 30;
+    main.catalog.entry1.name = "Alpha";
+    main.catalog.entry1.score = 30;
 }
 
-machine Main::set_entry2(&mut self)
+machine Main::set_entry2(main: &mut Main)
 ensures
-    self.catalog.entry2.name in Utf8
+    main.catalog.entry2.name in Utf8
 {
-    self.catalog.entry2.name = "Beta";
-    self.catalog.entry2.score = 40;
+    main.catalog.entry2.name = "Beta";
+    main.catalog.entry2.score = 40;
 }
 
-machine Main::build_label(&mut self)
+machine Main::build_label(main: &mut Main)
 ensures
-    self.catalog.label in Utf8
+    main.catalog.label in Utf8
 {
-    self.catalog.label = "[" + self.catalog.entry1.name + "+" + self.catalog.entry2.name + "]";
+    main.catalog.label = "[" + main.catalog.entry1.name + "+" + main.catalog.entry2.name + "]";
 }
 
-machine Main::compute_total(&mut self) {
-    self.catalog.total = self.catalog.entry1.score + self.catalog.entry2.score;
+machine Main::compute_total(main: &mut Main) {
+    main.catalog.total = main.catalog.entry1.score + main.catalog.entry2.score;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
-    self.set_entry1();
-    self.set_entry2();
-    self.build_label();
-    self.compute_total();
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
+    Main::set_entry1(main);
+    Main::set_entry2(main);
+    Main::build_label(main);
+    Main::compute_total(main);
 
     // Check entry1.name.
-    transition self.catalog.entry1.name == "Alpha" {
-        true -> check_name2(&mut self)
-        _ -> bad_name1(&mut self)
+    transition main.catalog.entry1.name == "Alpha" {
+        true -> check_name2(main)
+        _ -> bad_name1(main)
     }
 
     state bad_name1(main: &mut Main) {

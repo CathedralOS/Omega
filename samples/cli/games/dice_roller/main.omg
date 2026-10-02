@@ -32,8 +32,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("dice_roller: five deterministic d6 rolls from an LCG seeded with 42");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("dice_roller: five deterministic d6 rolls from an LCG seeded with 42");
     // Seed the generator.
     let s0: i32 = 42;
 
@@ -58,13 +58,13 @@ machine Main::main(&mut self) reaches Console {
     let r5: i32 = (s5 % 6) + 1;
 
     // Store final state.
-    self.roller.rng_state = s5;
-    self.roller.total = r1 + r2 + r3 + r4 + r5;
+    main.roller.rng_state = s5;
+    main.roller.total = r1 + r2 + r3 + r4 + r5;
 
     // Verify: state chain ended at 24079.
-    transition self.roller.rng_state == 24079 {
-        true -> check_total(&mut self)
-        _ -> bad_state(&mut self)
+    transition main.roller.rng_state == 24079 {
+        true -> check_total(main)
+        _ -> bad_state(main)
     }
 
     state check_total(main: &mut Main) {

@@ -71,29 +71,29 @@ machine Main::step(main: &mut Main) {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("bouncing_ball: 1D integer physics -- 8 steps in a [0,9] box with wall reflection");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("bouncing_ball: 1D integer physics -- 8 steps in a [0,9] box with wall reflection");
     // Initialize: pos=0, vel=3.
-    self.s.pos = 0;
-    self.s.vel = 3;
+    main.s.pos = 0;
+    main.s.vel = 3;
 
     // Run 8 steps.
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
-    Main::step(&mut self);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
+    Main::step(main);
 
     // After 8 steps: pos=6, vel=3.
     // Exit code = pos + 64 = 70.
-    let code: i32 in Wrapping = self.s.pos + 64;
+    let code: i32 in Wrapping = main.s.pos + 64;
 
     transition code == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {

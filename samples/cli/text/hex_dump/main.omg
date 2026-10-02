@@ -32,136 +32,136 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
-    self.console.write("0000: ");
-    self.data = "Omega PCC tape!!";
-    self.data[3] = 0;
-    self.data[9] = 127;
-    self.i = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
+    main.console.write("0000: ");
+    main.data = "Omega PCC tape!!";
+    main.data[3] = 0;
+    main.data[9] = 127;
+    main.i = 0;
     transition {
-        _ -> hex_loop()
+        _ -> hex_loop(main)
     }
 
-    state hex_loop(&mut self) {
-        transition self.i < 16 {
-            true -> read_byte()
-            _ -> gutter_start()
+    state hex_loop(main: &mut Main) {
+        transition main.i < 16 {
+            true -> read_byte(main)
+            _ -> gutter_start(main)
         }
     }
 
-    state read_byte(&mut self) {
-        self.b = self.data[self.i];
-        self.bw = widen_u8_to_u32(self.b) as u32 in Wrapping;
-        self.hi = self.bw / 16;
-        self.lo = self.bw - (self.hi * 16);
+    state read_byte(main: &mut Main) {
+        main.b = main.data[main.i];
+        main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
+        main.hi = main.bw / 16;
+        main.lo = main.bw - (main.hi * 16);
         transition {
-            _ -> hi_digit()
+            _ -> hi_digit(main)
         }
     }
 
-    state hi_digit(&mut self) {
-        transition self.hi < 10 {
-            true -> hi_num()
-            _ -> hi_alpha()
+    state hi_digit(main: &mut Main) {
+        transition main.hi < 10 {
+            true -> hi_num(main)
+            _ -> hi_alpha(main)
         }
     }
 
-    state hi_num(&mut self) {
-        self.chi = narrow_u32_to_i32_trapping((self.hi + 48) as u32);
+    state hi_num(main: &mut Main) {
+        main.chi = narrow_u32_to_i32_trapping((main.hi + 48) as u32);
         transition {
-            _ -> write_hi()
+            _ -> write_hi(main)
         }
     }
 
-    state hi_alpha(&mut self) {
-        self.chi = narrow_u32_to_i32_trapping((self.hi + 87) as u32);
+    state hi_alpha(main: &mut Main) {
+        main.chi = narrow_u32_to_i32_trapping((main.hi + 87) as u32);
         transition {
-            _ -> write_hi()
+            _ -> write_hi(main)
         }
     }
 
-    state write_hi(&mut self) {
-        self.console.write_byte(self.chi);
+    state write_hi(main: &mut Main) {
+        main.console.write_byte(main.chi);
         transition {
-            _ -> lo_digit()
+            _ -> lo_digit(main)
         }
     }
 
-    state lo_digit(&mut self) {
-        transition self.lo < 10 {
-            true -> lo_num()
-            _ -> lo_alpha()
+    state lo_digit(main: &mut Main) {
+        transition main.lo < 10 {
+            true -> lo_num(main)
+            _ -> lo_alpha(main)
         }
     }
 
-    state lo_num(&mut self) {
-        self.chi = narrow_u32_to_i32_trapping((self.lo + 48) as u32);
+    state lo_num(main: &mut Main) {
+        main.chi = narrow_u32_to_i32_trapping((main.lo + 48) as u32);
         transition {
-            _ -> write_lo()
+            _ -> write_lo(main)
         }
     }
 
-    state lo_alpha(&mut self) {
-        self.chi = narrow_u32_to_i32_trapping((self.lo + 87) as u32);
+    state lo_alpha(main: &mut Main) {
+        main.chi = narrow_u32_to_i32_trapping((main.lo + 87) as u32);
         transition {
-            _ -> write_lo()
+            _ -> write_lo(main)
         }
     }
 
-    state write_lo(&mut self) {
-        self.console.write_byte(self.chi);
-        self.console.write_byte(32);
-        self.i = self.i + 1;
+    state write_lo(main: &mut Main) {
+        main.console.write_byte(main.chi);
+        main.console.write_byte(32);
+        main.i = main.i + 1;
         transition {
-            _ -> hex_loop()
+            _ -> hex_loop(main)
         }
     }
 
-    state gutter_start(&mut self) {
-        self.console.write(" ");
-        self.i = 0;
+    state gutter_start(main: &mut Main) {
+        main.console.write(" ");
+        main.i = 0;
         transition {
-            _ -> gutter_loop()
+            _ -> gutter_loop(main)
         }
     }
 
-    state gutter_loop(&mut self) {
-        transition self.i < 16 {
-            true -> read_glyph()
-            _ -> finish()
+    state gutter_loop(main: &mut Main) {
+        transition main.i < 16 {
+            true -> read_glyph(main)
+            _ -> finish(main)
         }
     }
 
-    state read_glyph(&mut self) {
-        self.b = self.data[self.i];
-        self.bw = widen_u8_to_u32(self.b) as u32 in Wrapping;
-        transition self.bw >= 32 && self.bw < 127 {
-            true -> keep_glyph()
-            _ -> dot_glyph()
+    state read_glyph(main: &mut Main) {
+        main.b = main.data[main.i];
+        main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
+        transition main.bw >= 32 && main.bw < 127 {
+            true -> keep_glyph(main)
+            _ -> dot_glyph(main)
         }
     }
 
-    state keep_glyph(&mut self) {
-        self.console.write_byte(self.b as i32);
-        self.i = self.i + 1;
+    state keep_glyph(main: &mut Main) {
+        main.console.write_byte(main.b as i32);
+        main.i = main.i + 1;
         transition {
-            _ -> gutter_loop()
+            _ -> gutter_loop(main)
         }
     }
 
-    state dot_glyph(&mut self) {
-        self.console.write_byte(46);
-        self.i = self.i + 1;
+    state dot_glyph(main: &mut Main) {
+        main.console.write_byte(46);
+        main.i = main.i + 1;
         transition {
-            _ -> gutter_loop()
+            _ -> gutter_loop(main)
         }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
 }

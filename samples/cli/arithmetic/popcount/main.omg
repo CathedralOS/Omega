@@ -25,13 +25,13 @@ data Main {
     result: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
-    self.x = 3735928559; // 0xDEADBEEF
-    self.count = 0;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
+    main.x = 3735928559; // 0xDEADBEEF
+    main.count = 0;
 
     transition {
-        _ -> step(&mut self)
+        _ -> step(main)
     }
 
     // Loop head: stop once every bit has been shifted out.

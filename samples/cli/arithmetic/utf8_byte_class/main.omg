@@ -23,12 +23,12 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
-    self.byte = 226; // 0xE2 = 11100010, a 3-byte-sequence lead
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
+    main.byte = 226; // 0xE2 = 11100010, a 3-byte-sequence lead
 
     // High bit clear -> ASCII (0xxxxxxx). Unsigned `>>` in a guard subject.
-    transition self.byte >> 7 == 0 { true -> ascii(&mut self) _ -> high_bit_set(&mut self) }
+    transition main.byte >> 7 == 0 { true -> ascii(main) _ -> high_bit_set(main) }
 
     // Every non-ASCII byte has its high bit set: as an i8 it is negative. A CAST
     // in a guard subject confirms the branch we are on before classifying further.

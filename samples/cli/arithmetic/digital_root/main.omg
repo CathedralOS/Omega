@@ -24,12 +24,12 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
-    self.state.n = 12345;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
+    main.state.n = 12345;
 
     transition {
-        _ -> collapse(&mut self)
+        _ -> collapse(main)
     }
 
     // Outer loop: stop once n is a single digit, else sum its digits.

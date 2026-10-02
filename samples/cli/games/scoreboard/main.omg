@@ -24,18 +24,18 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("scoreboard: sums three player records stored in an array of structs");
-    self.players[0].id = 1;
-    self.players[0].score = 30;
-    self.players[1].id = 2;
-    self.players[1].score = 25;
-    self.players[2].id = 3;
-    self.players[2].score = 15;
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("scoreboard: sums three player records stored in an array of structs");
+    main.players[0].id = 1;
+    main.players[0].score = 30;
+    main.players[1].id = 2;
+    main.players[1].score = 25;
+    main.players[2].id = 3;
+    main.players[2].score = 15;
 
-    self.total = self.players[0].score + self.players[1].score + self.players[2].score;
+    main.total = main.players[0].score + main.players[1].score + main.players[2].score;
 
-    transition { _ -> done(&mut self) }
+    transition { _ -> done(main) }
 
     state done(main: &mut Main) {
         main.console.write_line("PASS: scores 30+25+15 total 70 (the exit code)");

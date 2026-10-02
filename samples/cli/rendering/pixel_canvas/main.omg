@@ -104,27 +104,27 @@ machine Main::set_g(main: &mut Main, idx: i32 in Saturating, val: i32 in Saturat
     state g3(main: &mut Main, val: i32 in Saturating) { main.canvas.pixels[3].g = val; }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
-    Main::set_r(&mut self, 0, 10);
-    Main::set_g(&mut self, 0, 5);
-    Main::set_r(&mut self, 1, 20);
-    Main::set_g(&mut self, 1, 10);
-    Main::set_r(&mut self, 2, 15);
-    Main::set_g(&mut self, 2, 5);
-    Main::set_r(&mut self, 3, 5);
-    Main::set_g(&mut self, 3, 0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
+    Main::set_r(main, 0, 10);
+    Main::set_g(main, 0, 5);
+    Main::set_r(main, 1, 20);
+    Main::set_g(main, 1, 10);
+    Main::set_r(main, 2, 15);
+    Main::set_g(main, 2, 5);
+    Main::set_r(main, 3, 5);
+    Main::set_g(main, 3, 0);
 
     // Sum: (10+5) + (20+10) + (15+5) + (5+0) = 15+30+20+5 = 70.
-    let p0: i32 in Saturating = self.canvas.pixels[0].r + self.canvas.pixels[0].g;
-    let p1: i32 in Saturating = self.canvas.pixels[1].r + self.canvas.pixels[1].g;
-    let p2: i32 in Saturating = self.canvas.pixels[2].r + self.canvas.pixels[2].g;
-    let p3: i32 in Saturating = self.canvas.pixels[3].r + self.canvas.pixels[3].g;
+    let p0: i32 in Saturating = main.canvas.pixels[0].r + main.canvas.pixels[0].g;
+    let p1: i32 in Saturating = main.canvas.pixels[1].r + main.canvas.pixels[1].g;
+    let p2: i32 in Saturating = main.canvas.pixels[2].r + main.canvas.pixels[2].g;
+    let p3: i32 in Saturating = main.canvas.pixels[3].r + main.canvas.pixels[3].g;
     let total: i32 in Saturating = p0 + p1 + p2 + p3;
 
     transition total == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self, total)
+        true -> good(main)
+        _ -> bad(main, total)
     }
 
     state good(main: &mut Main) {

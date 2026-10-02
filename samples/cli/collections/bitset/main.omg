@@ -18,14 +18,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("bitset: insert {3, 5, 7} into a u32 bitset via runtime shifts, then test membership of 5, 4, 7");
-    self.vals[0] = 3;
-    self.vals[1] = 5;
-    self.vals[2] = 7;
-    self.bits = 0;
-    self.i = 0;
-    transition { _ -> ins_step(&mut self) }
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("bitset: insert {3, 5, 7} into a u32 bitset via runtime shifts, then test membership of 5, 4, 7");
+    main.vals[0] = 3;
+    main.vals[1] = 5;
+    main.vals[2] = 7;
+    main.bits = 0;
+    main.i = 0;
+    transition { _ -> ins_step(main) }
 
     // Insert each value: bits |= 1 << vals[i].
     state ins_step(main: &mut Main) {

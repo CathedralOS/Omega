@@ -26,18 +26,18 @@ data Main {
     descriptor_size: u32;
     total: u32 in Wrapping;
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // Descriptor 0: kind 3, pages 10.
-    self.buf[0] = 3;
-    self.buf[8] = 10;
+    main.buf[0] = 3;
+    main.buf[8] = 10;
     // Descriptor 1: kind 4, pages 20.
-    self.buf[16] = 4;
-    self.buf[24] = 20;
+    main.buf[16] = 4;
+    main.buf[24] = 20;
     // Descriptor 2: kind 5, pages 30.
-    self.buf[32] = 5;
-    self.buf[40] = 30;
-    self.descriptor_size = 16;
-    transition { _ -> walk(&mut self, 0) }
+    main.buf[32] = 5;
+    main.buf[40] = 30;
+    main.descriptor_size = 16;
+    transition { _ -> walk(main, 0) }
 
     // The view is taken once per entry, here: this state's incoming edges are
     // the literal 0 and the `next <= 32` back-edge guard, which is what the

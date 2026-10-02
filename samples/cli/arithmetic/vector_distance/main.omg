@@ -23,25 +23,25 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
 
     // Direction-agnostic legs: |dx|, |dy| (a negative delta has the same length).
-    self.dx = 0.0 - 3.0;
-    self.dy = 4.0;
-    self.ax = abs(self.dx);
-    self.ay = abs(self.dy);
+    main.dx = 0.0 - 3.0;
+    main.dy = 4.0;
+    main.ax = abs(main.dx);
+    main.ay = abs(main.dy);
 
     // Magnitude = sqrt(ax*ax + ay*ay) = sqrt(9 + 16) = sqrt(25) = 5.
-    self.mag = sqrt(self.ax * self.ax + self.ay * self.ay);
-    self.magi = (self.mag as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
+    main.mag = sqrt(main.ax * main.ax + main.ay * main.ay);
+    main.magi = (main.mag as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
 
     // A clamped display value (the magnitude pinned to a [0, 255] band, as a
     // colour or coordinate would be): clamp(5, 0, 255) = 5.
-    self.shown = clamp(self.magi, 0, 255);
+    main.shown = clamp(main.magi, 0, 255);
 
-    self.console.write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
-    self.console.write_line("[press Enter to close]");
-    _ = block self.console.read_line(&mut self.pause);
-    self.console.exit_process(self.shown);
+    main.console.write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
+    main.console.write_line("[press Enter to close]");
+    _ = block main.console.read_line(&mut main.pause);
+    main.console.exit_process(main.shown);
 }
