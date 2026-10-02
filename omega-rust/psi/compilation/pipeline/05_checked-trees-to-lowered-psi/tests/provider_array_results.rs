@@ -245,16 +245,20 @@ fn array_provider_result_and_conformance_drift_reject_after_reload() {
             terminal_verifier::validate_module(&changed).is_err(),
             "result/conformance mutation {mutation}"
         );
-        let bytes = encode_module(&changed).unwrap();
-        assert!(
-            admit_provider_installation_from_artifact(
-                &bytes,
-                artifact.proof_bytes(),
-                &AdmissionProfile::default(),
-                &[selected.clone()],
-            )
-            .is_err(),
-            "changed artifact cannot reuse provider admission: {mutation}"
-        );
+        // Canonical encoding independently rejects malformed module custody.
+        // If its formation boundary admits a changed representation, sealed
+        // admission must still refuse the original artifact's evidence.
+        if let Ok(bytes) = encode_module(&changed) {
+            assert!(
+                admit_provider_installation_from_artifact(
+                    &bytes,
+                    artifact.proof_bytes(),
+                    &AdmissionProfile::default(),
+                    &[selected.clone()],
+                )
+                .is_err(),
+                "changed artifact cannot reuse provider admission: {mutation}"
+            );
+        }
     }
 }

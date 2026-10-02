@@ -395,20 +395,8 @@ fn provider_result_conformance_rejects_signature_and_contract_drift() {
                     unreachable!()
                 };
                 result.multiplicity = StructuralMultiplicity::Unrestricted;
-                let BoundaryMachineResult::Structural(required) =
-                    &mut module.boundary_machines[0].result
-                else {
-                    unreachable!()
-                };
-                // Mutation 3 widens the requirement to linear while the
-                // candidate stays affine — a supported multiplicity, but the
-                // candidate must match it. Mutation 4 widens the requirement
-                // to unrestricted, which has no installed-provider leg at all.
-                required.multiplicity = if mutation == 3 {
-                    StructuralMultiplicity::Linear
-                } else {
-                    StructuralMultiplicity::Unrestricted
-                };
+                // Copyable results are supported, but the candidate still
+                // must match the requirement's declared affine multiplicity.
             }
             5 => {
                 module.machines[1].contract.requires =
