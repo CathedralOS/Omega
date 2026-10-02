@@ -258,39 +258,26 @@ pub(in crate::validation) fn validate_structural_argument(
                         ))
                     }
                     StructuralPlaceKind::OperationResult { .. }
-                        if argument.path.is_empty()
-                            && argument.access == StructuralAccess::SharedBorrow
-                            && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                                || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults))
-                            && (crate::validation::byte_sequence::subslice::borrowed_result(caller, argument.place).is_some()
-                                || crate::validation::element_view::subslice::borrowed_result(caller, argument.place).is_some()) =>
-                    {
-                        let result = crate::validation::byte_sequence::subslice::borrowed_result(caller, argument.place)
-                            .or_else(|| crate::validation::element_view::subslice::borrowed_result(caller, argument.place))
-                            .expect("exact borrowed result checked above");
-                        Some((result.structural_type, StructuralMultiplicity::Unrestricted,
-                            StructuralAccess::SharedBorrow, &[][..], &[][..]))
-                    }
-                    StructuralPlaceKind::OperationResult { .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
-                            && !argument.path.is_empty()
-                            && matches!(
-                                argument.access,
-                                StructuralAccess::SharedBorrow
-                                    | StructuralAccess::MutableBorrow
-                                    | StructuralAccess::WriteOnlyBorrow
-                            )
+                        if ((ordinary_call
+                                && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                                && matches!(argument.access,
+                                    StructuralAccess::SharedBorrow
+                                        | StructuralAccess::MutableBorrow
+                                        | StructuralAccess::WriteOnlyBorrow))
+                            || (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                                && argument.path.is_empty()
+                                && matches!(argument.access,
+                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)))
                             && crate::validation::element_view::view_loan_result(
                                 caller,
                                 argument.place,
                             )
                             .is_some() =>
                     {
-                        // A live element-view binding lends one viewed element
-                        // through its descriptor: the place keeps the view's
-                        // root type and the projected path resolves the
-                        // element below exactly as a parameter subloan does.
+                        // A live view lends its descriptor or a projected element.
+                        // Recover the producer's actual authority for both: affine
+                        // carrier custody alone cannot amplify a shared source.
+                        // Availability and loan interference replay remain separate.
                         let (result, access) = crate::validation::element_view::view_loan_result(
                             caller,
                             argument.place,
@@ -777,21 +764,20 @@ pub(in crate::validation) fn validate_structural_argument(
         is_unrestricted_shared_subloan(module, caller, expected, argument);
     let unrestricted_mutable_field_subloan =
         is_unrestricted_mutable_subloan(module, caller, expected, argument);
-    // An element loan rooted at a view binding presents unrestricted for the
+    // A loan rooted at a view binding presents unrestricted for the
     // same reason a parameter subloan does: nothing moves, the descriptor
     // stays the caller's custody, and each borrow kind stays inside the
     // access the establishing operation minted the view with.
-    let element_view_loan =
-        crate::validation::element_view::view_loan_result(caller, argument.place).is_some_and(
-            |(_, source_access)| {
-                !argument.path.is_empty()
-                    && structural_access_can_supply(source_access, argument.access)
-                    && expected.access == argument.access
-                    && expected.multiplicity == StructuralMultiplicity::Unrestricted
-                    && (super::is_static_borrow_path(&argument.path)
-                        || is_runtime_indexed_borrow_path(&argument.path))
-            },
-        );
+    let view_loan = crate::validation::element_view::view_loan_result(caller, argument.place)
+        .is_some_and(|(_, source_access)| {
+            argument.access != StructuralAccess::Owned
+                && structural_access_can_supply(source_access, argument.access)
+                && expected.access == argument.access
+                && expected.multiplicity == StructuralMultiplicity::Unrestricted
+                && (argument.path.is_empty()
+                    || super::is_static_borrow_path(&argument.path)
+                    || is_runtime_indexed_borrow_path(&argument.path))
+        });
     // A shared view is unrestricted without changing the owning root's
     // affine multiplicity. Construction-local loans remain separate.
     let shared_affine_loan = argument.path.is_empty()
@@ -818,14 +804,13 @@ pub(in crate::validation) fn validate_structural_argument(
                 .iter()
                 .any(|parameter| parameter.place == argument.place));
     let actual_multiplicity =
-        if shared_affine_loan || is_record_loan(module, caller, expected, argument) {
+        if shared_affine_loan || view_loan || is_record_loan(module, caller, expected, argument) {
             StructuralMultiplicity::Unrestricted
         } else if argument.path.is_empty() {
             actual_multiplicity
         } else if unrestricted_write_only_field_subloan
             || unrestricted_shared_field_subloan
             || unrestricted_mutable_field_subloan
-            || element_view_loan
             || shared_buffer_presentation
             || view_field_presentation
             || bounded_owner_presentation

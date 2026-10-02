@@ -441,5 +441,192 @@ fn mutable_child_requires_exact_affine_carrier_cleanup() {
     ));
 }
 
+/// The call observes the first child, then the parent writes before either
+/// descriptor's final disposal. Neither descriptor carries owned elements.
+fn mutable_child_call_fixture() -> TerminalModule {
+    use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, StructuralPlaceKind};
+    use terminal_psi::{MachineContract, StructuralArgument, SuccessorEdge, Terminator};
+
+    let mut module = mutable_child_fixture();
+    let mut helper = module.machines[0].clone();
+    helper.id = id(1000, MachineId::new);
+    helper.parameters.clear();
+    helper.structural_places.truncate(1);
+    helper.structural_parameters[0].place = id(1000, PlaceId::new);
+    helper.structural_places[0].id = id(1000, PlaceId::new);
+    helper.structural_places[0].kind = StructuralPlaceKind::Parameter {
+        position: 0,
+        is_self: false,
+    };
+    helper.contract = MachineContract {
+        id: id(1000, ContractId::new),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        crash_routes: Vec::new(),
+        outcome_specific_ensures: Vec::new(),
+    };
+    let mut body = helper.blocks[2].clone();
+    body.id = id(1000, BlockId::new);
+    body.operations = vec![Operation {
+        id: id(1000, OperationId::new),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: id(1000, ValueId::new),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            qualifications: Default::default(),
+        }),
+        kind: OperationKind::ElementViewLength {
+            source: id(1000, PlaceId::new),
+        },
+    }];
+    body.terminator = Terminator::ReturnUnit {
+        edge: id(1000, EdgeId::new),
+        trivial_affine_discards: Vec::new(),
+    };
+    helper.entry = body.id;
+    helper.blocks = vec![body];
+    module.machines.push(helper);
+
+    let machine = &mut module.machines[0];
+    let mut parent_write = machine.blocks[1].operations.remove(1);
+    machine.blocks[1].operations.push(Operation {
+        id: id(80, OperationId::new),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: id(1000, MachineId::new),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: id(40, PlaceId::new),
+                path: Vec::new(),
+                access: StructuralAccess::MutableBorrow,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[1].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.clear();
+    // Mutable calls invalidate the old extent witness independently of the
+    // descriptor loan's lifetime. Measure and guard the parent again so this
+    // regression asks only whether the finished child still suspends it.
+    let mut length = machine.blocks[1].operations[0].clone();
+    length.id = id(82, OperationId::new);
+    let OperationResult::Scalar(result) = &mut length.result else {
+        unreachable!()
+    };
+    result.id = id(82, ValueId::new);
+    machine.blocks[1].operations.push(length);
+    machine.blocks[1].operations.push(Operation {
+        id: id(83, OperationId::new),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: id(83, ValueId::new),
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        }),
+        kind: OperationKind::IntegerLessThan {
+            left: id(1, ValueId::new),
+            right: id(82, ValueId::new),
+        },
+    });
+    let OperationKind::ElementViewWrite { length, .. } = &mut parent_write.kind else {
+        unreachable!()
+    };
+    *length = id(82, ValueId::new);
+    let mut write = machine.blocks[2].clone();
+    write.id = id(80, BlockId::new);
+    write.operations = vec![parent_write];
+    write.terminator = machine.blocks[1].terminator.clone();
+    let mut empty = machine.blocks[2].clone();
+    empty.id = id(81, BlockId::new);
+    empty.terminator = Terminator::ReturnUnit {
+        edge: id(82, EdgeId::new),
+        trivial_affine_discards: vec![id(40, PlaceId::new)],
+    };
+    let successor = |identity| SuccessorEdge {
+        edge: id(identity, EdgeId::new),
+        target: id(identity, BlockId::new),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    machine.blocks[1].terminator = Terminator::Conditional {
+        condition: id(83, ValueId::new),
+        when_true: successor(80),
+        when_false: successor(81),
+    };
+    machine.blocks.extend([write, empty]);
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[3].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![id(42, PlaceId::new), id(40, PlaceId::new)];
+    module
+}
+
+#[test]
+fn mutable_child_call_restores_parent_before_exact_final_descriptor_cleanup() {
+    let module = mutable_child_call_fixture();
+    let proof = mutable_child_bounds(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).unwrap();
+}
+
+#[test]
+fn mutable_child_call_cannot_restore_parent_before_a_later_child_observation() {
+    let mut module = mutable_child_call_fixture();
+    let proof = mutable_child_bounds(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).unwrap();
+    let mut later_read = module.machines[0].blocks[1].operations[2].clone();
+    later_read.id = id(81, OperationId::new);
+    let OperationResult::Scalar(result) = &mut later_read.result else {
+        unreachable!()
+    };
+    result.id = id(81, ValueId::new);
+    module.machines[0].blocks[4].operations.push(later_read);
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::BorrowedDescriptorLoanDisturbed { .. })
+    ));
+}
+
+#[test]
+fn mutable_child_call_restoration_does_not_discharge_descriptor_cleanup() {
+    let mut module = mutable_child_call_fixture();
+    let proof = mutable_child_bounds(&module);
+    verify_module_for_interpretation(&module, &proof, &AdmissionProfile::default()).unwrap();
+    let terminal_psi::Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut module.machines[0].blocks[3].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.retain(|place| *place != id(40, PlaceId::new));
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::UnitReturnAffineDiscardsMismatch { .. })
+    ));
+}
+
 #[path = "element_view_write/contract_ordering.rs"]
 mod contract_ordering;

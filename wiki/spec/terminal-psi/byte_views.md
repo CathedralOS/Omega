@@ -221,7 +221,7 @@ and no derived element views.
 | `ElementViewLength { source }` | Exact `u64` element count. | An available shared or exact mutable element view; the count is the view's own stored runtime length, not a field merely named length. |
 | `ElementViewRead { source, index, length, obligation, path }` | The scalar at `path` inside the selected element: the element itself when `path` is empty. | A `[copy]` element type; `u64` index and length; dominating length observation of the identical view; checked `index < length`; a static `path` of record fields and literal indexes ending at a scalar leaf of the element (`view[i].value`). |
 | `ElementViewWrite { destination, index, value, length, obligation }` | Unit; replace one element without changing extent. | Exclusive mutable element view; an element-typed value; `u64` index and current same-view length; checked `index < length`; the displaced element's disposal must be legal at that edge. |
-| `ElementViewSubslice { source, start, end, length, obligation }` | Shared element view of `[start, end)` over the identical backing. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length` in element units. |
+| `ElementViewSubslice { source, start, end, length, obligation }` | Shared or mutable element view of `[start, end)` over the identical backing, without increasing source access. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length` in element units. |
 
 A by-value `ElementViewRead` exists only for `[copy]` element types: a
 non-copy element cannot move out of borrowed storage, and the transfer rule
@@ -237,18 +237,28 @@ displaced element out of its slot under the ordinary disposal law for its
 type; the write supplies no escape for a value whose cleanup is not legal
 there.
 
-An element-view subslice uses a structural operation-result place carrying
-the same element type, the same access, unrestricted multiplicity, and no
-claims or qualifications — equal endpoints, including an empty suffix, still
-require both proof legs. Sources may be immutable machine/block structural
-parameters or dominating subslice results; an arbitrary equal-valued length,
-other view, sibling branch, or future producer supplies no length custody.
+An element-view subslice uses a structural operation-result place with the
+same element type and no claims or qualifications. A shared descriptor has
+unrestricted multiplicity; a mutable descriptor is affine and requires mutable
+authority through its entire source chain. Shared access may be borrowed from
+a mutable source, but a shared ancestor cannot supply mutable access. Equal
+endpoints, including an empty suffix, still require both proof legs.
 
-No `OperationKind` realizes these operations yet, so an unchecked typed
-descriptor — including one produced by scaling a byte view's extent by an
-element width — admits nothing. When realized, a native consumer retains the
-element type and width through addressing; byte-count arithmetic on the
-descriptor does not substitute for element-count bounds evidence.
+Sources may be available machine or block parameters, established element
+views, or dominating subslice results. An arbitrary equal-valued length,
+other view, sibling branch, or future producer supplies no length custody.
+Borrowing an affine descriptor for a call or state edge retains its disposal
+debt; descriptor cleanup neither disposes nor transfers the borrowed backing.
+No-code disposal of a plain descriptor does not extend its backing loan past
+the last semantic observation. Later uses, captured descendants and escaping
+references still keep that loan live. Availability and overlapping-loan checks
+remain independent of source shape.
+
+These operations have explicit `OperationKind` representations and independent
+verification. An unchecked typed descriptor — including one produced by scaling
+a byte view's extent by an element width — admits nothing. A native consumer
+retains the element type and width through addressing; byte-count arithmetic
+on the descriptor does not substitute for element-count bounds evidence.
 
 ## Fuel and native realization
 

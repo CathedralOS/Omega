@@ -314,17 +314,17 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/call_accesses.rs",
-        sha256: Some("10deca77039cd90a365fb85025833c843dc2840c35d6869b280100306c13d524"),
+        sha256: Some("b6db0f56328e5ba2d7300972075037cc20247dc0793b1ba374c1602eac8df468"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/accesses.rs",
-        sha256: Some("c55b4e53ba30d43e32eefeaecb82ef3db03f362ed2f087c8146182f5270c8916"),
+        sha256: Some("d4e67ca216873d57b3774376978ce51f5728b4f3bc4913e90bd9a489ee41019c"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/flow.rs",
-        sha256: Some("a8274fa47e0752d5891931d552fab6a97f430d1e5cfc4705f0262afd2f362523"),
+        sha256: Some("23fafd4e5d7c6767aa42f3153b0a80ba1976c626714608e92b506c26ccfd36a7"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1494,7 +1494,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/structural_arguments/argument_checks.rs",
-        sha256: Some("1cb4f448a8f71160e2d1a12b3369995d3783839a1377708b2bd93b5e4aa4172b"),
+        sha256: Some("f599121fbae4ad3bc7d9f48552b0f26263946f33bbe355ccc88fc583c00d6e57"),
         inventory_machinery: false,
     },
     ImplementationSite {

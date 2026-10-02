@@ -235,7 +235,7 @@ fn opaque(module: &TerminalModule, machine: &TerminalMachine, operation: &Operat
             !completion_receipts.is_empty()
                 || structural_arguments.iter().any(|argument| {
                     argument.access == StructuralAccess::Owned
-                        || !boundary_storage_closed(module, machine, argument)
+                        || !argument_storage_closed(module, machine, argument)
                 })
         }
         OperationKind::Call { .. }
@@ -254,7 +254,7 @@ fn opaque(module: &TerminalModule, machine: &TerminalMachine, operation: &Operat
     }
 }
 
-fn boundary_storage_closed(
+pub(super) fn argument_storage_closed(
     module: &TerminalModule,
     machine: &TerminalMachine,
     argument: &StructuralArgument,
@@ -269,7 +269,7 @@ fn boundary_storage_closed(
     ) else {
         return false;
     };
-    if argument.path.is_empty() {
+    if argument.path.is_empty() && argument.access != StructuralAccess::Owned {
         match &selected.shape {
             StructuralTypeShape::ByteSequence(carrier) if carrier.is_borrowed() => return true,
             StructuralTypeShape::ElementView { element } => {

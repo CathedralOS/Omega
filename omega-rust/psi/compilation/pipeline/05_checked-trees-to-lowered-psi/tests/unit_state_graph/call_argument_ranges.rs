@@ -440,3 +440,181 @@ fn mutable_field_range_state_transfer_replays_exact_backing_and_access() {
         );
     }
 }
+
+#[test]
+fn mutable_field_range_calls_reject_forged_authority_and_missing_cleanup() {
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity, Terminator};
+    let checked = crate::front_end::checked_program(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/slices/mutable_field_range_call_state_exit/main.omg"
+    )));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("main"),
+    )
+    .expect("mutable range calls publish");
+    let (semantic, _) = verify(&lowered);
+    let original = terminal_codec::decode_module(&semantic).unwrap();
+    for mutation in 0..4 {
+        let mut module = original.clone();
+        let mut altered = false;
+        let mut missing_cleanup = None;
+        for machine in &mut module.machines {
+            if mutation == 3 {
+                let transfer = machine.blocks.iter().find_map(|block| {
+                    let Terminator::Jump {
+                        target,
+                        structural_arguments,
+                        ..
+                    } = &block.terminator
+                    else {
+                        return None;
+                    };
+                    structural_arguments
+                        .iter()
+                        .enumerate()
+                        .find_map(|(ordinal, argument)| {
+                            (argument.access == StructuralAccess::MutableBorrow
+                                && block.operations.iter().any(|operation| {
+                                    matches!(
+                                        operation.kind,
+                                        OperationKind::ElementViewSubslice { .. }
+                                    ) && operation
+                                        .result
+                                        .structural()
+                                        .is_some_and(|result| result.place == argument.place)
+                                }))
+                            .then_some((
+                                *target,
+                                ordinal,
+                                argument.place,
+                            ))
+                        })
+                });
+                if let Some((target, ordinal, retired)) = transfer {
+                    let block = machine
+                        .blocks
+                        .iter_mut()
+                        .find(|block| block.id == target)
+                        .unwrap();
+                    let arrival = block.structural_parameters[ordinal].place;
+                    for operation in &mut block.operations {
+                        if let OperationKind::CallUnit {
+                            structural_arguments,
+                            ..
+                        } = &mut operation.kind
+                            && let Some(argument) = structural_arguments
+                                .iter_mut()
+                                .find(|argument| argument.place == arrival)
+                        {
+                            argument.place = retired;
+                            altered = true;
+                            break;
+                        }
+                    }
+                }
+            } else if mutation == 2 {
+                let descriptors: Vec<_> = machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter_map(|operation| match &operation.kind {
+                        OperationKind::ElementViewSubslice { .. } => operation
+                            .result
+                            .structural()
+                            .filter(|result| result.multiplicity == StructuralMultiplicity::Affine)
+                            .map(|result| result.place),
+                        _ => None,
+                    })
+                    .filter(|place| {
+                        machine.blocks.iter().any(|block| {
+                            matches!(&block.terminator,
+                                Terminator::Jump { structural_arguments, .. }
+                                    if structural_arguments.iter().any(|argument|
+                                        argument.place == *place
+                                            && argument.access == StructuralAccess::MutableBorrow))
+                        })
+                    })
+                    .collect();
+                for block in &mut machine.blocks {
+                    if let Terminator::ReturnUnit {
+                        trivial_affine_discards,
+                        ..
+                    } = &mut block.terminator
+                        && let Some(position) = trivial_affine_discards
+                            .iter()
+                            .position(|place| descriptors.contains(place))
+                    {
+                        trivial_affine_discards.remove(position);
+                        missing_cleanup = Some((machine.id, block.id));
+                        altered = true;
+                        break;
+                    }
+                }
+            } else {
+                for operation in machine
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                {
+                    if mutation == 0
+                        && matches!(operation.kind, OperationKind::ElementViewSubslice { .. })
+                    {
+                        let terminal_psi::OperationResult::Structural(result) =
+                            &mut operation.result
+                        else {
+                            panic!("range result");
+                        };
+                        if result.multiplicity == StructuralMultiplicity::Affine {
+                            result.multiplicity = StructuralMultiplicity::Unrestricted;
+                            altered = true;
+                            break;
+                        }
+                    } else if mutation == 1
+                        && let OperationKind::EstablishMutableElementView {
+                            source,
+                            destination,
+                            element,
+                        } = &operation.kind
+                    {
+                        let source = terminal_psi::StructuralArgument {
+                            access: StructuralAccess::SharedBorrow,
+                            ..source.clone()
+                        };
+                        operation.kind = OperationKind::EstablishElementView {
+                            source,
+                            destination: *destination,
+                            element: *element,
+                        };
+                        let terminal_psi::OperationResult::Structural(result) =
+                            &mut operation.result
+                        else {
+                            panic!("view result");
+                        };
+                        result.multiplicity = StructuralMultiplicity::Unrestricted;
+                        altered = true;
+                        break;
+                    }
+                }
+            }
+            if altered {
+                break;
+            }
+        }
+        assert!(
+            altered,
+            "mutation {mutation} changes an actual descriptor contract"
+        );
+        let error = terminal_verifier::validate_module(&module)
+            .err()
+            .expect("forged descriptor must fail source-free structural replay");
+        if let Some((expected_machine, expected_block)) = missing_cleanup {
+            assert!(
+                matches!(error,
+                terminal_verifier::ModuleError::UnitReturnAffineDiscardsMismatch { machine, block }
+                    if machine == expected_machine && block == expected_block),
+                "the carried state descriptor needs exact exit cleanup: {error:?}"
+            );
+        }
+    }
+}
