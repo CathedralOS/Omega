@@ -18,29 +18,29 @@ data Counter {
     count: u64;
 }
 
-machine Counter::reset(&mut self)
+machine Counter::reset(counter: &mut Counter)
 ensures
-    self.count < self.slots.len
+    counter.count < counter.slots.len
 {
-    self.count = 0;
+    counter.count = 0;
 }
 
-machine Counter::bump(&mut self)
+machine Counter::bump(counter: &mut Counter)
 requires
-    self.count < self.slots.len
+    counter.count < counter.slots.len
 ensures
-    self.count > 0;
-    self.count <= self.slots.len
+    counter.count > 0;
+    counter.count <= counter.slots.len
 {
-    self.count = self.count + 1;
+    counter.count = counter.count + 1;
 }
 
-machine Counter::release(&mut self)
+machine Counter::release(counter: &mut Counter)
 requires
-    self.count > 0;
-    self.count <= self.slots.len
+    counter.count > 0;
+    counter.count <= counter.slots.len
 {
-    self.count = self.count - 1;
+    counter.count = counter.count - 1;
 }
 
 data Main {
@@ -48,16 +48,16 @@ data Main {
     counter: Counter;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.counter.reset();
-    self.counter.bump();
-    self.counter.release();
-    self.counter.reset();
-    self.counter.bump();
-    transition self.counter.count == 1 {
-        true -> done()
-        _ -> failed()
+machine Main::main(main: &mut Main) reaches Console {
+    Counter::reset(&mut main.counter);
+    Counter::bump(&mut main.counter);
+    Counter::release(&mut main.counter);
+    Counter::reset(&mut main.counter);
+    Counter::bump(&mut main.counter);
+    transition main.counter.count == 1 {
+        true -> done(main)
+        _ -> failed(main)
     }
-    state done(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state done(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }

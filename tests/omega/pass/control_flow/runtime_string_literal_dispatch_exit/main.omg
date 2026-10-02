@@ -9,24 +9,24 @@ data Main {
     input: &[u8] in Utf8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.input = "look";
+machine Main::main(main: &mut Main) reaches Console {
+    main.input = "look";
 
-    transition self.input {
-        "quit" -> finished()
-        "look" -> look()
-        _ -> invalid()
+    transition main.input {
+        "quit" -> finished(main)
+        "look" -> look(main)
+        _ -> invalid(main)
     }
 
-    state finished(&mut self) {
-        self.console.exit_process(10);
+    state finished(main: &mut Main) {
+        main.console.exit_process(10);
     }
 
-    state look(&mut self) {
-        self.console.exit_process(11);
+    state look(main: &mut Main) {
+        main.console.exit_process(11);
     }
 
-    state invalid(&mut self) {
-        self.console.exit_process(12);
+    state invalid(main: &mut Main) {
+        main.console.exit_process(12);
     }
 }

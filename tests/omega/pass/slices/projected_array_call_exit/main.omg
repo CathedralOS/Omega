@@ -3,17 +3,17 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::report(&mut self, values: &[u8]) reaches Console {
-    self.console.write(values);
-    self.console.write("\n");
+machine Main::report(main: &mut Main, values: &[u8]) reaches Console {
+    main.console.write(values);
+    main.console.write("\n");
     let code: i32 = match values.len == 2 {
         true -> 70,
         false -> 71
     };
-    self.console.exit_process(code);
+    main.console.exit_process(code);
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let rows: [[u8; 2]; 2] = [[97, 98], [99, 100]];
-    self.report(&rows[1][..]);
+    Main::report(main, &rows[1][..]);
 }

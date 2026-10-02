@@ -29,28 +29,28 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source[0] = -1;
-    self.source[1] = 64;
-    self.source[2] = -65;
+machine Main::main(main: &mut Main) reaches Console {
+    main.source[0] = -1;
+    main.source[1] = 64;
+    main.source[2] = -65;
     let sample: TelemetrySample =
-        TelemetrySample { readings: self.source[0..3] };
+        TelemetrySample { readings: main.source[0..3] };
 
-    Telemetry::encode(&sample, &mut self.buffer, &mut self.written);
+    Telemetry::encode(&sample, &mut main.buffer, &mut main.written);
 
-    let ok: bool = self.written == 8
-        && self.buffer[0] == 0
-        && self.buffer[1] == 0
-        && self.buffer[2] == 5
-        && self.buffer[3] == 1
-        && self.buffer[4] == 128
-        && self.buffer[5] == 1
-        && self.buffer[6] == 129
-        && self.buffer[7] == 1;
+    let ok: bool = main.written == 8
+        && main.buffer[0] == 0
+        && main.buffer[1] == 0
+        && main.buffer[2] == 5
+        && main.buffer[3] == 1
+        && main.buffer[4] == 128
+        && main.buffer[5] == 1
+        && main.buffer[6] == 129
+        && main.buffer[7] == 1;
 
     transition ok {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

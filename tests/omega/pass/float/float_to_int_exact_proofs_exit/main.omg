@@ -11,20 +11,20 @@ data Main {
     a: i32;
     b: i32;
 }
-machine Main::main(&mut self) reaches Console {
-    self.bounded = 77.9;
-    self.a = self.bounded as i32;
-    self.unbounded = 42.5;
-    transition self.unbounded == self.unbounded
-        && self.unbounded >= 0.0 && self.unbounded <= 100.0 {
-        true -> guarded()
-        _ -> bad()
+machine Main::main(main: &mut Main) reaches Console {
+    main.bounded = 77.9;
+    main.a = main.bounded as i32;
+    main.unbounded = 42.5;
+    transition main.unbounded == main.unbounded
+        && main.unbounded >= 0.0 && main.unbounded <= 100.0 {
+        true -> guarded(main)
+        _ -> bad(main)
     }
-    state guarded(&mut self) {
-        self.b = self.unbounded as i32;
-        transition self.a == 77 && self.b == 42 { true -> good() _ -> bad() }
+    state guarded(main: &mut Main) {
+        main.b = main.unbounded as i32;
+        transition main.a == 77 && main.b == 42 { true -> good(main) _ -> bad(main) }
     }
-    state good(&mut self) { self.console.exit_process(78); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(78); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }
-machine Main::run(main: &mut Main) { main.main(); }
+machine Main::run(main: &mut Main) { Main::main(main); }

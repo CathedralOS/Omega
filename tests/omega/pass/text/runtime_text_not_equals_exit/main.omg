@@ -19,40 +19,40 @@ requires
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
-machine Main::main(&mut self) {
-    self.name = "omega";
-    self.other = "delta";
-    self.build();
+machine Main::main(main: &mut Main) {
+    main.name = "omega";
+    main.other = "delta";
+    Main::build(main);
 }
-machine Main::build(&mut self) reaches Console {
-    self.okf = self.name != "wrong";
-    transition self.okf {
-        true -> leg2()
-        _ -> wrong_store()
+machine Main::build(main: &mut Main) reaches Console {
+    main.okf = main.name != "wrong";
+    transition main.okf {
+        true -> leg2(main)
+        _ -> wrong_store(main)
     }
-    state leg2(&mut self) {
-        let l: bool = self.name != self.other;
+    state leg2(main: &mut Main) {
+        let l: bool = main.name != main.other;
         transition l {
-            true -> leg3()
-            _ -> wrong_let_place()
+            true -> leg3(main)
+            _ -> wrong_let_place(main)
         }
     }
-    state leg3(&mut self) {
-        let eqfalse: bool = self.name != "omega";
+    state leg3(main: &mut Main) {
+        let eqfalse: bool = main.name != "omega";
         transition eqfalse {
-            true -> wrong_equal_ne()
-            _ -> leg4()
+            true -> wrong_equal_ne(main)
+            _ -> leg4(main)
         }
     }
-    state leg4(&mut self) {
-        transition self.name != "omega" {
-            true -> wrong_guard()
-            _ -> good()
+    state leg4(main: &mut Main) {
+        transition main.name != "omega" {
+            true -> wrong_guard(main)
+            _ -> good(main)
         }
     }
-    state good(&mut self)           { self.console.exit_process(70); }
-    state wrong_store(&mut self)    { self.console.exit_process(71); }
-    state wrong_let_place(&mut self){ self.console.exit_process(72); }
-    state wrong_equal_ne(&mut self) { self.console.exit_process(73); }
-    state wrong_guard(&mut self)    { self.console.exit_process(74); }
+    state good(main: &mut Main)           { main.console.exit_process(70); }
+    state wrong_store(main: &mut Main)    { main.console.exit_process(71); }
+    state wrong_let_place(main: &mut Main){ main.console.exit_process(72); }
+    state wrong_equal_ne(main: &mut Main) { main.console.exit_process(73); }
+    state wrong_guard(main: &mut Main)    { main.console.exit_process(74); }
 }

@@ -8,57 +8,57 @@ data Main {
     line: [u8; 64];
 }
 
-machine Main::main(&mut self) reaches Console {
-    block self.echo_line();
-    block self.echo_line();
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    block Main::echo_line(main);
+    block Main::echo_line(main);
+    main.console.exit_process(0);
 }
 
-machine Main::echo_line(&mut self) reaches Console {
-    let observed: LineReadResult = block self.console.read_line(&mut self.line);
+machine Main::echo_line(main: &mut Main) reaches Console {
+    let observed: LineReadResult = block main.console.read_line(&mut main.line);
     transition observed {
-        LineReadResult::LineComplete { count } -> bounded_input(count, true)
-        LineReadResult::EndOfInput { count } -> bounded_input(count, false)
-        LineReadResult::Full { count } -> input_failed()
-        LineReadResult::Invalid -> input_failed()
+        LineReadResult::LineComplete { count } -> bounded_input(main, count, true)
+        LineReadResult::EndOfInput { count } -> bounded_input(main, count, false)
+        LineReadResult::Full { count } -> input_failed(main)
+        LineReadResult::Invalid -> input_failed(main)
     }
 
     // Normalize this command/echo protocol explicitly; the reader preserves raw bytes.
-    state bounded_input(&mut self, count: u64, complete: bool) {
-        transition count <= self.line.len {
-            true -> normal_input(count, complete)
-            false -> input_failed()
+    state bounded_input(main: &mut Main, count: u64, complete: bool) {
+        transition count <= main.line.len {
+            true -> normal_input(main, count, complete)
+            false -> input_failed(main)
         }
     }
-    state normal_input(&mut self, count: u64, complete: bool) {
+    state normal_input(main: &mut Main, count: u64, complete: bool) {
         transition complete {
-            true -> completed_input(count)
-            false -> parsed_input(count)
+            true -> completed_input(main, count)
+            false -> parsed_input(main, count)
         }
     }
-    state completed_input(&mut self, count: u64) {
-        transition count > 0 && count <= self.line.len {
-            true -> trim_carriage_return(count - 1)
-            false -> input_failed()
+    state completed_input(main: &mut Main, count: u64) {
+        transition count > 0 && count <= main.line.len {
+            true -> trim_carriage_return(main, count - 1)
+            false -> input_failed(main)
         }
     }
-    state trim_carriage_return(&mut self, count: u64) {
-        transition count > 0 && count <= self.line.len {
-            true -> inspect_carriage_return(count, count - 1)
-            false -> parsed_input(count)
+    state trim_carriage_return(main: &mut Main, count: u64) {
+        transition count > 0 && count <= main.line.len {
+            true -> inspect_carriage_return(main, count, count - 1)
+            false -> parsed_input(main, count)
         }
     }
-    state inspect_carriage_return(&mut self, count: u64, byte_index: u64) {
-        transition byte_index < self.line.len && self.line[byte_index] == 13 {
-            true -> parsed_input(byte_index)
-            false -> parsed_input(count)
+    state inspect_carriage_return(main: &mut Main, count: u64, byte_index: u64) {
+        transition byte_index < main.line.len && main.line[byte_index] == 13 {
+            true -> parsed_input(main, byte_index)
+            false -> parsed_input(main, count)
         }
     }
 
-    state parsed_input(&mut self, count: u64) {
-        write_prefix(&mut self.console, &self.line, count);
+    state parsed_input(main: &mut Main, count: u64) {
+        write_prefix(&mut main.console, &main.line, count);
     }
-    state input_failed(&mut self) { self.console.exit_process(1); }
+    state input_failed(main: &mut Main) { main.console.exit_process(1); }
 }
 
 // The bound is checked on the exact view before forming its output prefix.

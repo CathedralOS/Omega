@@ -21,36 +21,36 @@ data Main {
     b: u8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.text = "abc";
+machine Main::main(main: &mut Main) reaches Console {
+    main.text = "abc";
 
     transition {
-        _ -> compute()
+        _ -> compute(main)
     }
 
-    state compute(&mut self) {
-        self.i = 0;
-        self.a = self.text[self.i]; // 'a' = 97
-        self.i = 2;
-        self.b = self.text[self.i]; // 'c' = 99
-        transition self.a == 97 {
-            true -> check_b()
-            _ -> bad()
+    state compute(main: &mut Main) {
+        main.i = 0;
+        main.a = main.text[main.i]; // 'a' = 97
+        main.i = 2;
+        main.b = main.text[main.i]; // 'c' = 99
+        transition main.a == 97 {
+            true -> check_b(main)
+            _ -> bad(main)
         }
     }
 
-    state check_b(&mut self) {
-        transition self.b == 99 {
-            true -> good()
-            _ -> bad()
+    state check_b(main: &mut Main) {
+        transition main.b == 99 {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

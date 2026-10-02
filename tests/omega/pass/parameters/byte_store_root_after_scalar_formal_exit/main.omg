@@ -50,27 +50,27 @@ machine put(before: &mut [u8], index: u64, target: &mut [u8], after: &mut [u8]) 
     state skip() {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    replace(&mut self.before, 1, &mut self.target, &mut self.after);
-    put(&mut self.view_before, 1, &mut self.view_target, &mut self.view_after);
-    transition self.target.text == "BZB"
-        && self.before.text == "AAA"
-        && self.after.text == "CCC"
-        && self.view_target[1] == 9
-        && self.view_before[1] == 0
-        && self.view_after[1] == 0 {
-        true -> good()
-        _ -> wrong()
+machine Main::main(main: &mut Main) reaches Console {
+    replace(&mut main.before, 1, &mut main.target, &mut main.after);
+    put(&mut main.view_before, 1, &mut main.view_target, &mut main.view_after);
+    transition main.target.text == "BZB"
+        && main.before.text == "AAA"
+        && main.after.text == "CCC"
+        && main.view_target[1] == 9
+        && main.view_before[1] == 0
+        && main.view_after[1] == 0 {
+        true -> good(main)
+        _ -> wrong(main)
     }
 
-    state wrong(&mut self) {
-        transition self.after.text == "CZC" {
-            true -> wrote_after()
-            _ -> other()
+    state wrong(main: &mut Main) {
+        transition main.after.text == "CZC" {
+            true -> wrote_after(main)
+            _ -> other(main)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state wrote_after(&mut self) { self.console.exit_process(71); }
-    state other(&mut self) { self.console.exit_process(72); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state wrote_after(main: &mut Main) { main.console.exit_process(71); }
+    state other(main: &mut Main) { main.console.exit_process(72); }
 }

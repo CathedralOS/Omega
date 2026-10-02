@@ -12,16 +12,16 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; buf: [u8; 8]; j: u64; out: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.buf[5] = 7;
-    self.j = 5;
-    let view: &[u8] = self.buf.as_slice();
-    transition self.j < view.len { true -> read(view, self.j) _ -> bad() }
-    state read(&mut self, items: &[u8], index: u64)
-        requires index < items.len
+machine Main::main(main: &mut Main) reaches Console {
+    main.buf[5] = 7;
+    main.j = 5;
+    let view: &[u8] = main.buf.as_slice();
+    transition main.j < view.len { true -> read(main, view) _ -> bad(main) }
+    state read(main: &mut Main, items: &[u8])
+        requires main.j < items.len
     {
-        self.out = items[index] as i32;
-        self.console.exit_process(self.out);
+        main.out = items[main.j] as i32;
+        main.console.exit_process(main.out);
     }
-    state bad(&mut self) { self.console.exit_process(9); }
+    state bad(main: &mut Main) { main.console.exit_process(9); }
 }

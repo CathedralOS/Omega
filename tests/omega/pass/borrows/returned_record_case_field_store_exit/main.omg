@@ -21,27 +21,27 @@ machine fill(bag: &mut Bag, second: bool, value: Tag) {
     selected.flags.copied = value;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bag.holders[0].flags.literal = Tag::Other;
-    self.bag.holders[0].flags.copied = Tag::Set;
-    self.bag.holders[0].sibling = 17;
-    self.bag.holders[1].flags.literal = Tag::Empty;
-    self.bag.holders[1].flags.copied = Tag::Empty;
-    self.bag.holders[1].sibling = 29;
-    self.bag.holders[2].flags.literal = Tag::Other;
-    self.bag.holders[2].sibling = 37;
-    fill(&mut self.bag, true, Tag::Other);
-    fill(&mut self.bag, false, Tag::Empty);
-    transition self.bag.holders[1].flags.literal == Tag::Set
-        && self.bag.holders[1].flags.copied == Tag::Other
-        && self.bag.holders[1].sibling == 29
-        && self.bag.holders[0].flags.literal == Tag::Set
-        && self.bag.holders[0].flags.copied == Tag::Empty
-        && self.bag.holders[0].sibling == 17
-        && self.bag.holders[2].flags.literal == Tag::Other
-        && self.bag.holders[2].sibling == 37 {
-        true -> finish(70)
-        false -> finish(1)
+machine Main::main(main: &mut Main) reaches Console {
+    main.bag.holders[0].flags.literal = Tag::Other;
+    main.bag.holders[0].flags.copied = Tag::Set;
+    main.bag.holders[0].sibling = 17;
+    main.bag.holders[1].flags.literal = Tag::Empty;
+    main.bag.holders[1].flags.copied = Tag::Empty;
+    main.bag.holders[1].sibling = 29;
+    main.bag.holders[2].flags.literal = Tag::Other;
+    main.bag.holders[2].sibling = 37;
+    fill(&mut main.bag, true, Tag::Other);
+    fill(&mut main.bag, false, Tag::Empty);
+    transition main.bag.holders[1].flags.literal == Tag::Set
+        && main.bag.holders[1].flags.copied == Tag::Other
+        && main.bag.holders[1].sibling == 29
+        && main.bag.holders[0].flags.literal == Tag::Set
+        && main.bag.holders[0].flags.copied == Tag::Empty
+        && main.bag.holders[0].sibling == 17
+        && main.bag.holders[2].flags.literal == Tag::Other
+        && main.bag.holders[2].sibling == 37 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

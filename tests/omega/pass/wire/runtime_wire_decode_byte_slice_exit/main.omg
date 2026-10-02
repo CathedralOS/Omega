@@ -39,28 +39,28 @@ data Main {
     verdict: WireVerdict;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.source[0] = 72;
-    self.source[1] = 105;
-    let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
+machine Main::main(main: &mut Main) reaches Console {
+    main.source[0] = 72;
+    main.source[1] = 105;
+    let sample: BlobSample = BlobSample { bytes: main.source[0..2] };
 
-    Blob::encode(&sample, &mut self.buffer, &mut self.written);
+    Blob::encode(&sample, &mut main.buffer, &mut main.written);
 
-    let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+    let decoded: BlobSample = BlobSample { bytes: main.source[0..2] };
+    Blob::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
 
-    Blob::encode(&decoded, &mut self.buffer2, &mut self.written2);
+    Blob::encode(&decoded, &mut main.buffer2, &mut main.written2);
 
-    let matches: bool = self.verdict == WireVerdict::Sound
-        && self.read == 5
-        && self.written2 == 5
-        && self.buffer2[2] == 2
-        && self.buffer2[3] == 72
-        && self.buffer2[4] == 105;
+    let matches: bool = main.verdict == WireVerdict::Sound
+        && main.read == 5
+        && main.written2 == 5
+        && main.buffer2[2] == 2
+        && main.buffer2[3] == 72
+        && main.buffer2[4] == 105;
 
     transition matches {
-        true -> good(&mut self)
-        false -> bad(&mut self)
+        true -> good(main)
+        false -> bad(main)
     }
 
     state good(main: &mut Main) {

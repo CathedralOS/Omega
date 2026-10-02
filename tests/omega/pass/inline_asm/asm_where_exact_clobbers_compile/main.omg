@@ -4,15 +4,15 @@
 use omega::language::core::assembly;
 
 data Main { port: u16; status: u8; ready: bool; }
-machine Main::main(&mut self) reaches PortIo
-requires self.ready
+machine Main::main(main: &mut Main) reaches PortIo
+requires main.ready
 {
     asm where
-        requires self.ready
+        requires main.ready
         clobbers r15, r11, rax, r10, rdx
-        ensures self.ready
+        ensures main.ready
     {
-        out self.port, self.status;
-        in self.status, self.port
+        out main.port, main.status;
+        in main.status, main.port
     }
 }

@@ -16,23 +16,23 @@ data Countdown {
     remaining: u32 in Wrapping;
 }
 
-machine Countdown::arm(&mut self, start: u32 in Wrapping)
+machine Countdown::arm(countdown: &mut Countdown, start: u32 in Wrapping)
 requires
     start < 8
 ensures
-    self.remaining > 0;
-    self.remaining - 1 < 8
+    countdown.remaining > 0;
+    countdown.remaining - 1 < 8
 {
-    self.remaining = start + 1;
+    countdown.remaining = start + 1;
 }
 
-machine Countdown::tick(&mut self) -> u32 in Wrapping
+machine Countdown::tick(countdown: &mut Countdown) -> u32 in Wrapping
 requires
-    self.remaining > 0;
-    self.remaining - 1 < 8
+    countdown.remaining > 0;
+    countdown.remaining - 1 < 8
 {
-    self.remaining = self.remaining - 1;
-    self.remaining
+    countdown.remaining = countdown.remaining - 1;
+    countdown.remaining
 }
 
 data Main {
@@ -40,13 +40,13 @@ data Main {
     timer: Countdown;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.timer.arm(4);
-    let left: u32 in Wrapping = self.timer.tick();
+machine Main::main(main: &mut Main) reaches Console {
+    Countdown::arm(&mut main.timer, 4);
+    let left: u32 in Wrapping = Countdown::tick(&mut main.timer);
     transition left == 4 {
-        true -> done()
-        _ -> failed()
+        true -> done(main)
+        _ -> failed(main)
     }
-    state done(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state done(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }

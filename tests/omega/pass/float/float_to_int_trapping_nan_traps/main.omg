@@ -4,9 +4,9 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; value: f64; out: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.value = 0.0f64 / 0.0;
-    self.out = (self.value as i32 in Trapping) as i32;
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    main.value = 0.0f64 / 0.0;
+    main.out = (main.value as i32 in Trapping) as i32;
+    main.console.exit_process(70);
 }
-machine Main::run(&mut self) { self.main(); }
+machine Main::run(main: &mut Main) { Main::main(main); }
