@@ -2192,30 +2192,6 @@ pub(crate) fn shared_borrow_record_referent(
     Some(*referee)
 }
 
-/// Closed record storage has a nominal declaration and no variant selection.
-/// Qualification and ownership shells remain checked by the existing validator.
-pub(crate) fn plain_record(
-    checked: &CheckedTrees,
-    reference: checked_trees::types::TypeReferenceHandle,
-) -> bool {
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(reference)
-    else {
-        return false;
-    };
-    validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
-        && checked
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)
-            .is_some_and(|data| {
-                !checked
-                    .data_members(data)
-                    .iter()
-                    .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-            })
-}
-
 /// A non-byte slice uses the ElementView carrier. Byte slices keep their
 /// distinct ByteSequence representation and must not enter this producer lane.
 /// The shell's access is reported, not required.

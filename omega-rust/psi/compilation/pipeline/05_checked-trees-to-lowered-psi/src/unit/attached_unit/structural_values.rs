@@ -7,7 +7,6 @@
 //! Merely relabeling its source place would alias copies and reuse a declaration.
 
 use super::CheckedTrees;
-use crate::expression_preparation::source_custody::structural::plain_record;
 mod emission;
 mod fixed_array;
 mod locals;
