@@ -320,7 +320,7 @@ fn result_type(
                 ExpressionNode::Range(_)
             ) =>
         {
-            let result = (|| {
+            (|| {
                 let ExpressionNode::Range(range) =
                     program.expression_table.expression(indexed.index)
                 else {
@@ -397,8 +397,7 @@ fn result_type(
                             && program.normalized_type_identity(candidate_element) == identity)
                             .then_some(reference)
                     })
-            })();
-            result
+            })()
         }
         ExpressionNode::ZeroValue(reference) => Some(*reference),
         // Place lookup strips a Borrow to its target. A value-type query must
