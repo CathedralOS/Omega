@@ -307,6 +307,38 @@ execution and native exit/output. A moved refusal is still unfinished work.
   identity and only 4 under per-block identities. The next step is that
   synthesizer -- not the fact transport -- and whether it can relate two block
   parameters that `invocation_origins` already says are one storage.
+  **The facts are all present and correctly linked; the search does not use
+  them. Measured 2026-10-02 by listing the obligation's axioms in both
+  spellings.** The receiver roster carries 12 axioms over ONE place, and the
+  proof is:
+
+      p1.f6 < 3 -> 1 <= p1.f4   (invariant)
+      v4 = p1.f6,  v4 < 3       (so p1.f6 < 3)
+      v8 = p1.f4                (so 1 <= v8, the goal)
+
+  The static roster carries 18 over TWO places, p2 (the predecessor's binding)
+  and p3 (the successor's), and the identical chain exists over p3: the
+  invariant `p3.f6 < 3 -> 1 <= p3.f4`, `v4 = p3.f6`, `v4 < 3`, `v8 = p3.f4`.
+  Nothing is missing and nothing is unlinked -- `v4` is cited equal to BOTH
+  `p2.f6` and `p3.f6`, so the two places are even bridged.
+  What differs is only that every invariant appears twice, once per place.
+  `path_facts::bind_successor_structural_axioms` is what produces the p3 copies
+  (it maps `argument.place -> parameter.place` for whole actuals and restates
+  each fact), and it APPENDS the rewrite while keeping the original, so the
+  predecessor's copies sit ahead of the successor's in roster order. The
+  nonzero-divisor search iterates alias orientations rather than taking the
+  first, so plain ordering is not obviously the cause -- but the duplicated
+  per-place copies are the only difference between a roster that proves and one
+  that does not, and they are the thing to attack.
+  Two candidate shapes, neither tried: drop the superseded copy when a
+  structural place is rebound at an edge (needs a replacement operation --
+  `AxiomRosterMut` today has only `push_fact`), or make the divisor search treat
+  the bridged places as one subject. The first is narrower; the second is where
+  `root_selection/{alias,roster}.rs` already does the work.
+  Ruled out by measurement, so not retried: enabling `reconstruct_path_facts`
+  for every machine (it is a work filter and forcing it true changes nothing
+  here), and calling `append_invocation_facts` for every block rather than only
+  at `Return*`.
   Acceptance: `print_squares` migrates its entry and meets its documented oracle
   (`Expected output contains: 081`, exit 0) through `sample_native_gate`, with
   the other twelve measured after it; the 33-line reproducer is the fast inner

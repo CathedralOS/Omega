@@ -48,8 +48,8 @@ machine Main::main(context: &mut Main) reaches Console {
     state header(context: &mut Main, passed: i32 in Wrapping, file: File) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 2. Header line.
-        let io_result: IoResult = context.fs.write(file, "vault v1\n");
-        let close_rc: i32 = context.fs.close(file);
+        let io_result: IoResult = Filesystem::write(&mut context.fs, file, "vault v1\n");
+        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
         transition io_result { IoResult::Ok { count } -> note1(context, next_passed) _ -> done(context, next_passed) }
     }
 
@@ -60,8 +60,8 @@ machine Main::main(context: &mut Main) reaches Console {
         transition open_result { OpenResult::Ok { file } -> note1_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
     state note1_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
-        let io_result: IoResult = context.fs.write(file, "note: alpha\n");
-        let close_rc: i32 = context.fs.close(file);
+        let io_result: IoResult = Filesystem::write(&mut context.fs, file, "note: alpha\n");
+        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
         transition io_result { IoResult::Ok { count } -> note2(context, passed) _ -> done(context, passed) }
     }
 
@@ -72,8 +72,8 @@ machine Main::main(context: &mut Main) reaches Console {
         transition open_result { OpenResult::Ok { file } -> note2_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
     state note2_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
-        let io_result: IoResult = context.fs.write(file, "note: beta\n");
-        let close_rc: i32 = context.fs.close(file);
+        let io_result: IoResult = Filesystem::write(&mut context.fs, file, "note: beta\n");
+        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
         transition io_result { IoResult::Ok { count } -> audit(context, passed) _ -> done(context, passed) }
     }
 
@@ -130,8 +130,8 @@ machine Main::main(context: &mut Main) reaches Console {
         transition open_result { OpenResult::Ok { file } -> compact_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
     state compact_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
-        let io_result: IoResult = context.fs.write(file, "vault v1\n");
-        let close_rc: i32 = context.fs.close(file);
+        let io_result: IoResult = Filesystem::write(&mut context.fs, file, "vault v1\n");
+        let close_rc: i32 = Filesystem::close(&mut context.fs, file);
         let meta_result: MetadataResult = Filesystem::metadata_path(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition meta_result { MetadataResult::Ok { meta } -> compact_ck(context, passed, meta) _ -> done(context, passed) }
     }
@@ -162,7 +162,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state remove_one(context: &mut Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 13. Remove one file the precise way...
-        let unit_result: UnitResult = context.fs.remove("omega_vault/notes/current/vault.txt");
+        let unit_result: UnitResult = Filesystem::remove(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition unit_result { UnitResult::Ok -> teardown(context, next_passed) _ -> done(context, next_passed) }
     }
     state teardown(context: &mut Main, passed: i32 in Wrapping) {
