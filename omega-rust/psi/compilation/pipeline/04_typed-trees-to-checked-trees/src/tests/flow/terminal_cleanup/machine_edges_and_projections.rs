@@ -654,3 +654,110 @@ fn projected_transition_cleanup_admits_multi_state_machines() {
         checked.facts.flow.terminal_structural_control_cleanups
     );
 }
+
+#[test]
+fn selected_operand_calls_consume_parameters_on_only_their_edge() {
+    let checked = checked_program(
+        r#"
+        data Payload { value: i32; }
+        machine identity(payload: Payload) -> Payload { payload }
+        machine route(payload: Payload, selected: bool) -> i32 {
+            transition selected {
+                true -> take(identity(payload))
+                false -> take(Payload { value: 71 })
+            }
+            state take(payload: Payload) -> i32 { payload.value }
+        }
+        "#,
+    );
+    let (machine, state) = machine_and_entry_state(&checked, "route");
+    let plans = crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+        &checked.typed,
+        &checked.facts,
+    );
+    let plan = plans
+        .for_state(machine, state)
+        .expect("selected parameter cleanup");
+    assert_eq!(plan.edges.len(), 2);
+    assert!(
+        plan.edges[0]
+            .trivial_affine_discard_parameter_positions
+            .is_empty(),
+        "the selected identity call consumed the parameter: {:#?}",
+        checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| event.machine_symbol == machine && event.state_symbol == state)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        plan.edges[1].trivial_affine_discard_parameter_positions,
+        vec![0]
+    );
+    use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
+    let (transfer_handle, transfer) = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.kind == PermissionEventKind::Transfer
+        })
+        .expect("the selected helper has one exact input transfer");
+    for corruption in 0..5 {
+        let mut facts = checked.facts.clone();
+        match corruption {
+            0 => {
+                facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(transfer_handle)
+                    .kind = PermissionEventKind::Establish
+            }
+            1 => {
+                facts.flow.ownership.permissions.insert(transfer.clone());
+            }
+            2 => {
+                facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(transfer_handle)
+                    .source = PermissionEventSource::StateEntry
+            }
+            3 => {
+                facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(transfer_handle)
+                    .access = PermissionAccess::Shared
+            }
+            4 => {
+                facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(transfer_handle)
+                    .obligation_live = true
+            }
+            _ => unreachable!(),
+        }
+        let plans =
+            crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+                &checked.typed,
+                &facts,
+            );
+        assert!(
+            plans.for_state(machine, state).is_none(),
+            "missing, duplicate, displaced or changed custody rejects: {corruption}"
+        );
+    }
+}
