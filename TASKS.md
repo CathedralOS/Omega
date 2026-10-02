@@ -63,6 +63,11 @@ does not close an item. Keep independent receiving verification.
   Preserve exact root identity, captured selectors, qualification evidence,
   claim transfer, evaluation order and loan lifetime; shape equality is not
   authority.
+  Common source replay now reconstructs parameter places and immutable reference
+  initializers independently of the call result; the scalar-only parameter
+  fallback is removed. `pass/calls/scalar_range_argument_exit` executes at its
+  authored exit 70 on macOS ARM64. The remaining frontier is the shared argument
+  materialization and custody operation below, not more source-shape exceptions.
   Owners: stage 04 `execution/terminal_unit/calls/computation_arguments/`,
   checked structural argument plans, stage 05 `unit/attached_unit/parameters.rs`
   and `structural_calls/result_uses.rs`, with the corresponding Terminal call

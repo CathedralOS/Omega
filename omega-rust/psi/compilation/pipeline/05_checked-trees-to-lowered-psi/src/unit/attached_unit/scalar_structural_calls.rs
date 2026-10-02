@@ -2,7 +2,6 @@
 
 use super::super::PermissionClaimIdentity;
 use super::admission::CallerView;
-use super::parameters::source_path;
 use super::{
     CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Multiplicity,
     primitive_locals, structural_calls, unsupported,
@@ -129,38 +128,13 @@ pub(super) fn validate_call_source(
             }
             continue;
         }
-        let source_index = argument
-            .source_parameter_index()
-            .ok_or(LoweringError::Unsupported(
-                "scalar wrapper argument has no supported source owner",
-            ))?;
-        let retained = caller
-            .structural_parameters
-            .get(source_index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "scalar wrapper argument has no source parameter",
-            ))?;
-        let source = checked
-            .state_parameters(source_state)
-            .get(retained.position as usize)
-            .ok_or(LoweringError::Unsupported(
-                "scalar wrapper parameter lost its authored position",
-            ))?;
-        let (root, path, explicit_access) = source_path(
-            checked,
-            source_machine,
-            Some(source_state),
-            source.type_reference,
-            expression,
-        )?;
-        if !source.symbol.is_valid()
-            || !(root == source.symbol || (source.is_self && root == caller.machine))
-            || retained.is_self != source.is_self
-            || path != argument.path
-            || explicit_access.is_some_and(|access| access != argument.access)
-        {
-            return unsupported("scalar wrapper structural argument substituted its source place");
-        }
+        // The common call validator rejoins parameter identity, projection and
+        // explicit access for every result kind. Derived operands are verified
+        // at their producer in ordered argument staging, not reinterpreted as
+        // a direct loan of the parameter that backs their computation.
+        let Some(source_index) = argument.source_parameter_index() else {
+            continue;
+        };
         if argument.access != checked_trees::CheckedStructuralAccess::Owned {
             continue;
         }
