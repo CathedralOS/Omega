@@ -45,7 +45,7 @@ use crate::machine_calls::calls::write_frames::state_paths::{
     push_visible_frame_path, relative_state_path_is_visible,
 };
 use crate::machine_calls::calls::write_frames::stored_origins::{
-    StoredLocalOrigins, expand_write_path,
+    StoredLocalOrigins, expand_write_path, expand_write_paths,
 };
 use crate::machine_calls::calls::write_frames::transition_topology::{
     named_state_transition_subgraph_is_acyclic, named_transition_subgraph_is_acyclic,
@@ -722,7 +722,7 @@ fn walk_state_write_prefix_inner(
                                 }
                                 FramePathPrecision::CollectionCoarse => origin.path.clone(),
                             };
-                            for path in expand_write_path(&composed, &local_alias_origins, &stored)
+                            for path in expand_write_path(&composed, &local_alias_origins, &stored)?
                             {
                                 if !paths.contains(&path) {
                                     paths.push(path);
@@ -818,10 +818,7 @@ fn walk_state_write_prefix_inner(
                 complete_state_summaries,
                 &origins,
             )?;
-            for relative in expression_writes
-                .iter()
-                .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
-            {
+            for relative in expand_write_paths(&expression_writes, &local_alias_origins, &stored)? {
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
                     && !written.contains(&relative)
                 {
@@ -963,7 +960,7 @@ fn walk_state_write_prefix_inner(
                     &local_alias_origins,
                     symbols,
                 )?;
-                let paths = expand_write_path(&relative, &local_alias_origins, &stored);
+                let paths = expand_write_path(&relative, &local_alias_origins, &stored)?;
                 if queried_assignment {
                     let Some(record) = assignments.as_deref_mut() else {
                         return Some(StateWritePrefix {
@@ -1162,11 +1159,11 @@ fn walk_state_write_prefix_inner(
                 } else {
                     Vec::new()
                 };
-                for relative in origins
-                    .close_paths(nested_writes)
-                    .iter()
-                    .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
-                {
+                for relative in expand_write_paths(
+                    &origins.close_paths(nested_writes),
+                    &local_alias_origins,
+                    &stored,
+                )? {
                     if relative_state_path_is_visible(&relative, parameters, &locals)?
                         && !written.contains(&relative)
                     {
@@ -1200,7 +1197,7 @@ fn walk_state_write_prefix_inner(
                         // level alias substitution, so keep it opaque here.
                         return None;
                     }
-                    for relative in summarize_transition_target_written_paths(
+                    let transition_writes = summarize_transition_target_written_paths(
                         program,
                         machine,
                         state,
@@ -1212,9 +1209,9 @@ fn walk_state_write_prefix_inner(
                         matches!(query, Some(StateWriteQuery::Complete)),
                         &origins,
                         &machine_symbols,
-                    )?
-                    .iter()
-                    .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+                    )?;
+                    for relative in
+                        expand_write_paths(&transition_writes, &local_alias_origins, &stored)?
                     {
                         if relative_state_path_is_visible(&relative, parameters, &locals)?
                             && !written.contains(&relative)
@@ -1272,32 +1269,10 @@ fn walk_state_write_prefix_inner(
                         // call substitution, including copies of this binding.
                         divergent_alias_origins.push((local.name.as_str().to_owned(), origins));
                     } else {
-                        // A binding the transfer cannot name stays opaque —
-                        // unless every later mention re-exports it intact
-                        // through a pure tail return, which transports its
-                        // referent set wholesale while the result relation
-                        // resolves it through this same initializer. Any
-                        // other mention — a write through it, a reborrow, or
-                        // a transport into another binding — loses the set.
-                        let mut reexported = false;
-                        for later in &statements[statement_index + 1..] {
-                            if !local_aliases::statement_mentions_place_roots(
-                                program,
-                                later,
-                                &[local.name.as_str().to_owned()],
-                            ) {
-                                continue;
-                            }
-                            if !alias_bindings::statement_returns_reference_without_effects(
-                                program, state, later,
-                            ) {
-                                return None;
-                            }
-                            reexported = true;
-                        }
-                        if !reexported {
-                            return None;
-                        }
+                        let origins =
+                            stored_origins::unresolved_origins(program, local, include_shared)?;
+                        inference.record_local(&origins);
+                        stored.push(origins);
                     }
                 } else if stored_origins::has_aggregate_case_shape(program, local.type_reference)
                     && let Some(origins) = stored_origins::declaration_origins(

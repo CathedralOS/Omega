@@ -19,7 +19,7 @@ pub(super) enum FramePathPrecision {
     CollectionCoarse,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct FramePlaceOrigin {
     pub(super) path: String,
     pub(super) precision: FramePathPrecision,

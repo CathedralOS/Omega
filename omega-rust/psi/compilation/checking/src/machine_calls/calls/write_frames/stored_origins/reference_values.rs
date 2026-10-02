@@ -8,14 +8,19 @@ use typed_trees::TypedTrees;
 
 pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins(
     program: &TypedTrees,
-    origin: &FramePlaceOrigin,
+    origin: &Option<FramePlaceOrigin>,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
-) -> Vec<FramePlaceOrigin> {
+) -> Vec<Option<FramePlaceOrigin>> {
+    let Some(origin) = origin else {
+        return vec![None];
+    };
     if !origin.source.root.is_valid() {
         // Existing path-only evidence can still conservatively invalidate
         // storage. It cannot later export an owned-formal reference boundary.
-        return super::canonical_origins(origin, aliases, stored);
+        return super::canonical_origins(origin, aliases, stored)
+            .map(|origins| origins.into_iter().map(Some).collect())
+            .unwrap_or_else(|| vec![None]);
     }
     let mut origin = origin.clone();
     if let Some((_, prior)) = aliases
@@ -31,7 +36,7 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
         .iter()
         .find(|local| local.local_symbol == origin.source.root)
     else {
-        return vec![origin];
+        return vec![Some(origin)];
     };
     let mut sources = Vec::new();
     for leaf in &local.references {
@@ -39,24 +44,25 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
             continue;
         }
         let suffix = place_suffix(&leaf.local_path, &origin.path).unwrap_or("");
-        let mut source = compose_origin(&leaf.origin, suffix, origin.precision);
-        source.source = leaf
-            .origin
+        let Some(captured) = &leaf.origin else {
+            if !sources.contains(&None) {
+                sources.push(None);
+            }
+            continue;
+        };
+        let mut source = compose_origin(captured, suffix, origin.precision);
+        source.source = captured
             .source
             .append_segments(&origin.source.segments[leaf.local_segments.len()..]);
         source.source.builtin_coordinates &= origin.source.builtin_coordinates;
-        if !sources.iter().any(|prior: &FramePlaceOrigin| {
-            prior.path == source.path
-                && prior.precision == source.precision
-                && prior.source == source.source
-        }) {
-            sources.push(source);
+        if !sources.contains(&Some(source.clone())) {
+            sources.push(Some(source));
         }
     }
     // No reference boundary was crossed. Preserve the private source so
     // exported result analysis rejects it; do not substitute a sibling leaf.
     if sources.is_empty() {
-        vec![origin]
+        vec![Some(origin)]
     } else {
         sources
     }

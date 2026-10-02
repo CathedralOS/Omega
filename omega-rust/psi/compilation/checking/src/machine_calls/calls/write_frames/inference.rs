@@ -1,22 +1,17 @@
-//! Transient inference state. Active body guards and frozen local case evidence
+//! Transient inference state. Active body guards and frozen local origin evidence
 //! have separate lifetimes; neither is a source of borrow permission.
 
 use super::StoredLocalOrigins;
+#[cfg(test)]
 use super::path_instantiation::aggregate_arguments::AggregateMove;
+#[cfg(test)]
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Default)]
 pub(super) struct FrameInference {
     pub(super) active_states: Vec<SymbolHandle>,
-    local_shapes: Vec<FrozenLocalShape>,
-}
-
-#[derive(Clone)]
-struct FrozenLocalShape {
-    symbol: SymbolHandle,
-    cases: Vec<Vec<PlaceSegment>>,
-    moves: Vec<AggregateMove>,
+    local_shapes: Vec<StoredLocalOrigins>,
 }
 
 impl FrameInference {
@@ -27,25 +22,26 @@ impl FrameInference {
         }
     }
     pub(super) fn record_local(&mut self, local: &StoredLocalOrigins) {
-        self.local_shapes.push(FrozenLocalShape {
-            symbol: local.local_symbol,
-            cases: local.cases.clone(),
-            moves: local.moves.clone(),
-        });
+        self.local_shapes.push(local.clone());
     }
 
+    pub(super) fn local_origins(&self, symbol: SymbolHandle) -> Option<&StoredLocalOrigins> {
+        self.local_shapes
+            .iter()
+            .rev()
+            .find(|local| local.local_symbol == symbol)
+    }
+
+    #[cfg(test)]
     pub(super) fn local_moves(&self, symbol: SymbolHandle) -> Option<&[AggregateMove]> {
-        self.local_shapes
-            .iter()
-            .rev()
-            .find_map(|local| (local.symbol == symbol).then_some(local.moves.as_slice()))
+        self.local_origins(symbol)
+            .map(|local| local.moves.as_slice())
     }
 
+    #[cfg(test)]
     pub(super) fn local_cases(&self, symbol: SymbolHandle) -> Option<&[Vec<PlaceSegment>]> {
-        self.local_shapes
-            .iter()
-            .rev()
-            .find_map(|local| (local.symbol == symbol).then_some(local.cases.as_slice()))
+        self.local_origins(symbol)
+            .map(|local| local.cases.as_slice())
     }
 
     pub(super) fn with_local_scope<T>(&mut self, action: impl FnOnce(&mut Self) -> T) -> T {
