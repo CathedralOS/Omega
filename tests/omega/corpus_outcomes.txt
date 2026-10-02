@@ -2051,6 +2051,8 @@ pass/providers/token_machine_family_override_exit checked 1314ms @2d8ed253669f
 pass/range/data_parameter_counter_non_negative_exit checked 848ms @ec784d4d82e8+wt
 pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
+pass/ranges/subject_guard_compound_index_successor rejected 138ms @24835cdd46a6
+	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 339ms @17d6ccc60253+wt

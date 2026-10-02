@@ -1,0 +1,33 @@
+// A guard a state spells over its OWN data record must bound a compound index
+// in the successor. The receiver spelling of this program checks; the static
+// spelling does not, so this is the smallest statement of what blocks the
+// static migration of every stateful sample that guards a computed index.
+//
+// KNOWN RED. `checks/ranges/incoming_guards.rs` seeds the relational
+// decomposition of an incoming guard only for conjuncts whose every leaf roots
+// at the MACHINE symbol, which `self` did and an explicit subject parameter
+// does not. The subject reaches the sound alternative path --
+// `parameter_bound_identically` admits it, since the edge binds the
+// successor's same-named subject to exactly this one -- but that path
+// deliberately seeds endpoints only, so no index bound arrives and
+// `main.b * 20 + main.a` is unproven in `put`.
+//
+// A simple `main.a` index crosses today, and so does a loop-carried one; only
+// the compound form needs the relational decomposition.
+//
+// Expected exit: 0.
+
+data Main {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    grid: [i32; 200] in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.a = 1;
+    main.b = 1;
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> put(main) _ -> done(main) }
+
+    state put(main: &mut Main) { main.grid[main.b * 20 + main.a] = 7; }
+    state done(main: &mut Main) {}
+}
