@@ -424,6 +424,22 @@ fn cyclic_structural_scalar_call_without_structural_arguments_cycles_like_a_scal
 }
 
 #[test]
+fn cyclic_shared_record_scalar_call_uses_ordinary_argument_validation() {
+    let module = super::unranked_unit_calls::shared_record_call_cycle(
+        super::unranked_unit_calls::NoStructuralResult::Scalar,
+    );
+    assert_verifies(&module, &ProofBundle::default());
+}
+
+#[test]
+fn cyclic_owned_constructed_case_scalar_call_is_frontier_safe() {
+    let module = super::unranked_unit_calls::owned_case_call_cycle(
+        super::unranked_unit_calls::NoStructuralResult::Scalar,
+    );
+    assert_verifies(&module, &ProofBundle::default());
+}
+
+#[test]
 fn cyclic_structural_scalar_call_keeps_claim_transfers_outside_bounded_eligibility() {
     let mut module = structural_scalar_call_cycle();
     let OperationKind::CallStructuralScalar {

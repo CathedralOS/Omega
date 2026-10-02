@@ -1411,14 +1411,19 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `b18805b6b40e`,
-  macOS ARM64, source checking and local package review succeed; closed stdin
-  exits 200 during Terminal
-  production with `ControlCycleIneligible { block: 66, reason: BlockOperation
-  { block: 66, operation: 76 } }`. The next dependency is cycle eligibility
-  in `terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs`;
-  identify the operation and its actual loop-carried custody before changing
-  admission. Do not bypass ranking, frontier agreement or field validity.
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On the cycle-call
+  repair based on `b3f2ae787684`, macOS ARM64, source checking and local package
+  review succeed; closed stdin exits 200 during Terminal production with
+  `InvalidStructuralByteSequenceFieldStore(OperationId(1246))`. Identify the
+  exact store and its destination/source custody before changing validation;
+  the owning checks are `terminal-psi/verification/src/validation/structural/byte_sequence_store.rs`
+  and `validation/byte_sequence/store.rs`. The previous rejection was a cyclic
+  Unit call with a whole owned argument, not a missing loop proof. Unit/scalar
+  calls now share ordinary call transactions and exact frontier replay, with
+  no argument-producer eligibility roster. `calls/cyclic_copy_arguments_exit`
+  executes exit 70 across constructed and call-produced enum arguments; the
+  unreplenished affine backedge control still rejects. Do not bypass ranking,
+  frontier agreement or field validity.
   Field replacement now carries the exact returned reference and live loan
   through window extraction, reseating, independent verification and native
   pointer-based addressing. Checked window parameters use dense structural
@@ -1489,14 +1494,16 @@ the complete product bar; focused successes below do not establish that baseline
   - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
     relations: broader qualified/partial ownership, reference-bearing or
     claim-carrying structural call results, moving claims, content
-    reshuffles/partitions, projected owned call arguments and boundary
+    reshuffles/partitions, broader structural-result custody and boundary
     completion receipts. Plain case/record results, pinned entry claims,
     several effectful calls, unrestricted plain leaf copies, field-replacement
     window pairs, claim-free reference-free affine structural call results
     with call-scoped loans (outside the cycle, or discarded, moved into an
     owned successor parameter or reseated inside it), case dispatch over a
-    block's own owned parameter and whole unit-call loans of borrowed block
-    views already pass eligibility. Eligibility supplies no proof; verify
+    block's own owned parameter already pass eligibility. Unit/scalar calls use
+    ordinary argument validation and exact frontier replay independent of
+    argument producers; their claim transfers remain fenced. Eligibility
+    supplies no proof; verify
     every arrival before removing a fence. No cycle fence remains in
     squalr-tests' linux_x86_64 module. Its production stops at obligation
     9223372036854775820, the authored `requires ... position < name.len ...`

@@ -7,8 +7,8 @@
 //! parameters for the machine's whole cyclic lifetime.
 
 use super::{
-    ModuleError, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator,
+    OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator,
 };
 use crate::validation::{
     BTreeSet, BlockId, ClaimId, ControlCycleIneligibility, OperationResult, PlaceId,
@@ -805,72 +805,28 @@ fn cycle_operation_eligible(
             *event,
         )
         .is_ok(),
-        // Requirement obligations and crash continuations carry no custody:
-        // ordinary call validation still checks their arity, substitution and
-        // caller coverage symbolically, and obligation reconstruction cuts
-        // feedback edges rather than enumerating iterations. A callee with its
-        // own structural frame takes this spelling even when no structural
-        // argument crosses; that call moves no caller custody, exactly like
-        // `Call` above. Claim transfers stay fenced until cyclic machines admit
-        // claim-bearing custody.
-        OperationKind::CallStructuralScalar {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            ..
+        // Unit and scalar results publish no structural custody. Their
+        // arguments therefore use the ordinary call transaction regardless
+        // of producer, projection or return spelling: borrowed arguments
+        // close at return; owned arguments consume their exact live places.
+        // The ordinary call validator checks the callee, result signature,
+        // paths, access, requirements and crash coverage. Reference replay
+        // checks conflicting loans; frontier replay records moves and demands
+        // the same custody on every arrival, including backedges. A consumed
+        // affine input cannot be reused on the next iteration without a
+        // replenishing transfer. Do not duplicate those checks with a roster
+        // of allowed argument producers here. Claim movement remains fenced
+        // independently until cyclic claim custody is supported.
+        OperationKind::CallUnit {
+            claim_transfers, ..
+        }
+        | OperationKind::CallStructuralScalar {
+            claim_transfers, ..
         } => {
-            let callee_parameters = module
-                .machines
-                .iter()
-                .find(|candidate| candidate.id == *callee)
-                .map(|candidate| candidate.structural_parameters.as_slice())
-                .unwrap_or(&[]);
-            operation.result.scalar().is_some()
-                && structural_arguments
-                    .iter()
-                    .enumerate()
-                    .all(|(index, argument)| {
-                        (argument.path.is_empty()
-                            && ((argument.access != StructuralAccess::Owned
-                                && primitive_storage::local_result(machine, argument.place)
-                                    .is_some())
-                                || (argument.access == StructuralAccess::SharedBorrow
-                                    && (crate::validation::element_view::subslice::borrowed_result(
-                                        machine,
-                                        argument.place,
-                                    )
-                                    .is_some()
-                                        // A whole-parameter shared re-borrow
-                                        // loans the caller's own borrowed
-                                        // place for the call's duration only —
-                                        // the same admission the boundary arm
-                                        // gives `&self`-style arguments.
-                                        || machine.structural_parameters.iter().any(|parameter| {
-                                            parameter.place == argument.place
-                                        }) || block_views::parameter(machine, argument.place)
-                                            .is_some()))
-                                // `bounds.is_opened()` over a call result:
-                                // the same call-scoped result loan the unit
-                                // arm below admits.
-                                || borrows_operation_result(machine, argument)
-                                || owned_argument(module, machine, argument)
-                                || callee_parameters.get(index).is_some_and(|parameter| {
-                                    copied_payload_argument(module, machine, argument, parameter)
-                                })))
-                            // Same loan shape as `CallUnit` below: a borrowed
-                            // projection loans for the call only, so cyclic
-                            // eligibility keys on the callee's positional
-                            // parameter shape rather than the empty path.
-                            || (!argument.path.is_empty()
-                                && callee_parameters.get(index).is_some_and(|parameter| {
-                                    crate::validation::structural::operations::is_unrestricted_shared_subloan(
-                                        module, machine, parameter, argument,
-                                    ) || crate::validation::structural::operations::is_unrestricted_mutable_subloan(
-                                        module, machine, parameter, argument,
-                                    )
-                                }))
-                    })
-                && claim_transfers.is_empty()
+            matches!(
+                operation.result,
+                OperationResult::Unit | OperationResult::Scalar(_)
+            ) && claim_transfers.is_empty()
         }
         OperationKind::BoundaryCall {
             boundary,
@@ -953,80 +909,6 @@ fn cycle_operation_eligible(
                                 )))
                     },
                 )
-        }
-        OperationKind::CallUnit {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } => {
-            let callee_parameters = module
-                .machines
-                .iter()
-                .find(|candidate| candidate.id == *callee)
-                .map(|candidate| candidate.structural_parameters.as_slice())
-                .unwrap_or(&[]);
-            operation.result == OperationResult::Unit
-                && structural_arguments
-                    .iter()
-                    .enumerate()
-                    .all(|(index, argument)| {
-                        (argument.path.is_empty()
-                            && ((argument.access == StructuralAccess::MutableBorrow
-                                && machine.structural_parameters.iter().any(|parameter| {
-                                    parameter.place == argument.place
-                                        && parameter.access == StructuralAccess::MutableBorrow
-                                        && persistent_receiver(module, parameter)
-                                }))
-                                || (argument.access != StructuralAccess::Owned
-                                    && primitive_storage::local_result(machine, argument.place)
-                                        .is_some())
-                                || (argument.access == StructuralAccess::SharedBorrow
-                                    && (crate::validation::byte_sequence::length::validate_source(
-                                        module,
-                                        machine,
-                                        operation,
-                                        argument.place,
-                                        || ModuleError::InvalidByteSequenceLengthSource {
-                                            operation: operation.id,
-                                            source: argument.place,
-                                        },
-                                    )
-                                    .is_ok()
-                                        || crate::validation::element_view::length::validate_source(
-                                            module,
-                                            machine,
-                                            operation,
-                                            argument.place,
-                                            || ModuleError::InvalidElementViewLengthSource {
-                                                operation: operation.id,
-                                                source: argument.place,
-                                            },
-                                        )
-                                        .is_ok()))
-                                || borrows_operation_result(machine, argument)
-                                || lends_block_view(machine, argument)
-                                || owned_argument(module, machine, argument)))
-                            // A borrowed projection loans one element for the
-                            // call's duration only: the loan is created and
-                            // released inside the operation on every traversal,
-                            // so loop-carried custody is identical on each
-                            // arrival. Reusing the acyclic path's unrestricted
-                            // subloan shape keeps the root's authority checks —
-                            // including the positional pairing — identical.
-                            // The non-empty path keeps the empty-path roster's
-                            // own admission rules in sole charge of whole-root
-                            // arguments.
-                            || (!argument.path.is_empty()
-                                && callee_parameters.get(index).is_some_and(|parameter| {
-                                    crate::validation::structural::operations::is_unrestricted_shared_subloan(
-                                        module, machine, parameter, argument,
-                                    ) || crate::validation::structural::operations::is_unrestricted_mutable_subloan(
-                                        module, machine, parameter, argument,
-                                    )
-                                }))
-                    })
-                && claim_transfers.is_empty()
         }
         // A field-replacement window pair: `MoveStructuralField` vacates one
         // declared structural field beneath a borrowed-window root and hands
@@ -1312,22 +1194,6 @@ fn borrows_operation_result(machine: &TerminalMachine, argument: &StructuralArgu
         && machine.structural_places.iter().any(|place| {
             place.id == argument.place
                 && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
-        })
-}
-
-/// A borrowed block parameter is a view its incoming edges bound, such as the
-/// `region: &mut NormalizedRegion` a state machine threads through its
-/// states. Lending it whole, no wider than the view's own access, loans it for
-/// the call only: `region.set_base_address(base)` writes through the view the
-/// way an in-place field store does, and the view stays bound afterwards. The
-/// frontier still refuses an exclusive loan of a root that a shared view
-/// observes, and ordinary call validation checks the loan's authority.
-fn lends_block_view(machine: &TerminalMachine, argument: &StructuralArgument) -> bool {
-    argument.access != StructuralAccess::Owned
-        && block_views::parameter(machine, argument.place).is_some_and(|parameter| {
-            parameter.access == StructuralAccess::MutableBorrow
-                || (parameter.access == StructuralAccess::SharedBorrow
-                    && argument.access == StructuralAccess::SharedBorrow)
         })
 }
 
