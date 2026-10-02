@@ -519,17 +519,7 @@ pub(super) fn may_escape(
         ) || !claim_transfers.is_empty()
             || structural_arguments.iter().any(|argument| {
                 argument.access != StructuralAccess::SharedBorrow
-                    && !root_type(machine, argument.place)
-                        .and_then(|root| {
-                            terminal_semantics::runtime_structural_path_tip(
-                                module.structural_types.iter(),
-                                root,
-                                &argument.path,
-                            )
-                        })
-                        .is_some_and(|selected| {
-                            crate::validation::record::plain_type(module, selected.id)
-                        })
+                    && !super::call_accesses::argument_storage_closed(module, machine, argument)
             });
     }
     !matches!(

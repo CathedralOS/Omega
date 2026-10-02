@@ -1,7 +1,8 @@
 //! Descriptor value-instance transport reconstructed from Terminal operations.
 //! Derivations keep every captured cohort; simultaneous edges rename values
-//! from the pre-edge state. Cleanup is an observation of its carrier, while
-//! normal returns end the activation and structural returns may publish it.
+//! from the pre-edge state. Cleanup that can observe payload keeps it live;
+//! no-code disposal of an exact borrowed descriptor observes no referent.
+//! Affine frontier replay still requires the carrier's complete disposition.
 
 use std::collections::BTreeMap;
 
@@ -86,7 +87,12 @@ pub(super) fn reconstruct(
             } => {
                 step.inputs
                     .extend(structural_arguments.iter().map(|argument| argument.place));
-                step.inputs.extend(trivial_affine_discards);
+                step.inputs.extend(
+                    trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .filter(|place| !descriptor_disposal(module, machine, *place)),
+                );
                 step.inputs
                     .extend(residual_affine_discards.iter().map(|discard| discard.place));
                 add_edge(machine, &mut step, *target, structural_arguments);
@@ -102,14 +108,24 @@ pub(super) fn reconstruct(
                             .iter()
                             .map(|argument| argument.place),
                     );
-                    step.inputs.extend(&edge.trivial_affine_discards);
+                    step.inputs.extend(
+                        edge.trivial_affine_discards
+                            .iter()
+                            .copied()
+                            .filter(|place| !descriptor_disposal(module, machine, *place)),
+                    );
                     add_edge(machine, &mut step, edge.target, &edge.structural_arguments);
                 }
             }
             Terminator::StructuralCase { source, cases } => {
                 step.inputs.push(*source);
                 for case in cases {
-                    step.inputs.extend(&case.trivial_affine_discards);
+                    step.inputs.extend(
+                        case.trivial_affine_discards
+                            .iter()
+                            .copied()
+                            .filter(|place| !descriptor_disposal(module, machine, *place)),
+                    );
                     // Case payload bindings are scalar in this vocabulary;
                     // no structural cohort is manufactured from field IDs.
                     add_edge(machine, &mut step, case.target, &[]);
@@ -121,31 +137,50 @@ pub(super) fn reconstruct(
                 ..
             } => {
                 step.inputs.push(*source);
-                step.inputs.extend(trivial_affine_discards);
+                step.inputs.extend(
+                    trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .filter(|place| !descriptor_disposal(module, machine, *place)),
+                );
                 step.may_escape = true;
             }
             Terminator::Return {
                 cleanup_actions, ..
             } => {
                 step.inputs
-                    .extend(cleanup_actions.iter().map(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => *place,
-                        TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
+                    .extend(cleanup_actions.iter().filter_map(|action| match action {
+                        TerminalAffineCleanupAction::DiscardRoot(place) => {
+                            (!descriptor_disposal(module, machine, *place)).then_some(*place)
+                        }
+                        TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                            Some(discard.place)
+                        }
+                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup.place),
                     }));
             }
             Terminator::ReturnUnit {
                 trivial_affine_discards,
                 ..
             } => {
-                step.inputs.extend(trivial_affine_discards);
+                step.inputs.extend(
+                    trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .filter(|place| !descriptor_disposal(module, machine, *place)),
+                );
             }
             Terminator::ReturnUnitPartialAffine {
                 trivial_affine_discards,
                 residual_affine_discards,
                 ..
             } => {
-                step.inputs.extend(trivial_affine_discards);
+                step.inputs.extend(
+                    trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .filter(|place| !descriptor_disposal(module, machine, *place)),
+                );
                 step.inputs
                     .extend(residual_affine_discards.iter().map(|discard| discard.place));
             }
@@ -226,4 +261,19 @@ fn add_edge(
                 .collect(),
         });
     }
+}
+
+/// Only an authenticated affine view result has no-code carrier disposal.
+/// Aggregate, residual and nominal cleanup may observe payload and stay live.
+fn descriptor_disposal(module: &TerminalModule, machine: &TerminalMachine, place: PlaceId) -> bool {
+    crate::validation::element_view::view_loan_result(machine, place).is_some_and(|(result, _)| {
+        result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && module.structural_types.iter().any(|declaration| {
+                declaration.id == result.structural_type
+                    && (matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                    ) || declaration.shape.is_borrowed_byte_view())
+            })
+    })
 }
