@@ -169,6 +169,7 @@ pass/calls/requires_operand_flip_discharge built 3161ms exit:70 @527c7c316c6f+wt
 pass/calls/retained_receiver_argument_order_exit built 873ms exit:70 @be20683757eb+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 568ms exit:70 @76bba5577e21+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
+pass/calls/runtime_borrowed_binding_field_state_loan_exit built 966ms exit:70 stdout:match @bea382792161+wt
 pass/calls/runtime_call_statement_before_state_return_exit built 882ms exit:42 @e720ff4e35f5+wt
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
