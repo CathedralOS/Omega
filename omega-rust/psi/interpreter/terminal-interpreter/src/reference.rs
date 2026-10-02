@@ -1,10 +1,10 @@
-//! Owned reference carriers preserve borrowed primitive backing across moves.
+//! Owned reference carriers preserve borrowed backing across moves.
 //!
 //! A descriptor's key names its current owner and record-field path; its value
 //! names the original referent. Record construction relocates only the key.
 //! Disposal removes descriptor subtrees, not the storage they permit access to.
 //! Loan ancestry and disposal order are independently checked before execution.
-use crate::custody::resolve_structural_arguments;
+use crate::custody::project_structural_value;
 use crate::custody::resolve_structural_path_type;
 use crate::errors::TerminalInterpretError;
 use crate::execution::SuspendedCall;
@@ -42,36 +42,29 @@ pub(crate) fn discard_structural_value(
 }
 
 impl TerminalExecution {
-    fn mutable_primitive_referent(
+    fn reference_contract(
         &self,
         reference_type: StructuralTypeId,
-    ) -> Result<StructuralTypeId, TerminalInterpretError> {
-        let Some(StructuralTypeShape::Reference {
-            referent,
-            access: StructuralAccess::MutableBorrow,
-        }) = self
+    ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
+        let Some(StructuralTypeShape::Reference { referent, access }) = self
             .program
             .structural_types
             .get(&reference_type)
             .map(|declaration| &declaration.shape)
         else {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "reference execution requires a mutable primitive referent",
+                "reference execution requires a reference carrier",
             ));
         };
-        if !self
-            .program
-            .structural_types
-            .get(referent)
-            .is_some_and(|declaration| {
-                matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
-            })
+        if !self.program.structural_types.contains_key(referent)
+            || !matches!(
+                access,
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            )
         {
-            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "reference execution requires a mutable primitive referent",
-            ));
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        Ok(*referent)
+        Ok((*referent, *access))
     }
 
     pub(crate) fn establish_reference(
@@ -81,27 +74,21 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let result = operation.result.structural().ok_or_else(invalid)?;
-        let referent_type = self.mutable_primitive_referent(result.structural_type)?;
-        // Both primitive locals and ingress borrows already name their backing.
+        let (referent_type, access) = self.reference_contract(result.structural_type)?;
+        // Both local storage and ingress borrows already name their backing.
         // An explicit Referent projection reborrows that backing through a live
         // carrier; it never establishes ownership of the carrier's contents.
         let referent = self
             .resolve_reference_call_arguments(std::slice::from_ref(source))?
             .pop()
             .ok_or_else(invalid)?;
-        if source.access != StructuralAccess::MutableBorrow
-            || (!source.path.is_empty()
-                && source.path.last() != Some(&StructuralPathSegment::Referent))
+        if !access_covers(source.access, access)
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || referent.structural_type != referent_type
             || !referent.qualifications.is_empty()
-            || !referent.path.is_empty()
-            || !self
-                .structural_primitive_storage
-                .contains_key(&StructuralRuntimePlace::from(&referent))
             || self.structural_values.contains_key(&result.place)
             || self
                 .live_affine_frontier
@@ -134,7 +121,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let carrier = self.structural_values.get(&source).ok_or_else(invalid)?;
-        self.mutable_primitive_referent(carrier.structural_type)?;
+        self.reference_contract(carrier.structural_type)?;
         let key = StructuralRuntimePlace::from(carrier);
         let frontier = StructuralAffineDiscard {
             place: source,
@@ -161,70 +148,99 @@ impl TerminalExecution {
         &self,
         arguments: &[StructuralArgument],
     ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
-        if arguments
-            .iter()
-            .all(|argument| !argument.path.contains(&StructuralPathSegment::Referent))
-        {
-            return resolve_structural_arguments(
-                &self.program.structural_types,
-                &self.structural_values,
-                arguments,
-            );
-        }
         arguments
             .iter()
             .map(|argument| {
-                let Some((StructuralPathSegment::Referent, carrier_path)) =
-                    argument.path.split_last()
-                else {
-                    let mut resolved = resolve_structural_arguments(
-                        &self.program.structural_types,
-                        &self.structural_values,
-                        std::slice::from_ref(argument),
-                    )?;
-                    return resolved
-                        .pop()
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed);
-                };
-                let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-                let owner = self
-                    .structural_values
-                    .get(&argument.place)
-                    .ok_or_else(invalid)?;
-                // Resolve the carrier's owned field path first. Only the final
-                // Referent crosses into captured storage; it is never an offset
-                // within the record or permission to move that storage.
-                let carrier = resolve_structural_arguments(
-                    &self.program.structural_types,
-                    &self.structural_values,
-                    &[StructuralArgument {
-                        place: argument.place,
-                        path: carrier_path.to_vec(),
-                        access: StructuralAccess::Owned,
-                    }],
-                )?
-                .pop()
-                .ok_or_else(invalid)?;
-                let referent_type = self.mutable_primitive_referent(carrier.structural_type)?;
-                let referent = self
-                    .reference_referents
-                    .get(&StructuralRuntimePlace::from(&carrier))
-                    .ok_or_else(invalid)?;
-                if argument.access == StructuralAccess::Owned
-                    || referent.structural_type != referent_type
-                    || !self
-                        .live_affine_frontier
-                        .contains(&StructuralAffineDiscard {
-                            place: argument.place,
-                            path: Vec::new(),
-                            structural_type: owner.structural_type,
-                        })
-                {
-                    return Err(invalid());
-                }
-                Ok(referent.clone())
+                self.resolve_live_projection(argument.place, &argument.path, argument.access)
             })
             .collect()
+    }
+
+    fn resolve_live_projection(
+        &self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let owner = self.structural_values.get(&place).ok_or_else(invalid)?;
+        if path.contains(&StructuralPathSegment::Referent)
+            && !self
+                .live_affine_frontier
+                .contains(&StructuralAffineDiscard {
+                    place,
+                    path: Vec::new(),
+                    structural_type: owner.structural_type,
+                })
+        {
+            return Err(invalid());
+        }
+        self.resolve_reference_path(owner, path, access)
+    }
+
+    /// Project storage, crossing each reference boundary through its captured
+    /// backing. A suffix belongs to that backing, not to the descriptor object.
+    fn resolve_reference_path(
+        &self,
+        owner: &TerminalStructuralValue,
+        path: &[StructuralPathSegment],
+        access: StructuralAccess,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let mut value = owner.clone();
+        let mut remaining = path;
+        loop {
+            let boundary = remaining
+                .iter()
+                .position(|segment| *segment == StructuralPathSegment::Referent);
+            let prefix = &remaining[..boundary.unwrap_or(remaining.len())];
+            // Keep case selection and its payload field together. The ordinary
+            // projection owner strips declaration-only case steps from storage.
+            value = project_structural_value(&self.program.structural_types, &value, prefix)?;
+            if let Some(boundary) = boundary {
+                let (referent_type, authority) = self.reference_contract(value.structural_type)?;
+                if !access_covers(authority, access) {
+                    return Err(invalid());
+                }
+                value = self
+                    .reference_referents
+                    .get(&StructuralRuntimePlace::from(&value))
+                    .cloned()
+                    .ok_or_else(invalid)?;
+                if value.structural_type != referent_type {
+                    return Err(invalid());
+                }
+                remaining = &remaining[boundary + 1..];
+            } else {
+                return Ok(value);
+            }
+        }
+    }
+
+    /// Field observations address the referent of a reference-valued root.
+    /// Ordinary roots already name their storage. Both preserve the original
+    /// runtime identity and projection rather than copying record contents.
+    pub(crate) fn observation_root(
+        &self,
+        source: PlaceId,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        let value = self.structural_values.get(&source).ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+        )?;
+        if !matches!(
+            self.program
+                .structural_types
+                .get(&value.structural_type)
+                .map(|declaration| &declaration.shape),
+            Some(StructuralTypeShape::Reference { .. })
+        ) {
+            return Ok(value.clone());
+        }
+        self.resolve_live_projection(
+            source,
+            &[StructuralPathSegment::Referent],
+            StructuralAccess::SharedBorrow,
+        )
     }
 
     pub(crate) fn bind_reference_return_backings(
@@ -243,9 +259,6 @@ impl TerminalExecution {
                         "selected reference returns require alternative backing transport",
                     ),
                 )?;
-                if source.access != StructuralAccess::MutableBorrow {
-                    return Err(invalid());
-                }
                 let parameter = parameters
                     .iter()
                     .find(|parameter| parameter.place == source.place)
@@ -255,57 +268,25 @@ impl TerminalExecution {
                     signature.structural_type,
                     &origin.path,
                 )?;
-                let referent_type = self.mutable_primitive_referent(leaf_type)?;
-                let expected = if source.path.is_empty() {
-                    if parameter.access != StructuralAccess::MutableBorrow
-                        || parameter.structural_type != referent_type
-                    {
-                        return Err(invalid());
-                    }
-                    arguments.get(&parameter.place).ok_or_else(invalid)?
-                } else {
-                    let Some((StructuralPathSegment::Referent, carrier_path)) =
-                        source.path.split_last()
-                    else {
-                        return Err(invalid());
-                    };
-                    if parameter.access != StructuralAccess::Owned
-                        || parameter.multiplicity != StructuralMultiplicity::Affine
-                        || carrier_path.is_empty()
-                        || carrier_path
-                            .iter()
-                            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-                    {
-                        return Err(invalid());
-                    }
-                    let carrier = resolve_structural_arguments(
-                        &self.program.structural_types,
-                        arguments,
-                        &[StructuralArgument {
-                            place: parameter.place,
-                            path: carrier_path.to_vec(),
-                            access: StructuralAccess::Owned,
-                        }],
-                    )?
-                    .pop()
-                    .ok_or_else(invalid)?;
-                    if self.mutable_primitive_referent(carrier.structural_type)? != referent_type {
-                        return Err(invalid());
-                    }
-                    self.reference_referents
-                        .get(&StructuralRuntimePlace::from(&carrier))
-                        .ok_or_else(invalid)?
-                };
-                if expected.structural_type != referent_type
-                    || !expected.qualifications.is_empty()
-                    || !expected.path.is_empty()
+                let (referent_type, access) = self.reference_contract(leaf_type)?;
+                if !access_covers(parameter.access, source.access)
+                    || !access_covers(source.access, access)
+                {
+                    return Err(invalid());
+                }
+                let expected = self.resolve_reference_path(
+                    arguments.get(&parameter.place).ok_or_else(invalid)?,
+                    &source.path,
+                    source.access,
+                )?;
+                if expected.structural_type != referent_type || !expected.qualifications.is_empty()
                 {
                     return Err(invalid());
                 }
                 // Retain only the contract's expected backing, not another
                 // owner or lineage. The callee may move or repack its ingress
                 // carrier before returning, deleting its original binding.
-                Ok(expected.clone())
+                Ok(expected)
             })
             .collect()
     }
@@ -375,11 +356,6 @@ impl TerminalExecution {
             if signature.reference_sources[..ordinal]
                 .iter()
                 .any(|previous| previous.path == origin.path)
-                || origin
-                    .path
-                    .iter()
-                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-                || source.access != StructuralAccess::MutableBorrow
             {
                 return Err(invalid());
             }
@@ -388,15 +364,30 @@ impl TerminalExecution {
                 signature.structural_type,
                 &origin.path,
             )?;
-            let referent_type = self.mutable_primitive_referent(leaf_type)?;
+            let (referent_type, access) = self.reference_contract(leaf_type)?;
             let expected = &expected_reference_backings[ordinal];
             let mut key = StructuralRuntimePlace::from(carrier);
             key.path.extend_from_slice(&origin.path);
             let actual = self.reference_referents.get(&key).ok_or_else(invalid)?;
-            if expected.structural_type != referent_type || expected != actual {
+            if !access_covers(source.access, access)
+                || expected.structural_type != referent_type
+                || expected != actual
+            {
                 return Err(invalid());
             }
         }
         Ok(())
     }
+}
+
+fn access_covers(available: StructuralAccess, requested: StructuralAccess) -> bool {
+    available == requested
+        || available == StructuralAccess::Owned
+        || matches!(
+            (available, requested),
+            (
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+        )
 }

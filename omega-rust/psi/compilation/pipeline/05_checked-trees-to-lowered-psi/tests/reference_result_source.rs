@@ -14,15 +14,24 @@ use terminal_psi::{OperationKind, Terminator};
 
 #[test]
 fn returned_shared_record_field_reads_replay_without_source() {
-    let checked = crate::front_end::checked_program(
-        "data Node { value: i32; }
-         data Holder { node: Node; }
-         machine first(holder: &Holder) -> &Node { transition { _ -> &holder.node } }
-         machine exercise(holder: &Holder) -> i32 {
-             let seen: &Node = first(holder);
+    execute_returned_record_field_read("");
+}
+
+#[test]
+fn returned_mutable_record_field_reads_replay_without_source() {
+    execute_returned_record_field_read("mut ");
+}
+
+fn execute_returned_record_field_read(access: &str) {
+    let checked = crate::front_end::checked_program(&format!(
+        "data Node {{ value: i32; }}
+         data Holder {{ node: Node; }}
+         machine first(holder: &{access}Holder) -> &{access}Node {{ transition {{ _ -> &{access}holder.node }} }}
+         machine exercise(holder: &{access}Holder) -> i32 {{
+             let seen: &{access}Node = first(holder);
              seen.value
-         }",
-    );
+         }}",
+    ));
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("exercise"),
@@ -40,6 +49,53 @@ fn returned_shared_record_field_reads_replay_without_source() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("independently verify a returned shared carrier's field observation");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry machine");
+    let field = module
+        .structural_types
+        .iter()
+        .find_map(|declaration| {
+            let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return None;
+            };
+            fields
+                .iter()
+                .find(|field| field.identity == "value")
+                .map(|field| field.id)
+        })
+        .expect("Node value field");
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 91,
+                structural_type: entry.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            scalar_fields: &[terminal_interpreter::TerminalStructuralScalarFieldValue {
+                argument_index: 0,
+                path: vec![terminal_psi::StructuralPathSegment::Field("node".into())],
+                field,
+                value: signed(37),
+            }],
+            ..Default::default()
+        },
+    )
+    .expect("install borrowed record storage");
+    let mut meter = TerminalFuelMeter::with_allowance(1_000);
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .expect("execute returned record field read"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(signed(37)))
+    );
     let mut write_only = module;
     for declaration in &mut write_only.structural_types {
         if let terminal_psi::StructuralTypeShape::Reference { access, .. } = &mut declaration.shape
@@ -54,7 +110,7 @@ fn returned_shared_record_field_reads_replay_without_source() {
 }
 
 #[test]
-fn returned_record_method_receiver_replays_its_live_permission() {
+fn returned_record_static_argument_replays_its_live_permission() {
     let checked = crate::front_end::checked_program(
         "data Holder { value: u64; sibling: u64; }
          data Bag { holders: [Holder; 2]; }
@@ -62,12 +118,12 @@ fn returned_record_method_receiver_replays_its_live_permission() {
              let holders: &mut [Holder] = bag.holders.as_mut_slice();
              transition { _ -> &mut holders[1] }
          }
-         machine Holder::replace(&mut self) { self.value = 41; }
+         machine Holder::replace(holder: &mut Holder) { holder.value = 41; }
          machine exercise(bag: &mut Bag, other_bag: &mut Bag) {
              let selected: &mut Holder = pick(bag);
              let other: &mut Holder = pick(other_bag);
              selected.sibling = 29;
-             selected.replace();
+             Holder::replace(selected);
              selected.sibling = 31;
              other.sibling = 17;
          }",
@@ -83,7 +139,7 @@ fn returned_record_method_receiver_replays_its_live_permission() {
         .map(|_| ())
         .map_err(|error| format!("{error:?}"))
     };
-    publish(&checked).expect("the returned reference supplies its method receiver");
+    publish(&checked).expect("the returned reference supplies its explicit argument");
     let other_result = checked
         .facts
         .flow

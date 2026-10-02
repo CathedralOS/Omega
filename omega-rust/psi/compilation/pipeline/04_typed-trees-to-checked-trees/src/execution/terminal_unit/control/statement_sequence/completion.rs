@@ -178,14 +178,9 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         // value describes possible materialization, not a requirement to create
         // a second binding and bypass the exact parameter-return custody owner.
         Some(result)
-    } else if let Some(result) = returned_named_view(
-        program,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        binders,
-    ) {
+    } else if let Some(result) =
+        returned_named_view(program, shapes, state, structural_parameters, binders)
+    {
         Some(result)
     } else if let Some(result) = returned_reference_leaf(program, state, structural_parameters) {
         Some(result)

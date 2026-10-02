@@ -1,0 +1,32 @@
+data Node { value: i32; }
+data Holder { node: Node; }
+
+machine shared(holder: &Holder) -> &Node {
+    transition { _ -> &holder.node }
+}
+
+machine mutable(holder: &mut Holder) -> &mut Node {
+    transition { _ -> &mut holder.node }
+}
+
+machine read_shared(holder: &Holder) -> i32 {
+    let selected: &Node = shared(holder);
+    selected.value
+}
+
+machine read_mutable(holder: &mut Holder) -> i32 {
+    let selected: &mut Node = mutable(holder);
+    selected.value
+}
+
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { node: Node { value: 37 } };
+    let first: i32 = read_shared(&holder);
+    let second: i32 = read_mutable(&mut holder);
+    transition first == 37 && second == 37 && holder.node.value == 37 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

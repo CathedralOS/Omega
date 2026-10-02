@@ -613,11 +613,10 @@ execution and native exit/output. A moved refusal is still unfinished work.
   buffers, but their Windows native runs still need the Console provider closure
   tracked under process exit. Their checked success is not full migration acceptance.
   The three `pass/borrows/borrow_{domain,guarded,returned}_window_write_and_call`
-  fixtures now use local `WindowBuffer` storage and static calls. Their authored
-  assertions execute with checked-interpreter exit 0 on Windows (83d1d7229173
-  plus migration), but Terminal production stops at the mutable subslice local.
-  **VIEW-LOAN-COMPOSITION** owns the common range-operation repair and all three
-  native exit-0 oracles; do not create another local-only subslice route here.
+  fixtures use local `WindowBuffer` storage and static calls; all three execute
+  with native and checked-interpreter exit 0 on Windows at `bcc4f637ab1c`.
+  **VIEW-LOAN-COMPOSITION** retains the byte-storage composition work; do not
+  restore the superseded integer-subslice blockers or local-only lowering paths.
   On macOS ARM64 a static entry's local arrays and zeroed records now lend their
   homes natively: a whole local `[u8; N]`/`[T; N]` presents through `&[u8]`,
   `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,
