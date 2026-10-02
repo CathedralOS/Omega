@@ -1707,36 +1707,34 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. On `e26439b2fe5`
-  plus the canonical-arrival exclusive-call repair, macOS ARM64, the unchanged
-  closed-stdin command clears legalization and exits 200 during instruction
-  selection after 697 seconds: `UnsupportedSourceShape`, function 9,
-  Machine 10, Operation 781. A failure-only probe locates the refusal inside
-  `03_target-operations-to-selected-instructions/src/selection/scalar_call_abi.rs`
-  `validate`: rejoin that call's retained arguments, placement and register
-  constraints; do not replace canonical ABI replay with producer assertions.
-  The preceding exclusive-call failure was a qualification-emptiness gate on
-  identically typed and qualified mutable arguments, not an ABI disagreement.
-  Entry and state-arrival call transport now share the same semantic lookup;
-  byte observations use carrier layout independently of access permission.
-  Terminal and Omega validation retain primitive-domain replay, readable-payload
-  requirements and immutable replacement sources. Native
-  `borrows/qualified_byte_owner_exclusive_call_exit` executes exit 70 through
-  entry and state-arrival mutation, multibyte UTF-8 observations and a preserved
-  sibling; seven related native controls retain their authored exit 70.
-  Neither game command is complete. Keep exact access, qualifications,
-  source-length/capacity evidence, every possible origin, ranking and live-root
-  rebind rejection. The next acceptance remains the two unchanged game commands.
-  Field replacement now carries the exact returned reference and live loan
-  through window extraction, reseating, independent verification and native
-  pointer-based addressing. Checked window parameters use dense structural
-  coordinates, with explicit source-coordinate replay; interleaved scalar
-  formals no longer select the wrong root. The two new `borrows/` programs
+  `RoomLookup`, `MazeBuilder` or game-state field validity. The owned-call
+  repair clears the instruction-selection refusal at Machine 10, Operation
+  781: consumers rejoin the unique producer and exact result declaration,
+  not a producer-family whitelist. Psi sequences inline owned arguments and
+  retains the completed producer's qualifications instead of manufacturing an
+  unqualified result. On macOS ARM64, `borrows/owned_byte_value_call_exit`
+  executes exit 70 for literal, Unicode, concatenated, returned and empty
+  qualified byte values; six related native controls execute 70 and seven
+  invalid ownership/domain/capacity cases reject on `94940a170e`.
+
+  Full game acceptance remains open. The closed-stdin run at the owned-call
+  milestone progressed through selection into allocation, but has no completed
+  execution receipt. Allocation conflict preparation now streams the validated
+  interference and early-clobber relations into the existing domain matrix;
+  346 selection, allocation and focused Psi checks pass, including comparison
+  with the original allocation algorithm and independent replay. This is not
+  evidence that either complete game command runs. The next measured hotspot
+  is `05_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/placement.rs`
+  `strands_neighbor`: each candidate scans unrelated unassigned domains. Use
+  canonical constrained-neighbor rosters and indexed active membership while
+  retaining domain/candidate order and independent replay; then re-drive both
+  game commands. The diagnostic run was interrupted without a program result,
+  not rejected by the compiler. Retain exact access,
+  qualifications, source-length/capacity evidence, every possible origin,
+  ranking, live-root rebind rejection and same-typed-sibling rejection. Keep
+  `borrows/qualified_byte_owner_exclusive_call_exit`,
   `returned_record_case_field_store_exit` and
-  `interleaved_parameter_field_replacement_exit` and six related native
-  controls execute exit 70. Source replay rejects a paired repair redirected
-  to a same-typed sibling. Those witnesses do not establish that Dungeon runs.
-  Acceptance remains the two complete game commands above.
+  `interleaved_parameter_field_replacement_exit` as transport controls.
 
   The composed receiver reproduction
   `borrows/branch_selected_record_composed_receiver_exit` and nested owned
