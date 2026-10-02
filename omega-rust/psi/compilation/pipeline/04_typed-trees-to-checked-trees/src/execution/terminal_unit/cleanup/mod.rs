@@ -220,7 +220,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         if !access.is_readable() || !access.is_exclusive() {
             return None;
         }
-        if !cleanup_receiver.is_self
+        if !program.parameter_declares_attached_data(cleanup_machine, cleanup_receiver)
             || cleanup_receiver.is_const
             || !cleanup_machine.lifetime_parameters.is_empty()
             || !program.machine_type_parameters(cleanup_machine).is_empty()
@@ -263,13 +263,16 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         // slice pins lived here only to keep the helper-list recognizer honest;
         // what remains exact is the selection — the plan must be this owner's
         // attached `T::drop` state, its structural signature carries at most
-        // the borrowed `self` receiver the edge lends, and it takes no scalar
-        // arguments.
+        // the borrowed subject the edge lends, and it takes no scalar arguments.
+        // A named subject has ordinary parameter custody, not implicit
+        // attachment storage. Selection above already joins the exact owner
+        // symbol; neither the receiver spelling nor storage erasure may replace
+        // that identity or make its retained parameter disappear.
         let cleanup_target = plans
             .iter()
             .find(|candidate| candidate.machine == cleanup_machine.symbol)?;
         let borrowed_receiver = |parameter: &CheckedUnitStructuralParameterPlan| {
-            parameter.is_self
+            parameter.position == 0
                 && matches!(
                     parameter.access,
                     CheckedStructuralAccess::MutableBorrow
@@ -278,8 +281,11 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                 && parameter.type_identity == checked_parameter.type_identity
         };
         if cleanup_target.state != cleanup_state.symbol
-            || cleanup_target.attachment_type_identity.as_deref()
-                != Some(checked_parameter.type_identity.as_str())
+            || cleanup_target
+                .attachment_type_identity
+                .as_deref()
+                .is_some_and(|identity| identity != checked_parameter.type_identity)
+            || cleanup_target.structural_parameters.len() > 1
             || cleanup_target
                 .structural_parameters
                 .iter()
