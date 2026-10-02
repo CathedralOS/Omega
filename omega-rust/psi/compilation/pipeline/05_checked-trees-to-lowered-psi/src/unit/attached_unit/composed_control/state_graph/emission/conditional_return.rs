@@ -58,7 +58,6 @@ impl StateGraphEmission<'_, '_> {
                 edge: edge_id(allocate_dense(next_edge)?),
                 trivial_affine_discards: super::state::return_root_discards(
                     checked,
-                    plan,
                     state,
                     operations,
                     &arm_evaluation,
@@ -106,7 +105,6 @@ impl StateGraphEmission<'_, '_> {
                 let edge = edge_id(allocate_dense(next_edge)?);
                 let discards = super::state::return_root_discards(
                     checked,
-                    plan,
                     state,
                     operations,
                     &arm_evaluation,
@@ -187,7 +185,6 @@ impl StateGraphEmission<'_, '_> {
                     value: value.id,
                     cleanup_actions: super::state::return_root_discards(
                         checked,
-                        plan,
                         state,
                         operations,
                         &arm_evaluation,

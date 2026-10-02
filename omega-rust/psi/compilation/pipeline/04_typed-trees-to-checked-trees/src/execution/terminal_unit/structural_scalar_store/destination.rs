@@ -99,6 +99,7 @@ pub(super) fn resolve<'a>(
     roots: StoreRoots<'a>,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<Destination<'a>> {
     trace.phase("structural field store: target place");
@@ -120,15 +121,14 @@ pub(super) fn resolve<'a>(
         }
         _ => (assignment.target, None),
     };
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+    let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
         target,
-    ) else {
-        return None;
-    };
+    )?;
     let (place, recast_view) = rejoin_loan_local(program, machine, state, ordinal, place)?;
+    let place = rejoin_reference_local(program, state, ordinal, place, call_frames);
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -139,6 +139,7 @@ pub(super) fn resolve<'a>(
         state,
         statement_index,
         assignment.target,
+        call_frames,
     );
     trace.phase("structural field store: destination parameter");
     match roots {
@@ -926,4 +927,74 @@ fn borrowed_view_local_root<'a>(
         root_owner: crate::facts::field_domain::data_definition_for_field_type(program, referee),
         operators: &facts.operators,
     })
+}
+
+/// Rejoin a write through a reference local with the storage it denotes.
+///
+/// `let slots: &mut [i32] = self.items.as_mut_slice()` makes `slots[i]` the
+/// store `self.items[i]`; `let cell: &mut Cell = self.pick()` makes
+/// `cell.field` the store of whichever caller place the callee's exits
+/// returned. The shared frame engine's write origins carry the exact origin
+/// of the first kind (`flow::rebase_exact_local_place`), and a checked
+/// `&mut` result names each place the callee's exits can return -- only a
+/// single candidate names one destination the store can emit. Neither case
+/// adds authority: the loans, exclusivity, and last-use rules were already
+/// checked, and the rebased place still has to match an exclusive borrowed
+/// parameter (or owned local) below.
+///
+/// A `name = value` replacement on a reseatable `let mut` reference is a
+/// binding change, not a write through it, and a shared or non-reference
+/// local root is untouched; either way the place is returned unchanged and
+/// the store declines it in the ordinary way.
+pub(super) fn rejoin_reference_local(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    place: crate::flow::CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> crate::flow::CanonicalPlace {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
+        return place;
+    };
+    let mut locals = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == root => Some(local),
+            _ => None,
+        });
+    let Some(local) = locals.next() else {
+        return place;
+    };
+    if locals.next().is_some()
+        || !crate::checks::contracts::is_readable_mutable_reference(program, local.type_reference)
+        || (place.segments.is_empty() && local.is_mutable)
+    {
+        return place;
+    }
+    if let Some(rebased) = crate::flow::rebase_exact_local_place(
+        program,
+        state.symbol,
+        statement_index,
+        place.clone(),
+        call_frames,
+    ) && rebased.root != place.root
+    {
+        return rebased;
+    }
+    if let Some(candidates) = crate::flow::reference_result_candidates_before_statement(
+        program,
+        state.symbol,
+        statement_index,
+        root,
+        call_frames,
+    ) && let [candidate] = candidates.as_slice()
+    {
+        let mut joined = candidate.clone();
+        joined.segments.extend_from_slice(&place.segments);
+        return joined;
+    }
+    place
 }

@@ -90,7 +90,13 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     /// Entry-state successor-closure mask over the full `plan.states` roster;
     /// dead positions keep their index alignment but emit no block.
     pub(super) live: Vec<bool>,
-    pub(super) source_states: &'a [checked_trees::state::State],
+    /// Each plan position's authored `(owner machine, state)`: a fused roster
+    /// mixes owners, so emission resolves both through this row rather than
+    /// assuming the dispatch machine's own state list.
+    pub(super) authored: Vec<(
+        &'a checked_trees::machine::Machine,
+        &'a checked_trees::state::State,
+    )>,
     pub(super) claim_transport: claims::ClaimTransport,
     /// Per plan state, the shared parameters declared as the whole exclusive
     /// loan every arrival forwards (`exclusive_handoffs`).
@@ -145,14 +151,31 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     }
     super::ranking::validate_witness(checked, machine, plan)?;
     let attachment = super::super::admission::exact_attachment(checked, plan)?;
-    let source_states = checked.machine_states(machine);
-    if source_states.len() != plan.states.len() {
+    // A fused roster admits foreign states: each position resolves its own
+    // authored owner, no state may repeat, and the dispatch machine's authored
+    // states still all appear in authored order.
+    let authored = plan
+        .states
+        .iter()
+        .map(|state| {
+            crate::expression_preparation::source_custody::authored_state(checked, state.state)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if authored.iter().enumerate().any(|(index, (_, source))| {
+        authored[..index]
+            .iter()
+            .any(|(_, earlier)| earlier.symbol == source.symbol)
+    }) {
         return unsupported("Unit graph state roster drifted");
     }
-    if source_states
+    if authored
         .iter()
-        .zip(&plan.states)
-        .any(|(source, state)| source.symbol != state.state)
+        .filter(|(owner, _)| owner.symbol == machine.symbol)
+        .map(|(_, source)| source.symbol)
+        .ne(checked
+            .machine_states(machine)
+            .iter()
+            .map(|source| source.symbol))
     {
         return unsupported("Unit graph state identity, contract, or custody drifted");
     }
@@ -162,17 +185,14 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // route and emission prunes them.
     let live = topology::live(plan)?;
     let qualified_invocation = invocation_only_entry(plan, &live);
-    for (state_index, (source, state)) in source_states.iter().zip(&plan.states).enumerate() {
+    for (state_index, ((owner, source), state)) in authored.iter().zip(&plan.states).enumerate() {
         crate::unit::attached_unit::claims::validate_entry_claims(
             checked,
-            plan.machine,
+            owner.symbol,
             source,
             &state.structural_parameters,
             &state.entry_claims,
         )?;
-        if source.symbol != state.state {
-            return unsupported("Unit graph state identity, contract, or custody drifted");
-        }
         // `requires` rows that lower into closed scalar predicates stay on
         // the plan as retained state requires and emit as header invariants;
         // every other authored contract row is still rejected outright.
@@ -212,11 +232,29 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         }
         let source_parameters = checked.state_parameters(source);
         // `[erased]` bindings own no plan entry; count the retained ones by
-        // their typed relevance.
+        // their typed relevance. A borrowed `self` whose place the state
+        // never names also owns no plan entry — it rides the ambient
+        // attachment — so count it only while the plan keeps a receiver.
         let retained_parameters = source_parameters
             .iter()
             .filter(|parameter| !parameter.relevance.is_erased())
-            .count();
+            .count()
+            - usize::from(
+                state
+                    .structural_parameters
+                    .iter()
+                    .all(|parameter| !parameter.is_self)
+                    && source_parameters.iter().any(|parameter| {
+                        parameter.is_self
+                            && !parameter.relevance.is_erased()
+                            && matches!(
+                                checked
+                                    .type_reference_table
+                                    .type_reference(parameter.type_reference),
+                                TypeReferenceNode::Reference { .. }
+                            )
+                    }),
+            );
         if state.structural_parameters.len() + state.scalar_parameters.len() != retained_parameters
             || state
                 .structural_parameters
@@ -491,7 +529,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         }
         let statements = checked.statement_table.statements(source.statement_nodes);
         scalars::validate(checked, state)?;
-        let terminator_ordinal = super::body::validate(checked, plan.machine, source, state)?;
+        let terminator_ordinal = super::body::validate(checked, owner.symbol, source, state)?;
         let tail =
             typed_trees::statement::reachable_transition_prefix(&statements[terminator_ordinal..]);
         match (&state.terminator, tail) {
@@ -504,7 +542,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, [])
                 if plan.result == checked_trees::CheckedControlResultPlan::Unit =>
             {
-                edges::return_discards(checked, plan.machine, source, state)?;
+                edges::return_discards(checked, owner.symbol, source, state)?;
             }
             // The unconditional terminal machine call `body::validate` rejoined
             // as the state's last operation completes the machine with Unit.
@@ -537,7 +575,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     completion,
                     terminator_ordinal,
                 )?;
-                edges::return_discards(checked, plan.machine, source, state)?;
+                edges::return_discards(checked, owner.symbol, source, state)?;
             }
             (
                 CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal },
@@ -620,7 +658,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 }
                 validate_guard(
                     checked,
-                    plan.machine,
+                    owner.symbol,
                     state.state,
                     terminator_ordinal,
                     guard,
@@ -659,7 +697,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
                 validate_guard(
                     checked,
-                    plan.machine,
+                    owner.symbol,
                     state.state,
                     terminator_ordinal,
                     guard,
@@ -1076,7 +1114,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         .collect::<Vec<_>>();
     // Every live state's calls take the one call admission; internal Unit
     // targets' signatures come from the closure that emits this graph.
-    let boundaries = super::super::admission::admit_calls(checked, plan.machine, &states)?;
+    let boundaries = super::super::admission::admit_calls(checked, &states)?;
     if let Some(attachment) = attachment {
         let mut called = Vec::new();
         for state in &states {
@@ -1084,7 +1122,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 if let Some(call) = operation.call()
                     && crate::unit::attached_unit::provider_attachments::validate_call_source(
                         checked,
-                        plan.machine,
+                        super::owner(checked, state.state)?,
                         state.state,
                         operation,
                         &state.structural_parameters,
@@ -1215,7 +1253,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     }
     Ok(AdmittedGraph {
         live,
-        source_states,
+        authored,
         claim_transport,
         exclusive_handoffs,
         boundaries,

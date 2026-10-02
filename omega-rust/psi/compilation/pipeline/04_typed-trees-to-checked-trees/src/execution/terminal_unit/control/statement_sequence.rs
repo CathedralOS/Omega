@@ -1028,7 +1028,7 @@ pub(in crate::execution::terminal_unit) fn build(
         let statement_index = u32::try_from(index).ok()?;
         trace.phase(statement_phase(statement));
         trace.statement(Some(statement_index));
-        append_reference_releases(facts, machine.symbol, state.symbol, statement_index, &mut operations)?;
+        append_reference_releases(program, facts, machine.symbol, state.symbol, statement_index, &mut operations)?;
         // A fact-only citation emits no runtime call or work; its flow row
         // is retired (`execution::citation_erasure`), so it plans nothing.
         if validation::is_fact_only_citation(program, statement) {
@@ -1110,6 +1110,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     structural_count: &mut structural_count,
                     windows: &mut windows,
                     structural_results: &mut structural_results,
+                    call_frames,
                 },
                 statement_index,
                 assignment,
@@ -1497,6 +1498,7 @@ fn scalar_computation_local_at(
 }
 
 fn append_reference_releases(
+    program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -1512,8 +1514,9 @@ fn append_reference_releases(
             && custody.reference_loan.is_valid()
         {
             let loan = custody.reference_loan;
-            let boundary =
-                super::super::reference_results::release_statement(facts, machine, state, loan)?;
+            let boundary = super::super::reference_results::release_boundary(
+                program, facts, machine, state, loan,
+            )?;
             if boundary == statement_index && !operations.iter().any(|operation| {
                 matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. } if *released == loan)
             }) {

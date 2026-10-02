@@ -316,7 +316,7 @@ pub(super) fn emit(
         )?;
     evaluation.record_fields = crate::scalar_graph::scalar_computations::fields::prepare(
         checked,
-        plan.machine,
+        &[plan.machine],
         structural_types,
     )?;
     evaluation.literals = crate::scalar_graph::scalar_computations::literals::prepare(
@@ -333,19 +333,19 @@ pub(super) fn emit(
     )?;
     evaluation.arrays = crate::scalar_graph::scalar_computations::arrays::prepare(
         checked,
-        plan.machine,
+        &[plan.machine],
         structural_types,
         &mut next_place,
     )?;
     evaluation.subslices = crate::scalar_graph::scalar_computations::subslices::prepare(
         checked,
-        plan.machine,
+        &[plan.machine],
         structural_types,
         &mut next_place,
     )?;
     evaluation.cases = crate::scalar_graph::scalar_computations::cases::prepare(
         checked,
-        plan.machine,
+        &[plan.machine],
         structural_types,
         &mut next_place,
     )?;

@@ -237,13 +237,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .then_some(states.len());
     let lowered_state_count = states.len() + usize::from(return_sink.is_some());
     let mut lowered_states = Vec::with_capacity(lowered_state_count);
-    let arrays = computations::arrays::prepare(checked, machine, structural_types, next_place)?;
+    let arrays = computations::arrays::prepare(checked, &[machine], structural_types, next_place)?;
     let subslices =
-        computations::subslices::prepare(checked, machine, structural_types, next_place)?;
-    let cases = computations::cases::prepare(checked, machine, structural_types, next_place)?;
+        computations::subslices::prepare(checked, &[machine], structural_types, next_place)?;
+    let cases = computations::cases::prepare(checked, &[machine], structural_types, next_place)?;
     let literals = computations::literals::prepare(checked, machine, structural_types, next_place)?;
     let copies = computations::copies::prepare(checked, machine, structural_types, next_place)?;
-    let fields = computations::fields::prepare(checked, machine, structural_types)?;
+    let fields = computations::fields::prepare(checked, &[machine], structural_types)?;
     let mut computations =
         computations::Expansion::new(checked, qualifications, machine, lowered_state_count)
             .with_arrays(&arrays)

@@ -60,6 +60,11 @@ pub struct CrashPlan {
     /// `None` means at least one authored requirement is outside that
     /// vocabulary; consumers must not publish a partial terminal contract.
     structural_runtime_requirements: Option<Vec<crate::CheckedBooleanExpression>>,
+    /// The same complete lowering for unbound machine `ensures` clauses:
+    /// post-state observations over the exact parameter places. `None`
+    /// means at least one authored guarantee is outside that vocabulary;
+    /// consumers must not publish a partial terminal contract.
+    structural_runtime_guarantees: Option<Vec<crate::CheckedBooleanExpression>>,
     checked_sites: Vec<CheckedCrashSite>,
     checked_calls: Vec<CheckedCrashCallSite>,
     checked_operators:
@@ -79,6 +84,7 @@ impl CrashPlan {
             interface: CrashInterface::PublishedCeiling,
             published,
             structural_runtime_requirements: None,
+            structural_runtime_guarantees: None,
             checked_sites: Vec::new(),
             checked_calls: Vec::new(),
             checked_operators: Vec::new(),
@@ -114,6 +120,18 @@ impl CrashPlan {
 
     pub fn structural_runtime_requirements(&self) -> Option<&[crate::CheckedBooleanExpression]> {
         self.structural_runtime_requirements.as_deref()
+    }
+
+    pub fn with_structural_runtime_guarantees(
+        mut self,
+        guarantees: Option<Vec<crate::CheckedBooleanExpression>>,
+    ) -> Self {
+        self.structural_runtime_guarantees = guarantees;
+        self
+    }
+
+    pub fn structural_runtime_guarantees(&self) -> Option<&[crate::CheckedBooleanExpression]> {
+        self.structural_runtime_guarantees.as_deref()
     }
 
     /// Whether a published structural crash predicate contains proof-gated

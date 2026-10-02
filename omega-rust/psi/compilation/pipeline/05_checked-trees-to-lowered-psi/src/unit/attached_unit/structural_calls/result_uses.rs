@@ -1120,6 +1120,53 @@ pub(crate) fn validate_usage(
             Ok(())
         };
     }
+    // A `&mut` reference result's custody is the loan its producing call's
+    // custody row records, never an owned consume or discard: retirement is
+    // the loan's release — the explicit `ReleaseReference` the loop already
+    // counted as `disposed`, or the state exit when the last use is the
+    // final statement. Edge retirement still owns the carrier place, so its
+    // return discard is required; an explicit release already retired both
+    // and must not carry one.
+    if let Some(custody) = caller.operations[producer.operation_index]
+        .call()
+        .and_then(|call| call.structural_custody())
+        && custody.reference_loan.is_valid()
+    {
+        if consumed || !projected_paths.is_empty() || (disposed && producer.discard) {
+            return unsupported("reference result acquired owned cleanup custody");
+        }
+        if !disposed {
+            // Edge retirement: without a release operation the loan ends with
+            // the carrier place's own return discard, which the checker must
+            // therefore have kept on the result.
+            if !producer.discard {
+                return unsupported("reference result omits its carrier disposal");
+            }
+            let boundary = validation::reference_result_custody::release_boundary(
+                &checked.typed,
+                &checked.facts,
+                caller.machine,
+                caller.state,
+                custody.reference_loan,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "reference result has no exact weakening boundary",
+            ))?;
+            let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                caller.state,
+            )?;
+            if (boundary as usize)
+                < checked
+                    .statement_table
+                    .statements(authored.statement_nodes)
+                    .len()
+            {
+                return unsupported("reference result omits its loan release");
+            }
+        }
+        return Ok(());
+    }
     if (projected_paths.is_empty() && producer.discard == (consumed || disposed))
         || (!projected_paths.is_empty() && producer.discard && !projected_residual_loaned)
         || (producer.coordinate.call_ordinal != 0

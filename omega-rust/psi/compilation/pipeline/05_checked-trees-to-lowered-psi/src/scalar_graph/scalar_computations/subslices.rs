@@ -25,7 +25,7 @@ pub(super) use crate::unit::attached_unit::view_ranges::range;
 
 pub(crate) fn prepare(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
+    machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Vec<Slot>, LoweringError> {
@@ -34,7 +34,7 @@ pub(crate) fn prepare(
     for (_, root) in plans
         .roots
         .iter()
-        .filter(|(_, root)| root.machine == machine)
+        .filter(|(_, root)| machines.contains(&root.machine))
     {
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let arguments: Vec<_> = match &plans.nodes.get(handle).kind {

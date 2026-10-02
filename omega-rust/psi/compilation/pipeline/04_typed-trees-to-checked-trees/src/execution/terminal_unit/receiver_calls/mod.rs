@@ -23,6 +23,52 @@ use super::{
 mod observations;
 pub(in crate::execution::terminal_unit) use observations::uses_receiver_storage;
 
+/// Whether any call in `state` carries a receiver rooted at `self`. A
+/// callee that keeps a borrowed `self` needs the caller's `self` structural
+/// place as its receiver operand; `reconcile` inserts that operand only
+/// when this state's signature kept one. Callee signatures are still open
+/// while the caller's graph builds, so a receiver place that cannot be
+/// resolved here also keeps the slot rather than gamble on erasure.
+pub(in crate::execution::terminal_unit) fn calls_self_receiver(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> bool {
+    let Some(flow) = state_flow(facts, machine.symbol, state.symbol) else {
+        return false;
+    };
+    facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(flow.calls)
+        .iter()
+        .any(|call| {
+            if !call.has_receiver {
+                return false;
+            }
+            let Ok(statement_index) = u32::try_from(call.statement_index) else {
+                return true;
+            };
+            let Ok(call_ordinal) = u32::try_from(call.call_ordinal) else {
+                return true;
+            };
+            receiver_place(
+                program,
+                facts,
+                machine.symbol,
+                state.symbol,
+                CheckedUnitCallCoordinate {
+                    statement_index,
+                    call_ordinal,
+                },
+                call.target_symbol,
+            )
+            .is_none_or(|place| is_self_root(program, machine.symbol, state.symbol, &place))
+        })
+}
+
 pub(super) fn reconcile(
     program: &TypedTrees,
     facts: &CheckFacts,

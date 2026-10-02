@@ -4,6 +4,7 @@ use super::{
     CheckedCallScalarArgument, Computation, Context, ExpressionHandle, ExpressionNode,
     LoweringError,
 };
+use language_semantics::declaration_selection::CollectionMeasure;
 #[cfg(test)]
 mod tests;
 
@@ -211,6 +212,25 @@ impl Context<'_> {
                 Some(state),
                 source,
             )
+    }
+
+    /// The folded extent of `place.len` where `place` names an inert
+    /// projection whose declared type fixes the extent (a fixed-array
+    /// parameter projection). A genuine field named `len` resolves
+    /// `member_symbol` and keeps its field meaning.
+    pub(super) fn fixed_place_length(&self, source: ExpressionHandle) -> Option<u64> {
+        let ExpressionNode::Member(member) = self.checked.expression_table.expression(source)
+        else {
+            return None;
+        };
+        if CollectionMeasure::from_authored_spelling(member.member.as_str())
+            != Some(CollectionMeasure::Length)
+            || member.member_symbol.is_valid()
+            || member.case_variant.is_some()
+        {
+            return None;
+        }
+        self.static_extent(member.receiver, 0)
     }
 
     fn static_extent(&self, source: ExpressionHandle, depth: usize) -> Option<u64> {

@@ -96,10 +96,37 @@ pub(super) fn signature_matches(
                     .as_ref()
                         == Some(&result.projected_qualifications);
             }
-            // A `&'a V` shared-borrow result keeps its `Reference` shell:
-            // `add_view_type` registers under the reference's own
-            // identity (the shell is the custody the plan carries) with the
-            // affine view-loan multiplicity the checking side mints.
+            // A `&mut T` result is alias custody, not an owned structural
+            // claim: the plan identity spells the whole reference type, the
+            // binding itself is affine, and no owned qualification rows
+            // exist to compare. The caller-side loan the `EstablishReference`
+            // source rejoins is verified at its own emission, not here.
+            if validation::reference_result_custody::mutable_borrowed_parts(
+                &checked.typed,
+                source.return_type,
+            )
+            .is_some()
+            {
+                return checked
+                    .normalized_type_identity(source.return_type)
+                    .as_str()
+                    == result.type_identity
+                    && result.multiplicity == Multiplicity::Affine
+                    && result.qualifications.is_empty()
+                    && validation::structural_result_projected_qualifications(
+                        &checked.typed,
+                        source.return_type,
+                    )
+                    .ok()
+                    .as_ref()
+                        == Some(&result.projected_qualifications);
+            }
+            // A shared `&'a V` result spells the same whole-reference
+            // identity convention: `add_view_type` registers under the
+            // reference's own identity with the affine view-loan
+            // multiplicity the checking side mints; the named referent
+            // stays in the caller's frame and the binding carries loan,
+            // not contents.
             if validation::reference_result_custody::shared_borrowed_parts(
                 &checked.typed,
                 source.return_type,
@@ -519,13 +546,13 @@ pub(super) fn validate_structural(
                 {
                     crate::unit::attached_unit::structural_calls::validate_custody(
                         checked,
-                        plan.machine,
+                        super::owner(checked, state.state)?,
                         state.state,
                         operation,
                     )?;
                     crate::emission::call_source_custody::validate_operation(
                         checked,
-                        plan.machine,
+                        super::owner(checked, state.state)?,
                         state.state,
                         operation,
                         &state.structural_parameters,
@@ -536,7 +563,7 @@ pub(super) fn validate_structural(
                 ) {
                     crate::expression_preparation::source_custody::structural::validate(
                         checked,
-                        plan.machine,
+                        super::owner(checked, state.state)?,
                         state.state,
                         operation,
                     )?;
@@ -549,21 +576,14 @@ pub(super) fn validate_structural(
                     source, ..
                 } = operation
                 {
-                    // A tail `&mut`/`&` establishment names its exact
-                    // borrowed ingress and the projected path — the minted
-                    // plan itself is the loan custody.
-                    if !matches!(
-                        source.access,
-                        checked_trees::CheckedStructuralAccess::MutableBorrow
-                            | checked_trees::CheckedStructuralAccess::SharedBorrow
-                    ) || !matches!(
-                        source.source,
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-                    ) {
-                        return unsupported(
-                            "structural return tail producer requires exact value custody",
-                        );
-                    }
+                    super::super::super::reference_results::validate_composed_establishment(
+                        checked,
+                        super::owner(checked, state.state)?,
+                        state,
+                        binding,
+                        source,
+                        *expression,
+                    )?;
                 } else {
                     return unsupported(
                         "structural return tail producer requires exact value custody",

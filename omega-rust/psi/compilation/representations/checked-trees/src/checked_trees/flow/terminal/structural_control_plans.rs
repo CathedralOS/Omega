@@ -378,9 +378,15 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         expression: typed_trees::expression::ExpressionHandle,
     },
     /// Exclusive borrowed `&[T]` element range, T != u8, rooted and keyed
-    /// exactly as a byte range is; the extent counts elements.
+    /// exactly as a byte range is; the extent counts elements. `path` is the
+    /// record-field projection below `root` to the fixed array the range
+    /// views whole before narrowing — empty when `root` itself is an
+    /// established element view, mirroring the `path` contract a
+    /// `CheckedUnitStructuralArgumentPlan` carries for the same range at a
+    /// call site or a view-local binding.
     ElementViewSubslice {
         root: crate::CheckedStorageRoot,
+        path: Vec<CheckedUnitStructuralPathSegment>,
         expression: typed_trees::expression::ExpressionHandle,
     },
     /// Authored byte-sequence literal supplied directly to a borrowed

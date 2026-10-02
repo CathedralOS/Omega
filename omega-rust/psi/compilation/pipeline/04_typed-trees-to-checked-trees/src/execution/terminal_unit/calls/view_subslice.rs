@@ -139,6 +139,8 @@ impl ViewSubslice {
 
     /// The edge transfer for this range. Transfers retain only the source and
     /// the authored range; their endpoints are replayed at the edge's site.
+    /// A field collection's projection rides along so the edge's emission
+    /// establishes the field's whole view exactly as a binding does.
     pub(in crate::execution) fn transfer(&self) -> CheckedStructuralControlTransferSourcePlan {
         match self.range.kind {
             ViewKind::Bytes => CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
@@ -147,6 +149,7 @@ impl ViewSubslice {
             },
             ViewKind::Elements => CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 root: self.range.root,
+                path: self.range.collection.clone(),
                 expression: self.expression,
             },
         }

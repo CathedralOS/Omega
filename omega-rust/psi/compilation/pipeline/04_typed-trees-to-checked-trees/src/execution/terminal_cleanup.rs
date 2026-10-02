@@ -154,7 +154,12 @@ fn build_projected_edge_plan(
     else {
         return None;
     };
-    let target = states.iter().find(|target| target.symbol == path.symbol)?;
+    // A transition naming another machine's entry transfers to that
+    // machine's first state exactly as a fused Unit graph resolves it.
+    let target = match states.iter().find(|target| target.symbol == path.symbol) {
+        Some(target) => target,
+        None => crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)?.1,
+    };
     if target.symbol == state.symbol
         || !program.state_contracts(target).is_empty()
         || !super::terminal_unit::cleanup_type_is_unit(program, target.return_type)
@@ -508,6 +513,11 @@ fn build_state_plan(
                     if crate::checks::termination::named_transition_target_state_index(
                         program, machine, path.symbol,
                     ).is_some()
+                        || crate::semantic::calls::find_machine_by_entry_state(
+                            program,
+                            path.symbol,
+                        )
+                        .is_some()
             )
     });
     if !has_structural_control {
@@ -536,14 +546,23 @@ fn build_state_plan(
         else {
             continue;
         };
-        let Some(target_index) = crate::checks::termination::named_transition_target_state_index(
+        // A named target either spells one of this machine's own states or
+        // another machine's entry; the fused Unit graph keeps both inside
+        // the same composed roster, so the edge row names whichever state
+        // the transition actually transfers to. Anything else has no
+        // composed edge and keeps the omitted-edge behavior.
+        let target = match crate::checks::termination::named_transition_target_state_index(
             program,
             machine,
             path.symbol,
-        ) else {
-            continue;
+        ) {
+            Some(target_index) => &program.machine_states(machine)[target_index],
+            None => match crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)
+            {
+                Some((_, entry)) => entry,
+                None => continue,
+            },
         };
-        let target = &program.machine_states(machine)[target_index];
 
         let mut transferred = BTreeSet::new();
         for event in moves.iter().filter(|event| {

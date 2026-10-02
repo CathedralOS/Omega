@@ -45,6 +45,87 @@ mod terminator;
 #[cfg(test)]
 mod tests;
 
+/// A composed graph's state roster: the dispatch machine's states followed by
+/// every foreign machine whose entry an arm can reach. Each entry pairs the
+/// state with its owning machine — signatures, entry claims, and every
+/// machine-scoped fact answer through the owner, never the dispatch machine.
+type FusedStates<'program> = Vec<(
+    &'program typed_trees::machine::Machine,
+    &'program typed_trees::state::State,
+)>;
+
+/// The dispatch machine's state list fused with every machine its transition
+/// arms can reach: `-> self.view(...)` names another machine's entry state,
+/// and that machine's whole state list joins this graph so the arm stays an
+/// in-graph edge — the same worklist rule the scalar machine graph applies
+/// transitively. Only the edge list is fused; states keep their own owning
+/// machine's parameters and contracts.
+fn fused_states<'program>(
+    program: &'program TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+) -> FusedStates<'program> {
+    let mut fused: FusedStates<'program> = program
+        .machine_states(machine)
+        .iter()
+        .map(|state| (machine, state))
+        .collect();
+    let mut cursor = 0;
+    while let Some(&(owner, state)) = fused.get(cursor) {
+        cursor += 1;
+        let _ = owner;
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for target in [transition.target, transition.continuation] {
+                if !program.statement_table.transition_target_is_valid(target) {
+                    continue;
+                }
+                let TransitionTargetNode::Named { path, .. } =
+                    program.statement_table.transition_target(target)
+                else {
+                    continue;
+                };
+                if fused_target_index(program, &fused, path.symbol).is_some() {
+                    continue;
+                }
+                let Some((target_owner, _)) =
+                    crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)
+                else {
+                    continue;
+                };
+                for owner_state in program.machine_states(target_owner) {
+                    if !fused
+                        .iter()
+                        .any(|(_, candidate)| candidate.symbol == owner_state.symbol)
+                    {
+                        fused.push((target_owner, owner_state));
+                    }
+                }
+            }
+        }
+    }
+    fused
+}
+
+/// The fused position of a named transition target: a state symbol resolves
+/// directly, while a machine head resolves to that owner's entry state —
+/// the same normalization `named_transition_target_state_index` applies to
+/// one machine's own roster.
+fn fused_target_index(
+    program: &TypedTrees,
+    fused: &FusedStates<'_>,
+    target: symbols::SymbolHandle,
+) -> Option<usize> {
+    if let Some(index) = fused.iter().position(|(_, state)| state.symbol == target) {
+        return Some(index);
+    }
+    let (_, entry) = crate::semantic::calls::find_machine_head(program, target)?;
+    fused
+        .iter()
+        .position(|(_, state)| state.symbol == entry.symbol)
+}
+
 /// Test convenience: the traced builder without a trace.
 #[cfg(test)]
 pub(super) fn build(
@@ -68,6 +149,19 @@ pub(super) fn build(
 
 /// `build` with a trace of the phase, state, and statement where the general
 /// state-graph route stopped when it declines a body.
+///
+/// A borrowed `self` is a structural operand only while the graph names its
+/// place: receiver reads, stores, projections, or lent fields
+/// (`receiver_calls::uses_receiver_storage`), receiver-rooted borrows,
+/// whole-`self` operands, or receiver-rooted results
+/// (`receiver_rooted_operand`), a receiver-rooted call whose callee may keep
+/// its `self` (`receiver_calls::calls_self_receiver`), or an edge feeding a
+/// `self`-keeping successor. A state that never names it runs on the
+/// ambient attachment the ordinary plans already erase, so no caller owes a
+/// whole-receiver loan beside a field loan it also passes. The retention
+/// set is fixed before signatures exist; if a build then declines because a
+/// use the predicate missed still needed the place, the retry restores the
+/// signature shape earlier passes produced unconditionally.
 pub(super) fn build_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -76,6 +170,62 @@ pub(super) fn build_traced(
     machine: &typed_trees::machine::Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &control::LocalConstructionTrace,
+) -> Option<CheckedComposedUnitControlMachinePlan> {
+    let fused = fused_states(program, machine);
+    let retained_self = retained_receivers(program, facts, &fused);
+    if retained_self.iter().all(|retained| *retained) {
+        return build_traced_with(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            &fused,
+            call_frames,
+            trace,
+            None,
+        );
+    }
+    build_traced_with(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        &fused,
+        call_frames,
+        trace,
+        Some(&retained_self),
+    )
+    .or_else(|| {
+        build_traced_with(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            &fused,
+            call_frames,
+            trace,
+            None,
+        )
+    })
+}
+
+/// `build_traced` under an explicit per-state `self` retention set. `None`
+/// keeps every borrowed receiver, the signature shape this route produced
+/// before retention became state-local.
+#[allow(clippy::too_many_arguments)]
+fn build_traced_with(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    fused: &FusedStates<'_>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    trace: &control::LocalConstructionTrace,
+    retained_self: Option<&[bool]>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     trace.phase("state graph: shape");
     trace.state(None);
@@ -93,11 +243,19 @@ pub(super) fn build_traced(
         // authored contracts still need their own retained proof obligations.
         return None;
     }
-    // A one-state Unit body belongs to the linear sequence unless a guarded
-    // arm invokes another machine: only a graph terminator can run that call
-    // on its selected arm alone.
-    if states.len() < 2
+    // A plain single-state Unit body belongs to the ordinary sequence. A
+    // transition tail does not: the ordinary plan has no terminator, so the
+    // graph route takes every state reachable through transition arms —
+    // including foreign machine entries fused into `fused`.
+    if fused.len() < 2
         && result == checked_trees::CheckedControlResultPlan::Unit
+        && !fused.iter().any(|(_, state)| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| matches!(statement, StatementNode::Transition(_)))
+        })
         && !facts
             .values
             .structural_values
@@ -166,6 +324,13 @@ pub(super) fn build_traced(
     }
     trace.phase("state graph: natural ranks");
     let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
+        // A fused graph's cyclic edges may cross machine boundaries; the
+        // rank checker owns only the dispatch machine's own state list, so
+        // a witnessed machine that reaches foreign entries stays unadmitted
+        // until that custody extends to the whole fused roster.
+        if fused.len() != states.len() {
+            return None;
+        }
         // Other retained witnesses belong to their existing producer until this
         // path can preserve them. Never publish an unranked replacement.
         let ranks = crate::checks::termination::proven_state_natural_ranks_with_call_frames(
@@ -181,14 +346,10 @@ pub(super) fn build_traced(
         Vec::new()
     };
     let mut attachment = None;
-    // Qualification selects a declaration's namespace, not an implicit
-    // context. Only an authored receiver retains the legacy attachment path
-    // while remaining receiver-based source is migrated.
-    let has_receiver = program.machine_has_receiver(machine);
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     let mut state_requires = Vec::new();
-    for (state_index, state) in states.iter().enumerate() {
+    for (state_index, &(owner, state)) in fused.iter().enumerate() {
         trace.phase("state graph: state signature: result and contracts");
         trace.state(u32::try_from(state_index).ok());
         if returns::signature(program, shapes, state.return_type)? != result {
@@ -212,7 +373,7 @@ pub(super) fn build_traced(
                     crate::values::lower_state_scalar_contract_predicate(
                         program,
                         &facts.operators,
-                        machine,
+                        owner,
                         state,
                         expression,
                         &mut 4096,
@@ -253,17 +414,24 @@ pub(super) fn build_traced(
         );
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
-        let (structural, scalar) = if has_receiver {
+        let (structural, scalar) = if owner.attached_data.is_some() {
             let (identity, structural, scalar) = structural_scalar_signature_traced(
                 program,
                 shapes,
-                machine,
+                owner,
                 state,
                 &[],
-                true,
+                retained_self.is_none_or(|retained| retained[state_index]),
                 trace,
             )?;
-            attachment = identity;
+            // Fused states reached through `self.` transitions share the
+            // receiver's attachment; any other owner would publish a second
+            // attachment identity this plan cannot name.
+            if attachment.is_some() && attachment != identity {
+                trace.phase("state graph: state signature: fused attachment differs");
+                return None;
+            }
+            attachment = attachment.or(identity);
             (structural, scalar)
         } else {
             free_structural_scalar_signature_traced(program, shapes, state, &[], trace)?
@@ -272,7 +440,7 @@ pub(super) fn build_traced(
         let claims = entry_claims(
             program,
             facts,
-            machine.symbol,
+            owner.symbol,
             state.symbol,
             &structural,
             program.state_parameters(state),
@@ -281,7 +449,7 @@ pub(super) fn build_traced(
         signatures.push((structural, scalar));
     }
     let mut planned = Vec::new();
-    for (state_index, state) in states.iter().enumerate() {
+    for (state_index, &(owner, state)) in fused.iter().enumerate() {
         trace.phase("state graph: prefix initializers");
         trace.state(u32::try_from(state_index).ok());
         let (structural, scalar) = &signatures[state_index];
@@ -331,7 +499,7 @@ pub(super) fn build_traced(
             })
             .unwrap_or(statements.len());
         trace.phase("state graph: state flow");
-        let flow = state_flow(facts, machine.symbol, state.symbol)?;
+        let flow = state_flow(facts, owner.symbol, state.symbol)?;
         let source_calls = facts.flow.control.calls.span_or_empty(flow.calls);
         if source_calls
             .windows(2)
@@ -378,7 +546,7 @@ pub(super) fn build_traced(
         let calls = control::outer_calls_before_traced(
             program,
             facts,
-            machine.symbol,
+            owner.symbol,
             state,
             &source_calls[first_call..after_calls],
             operation_end,
@@ -393,7 +561,7 @@ pub(super) fn build_traced(
             facts,
             scalar_callees,
             shapes,
-            machine,
+            owner,
             state,
             &mut sequence_structural,
             scalar,
@@ -444,7 +612,7 @@ pub(super) fn build_traced(
             facts,
             scalar_callees,
             shapes,
-            machine,
+            fused,
             state_index,
             state,
             &result,
@@ -499,7 +667,7 @@ pub(super) fn build_traced(
             crate::execution::terminal_cleanup::state_exit_result_locals(
                 program,
                 facts,
-                machine,
+                owner,
                 state,
                 case_subject_local,
             )?
@@ -509,7 +677,7 @@ pub(super) fn build_traced(
         result_custody::account(
             program,
             facts,
-            machine,
+            owner,
             state,
             structural,
             &mut operations,
@@ -558,7 +726,7 @@ pub(super) fn build_traced(
         .filter(|(_, live)| **live)
         .flat_map(|(state, _)| state.successors())
         .any(|successor| successor.target_state == planned[0].state);
-    for (state_index, state) in states.iter().enumerate() {
+    for (state_index, &(_, state)) in fused.iter().enumerate() {
         if !live_states[state_index] {
             continue;
         }
@@ -720,21 +888,20 @@ pub(super) fn build_traced(
     trace.phase("state graph: provider attachment requirements");
     trace.state(None);
     let provider_attachment_requirements = if let Some(identity) = &attachment {
-        let flows = states
+        let flows = fused
             .iter()
             .zip(&planned)
-            .map(|(state, plan)| {
-                let flow = state_flow(facts, machine.symbol, state.symbol)?;
+            .map(|(&(owner, state), plan)| {
+                let flow = state_flow(facts, owner.symbol, state.symbol)?;
                 Some((
+                    owner,
                     state,
                     facts.flow.control.calls.span_or_empty(flow.calls),
                     plan.operations.as_slice(),
                 ))
             })
             .collect::<Option<Vec<_>>>()?;
-        checked_composed_provider_attachment_requirements(
-            program, shapes, machine, identity, &flows,
-        )?
+        checked_composed_provider_attachment_requirements(program, shapes, identity, &flows)?
     } else {
         Vec::new()
     };
@@ -1351,6 +1518,197 @@ fn call_custody_refusal(
     "state graph: operation custody: unit call arguments"
 }
 
+/// The per-state `self` retention set `build_traced` closes over.
+///
+/// Ordinary and composed signatures share one obligation: `self` stays a
+/// structural parameter while the graph can name its place. A state
+/// reading, storing, projecting, or lending receiver storage needs it
+/// directly (`receiver_calls::uses_receiver_storage`); a receiver-rooted
+/// borrow, a whole-`self` operand, or a receiver-rooted result needs it too
+/// (`receiver_rooted_operand`), none of which an argument access or scalar
+/// row can see. A call whose receiver roots at `self` keeps the operand
+/// slot: callee signatures are still open while this graph builds, and
+/// `receiver_calls::reconcile` can only insert the operand when this
+/// signature kept a `self` place for it. The last clause flows retention
+/// back along named edges — a `self`-keeping successor is fed from the
+/// source's own place.
+fn retained_receivers(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    fused: &FusedStates<'_>,
+) -> Vec<bool> {
+    let mut retained = fused
+        .iter()
+        .map(|&(owner, state)| {
+            crate::execution::terminal_unit::receiver_calls::uses_receiver_storage(
+                program, facts, owner, state,
+            ) || crate::execution::terminal_unit::receiver_calls::calls_self_receiver(
+                program, facts, owner, state,
+            ) || receiver_rooted_operand(program, facts, owner, state)
+        })
+        .collect::<Vec<_>>();
+    loop {
+        let mut changed = false;
+        for (source_index, &(_, source)) in fused.iter().enumerate() {
+            if retained[source_index] {
+                continue;
+            }
+            let feeds_retained = program
+                .statement_table
+                .statements(source.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    let StatementNode::Transition(transition) = statement else {
+                        return false;
+                    };
+                    [transition.target, transition.continuation]
+                        .into_iter()
+                        .filter(|target| {
+                            program.statement_table.transition_target_is_valid(*target)
+                        })
+                        .any(|target| {
+                            let TransitionTargetNode::Named { path, .. } =
+                                program.statement_table.transition_target(target)
+                            else {
+                                return false;
+                            };
+                            fused_target_index(program, fused, path.symbol)
+                                .is_some_and(|index| retained[index])
+                        })
+                });
+            if feeds_retained {
+                retained[source_index] = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    retained
+}
+
+/// Whether a statement or successor operand in `state` names a place rooted
+/// at `self`: a receiver-rooted borrow (`let view = &mut self.field`), a
+/// whole-`self` operand (`f(self)`), a receiver loan, a root binding, or a
+/// successor operand or result spelled through `self`. Each needs the
+/// structural `self` place, yet none leaves the receiver-field argument
+/// access or scalar read `uses_receiver_storage` watches for.
+fn receiver_rooted_operand(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> bool {
+    let receiver_roots = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .map(|parameter| parameter.symbol)
+        .chain(std::iter::once(machine.symbol))
+        .collect::<Vec<_>>();
+    // `uses_receiver_storage` already counts a lent receiver field by its
+    // attached-data parent. The complementary shapes are a whole-`self`
+    // operand and any receiver-rooted loan, either of which roots directly
+    // at `self` or at an attached-data member.
+    let attached = machine.attached_data_symbol;
+    let receiver_rooted_symbol = |symbol: facts::PlaceRoot| {
+        let facts::PlaceRoot::Symbol(symbol) = symbol else {
+            return false;
+        };
+        receiver_roots.contains(&symbol)
+            || (symbol.is_valid() && program.symbols.get(symbol).parent == attached)
+    };
+    let borrow_state = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|borrow| {
+            borrow.machine_symbol == machine.symbol && borrow.state_symbol == state.symbol
+        });
+    if let Some(borrow_state) = borrow_state {
+        if facts
+            .borrow
+            .calls
+            .span_or_empty(borrow_state.calls)
+            .iter()
+            .flat_map(|call| facts.borrow.argument_accesses.span_or_empty(call.accesses))
+            .any(|access| {
+                access.root_symbol.is_valid() && receiver_roots.contains(&access.root_symbol)
+            })
+        {
+            return true;
+        }
+        if facts
+            .borrow
+            .loans
+            .span_or_empty(borrow_state.loans)
+            .iter()
+            .any(|loan| {
+                receiver_roots.contains(&loan.root_symbol)
+                    || receiver_roots.contains(&loan.owner_symbol)
+                    || receiver_roots.contains(&loan.source_owner_symbol)
+                    || (loan.root_symbol.is_valid()
+                        && program.symbols.get(loan.root_symbol).parent == attached)
+            })
+        {
+            return true;
+        }
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+        .any(|(index, statement)| {
+            let rooted = |expression: typed_trees::expression::ExpressionHandle| {
+                expression.is_valid()
+                    && crate::flow::canonical_place_from_expression_in_state(
+                        program,
+                        state.symbol,
+                        index,
+                        expression,
+                    )
+                    .is_some_and(|place| receiver_rooted_symbol(place.root))
+            };
+            match statement {
+                StatementNode::RootBinding(binding) => {
+                    rooted(binding.receiver) || rooted(binding.implementation_operand)
+                }
+                StatementNode::AssemblyFact(fact) => rooted(fact.expression),
+                StatementNode::Call(call) => program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| rooted(*argument)),
+                StatementNode::Assignment(assignment) => {
+                    rooted(assignment.target) || rooted(assignment.value)
+                }
+                StatementNode::LocalData(local) => rooted(local.initial_value),
+                StatementNode::Expression(expression) => rooted(*expression),
+                StatementNode::Transition(transition) => {
+                    [transition.target, transition.continuation]
+                        .into_iter()
+                        .filter(|target| {
+                            program.statement_table.transition_target_is_valid(*target)
+                        })
+                        .any(
+                            |target| match program.statement_table.transition_target(target) {
+                                TransitionTargetNode::Named { arguments, .. } => program
+                                    .statement_table
+                                    .expression_handles(*arguments)
+                                    .iter()
+                                    .any(|argument| rooted(*argument)),
+                                TransitionTargetNode::Value(expression) => rooted(*expression),
+                                _ => false,
+                            },
+                        )
+                }
+            }
+        })
+}
+
 type Signature = (
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
@@ -1531,7 +1889,7 @@ pub(super) struct EdgeCalls<'a> {
 fn successor(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
+    fused: &FusedStates<'_>,
     source_index: usize,
     signatures: &[Signature],
     operations: &[CheckedUnitEffectOperationPlan],
@@ -1545,7 +1903,7 @@ fn successor(
     let successor = successor_bindings(
         program,
         facts,
-        machine,
+        fused,
         source_index,
         signatures,
         operations,
@@ -1559,7 +1917,7 @@ fn successor(
     )?;
     trace.phase(edge.phase(SuccessorGuard::EdgeCleanup));
     trace.statement(Some(ordinal));
-    let source = &program.machine_states(machine)[source_index];
+    let &(machine, source) = fused.get(source_index)?;
     let cleanups = &facts.flow.terminal_structural_control_cleanups;
     let cleanup = if cleanups
         .for_projected_edge(machine.symbol, source.symbol, ordinal)
@@ -1595,10 +1953,11 @@ fn successor(
 // Operand identity is shared by ordinary and closed-case edges. The caller
 // separately admits either whole-parameter cleanup or exact result-local
 // cleanup; constructing bindings establishes neither cleanup contract.
+#[allow(clippy::too_many_arguments)]
 fn successor_bindings(
     program: &TypedTrees,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
+    fused: &FusedStates<'_>,
     source_index: usize,
     signatures: &[Signature],
     operations: &[CheckedUnitEffectOperationPlan],
@@ -1625,14 +1984,9 @@ fn successor_bindings(
     else {
         return None;
     };
-    let states = program.machine_states(machine);
-    let target_index = crate::checks::termination::named_transition_target_state_index(
-        program,
-        machine,
-        path.symbol,
-    )?;
-    let source = &states[source_index];
-    let target = &states[target_index];
+    let target_index = fused_target_index(program, fused, path.symbol)?;
+    let &(machine, source) = fused.get(source_index)?;
+    let &(_, target) = fused.get(target_index)?;
     let arguments = program.statement_table.expression_handles(*arguments);
     let target_parameters = program.state_parameters(target);
     mark(SuccessorGuard::ArgumentCount);

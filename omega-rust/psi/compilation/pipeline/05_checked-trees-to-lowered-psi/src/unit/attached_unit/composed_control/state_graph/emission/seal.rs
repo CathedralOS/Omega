@@ -49,19 +49,11 @@ impl StateGraphEmission<'_, '_> {
                 ..
             } = completion
             {
-                let source = checked
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == plan.machine)
-                    .and_then(|machine| {
-                        checked
-                            .machine_states(machine)
-                            .iter()
-                            .find(|source| source.symbol == state.state)
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "structural return source state missing",
-                    ))?;
+                let (owner, source) =
+                    crate::expression_preparation::source_custody::authored_state(
+                        checked,
+                        state.state,
+                    )?;
                 // A returned permission does not consume the temporary slice
                 // descriptor used to select its referent. Dispose all other
                 // live local roots, not only entry parameters. An owned
@@ -73,7 +65,6 @@ impl StateGraphEmission<'_, '_> {
                 {
                     *trivial_affine_discards = super::state::return_root_discards(
                         checked,
-                        plan,
                         state,
                         &operations,
                         &evaluation,
@@ -82,7 +73,7 @@ impl StateGraphEmission<'_, '_> {
                     continue;
                 }
                 *trivial_affine_discards =
-                    edges::return_discards(checked, plan.machine, source, state)?
+                    edges::return_discards(checked, owner.symbol, source, state)?
                         .into_iter()
                         .map(|index| {
                             evaluation.current_structural_place(state_parameters[index].place)

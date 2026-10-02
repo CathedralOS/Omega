@@ -379,23 +379,26 @@ fn shape_fields(
         .chain(cases.iter().flat_map(|case| case.fields.iter()))
 }
 
+/// A fused graph spans sibling machines, so each leaf carries its own owner:
+/// the call/operation facts it contributes were recorded under that machine,
+/// not the dispatch one whose identity publishes the plan.
 pub(super) fn checked_composed_provider_attachment_requirements(
     program: &TypedTrees,
     shapes: &ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
     attachment_type_identity: &str,
     leaves: &[(
+        &typed_trees::machine::Machine,
         &typed_trees::state::State,
         &[checked_trees::FlowCallFact],
         &[CheckedUnitEffectOperationPlan],
     )],
 ) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
     let mut requirements = Vec::new();
-    for (state, calls, operations) in leaves.iter().copied() {
+    for &(owner, state, calls, operations) in leaves.iter() {
         requirements.extend(checked_provider_attachment_requirements(
             program,
             shapes,
-            machine,
+            owner,
             state,
             attachment_type_identity,
             &[],

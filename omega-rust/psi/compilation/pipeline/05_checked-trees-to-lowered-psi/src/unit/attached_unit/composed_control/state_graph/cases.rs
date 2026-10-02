@@ -401,8 +401,12 @@ pub(super) fn validate(
     else {
         return unsupported("Unit case terminator missing");
     };
+    // A fused roster's case dispatch lives under the state owner's machine:
+    // custody rows and entry parameters are scoped to it, not the composed
+    // plan's dispatch machine.
+    let owner = super::owner(checked, state.state)?;
     let (dispatch_subject, declaration, expected_provenance) =
-        result_source(checked, plan.machine, source, state)?;
+        result_source(checked, owner, source, state)?;
     // Every parameter beside the dispatched subject must need no cleanup on
     // an arm that leaves it unconsumed. A shared or mutable loan is restored
     // at return, and an owned unrestricted value, such as the by-value `[copy]`
@@ -428,7 +432,7 @@ pub(super) fn validate(
     }
     let needs_discard = declaration.properties.multiplicity == Multiplicity::Affine;
     let mut has_result_discard = false;
-    super::result_custody::validate_disposition_roster(checked, plan.machine, source, state)?;
+    super::result_custody::validate_disposition_roster(checked, owner, source, state)?;
     for (_, event) in checked
         .facts
         .flow
@@ -436,7 +440,7 @@ pub(super) fn validate(
         .permissions
         .iter()
         .filter(|(_, event)| {
-            event.machine_symbol == plan.machine
+            event.machine_symbol == owner
                 && event.state_symbol == state.state
                 && event.source == language_semantics::PermissionEventSource::StateExit
                 && event.kind == language_semantics::PermissionEventKind::AffineDrop
@@ -683,7 +687,7 @@ pub(super) fn validate(
                         operation,
                     )?;
                 }
-                super::result_custody::local_discards(checked, plan.machine, source, state, None)?;
+                super::result_custody::local_discards(checked, owner, source, state, None)?;
                 continue;
             }
             return unsupported("Unit case outcome and authored arm disagree");
@@ -794,13 +798,7 @@ pub(super) fn validate(
             &case.payloads,
             dispatched_parameter,
         )?;
-        super::result_custody::local_discards(
-            checked,
-            plan.machine,
-            source,
-            state,
-            Some(successor),
-        )?;
+        super::result_custody::local_discards(checked, owner, source, state, Some(successor))?;
     }
     if tail.iter().enumerate().any(|(offset, _)| {
         !cases

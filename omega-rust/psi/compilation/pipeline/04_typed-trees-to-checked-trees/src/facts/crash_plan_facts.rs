@@ -311,6 +311,8 @@ pub(crate) fn build_published_crash_plan(
 ) -> checked_trees::CrashPlan {
     let structural_runtime_requirements =
         build_structural_runtime_requirements(program, machine, operators, exact_integer_casts);
+    let structural_runtime_guarantees =
+        build_structural_runtime_guarantees(program, machine, operators, exact_integer_casts);
     let published = build_published_crash_buckets(
         program,
         program.machine_contracts(machine),
@@ -328,7 +330,8 @@ pub(crate) fn build_published_crash_plan(
     } else {
         checked_trees::CrashPlan::default()
     })
-    .with_structural_runtime_requirements(structural_runtime_requirements);
+    .with_structural_runtime_requirements(structural_runtime_requirements)
+    .with_structural_runtime_guarantees(structural_runtime_guarantees);
     let checked_sites = build_checked_crash_sites(program, machine, &plan);
     plan.with_checked_sites(checked_sites)
         .expect("one checked crash cause occupies each transition site")
@@ -380,6 +383,47 @@ fn build_structural_runtime_requirements(
             .map(|row| row.predicate),
     );
     Some(requirements)
+}
+
+/// Lower every unbound `ensures` clause of the machine signature into the
+/// same structural scalar vocabulary the entry requirements use. The clauses
+/// observe post-state parameter storage through the identical authored
+/// positions; bound witness lanes and outcome-specific clauses stay outside
+/// this capsule because they carry separate evidence plans.
+fn build_structural_runtime_guarantees(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    operators: &checked_trees::CheckedOperatorFacts,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<Vec<checked_trees::CheckedBooleanExpression>> {
+    program
+        .machine_contracts(machine)
+        .iter()
+        .chain(
+            program
+                .machine_states(machine)
+                .first()
+                .into_iter()
+                .flat_map(|entry| program.state_contracts(entry)),
+        )
+        .filter(|contract| {
+            contract.kind == typed_trees::signature::SignatureContractKind::Ensures
+                && contract.binding.is_none()
+        })
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .map(|fact| {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                return None;
+            };
+            crate::values::lower_machine_entry_boolean_expression(
+                program,
+                operators,
+                machine,
+                *expression,
+                exact_integer_casts,
+            )
+        })
+        .collect()
 }
 
 pub(crate) fn derive_authored_machine_crash_buckets(

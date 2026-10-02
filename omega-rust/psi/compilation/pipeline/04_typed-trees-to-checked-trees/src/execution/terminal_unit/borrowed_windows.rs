@@ -134,6 +134,7 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
                 state,
                 u32::try_from(statement_index).ok()?,
                 target,
+                None,
             )
         })
         .flatten();
@@ -247,8 +248,9 @@ fn local_reference_source(
 }
 
 /// The referent place a reference initializer captures: explicit borrows and
-/// whole-place recasts unwrap to their target, and a plain place expression
-/// names the place the new local aliases.
+/// whole-place recasts unwrap to their target, a compiler-owned slice view
+/// call names its receiver's storage, and a plain place expression names the
+/// place the new local aliases.
 fn reference_source_place(
     program: &TypedTrees,
     state_symbol: SymbolHandle,

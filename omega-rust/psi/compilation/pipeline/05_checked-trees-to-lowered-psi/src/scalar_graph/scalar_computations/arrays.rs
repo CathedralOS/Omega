@@ -30,7 +30,7 @@ pub(crate) struct Slot {
 
 pub(crate) fn prepare(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
+    machines: &[symbols::SymbolHandle],
     types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Vec<Slot>, LoweringError> {
@@ -39,7 +39,7 @@ pub(crate) fn prepare(
     let roots = plans
         .roots
         .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .filter_map(|(_, root)| (machines.contains(&root.machine)).then_some(root.root))
         .collect::<Vec<_>>();
     for handle in super::reachable_nodes(checked, &roots)? {
         let CheckedScalarComputationKind::Call {

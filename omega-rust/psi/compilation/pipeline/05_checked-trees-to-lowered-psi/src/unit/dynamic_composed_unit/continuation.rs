@@ -184,7 +184,9 @@ pub(super) fn lower(
     for (state, block) in continuation.leaves.iter().zip(leaf_blocks) {
         let (leaf, mut occurrences) = crate::unit::attached_unit::emit_dynamic_control_leaf(
             checked,
-            plan.caller_machine,
+            crate::expression_preparation::source_custody::authored_state(checked, state.state)?
+                .0
+                .symbol,
             state,
             block,
             &mut catalogs,

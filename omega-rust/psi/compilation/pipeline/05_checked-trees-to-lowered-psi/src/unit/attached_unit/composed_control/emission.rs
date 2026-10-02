@@ -71,7 +71,7 @@ pub(crate) fn emit_call_leaf(
             )?,
         record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
             checked,
-            machine,
+            &[machine],
             &catalogs.structural_types,
         )?,
         literals: crate::scalar_graph::scalar_computations::literals::prepare(
@@ -88,19 +88,19 @@ pub(crate) fn emit_call_leaf(
         )?,
         arrays: crate::scalar_graph::scalar_computations::arrays::prepare(
             checked,
-            machine,
+            &[machine],
             &catalogs.structural_types,
             &mut catalogs.next_place,
         )?,
         subslices: crate::scalar_graph::scalar_computations::subslices::prepare(
             checked,
-            machine,
+            &[machine],
             &catalogs.structural_types,
             &mut catalogs.next_place,
         )?,
         cases: crate::scalar_graph::scalar_computations::cases::prepare(
             checked,
-            machine,
+            &[machine],
             &catalogs.structural_types,
             &mut catalogs.next_place,
         )?,

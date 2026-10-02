@@ -46,126 +46,131 @@ pub(super) fn validate_witness(
     machine: &checked_trees::machine::Machine,
     plan: &CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
-    let Some(witness) = &machine.termination_plan.implementation_witness else {
-        return if plan.natural_ranks.is_empty() {
+    if plan.natural_ranks.is_empty() {
+        return if machine.termination_plan.implementation_witness.is_none() {
             Ok(())
         } else {
-            unsupported("Unit graph has a substituted ranking witness")
+            unsupported("Unit graph ranking certificate is not retained")
         };
-    };
-    // A rank range constrains the produced rank; the Terminal certificate
-    // needs only its descent, so the range neither blocks nor enters it.
-    let view_arguments = usize::from(witness.ranking_view == RankingViewId::NAT_INCREASING_TO);
-    if !matches!(
-        witness.ranking_view,
-        RankingViewId::SLICE_LENGTH
-            | RankingViewId::NAT_DESCENDING
-            | RankingViewId::NAT_BOUNDED_DISTANCE
-            | RankingViewId::NAT_INCREASING_TO
-    ) || Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
-        || witness.view_arguments.len() != view_arguments
-        || plan.natural_ranks.is_empty()
-        || plan.natural_ranks.windows(2).any(|ranks| {
-            (ranks[0].state.arena_index(), ranks[0].state.generation())
-                >= (ranks[1].state.arena_index(), ranks[1].state.generation())
-        })
-    {
+    }
+    if plan.natural_ranks.windows(2).any(|ranks| {
+        (ranks[0].state.arena_index(), ranks[0].state.generation())
+            >= (ranks[1].state.arena_index(), ranks[1].state.generation())
+    }) {
         return unsupported("Unit graph ranking certificate is not retained");
     }
-    let custody = checked
-        .ranking_expression_custody_for(machine.symbol)
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph rank lost its exact source subject",
-        ))?;
-    let root = checked
-        .machine_states(machine)
-        .first()
-        .ok_or(LoweringError::Unsupported("Unit graph has no rank entry"))?;
-    // The measured subject, and a distance's bound or bound collection, as
-    // entry parameters: every ranked state names parameters of these names.
-    let entry_parameter = |expression| {
-        let checked_trees::expression::ExpressionNode::Name(subject) =
-            checked.expression_table.expression(expression)
-        else {
-            return unsupported("Unit graph natural rank requires a parameter subject");
-        };
-        checked
-            .state_parameters(root)
-            .iter()
-            .find(|parameter| parameter.symbol == subject.symbol && !parameter.is_self)
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph rank subject is not an entry parameter",
-            ))
-    };
-    let entry_bound = |expression| {
-        if let checked_trees::expression::ExpressionNode::Member(member) =
-            checked.expression_table.expression(expression)
-        {
-            let parameter = entry_parameter(member.receiver)?;
-            if member.case_variant.is_some()
-                || member.member_symbol.is_valid()
-                || CollectionMeasure::from_authored_spelling(member.member.as_str())
-                    != Some(CollectionMeasure::Length)
-                || !is_collection(checked, parameter.type_reference)
-            {
-                return unsupported("Unit graph distance bound is not a collection length");
-            }
-            Ok((parameter, true))
-        } else {
-            entry_parameter(expression).map(|parameter| (parameter, false))
-        }
-    };
-    let (subject, bound) = match (
-        witness.ranking_view,
-        custody.subjects.as_slice(),
-        custody.view_arguments.as_slice(),
-    ) {
-        (RankingViewId::NAT_BOUNDED_DISTANCE, [lower, upper], []) => {
-            (entry_parameter(*lower)?, Some(entry_bound(*upper)?))
-        }
-        (RankingViewId::NAT_INCREASING_TO, [cursor], [limit]) => {
-            (entry_parameter(*cursor)?, Some(entry_bound(*limit)?))
-        }
-        (RankingViewId::SLICE_LENGTH | RankingViewId::NAT_DESCENDING, [subject], []) => {
-            (entry_parameter(*subject)?, None)
-        }
-        _ => return unsupported("Unit graph rank subjects do not match the selected view"),
-    };
-    // A cyclic state may rename or reorder the ranked input — a loop
-    // header's `pending` carries the authored `remaining` — and the checked
-    // rank names the carried formal. The entry telescope the range judgment
-    // proved supplies that correspondence: one entry-parameter symbol per
-    // non-self formal of every state. A slot claiming the subject's role is
-    // the checked subject whatever its local name; where the telescope does
-    // not resolve, bare name equality decides exactly as before.
-    let required_roles = custody
-        .rank_range
-        .filter(|_| custody.subjects.len() == 1)
-        .and_then(|range| {
-            validation::ranking_range_required_symbols(
-                checked,
-                machine,
-                range,
-                validation::RankingRangeMeasure::Single(custody.subjects[0]),
-                validation::RankingRangePremises::RankInvariant,
-            )
-        })
-        .unwrap_or_else(|| vec![subject.symbol]);
-    let entry_roles = validation::discover_state_entry_mappings(
-        checked,
-        machine,
-        subject.symbol,
-        &required_roles,
-    );
     for rank in &plan.natural_ranks {
-        let (state_index, state) = checked
-            .machine_states(machine)
+        // A fused roster's rank names a foreign machine's state; the witness,
+        // custody subjects, and entry parameters all belong to that owner.
+        let (owner, state) =
+            crate::expression_preparation::source_custody::authored_state(checked, rank.state)?;
+        let Some(witness) = &owner.termination_plan.implementation_witness else {
+            return unsupported("Unit graph has a substituted ranking witness");
+        };
+        // A rank range constrains the produced rank; the Terminal certificate
+        // needs only its descent, so the range neither blocks nor enters it.
+        let view_arguments = usize::from(witness.ranking_view == RankingViewId::NAT_INCREASING_TO);
+        if !matches!(
+            witness.ranking_view,
+            RankingViewId::SLICE_LENGTH
+                | RankingViewId::NAT_DESCENDING
+                | RankingViewId::NAT_BOUNDED_DISTANCE
+                | RankingViewId::NAT_INCREASING_TO
+        ) || Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
+            || witness.view_arguments.len() != view_arguments
+        {
+            return unsupported("Unit graph ranking certificate is not retained");
+        }
+        let custody = checked.ranking_expression_custody_for(owner.symbol).ok_or(
+            LoweringError::Unsupported("Unit graph rank lost its exact source subject"),
+        )?;
+        let root = checked
+            .machine_states(owner)
+            .first()
+            .ok_or(LoweringError::Unsupported("Unit graph has no rank entry"))?;
+        let state_index = checked
+            .machine_states(owner)
             .iter()
-            .enumerate()
-            .find(|(_, state)| state.symbol == rank.state)
+            .position(|candidate| candidate.symbol == state.symbol)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph rank names a foreign state",
             ))?;
+        // The measured subject, and a distance's bound or bound collection, as
+        // entry parameters: every ranked state names parameters of these names.
+        let entry_parameter = |expression| {
+            let checked_trees::expression::ExpressionNode::Name(subject) =
+                checked.expression_table.expression(expression)
+            else {
+                return unsupported("Unit graph natural rank requires a parameter subject");
+            };
+            checked
+                .state_parameters(root)
+                .iter()
+                .find(|parameter| parameter.symbol == subject.symbol && !parameter.is_self)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph rank subject is not an entry parameter",
+                ))
+        };
+        let entry_bound = |expression| {
+            if let checked_trees::expression::ExpressionNode::Member(member) =
+                checked.expression_table.expression(expression)
+            {
+                let parameter = entry_parameter(member.receiver)?;
+                if member.case_variant.is_some()
+                    || member.member_symbol.is_valid()
+                    || CollectionMeasure::from_authored_spelling(member.member.as_str())
+                        != Some(CollectionMeasure::Length)
+                    || !is_collection(checked, parameter.type_reference)
+                {
+                    return unsupported("Unit graph distance bound is not a collection length");
+                }
+                Ok((parameter, true))
+            } else {
+                entry_parameter(expression).map(|parameter| (parameter, false))
+            }
+        };
+        let (subject, bound) = match (
+            witness.ranking_view,
+            custody.subjects.as_slice(),
+            custody.view_arguments.as_slice(),
+        ) {
+            (RankingViewId::NAT_BOUNDED_DISTANCE, [lower, upper], []) => {
+                (entry_parameter(*lower)?, Some(entry_bound(*upper)?))
+            }
+            (RankingViewId::NAT_INCREASING_TO, [cursor], [limit]) => {
+                (entry_parameter(*cursor)?, Some(entry_bound(*limit)?))
+            }
+            (RankingViewId::SLICE_LENGTH | RankingViewId::NAT_DESCENDING, [subject], []) => {
+                (entry_parameter(*subject)?, None)
+            }
+            _ => return unsupported("Unit graph rank subjects do not match the selected view"),
+        };
+        // A cyclic state may rename or reorder the ranked input — a loop
+        // header's `pending` carries the authored `remaining` — and the checked
+        // rank names the carried formal. The entry telescope the range judgment
+        // proved supplies that correspondence: one entry-parameter symbol per
+        // non-self formal of every state. A slot claiming the subject's role is
+        // the checked subject whatever its local name; where the telescope does
+        // not resolve, bare name equality decides exactly as before.
+        let required_roles = custody
+            .rank_range
+            .filter(|_| custody.subjects.len() == 1)
+            .and_then(|range| {
+                validation::ranking_range_required_symbols(
+                    checked,
+                    owner,
+                    range,
+                    validation::RankingRangeMeasure::Single(custody.subjects[0]),
+                    validation::RankingRangePremises::RankInvariant,
+                )
+            })
+            .unwrap_or_else(|| vec![subject.symbol]);
+        let entry_roles = validation::discover_state_entry_mappings(
+            checked,
+            owner,
+            subject.symbol,
+            &required_roles,
+        );
         let parameter_at = |position: u32| {
             checked
                 .state_parameters(state)

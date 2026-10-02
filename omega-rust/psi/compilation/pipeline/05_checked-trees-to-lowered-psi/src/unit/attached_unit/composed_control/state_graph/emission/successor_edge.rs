@@ -58,6 +58,10 @@ impl StateGraphEmission<'_, '_> {
             consumed_case_subjects,
         } = *frame;
         let state = &plan.states[position];
+        // A fused roster mixes owners: this state's authored facts live
+        // under its own machine, and the edge's authored target signature
+        // resolves through the roster position.
+        let owner = self.admitted.authored[position].0.symbol;
         let EmittedState {
             operations,
             evaluation,
@@ -71,8 +75,8 @@ impl StateGraphEmission<'_, '_> {
         let mut trivial_affine_discards = if evaluation.selection_cleanups.is_empty() {
             result_custody::local_discards(
                 checked,
-                plan.machine,
-                &self.admitted.source_states[position],
+                owner,
+                self.admitted.authored[position].1,
                 state,
                 Some(edge),
             )?
@@ -88,8 +92,8 @@ impl StateGraphEmission<'_, '_> {
             // substitutes each source's positional row exactly.
             result_custody::selection_edge_discards(
                 checked,
-                plan.machine,
-                &self.admitted.source_states[position],
+                owner,
+                self.admitted.authored[position].1,
                 state,
                 edge,
                 operations,
@@ -293,9 +297,41 @@ impl StateGraphEmission<'_, '_> {
         let mut arguments = Vec::new();
         let mut structural_arguments = Vec::new();
         let target_state = &plan.states[target];
-        for argument_position in
-            0..target_state.structural_parameters.len() + target_state.scalar_parameters.len()
-        {
+        // Signature rows carry authored parameter positions, which go sparse
+        // the moment a slot contributes no runtime operand: a borrowed `self`
+        // the graph erased, or a proof-only formal the erased lane emits
+        // below. Iterate the target's authored parameter list so every
+        // retained row's position is still visited.
+        let (_, authored_target) = crate::expression_preparation::source_custody::authored_state(
+            checked,
+            target_state.state,
+        )?;
+        let authored_parameters = checked.state_parameters(authored_target);
+        for argument_position in 0..authored_parameters.len() {
+            let runtime_row = target_state
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.position as usize == argument_position)
+                || target_state
+                    .scalar_parameters
+                    .iter()
+                    .any(|parameter| parameter.source_position as usize == argument_position);
+            if !runtime_row {
+                // The proof-only formals emit through the erased lane below;
+                // a `self` slot no signature row claims is a receiver the
+                // graph erased and owes no operand.
+                let erased_row = target_state
+                    .erased_scalar_parameters
+                    .iter()
+                    .any(|parameter| parameter.source_position as usize == argument_position)
+                    || target_state
+                        .erased_proof_parameters
+                        .iter()
+                        .any(|parameter| parameter.source_position as usize == argument_position);
+                if erased_row || authored_parameters[argument_position].is_self {
+                    continue;
+                }
+            }
             if let Some((target_index, (target_parameter, transfer))) = target_state
                 .structural_parameters
                 .iter()
@@ -432,11 +468,13 @@ impl StateGraphEmission<'_, '_> {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
                         | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                            self.structural_places.push(subslices::emit(
+                            let emitted = subslices::emit(
                                 checked, state, edge.statement_ordinal, target_parameter.position, &transfer.source,
-                                state_parameters, &edge_evaluation.view_locals, destination, bindings, &edge_values,
-                                next_value, operations,
-                            )?);
+                                state_parameters, &edge_evaluation, destination, bindings, &edge_values,
+                                next_value, operations, self.catalogs, &mut self.structural_places,
+                                &target_parameter.type_identity,
+                            )?;
+                            self.structural_places.push(emitted);
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
@@ -732,7 +770,7 @@ impl StateGraphEmission<'_, '_> {
                             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { .. } => {
                                 super::super::result_custody::view_backing(
                                     checked,
-                                    &self.admitted.source_states[position],
+                                    self.admitted.authored[position].1,
                                     state,
                                     binding_ordinal,
                                 )
@@ -844,7 +882,7 @@ impl StateGraphEmission<'_, '_> {
                     let mut calls = self.catalogs.scalar_calls.emission_context();
                     let value = edge_evaluation.source_value(
                         checked,
-                        plan.machine,
+                        owner,
                         state.state,
                         edge.statement_ordinal,
                         CheckedScalarExpressionRole::TransitionArgument {

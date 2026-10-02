@@ -394,6 +394,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         .checked_sub(1)
     {
         append_reference_releases(
+            program,
             facts,
             machine.symbol,
             state.symbol,

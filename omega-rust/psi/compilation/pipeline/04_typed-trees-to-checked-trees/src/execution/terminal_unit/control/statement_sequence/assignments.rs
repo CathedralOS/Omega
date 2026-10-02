@@ -44,6 +44,7 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) windows: &'a mut OpenWindows,
     pub(super) structural_results:
         &'a mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    pub(super) call_frames: Option<&'a validation::CallFrameResolver<'a>>,
 }
 
 /// What an assignment left for its own call.
@@ -87,6 +88,7 @@ pub(super) fn plan(
         structural_count,
         windows,
         structural_results,
+        call_frames,
     } = planner;
     // One authored assignment can decompose into several stores —
     // a whole-record replacement emits one field store per member —
@@ -144,6 +146,7 @@ pub(super) fn plan(
                     structural_count,
                     windows,
                     structural_results,
+                    call_frames,
                 },
                 statement_index,
                 assignment,
@@ -324,6 +327,7 @@ pub(super) fn plan(
                 statement_index,
                 assignment,
                 (position, primitive_type),
+                call_frames,
                 trace,
             )?;
         *scalar_count = scalar_count.checked_add(1)?;
@@ -357,6 +361,7 @@ pub(super) fn plan(
                     assignment,
                     result.binding_ordinal,
                     result_type,
+                    call_frames,
                     trace,
                 )?;
             return Some(AssignmentPlan::StructuralCall {
