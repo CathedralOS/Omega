@@ -73,6 +73,15 @@ pub(crate) fn call_mutated_places(
     ) {
         return None;
     }
+    // Reserved byte predicates observe storage but cannot write it. Recognize
+    // the resolved operation, not its spelling: a declared machine with the
+    // same name retains its ordinary frame. Operand calls still contribute
+    // their own effects in evaluation order before this invocation.
+    if let CallSite::Expression { expression, .. } = site
+        && typed_trees::byte_predicates::byte_predicate_call(program, expression).is_some()
+    {
+        return Some(Vec::new());
+    }
     // An unknown frame retires no more than the declared-signature ceiling
     // (mutation/ceiling.rs); only an unrepresentable ceiling stays unknown
     // and retires every live fact.
