@@ -395,7 +395,15 @@ pub(super) fn populate(
         let call = &contract.call;
         let span = rows
             .iter()
-            .find(|row| row.site == SemanticCodeSite::Operation(contract.operation))
+            .find(|row| {
+                row.site
+                    == match contract.owner {
+                        CallSiteOwner::Operation(operation) => {
+                            SemanticCodeSite::Operation(operation)
+                        }
+                        CallSiteOwner::CleanupAction { edge, .. } => SemanticCodeSite::Edge(edge),
+                    }
+            })
             .ok_or(Error::Mismatch("Unit call has no attributed span"))?;
         let call_span = fragment
             .blocks
@@ -478,7 +486,15 @@ pub(super) fn populate(
             };
             let (code_offset, byte_count) =
                 if target.access == terminal_psi::StructuralAccess::Owned {
-                    copy_extent(selected, fragment, contract.operation, target.place)?
+                    copy_extent(
+                        selected,
+                        fragment,
+                        contract
+                            .owner
+                            .operation()
+                            .ok_or(Error::Mismatch("cleanup cannot own an outgoing value copy"))?,
+                        target.place,
+                    )?
                 } else {
                     // The call names this pointer use. Retained physical replay owns
                     // its projection and transport; no referent copy is implied.
@@ -524,7 +540,7 @@ pub(super) fn populate(
         let semantic_result = scalar_result::result(source, selected, contract)?;
         function.internal_unit_calls.push(InternalUnitCallRecord {
             source: call_source,
-            owner: CallSiteOwner::Operation(contract.operation),
+            owner: contract.owner,
             target: call.callee,
             result: semantic_result.map(|result| result.scalar_type),
             semantic_result,

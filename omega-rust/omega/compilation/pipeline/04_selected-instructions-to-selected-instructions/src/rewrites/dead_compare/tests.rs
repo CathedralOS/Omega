@@ -400,7 +400,7 @@ fn instruction_surface_rows_reject() {
     let call_row = mutated(target, |function, _| {
         function.calls.push(SelectedCallContract {
             instruction: COMPARE,
-            operation: OperationId::new(41).unwrap(),
+            owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
             call: legalized_operations::LegalizedScalarCall {
                 source: legalized_operations::NativeCallOrigin::Authored,
                 callee: MachineId::new(42).unwrap(),

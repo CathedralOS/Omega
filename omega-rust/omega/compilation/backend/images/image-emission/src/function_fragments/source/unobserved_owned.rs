@@ -120,7 +120,7 @@ pub(in crate::function_fragments) fn arrivals(
             selected
                 .calls
                 .iter()
-                .filter(|call| call.operation == *psi_operation)
+                .filter(|call| call.owner.operation() == Some(*psi_operation))
                 .count()
                 == 1
         }

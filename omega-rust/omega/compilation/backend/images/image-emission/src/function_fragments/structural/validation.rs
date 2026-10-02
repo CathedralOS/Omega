@@ -104,7 +104,15 @@ pub(in crate::function_fragments) fn validate_function(
         let expected = &contract.call;
         let span = rows
             .iter()
-            .find(|row| row.site == SemanticCodeSite::Operation(contract.operation))
+            .find(|row| {
+                row.site
+                    == match contract.owner {
+                        CallSiteOwner::Operation(operation) => {
+                            SemanticCodeSite::Operation(operation)
+                        }
+                        CallSiteOwner::CleanupAction { edge, .. } => SemanticCodeSite::Edge(edge),
+                    }
+            })
             .ok_or_else(invalid)?;
         let call_span = fragment
             .blocks
@@ -112,7 +120,7 @@ pub(in crate::function_fragments) fn validate_function(
             .flat_map(|block| &block.instructions)
             .find(|row| row.instruction == contract.instruction)
             .ok_or_else(invalid)?;
-        if actual.owner != CallSiteOwner::Operation(contract.operation)
+        if actual.owner != contract.owner
             || actual.target != expected.callee
             || actual.semantic_result != scalar_result::result(source, selected, contract)?
             || actual.result != actual.semantic_result.map(|result| result.scalar_type)
@@ -198,7 +206,16 @@ pub(in crate::function_fragments) fn validate_function(
                 return Err(invalid());
             };
             if target.access == terminal_psi::StructuralAccess::Owned {
-                validate_copy(selected, fragment, contract.operation, target.place, actual)?;
+                validate_copy(
+                    selected,
+                    fragment,
+                    contract
+                        .owner
+                        .operation()
+                        .ok_or(Error::Mismatch("cleanup cannot own an outgoing value copy"))?,
+                    target.place,
+                    actual,
+                )?;
             } else if actual.code_offset != host(call_span.offset)?
                 || actual.byte_count != call_span.bytes.len()
                 || actual.bytes != call_span.bytes

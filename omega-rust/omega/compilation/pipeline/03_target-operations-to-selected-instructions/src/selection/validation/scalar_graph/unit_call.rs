@@ -74,7 +74,7 @@ pub(super) fn validate(
                 .try_into()
                 .map_err(|_| replay.invalid())?,
         ),
-        operation: operation.operation,
+        owner: target_operations::CallSiteOwner::Operation(operation.operation),
         call: call.clone(),
         effect: operation.effect,
         ownership: operation.ownership.clone(),

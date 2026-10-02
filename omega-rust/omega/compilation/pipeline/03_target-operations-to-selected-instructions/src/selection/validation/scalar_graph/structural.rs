@@ -123,6 +123,23 @@ pub(super) fn place_pointer(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    place_pointer_at_site(
+        replay,
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            ..Default::default()
+        },
+        place,
+        byte_offset,
+    )
+}
+
+pub(super) fn place_pointer_at_site(
+    replay: &mut Replay<'_>,
+    provenance: SelectedInstructionProvenance,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let incoming = replay
         .transport
         .pointers
@@ -141,7 +158,44 @@ pub(super) fn place_pointer(
         if homes.next().is_some() {
             return Err(replay.invalid());
         }
-        local_storage::address(replay, row, home.id, 0, home.byte_size, false)?
+        let pointer = result(replay, place, 0)?;
+        let origin = match (
+            provenance.operations.as_slice(),
+            provenance.edges.as_slice(),
+        ) {
+            ([operation], []) => {
+                selected_instructions::SelectedMemoryAccessOrigin::Operation(*operation)
+            }
+            ([], [edge]) => selected_instructions::SelectedMemoryAccessOrigin::Edge(*edge),
+            _ => return Err(replay.invalid()),
+        };
+        replay.transport.memory.push(SelectedMemoryAccess {
+            instruction: selected_instructions::SelectedInstructionId(
+                replay
+                    .instruction_cursor
+                    .try_into()
+                    .map_err(|_| replay.invalid())?,
+            ),
+            origin,
+            place,
+            byte_offset: 0,
+            byte_count: home.byte_size,
+            role: SelectedMemoryAccessRole::AddressLocal { slot: home.id },
+        });
+        replay.check_instruction(
+            SelectedInstructionKind::FrameAddress {
+                slot: selected_instructions::FrameStorageSlotId::Local(home.id),
+                byte_offset: 0,
+            },
+            replay
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| replay.invalid())?,
+            &[pointer],
+            &provenance,
+        )?;
+        pointer
     };
     let output = result(replay, place, byte_offset)?;
     replay.check_instruction(
@@ -160,10 +214,7 @@ pub(super) fn place_pointer(
                 .ok_or_else(|| replay.invalid())?
         },
         &[input, output],
-        &SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            ..Default::default()
-        },
+        &provenance,
     )?;
     Ok(output)
 }
@@ -644,7 +695,7 @@ pub(super) fn operation(
                 .try_into()
                 .map_err(|_| replay.invalid())?,
         ),
-        operation: node.operation,
+        owner: target_operations::CallSiteOwner::Operation(node.operation),
         call: call.clone(),
         effect: node.effect,
         ownership: node.ownership.clone(),

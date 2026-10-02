@@ -23,6 +23,21 @@ pub(super) fn validate(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
+    if let LegalizedScalarTerminator::ReturnCleanup { returned, calls } = &block.terminator {
+        if calls.is_empty()
+            || calls
+                .iter()
+                .any(|(owner, _)| owner.edge() != Some(returned.edge))
+        {
+            return Err(replay.invalid());
+        }
+        for (owner, call) in calls {
+            super::cleanup_call::validate(*owner, call, returned.effect, replay, environment)?;
+        }
+        let mut normal = block.clone();
+        normal.terminator = LegalizedScalarTerminator::Return(returned.clone());
+        return validate(source, &normal, replay, environment, catalog);
+    }
     if matches!(
         block.terminator,
         LegalizedScalarTerminator::StructuralCase { .. }

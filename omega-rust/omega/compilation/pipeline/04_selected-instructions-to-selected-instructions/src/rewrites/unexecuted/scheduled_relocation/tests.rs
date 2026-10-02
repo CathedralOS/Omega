@@ -593,7 +593,7 @@ fn calls_barriers_and_memory_bound_the_window() {
     let called = mutated(target, false, |function, _environment| {
         function.calls.push(SelectedCallContract {
             instruction: C_TAIL,
-            operation: OperationId::new(41).unwrap(),
+            owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
             call: legalized_operations::LegalizedScalarCall {
                 source: legalized_operations::NativeCallOrigin::Authored,
                 callee: MachineId::new(42).unwrap(),

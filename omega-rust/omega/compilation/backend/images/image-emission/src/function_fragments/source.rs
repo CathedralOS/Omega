@@ -340,7 +340,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         (None, None) => parameter_abi(target).map(|(plan, _, _)| plan),
                         _ => None,
                     };
-                    selected.calls.iter().filter(|row| row.operation == *psi_operation
+                    selected.calls.iter().filter(|row| row.owner.operation() == Some(*psi_operation)
                         && row.call.callee == *callee
                         && row.call.result_placement.as_ref().is_some_and(|placement| {
                             body.result.scalar().is_some_and(|returned|
@@ -407,7 +407,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     call_plan.is_some_and(|plan|
                         plan.parameters.len() == arguments.len()
                             && selected.calls.iter().filter(|row|
-                                row.operation == *psi_operation && row.call.callee == *callee
+                                row.owner.operation() == Some(*psi_operation) && row.call.callee == *callee
                                     && row.call.call_plan == *plan
                                     && row.call.result_placement == plan.result
                                     && row.call.crash_continuations == *crash_continuations
@@ -420,10 +420,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     crash_continuations,
                     result: AbstractStructuralCallResult::Unit,
                     ..
-                } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
+                } => selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)
                     || ieee_float_arithmetic_retained(operation, targeted, selected)
-                    || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))
+                    || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.operation == *psi_operation),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::Return {

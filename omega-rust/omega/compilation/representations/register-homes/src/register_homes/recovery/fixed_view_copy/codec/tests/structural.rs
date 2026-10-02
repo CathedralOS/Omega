@@ -58,7 +58,7 @@ fn structural_function() -> SelectedFunction {
     });
     function.calls = vec![SelectedCallContract {
         instruction: SelectedInstructionId(0),
-        operation: OperationId::new(41).unwrap(),
+        owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
         call: LegalizedScalarCall {
             structural_result: None,
             source: NativeCallOrigin::Authored,
@@ -490,6 +490,45 @@ fn scalar_abi_address_codec_binds_origin_instruction_and_payload_identity() {
         assert_ne!(
             selected_instructions::selected_instruction_plan_identity(&changed.transformed),
             identity
+        );
+    }
+}
+
+#[test]
+fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
+    let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    std::sync::Arc::make_mut(&mut original.transformed).functions[0] = structural_function();
+    let function = &mut std::sync::Arc::make_mut(&mut original.transformed).functions[0];
+    function.calls[0].owner = target_operations::CallSiteOwner::CleanupAction {
+        edge: semantic_vocabulary::EdgeId::new(41).unwrap(),
+        action_ordinal: 7,
+    };
+    // Plain wire custody; this fixture grants no executable cleanup authority.
+    assert_eq!(
+        FixedViewCopyPlan::decode(&original.encode()).unwrap(),
+        original
+    );
+    let identity = selected_instructions::selected_instruction_plan_identity(&original.transformed);
+    for owner in [
+        target_operations::CallSiteOwner::CleanupAction {
+            edge: semantic_vocabulary::EdgeId::new(43).unwrap(),
+            action_ordinal: 7,
+        },
+        target_operations::CallSiteOwner::CleanupAction {
+            edge: semantic_vocabulary::EdgeId::new(41).unwrap(),
+            action_ordinal: 8,
+        },
+        target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
+    ] {
+        let mut changed = original.clone();
+        std::sync::Arc::make_mut(&mut changed.transformed).functions[0].calls[0].owner = owner;
+        assert_ne!(
+            selected_instructions::selected_instruction_plan_identity(&changed.transformed),
+            identity
+        );
+        assert_eq!(
+            FixedViewCopyPlan::decode(&changed.encode()).unwrap(),
+            changed
         );
     }
 }
