@@ -97,6 +97,7 @@ impl TerminalExecution {
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
         let mut storage = BTreeMap::new();
+        let mut descriptors = BTreeMap::new();
         for argument in arguments {
             let parameter = machine
                 .structural_parameters
@@ -140,15 +141,50 @@ impl TerminalExecution {
             }
             let mut array = StructuralRuntimePlace::from(root);
             array.path.extend_from_slice(&argument.path);
+            let bytes = ByteSequenceView::new(argument.bytes.clone());
+            // A whole bounded input is a descriptor over the supplied storage,
+            // just as an ordinary call argument is. Publish both together so
+            // collection operations see the same custody at either entry.
+            if argument.path.is_empty()
+                && matches!(
+                    self.program
+                        .structural_types
+                        .get(&array_type)
+                        .map(|row| &row.shape),
+                    Some(StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                    ))
+                )
+                && matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                )
+            {
+                let binding = if parameter.access == StructuralAccess::MutableBorrow {
+                    ByteSequenceBinding::MutableArray {
+                        array: array.clone().into(),
+                        array_type,
+                        offset: 0,
+                        length,
+                        referent: root.clone(),
+                    }
+                } else {
+                    ByteSequenceBinding::Immutable(bytes.clone())
+                };
+                if self.byte_sequence_values.contains_key(&parameter.place)
+                    || descriptors.insert(parameter.place, binding).is_some()
+                {
+                    return Err(invalid());
+                }
+            }
             if self.structural_byte_arrays.contains_key(&array)
-                || storage
-                    .insert(array, ByteSequenceView::new(argument.bytes.clone()))
-                    .is_some()
+                || storage.insert(array, bytes).is_some()
             {
                 return Err(invalid());
             }
         }
         self.structural_byte_arrays.extend(storage);
+        self.byte_sequence_values.extend(descriptors);
         Ok(())
     }
 
@@ -237,11 +273,84 @@ impl TerminalExecution {
         &self,
         source: &StructuralArgument,
         view_type: StructuralTypeId,
+        collection: &terminal_semantics::CollectionBacking,
         identity_cursor: &mut Option<u64>,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        if source.access != StructuralAccess::MutableBorrow {
+        if !matches!(
+            source.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) {
             return Err(invalid());
+        }
+        if collection.storage == terminal_semantics::CollectionStorage::Borrowed {
+            // A pointer-only bounded collection already carries its original
+            // array home. Re-establishment changes descriptor type, never the
+            // owner's activation, backing identity, or retained window.
+            if !source.path.is_empty() {
+                return Err(invalid());
+            }
+            let value = self
+                .structural_values
+                .get(&source.place)
+                .ok_or_else(invalid)?;
+            let binding = self
+                .byte_sequence_values
+                .get(&source.place)
+                .ok_or_else(invalid)?;
+            if !value.qualifications.is_empty()
+                || self.byte_sequence_length(source.place)? != collection.length
+            {
+                return Err(invalid());
+            }
+            let mut binding = self.reborrow_byte_sequence_binding(binding, value, source.access)?;
+            let mut value = value.clone();
+            value.structural_type = view_type;
+            match &mut binding {
+                ByteSequenceBinding::MutableArray { referent, .. } => {
+                    *referent = value.clone();
+                    binding.validate_mutable_referent(&self.program.structural_types, &value)?;
+                }
+                ByteSequenceBinding::Immutable(_) => {}
+                ByteSequenceBinding::MutableField { .. } => return Err(invalid()),
+            }
+            return Ok((value, binding));
+        }
+        if source.access == StructuralAccess::SharedBorrow {
+            // Shared inline collections retain the existing primitive snapshot
+            // semantics, including genuinely empty initialized arrays. Host
+            // input policy for pointer-only byte arrays remains independent.
+            let byte_type = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                8,
+            )
+            .map_err(|_| invalid())?;
+            let mut path = source.path.clone();
+            let mut bytes =
+                Vec::with_capacity(usize::try_from(collection.length).map_err(|_| invalid())?);
+            for index in 0..collection.length {
+                path.push(StructuralPathSegment::FixedIndex(index));
+                let value =
+                    self.read_primitive_place(source.place, &path, ScalarType::Integer(byte_type))?;
+                path.pop();
+                let crate::values::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(byte),
+                    ..
+                } = value
+                else {
+                    return Err(invalid());
+                };
+                bytes.push(u8::try_from(byte).map_err(|_| invalid())?);
+            }
+            return Ok((
+                TerminalStructuralValue {
+                    opaque_identity: source.place.get(),
+                    structural_type: view_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                },
+                ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
+            ));
         }
         let (root, home) =
             self.array_storage_root_staged(source.place, identity_cursor, &mut BTreeMap::new())?;
@@ -266,6 +375,7 @@ impl TerminalExecution {
             home,
         };
         if !referent.qualifications.is_empty()
+            || length != collection.length
             || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
         {
             return Err(invalid());
@@ -405,7 +515,10 @@ impl TerminalExecution {
                     .structural()?;
                 if result.place != argument.place
                     || result.structural_type != structural_type
-                    || result.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
                     || !result.claims.is_empty()
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
@@ -418,14 +531,13 @@ impl TerminalExecution {
                     is_self: false,
                     structural_type,
                     multiplicity: result.multiplicity,
-                    access: StructuralAccess::MutableBorrow,
+                    access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
                 })
             })
             .ok_or_else(invalid)?;
-        if source.multiplicity != StructuralMultiplicity::Unrestricted
-            || source.structural_type != root.structural_type
+        if source.structural_type != root.structural_type
             || !source.qualifications.is_empty()
             || !source.projected_qualifications.is_empty()
         {

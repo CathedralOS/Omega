@@ -40,6 +40,8 @@ const OP_FACTS_POLARITY: &str = "omega-rust/psi/compilation/representations/term
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_ELEMENT_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs";
 const TS_SE_ELEMENT_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/element_extent.rs";
+const TS_COLLECTION_BACKING: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/collection_backing.rs";
 const VAL_ELEMENTS_ESTABLISH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/establishment.rs";
 const VAL_ELEMENTS_LENGTH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/length.rs";
 const VAL_ELEMENTS_READ: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/read.rs";
@@ -157,6 +159,7 @@ const CALL_SITES: &[&str] = &[
     VOCAB,
     TS_ROWS,
     TS_CALLS,
+    TS_CALLS_VIEW,
     TV_CALLS,
     OP_FACTS,
     OP_FACTS_CASE_HOPS,
@@ -648,6 +651,7 @@ static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_ELEMENTS_ESTABLISH,
+        TS_COLLECTION_BACKING,
     ],
 );
 static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
@@ -663,6 +667,7 @@ static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_ELEMENTS_MUTABLE_ESTABLISH,
         VAL_ELEMENTS_ESTABLISH,
+        TS_COLLECTION_BACKING,
     ],
 );
 static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(

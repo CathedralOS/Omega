@@ -2,7 +2,7 @@
 use super::local_storage::{address, store};
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
-    SelectedInstructionKind, VirtualRegisterId,
+    SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -125,8 +125,8 @@ pub(super) fn establish(
     else {
         return Err(replay.invalid());
     };
-    let Some((field_offset, element_count, _stride)) =
-        crate::structural_inputs::structural_reference_input::fixed_element_array_view(
+    let Some(geometry) =
+        crate::structural_inputs::structural_reference_input::collection_view_geometry(
             root,
             source,
             view.structural_type,
@@ -135,6 +135,8 @@ pub(super) fn establish(
     else {
         return Err(replay.invalid());
     };
+    let field_offset = geometry.offset;
+    let element_count = geometry.length;
     // An empty view has no dereferenceable payload. Keep its independently
     // checked backing identity, but do not require a slot for a zero-byte
     // array or invent dummy storage. Its descriptor is the empty (0, 0) view.
@@ -180,7 +182,32 @@ pub(super) fn establish(
         byte_size: 16,
         alignment: 8,
     });
-    let backing = if field_offset == 0 || element_count == 0 {
+    let backing = if element_count == 0 {
+        base
+    } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
+        let pointer = result(replay, *destination, 0)?;
+        memory(
+            replay,
+            row,
+            source.place,
+            field_offset,
+            8,
+            SelectedMemoryAccessRole::ReadPlace,
+        )?;
+        replay.check_instruction(
+            SelectedInstructionKind::Load64 {
+                byte_offset: field_offset,
+            },
+            replay
+                .constraints
+                .keys
+                .load64
+                .ok_or_else(|| replay.invalid())?,
+            &[base, pointer],
+            &provenance(row),
+        )?;
+        pointer
+    } else if field_offset == 0 {
         base
     } else {
         let offset = constant(replay, row, *destination, 0, u64::from(field_offset))?;

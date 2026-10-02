@@ -100,9 +100,10 @@ its bytes.
 
 An admitted ordinary helper or boundary can receive a shared or mutable view of an
 initialized raw `FixedArray(PrimitiveScalar(u8), N)` with `N > 0`.
-The backing is either the whole borrowed
-parameter or a relevant field-only projection from it; both ends are
-unrestricted, unqualified, and claim-free. A borrowed block parameter that
+The backing is either a whole initialized array or a relevant field-only
+projection from initialized storage. The borrowed formal is unrestricted,
+unqualified, and claim-free; backing may be unrestricted or affine and retains
+its own disposal custody. A borrowed block parameter that
 rebinds such a loan at a state edge lends the same window as a machine
 parameter does. The array remains a fixed array:
 its borrowed extent is exactly `N`, and writes retain the
@@ -209,6 +210,15 @@ collection/result correspondence. The shared operation requires shared source
 access and an unrestricted result; the mutable operation requires mutable
 source access and an affine result. A borrowed byte result must name the exact
 `u8` element declaration and cannot substitute an owned byte carrier.
+
+A bounded byte-array reference is another presentation of that fixed backing:
+its carrier stores a pointer and its declaration supplies the exact extent.
+Establishment loads that backing pointer and forms the ordinary borrowed byte
+descriptor; it does not treat pointer storage as inline elements or use its
+physical size as capacity. The same narrowing operation then applies to direct
+arguments, named locals and state transfers, including empty windows. A bounded
+byte reference cannot establish an element-family descriptor or grant access
+beyond its incoming loan.
 
 The original backing and captured window survive local binding, subslicing,
 helper calls and state forwarding. Byte zero of a narrowed view denotes its

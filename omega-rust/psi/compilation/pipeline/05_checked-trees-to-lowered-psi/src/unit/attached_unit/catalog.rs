@@ -583,9 +583,21 @@ pub(crate) fn lower_unit_structural_type_roots(
             } => {
                 collect(checked, plans, referent_identity, active, selected)?;
             }
-            // A byte carrier keeps no element field. The `u8` row a borrowed
-            // view's element-view establishment resolves is rooted by that
-            // operation (`establishes_byte_element_view`), not by the type.
+            // Bounded byte backing has an implicit u8 element. Preserve
+            // that declared dependency just like a fixed array's explicit
+            // element; range establishment uses the same collection operation
+            // even when no local structural-value node constructs a view.
+            CheckedUnitStructuralTypeShape::ByteSequence(
+                checked_trees::CheckedByteSequenceCarrier::BoundedView { .. },
+            ) => collect(
+                checked,
+                plans,
+                BYTE_VIEW_ELEMENT_TYPE_IDENTITY,
+                active,
+                selected,
+            )?,
+            // Dynamic byte descriptors have no implicit backing extent.
+            // Their element-view establishment roots u8 through the operation.
             CheckedUnitStructuralTypeShape::FusedServiceBinding
             | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}

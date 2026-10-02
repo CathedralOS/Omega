@@ -400,31 +400,25 @@ impl Checker<'_> {
         else {
             return false;
         };
-        let Some(tip) = self
-            .types
-            .iter()
-            .find(|declaration| declaration.id == collection)
+        let Some(backing) =
+            terminal_semantics::collection_backing(self.types.iter(), collection, element)
         else {
             return false;
         };
-        let StructuralTypeShape::FixedArray {
-            element: array_element,
-            length,
-        } = &tip.shape
-        else {
-            return false;
-        };
-        if *array_element != element {
+        if backing.storage == terminal_semantics::CollectionStorage::Borrowed
+            && byte_window.is_some()
+        {
             return false;
         }
+        let length = backing.length;
         match byte_window {
-            Some((start, end)) if start <= end && end <= *length => {
+            Some((start, end)) if start <= end && end <= length => {
                 if end - start != extent {
                     return false;
                 }
             }
             Some(_) => return false,
-            None if *length != extent => return false,
+            None if length != extent => return false,
             None => {}
         }
         let Some(stride) =

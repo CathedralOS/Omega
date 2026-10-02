@@ -178,7 +178,10 @@ fn fixed_byte_windows_reject_bounds_access_and_nonterminal_projection() {
             6 => call_argument(&mut module)
                 .path
                 .push(StructuralPathSegment::FixedByteRange { start: 0, end: 1 }),
-            7 => module.machines[0].structural_parameters[0].access = StructuralAccess::Owned,
+            7 => {
+                module.machines[0].structural_parameters[0].access =
+                    StructuralAccess::WriteOnlyBorrow
+            }
             8 => module.machines[1].structural_parameters[0].access = StructuralAccess::Owned,
             9 => {
                 let StructuralTypeShape::FixedArray { length, .. } =
@@ -381,7 +384,7 @@ fn fixed_byte_array_unit_view_rejects_wrong_primitive_array_and_access() {
             }
             6 => {
                 module.machines[0].structural_parameters[0].multiplicity =
-                    StructuralMultiplicity::Affine
+                    StructuralMultiplicity::Linear
             }
             7 => {
                 module.machines[1].structural_parameters[0].access = StructuralAccess::SharedBorrow
@@ -409,13 +412,13 @@ fn fixed_byte_array_unit_view_rejects_wrong_primitive_array_and_access() {
 /// An owned root lends its own initialized storage: the owner keeps the
 /// payload, and structural-argument replay still checks the loan's type,
 /// bounds, access and overlap (9aae7a801c admitted loans from owned storage).
-/// The unit view extent stays a borrowed-root fact, so the boundary buffer
-/// realization still declines to take its extent from an owned array.
+/// Extent describes the borrowed presentation without changing ownership;
+/// it must agree with the same backing admitted by argument verification.
 #[test]
 fn fixed_byte_array_unit_view_lends_from_an_owned_root() {
     let mut module = fixture(false);
     module.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
-    assert_eq!(extent(&module), None);
+    assert_eq!(extent(&module), Some(3));
     validate_module(&module).expect("an owned array root lends its unit view");
 }
 
@@ -669,4 +672,21 @@ fn fixed_byte_array_unit_view_admits_zero_length_scalar_leaf() {
     validate_module(&boundary_fixture(module))
         .map(|_| ())
         .unwrap();
+}
+
+#[test]
+fn fixed_byte_windows_lend_owned_backing_without_transferring_it() {
+    for projected in [false, true] {
+        for (start, end) in [(0, 0), (1, 3), (3, 3)] {
+            let mut module = fixture(projected);
+            module.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
+            call_argument(&mut module)
+                .path
+                .push(StructuralPathSegment::FixedByteRange { start, end });
+            assert_eq!(extent(&module), Some(end - start));
+            validate_module(&module)
+                .expect("the call borrows an exact window of its owner's array");
+            validate_module(&boundary_fixture(module)).expect("a boundary lends the same window");
+        }
+    }
 }

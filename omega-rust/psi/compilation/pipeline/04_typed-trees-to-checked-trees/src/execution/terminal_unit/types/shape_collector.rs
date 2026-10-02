@@ -472,13 +472,14 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<String> {
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
-            // A `&[u8]` view spells its element through the `ElementView`
-            // op family the way `&[T]` spells it through
-            // `element_type_identity`; the byte carrier keeps no element
-            // field, so the `u8` plan registers here alongside the view.
+            // Byte views and bounded byte references spell their implicit
+            // element through the collection establishment operation. The
+            // carrier has no element field, so retain the declaration's u8
+            // row beside it, just as an element view retains its element.
             if matches!(
                 carrier,
                 checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                    | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
             ) {
                 let mut referee = type_reference;
                 loop {
@@ -503,7 +504,8 @@ impl<'program> ShapeCollector<'program> {
                         _ => break,
                     }
                 }
-                if let TypeReferenceNode::Slice { element_type } =
+                if let TypeReferenceNode::Slice { element_type }
+                | TypeReferenceNode::FixedArray { element_type, .. } =
                     self.program.type_reference_table.type_reference(referee)
                 {
                     let element = self.add_type(*element_type, binders, substitutions)?;
@@ -1149,7 +1151,8 @@ impl<'program> ShapeCollector<'program> {
                     // establishment of that view resolves its op's element
                     // through this row.
                     CheckedUnitStructuralTypeShape::ByteSequence(
-                        checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
+                        checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                        | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. },
                     ) => {
                         retained.extend(self.byte_view_elements.iter().cloned());
                     }

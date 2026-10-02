@@ -627,6 +627,7 @@ pub(crate) fn fixed_byte_array_view(
     let mut destination = source.clone();
     destination.structural_type = view_type;
     destination.access = argument.access;
+    destination.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
     let window = terminal_semantics::fixed_byte_array_window(
         declarations.iter(),
         source,
@@ -652,6 +653,30 @@ pub(crate) fn fixed_element_array_view(
     view_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u64, u32)> {
+    let geometry = collection_view_geometry(source, argument, view_type, declarations)?;
+    (geometry.storage == terminal_semantics::CollectionStorage::Inline).then_some((
+        geometry.offset,
+        geometry.length,
+        geometry.stride,
+    ))
+}
+
+/// Native storage coordinates for an ordinary collection establishment.
+/// A borrowed collection stores a pointer at `offset`; its declared backing
+/// extent is independent of the bytes occupied by that pointer cell.
+pub(crate) struct CollectionViewGeometry {
+    pub offset: u32,
+    pub length: u64,
+    pub stride: u32,
+    pub storage: terminal_semantics::CollectionStorage,
+}
+
+pub(crate) fn collection_view_geometry(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<CollectionViewGeometry> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     if source.place != argument.place
         || !matches!(
@@ -703,49 +728,54 @@ pub(crate) fn fixed_element_array_view(
         _ => return None,
     };
     let (tip, offset) = project(source.structural_type, field_path, declarations)?;
-    let array = declarations
-        .iter()
-        .find(|declaration| declaration.id == tip)?;
-    let StructuralTypeShape::FixedArray { element, length } = &array.shape else {
+    let element = view_element.or_else(|| {
+        declarations.iter().find_map(|declaration| {
+            matches!(declaration.shape,
+            StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
+            if Ok(integer) == semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned, 8))
+            .then_some(declaration.id)
+            .filter(|element| {
+                terminal_semantics::collection_backing(declarations.iter(), tip, *element).is_some()
+            })
+        })
+    })?;
+    let backing = terminal_semantics::collection_backing(declarations.iter(), tip, element)?;
+    if backing.storage == terminal_semantics::CollectionStorage::Borrowed
+        && (byte_window.is_some() || view_element.is_some())
+    {
         return None;
-    };
-    match view_element {
-        Some(view_element) if element == &view_element => {}
-        // The borrowed byte view requires the array's `u8` element exactly.
-        None if matches!(
-            declarations
-                .iter()
-                .find(|declaration| declaration.id == *element)
-                .map(|declaration| &declaration.shape),
-            Some(StructuralTypeShape::PrimitiveScalar(
-                semantic_vocabulary::ScalarType::Integer(integer)
-            )) if Ok(*integer)
-                == semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    8,
-                )
-        ) => {}
-        _ => return None,
     }
+    let length = backing.length;
     let element_stride = align(
-        shape(*element, declarations)?.byte_size,
-        shape(*element, declarations)?.alignment,
+        shape(element, declarations)?.byte_size,
+        shape(element, declarations)?.alignment,
     )?;
     let (window_offset, element_count) = match byte_window {
-        Some((start, end)) if start <= end && end <= *length => {
+        Some((start, end)) if start <= end && end <= length => {
             let byte_offset = start.checked_mul(u64::from(element_stride))?;
             (u32::try_from(byte_offset).ok()?, end - start)
         }
         Some(_) => return None,
-        None => (0, *length),
+        None => (0, length),
     };
     let offset = offset.checked_add(window_offset)?;
-    let end =
-        u64::from(offset).checked_add(element_count.checked_mul(u64::from(element_stride))?)?;
+    let storage_size = match backing.storage {
+        terminal_semantics::CollectionStorage::Inline => {
+            element_count.checked_mul(u64::from(element_stride))?
+        }
+        terminal_semantics::CollectionStorage::Borrowed => 8,
+    };
+    let end = u64::from(offset).checked_add(storage_size)?;
     if end > u64::from(shape(source.structural_type, declarations)?.byte_size) {
         return None;
     }
-    Some((offset, element_count, element_stride))
+    Some(CollectionViewGeometry {
+        offset,
+        length: element_count,
+        stride: element_stride,
+        storage: backing.storage,
+    })
 }
 
 /// Reconstruct a borrowed view presented from whole or inline bounded-owner
@@ -2055,4 +2085,91 @@ fn affine_array_view_geometry_requires_a_borrow_not_an_owned_transfer() {
     assert!(fixed_element_array_view(&linear, &argument, view, &declarations).is_none());
     argument.place = semantic_vocabulary::PlaceId::new(2).unwrap();
     assert!(fixed_element_array_view(&source, &argument, view, &declarations).is_none());
+}
+
+#[test]
+fn bounded_byte_collection_geometry_separates_capacity_from_pointer_storage() {
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess as Access, StructuralArgument,
+        StructuralMultiplicity, StructuralParameterDeclaration,
+    };
+    let element = StructuralTypeId::new(901).unwrap();
+    let bounded = StructuralTypeId::new(902).unwrap();
+    let view = StructuralTypeId::new(903).unwrap();
+    let typed_view = StructuralTypeId::new(904).unwrap();
+    let source = StructuralParameterDeclaration {
+        place: semantic_vocabulary::PlaceId::new(901).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: bounded,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: Access::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let argument = StructuralArgument {
+        place: source.place,
+        path: Vec::new(),
+        access: Access::MutableBorrow,
+    };
+    for capacity in [0, 3, 17] {
+        let mut declarations = vec![
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "octet".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        8,
+                    )
+                    .unwrap(),
+                )),
+            },
+            StructuralTypeDeclaration {
+                id: bounded,
+                identity: "bounded".into(),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    capacity,
+                    access: None,
+                }),
+            },
+            StructuralTypeDeclaration {
+                id: view,
+                identity: "bytes".into(),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+            },
+            StructuralTypeDeclaration {
+                id: typed_view,
+                identity: "elements".into(),
+                shape: StructuralTypeShape::ElementView { element },
+            },
+        ];
+        let geometry = collection_view_geometry(&source, &argument, view, &declarations).unwrap();
+        assert_eq!(geometry.offset, 0);
+        assert_eq!(geometry.length, capacity);
+        assert_eq!(geometry.stride, 1);
+        assert_eq!(
+            geometry.storage,
+            terminal_semantics::CollectionStorage::Borrowed
+        );
+        assert_eq!(shape(bounded, &declarations).unwrap().byte_size, 8);
+        assert!(
+            fixed_element_array_view(&source, &argument, view, &declarations).is_none(),
+            "a pointer carrier is not inline array storage"
+        );
+        assert!(
+            collection_view_geometry(&source, &argument, typed_view, &declarations).is_none(),
+            "byte backing cannot be reinterpreted as an element descriptor"
+        );
+        let mut shared = source.clone();
+        shared.access = Access::SharedBorrow;
+        assert!(collection_view_geometry(&shared, &argument, view, &declarations).is_none());
+        let mut attenuated = argument.clone();
+        attenuated.access = Access::SharedBorrow;
+        assert!(collection_view_geometry(&shared, &attenuated, view, &declarations).is_some());
+        declarations[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+        assert!(collection_view_geometry(&source, &argument, view, &declarations).is_none());
+    }
 }

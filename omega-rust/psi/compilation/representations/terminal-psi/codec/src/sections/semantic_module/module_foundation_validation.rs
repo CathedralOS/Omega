@@ -820,69 +820,50 @@ fn validate_structural_arguments(
                     "primitive-array argument requires plain array transfer or loan custody",
                 );
             }
-            if payload_loan {
-                let backing = StructuralParameterDeclaration {
-                    place: argument.place,
-                    position: expected.position,
-                    is_self: false,
-                    structural_type: actual_type,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    access: argument.access,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                };
-                if terminal_semantics::fixed_byte_array_extent(
-                    module.structural_types.iter(),
-                    &backing,
-                    argument,
-                    expected,
-                )
-                .is_some()
-                    || terminal_semantics::fixed_element_array_extent(
-                        module.structural_types.iter(),
-                        &backing,
-                        argument,
-                        expected,
-                    )
-                    .is_some()
-                {
-                    continue;
-                }
-            }
         }
-        // The canonical form retains the real array type at both ordinary and
-        // boundary calls; the shared extent check recognizes the exact loan.
-        // A state edge rebinds a loan without removing its ability to lend a
-        // window, so a block parameter lends through its own declaration.
-        if machine
-            .structural_parameters
-            .iter()
-            .chain(block_parameter(machine, argument.place))
-            .any(|actual| {
-                (terminal_semantics::fixed_byte_array_extent(
+        // Geometry uses the exact current home, whether an arrival or an
+        // operation result. Owned backing remains owned while supplying a
+        // call-scoped loan; the shared contract validates that presentation.
+        let result_backing = result.map(|result| StructuralParameterDeclaration {
+            place: argument.place,
+            position: expected.position,
+            is_self: false,
+            structural_type: actual_type,
+            multiplicity: result.multiplicity,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: result.qualifications.clone(),
+            projected_qualifications: result.projected_qualifications.clone(),
+        });
+        let backing = parameter
+            .or_else(|| block_parameter(machine, argument.place))
+            .or(result_backing.as_ref());
+        if backing.is_some_and(|actual| {
+            (terminal_semantics::fixed_byte_array_extent(
+                module.structural_types.iter(),
+                actual,
+                argument,
+                expected,
+            )
+            .is_some()
+                || terminal_semantics::fixed_element_array_extent(
                     module.structural_types.iter(),
                     actual,
                     argument,
                     expected,
                 )
-                .is_some()
-                    || terminal_semantics::fixed_element_array_extent(
-                        module.structural_types.iter(),
-                        actual,
-                        argument,
-                        expected,
-                    )
-                    .is_some())
-                    && !machine
-                        .entry_claims
-                        .iter()
-                        .any(|claim| claim.input == argument.place)
-                    && !machine
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == argument.place)
-            })
-        {
+                .is_some())
+                && !result.is_some_and(|result| {
+                    !result.claims.is_empty() || !result.qualification_establishments.is_empty()
+                })
+                && !machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == argument.place)
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == argument.place)
+        }) {
             continue;
         }
         // Inline bounded owners have no standalone field type to resolve.

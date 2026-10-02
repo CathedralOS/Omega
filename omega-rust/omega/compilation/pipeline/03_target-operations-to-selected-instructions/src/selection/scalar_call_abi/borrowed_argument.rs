@@ -191,7 +191,7 @@ pub(super) fn validate_borrowed_argument(
             matches!(
                 semantic.access,
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-            ) && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            ) && result.multiplicity != terminal_psi::StructuralMultiplicity::Linear
         })
         .map(|(_, result)| terminal_psi::StructuralParameterDeclaration {
             place: result.place,
@@ -199,7 +199,7 @@ pub(super) fn validate_borrowed_argument(
             is_self: false,
             structural_type: result.structural_type,
             multiplicity: result.multiplicity,
-            access: semantic.access,
+            access: StructuralAccess::Owned,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         });

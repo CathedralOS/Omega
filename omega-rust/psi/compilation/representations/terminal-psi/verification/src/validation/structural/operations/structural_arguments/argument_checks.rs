@@ -579,58 +579,31 @@ pub(in crate::validation) fn validate_structural_argument(
         terminal_semantics::byte_parameter_predicates(module, expected)
             .is_some_and(|required| declared.implies(required))
     });
-    // A boundary lends the same exact initialized fixed-array range as an
-    // ordinary call. Keep the array's real type and path: presentation
-    // is not a type substitution, storage grant, or permission to resize.
-    // Scalar-result calls lend the same read-only or mutable window: a
-    // scalar return carries no custody, so the subloan shape is identical.
-    // A state edge rebinds a loan without removing its ability to lend a
-    // window: a block parameter presents its exact declaration as a machine
-    // parameter does, and carries no entry claim of its own.
+    // Collection presentation consumes the source contract already resolved
+    // above. Parameter, state arrival and completed owned homes lend the same
+    // exact backing; their distinct availability checks do not change its
+    // geometry. The source retains its actual access and multiplicity;
+    // presenting its elements never changes the owner's disposal custody.
     let fixed_array_presentation = (borrowed_call
         || ordinary_call
         || source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals)
-        && caller
-            .structural_parameters
+        && structural_access_can_supply(actual_access, argument.access)
+        && !caller
+            .entry_claims
             .iter()
-            .chain(crate::validation::block_views::parameter(
-                caller,
-                argument.place,
-            ))
-            .any(|actual| {
-                (terminal_semantics::fixed_byte_array_extent(
-                    module.structural_types.iter(),
-                    actual,
-                    argument,
-                    expected,
-                )
-                .is_some()
-                    || terminal_semantics::fixed_element_array_extent(
-                        module.structural_types.iter(),
-                        actual,
-                        argument,
-                        expected,
-                    )
-                    .is_some())
-                    && !caller
-                        .entry_claims
-                        .iter()
-                        .any(|claim| claim.input == argument.place)
-                    && !caller
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == argument.place)
-            })
-        || (array_payload_loan && {
-            // Present the validated owned home through this loan for geometry
-            // checking. Its actual owned access remains unchanged below.
+            .any(|claim| claim.input == argument.place)
+        && !caller
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == argument.place)
+        && {
             let backing = StructuralParameterDeclaration {
                 place: argument.place,
                 position: expected.position,
                 is_self: false,
                 structural_type: root_type,
                 multiplicity: actual_multiplicity,
-                access: argument.access,
+                access: actual_access,
                 qualifications: actual_qualifications.to_vec(),
                 projected_qualifications: actual_projected_qualifications.to_vec(),
             };
@@ -648,7 +621,7 @@ pub(in crate::validation) fn validate_structural_argument(
                     expected,
                 )
                 .is_some()
-        });
+        };
     // A copied bounded field is a fresh owned snapshot, not an owner-to-view
     // presentation. Keep its shape admission separate from the qualification
     // judgment below: readable bytes alone do not prove a byte domain.
@@ -807,30 +780,33 @@ pub(in crate::validation) fn validate_structural_argument(
                 .structural_parameters
                 .iter()
                 .any(|parameter| parameter.place == argument.place));
-    let actual_multiplicity =
-        if shared_affine_loan || view_loan || is_record_loan(module, caller, expected, argument) {
-            StructuralMultiplicity::Unrestricted
-        } else if argument.path.is_empty() {
-            actual_multiplicity
-        } else if unrestricted_write_only_field_subloan
-            || unrestricted_shared_field_subloan
-            || unrestricted_mutable_field_subloan
-            || shared_buffer_presentation
-            || view_field_presentation
-            || bounded_owner_presentation
-            || (buffer_presentation
-                && actual_access == StructuralAccess::MutableBorrow
-                && actual_multiplicity == StructuralMultiplicity::Unrestricted)
-        {
-            StructuralMultiplicity::Unrestricted
-        } else if expected.multiplicity == StructuralMultiplicity::Affine
-            && is_partial_affine_path(module, root_type, &argument.path)
-            && actual_multiplicity == StructuralMultiplicity::Affine
-        {
-            StructuralMultiplicity::Affine
-        } else {
-            StructuralMultiplicity::Linear
-        };
+    let actual_multiplicity = if shared_affine_loan
+        || view_loan
+        || fixed_array_presentation
+        || is_record_loan(module, caller, expected, argument)
+    {
+        StructuralMultiplicity::Unrestricted
+    } else if argument.path.is_empty() {
+        actual_multiplicity
+    } else if unrestricted_write_only_field_subloan
+        || unrestricted_shared_field_subloan
+        || unrestricted_mutable_field_subloan
+        || shared_buffer_presentation
+        || view_field_presentation
+        || bounded_owner_presentation
+        || (buffer_presentation
+            && actual_access == StructuralAccess::MutableBorrow
+            && actual_multiplicity == StructuralMultiplicity::Unrestricted)
+    {
+        StructuralMultiplicity::Unrestricted
+    } else if expected.multiplicity == StructuralMultiplicity::Affine
+        && is_partial_affine_path(module, root_type, &argument.path)
+        && actual_multiplicity == StructuralMultiplicity::Affine
+    {
+        StructuralMultiplicity::Affine
+    } else {
+        StructuralMultiplicity::Linear
+    };
     if actual_multiplicity != expected.multiplicity {
         return Err(ModuleError::StructuralArgumentMultiplicityMismatch {
             operation,

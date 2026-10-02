@@ -840,33 +840,43 @@ impl TerminalExecution {
             })
             .map(|parameter| parameter.access)
             .or_else(|| {
-                machine
+                let declaration = machine
+                    .structural_places
+                    .iter()
+                    .find(|declaration| declaration.id == destination)?;
+                let semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                } = declaration.kind
+                else {
+                    return None;
+                };
+                let result = machine
                     .blocks
                     .values()
                     .flat_map(|block| &block.operations)
-                    .filter(|producer| {
-                        matches!(
-                            producer.kind,
-                            OperationKind::EstablishRecord { .. }
-                                | OperationKind::CallStructural { .. }
-                                | OperationKind::CallStructuralWithScalarArguments { .. }
-                                | OperationKind::StructuralLeafCopy { .. }
-                                | OperationKind::StructuralCaseLeafCopy { .. }
-                        )
-                    })
-                    .filter_map(|producer| producer.result.structural())
-                    .find(|result| {
-                        result.place == destination
-                            && matches!(
-                                result.multiplicity,
-                                StructuralMultiplicity::Unrestricted
-                                    | StructuralMultiplicity::Affine
-                            )
-                            && result.qualifications.is_empty()
-                            && result.projected_qualifications.is_empty()
-                            && result.claims.is_empty()
-                    })
-                    .map(|_| StructuralAccess::Owned)
+                    .find(|operation| operation.id == producer)?
+                    .result
+                    .structural()?;
+                // The declaration and live value identify the owned home.
+                // Initialization syntax does not confer storage authority.
+                (result.place == destination
+                    && result.structural_type == structural_type
+                    && self
+                        .structural_values
+                        .get(&destination)
+                        .is_some_and(|value| {
+                            value.structural_type == structural_type
+                                && value.qualifications.is_empty()
+                        })
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty())
+                .then_some(StructuralAccess::Owned)
             })
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let source = self

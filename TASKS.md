@@ -80,42 +80,8 @@ does not close an item. Keep independent receiving verification.
   native execution, with one common source-place path; conflicting subloans and
   substituted root/path/access evidence reject. Report the removed exceptions.
   This owns call argument resolution, not all store/partial-initialization work
-  in REFERENCE-BEARING-RECORD-LOCAL-FILL. VIEW-LOAN-COMPOSITION consumes this
-  resolver where needed; do not duplicate its source-place policy there.
-
-- **VIEW-LOAN-COMPOSITION.** (split-of:STATIC-MACHINE-MIGRATION)
-  High priority: finish one checked view-narrowing operation across local
-  binding, call argument and state edge, preserving access, captured backing
-  and lifetime. Remaining: a bounded byte-array reference arrives as a
-  pointer-only `BoundedView`, but stage 05 `view_ranges::storage` peels its
-  reference and searches for an absent raw `FixedArray` type. The existing
-  `fixed_byte_windows_publish_and_execute_repeated_call_loans` test first fails
-  on `put(&mut out[0..0], ...)` for `out: &mut [u8; 3]`, with
-  `range collection has no exact Terminal type`. Resolve the range from the
-  exact emitted carrier and declared extent; adding a raw type cannot repair
-  the pointer/descriptor mismatch. Preserve the test's empty and nonempty
-  ranges, direct/field backing, repeated call loans and neighboring bytes.
-  Inline and named local field ranges now execute with native and both
-  interpreter results agreeing for byte and non-byte elements; reproduce with
-  `omega run --both tests/omega/pass/slices/mutable_byte_field_range_local_initializer_exit/main.omg`
-  after ordinary package review. These preserve one effectful helper call,
-  its writes and untouched adjacent storage.
-  Byte/element carrier differences and qualification-preservation obligations
-  remain explicit semantic checks. The recorded-red
-  `pass/control_flow/guarded_jump_field_view_forward` stops earlier at an
-  attached-data state parameter signature; its empty branch is not this oracle.
-  Owners: stage 04 `calls/{view_subslice,structural_arguments}.rs` and
-  `control/statement_sequence/local_data.rs`; stage 05
-  `unit/attached_unit/{scalar_completion,view_ranges,byte_subslices,operation_frame}.rs`
-  and `composed_control/state_graph/{body,subslices}.rs`; Terminal element/byte-view
-  validation. Acceptance: all three
-  `pass/borrows/borrow_{domain,guarded,returned}_window_write_and_call` programs
-  execute with exit 0 natively and interpreted, preserving mutable loans and
-  writes outside the window. Exercise the same admitted range as a call
-  argument and state transfer, including a write through the mutable view.
-  Reject overlapping live windows, shared-to-mutable forgery, stale source
-  access and invalid cleanup in independent Terminal checks, not only source
-  checking. Preserve `fail/slices/overlapping_mut_subslice_windows_rejected`.
+  in REFERENCE-BEARING-RECORD-LOCAL-FILL. View narrowing consumes this
+  resolver where needed; keep its source-place policy shared.
 
 - **SCALAR-CLOSURE-CATALOG.** (split-of:LOWERING-ROUTE-CONSOLIDATION)
   High priority: use the common Unit callee catalog to assemble scalar-machine
@@ -620,8 +586,6 @@ execution and native exit/output. A moved refusal is still unfinished work.
   shared whole-record and field returns from mutable parameters. Windows native
   and checked interpretation both exit 0; source-free Terminal execution also
   retains the exact backing. No receiver flag supplies the return origin.
-  **VIEW-LOAN-COMPOSITION** retains the byte-storage composition work; do not
-  restore the superseded integer-subslice blockers or local-only lowering paths.
   On macOS ARM64 a static entry's local arrays and zeroed records now lend their
   homes natively: a whole local `[u8; N]`/`[T; N]` presents through `&[u8]`,
   `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,
@@ -2129,9 +2093,9 @@ crash and native exit behavior. Use affected check/native corpus slices under
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
   locals from every admitted producer, then preserve their loan identity,
   backing and access through reads, calls and explicit state transfers.
-  **VIEW-LOAN-COMPOSITION** owns subslice-site/access consolidation and
-  **CHECKED-PLACE-CALL-CUSTODY** owns call-source resolution; use those shared
-  mechanisms rather than adding local-specific call or range routes here.
+  **CHECKED-PLACE-CALL-CUSTODY** owns call-source resolution. Reuse the shared
+  source-place and view-narrowing operations rather than adding local-specific
+  call or range routes here.
   Governed by [ownership](wiki/spec/language/ownership.md#borrows-and-aliases)
   and [loan formation/replay](wiki/spec/terminal-psi/loans.md). Owners:
   `execution/terminal_unit/control/statement_sequence/local_data.rs`,

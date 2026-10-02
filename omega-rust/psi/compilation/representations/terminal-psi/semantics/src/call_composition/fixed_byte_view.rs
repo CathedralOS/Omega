@@ -40,23 +40,7 @@ pub fn fixed_byte_array_window<'types, 'path>(
     argument: &'path StructuralArgument,
     expected: &StructuralParameterDeclaration,
 ) -> Option<FixedByteArrayWindow<'path>> {
-    if actual.place != argument.place
-        || argument.access != expected.access
-        || !matches!(
-            (actual.access, argument.access),
-            (
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-            ) | (
-                StructuralAccess::SharedBorrow,
-                StructuralAccess::SharedBorrow
-            )
-        )
-        || [actual, expected].iter().any(|parameter| {
-            parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-        })
+    if !readable_collection_loan(actual, argument, expected)
         || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type
                 && matches!(
@@ -170,23 +154,7 @@ pub fn fixed_element_array_extent<'types>(
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
 ) -> Option<u64> {
-    if actual.place != argument.place
-        || argument.access != expected.access
-        || !matches!(
-            (actual.access, argument.access),
-            (
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-            ) | (
-                StructuralAccess::SharedBorrow,
-                StructuralAccess::SharedBorrow
-            )
-        )
-        || [actual, expected].iter().any(|parameter| {
-            parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-        })
+    if !readable_collection_loan(actual, argument, expected)
         || !argument
             .path
             .iter()
@@ -212,4 +180,35 @@ pub fn fixed_element_array_extent<'types>(
         return None;
     }
     Some(length)
+}
+
+/// The borrowed presentation does not copy or transfer its backing owner.
+/// Keep the owner's actual multiplicity distinct from the unrestricted loan
+/// parameter. Callers separately authenticate that source home, its live
+/// custody, qualifications, claims and exclusive overlap.
+fn readable_collection_loan(
+    actual: &StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> bool {
+    actual.place == argument.place
+        && argument.access == expected.access
+        && matches!(
+            (actual.access, argument.access),
+            (
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) | (
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow
+            )
+        )
+        && matches!(
+            actual.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        && expected.multiplicity == StructuralMultiplicity::Unrestricted
+        && [actual, expected].iter().all(|parameter| {
+            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
+        })
 }

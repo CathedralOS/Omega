@@ -325,28 +325,23 @@ impl TerminalExecution {
             root_type,
             &source.path,
         )?;
-        let StructuralTypeShape::FixedArray {
-            element: collection_element,
-            length: collection_length,
-        } = self
-            .program
-            .structural_types
-            .get(&collection_type)
-            .ok_or_else(invalid)?
-            .shape
-        else {
-            return Err(invalid());
-        };
-        if collection_element != element {
+        let collection = terminal_semantics::collection_backing(
+            self.program.structural_types.values(),
+            collection_type,
+            element,
+        )
+        .ok_or_else(invalid)?;
+        if collection.storage == terminal_semantics::CollectionStorage::Borrowed
+            && !descriptor.is_borrowed_byte_view()
+        {
             return Err(invalid());
         }
+        let collection_length = collection.length;
         let extent = usize::try_from(collection_length).map_err(|_| invalid())?;
         // Byte loans resolve their live ArrayStorage directly. Only consumers
         // retaining scalar snapshots need to walk and allocate element values.
-        let snapshot_scalar = element_scalar.filter(|_| {
-            access == StructuralAccess::SharedBorrow
-                || matches!(descriptor, StructuralTypeShape::ElementView { .. })
-        });
+        let snapshot_scalar = element_scalar
+            .filter(|_| matches!(descriptor, StructuralTypeShape::ElementView { .. }));
         let mut elements = Vec::with_capacity(if snapshot_scalar.is_some() { extent } else { 0 });
         let mut path = source.path.clone();
         if let Some(element_scalar) = snapshot_scalar {
@@ -363,34 +358,19 @@ impl TerminalExecution {
             path: Vec::new(),
         };
         match descriptor {
-            StructuralTypeShape::ByteSequence(_) if access == StructuralAccess::MutableBorrow => {
+            StructuralTypeShape::ByteSequence(_) => {
                 let mut cursor = self.local_structural_identities.cursor();
-                let (value, binding) =
-                    self.establish_byte_array_binding(source, result.structural_type, &mut cursor)?;
-                descriptor_value = value;
+                let (value, binding) = self.establish_byte_array_binding(
+                    source,
+                    result.structural_type,
+                    &collection,
+                    &mut cursor,
+                )?;
+                if access == StructuralAccess::MutableBorrow {
+                    descriptor_value = value;
+                }
                 self.local_structural_identities.commit_cursor(cursor);
                 self.byte_sequence_values.insert(result.place, binding);
-            }
-            StructuralTypeShape::ByteSequence(_) => {
-                let bytes = elements
-                    .into_iter()
-                    .map(|element| {
-                        let TerminalScalarValue::Integer {
-                            value: IntegerValue::Unsigned(value),
-                            ..
-                        } = element
-                        else {
-                            return Err(invalid());
-                        };
-                        u8::try_from(value).map_err(|_| invalid())
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                self.byte_sequence_values.insert(
-                    result.place,
-                    crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                        crate::byte_sequences::ByteSequenceView::new(bytes),
-                    ),
-                );
             }
             _ => {
                 let view = if element_scalar.is_none() {
