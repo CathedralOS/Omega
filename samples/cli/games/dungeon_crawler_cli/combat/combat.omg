@@ -20,7 +20,7 @@ machine CombatSystem::fight(
     random: &mut RandomState,
     round: &mut CombatRound
 ) {
-    round.player_damage = max(0, player.attack - event.enemy.defense + self.rng.range(random, 3));
+    round.player_damage = max(0, player.attack - event.enemy.defense + ((self.rng.range(random, 3) as i32) as i32 in Wrapping));
     event.enemy.health = max(0, event.enemy.health - round.player_damage);
     round.enemy_defeated = event.enemy.health == 0;
 
@@ -55,7 +55,7 @@ machine CombatSystem::fight(
         random: &mut RandomState,
         round: &mut CombatRound
     ) {
-        round.enemy_damage = max(0, event.enemy.attack - player.defense + self.rng.range(random, 3));
+        round.enemy_damage = max(0, event.enemy.attack - player.defense + ((self.rng.range(random, 3) as i32) as i32 in Wrapping));
         self.player_system.take_damage(player, round.enemy_damage);
         round.player_defeated = player.health == 0;
     }
