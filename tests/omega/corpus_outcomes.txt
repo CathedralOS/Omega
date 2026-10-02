@@ -2231,8 +2231,7 @@ pass/text/runtime_param_domain_forward_exit checked 671ms @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit checked 679ms @7f80f93fd214+wt
 pass/text/runtime_slice_indexed_string_guard_exit rejected 1710ms @569fd648944c
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 4)
-pass/text/runtime_stdin_command_branch_exit rejected 773ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
+pass/text/runtime_stdin_command_branch_exit checked 2548ms @5cc4f25bbb18+wt
 pass/text/runtime_stdin_line_buffering_exit checked 1779ms @4e4bfed13aee+wt
 pass/text/runtime_string_concat_two_fields_exit checked 1760ms @2d8ed253669f
 pass/text/runtime_string_stored_suffix_exit rejected 661ms @5676dbe78a95+wt
