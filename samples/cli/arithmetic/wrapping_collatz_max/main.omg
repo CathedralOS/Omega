@@ -16,6 +16,8 @@
 // The scan carries four values: the outer start, the best step count seen, and
 // the inner value and its step counter. They are loop state, so they travel as
 // state arguments and the program declares no data at all.
+//
+// Expected exit: 0
 
 machine main() {
     transition { _ -> outer_(1, 0) }
