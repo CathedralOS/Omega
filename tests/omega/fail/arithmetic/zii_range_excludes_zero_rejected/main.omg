@@ -3,7 +3,7 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; m: i32 [1..=100]; q: i32; }
-machine Main::main(&mut self) {
-    self.q = 10 % self.m;
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) {
+    main.q = 10 % main.m;
+    main.console.exit_process(0);
 }

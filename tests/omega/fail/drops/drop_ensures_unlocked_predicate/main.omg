@@ -12,13 +12,13 @@ data MutexGuard {
     mutex: i32;
 }
 
-machine MutexGuard::drop(&mut self)
-    ensures self.mutex unlocked
+machine MutexGuard::drop(mutex_guard: &mut MutexGuard)
+    ensures mutex_guard.mutex unlocked
 {
 }
 
 data Main {
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
 }
