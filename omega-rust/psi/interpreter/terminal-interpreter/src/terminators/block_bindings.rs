@@ -214,8 +214,10 @@ impl TerminalExecution {
                 || !parameter.projected_qualifications.is_empty()
                 || argument.access != parameter.access
                 || (!argument.path.is_empty()
-                    && !(parameter.access == StructuralAccess::SharedBorrow
-                        || (allow_projected && parameter.access == StructuralAccess::Owned)))
+                    && !(matches!(
+                        parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    ) || (allow_projected && parameter.access == StructuralAccess::Owned)))
                 || self.live_claims.values().any(|claim| {
                     claim.place == Some(argument.place) || claim.place == Some(parameter.place)
                 })
@@ -381,6 +383,57 @@ impl TerminalExecution {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
                 }
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    if self.plain_record_type(parameter.structural_type)
+                        || matches!(
+                            self.program
+                                .structural_types
+                                .get(&parameter.structural_type)
+                                .map(|declaration| &declaration.shape),
+                            Some(StructuralTypeShape::PrimitiveScalar(_))
+                        ) =>
+                {
+                    if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                        || self
+                            .live_affine_frontier
+                            .iter()
+                            .any(|entry| entry.place == parameter.place)
+                        || (parameter.access == StructuralAccess::MutableBorrow
+                            && (!self.block_parameter_is_declared(target, parameter)
+                                || !self.mutable_place_source(argument.place)))
+                    {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    }
+                    // A borrowed place binds the exact projected view: the
+                    // argument path extends the root's stored path and
+                    // must resolve to the parameter's declared referent
+                    // type — a plain record subtree or one canonical
+                    // primitive-scalar leaf. The loan moves no custody —
+                    // the root either stays untracked or is still held as
+                    // one whole frontier entry.
+                    let view = resolve_structural_arguments(
+                        &self.program.structural_types,
+                        &self.structural_values,
+                        std::slice::from_ref(argument),
+                    )?
+                    .pop()
+                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                    if view.structural_type != parameter.structural_type {
+                        return Err(TerminalInterpretError::StructuralArgumentType {
+                            place: parameter.place,
+                            expected: parameter.structural_type,
+                            actual: view.structural_type,
+                        });
+                    }
+                    if self
+                        .live_affine_frontier
+                        .iter()
+                        .any(|entry| entry.place == argument.place && !entry.path.is_empty())
+                    {
+                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    }
+                    projected_value = Some(view);
+                }
                 StructuralAccess::SharedBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self
@@ -403,44 +456,6 @@ impl TerminalExecution {
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                    } else if self.plain_record_type(parameter.structural_type)
-                        || matches!(
-                            self.program
-                                .structural_types
-                                .get(&parameter.structural_type)
-                                .map(|declaration| &declaration.shape),
-                            Some(StructuralTypeShape::PrimitiveScalar(_))
-                        )
-                    {
-                        // A shared loan binds the exact projected view: the
-                        // argument path extends the root's stored path and
-                        // must resolve to the parameter's declared referent
-                        // type — a plain record subtree or one canonical
-                        // primitive-scalar leaf. The loan moves no custody —
-                        // the root either stays untracked or is still held as
-                        // one whole frontier entry.
-                        let view = resolve_structural_arguments(
-                            &self.program.structural_types,
-                            &self.structural_values,
-                            std::slice::from_ref(argument),
-                        )?
-                        .pop()
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        if view.structural_type != parameter.structural_type {
-                            return Err(TerminalInterpretError::StructuralArgumentType {
-                                place: parameter.place,
-                                expected: parameter.structural_type,
-                                actual: view.structural_type,
-                            });
-                        }
-                        if self
-                            .live_affine_frontier
-                            .iter()
-                            .any(|entry| entry.place == argument.place && !entry.path.is_empty())
-                        {
-                            return Err(TerminalInterpretError::AffineFrontierMismatch);
-                        }
-                        projected_value = Some(view);
                     } else {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
@@ -526,6 +541,60 @@ impl TerminalExecution {
             record_payload,
             identity_cursor,
         })
+    }
+
+    /// Mutable forwarding preserves the current referent and its source debt.
+    /// Runtime identities alone carry no permission: recover it from the exact
+    /// current parameter or independently admitted owned result declaration.
+    fn mutable_place_source(&self, place: PlaceId) -> bool {
+        let Some(value) = self.structural_values.get(&place) else {
+            return false;
+        };
+        let multiplicity = if let Some(source) = self.owned_block_source(place) {
+            if source.structural_type != value.structural_type
+                || !source.qualifications.is_empty()
+                || !source.projected_qualifications.is_empty()
+                || !matches!(
+                    source.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::Owned
+                )
+                || (source.access == StructuralAccess::MutableBorrow
+                    && source.multiplicity != StructuralMultiplicity::Unrestricted)
+            {
+                return false;
+            }
+            source.multiplicity
+        } else if self.owned_result_source(
+            place,
+            value.structural_type,
+            StructuralMultiplicity::Affine,
+            false,
+        ) {
+            StructuralMultiplicity::Affine
+        } else if self.owned_result_source(
+            place,
+            value.structural_type,
+            StructuralMultiplicity::Unrestricted,
+            false,
+        ) {
+            StructuralMultiplicity::Unrestricted
+        } else {
+            return false;
+        };
+        let root = StructuralAffineDiscard {
+            place,
+            path: Vec::new(),
+            structural_type: value.structural_type,
+        };
+        let expected = match multiplicity {
+            StructuralMultiplicity::Unrestricted => None,
+            StructuralMultiplicity::Affine => Some(&root),
+            _ => return false,
+        };
+        self.live_affine_frontier
+            .iter()
+            .filter(|entry| entry.place == place)
+            .eq(expected)
     }
 
     fn block_parameter_is_declared(

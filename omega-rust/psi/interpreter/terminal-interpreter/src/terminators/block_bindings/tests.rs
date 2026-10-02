@@ -243,7 +243,7 @@ fn malformed_view_bindings_reject_without_replacing_values() {
 }
 
 #[test]
-fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
+fn mutable_field_loan_attenuation_preserves_referent_and_rejects_forged_custody() {
     use semantic_vocabulary::StructuralFieldId;
     use terminal_psi::{
         BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
@@ -392,20 +392,34 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
             }
             execution.structural_values.insert(loan_place, supplied);
             let structural_values = execution.structural_values.clone();
-            // Clearing a forged descriptor's path must not turn the binding
-            // into an immutable snapshot or bypass its access-kind checks.
-            assert!(
-                matches!(
-                    execution.prepare_block_bindings(
-                        edge.target,
-                        &edge.arguments,
-                        &arguments,
-                        true
+            let outcome =
+                execution.prepare_block_bindings(edge.target, &edge.arguments, &arguments, true);
+            if access == StructuralAccess::SharedBorrow && !erase_path {
+                // Ordinary access attenuation retains the exact referent and
+                // produces the same immutable snapshot used by call binding.
+                let prepared = outcome.expect("a valid mutable loan can lend shared access");
+                let destination = PlaceId::new(4).unwrap();
+                assert_eq!(prepared.structural[&destination], referent);
+                let mut snapshot = prepared.byte_sequences[&destination]
+                    .immutable()
+                    .unwrap()
+                    .clone();
+                assert_eq!(snapshot.bytes(), &[10, 20]);
+                assert!(prepared.affine_sources.is_empty());
+                assert!(prepared.affine_destinations.is_empty());
+                snapshot.replace_byte(0, 99).unwrap();
+                assert_eq!(snapshot.bytes(), &[99, 20]);
+            } else {
+                // Removing the recorded field path cannot manufacture a
+                // different loan, and lending never transfers owned custody.
+                assert!(
+                    matches!(
+                        outcome,
+                        Err(TerminalInterpretError::VerifiedOperationMalformed)
                     ),
-                    Err(TerminalInterpretError::VerifiedOperationMalformed)
-                ),
-                "access={access:?}, erase_path={erase_path}"
-            );
+                    "access={access:?}, erase_path={erase_path}"
+                );
+            }
             assert_eq!(execution.structural_values, structural_values);
             assert_eq!(execution.values, scalar_values);
             assert_eq!(execution.live_affine_frontier, frontier);
@@ -424,6 +438,118 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
                     .as_ptr(),
                 backing_pointer
             );
+        }
+    }
+}
+
+#[test]
+fn mutable_borrowed_places_forward_with_exact_source_authority_and_debt() {
+    use terminal_psi::{StructuralAffineDiscard, StructuralPlaceDeclaration};
+
+    for shape in [
+        StructuralTypeShape::Record { fields: Vec::new() },
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+    ] {
+        for mutation in 0..6 {
+            let mut edge = successor();
+            for argument in &mut edge.structural_arguments {
+                argument.access = StructuralAccess::MutableBorrow;
+            }
+            let mut execution = execution(Terminator::ReturnUnit {
+                edge: edge.edge,
+                trivial_affine_discards: Vec::new(),
+            });
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            execution.mutate_structural_type(structural_type, |declaration| {
+                declaration.shape = shape.clone();
+            });
+            execution.byte_sequence_values.clear();
+            let machine = std::sync::Arc::get_mut(&mut execution.program)
+                .unwrap()
+                .machines
+                .get_mut(&execution.current_machine)
+                .unwrap();
+            let target = machine.blocks.get_mut(&edge.target).unwrap();
+            for (position, parameter) in target.structural_parameters.iter_mut().enumerate() {
+                parameter.access = StructuralAccess::MutableBorrow;
+                parameter.place = PlaceId::new(position as u64 + 3).unwrap();
+            }
+            machine.structural_parameters = target
+                .structural_parameters
+                .iter()
+                .enumerate()
+                .map(|(position, parameter)| {
+                    let mut source = parameter.clone();
+                    source.place = PlaceId::new(position as u64 + 1).unwrap();
+                    source
+                })
+                .collect();
+            machine.structural_places = machine
+                .structural_parameters
+                .iter()
+                .map(|parameter| StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                        is_self: false,
+                    },
+                })
+                .chain(target.structural_parameters.iter().map(|parameter| {
+                    StructuralPlaceDeclaration {
+                        id: parameter.place,
+                        kind: StructuralPlaceKind::BlockParameter {
+                            block: edge.target,
+                            position: parameter.position,
+                        },
+                    }
+                }))
+                .collect();
+            match mutation {
+                1 => machine.structural_parameters[0].access = StructuralAccess::SharedBorrow,
+                2 => machine
+                    .structural_places
+                    .retain(|place| place.id != PlaceId::new(1).unwrap()),
+                3 => {
+                    machine.structural_parameters[0].structural_type =
+                        StructuralTypeId::new(9).unwrap()
+                }
+                4 => {
+                    execution
+                        .live_affine_frontier
+                        .insert(StructuralAffineDiscard {
+                            place: PlaceId::new(1).unwrap(),
+                            path: Vec::new(),
+                            structural_type,
+                        });
+                }
+                5 => edge.structural_arguments[0]
+                    .path
+                    .push(terminal_psi::StructuralPathSegment::Field("missing".into())),
+                _ => {}
+            }
+            let prepared = execution.prepare_block_bindings(
+                edge.target,
+                &edge.arguments,
+                &edge.structural_arguments,
+                true,
+            );
+            if mutation != 0 {
+                assert!(prepared.is_err(), "mutation {mutation}");
+                continue;
+            }
+            let prepared =
+                prepared.expect("mutable borrowed storage has no descriptor-family restriction");
+            prepared.validate_discards(&execution, &[], &[]).unwrap();
+            prepared.commit(&mut execution);
+            assert_eq!(
+                execution.structural_values[&PlaceId::new(3).unwrap()].opaque_identity,
+                102
+            );
+            assert_eq!(
+                execution.structural_values[&PlaceId::new(4).unwrap()].opaque_identity,
+                101
+            );
+            assert!(execution.live_affine_frontier.is_empty());
         }
     }
 }

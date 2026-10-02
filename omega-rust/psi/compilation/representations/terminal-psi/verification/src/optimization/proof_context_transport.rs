@@ -220,6 +220,18 @@ fn transport_node(
                 transport_node(child, substitutions, mapping)?;
             }
         }
+        ProofRule::IntegerMathOrderTranslation { relation, addend } => {
+            transport_node(relation, substitutions, mapping)?;
+            // The translation witness must follow the same exact value
+            // substitution as its conclusion and independently proved child.
+            let equality = Proposition::IntegerMathEqual(addend.clone(), addend.clone());
+            let Proposition::IntegerMathEqual(mapped, _) =
+                substitute_proposition_values(&equality, substitutions)
+            else {
+                unreachable!("mathematical substitution preserves equality shape")
+            };
+            *addend = mapped;
+        }
         ProofRule::IntegerAffineBound {
             root_bound,
             witness,

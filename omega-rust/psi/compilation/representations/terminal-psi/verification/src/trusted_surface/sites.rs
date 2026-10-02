@@ -924,7 +924,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/optimization/proof_context_transport.rs",
-        sha256: Some("c49d5590a2429c00bc2010efbc76c9fa799d16809fe593df29a96bb80b6f704b"),
+        sha256: Some("10c8fb9eb323e694b75d88b13a0bb0367bcfa725cb17c9d336a8815709836907"),
         inventory_machinery: false,
     },
     ImplementationSite {
