@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": null, "load1_end": 1.7, "load1_start": 1.12, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.56, "load1_start": 6.56, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2058,8 +2058,7 @@ pass/providers/token_machine_family_override_exit checked 1314ms @2d8ed253669f
 pass/range/data_parameter_counter_non_negative_exit checked 848ms @ec784d4d82e8+wt
 pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
-pass/ranges/subject_guard_compound_index_successor rejected 138ms @24835cdd46a6
-	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
+pass/ranges/subject_guard_compound_index_successor checked 126ms @34bff3b8a5fe
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 339ms @17d6ccc60253+wt
