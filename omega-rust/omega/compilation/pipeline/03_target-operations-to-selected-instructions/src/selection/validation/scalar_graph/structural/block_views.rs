@@ -29,6 +29,11 @@ pub(in crate::selection::validation) fn block_entry(
         } else {
             calling_conventions::ValueShape::integer(16, 8)
         };
+        if shape.byte_size == 0 {
+            // Independent replay expects no address instruction or storage row;
+            // the exact owned binding is still checked on every incoming edge.
+            continue;
+        }
         let slot = LocalStorageSlotId::StructuralBlockParameter {
             block: block.id,
             place: parameter.place,

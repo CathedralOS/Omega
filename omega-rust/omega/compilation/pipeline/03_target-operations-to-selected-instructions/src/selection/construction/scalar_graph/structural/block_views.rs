@@ -33,6 +33,11 @@ pub(in crate::selection::construction) fn block_entry(
         } else {
             calling_conventions::ValueShape::integer(16, 8)
         };
+        if shape.byte_size == 0 {
+            // Custody is still bound by the semantic edge; no payload address
+            // or slot exists for an empty owned arrival.
+            continue;
+        }
         let slot = LocalStorageSlotId::StructuralBlockParameter {
             block: block.id,
             place: parameter.place,

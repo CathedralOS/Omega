@@ -172,7 +172,7 @@ fn owned_array_arrival_replays_exact_home_and_rejects_substitution() {
                 environment.physical(),
                 environment.constraints(),
             )
-            .unwrap();
+            .unwrap_or_else(|error| panic!("{native:?}, length {length}: {error:?}"));
             crate::validate_selected_instructions(
                 &legalized,
                 &constraints,
@@ -180,7 +180,66 @@ fn owned_array_arrival_replays_exact_home_and_rejects_substitution() {
                 environment.constraints(),
                 selected.plan().clone(),
             )
-            .unwrap();
+            .unwrap_or_else(|error| panic!("{native:?}, length {length}: {error:?}"));
+            if length == 0 {
+                assert!(selected.plan().functions[0].local_storage_slots.is_empty());
+                assert!(selected.plan().functions[0].memory_accesses.is_empty());
+                assert!(selected.plan().functions[0].virtual_registers.is_empty());
+            }
+            for mutation in 0..3 {
+                let mut changed = selected.plan().clone();
+                let function = &mut changed.functions[0];
+                let binding = function
+                    .blocks
+                    .iter_mut()
+                    .find_map(|block| {
+                        let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+                            &mut block.terminator
+                        else {
+                            return None;
+                        };
+                        successor.structural_bindings.first_mut()
+                    })
+                    .expect("the owned value retains its semantic edge binding");
+                match mutation {
+                    0 => {
+                        binding.transport = if length == 0 {
+                            selected_instructions::SelectedStructuralTransport::WholeValue {
+                            argument: selected_instructions::VirtualRegisterId(99),
+                            destination: selected_instructions::LocalStorageSlotId::StructuralBlockParameter { block: id(2), place: id(2) },
+                            byte_size: 0,
+                            alignment: 1,
+                        }
+                        } else {
+                            selected_instructions::SelectedStructuralTransport::Unused
+                        }
+                    }
+                    1 => binding.semantic.argument.place = id(99),
+                    2 => {
+                        if length == 0 {
+                            function.local_storage_slots.push(selected_instructions::SelectedLocalStorageSlot {
+                            id: selected_instructions::LocalStorageSlotId::StructuralBlockParameter { block: id(2), place: id(2) },
+                            byte_size: 0,
+                            alignment: 1,
+                        });
+                        } else {
+                            function.local_storage_slots.clear();
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legalized,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed,
+                    )
+                    .is_err(),
+                    "{native:?}, length {length}, selected mutation {mutation}"
+                );
+            }
             for mutation in 0..3 {
                 let mut changed = targeted.clone();
                 let block = changed.functions[0]
