@@ -637,7 +637,9 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
         }
         // Passing caller-backed storage is not carrying a state-local
         // observation of it. Resolve the argument's provenance, then require
-        // an incoming reference whose referent cannot store another view.
+        // an incoming reference. Stored reference leaves retain their own
+        // source loans in the assignment inventory; forwarding the parent
+        // cannot retire those loans with an unrelated local observation.
         // Local aliases, aggregates carrying loans, and unknown frontiers
         // cannot establish this fact. Their retained loan transport must be
         // checked instead of treating state exit as permission to end them.
@@ -653,14 +655,11 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
             .iter()
             .find(|candidate| candidate.symbol == place.root_symbol)?;
         for reference in [incoming.type_reference, parameter.type_reference, actual] {
-            let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
+            let typed_trees::types::TypeReferenceNode::Reference { .. } =
                 program.type_reference_table.type_reference(reference)
             else {
                 return None;
             };
-            if !crate::borrow::view_link::substituted_result_is_view_free(program, *referee, &[]) {
-                return None;
-            }
         }
     }
     positional.next().is_none().then_some(source)
@@ -716,7 +715,7 @@ pub(super) fn local_loan_ends_before_successor(
     loan_handle: arena::Handle<checked_trees::BorrowLoanFact>,
 ) -> bool {
     let loan = facts.borrow.loans.get(loan_handle);
-    if loan.lineage != checked_trees::BorrowLoanLineage::DirectRoot
+    if !loan.owner_path.is_empty()
         || !program
             .state_local_declaration(source, loan.owner_symbol)
             .is_some_and(|(_, local)| {
@@ -730,20 +729,19 @@ pub(super) fn local_loan_ends_before_successor(
     {
         return false;
     }
-    // Resource replay precedes this check. A non-carried local observation
-    // is closed before successor execution whether the source's ledger ends
-    // it at scope exit or earlier last-use expiry. Reassignment is different:
-    // ending displaced custody requires evaluating its replacement first.
+    // Source correspondence authenticates every loan's formation and last use,
+    // including derived views. Scope closure ends a non-carried local binding;
+    // it does not promote the view's lineage or restore parent authority inside
+    // the source state. Reassignment remains a separate evaluation boundary.
     facts
-        .borrow
-        .direct_loan_resources
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .span_or_empty(flow.borrow_weakenings)
         .iter()
-        .any(|(_, resource)| {
-            resource.loan == loan_handle
-                && resource.machine_symbol == flow.machine_symbol
-                && resource.state_symbol == flow.state_symbol
-                && resource.parent_lifetime.root_symbol == loan.root_symbol
-                && match (resource.weakening_reason, resource.weakening_source) {
+        .any(|weakening| {
+            weakening.loan == loan_handle
+                && match (weakening.reason, weakening.source) {
                     (
                         checked_trees::FlowBorrowWeakeningReason::StateExit,
                         checked_trees::FlowInvalidationSource::Statement { statement_index },
@@ -751,7 +749,10 @@ pub(super) fn local_loan_ends_before_successor(
                     (
                         checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
                         checked_trees::FlowInvalidationSource::Statement { statement_index },
-                    ) => statement_index <= source.statement_nodes.count() as usize,
+                    ) => {
+                        statement_index == loan.last_use_statement_index + 1
+                            && statement_index <= source.statement_nodes.count() as usize
+                    }
                     _ => false,
                 }
         })

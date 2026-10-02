@@ -3,10 +3,8 @@ use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 use symbols::SymbolHandle;
 
 use super::tracker::StateLoanTracker;
-use usage::{
-    owner_path_overlaps_place_segments, statement_uses_local_name, statement_uses_owner_path,
-    statement_uses_symbol,
-};
+pub(crate) use usage::owner_path_overlaps_place_segments;
+use usage::{statement_uses_local_name, statement_uses_owner_path, statement_uses_symbol};
 
 mod usage;
 
@@ -135,6 +133,56 @@ pub(super) fn update_state_loan_last_uses(
             if used {
                 loans.get_mut(tracker.handle).last_use_statement_index = statement_index;
             }
+        }
+    }
+
+    // Incoming storage remains live in its caller even when this state makes
+    // no further lexical observation of it. Installed field loans end only
+    // when replacement replay retires their slot or this state exits.
+    if let Some(state) = crate::semantic::calls::find_state(program, state_symbol) {
+        for tracker in loan_trackers {
+            if !tracker.owner_path.is_empty()
+                && program
+                    .state_parameters(state)
+                    .iter()
+                    .any(|parameter| parameter.symbol == tracker.owner_symbol)
+            {
+                loans.get_mut(tracker.handle).last_use_statement_index =
+                    state.statement_nodes.count().saturating_sub(1) as usize;
+            }
+        }
+    }
+
+    // A live alias observes its captured carrier even when later source uses
+    // spell only the alias. Propagate that lifetime through stored leaves;
+    // nested aliases can extend one another, so iterate to the finite maximum
+    // of the already observed statement coordinates.
+    loop {
+        let mut changed = false;
+        for carrier in loan_trackers {
+            if carrier.owner_path.is_empty() {
+                continue;
+            }
+            for alias in loan_trackers {
+                if alias.place.root_symbol != carrier.owner_symbol
+                    || !owner_path_overlaps_place_segments(
+                        program,
+                        &carrier.owner_path,
+                        &alias.place.segments,
+                    )
+                {
+                    continue;
+                }
+                let alias_last_use = loans.get(alias.handle).last_use_statement_index;
+                let carried = loans.get_mut(carrier.handle);
+                if carried.last_use_statement_index < alias_last_use {
+                    carried.last_use_statement_index = alias_last_use;
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
         }
     }
 }

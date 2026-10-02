@@ -153,6 +153,27 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
 
         for (loan_handle, loan) in &active_loans {
+            // The carried reference's backing must survive the state exit,
+            // independently of spatial interference with the parent carrier.
+            // Source replay and the active roster retain replacement/expiry;
+            // a loan removed before this exact edge cannot appear here.
+            if super::super::statements::local_jump(program, state_flow, borrow_call).is_some()
+                && access.end_before_access.is_none()
+                && access.root_symbol == loan.owner_symbol
+                && crate::borrow::owner_path_overlaps_place_segments(
+                    program,
+                    facts.borrow.loan_owner_path(loan),
+                    facts.borrow.access_segments.span_or_empty(access.segments),
+                )
+                && program.symbols.get(loan.root_symbol).kind == symbols::SymbolKind::Local
+                && program.symbols.get(loan.root_symbol).parent == state_flow.state_symbol
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` receives a carried loan of local `{}`, whose storage ends at the source state exit",
+                    symbol_name(program, loan.root_symbol),
+                )));
+                continue;
+            }
             if recording.non_interfering(
                 program,
                 argument_operand(&facts.borrow, index, access),
