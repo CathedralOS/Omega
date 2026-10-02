@@ -36,7 +36,7 @@ machine Main::check(main: &Main, path: &[u8] in Path) reaches Console {
     }
 }
 
-machine Main::verify(main: &Main, prefix: &[u8]) reaches Console {
+machine Main::verify(main: &Main, prefix: &[u8] in Path) reaches Console {
     transition prefix.len == 5 {
         true -> good(main)
         false -> wrong(main)

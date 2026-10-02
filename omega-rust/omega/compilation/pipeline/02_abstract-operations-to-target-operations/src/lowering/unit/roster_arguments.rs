@@ -39,57 +39,10 @@ pub(in crate::lowering) fn lower_structural_argument(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    // Whole-root domain preconditions bind by exact roster equality: the
-    // callee parameter's declared qualifications must equal the roster the
-    // caller's source place carries — a caller structural parameter's own
-    // declared roster, a produced structural home's result roster, or the
-    // minted roster an established byte-sequence literal carries. Every
-    // other source carries no qualifications and satisfies only an
-    // unqualified parameter. Verified discharge happened upstream; lowering
-    // transports the authority without re-proving it.
-    let source_qualifications = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == argument.place)
-        .map(|parameter| parameter.qualifications.as_slice())
-        .or_else(|| {
-            super::projected_result::source(operations, argument.place)
-                .map(|(home, _)| home.qualifications())
-        })
-        .or_else(|| {
-            local_homes
-                .get(&argument.place)
-                .map(TargetStructuralHomeRequirement::qualifications)
-        })
-        .or_else(|| {
-            operations.iter().find_map(|operation| {
-                let TargetUnitOperation::EstablishByteSequenceLiteral {
-                    place,
-                    qualifications,
-                    ..
-                } = operation
-                else {
-                    return None;
-                };
-                (place.id == argument.place).then_some(qualifications.as_slice())
-            })
-        })
-        .unwrap_or(&[]);
-    // An inline owner field carries typed predicates in its field declaration,
-    // not the enclosing root's domain roster. Optimized admission has checked
-    // both directions of its writable predicate contract; the field geometry
-    // below must still match the callee's exact bounded-owner capacity.
-    let projected_byte_owner = !argument.path.is_empty()
-        && structural_types
-            .get(&callee_parameter.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
-            });
+    // Qualifications are discharged by current-graph semantic admission and
+    // replayed before native selection. This projection reconstructs physical
+    // custody: a domain roster is neither a descriptor layout nor a substitute
+    // for the argument's exact producer, access, and storage geometry.
     // A whole owned bounded byte local lends its home to a shared bounded
     // owner formal. Unit validation replayed the formal's byte predicates
     // from the local's own operands, so the home's empty roster is not
@@ -101,30 +54,6 @@ pub(in crate::lowering) fn lower_structural_argument(
         local_homes,
         structural_types,
     );
-    // A stored shared view field carries its predicates in its field
-    // declaration; optimized admission checked they imply the formal's.
-    let projected_stored_view = match parameters_by_place.get(&argument.place) {
-        Some(source) => stored_shared_view_field(
-            source.structural_type,
-            &argument.path,
-            callee_parameter,
-            structural_types,
-            shape_cache,
-            active,
-        )?
-        .is_some(),
-        None => false,
-    };
-    if !projected_byte_owner
-        && !projected_stored_view
-        && owner_home.is_none()
-        && source_qualifications != callee_parameter.qualifications.as_slice()
-    {
-        return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-            callee,
-            place: argument.place,
-        });
-    }
     // The owned home is also a readable view of this activation; the owner
     // formal takes the home's own `{length, bytes}` address instead.
     if let Some(producer) = owner_home {

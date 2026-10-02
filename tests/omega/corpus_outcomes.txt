@@ -1013,6 +1013,8 @@ fail/slices/invalid_subslice_end_bounds_unchecked rejected 667ms expected @2d8ed
 	cannot prove subslice range end bound `..9` is within slice length 4
 fail/slices/match_index_guard_does_not_escape rejected 170ms expected @64c3c65ffb80+wt
 	cannot prove index `0` is within unknown slice length of `values` in observe::entry
+fail/slices/nonempty_subslice_empty_range rejected 369ms expected @a5ac65bf511d+wt
+	cannot prove requires contract for call inspect from relay: bytes[0..0] in [u8]::Nonempty
 fail/slices/overlapping_mut_subslice_windows_rejected rejected 727ms expected @2d8ed253669f
 	statement 2 creates local borrow `b` while local borrow `a` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/slices/signed_slice_index_upper_only rejected 567ms expected @2d8ed253669f
@@ -1026,6 +1028,8 @@ fail/slices/termination_slice_length_order_unimplemented rejected 248ms expected
 	cannot prove the `terminates by` ranking for machine Main::walk
 fail/slices/unguarded_slice_parameter_index_compile rejected 699ms expected @2d8ed253669f
 	cannot prove index `index` is within unknown slice length of `entries` in Main::main::choose
+fail/slices/utf8_subslice_byte_cut rejected 371ms expected @a5ac65bf511d+wt
+	cannot prove requires contract for call inspect from relay: bytes[0..1] in [u8]::Utf8
 fail/slices/window_shrink_index_out_of_length rejected 693ms expected @2d8ed253669f
 	cannot prove index `3` is within length 3
 fail/structs/affine_result_constructor_reuse rejected 649ms expected @2d8ed253669f
@@ -2072,7 +2076,7 @@ pass/slices/byte_sequence_literal_tail_return_compile rejected 358ms @2d8ed25366
 	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
 pass/slices/callee_non_byte_view_len_index_subslice checked 1744ms @ed38350cbc69+wt
 pass/slices/disjoint_mut_subslice_windows_compile checked 307ms @2d8ed253669f
-pass/slices/domained_runtime_end_subslice_exit checked 1303ms @2f8006be6cc9+wt
+pass/slices/domained_runtime_end_subslice_exit checked 1072ms @a5ac65bf511d+wt
 pass/slices/guarded_match_slice_index_exit checked 2385ms @4e4bfed13aee+wt
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 293ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 286ms @2d8ed253669f
@@ -2082,6 +2086,7 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 313ms @2d8ed253669
 pass/slices/local_array_element_view_exit checked 2015ms @2d8ed253669f
 pass/slices/local_record_array_state_view_exit checked 1337ms @b33d826687a3
 pass/slices/projected_array_call_exit checked 1035ms @4e4bfed13aee+wt
+pass/slices/qualified_subslice_composition_exit checked 1090ms @a5ac65bf511d+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 728ms @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 1007ms @9b253f5667e5

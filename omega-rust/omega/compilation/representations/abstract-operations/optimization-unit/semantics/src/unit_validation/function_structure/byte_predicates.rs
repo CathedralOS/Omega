@@ -564,12 +564,8 @@ where
         .iter()
         .find(|place| place.id == source)?;
     match declaration.kind {
-        StructuralPlaceKind::Parameter { position, is_self } => {
-            let parameter = function.structural_parameters.iter().find(|parameter| {
-                parameter.place == source
-                    && parameter.position == position
-                    && parameter.is_self == is_self
-            })?;
+        StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
+            let parameter = function.arrival_parameter(source)?;
             if !matches!(
                 parameter.access,
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -615,6 +611,42 @@ where
             producer,
             structural_type,
         } => {
+            let node = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .find(|node| node.operation.psi_operation() == Some(producer))?;
+            if let Operation::ByteSequenceSubslice {
+                source: backing,
+                result,
+                ..
+            } = &node.operation
+            {
+                if result.place != source
+                    || result.structural_type != structural_type
+                    || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                    || !catalogs.types.clone().any(|declaration| {
+                        declaration.id == structural_type
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: None | Some(StructuralAccess::SharedBorrow)
+                                    }
+                                )
+                            )
+                    })
+                {
+                    return None;
+                }
+                return Some(
+                    source_predicates(catalogs, function, *backing, remaining, memo)?.subslice(),
+                );
+            }
             super::byte_views::owned_byte_result(
                 function,
                 Some(&declaration.kind),
@@ -631,11 +663,6 @@ where
                     })
                 },
             )?;
-            let node = function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .find(|node| node.operation.psi_operation() == Some(producer))?;
             let (result, operands) = match &node.operation {
                 Operation::EstablishByteSequenceConcatenation {
                     result,
@@ -821,6 +848,117 @@ mod tests {
         Catalogs {
             types: unit.structural_types.iter(),
             domains: unit.structural_domains.iter(),
+        }
+    }
+
+    // Predicate replay consumes producer identity, not endpoints or stored
+    // result qualifications. Separate operation validation owns the bounds.
+    fn nested_subslices() -> PsiOptimizationUnit {
+        let mut unit = shared_concatenations();
+        let structural_type = unit.structural_types[0].id;
+        unit.structural_types.make_mut()[0].shape =
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None,
+            });
+        let function = &mut unit.functions[0];
+        for node in &mut function.blocks[0].nodes {
+            if let Operation::EstablishByteSequenceLiteral {
+                structural_type: declaration,
+                ..
+            } = &mut node.operation
+            {
+                declaration.shape = StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                );
+            }
+            if let Operation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                left,
+                ..
+            } = &node.operation
+            {
+                assert_eq!(result.structural_type, structural_type);
+                node.operation = Operation::ByteSequenceSubslice {
+                    psi_operation: *psi_operation,
+                    result: result.clone(),
+                    source: left.source(),
+                    start: ValueId::new(1).unwrap(),
+                    end: ValueId::new(1).unwrap(),
+                    length: ValueId::new(1).unwrap(),
+                    obligation: ObligationId::new(1).unwrap(),
+                };
+            }
+        }
+        unit
+    }
+
+    #[test]
+    fn subslice_predicates_replay_exact_backing_and_drop_sequence_properties() {
+        let unit = nested_subslices();
+        let replay = |unit: &PsiOptimizationUnit| {
+            whole_source_predicates(
+                unit.structural_types.iter(),
+                unit.structural_domains.iter(),
+                &unit.functions[0],
+                PlaceId::new(41).unwrap(),
+            )
+        };
+        let predicates = replay(&unit).unwrap();
+        assert_eq!(
+            predicates.predicates().collect::<Vec<_>>(),
+            vec![
+                ByteSequencePredicate::NoNul,
+                ByteSequencePredicate::AsciiOnly
+            ]
+        );
+        assert!(predicates.holds_for(b""));
+        assert!(!predicates.holds_for(&[0]));
+
+        // Changing the root literal changes all descendants' actual facts.
+        let mut changed = unit.clone();
+        let Operation::EstablishByteSequenceLiteral { bytes, .. } =
+            &mut changed.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("literal");
+        };
+        *bytes = "é".as_bytes().to_vec();
+        assert_eq!(
+            replay(&changed).unwrap().predicates().collect::<Vec<_>>(),
+            vec![ByteSequencePredicate::NoNul]
+        );
+
+        for forged_source in [2, 1000] {
+            let mut changed = unit.clone();
+            let Operation::ByteSequenceSubslice { source, .. } =
+                &mut changed.functions[0].blocks[0].nodes[1].operation
+            else {
+                panic!("subslice");
+            };
+            *source = PlaceId::new(forged_source).unwrap();
+            assert_eq!(replay(&changed), None, "cycle or unknown source");
+        }
+        for corruption in 0..4 {
+            let mut changed = unit.clone();
+            let Operation::ByteSequenceSubslice { result, .. } =
+                &mut changed.functions[0].blocks[0].nodes[1].operation
+            else {
+                panic!("subslice");
+            };
+            match corruption {
+                0 => result.place = PlaceId::new(1).unwrap(),
+                1 => result.structural_type = StructuralTypeId::new(99).unwrap(),
+                2 => result
+                    .qualifications
+                    .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap()),
+                3 => result.multiplicity = terminal_psi::StructuralMultiplicity::Affine,
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                replay(&changed),
+                None,
+                "forged subslice result {corruption}"
+            );
         }
     }
 

@@ -548,13 +548,13 @@ pub fn byte_sequence_source_predicates(
             .structural_places
             .iter()
             .find(|place| place.id == source)?;
+        // Mark an in-progress replay before following children. A malformed
+        // cycle contributes no predicates, and shared subgraphs replay once.
+        let index = memo.len();
+        memo.push((source, None));
         let result = (|| match place.kind {
-            StructuralPlaceKind::Parameter { position, is_self } => {
-                let parameter = machine.structural_parameters.iter().find(|parameter| {
-                    parameter.place == source
-                        && parameter.position == position
-                        && parameter.is_self == is_self
-                })?;
+            StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
+                let parameter = crate::arrival_storage::arrival_parameter(machine, source)?;
                 // A by-value bounded formal carries its declared invariants
                 // just as its borrowed counterpart does. Owning a view does
                 // not confer authority over the view's backing storage.
@@ -601,14 +601,47 @@ pub fn byte_sequence_source_predicates(
                 }
                 Some(predicates)
             }
-            StructuralPlaceKind::OperationResult { producer, .. } => {
+            StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } => {
                 let operation = machine
                     .blocks
                     .iter()
                     .flat_map(|block| &block.operations)
                     .find(|operation| operation.id == producer)?;
-                if operation.result.structural()?.place != source {
+                let result = operation.result.structural()?;
+                if result.place != source || result.structural_type != structural_type {
                     return None;
+                }
+                if let OperationKind::ByteSequenceSubslice {
+                    source: backing, ..
+                } = operation.kind
+                {
+                    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                        || !result.qualifications.is_empty()
+                        || !result.projected_qualifications.is_empty()
+                        || !result.qualification_establishments.is_empty()
+                        || !result.claims.is_empty()
+                        || !module.structural_types.iter().any(|declaration| {
+                            declaration.id == structural_type
+                                && matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                            access: None | Some(StructuralAccess::SharedBorrow)
+                                        }
+                                    )
+                                )
+                        })
+                    {
+                        return None;
+                    }
+                    // Only the exact backing's invariant survives. Bounds,
+                    // source access and dominance remain use-site obligations.
+                    return Some(
+                        source_predicates(module, machine, backing, fuel, memo)?.subslice(),
+                    );
                 }
                 let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } =
                     &operation.kind
@@ -638,7 +671,7 @@ pub fn byte_sequence_source_predicates(
             }
             _ => None,
         })();
-        memo.push((source, result));
+        memo[index].1 = result;
         result
     }
     source_predicates(

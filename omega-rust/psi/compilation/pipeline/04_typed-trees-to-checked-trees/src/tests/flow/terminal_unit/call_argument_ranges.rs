@@ -7,9 +7,8 @@ use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
 use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm, CheckedStorageRoot,
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitPlanOmissionStage,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment,
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
 
 /// The structural arguments of the call a guarded arm of `machine`'s entry
@@ -344,37 +343,19 @@ fn qualified_view_narrows_into_an_unqualified_formal() {
     );
 }
 
-/// A range into a domain-qualified formal has no Terminal lowering: the
-/// subslice result carries no qualifications. The plan names that boundary.
+/// Qualification does not change the range's operation or source geometry.
 #[test]
-fn range_into_a_qualified_formal_names_its_boundary() {
+fn qualified_view_narrows_into_a_qualified_formal() {
     let checked = checked(QUALIFIED);
-    let symbol = machine_named(&checked, "Root::keep");
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(symbol)
-            .is_none(),
-        "no plan admits the qualified range"
-    );
-    let omission = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .omission_for_machine(symbol)
-        .expect("the omission is recorded");
-    assert!(
-        matches!(
-            omission.stage,
-            CheckedUnitPlanOmissionStage::LocalConstruction {
-                phase: "call operation: structural arguments: range into a qualified view formal",
-                ..
-            }
-        ),
-        "the omission names the qualified formal: {omission:?}"
-    );
+    let arguments = arm_call_arguments(&checked, "Root::keep");
+    assert!(arguments.iter().any(|argument| matches!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            root: CheckedStorageRoot::Parameter { index: 1 },
+            end: Some(_),
+            ..
+        }
+    ) && argument.path.is_empty()));
 }
 
 /// A range whose bound no fact proves is rejected by checking, before any

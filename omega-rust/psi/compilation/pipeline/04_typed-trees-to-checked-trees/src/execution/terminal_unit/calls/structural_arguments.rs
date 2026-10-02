@@ -143,18 +143,6 @@ pub(crate) fn structural_call_arguments(
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
                 && validation::subslice_expression(program, expression).is_some()
             {
-                if view_subslice::narrows_into_qualified_formal(
-                    program,
-                    caller_machine,
-                    caller_state,
-                    caller_parameters,
-                    target.type_reference,
-                    expression,
-                    statement_index,
-                ) {
-                    arm("call operation: structural arguments: range into a qualified view formal");
-                    return None;
-                }
                 let subslice = view_subslice::admit(
                     program,
                     facts,

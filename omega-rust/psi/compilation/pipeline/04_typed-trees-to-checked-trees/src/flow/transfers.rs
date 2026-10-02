@@ -260,7 +260,7 @@ pub(super) fn propagate_statement_transfers(
             },
             &mut refs,
         );
-        byte_sequences::append_concatenated_predicates(
+        byte_sequences::append_derived_predicates(
             program,
             semantic,
             build,

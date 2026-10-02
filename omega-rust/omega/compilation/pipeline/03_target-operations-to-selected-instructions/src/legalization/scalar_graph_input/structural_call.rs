@@ -300,6 +300,9 @@ pub(in crate::legalization) fn argument_at(
     if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
         return Err(LegalizationError::custody());
     }
+    // Current-graph admission already replayed the exact argument's primitive
+    // byte predicates. Reconstruct the original descriptor and placement here;
+    // qualification rosters do not change that physical custody.
     let (structural_type, source) = if let Some((producer, structural_type, element)) =
         established_view(caller, call_operation, semantic.place)
     {
@@ -326,7 +329,6 @@ pub(in crate::legalization) fn argument_at(
             || parameter.access != StructuralAccess::SharedBorrow
             || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || parameter.is_self
-            || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
@@ -358,7 +360,6 @@ pub(in crate::legalization) fn argument_at(
         if semantic.place != source.place
             || source.access != StructuralAccess::SharedBorrow
             || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !source.qualifications.is_empty()
             || !source.projected_qualifications.is_empty()
             || parameter.place != source.place
             || parameter.structural_type != source.structural_type
