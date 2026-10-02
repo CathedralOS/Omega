@@ -27,7 +27,6 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     PreparedScalarContract, PreparedStateRequirements,
 };
 
-mod owned_parameters;
 mod pending_blocks;
 mod qualifications;
 mod ranking;
@@ -412,7 +411,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             .ok_or(LoweringError::Unsupported("scalar loop header is absent"))?
             .structural_parameters = parameters.clone();
     }
-    owned_parameters::complete(
+    crate::emission::affine_cleanup::complete(
         loop_header_parameters
             .as_deref()
             .unwrap_or(&structural_parameters),

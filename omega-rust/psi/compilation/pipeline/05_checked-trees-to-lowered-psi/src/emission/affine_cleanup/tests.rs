@@ -1,16 +1,14 @@
-use super::super::super::{
-    Operation, PlaceId, PrimitiveType, StructuralTypeId, SuccessorEdge, place_id,
-    terminal_scalar_type,
-};
-use super::super::{
-    MachineId, OperationResult, StructuralArgument, ValueDeclaration, block_id, edge_id, value_id,
-};
 use super::{
     Block, LoweringError, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     TerminalAffineCleanupAction, Terminator,
 };
-use semantic_vocabulary::OperationId;
-use terminal_psi::OperationKind;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::terminal_identities::{block_id, edge_id, place_id, value_id};
+use checked_trees::types::PrimitiveType;
+use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
+use terminal_psi::{
+    Operation, OperationKind, OperationResult, StructuralArgument, SuccessorEdge, ValueDeclaration,
+};
 
 #[test]
 fn parameter_completion_preserves_disjoint_temporary_and_local_cleanup() {
