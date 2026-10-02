@@ -217,8 +217,22 @@ impl BorrowedRegions {
 fn resolve(aliases: &AliasSources, root: PlaceId, projection: Projection) -> Vec<Region> {
     let mut result = Vec::new();
     let mut pending = vec![(root, projection, BTreeSet::new())];
+    // A pair expands once: alias diamonds reach the same (place, projection)
+    // through every path and would re-emit identical subtrees. Per-path
+    // `visited` stays the cycle cut — a cycle whose projection drifts each
+    // lap produces distinct pairs, and only the path-local cut ends it.
+    let mut expanded = BTreeSet::new();
     while let Some((place, projection, mut visited)) = pending.pop() {
         if !visited.insert(place) {
+            continue;
+        }
+        let key = (
+            place,
+            projection.path.clone(),
+            projection.exact,
+            projection.indirect,
+        );
+        if !expanded.insert(key) {
             continue;
         }
         match aliases.get(&place) {
@@ -241,3 +255,6 @@ fn resolve(aliases: &AliasSources, root: PlaceId, projection: Projection) -> Vec
     }
     result
 }
+
+#[cfg(test)]
+mod tests;
