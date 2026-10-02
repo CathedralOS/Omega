@@ -1,5 +1,6 @@
 //! Omega reconstructs executable scalar-order inputs; the shared solver owns
 //! all-path comparison transport and captured-value stability.
+#[cfg(test)]
 use super::borrowed_regions::Position;
 use abstract_operations::{AbstractOperation as O, ValueBinding};
 use optimization_unit::PsiOptimizationFunction;
