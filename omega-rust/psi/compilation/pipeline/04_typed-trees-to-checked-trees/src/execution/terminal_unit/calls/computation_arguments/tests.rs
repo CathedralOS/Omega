@@ -1210,3 +1210,98 @@ fn mutable_range_scalar_initializer_retains_one_call_and_exact_borrow_evidence()
     );
     assert!(rebuilt.root_at(state.symbol, 1, role).is_none());
 }
+
+#[test]
+fn mutable_range_local_initializer_retains_the_established_view() {
+    let checked = checked(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/slices/mutable_field_range_local_initializer_exit/main.omg"
+    )));
+    let owner = machine(&checked.typed, "main");
+    let state = &checked.machine_states(owner)[0];
+    let target = checked.machine_states(machine(&checked.typed, "stamp"))[0].symbol;
+    let plans = &checked.facts.values.scalar_computations;
+    let role = CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 };
+    assert!(
+        plans.root_at(state.symbol, 2, role).is_some(),
+        "local view forwarding: {:#?}",
+        checked.facts.borrow
+    );
+    let calls = plans
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| {
+            if let checked_trees::CheckedScalarComputationKind::Call {
+                source_call,
+                target_state,
+                structural_arguments,
+                ..
+            } = node.kind
+            {
+                (target_state == target).then_some((source_call, structural_arguments))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let [(source_call, arguments)] = calls.as_slice() else {
+        panic!("exactly one stamp call");
+    };
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] =
+        plans.structural_arguments.span_or_empty(*arguments)
+    else {
+        panic!("one established view operand");
+    };
+    assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+        argument.source
+    else {
+        panic!("retain the local descriptor");
+    };
+    let (ordinal, local) = checked
+        .typed
+        .state_local_declaration(state, symbol)
+        .unwrap();
+    assert_eq!(ordinal, 1);
+    assert_eq!(local.name.as_str(), "window");
+
+    let original = checked.facts.flow.control.calls.get(*source_call);
+    let borrow_call = checked
+        .facts
+        .borrow
+        .calls
+        .iter()
+        .find(|(_, call)| {
+            call.target_symbol == original.target_symbol
+                && call.statement_index == original.statement_index
+                && call.call_ordinal == original.call_ordinal
+        })
+        .unwrap()
+        .0;
+    let mut flow = checked.facts.flow.clone();
+    let mut borrow = checked.facts.borrow.clone();
+    let mut accesses = borrow
+        .argument_accesses
+        .span(original.accesses)
+        .unwrap()
+        .to_vec();
+    assert_eq!(accesses.len(), 1);
+    assert_eq!(accesses[0].kind, checked_trees::BorrowAccessKind::Mutable);
+    accesses[0].kind = checked_trees::BorrowAccessKind::Read;
+    let accesses = borrow.argument_accesses.insert_many(accesses);
+    borrow.calls.get_mut(borrow_call).accesses = accesses;
+    flow.control.calls.get_mut(*source_call).accesses = accesses;
+    let rebuilt = crate::values::build_checked_scalar_computation_plans(
+        &checked.typed,
+        &checked.facts.operators,
+        &flow,
+        &borrow,
+        &checked.facts.proof,
+        &checked.facts.values.scalar_expressions,
+        &[],
+    );
+    assert!(
+        rebuilt.root_at(state.symbol, 2, role).is_none(),
+        "matching forged rosters cannot authorize mutable local forwarding"
+    );
+}

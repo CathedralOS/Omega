@@ -86,19 +86,16 @@ does not close an item. Keep independent receiving verification.
 - **VIEW-LOAN-COMPOSITION.** (split-of:STATIC-MACHINE-MIGRATION)
   High priority: finish one checked view-narrowing operation across local
   binding, call argument and state edge, preserving access, captured backing
-  and lifetime. All three `borrow_{domain,guarded,returned}_window_write_and_call`
-  customers execute with exit 0 natively and interpreted on macOS ARM64.
-  `pass/slices/mutable_field_range_call_state_exit` also executes with native
-  and interpreter exit 0: a narrowed mutable field range crosses a state edge
-  and helper call, then the caller observes both windows' writes and its
-  untouched neighboring field. Reproduce with `omega run --both
-  tests/omega/pass/slices/mutable_field_range_call_state_exit/main.omg` after
-  ordinary package review on macOS ARM64. The same range used by an effectful
-  scalar helper inside a comparison runs in
-  `pass/slices/mutable_field_range_scalar_initializer_exit`: both engines exit 0
-  and the caller observes the helper's writes and untouched adjacent storage.
-  Local binding and composed byte ranges still need common temporary ownership,
-  endpoint binding and cleanup around the existing range operation.
+  and lifetime. The three `borrow_{domain,guarded,returned}_window_write_and_call`
+  customers and `pass/slices/mutable_field_range_{call_state,scalar_initializer,local_initializer}_exit`
+  execute with native and checked-interpreter exit 0 on macOS ARM64. The scalar
+  and named-local cases also execute the verified Terminal artifact, preserving
+  one helper call, its writes and untouched adjacent storage. Reproduce with
+  `omega run --both tests/omega/pass/slices/mutable_field_range_local_initializer_exit/main.omg`
+  after ordinary package review. Remaining: the same composition with `u8`
+  storage rejects mutable collection-view establishment; carry byte range
+  backing and writes through the common operation, including local descriptors,
+  endpoint binding and cleanup.
   Byte/element carrier differences and qualification-preservation obligations
   remain explicit semantic checks. The recorded-red
   `pass/control_flow/guarded_jump_field_view_forward` stops earlier at an

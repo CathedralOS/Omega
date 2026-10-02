@@ -104,7 +104,10 @@ pub(crate) fn structural_computation_argument(
             owned_copy_local_argument(program, state, call.statement_index, name.symbol, target)
         });
     }
-    if target_access == CheckedStructuralAccess::SharedBorrow {
+    if matches!(
+        target_access,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+    ) {
         let kind =
             if super::super::types::byte_sequence_carrier(program, target.type_reference, &[])
                 .is_some_and(|carrier| carrier.is_borrowed_view())
@@ -113,7 +116,7 @@ pub(crate) fn structural_computation_argument(
             } else {
                 ViewKind::Elements
             };
-        if let Some(argument) = shared_view_argument(
+        if let Some(argument) = borrowed_view_argument(
             program,
             borrow,
             machine,
@@ -781,13 +784,13 @@ pub(crate) fn borrowed_nominal_argument(
     })
 }
 
-/// A whole borrowed-view actual, `&[T]` or `&[u8]`, loans its established
+/// A whole shared or mutable borrowed-view actual loans its established
 /// view carrier: an authored view local's slot or a view parameter's own loan.
 /// The reference shell is the loan itself — the same presentation the
 /// call-statement lane gives a borrowed view — while this lane names the
 /// view's established home. Source and access rules are identical for both
 /// view families; only the carrier test and the type identity differ.
-pub(in crate::execution) fn shared_view_argument(
+pub(in crate::execution) fn borrowed_view_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
@@ -798,16 +801,19 @@ pub(in crate::execution) fn shared_view_argument(
     target: &StateParameter,
     kind: ViewKind,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let is_view = match kind {
-        ViewKind::Elements => {
-            borrowed_slice_view_element(program, target.type_reference, &[]).is_some()
-        }
-        ViewKind::Bytes => {
-            super::super::types::byte_sequence_carrier(program, target.type_reference, &[])?
-                .is_borrowed_view()
-        }
+    let target_access = structural_access_for_type_reference(program, target.type_reference)?;
+    if !matches!(
+        target_access,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+    ) {
+        return None;
+    }
+    let is_view = |type_reference| match kind {
+        ViewKind::Elements => borrowed_slice_view_element(program, type_reference, &[]).is_some(),
+        ViewKind::Bytes => super::super::types::byte_sequence_carrier(program, type_reference, &[])
+            .is_some_and(|carrier| carrier.is_borrowed_view()),
     };
-    if !is_view {
+    if !is_view(target.type_reference) {
         return None;
     }
     let identity = view_identity(program, kind, target.type_reference)?;
@@ -840,7 +846,16 @@ pub(in crate::execution) fn shared_view_argument(
             local.type_reference,
         )
     };
-    if view_identity(program, kind, source_type)? != identity {
+    let source_access = structural_access_for_type_reference(program, source_type)?;
+    if !is_view(source_type)
+        || !matches!(
+            source_access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        )
+        || (target_access == CheckedStructuralAccess::MutableBorrow
+            && source_access != target_access)
+        || view_identity(program, kind, source_type)? != identity
+    {
         return None;
     }
     if exact_structural_borrow_access(
@@ -850,9 +865,9 @@ pub(in crate::execution) fn shared_view_argument(
         state.symbol,
         call,
         place,
-        CheckedStructuralAccess::SharedBorrow,
+        target_access,
         &[],
-    )? != CheckedStructuralAccess::SharedBorrow
+    )? != target_access
     {
         return None;
     }
@@ -860,7 +875,7 @@ pub(in crate::execution) fn shared_view_argument(
         source,
         path: Vec::new(),
         type_identity: identity,
-        access: CheckedStructuralAccess::SharedBorrow,
+        access: target_access,
     })
 }
 

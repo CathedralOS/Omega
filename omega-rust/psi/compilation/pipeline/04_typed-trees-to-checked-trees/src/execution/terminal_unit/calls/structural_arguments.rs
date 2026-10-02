@@ -381,7 +381,7 @@ pub(crate) fn structural_call_arguments(
         // plans; projected spellings still resolve through the parameter and
         // alias arms below.
         if place.segments.is_empty()
-            && let Some(plan) = computation_arguments::shared_view_argument(
+            && let Some(plan) = computation_arguments::borrowed_view_argument(
                 program,
                 &facts.borrow,
                 caller_machine.symbol,
