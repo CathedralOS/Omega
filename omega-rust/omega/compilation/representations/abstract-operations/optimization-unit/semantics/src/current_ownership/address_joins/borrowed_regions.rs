@@ -86,6 +86,7 @@ impl BorrowedRegions {
     pub(in crate::current_ownership) fn new(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Self {
         let mut result = Self::origins(function);
         let aliases = &result.aliases;
@@ -95,12 +96,8 @@ impl BorrowedRegions {
         let mut writes = BTreeMap::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
-                let regions =
-                    crate::current_ownership::storage_regions::written_or_exclusive_regions(
-                        function,
-                        types,
-                        &node.operation,
-                    )
+                let regions = call_accesses
+                    .written_regions(function, types, &node.operation)
                     .into_iter()
                     .map(|(place, region)| {
                         let mut projection = Projection::new(&region.path);

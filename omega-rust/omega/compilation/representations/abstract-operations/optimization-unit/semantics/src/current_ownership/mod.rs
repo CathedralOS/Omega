@@ -24,7 +24,9 @@ use crate::unit_validation::references::LiveReference;
 
 mod address_joins;
 mod block_parameters;
+mod call_accesses;
 mod cleanup;
+pub(crate) use call_accesses::CallAccesses;
 mod continuation;
 mod mutations;
 mod references;
@@ -48,6 +50,7 @@ pub(super) fn validate_current_ownership_frontier(
         &BoundaryMachineDeclaration,
     >,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    call_accesses: &CallAccesses,
 ) -> Result<(), OptimizationUnitValidationError> {
     let entry = reconstruct_entry_ownership(function, structural_types)?;
     replay::validate_current_ownership_cfg(
@@ -57,6 +60,7 @@ pub(super) fn validate_current_ownership_frontier(
         functions,
         boundary_machines,
         structural_types,
+        call_accesses,
         entry,
     )
 }

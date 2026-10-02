@@ -51,6 +51,7 @@ pub(crate) fn validate_function(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     cycle_policy: &control_flow::ControlCyclePolicy,
+    call_accesses: &current_ownership::CallAccesses,
 ) -> Result<(), OptimizationUnitValidationError> {
     if !valid_service_ceiling(&function.published_service_ceiling, services) {
         return Err(
@@ -118,5 +119,6 @@ pub(crate) fn validate_function(
         functions,
         boundary_machines,
         structural_types,
+        call_accesses,
     )
 }

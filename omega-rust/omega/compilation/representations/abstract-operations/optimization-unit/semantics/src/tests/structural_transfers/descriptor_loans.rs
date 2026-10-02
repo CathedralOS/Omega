@@ -102,3 +102,62 @@ fn address_join_read_only_call_does_not_escape_child() {
     validate_psi_optimization_unit(&candidate)
         .expect("the completed read-only call leaves no escaping descriptor at owner cleanup");
 }
+
+const CLOSED_CALL_REGION_SOURCE: &str = r#"
+    data Packet { items: [u8; 4]; marker: i32; }
+    machine poison(packet: &mut Packet, view: &[u8]) {
+        packet.items[0] = 77;
+    }
+    machine observe(packet: &mut Packet, view: &[u8]) {
+        let length: u64 = view.len;
+    }
+    machine run(packet: &mut Packet) -> u64 {
+        poison(packet, "a");
+        let view: &[u8] = packet.items.as_slice();
+        observe(packet, view);
+        view.len
+    }
+"#;
+
+#[test]
+fn closed_call_does_not_disturb_an_unwritten_mutable_input() {
+    let candidate = verified_source_machine_unit(CLOSED_CALL_REGION_SOURCE, "run");
+    validate_psi_optimization_unit(&candidate)
+        .expect("the ordinary callee has no write through its mutable formal");
+}
+
+#[test]
+fn closed_call_uses_the_current_callee_writes() {
+    let mut candidate = verified_source_machine_unit(CLOSED_CALL_REGION_SOURCE, "run");
+    validate_psi_optimization_unit(&candidate).unwrap();
+    let calls = candidate.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            O::CallStructural { callee, .. } => Some(*callee),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    assert_ne!(calls[0], calls[1]);
+    let mut replaced = false;
+    for block in &mut candidate.functions[0].blocks {
+        for node in &mut block.nodes {
+            if let O::CallStructural { callee, .. } = &mut node.operation
+                && *callee == calls[1]
+            {
+                *callee = calls[0];
+                replaced = true;
+            }
+        }
+    }
+    assert!(replaced);
+    assert!(
+        matches!(
+            validate_address_join_ownership(&candidate),
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "a rewritten same-signature callee writes the live child's backing"
+    );
+}
