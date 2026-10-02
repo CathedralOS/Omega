@@ -1427,8 +1427,7 @@ pass/collections/case_array_literal_row_store_exit checked 1434ms @2d8ed253669f
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 40086ms @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store checked 1241ms @2d8ed253669f
 pass/collections/element_view_borrow_local checked 958ms @2c44d70118d1+wt
-pass/collections/element_view_edge_loan rejected 1396ms @9b253f5667e5
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(6), block: BlockId(14), node: 2, place: PlaceId(6) }))
+pass/collections/element_view_edge_loan checked 906ms @a979cc34b51d+wt
 pass/collections/element_view_field_write checked 1283ms @2d8ed253669f
 pass/collections/element_view_indexed_read checked 1297ms @2d8ed253669f
 pass/collections/element_view_indexed_write checked 1179ms @2d8ed253669f

@@ -267,7 +267,7 @@ pass/collections/case_array_literal_row_store_exit built 728ms exit:3 @48008365d
 pass/collections/cyclic_shared_plain_array_parameter_exit built 39901ms exit:42 @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store built 1426ms exit:0 @bed5f45e9185+wt
 pass/collections/element_view_borrow_local built 966ms exit:181 @2c44d70118d1+wt
-pass/collections/element_view_edge_loan built 779ms exit:70 @48008365d839
+pass/collections/element_view_edge_loan built 920ms exit:70 @a979cc34b51d+wt
 pass/collections/element_view_field_write built 657ms exit:181 @48008365d839
 pass/collections/element_view_indexed_read built 719ms exit:181 @48008365d839
 pass/collections/element_view_indexed_write built 447ms @48008365d839
