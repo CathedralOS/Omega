@@ -1,0 +1,4 @@
+owner: z6 / satisfies-subject-authority
+provenance: satisfies-subject-authority: subject position gated on attached data; static_subject_wrong_data_rejected emits conformance diag at --check/run
+ticket: 8cbaaa44ce2f43b1bbfd74bf53ed5887
+published_utc: 2026-10-03T07:56:52.264626+00:00
