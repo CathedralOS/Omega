@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 4.3, "load1_start": 4.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.24, "load1_start": 6.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -230,6 +230,7 @@ pass/calls/runtime_value_call_single_execution_exit built 680ms exit:70
 pass/calls/runtime_value_call_statement_recursive_walk_exit built 2344ms exit:70 @fb2178def922
 pass/calls/runtime_value_call_terminal_exit built 17393ms exit:70 @48008365d839
 pass/calls/scalar_callee_borrowed_primitive_reads_exit built 960ms exit:70 @ff6d0c077d78+wt
+pass/calls/scalar_local_record_view_call_exit built 1065ms exit:70 @d16744b4f8fb
 pass/calls/scalar_range_argument_exit built 675ms exit:70 @305a118e5963+wt
 pass/calls/scalar_return_after_unit_call_exit built 1469ms exit:42 @63377f7122bb+wt
 pass/calls/scalar_unit_call_state_forward_exit built 510ms exit:0 @66b7a242b367+wt
