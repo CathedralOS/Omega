@@ -1912,8 +1912,7 @@ pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit checked 1291ms @633757114264+wt
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 2289ms @6bd4d1a87ff4+wt
-pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 1491ms @def08a434d7a+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: scalar field type: indexed element destination` (state 0, statement 4)
+pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit checked 5651ms @176f9a7001a
 pass/layouts/runtime_plan_laid_value_field_exit checked 1412ms @2d8ed253669f
 pass/layouts/runtime_size_of_align_of_exit checked 1659ms @2d8ed253669f
 pass/locals/mutable_local_call_initializer_exit checked 1412ms @2d8ed253669f
