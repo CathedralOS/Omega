@@ -2638,8 +2638,18 @@ same flow already performed, not the check itself.
     plus whatever those reach, not from the package root.
   - The full-package review and the discovery/bound pair run only in the
     review, accept and update commands.
-  - Amend `lock/README.md` and `wiki/spec/packages/review.md` to state
+  - Amend `lock/README.md`, `package-manager/README.md`,
+    `wiki/spec/packages/review.md`, `locks.md` ("Compare the fresh
+    acceptance projection ... exact complete-row equality") and
+    `acceptance.md` ("Native preparation compares fresh findings") to state
     that compiles trust accepted packages, citing this ruling.
+
+  Depends on **REVIEW-INPUTS-FROM-CHECKED**, which removes the compile's
+  dependence on review output. Native compiles currently reach it through
+  `compile_project.rs::compile_one_prepared_target` →
+  `accept_ordinary_closure_evidence` → `compare_package_policy_changes`, and
+  `--check` builds the reviews and then discards them
+  (`check_project.rs`).
 
   This replaces **STD-CHECKED-ONCE-PER-INVOCATION**: the repeated passes it
   tried to shave are deleted. Acceptance: the fixture's `--check` runs no
@@ -2917,6 +2927,12 @@ same flow already performed, not the check itself.
     again on its output;
   - Omega stage 00's `native_admission.rs::admit_native_realization` replays
     the whole artifact with `artifact.validate()`.
+  - Omega stage 00 `provider_installation/admission.rs` decodes, verifies
+    (`verify_module`) and re-lowers the whole module to compare with the plan
+    `VerifiedNativeArtifactInput::prepare` just lowered;
+    `artifact_admission/native.rs` `lower_decoded_native_module` and the
+    driver's `terminal_artifact.rs` `verify_terminal_artifact_proof` also
+    reach `verify_module`. Delete the re-lowering comparison with them.
 
   Delete the stage 05 and stage 06 calls. Keep stage 00's replay only for
   artifacts that did not come from the same compile: retained or loaded bytes
@@ -2986,6 +3002,288 @@ same flow already performed, not the check itself.
   **IMAGE-BUILT-ONCE** and **OBJECT-CONTAINER-NO-ROUNDTRIP**. Acceptance:
   emitting an image builds it once, decodes none of its own instructions or
   containers, and leaves native corpus bytes unchanged.
+
+## Trust ceremony
+
+Owner ruling 2026-10-03: keep security where it decides something, delete it
+where it only performs. Sites were read at `11b293f8af` (2026-10-03).
+Re-read the cited symbol before starting.
+
+These boundaries stay:
+- accepting new or changed foreign code: install, update, review and audit
+  commands;
+- authenticating fetched git objects against pins, and the lock-pin match;
+- `build.omg` confinement in the checked interpreter: `FsGrants`
+  authorization before each host call, fuel and cell limits, rejecting
+  runtime boundary services, and output alias and size checks;
+- verifying foreign component artifacts, and receiver admission (owned by
+  **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**);
+- Psi's checking of capability and effect reach, and of authored behavior
+  exclusions.
+
+Everything else delete: a component re-checking data the same process just
+produced, a guard against a writer who could equally rewrite the lock or the
+compiler, and re-deriving a fact that is already established. Each item
+lands alone with its corpus slice unchanged and no fallback path.
+
+- **SOURCE-READ-ONCE.** (new-scope) An ordinary warm compile reads and
+  hashes the root project's tree about 19 times, or 29 when the bound pass
+  runs. Each dependency is re-hashed by its own occurrence and by every
+  consumer's scope. The extra reads are:
+  - `review/candidate/custody.rs::verify_selected_source_custody`, before
+    and after each occurrence (`package_pass.rs`);
+  - `selection_evidence().revalidate()`;
+  - `admission/evidence/validation.rs::revalidate_source_custody`;
+  - `source_snapshot::require_stable_recapture`, plus `validate_current`
+    straight after `capture`;
+  - `BuildSourceCustody::seal` → `verify_current_files`;
+  - `CheckedCompilation::verify_current_source_consumption`;
+  - the prepare-time `package_compilation_inputs` that
+    `into_target_review_parts` discards;
+  - `local/snapshot.rs` `verify_local_snapshot` and
+    `verify_live_source_unchanged`, and the persistent snapshot copy of the
+    root project made on every edit;
+  - `toolchain_library.rs::validate`, the compiler hashing its own bundled
+    library.
+
+  Each source file is read and hashed once per invocation, and the compile
+  uses those bytes. The root compiles from its live tree. Git snapshots are
+  verified at fetch, not on every compile. Delete the re-checks in one
+  commit. Acceptance: a counting test over the file-read seam shows one read
+  per consumed file per invocation, and the check corpus is unchanged.
+
+- **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) Delete the in-process
+  bookkeeping around build evaluation and keep only the real confinement:
+  - `session_accounting.rs::verify_build_session_accounting` (7 usage
+    reconciliations against `BuildEvaluationSponsor`);
+  - `FilesystemSponsor`'s mirror namespace, its sponsor/host divergence
+    halt, and its quiescence snapshots;
+  - the observation identity and production-subject chain
+    (`observation_identity.rs`, `production_subject.rs`,
+    `validate_accepted_terminal_production_subject`, the admitted-checkpoint
+    symbol check in `build_evaluation.rs`);
+  - `completed_pure_build.rs` logical charges;
+  - re-reading the materialized source copy (`verify_materialized_source`)
+    and written outputs (`verify_materialized_tree`,
+    `completed_outputs.rs::publish`).
+
+  Also in this commit:
+  - Pure builds skip source capture.
+  - The captured source inventory is served from memory, which
+    `wiki/spec/build/scoped_execution.md` allows, instead of a temp-directory
+    copy.
+  - `ReviewBuildSession` creates its write root once per invocation, not
+    once per pass.
+
+  Acceptance: none of the named functions exists; build confinement tests
+  (grant refusal, fuel exhaustion, alias and size rejection) still reject;
+  the build and filesystem corpus slices are unchanged.
+
+- **RESTRICTED-REQUEST-GATE-ONCE.** (new-scope) `grants.admit(request)` in
+  `build_evaluation.rs` is the gate. After it,
+  `package_pass.rs::reject_ungranted_restricted_requests` re-projects
+  `PackagePolicyAcceptance::from_policy(review.policy())` and compares the
+  same requests again, including for cache-carried occurrences where no
+  build ran. Delete the post-hoc pass. Separately, with
+  `restricted_build_checkpoint: None` (install/update review, audit,
+  inspection, `--check --verify`), `if let Some(grants)` admits everything.
+  Make `None` refuse real-host scoped requests: `review.md` says "An audit
+  must not perform the very action it is asking the owner to approve".
+  Acceptance: one gate call per request; an audit of a package whose build
+  requests scoped filesystem execution performs no host effect; corpus
+  `--filter build` is unchanged.
+
+- **REVIEW-INPUTS-FROM-CHECKED.** (new-scope) Prerequisite of
+  **COMPILE-TRUSTS-ACCEPTED-PACKAGES**: the compile reads three of its
+  inputs from review output.
+  - `review/candidate/semantic_bindings.rs::candidate_service_bindings`
+    walks `projection.callables()` to discover FilesystemHost/TimeHost
+    bindings. Read the checked compilation instead.
+  - `policy.representation().rejoin_foreign_demands` (`package_pass.rs`)
+    is the only check of consumer by-value opaque demands against producer
+    availability. It is a language rule, so move it into checking.
+  - Rejecting open contract-entailment obligations (`root_policy.rs`,
+    `package_change.rs`) is a language rule, so move it into checking.
+
+  Move all three in one commit. Acceptance: no compile input reads a review
+  projection; the opaque-representation and entailment rejection fixtures
+  still reject from `--check` with no package manager involved.
+
+- **REVIEW-SINGLE-PROJECTION.** (new-scope) review-evidence (62.8k non-test
+  lines) projects every `CheckedCompilation` twice, and then validates
+  itself.
+  - Two projections: the legacy `project_checked_package_review` (schema
+    v138, rows v96) and `project_checked_package_policy` (components
+    v4/v5), both covering callables, dangerous authority, providers and
+    terminal permissions.
+  - `capture/package/validation.rs::validate_review_compilation` re-derives
+    operator-realization contracts and entailment stand-downs and compares.
+  - `validate_canonical_structure` runs after each component capture and
+    again inside every encoder.
+  - `capture/providers/policy/replay.rs::validate` replays the plans.
+  - `ledger/results/reconstruction.rs` re-checks discharge certificates the
+    same compile produced (`recheck_contract_entailment_assumption_discharge`).
+  - The obligation ledger serves only the `root_policy.rs`
+    `validate_open_obligation_rows` bijection against the rows it was built
+    from.
+
+  Keep the policy projection: it feeds lock rows and review documents. In
+  one commit, delete the legacy projection, the self-validation calls, the
+  discharge re-check and the ledger. Re-base `whole_review_commitment` and
+  the review cache on the policy projection. Acceptance:
+  `project_checked_package_review` and the ledger module are gone; review
+  command output for the package corpus is unchanged apart from removed
+  legacy-only rows, which are listed in the commit.
+
+- **REVIEW-CACHE-PLAIN-DECODE.** (new-scope) Depends on
+  **REVIEW-SINGLE-PROJECTION**. `review_cache.rs::into_review_and_facts`
+  decodes every row, recovers the projection, `recover_canonical`s the
+  policy, requires byte-identical re-encoding, re-encodes the ledger, and
+  re-derives the source-consumption commitment. The SHA-256 trailer already
+  rejects corruption, and a writer to the local cache could equally write
+  the lock. Decode once, with no re-encode comparison. Stop lowering each
+  fresh dependency to Terminal (`publish_checked_component`) just to store
+  a cache description. Acceptance: no re-encode or re-derive on a cache
+  hit; review-cache tests and corpus `--filter packages` are unchanged.
+
+- **NATIVE-ADMISSION-EVIDENCE-DELETED.** (new-scope) Depends on
+  **COMPILE-TRUSTS-ACCEPTED-PACKAGES**, which removes per-compile review.
+  Delete what is left of the native-path evidence chain in one commit:
+  - `review/reconstruction/` (1,759 lines). Its question bytes and
+    fingerprint have no reader; `recover` and `matches_resolved_and_reviews`
+    have no non-test caller; `validate_ledger_source_closure` re-derives a
+    closure the compile supplied.
+  - `admission/evidence/assembly.rs` `AcceptedOrdinaryPackageEvidence`,
+    whose `artifact`, `results`, `semantic_bindings` and `obligation_schema`
+    fields have no reader.
+  - `admission/terminal_authority.rs`'s production-subject checks.
+  - `lock/validation.rs::policy_source_membership`.
+
+  `accepted_terminal_authority_permission_policy` reads the lock's terminal
+  permission rows directly. Acceptance: native compile of the package corpus
+  is unchanged, and an accepted-lock compile whose permission rows are
+  removed fails.
+
+- **RETAINED-PROPOSAL-VALIDATE-ONCE.** (new-scope)
+  `RetainedTerminalArtifact` and `TerminalNativeRealizationProposal` have no
+  codec and never leave the process, yet `validate_for_artifact`
+  (`retained_terminal.rs`) runs three times per native compile:
+  - in `TerminalNativeRealizationProposal::new`;
+  - in `new_with_native_realization_proposal`;
+  - in `RetainedNativeRealizationRequest::prepare_terminal`.
+
+  Each run repeats boundary coverage, import rows, compiler builtins, fused
+  establishments, a behavior-exclusion walk, callback occurrences and
+  comparison coverage. `admit_native_realization` repeats parts again.
+  Compiler builtins are derived, validated, prepared and then "independently
+  rejoined" (`settle_compiler_builtins`). Source-evaluated bindings get the
+  same treatment (`validate_source_evaluated_import_coverage`), and
+  `SelectedConstantEvaluation::validate` replays this compile's folds.
+
+  Construct each value once from its derivation and delete the validators
+  and rejoins in one commit. Acceptance: `validate_for_artifact`,
+  `settle_compiler_builtins`'s rejoin and `SelectedConstantEvaluation::validate`
+  are gone; the native corpus is unchanged.
+
+- **PROVIDER-PLAN-DERIVED-ONCE.** (new-scope) Plans are re-checked right
+  after derivation:
+  - `settle_checked_providers` calls `derive_satisfies_plans`, then
+    `validate_derived_provider_plan_candidates`; the Build program does the
+    same (`build-evaluation/src/admission/checking.rs`);
+  - `selected_provider_plan_facts_with_independent_components` runs
+    provenance validation a third time;
+  - `EvaluatedViaBindingTable::validate_against_typed` runs three times and
+    recomputes `locator_identity_digest`.
+
+  `candidate_validation.rs` also re-infers whole-program operational may,
+  service reach and synchronous invocations to enforce adapter ceilings,
+  which Psi already enforces (`validate_trait_effect_ceiling`,
+  `validate_top_level_requirement_effect_ceiling`, `invocations.rs`).
+  `ProviderPlan::identity_digest` is an unmemoized SHA-256 with more than 50
+  call sites, and several sites re-check a digest the same process just
+  derived:
+  - `service_establishment.rs`, `terminal_replay.rs`;
+  - the boundary-application comparisons;
+  - `progress_profile_installation.rs`.
+
+  In one commit:
+  - delete the repeated validation and the Psi-duplicating ceiling checks;
+  - compute each plan's digest once at construction;
+  - delete the same-process digest equality checks.
+
+  Acceptance: `provenance_replay/candidate_validation` is gone, ceiling
+  violations still reject from Psi, and the provider corpus slice is
+  unchanged.
+
+- **SERVICE-CUSTODY-DELETED.** (new-scope)
+  `products/src/checked_compilation/terminal.rs::admit_terminal_production`
+  calls:
+  - `validate_fused_service_terminal_custody` (selected-dispatch
+    `service_custody`, 1,102 lines), which re-joins checking's erasure
+    receipts to plans settlement just authorized;
+  - `validate_selected_operator_terminal_custody`, an unsupported
+    crash-site shape gate;
+  - `verify_selected_compositions_are_realized`, which re-rejects
+    `Independent` modes that settlement already rejected.
+
+  Delete the custody validator. Report the operator shape gap from lowering
+  where it arises, and drop the duplicate composition check. Acceptance:
+  `service_custody/` holds only `root.rs`'s establishment derivation; the
+  operator crash-site fail fixtures keep their diagnostics; the native corpus
+  is unchanged.
+
+- **TRUST-REPORT-DELETED.** (new-scope) `admission_settlement.rs::reconstruct_trust_settlement`
+  builds a `TrustReport` (`trust_report/`, 1,163 lines) on every compile,
+  calls `report.validate()`, and drops it. It has no other non-test
+  consumer, and `trust_report/mod.rs` compares equal plans and then their
+  digests. Delete `trust_report/` and its call. Acceptance: no `TrustReport`
+  type remains; the trust-ledger and grant fixtures behave as before.
+
+- **AUTHORITY-REVIEW-RECEIPT-UNSEALED.** (new-scope)
+  `TerminalAuthorityClosureReviewReceipt` only feeds the native artifact's
+  identity hash. `NativeArtifact::validate` then recomputes that digest
+  (`TerminalAuthorityClosureReviewReceipt::validate`). The review's
+  cycle/candidate-count/PortWrite-ceiling rejections (`context.rs`) repeat
+  facts the Terminal verifier and Psi established. The filesystem cohort
+  "forged classification" merge check (`provider_admission/mod.rs`) guards
+  against the same process. Delete the receipt re-validation, the repeated
+  rejections and the forged-classification check. Keep the mechanism
+  classification that receiver admission and
+  `validate_physical_authority_closure` consume. Acceptance: authored
+  physical-exclusion fixtures still reject, receiving-admission tests are
+  unchanged, and so is the native corpus.
+
+- **BEHAVIOR-EXCLUSIONS-CHECKED-ONCE.** (new-scope) An authored exclusion is
+  checked:
+  - by `trust_model::verify_entry_behavior_exclusions` on the unoptimized
+    module;
+  - again per callback thunk;
+  - three more times inside proposal validation;
+  - again in the physical check.
+
+  Service exclusions re-walk Terminal for boundary reach that Psi's entry
+  reach summary already answers. Within one compile, check each exclusion
+  once, on the module that is realized, and read service reach from Psi.
+  Retained or received artifacts are checked by their receiver
+  (**BUILD-EXCLUSION-REALIZATION**). That item must not add in-process
+  re-checks. Acceptance: one exclusion check per realized entry, and the
+  exclusion fixtures keep their verdicts.
+
+- **DEAD-TRUST-CODE-DELETED.** (new-scope) Delete production code with no
+  non-test caller, together with its tests:
+  - the `external-root-writer` crate (1,426 lines, a workspace member
+    nothing depends on; its `lib.rs` says "No compiler route calls this
+    crate yet");
+  - `review/symbolic_boundary_applications*` (~594 lines);
+  - `operations::check_locked_sources` and `recover_locked_sources`;
+  - `bind_fresh_package_root_policy`;
+  - review-evidence's `validate_`, `reconstruct_`, `recover_` and
+    `fingerprint` ledger and result entry points;
+  - `project_non_executable_quotient_package_review`;
+  - whole-baseline `canonical_text` / `recover_text`.
+
+  Grep each one again first. Acceptance: workspace `mbx check` and the
+  package corpus are unchanged.
 
 ## Automatic service reach
 
