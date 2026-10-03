@@ -207,14 +207,35 @@ pub(super) fn validate(
             LoweringError::Unsupported("record projection lost its declared type"),
         )?
     };
-    let carrier = validation::peel_declared_constraints(&checked.typed, reference);
-    if carrier != reference
+    let peeled = validation::peel_declared_constraints(&checked.typed, reference);
+    if peeled != reference
         && !validation::has_plain_owned_contents_with_represented_constraints(
             &checked.typed,
             reference,
         )
     {
         return unsupported("borrowed operand has unrepresented source constraints");
+    }
+    // A stored-borrow endpoint (`message.body: &Cell`) presents the referent
+    // its captured reference observes — the same carrier a shared-borrow
+    // local's own declared type already produces at the source owner match
+    // above. Peel admitted reference layers to the referent: a mutable
+    // referent loans into any readable formal, a shared one only into a
+    // shared formal — the same authority rule the local arm applies.
+    let mut carrier = peeled;
+    loop {
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = checked.type_reference_table.type_reference(carrier)
+        else {
+            break;
+        };
+        if !(*access == ReferenceAccess::Mutable
+            || (*access == ReferenceAccess::Shared && target_access == ReferenceAccess::Shared))
+        {
+            break;
+        }
+        carrier = validation::peel_declared_constraints(&checked.typed, *referee);
     }
     match checked.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { .. } => {}
