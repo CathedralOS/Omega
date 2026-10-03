@@ -112,7 +112,7 @@ fn expression_observation(
     let statements = program.statement_table.statements(state.statement_nodes);
     let (prefix, observed_statements) = match statement_index {
         Some(index) => (
-            &statements[..index],
+            statements.get(..index)?,
             std::slice::from_ref(statements.get(index)?),
         ),
         None => (&statements[..0], statements),

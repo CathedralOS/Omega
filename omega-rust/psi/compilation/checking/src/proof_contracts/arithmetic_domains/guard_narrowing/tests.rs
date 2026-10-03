@@ -306,3 +306,34 @@ fn nested_boolean_guard_wrappers_preserve_integer_bound_polarity() {
         );
     }
 }
+
+#[test]
+fn occurrence_bounds_refuse_out_of_range_statement_coordinates() {
+    let program = crate::front_end::typed_program("machine value() -> i64 { 7 }");
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .expect("authored machine");
+    let state = &program.machine_states(machine)[0];
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let expression = statements
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::Expression(expression) => Some(*expression),
+            _ => None,
+        })
+        .expect("authored result");
+    for index in [statements.len(), usize::MAX] {
+        assert_eq!(
+            super::occurrence_integer_expression_bounds(
+                &program,
+                machine.symbol,
+                state.symbol,
+                index,
+                expression
+            ),
+            None
+        );
+    }
+}

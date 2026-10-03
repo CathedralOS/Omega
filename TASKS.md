@@ -3361,16 +3361,18 @@ unchanged, except for intended deletions, which its commit lists.
   Constructors use bounds at each field's evaluation occurrence; scalar loans
   retain every possible encoded origin, while aggregate field declarations
   determine their own layout even after a cyclic reference-returning helper.
-  The 78 focused arithmetic/construction tests pass. Public
+  Scalar fields, nested arrays and scalar match arms share operation checking
+  at their evaluation occurrences, retaining guard and local assignment facts.
+  After synchronization onto `d9720a4fa4`, 87 focused arithmetic, construction
+  and physical-boundary tests pass. Public
   `omega --check tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg`
   rejects 128 into signed eight-bit storage at checking. On macOS ARM64,
   `omega run --both tests/omega/pass/layouts/runtime_plan_laid_integer_at_proved_write_exit/main.omg`
-  produced the authored native/interpreter exit 72 after the latest rebase.
+  produced the authored native/interpreter exit 72 before synchronization onto
+  `d9720a4fa4`; runtime validation of the combined candidate remains pending.
 
   Remaining: discharge every callee write and retain/consume all other operation
-  decisions before deleting any late gate. Ordinary non-layout constructors also
-  need the shared arithmetic walk to report typed field-RHS failures; the stored
-  integer constructor path now preserves those errors. Existing mutation summaries retain
+  decisions before deleting any late gate. Existing mutation summaries retain
   destinations, not intermediate written values; a final-value summary cannot
   justify an earlier out-of-range store. Reuse the source scalar expression
   reader, exact call-operand snapshots and formal/actual path substitution to
@@ -3389,7 +3391,8 @@ unchanged, except for intended deletions, which its commit lists.
   checking diagnostic, and the check corpus is otherwise unchanged.
 
   Current frontier: plan-laid `IntegerAt` storage-fit judgments are retained
-  in `CheckFacts::values`. Exact division/remainder now reject an unproven
+  in the occurrence-keyed `CheckFacts::stored_integer_writes` table for
+  assignments, aliases and constructions. Exact division/remainder now reject an unproven
   nonzero divisor or signed `MIN / -1` pair during checking, including ordinary
   call results, state-edge stores and declared scalar domains. Correlated
   operands use the shared integer constraint engine rather than an affine

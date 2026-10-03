@@ -8,7 +8,7 @@ use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 /// Whether every declared member of `data_definition` is concrete at
 /// construction. `Value` binders lower to implicit leading fields of their
