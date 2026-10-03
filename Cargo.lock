@@ -1059,10 +1059,13 @@ version = "0.1.0"
 dependencies = [
  "language-core",
  "lowered-psi",
+ "lowered-psi-to-terminal-psi",
  "optimization",
+ "proof-admission",
  "semantic-vocabulary",
  "symbols",
  "terminal-codec",
+ "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
  "terminal-verifier",

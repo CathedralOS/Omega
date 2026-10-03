@@ -5,7 +5,7 @@
 
 use crate::common;
 
-use common::{copy_fixture, sccp_fixture, value};
+use common::{copy_fixture, i32_argument, interpret, publish, sccp_fixture, value};
 use lowered_psi_to_lowered_psi::run_psi_optimization;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{OperationKind, Terminator};
@@ -95,6 +95,49 @@ fn independent_check_rejects_wrong_and_unjustified_folds() {
         terminal_verifier::validate_sparse_conditional_constant_propagation(&before, &rewired),
         Err(terminal_verifier::SparseConditionalConstantPropagationRewriteError::InvalidModule(_))
     ));
+}
+
+#[test]
+fn the_executed_fold_publishes_and_interprets_identically() {
+    // Downstream-publication coverage: the folded result crosses Terminal
+    // publication's own entrance, the manifest binds the executed output
+    // identity, and the canonical bytes admit and run the authored result.
+    let lowered = sccp_fixture();
+    let baseline =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = publish(&baseline);
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("constant folding executes");
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the fold is a real rewrite, not an identity this leg restates"
+    );
+    terminal_verifier::validate_sparse_conditional_constant_propagation(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+    let published = publish(&optimized);
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic(),
+        "the manifest binds the executed output identity"
+    );
+    // `v15` resolves to false, so the authored result is `argument + v13`:
+    // `10 + 15 = 25` before and after every leaf folds to its literal.
+    let arguments = [i32_argument(10)];
+    let expected = interpret(&original, &arguments);
+    let actual = interpret(&published, &arguments);
+    assert_eq!(
+        expected,
+        terminal_interpreter::TerminalExecutionResult::Scalar(i32_argument(25)),
+        "the unoptimized publication returns the authored result"
+    );
+    assert_eq!(
+        actual, expected,
+        "the published fold interprets the same result"
+    );
 }
 
 #[test]

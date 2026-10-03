@@ -5,7 +5,7 @@
 
 use crate::common;
 
-use common::{block_id, copy_fixture, machine_id, value};
+use common::{block_id, copy_fixture, i32_argument, interpret, machine_id, publish, value};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::Terminator;
@@ -51,6 +51,54 @@ fn copy_propagation_prunes_removed_value_debug_sites() {
         debug.semantic,
         terminal_codec::terminal_psi_identity(&optimized.lowered().semantic_module).unwrap(),
         "the sidecar semantic identity tracks the rewritten module"
+    );
+}
+
+#[test]
+fn the_executed_collapse_publishes_and_interprets_identically() {
+    // Downstream-publication coverage: the rewritten result crosses Terminal
+    // publication's own entrance, the manifest binds the executed output
+    // identity, and the canonical bytes admit and run the authored result.
+    let lowered = copy_fixture();
+    let baseline =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = publish(&baseline);
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("copy propagation executes");
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the collapse is a real rewrite, not an identity this leg restates"
+    );
+    validate_copy_propagation(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+    let published = publish(&optimized);
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic(),
+        "the manifest binds the executed output identity"
+    );
+    // v41 binds the second machine argument on every incoming edge and v42
+    // binds a constant 1, so the authored result is `argument + 1` on either
+    // branch — collapsing the copy parameters must not change it.
+    let arguments = [
+        terminal_interpreter::TerminalScalarValue::Boolean(true),
+        i32_argument(5),
+        i32_argument(99),
+    ];
+    let expected = interpret(&original, &arguments);
+    let actual = interpret(&published, &arguments);
+    assert_eq!(
+        expected,
+        terminal_interpreter::TerminalExecutionResult::Scalar(i32_argument(6)),
+        "the unoptimized publication returns the authored result"
+    );
+    assert_eq!(
+        actual, expected,
+        "the published collapse interprets the same result"
     );
 }
 

@@ -1225,3 +1225,41 @@ pub fn undischarged_proof_check_fixture() -> LoweredPsi {
     }
     lowered
 }
+
+/// Downstream-publication support: cross Terminal publication's own entrance
+/// with the stage result exactly as `terminal_production` does. A rewrite
+/// that cannot survive canonical encoding and the manifest replay is
+/// unpublished no matter what the stage's execution record claims, so this
+/// is the axis that separates a validated in-memory module from a
+/// publishable one.
+pub fn publish(
+    result: &lowered_psi_to_lowered_psi::PsiOptimizationStageResult,
+) -> terminal_codec::CanonicalTerminalArtifact {
+    lowered_psi_to_terminal_psi::finalize_terminal_artifact(result, None)
+        .expect("the stage result crosses Terminal publication")
+}
+
+/// Admit and execute a published artifact on scalar `arguments`, returning
+/// the semantic result. This is the downstream replay leg: the canonical
+/// bytes decode, verify, and run — the in-memory module is not consulted.
+pub fn interpret(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    arguments: &[terminal_interpreter::TerminalScalarValue],
+) -> terminal_interpreter::TerminalExecutionResult {
+    terminal_interpreter::interpret_terminal_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        arguments,
+    )
+    .expect("the published artifact admits and executes")
+}
+
+/// A signed-32 scalar entry argument matching the fixtures' `i32` parameters;
+/// also the shape of an expected `Scalar` result payload.
+pub fn i32_argument(value: i128) -> terminal_interpreter::TerminalScalarValue {
+    terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+        value: IntegerValue::Signed(value),
+    }
+}

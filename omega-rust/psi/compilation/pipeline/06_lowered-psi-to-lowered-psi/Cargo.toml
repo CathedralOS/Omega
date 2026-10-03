@@ -17,6 +17,9 @@ terminal-verifier = { path = "../../representations/terminal-psi/verification" }
 [dev-dependencies]
 language-core = { path = "../../../foundation/language-core" }
 symbols = { path = "../../../foundation/symbols" }
+proof-admission = { path = "../../proof/admission" }
+lowered-psi-to-terminal-psi = { path = "../07_lowered-psi-to-terminal-psi" }
+terminal-interpreter = { path = "../../../interpreter/terminal-interpreter" }
 
 [[test]]
 name = "suite"
