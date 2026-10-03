@@ -331,14 +331,30 @@ fn current_facts_in_original_citation_order(
 
 #[test]
 fn sequential_ranked_components_survive_serialization_and_execution() {
-    use terminal_interpreter::{
-        AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue,
-        TerminalStructuralInputs,
-    };
     let customer = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../tests/omega/pass/proofs/runtime_sequential_ranked_components_exit/main.omg"
     ));
+    // Identity carriage permits n > previous at the invocation.
+    assert_sequential_artifact(customer, &[(0, 9, 9), (3, 9, 9), (3, 0, 0)]);
+}
+
+#[test]
+fn sequential_relational_accumulator_survives_serialization_and_execution() {
+    let customer = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/proofs/runtime_sequential_relational_accumulator_exit/main.omg"
+    ));
+    // The first component changes previous: only its established order, not
+    // equality to the invocation value, may cross into the second component.
+    assert_sequential_artifact(customer, &[(3, 9, 1), (0, 9, 9), (1, 9, 1), (3, 3, 1)]);
+}
+
+fn assert_sequential_artifact(customer: &str, inputs: &[(u128, u128, u128)]) {
+    use terminal_interpreter::{
+        AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue,
+        TerminalStructuralInputs,
+    };
     // Keep the maintained machine unchanged; the corpus owns package loading
     // and the Console wrapper, while this test selects its artifact entry.
     let machine_start = customer.find("machine descend(").unwrap();
@@ -374,14 +390,19 @@ fn sequential_ranked_components_survive_serialization_and_execution() {
         2
     );
     assert_eq!(proofs.control_cycles.len(), 2);
+    assert!(
+        cycles.iter().all(|cycle| cycle
+            .edges
+            .iter()
+            .any(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)),
+        "both components retain actual strict descent witnesses"
+    );
     let carrier = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let unsigned = |value| TerminalScalarValue::Integer {
         scalar_type: carrier,
         value: IntegerValue::Unsigned(value),
     };
-    // Entry's cycle preserves previous. Its zero-rank exit enters the later
-    // component, which returns that value. No n <= previous premise exists.
-    for (rank, previous, expected) in [(0, 9, 9), (3, 9, 9), (3, 0, 0)] {
+    for &(rank, previous, expected) in inputs {
         let result = terminal_interpreter::interpret_terminal_artifact_measured(
             &semantic_bytes,
             &proof_bytes,
