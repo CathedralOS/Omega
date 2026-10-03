@@ -98,12 +98,12 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
 }
 
 machine inspect(view: &mut Placed<RegPlacement, Registers>) -> u32 {
-    view.transmit.write(9);
-    view.status.read()
+    view.transmit.write(&mut view.transmit, 9);
+    view.status.read(&view.status)
 }
 
 machine inspect_bound(view: &mut Placed<RegPlacement, Registers>) -> u32 {
-    let status: u32 = view.status.read();
+    let status: u32 = view.status.read(&view.status);
     status
 }
 

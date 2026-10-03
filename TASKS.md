@@ -57,36 +57,6 @@ execution and native exit/output. A moved refusal is still unfinished work.
 
 ## Immediate product closure
 
-- **STATIC-DERIVED-ACCESSOR-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
-  The three `PlacedField` accessors in `source/library/core/layout.omg` cannot
-  migrate by renaming, because the machine that satisfies the requirement is
-  DERIVED, not the one written. 3 declarations, plus the two fixtures that call
-  them.
-  Measured 2026-10-02. `boundary machine PlacedField::read<T>(&self) -> T
-  satisfies Readable<T>::read;` respelled as
-  `(placed_field: &PlacedField<T>)` reports two things at once:
-  "qualified call `write` has no resolved callable declaration" and
-  "machine `PlacedField<RegPlacement,Registers,status>::read` state `read` does
-  not satisfy trait `Readable` machine `read` parameter 0: expected `&self`, got
-  `placed_field: &PlacedField<u32>`".
-  So the conformance is checked against a derived specialization
-  (`PlacedField<RegPlacement,Registers,status>`) whose attached data is not the
-  authored template `PlacedField<T>`, which is why
-  `parameter_declares_attached_data` refuses it even after 972d5894a30. And a
-  call site cannot name the template either: `PlacedField::read(&view.status)`
-  does not resolve, because the callable is the derived accessor rather than the
-  written declaration. layout.omg says as much -- "The compiler derives
-  conforming accessor types from a normalized placement; source cannot construct
-  the opaque template or use it as placement evidence."
-  Scope: the derivation has to produce the subject parameter on the accessor it
-  derives, and the call spelling for a derived accessor has to exist, before the
-  authored declaration can name its subject. Customers:
-  `pass/layouts/placed_view_source_access_compile` and
-  `fail/build/placed_view_program_entry_input`, which call these through
-  `view.<field>.read()`.
-  Acceptance: both fixtures keep their current outcome with the three accessors
-  naming their subject.
-
 - **STATIC-CALL-ARGUMENT-LENT-ROOT.** (split-of:STATIC-MACHINE-MIGRATION)
   The receiver population is 1637 declarations in 259 files, down from 3154.
   137 of those are trait requirements and their satisfiers, blocked on
