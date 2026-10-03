@@ -42,7 +42,7 @@ fn review_encoding_ignores_unreviewed_arena_insertion_order() {
         "main.omg",
         "machine unrelated() { }\nboundary machine host_ping();\n",
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);

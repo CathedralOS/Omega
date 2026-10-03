@@ -1,6 +1,6 @@
 // Byte-literal tail returns: every hosted target selects its exact entry.
 machine build(builder: &mut Build) {
-    builder.application("byte_sequence_literal_tail_return_compile");
+    Build::application(builder, "byte_sequence_literal_tail_return_compile");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

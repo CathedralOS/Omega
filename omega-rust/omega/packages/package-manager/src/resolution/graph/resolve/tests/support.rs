@@ -33,13 +33,13 @@ pub(super) fn write_package(root: &Path, name: &str, dependency: Option<&str>) {
     let dependency = dependency
         .map(|location| {
             let location = location.replace('\\', "\\\\").replace('"', "\\\"");
-            format!("    builder.depend(Source::Path {{ location: \"{location}\" }});\n")
+            format!("    Build::depend(builder, Source::Path {{ location: \"{location}\" }});\n")
         })
         .unwrap_or_default();
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n{dependency}}}\n"
+            "machine build(builder: &mut Build) {{\n    Build::package(builder, \"{name}\");\n{dependency}}}\n"
         ),
     )
     .expect("write build file");
@@ -51,13 +51,13 @@ pub(super) fn write_application(root: &Path, name: &str, dependency: Option<&str
     let dependency = dependency
         .map(|location| {
             let location = location.replace('\\', "\\\\").replace('"', "\\\"");
-            format!("    builder.depend(Source::Path {{ location: \"{location}\" }});\n")
+            format!("    Build::depend(builder, Source::Path {{ location: \"{location}\" }});\n")
         })
         .unwrap_or_default();
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.application(\"{name}\");\n{dependency}}}\n"
+            "machine build(builder: &mut Build) {{\n    Build::application(builder, \"{name}\");\n{dependency}}}\n"
         ),
     )
     .expect("write application build file");

@@ -1,5 +1,5 @@
 //! Accepted component-assumption digests:
-//! `builder.accept_component_assumption("hex")`.
+//! `Build::accept_component_assumption(builder, "hex")`.
 //!
 //! A verified component description binds its environment-mediating
 //! mechanisms — an immediate port-space write is the current producer —
@@ -27,7 +27,7 @@ pub struct AuthoredComponentAssumptionAcceptance {
     pub source_span: source::SourceSpan,
 }
 
-/// Collect the `builder.accept_component_assumption("<hex>")` declarations
+/// Collect the `Build::accept_component_assumption(builder, "<hex>")` declarations
 /// from the one authoritative build machine. A malformed digest — wrong
 /// length or non-hex text — rejects at its authored span rather than
 /// silently accepting nothing.

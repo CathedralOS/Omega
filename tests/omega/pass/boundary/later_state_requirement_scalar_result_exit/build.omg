@@ -1,7 +1,7 @@
 // Darwin-only canary: the requirement's leaf binds libSystem's `_poll` and the
 // measurement reads `darwin_clock_ns`, so only macos_arm64 selects the entry.
 machine build(builder: &mut Build) {
-    builder.application("later_state_requirement_scalar_result_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "later_state_requirement_scalar_result_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

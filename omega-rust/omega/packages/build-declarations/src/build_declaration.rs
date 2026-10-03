@@ -9,7 +9,7 @@ pub const BUILD_FILE_NAME: &str = "build.omg";
 
 pub(crate) const BUILD_MACHINE_NAME: &str = "build";
 
-pub(crate) const BUILD_TYPE_NAME: &str = "Build";
+pub const BUILD_TYPE_NAME: &str = "Build";
 
 pub(crate) const BUILDER_PARAMETER_NAME: &str = "builder";
 
@@ -136,7 +136,7 @@ pub struct PackageDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationDeclaration {
     pub name: ProjectName,
-    /// One direct unconditional `builder.artifact_only()` statement in the
+    /// One direct unconditional `Build::artifact_only(builder)` statement in the
     /// root build entry selected this application modifier. Artifact-only is
     /// an application flag, never a fourth project role: executable output
     /// remains the default until the modifier appears exactly once.

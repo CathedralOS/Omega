@@ -2,8 +2,8 @@
 // stdout/exit to OS calls on each hosted target.
 
 machine build(builder: &mut Build) {
-    builder.application("hex_dump");
-    builder.depend(Source::Path {
+    Build::application(builder, "hex_dump");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

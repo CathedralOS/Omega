@@ -8,7 +8,7 @@ fn update_explains_unsupported_generated_declaration_and_preserves_accepted_file
         "pub machine value() -> u64 { 7 }\n",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.package("arithmetic_kernels");
+    Build::package(builder, "arithmetic_kernels");
     let generated: BuildPath = builder.output.resolve("unsupported.generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let written: i64 = builder.output.write(descriptor, "trait GeneratedOperation<T> { machine apply(value: T) -> T; }\n");

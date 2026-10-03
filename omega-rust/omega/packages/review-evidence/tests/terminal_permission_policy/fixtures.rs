@@ -109,12 +109,12 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
             if console {
                 r#"use accepted_service::service;
 machine build(builder: &mut Build) {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.select_provider<accepted_service::Console, accepted_service::ConsoleNativeProvider>();
 }
 "#
             } else {
-                "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n"
+                "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n"
             },
         );
         // The canonical FilesystemHost mint requires the toolchain's exact

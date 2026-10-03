@@ -2,7 +2,7 @@
 // string is a locator for a declared target's root slot, not free text, so
 // the query rejects before any binding exists.
 machine build(builder: &mut Build) {
-    builder.application("product_entry_query_unknown_target");
+    Build::application(builder, "product_entry_query_unknown_target");
     let entry: ProductEntryRef = builder.product.entry("launch", "unknown_target::ProgramEntry");
     builder.roots.bind(windows_x86_64::ProgramEntry, entry);
 }

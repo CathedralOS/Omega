@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("nested_empty_record_array_borrow_exit");
+    Build::application(builder, "nested_empty_record_array_borrow_exit");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);

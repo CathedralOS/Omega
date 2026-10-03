@@ -1,7 +1,7 @@
 // Compile-level admission pin: one exact target-owned entry selection.
 
 machine build(builder: &mut Build) {
-    builder.application("structural_mut_to_shared_argument");
+    Build::application(builder, "structural_mut_to_shared_argument");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("generic_constant_probe");
-    builder.depend_as("values", Source::Path { location: "values" });
+    Build::application(builder, "generic_constant_probe");
+    Build::depend_as(builder, "values", Source::Path { location: "values" });
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);

@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.member("libraries/exact-math");
-    builder.member("libraries/integer-constants");
+    Build::member(builder, "libraries/exact-math");
+    Build::member(builder, "libraries/integer-constants");
 }

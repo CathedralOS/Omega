@@ -18,7 +18,7 @@ const TEMPLATE: &str = "HELLO {{name}}\n";
 /// Reads the template through the Source facet, then declares, writes, seals
 /// and completes one required output.
 const COMPLETING_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot_root");
+    Build::package(builder, "snapshot_root");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 7];
@@ -39,7 +39,7 @@ const COMPLETING_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// halts before settlement, so the occurrence never reaches the staged
 /// custody path.
 const FORGED_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot_root");
+    Build::package(builder, "snapshot_root");
     let forged: RequiredOutput = RequiredOutput {};
     let artifact: BuildPath = builder.output.resolve("artifact.txt");
     let descriptor: i32 = builder.output.create(artifact, 438);
@@ -53,7 +53,7 @@ const FORGED_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// custody back through `OutputCompletion::Retry`, and completes once the
 /// writer is closed.
 const RETRYING_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot_root");
+    Build::package(builder, "snapshot_root");
     let required: RequiredOutput = builder.output.require("retry.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -268,7 +268,7 @@ const DEPENDENCY_TEMPLATE: &str = "DEPENDENCY BANNER\n";
 /// captured inventory; its template is longer so each package's sealed
 /// `artifact.txt` carries provably distinct bytes.
 const NAMES_DEPENDENCY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot_dependency");
+    Build::package(builder, "snapshot_dependency");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 18];
@@ -288,8 +288,8 @@ const NAMES_DEPENDENCY_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// The root declares the dependency and requires `artifact.txt` but never
 /// completes it; the dependency's occurrence completes the same name.
 const OMITTING_ROOT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot_root");
-    builder.depend(Source::Path { location: "../dependency" });
+    Build::package(builder, "snapshot_root");
+    Build::depend(builder, Source::Path { location: "../dependency" });
     let required: RequiredOutput = builder.output.require("artifact.txt");
 }
 "#;
@@ -312,7 +312,7 @@ fn shared_names_fixture(root_build: &str, dependency_build: &str) -> Fixture {
 /// still settles a companion required output through the same sealed staged
 /// custody — the executable-with-companion half of the acceptance pair.
 const EXECUTABLE_COMPANION_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot_companion_app");
+    Build::application(builder, "snapshot_companion_app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     let required: RequiredOutput = builder.output.require("companion.txt");
     let required_path: &[u8] = required.path();
@@ -331,8 +331,8 @@ const EXECUTABLE_MAIN: &str = "data Main {}\nmachine Main::main(&mut self) { }\n
 /// `artifact_only` admits no executable route: binding a program root must
 /// reject even though the modifier is otherwise a valid declaration.
 const ARTIFACT_ONLY_ROOTS_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot_artifact_roots");
-    builder.artifact_only();
+    Build::application(builder, "snapshot_artifact_roots");
+    Build::artifact_only(builder);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#;
@@ -340,8 +340,8 @@ const ARTIFACT_ONLY_ROOTS_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// `artifact_only` without a completed required output publishes nothing:
 /// the modifier exists to ship artifacts, so an empty artifact set rejects.
 const ARTIFACT_ONLY_EMPTY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot_artifact_empty");
-    builder.artifact_only();
+    Build::application(builder, "snapshot_artifact_empty");
+    Build::artifact_only(builder);
 }
 "#;
 

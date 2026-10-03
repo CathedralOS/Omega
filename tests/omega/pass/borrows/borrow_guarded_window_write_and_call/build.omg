@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("guarded_window");
+    Build::application(builder, "guarded_window");
     builder.roots.bind(macos_arm64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

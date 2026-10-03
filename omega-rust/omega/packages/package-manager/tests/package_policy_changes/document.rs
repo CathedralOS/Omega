@@ -414,7 +414,7 @@ fn root_role_choices_round_trip_in_both_directions_alongside_rows() {
         tree.path("sources/root/build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.application(\"policy_fixture\");\n",
+            " Build::application(builder, \"policy_fixture\");\n",
             " builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}\n",
         ),
     )
@@ -448,9 +448,9 @@ fn source_replacement_choices_round_trip_for_exact_dependency_aliases() {
     }
     let dependencies = |selected| {
         format!(
-            " builder.depend_as(\"service\", Source::Path {{ location: \"../{selected}\" }});\n\
-         builder.depend_as(\"keep_old\", Source::Path {{ location: \"../old\" }});\n\
-         builder.depend_as(\"keep_new\", Source::Path {{ location: \"../new\" }});\n"
+            " Build::depend_as(builder, \"service\", Source::Path {{ location: \"../{selected}\" }});\n\
+         Build::depend_as(builder, \"keep_old\", Source::Path {{ location: \"../old\" }});\n\
+         Build::depend_as(builder, \"keep_new\", Source::Path {{ location: \"../new\" }});\n"
         )
     };
     source(&tree, "", &dependencies("old"));
@@ -488,7 +488,7 @@ fn benign_snapshot_staging_keeps_dependency_paths_without_restricted_consent() {
     source(
         &tree,
         "pub const VALUE: u64 = 7;\n",
-        " builder.depend_as(\"dep\", Source::Path { location: \"../dep\" });\n",
+        " Build::depend_as(builder, \"dep\", Source::Path { location: \"../dep\" });\n",
     );
     let (closure, reviews) = candidate(&tree, "document-benign-build");
     let changes = compare(None, &closure, &reviews);
@@ -547,7 +547,7 @@ fn benign_required_output_changes_preserve_lock_without_restricted_decisions() {
         &tree,
         "pub const VALUE: u64 = 7;\n",
         &format!(
-            " builder.depend_as(\"dep\", Source::Path {{ location: \"../dep\" }});\n{PLAN_WRITE}"
+            " Build::depend_as(builder, \"dep\", Source::Path {{ location: \"../dep\" }});\n{PLAN_WRITE}"
         ),
     );
     let (closure, reviews) = candidate(&tree, "document-benign-lock");
@@ -649,7 +649,7 @@ fn local_source_paths_are_quoted_data_and_round_trip_unchanged() {
         &tree,
         "",
         &format!(
-            " builder.depend_as(\"service\", Source::Path {{ location: {:?} }});\n",
+            " Build::depend_as(builder, \"service\", Source::Path {{ location: {:?} }});\n",
             format!("../{directory}")
         ),
     );

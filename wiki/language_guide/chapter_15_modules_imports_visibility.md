@@ -16,15 +16,15 @@ than repeating a package declaration. The package declares its own name:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.package("arithmetic_kernels");
+    Build::package(builder, "arithmetic_kernels");
 }
 ```
 
-Use `builder.application("name")` for an application, executable by default.
-Add direct `builder.artifact_only()` for an artifact-only application; it must
+Use `Build::application(builder, "name")` for an application, executable by default.
+Add direct `Build::artifact_only(builder)` for an artifact-only application; it must
 complete at least one required output and cannot select executable roots/providers.
 A workspace instead lists
-`builder.member("path")` calls; each member is an independently selectable
+`Build::member(builder, "path")` calls; each member is an independently selectable
 root, not part of one combined dependency graph. An application can depend on
 packages, but cannot itself be imported as a library.
 
@@ -58,11 +58,11 @@ for build-only libraries. Both are direct unconditional root declarations:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.application("generated_tables");
-    builder.build_depend_as("generator", Source::Path {
+    Build::application(builder, "generated_tables");
+    Build::build_depend_as(builder, "generator", Source::Path {
         location: "../table-generator"
     });
-    builder.depend_as("tables", Source::Path {
+    Build::depend_as(builder, "tables", Source::Path {
         location: "../table-protocol"
     });
     configure_products(builder);

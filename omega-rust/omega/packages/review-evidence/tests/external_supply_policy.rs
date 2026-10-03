@@ -21,7 +21,7 @@ fn project_with_foreign(
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     );
     let inputs = if let Some(owner) = foreign_owner {
         dependency.write(

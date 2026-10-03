@@ -1,10 +1,10 @@
 // Compile canary: the durable depend-edge consumer — this fixture's build
-// reaches the bundled alloc package through an authored `builder.depend`
+// reaches the bundled alloc package through an authored `Build::depend`
 // row instead of a hand-instantiated strategy copy.
 
 machine build(builder: &mut Build) {
-    builder.application("bump_allocator_canary");
-    builder.depend(Source::Path {
+    Build::application(builder, "bump_allocator_canary");
+    Build::depend(builder, Source::Path {
         location: "../../../../../source/library/alloc"
     });
     builder.select_provider<ExtentRootProvider, BumpRootProvider>();

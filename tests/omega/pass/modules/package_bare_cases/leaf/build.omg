@@ -1,1 +1,1 @@
-machine build(builder: &mut Build) { builder.package("bare_case_values"); }
+machine build(builder: &mut Build) { Build::package(builder, "bare_case_values"); }

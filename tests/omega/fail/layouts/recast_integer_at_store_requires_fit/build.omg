@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("recast_integer_at_store_requires_fit");
+    Build::application(builder, "recast_integer_at_store_requires_fit");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

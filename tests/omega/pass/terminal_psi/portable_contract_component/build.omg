@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("portable_contract_component");
+    Build::application(builder, "portable_contract_component");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
 }

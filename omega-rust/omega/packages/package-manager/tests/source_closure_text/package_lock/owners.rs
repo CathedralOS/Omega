@@ -20,12 +20,12 @@ fn resolve_chain(tree: &TempTree) -> ResolvedPackageSourceClosure {
     for (directory, dependencies, source) in [
         (
             "root",
-            "    builder.depend_as(\"middle\", Source::Path { location: \"../middle\" });\n",
+            "    Build::depend_as(builder, \"middle\", Source::Path { location: \"../middle\" });\n",
             "use middle::main;\npub machine carry(value: Wrapper) -> Wrapper { value }\n",
         ),
         (
             "middle",
-            "    builder.depend_as(\"types\", Source::Path { location: \"../types\" });\n",
+            "    Build::depend_as(builder, \"types\", Source::Path { location: \"../types\" });\n",
             concat!(
                 "use types::main;\n",
                 "pub data Wrapper { token: Token; }\n",

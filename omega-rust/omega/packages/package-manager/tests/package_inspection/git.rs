@@ -47,7 +47,7 @@ fn inspection_keeps_named_and_relative_members_at_one_accepted_repository_pin() 
             fixture.package(
                 "repository/modules/selected",
                 "exact_math",
-                " builder.depend(Source::Path { location: \"../other\" });\n",
+                " Build::depend(builder, Source::Path { location: \"../other\" });\n",
             );
             let old = fixture.commit();
             assert_eq!(

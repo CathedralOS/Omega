@@ -29,7 +29,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 /// observed, carried beside the bytes rather than read from them. The build
 /// admits the current description schema only, and it accepts exactly the
 /// assumption digests the build machine declared through
-/// `builder.accept_component_assumption`: a description that binds a
+/// `Build::accept_component_assumption`: a description that binds a
 /// physical-mechanism digest the build did not accept rejects as an
 /// unaccepted assumption rather than being admitted on the producer's word.
 /// The module-proof admission profile is likewise empty: only a module whose

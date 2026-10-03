@@ -33,7 +33,7 @@ pub struct PackageDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationDeclaration {
     pub name: PackageName,
-    /// The application declared `builder.artifact_only()` in its root build
+    /// The application declared `Build::artifact_only(builder)` in its root build
     /// entry: the build publishes only the staged artifact set and admits no
     /// executable route.
     pub artifact_only: bool,
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn wrapper_preserves_package_manager_identity_types() {
         let declaration = extract_from_source(
-            r#"machine build(builder: &mut Build) { builder.package("arithmetic_kernels"); }"#,
+            r#"machine build(builder: &mut Build) { Build::package(builder, "arithmetic_kernels"); }"#,
         )
         .expect("project package");
 
@@ -151,7 +151,7 @@ mod tests {
         assert!(
             extract_from_source(
                 r#"machine build(builder: &mut Build) {
-                    builder.application("service_backed_app");
+                    Build::application(builder, "service_backed_app");
                 }"#,
             )
             .is_ok()
@@ -165,7 +165,7 @@ mod tests {
             Err(BuildDeclarationError::MissingBuildDeclaration)
         );
         let application = extract_from_source(
-            r#"machine build(builder: &mut Build) { builder.application("app"); }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "app"); }"#,
         )
         .unwrap();
         assert_eq!(application.kind(), BuildDeclarationKind::Application);

@@ -49,8 +49,8 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
     // The workspace member declares the same name; its folder is not identity.
     let replacement_build = format!(
         r#"machine build(builder: &mut Build) {{
-    builder.package("cli_project");
-    builder.depend(Source::Git {{
+    Build::package(builder, "cli_project");
+    Build::depend(builder, Source::Git {{
         repository: "{REPLACEMENT_REPOSITORY}",
         revision: "{REPLACEMENT}",
         selection: PackageSelection::Named {{ package: "arithmetic-kernels" }}

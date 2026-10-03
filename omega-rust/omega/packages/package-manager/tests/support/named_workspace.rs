@@ -56,8 +56,8 @@ pub(super) fn run(module: &str, test: &str, operation: impl FnOnce(&Fixture)) {
         "repository/build.omg",
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.member(\"modules/selected\");\n",
-            " builder.member(\"modules/other\");\n}\n",
+            " Build::member(builder, \"modules/selected\");\n",
+            " Build::member(builder, \"modules/other\");\n}\n",
         ),
     );
     fixture.git(&["init", "--quiet"]);
@@ -126,7 +126,7 @@ impl Fixture {
 
     pub(super) fn package(&self, path: &str, name: &str, dependencies: &str) {
         fs::create_dir_all(self.path(path)).unwrap();
-        self.write(&format!("{path}/build.omg"), &format!("machine build(builder: &mut Build) {{\n builder.package(\"{name}\");\n{dependencies}}}\n"));
+        self.write(&format!("{path}/build.omg"), &format!("machine build(builder: &mut Build) {{\n Build::package(builder, \"{name}\");\n{dependencies}}}\n"));
         self.write(&format!("{path}/main.omg"), PURE);
     }
 

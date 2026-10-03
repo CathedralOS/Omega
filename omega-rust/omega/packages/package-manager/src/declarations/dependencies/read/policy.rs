@@ -1,12 +1,11 @@
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
-use build_declarations::{DependencyOperation, is_dependency_call_name};
+use build_declarations::{BUILD_TYPE_NAME, DependencyOperation, is_dependency_call_name};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{CapabilityMember, ConformanceBody, ConformanceMember, Item};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
-const BUILD_TYPE_NAME: &str = "Build";
 
 pub(super) fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,

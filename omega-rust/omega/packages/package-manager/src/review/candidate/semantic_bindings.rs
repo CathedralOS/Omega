@@ -673,13 +673,13 @@ mod tests {
             for (name, dependencies) in [
                 (
                     "root",
-                    "builder.depend_as(\"product_shared\", Source::Path { location: \"../shared\" }); builder.build_depend_as(\"build_shared\", Source::Path { location: \"../shared\" });",
+                    "Build::depend_as(builder, \"product_shared\", Source::Path { location: \"../shared\" }); Build::build_depend_as(builder, \"build_shared\", Source::Path { location: \"../shared\" });",
                 ),
                 ("shared", ""),
             ] {
                 let package = root.join(name);
                 std::fs::create_dir_all(&package).unwrap();
-                std::fs::write(package.join("build.omg"), format!("machine build(builder: &mut Build) {{ builder.package(\"{name}\"); {dependencies} }}\n")).unwrap();
+                std::fs::write(package.join("build.omg"), format!("machine build(builder: &mut Build) {{ Build::package(builder, \"{name}\"); {dependencies} }}\n")).unwrap();
                 std::fs::write(package.join("main.omg"), "pub const VALUE: u64 = 1;\n").unwrap();
             }
             Self(root)

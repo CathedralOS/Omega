@@ -2,8 +2,8 @@
 // selects its entry, and native execution and the checked interpreter both
 // observe the ordered line before the canonical exit.
 machine build(builder: &mut Build) {
-    builder.application("process_exit_i32_status_ordered");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "process_exit_i32_status_ordered");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

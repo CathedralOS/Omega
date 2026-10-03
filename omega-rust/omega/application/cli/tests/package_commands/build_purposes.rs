@@ -26,7 +26,7 @@ fn nested_build_fixture() -> Fixture {
     std::fs::create_dir(fixture.path("generator")).unwrap();
     fixture.write(
         "generator/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"generator\"); builder.log.write_line(\"generator activation\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"generator\"); builder.log.write_line(\"generator activation\"); }\n",
     );
     fixture.write(
         "generator/main.omg",
@@ -36,8 +36,8 @@ fn nested_build_fixture() -> Fixture {
         "dependency/build.omg",
         r#"use generator::main;
 machine build(builder: &mut Build) {
-    builder.package("arithmetic_kernels");
-    builder.build_depend_as("generator", Source::Path { location: "../generator" });
+    Build::package(builder, "arithmetic_kernels");
+    Build::build_depend_as(builder, "generator", Source::Path { location: "../generator" });
     transition generation_value() == 7 { true -> generate(builder) _ -> wrong() }
     state generate(builder: &mut Build) {
         let generated: BuildPath = builder.output.resolve("generated.omg");
@@ -59,8 +59,8 @@ machine build(builder: &mut Build) {
         "root/build.omg",
         r#"use kit::main;
 machine build(builder: &mut Build) {
-    builder.package("cli_project");
-    builder.build_depend_as("kit", Source::Path { location: "../dependency" });
+    Build::package(builder, "cli_project");
+    Build::build_depend_as(builder, "kit", Source::Path { location: "../dependency" });
     transition value() == 7 { true -> received(builder) _ -> wrong() }
     state received(builder: &mut Build) { builder.log.write_line("consumer received generated answer"); }
     state wrong() {}
@@ -93,7 +93,7 @@ fn nested_build_cross_profile_and_dual_purpose_inputs_publish_exact_occurrences(
         if dual_purpose {
             let build = fixture.read("root/build.omg").replace(
                 "    transition value()",
-                "    builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
+                "    Build::depend_as(builder, \"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
             );
             fixture.write("root/build.omg", &build);
             fixture.write(
@@ -148,7 +148,7 @@ fn generated_dependency_api_has_one_shape_across_build_and_product_profiles() {
     fixture.write(
         "dependency/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("arithmetic_kernels");
+    Build::package(builder, "arithmetic_kernels");
     let generated: BuildPath = builder.output.resolve("generated_api.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> u64 { 17 }\n");
@@ -160,9 +160,9 @@ fn generated_dependency_api_has_one_shape_across_build_and_product_profiles() {
     );
     fixture.write("root/build.omg", r#"use helper::generated_api;
 machine build(builder: &mut Build) {
-    builder.package("cli_project");
-    builder.build_depend_as("helper", Source::Path { location: "../dependency" });
-    builder.depend_as("library", Source::Path { location: "../dependency" });
+    Build::package(builder, "cli_project");
+    Build::build_depend_as(builder, "helper", Source::Path { location: "../dependency" });
+    Build::depend_as(builder, "library", Source::Path { location: "../dependency" });
     let generated: BuildPath = builder.output.resolve("consumer_generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     transition generated_value() == 17 {
@@ -278,8 +278,8 @@ fn package_risk_acceptance_does_not_transfer_between_build_and_product_purposes(
         return;
     };
     let fixture = Fixture::with_assumption();
-    let product_build = "machine build(builder: &mut Build) { builder.package(\"cli_project\"); builder.depend_as(\"kit\", Source::Path { location: \"../dependency\" }); }\n";
-    let helper_build = product_build.replace("builder.depend_as", "builder.build_depend_as");
+    let product_build = "machine build(builder: &mut Build) { Build::package(builder, \"cli_project\"); Build::depend_as(builder, \"kit\", Source::Path { location: \"../dependency\" }); }\n";
+    let helper_build = product_build.replace("Build::depend_as", "Build::build_depend_as");
     fixture.write("root/build.omg", product_build);
     let update = || fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
     let initial = update();
@@ -433,7 +433,7 @@ fn nested_build_cycle_rejects_before_any_activation() {
     let fixture = nested_build_fixture();
     fixture.write(
         "generator/build.omg",
-        "machine build(builder: &mut Build) {\n    builder.package(\"generator\");\n    builder.depend_as(\"kit\", Source::Path { location: \"../dependency\" });\n    builder.log.write_line(\"generator activation\");\n}\n",
+        "machine build(builder: &mut Build) {\n    Build::package(builder, \"generator\");\n    Build::depend_as(builder, \"kit\", Source::Path { location: \"../dependency\" });\n    builder.log.write_line(\"generator activation\");\n}\n",
     );
     let before = fixture.accepted_files();
     let output = fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
@@ -521,9 +521,9 @@ fn nested_build_sample_refresh_produces_a_runnable_native_product() {
     };
     let fixture = nested_build_fixture();
     let build = fixture.read("root/build.omg").replace(
-        "builder.package(\"cli_project\");",
+        "Build::package(builder, \"cli_project\");",
         &format!(
-            "builder.application(\"cli_project\");\n    builder.roots.bind({}::ProgramEntry, Main::main);",
+            "Build::application(builder, \"cli_project\");\n    builder.roots.bind({}::ProgramEntry, Main::main);",
             profile.target_name(),
         ),
     );
@@ -584,7 +584,7 @@ fn sample_refresh_requires_a_package_declaration() {
 
 fn refresh_application_build(profile: target::TargetProfile) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"refresh_app\");\n    builder.roots.bind({}::ProgramEntry, Main::main);\n}}\n",
+        "machine build(builder: &mut Build) {{\n    Build::application(builder, \"refresh_app\");\n    builder.roots.bind({}::ProgramEntry, Main::main);\n}}\n",
         profile.target_name(),
     )
 }
@@ -683,7 +683,7 @@ fn purposes_fixture(build_edges: &str, product_alias: &str) -> Fixture {
     fixture.write(
         "root/build.omg",
         &format!(
-            "use kit::main;\nmachine build(builder: &mut Build) {{\n    builder.package(\"purpose_root\");\n{build_edges}}}\n"
+            "use kit::main;\nmachine build(builder: &mut Build) {{\n    Build::package(builder, \"purpose_root\");\n{build_edges}}}\n"
         ),
     );
     fixture.write(
@@ -730,7 +730,7 @@ fn two_target_check_assembles_the_source_union_once() {
     let fixture = nested_build_fixture();
     let build = fixture.read("root/build.omg").replace(
         "    transition value()",
-        "    builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
+        "    Build::depend_as(builder, \"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
     );
     fixture.write("root/build.omg", &build);
     fixture.write(
@@ -833,8 +833,8 @@ fn two_target_application_shares_entry_contract_source_assembly() {
     fixture.write(
         "root/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("entry_source_union");
-    builder.depend(Source::Path { location: "../standard" });
+    Build::application(builder, "entry_source_union");
+    Build::depend(builder, Source::Path { location: "../standard" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
@@ -893,10 +893,10 @@ fn two_target_native_products_share_nested_source_union() {
     let build = fixture
         .read("root/build.omg")
         .replace(
-            "builder.package(\"cli_project\");",
+            "Build::package(builder, \"cli_project\");",
             &format!(
-                "builder.application(\"source_union_native\");\n    \
-                 builder.depend(Source::Path {{ location: \"../standard\" }});\n    \
+                "Build::application(builder, \"source_union_native\");\n    \
+                 Build::depend(builder, Source::Path {{ location: \"../standard\" }});\n    \
                  builder.roots.bind({}::ProgramEntry, Main::main);\n    \
                  builder.roots.bind({}::ProgramEntry, Main::main);",
                 execution.target_name(),
@@ -905,7 +905,7 @@ fn two_target_native_products_share_nested_source_union() {
         )
         .replace(
             "    transition value()",
-            "    builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
+            "    Build::depend_as(builder, \"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
         );
     fixture.write("root/build.omg", &build);
     fixture.write(
@@ -1075,7 +1075,7 @@ reaches
 fn an_import_selects_only_its_own_scope_edges() {
     // A build-only edge cannot serve the product import.
     let fixture = purposes_fixture(
-        "    builder.build_depend_as(\"kit\", Source::Path { location: \"../beta\" });\n",
+        "    Build::build_depend_as(builder, \"kit\", Source::Path { location: \"../beta\" });\n",
         "kit",
     );
     let before = fixture.accepted_files();
@@ -1092,7 +1092,7 @@ fn an_import_selects_only_its_own_scope_edges() {
 
     // A product-only edge cannot serve the build import.
     let fixture = purposes_fixture(
-        "    builder.depend_as(\"kit\", Source::Path { location: \"../beta\" });\n",
+        "    Build::depend_as(builder, \"kit\", Source::Path { location: \"../beta\" });\n",
         "kit",
     );
     let before = fixture.accepted_files();
@@ -1116,7 +1116,7 @@ fn a_root_local_module_checked_in_both_scopes_keeps_two_instances() {
     let fixture = Fixture::new();
     fixture.write(
         "root/build.omg",
-        "use helper;\nmachine build(builder: &mut Build) {\n    builder.package(\"dual_root\");\n    helper::poke();\n}\n",
+        "use helper;\nmachine build(builder: &mut Build) {\n    Build::package(builder, \"dual_root\");\n    helper::poke();\n}\n",
     );
     fixture.write(
         "root/main.omg",

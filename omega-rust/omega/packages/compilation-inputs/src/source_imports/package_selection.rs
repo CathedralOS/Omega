@@ -411,7 +411,7 @@ fn bundled_package_roster() -> Vec<(String, PathBuf)> {
     roster
 }
 
-/// The literal of the one direct `builder.package("kebab_name")` statement a
+/// The literal of the one direct `Build::package(builder, "kebab_name")` statement a
 /// package build entry must carry (build-declarations pins that canonical
 /// shape). This reads the spelling for a diagnostic; it does not evaluate the
 /// build machine or validate the declaration.

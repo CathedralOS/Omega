@@ -2,8 +2,8 @@
 // its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("record_literal_array_field");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "record_literal_array_field");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

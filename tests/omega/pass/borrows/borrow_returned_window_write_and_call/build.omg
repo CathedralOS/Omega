@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("borrow_returned_window_write_and_call");
+    Build::application(builder, "borrow_returned_window_write_and_call");
     builder.roots.bind(macos_arm64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

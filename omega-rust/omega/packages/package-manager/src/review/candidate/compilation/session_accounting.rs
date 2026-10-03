@@ -312,7 +312,7 @@ mod tests {
             ));
             std::fs::create_dir(&root).unwrap();
             std::fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
-            std::fs::write(root.join("build.omg"), "machine build(builder: &mut Build) { builder.package(\"accounting_fixture\"); builder.log.write_line(\"accounting witness\"); }\n").unwrap();
+            std::fs::write(root.join("build.omg"), "machine build(builder: &mut Build) { Build::package(builder, \"accounting_fixture\"); builder.log.write_line(\"accounting witness\"); }\n").unwrap();
             Self(root)
         }
         fn compile(
@@ -396,7 +396,7 @@ mod tests {
         )
         .unwrap();
         std::fs::write(fixture.0.join("build.omg"),
-            "machine build(builder: &mut Build) { builder.application(\"accounting_fixture\"); builder.roots.bind(windows_x86_64::ProgramEntry, Main::main); }\n").unwrap();
+            "machine build(builder: &mut Build) { Build::application(builder, \"accounting_fixture\"); builder.roots.bind(windows_x86_64::ProgramEntry, Main::main); }\n").unwrap();
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([93; 32]).unwrap();
         let inputs = package_compilation::PackageCompilationInputs::new(
             package,

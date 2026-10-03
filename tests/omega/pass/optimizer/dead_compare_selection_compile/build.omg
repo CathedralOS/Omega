@@ -4,7 +4,7 @@
 // flag publication unread, and the dead-compare pass removes it.
 
 machine build(builder: &mut Build) {
-    builder.application("dead_compare_selection_compile");
+    Build::application(builder, "dead_compare_selection_compile");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

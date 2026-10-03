@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("traffic_light");
-    builder.depend(Source::Path {
+    Build::application(builder, "traffic_light");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

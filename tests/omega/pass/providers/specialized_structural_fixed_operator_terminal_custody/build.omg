@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("specialized_structural_fixed_operator_terminal_custody");
+    Build::application(builder, "specialized_structural_fixed_operator_terminal_custody");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

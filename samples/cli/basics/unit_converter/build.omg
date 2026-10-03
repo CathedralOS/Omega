@@ -1,8 +1,8 @@
 // unit_converter build sketch.  Needs only process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("unit_converter");
-    builder.depend(Source::Path {
+    Build::application(builder, "unit_converter");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

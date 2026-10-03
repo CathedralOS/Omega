@@ -91,7 +91,7 @@ fn omega_path(path: &Path) -> String {
 fn write_consumer(root: &Path, standard_library: Option<&Path>) {
     let dependency = standard_library.map_or_else(String::new, |standard_library| {
         format!(
-            "    builder.depend(Source::Path {{ location: \"{}\" }});\n",
+            "    Build::depend(builder, Source::Path {{ location: \"{}\" }});\n",
             omega_path(standard_library)
         )
     });
@@ -100,7 +100,7 @@ fn write_consumer(root: &Path, standard_library: Option<&Path>) {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.package("standard_library_consumer");
+    Build::package(builder, "standard_library_consumer");
 {dependency}}}
 "#
         ),
@@ -124,8 +124,8 @@ fn write_filesystem_consumer(root: &Path, standard_library: &Path) {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.package("filesystem_policy_consumer");
-    builder.depend(Source::Path {{ location: "{}" }});
+    Build::package(builder, "filesystem_policy_consumer");
+    Build::depend(builder, Source::Path {{ location: "{}" }});
 }}
 "#,
             omega_path(standard_library),
@@ -846,7 +846,7 @@ fn assert_names_missing_standard_library_edge(messages: &[String], import: &str)
     );
     assert!(
         message.contains(
-            "declare `builder.depend(...)` or `builder.depend_as(\"omega_language_std\", ...)` in its build.omg"
+            "declare `Build::depend(builder, ...)` or `Build::depend_as(builder, \"omega_language_std\", ...)` in its build.omg"
         ),
         "{message}"
     );
@@ -868,7 +868,7 @@ fn write_console_consumer(root: &Path, dependency: &str) {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.application("console_consumer");
+    Build::application(builder, "console_consumer");
 {dependency}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
 }}
 "#
@@ -953,7 +953,7 @@ fn removing_the_standard_library_dependency_rejects_the_console_consumer() {
     write_console_consumer(
         &root,
         &format!(
-            "    builder.depend(Source::Path {{ location: \"{}\" }});\n",
+            "    Build::depend(builder, Source::Path {{ location: \"{}\" }});\n",
             omega_path(&standard_library)
         ),
     );
@@ -978,7 +978,7 @@ fn removing_the_standard_library_dependency_rejects_the_console_consumer() {
     write_console_consumer(
         &root,
         &format!(
-            "    builder.depend_as(\"standard_library\", Source::Path {{ location: \"{}\" }});\n",
+            "    Build::depend_as(builder, \"standard_library\", Source::Path {{ location: \"{}\" }});\n",
             omega_path(&respelled)
         ),
     );

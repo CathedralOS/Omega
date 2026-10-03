@@ -22,7 +22,7 @@ fn write_package(root: &Path, name: &str) {
     std::fs::create_dir_all(root).expect("create package root");
     std::fs::write(
         root.join("build.omg"),
-        format!("machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n}}\n"),
+        format!("machine build(builder: &mut Build) {{\n    Build::package(builder, \"{name}\");\n}}\n"),
     )
     .expect("write package declaration");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n")

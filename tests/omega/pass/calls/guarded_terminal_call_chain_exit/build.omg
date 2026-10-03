@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("guarded_terminal_call_chain_exit");
+    Build::application(builder, "guarded_terminal_call_chain_exit");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(windows_x86_64::ProgramEntry, main);

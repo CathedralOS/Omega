@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("vec_duplicate_cleanup");
-    builder.depend(Source::Path { location: "../../../../../source/library/alloc" });
+    Build::application(builder, "vec_duplicate_cleanup");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/alloc" });
 }

@@ -1,8 +1,8 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("native_metadata_blocks");
-    builder.depend(Source::Path {
+    Build::application(builder, "native_metadata_blocks");
+    Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

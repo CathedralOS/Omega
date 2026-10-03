@@ -116,7 +116,7 @@ fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, ReviewFixt
         &format!(
             r#"{}
 machine build(builder: &mut Build) {{
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.select_representation<TransferToken, TransferTokenRepresentation>();
     builder.select_representation<UnusedToken, UnusedTokenRepresentation>();
 }}

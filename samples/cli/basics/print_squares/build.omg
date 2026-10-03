@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("print_squares");
-    builder.depend(Source::Path {
+    Build::application(builder, "print_squares");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

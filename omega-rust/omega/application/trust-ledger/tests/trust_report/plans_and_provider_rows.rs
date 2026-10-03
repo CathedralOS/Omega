@@ -100,7 +100,7 @@ fn granted_plan_receipt_pins_the_fingerprint() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("plan_lock");
+    Build::application(builder, "plan_lock");
     builder.accept_boundary<Flags>();
 }
 "#,
@@ -605,7 +605,7 @@ fn slot_grant_pins_only_the_selected_provider_plan() {
     let build_with = |provider: &str| {
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("trust_provider_selection");
+    Build::application(builder, "trust_provider_selection");
     builder.accept_boundary<Pair>();
     builder.select_provider<Pair, {provider}>();
 }}

@@ -239,7 +239,7 @@ mod tests {
             std::fs::write(
                 root.join("build.omg"),
                 format!(
-                    "machine build(builder: &mut Build) {{ builder.package(\"{name}\"); {dependencies} }}\n"
+                    "machine build(builder: &mut Build) {{ Build::package(builder, \"{name}\"); {dependencies} }}\n"
                 ),
             )
             .unwrap();
@@ -293,19 +293,19 @@ mod tests {
         fixture.package(
             "root",
             concat!(
-                "builder.depend(Source::Path { location: \"../left\" });",
-                "builder.depend_as(\"shared_product\", Source::Path { location: \"../shared\" });",
-                "builder.build_depend_as(\"tool\", Source::Path { location: \"../tool\" });",
-                "builder.build_depend_as(\"shared_build\", Source::Path { location: \"../shared\" });",
+                "Build::depend(builder, Source::Path { location: \"../left\" });",
+                "Build::depend_as(builder, \"shared_product\", Source::Path { location: \"../shared\" });",
+                "Build::build_depend_as(builder, \"tool\", Source::Path { location: \"../tool\" });",
+                "Build::build_depend_as(builder, \"shared_build\", Source::Path { location: \"../shared\" });",
             ),
         );
         fixture.package(
             "left",
-            "builder.depend(Source::Path { location: \"../shared\" });",
+            "Build::depend(builder, Source::Path { location: \"../shared\" });",
         );
         fixture.package(
             "tool",
-            "builder.depend(Source::Path { location: \"../hostlib\" });",
+            "Build::depend(builder, Source::Path { location: \"../hostlib\" });",
         );
         fixture.package("shared", "");
         fixture.package("hostlib", "");
@@ -354,8 +354,8 @@ mod tests {
         fixture.package(
             "root",
             concat!(
-                "builder.depend_as(\"product\", Source::Path { location: \"../shared\" });",
-                "builder.build_depend_as(\"build\", Source::Path { location: \"../shared\" });",
+                "Build::depend_as(builder, \"product\", Source::Path { location: \"../shared\" });",
+                "Build::build_depend_as(builder, \"build\", Source::Path { location: \"../shared\" });",
             ),
         );
         fixture.package("shared", "");
@@ -427,7 +427,7 @@ mod tests {
         let fixture = Fixture::new();
         fixture.package(
             "root",
-            "builder.build_depend_as(\"tool\", Source::Path { location: \"../tool\" });",
+            "Build::build_depend_as(builder, \"tool\", Source::Path { location: \"../tool\" });",
         );
         fixture.package("tool", "");
         let Some(profile) = TargetProfile::host_if_supported() else {

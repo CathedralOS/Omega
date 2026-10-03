@@ -3,10 +3,10 @@
 // verdict.
 
 machine build(builder: &mut Build) {
-    builder.application("no_op_assert_app");
-    builder.depend(Source::Path { location: "../assert-kit" });
+    Build::application(builder, "no_op_assert_app");
+    Build::depend(builder, Source::Path { location: "../assert-kit" });
     builder.select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssert>();
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
-    builder.exclude_crash(CrashCause::Trap);
+    Build::exclude_crash(builder, CrashCause::Trap);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

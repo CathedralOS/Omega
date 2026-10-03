@@ -2,7 +2,7 @@
 //!
 //! Complete selected macOS GUI output is a bundle, never a flat executable
 //! beside it (wiki/spec/build/macos_application.md). One validated authored
-//! `builder.application` name supplies the `.app` basename and the inner
+//! `Build::application` name supplies the `.app` basename and the inner
 //! executable leaf; the retained `builder.identifier` supplies
 //! `CFBundleIdentifier` and must match the CodeDirectory identity already
 //! bound into the signed executable bytes.

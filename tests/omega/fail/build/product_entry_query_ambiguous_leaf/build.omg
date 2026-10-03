@@ -4,7 +4,7 @@
 // breaks the tie, so the query rejects as ambiguous rather than taking the
 // first match.
 machine build(builder: &mut Build) {
-    builder.application("product_entry_query_ambiguous_leaf");
+    Build::application(builder, "product_entry_query_ambiguous_leaf");
     let entry: ProductEntryRef = builder.product.entry("launch", "windows_x86_64::ProgramEntry");
     builder.roots.bind(windows_x86_64::ProgramEntry, entry);
 }

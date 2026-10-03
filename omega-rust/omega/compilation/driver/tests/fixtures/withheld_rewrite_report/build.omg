@@ -1,7 +1,7 @@
 // Both scalar passes are selected so the compile exercises each one's
 // withheld-rewrite decision on the same proof-bearing module.
 machine build(builder: &mut Build) {
-    builder.application("withheld_rewrite_report");
+    Build::application(builder, "withheld_rewrite_report");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

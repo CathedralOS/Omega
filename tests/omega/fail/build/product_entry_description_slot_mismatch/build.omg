@@ -4,7 +4,7 @@
 // the authored slot to match it rather than re-checking the machine against
 // a different target's slot.
 machine build(builder: &mut Build) {
-    builder.application("product_entry_description_slot_mismatch");
+    Build::application(builder, "product_entry_description_slot_mismatch");
     builder.roots.bind(windows_x86_64::ProgramEntry, describe(builder, "linux_arm64::ProgramEntry"));
 }
 

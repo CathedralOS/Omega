@@ -276,7 +276,7 @@ fn console_binding_fixture(
         console.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("ordinary_console");
+    Build::package(builder, "ordinary_console");
 }
 "#,
     );
@@ -299,8 +299,8 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         application.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("console_consumer");
-    builder.depend_as("ordinary_console", Source::Path {
+    Build::application(builder, "console_consumer");
+    Build::depend_as(builder, "ordinary_console", Source::Path {
         location: "../console"
     });
     builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
@@ -313,8 +313,8 @@ machine build(builder: &mut Build) {
         let build_path = application.join("build.omg");
         let source = fs::read_to_string(&build_path).unwrap();
         write_file(&build_path, &source.replace(
-            "    builder.application(\"console_consumer\");",
-            &format!("    builder.application(\"console_consumer\");\n    builder.pcc.psi = {};\n    builder.pcc.native = {};",
+            "    Build::application(builder, \"console_consumer\");",
+            &format!("    Build::application(builder, \"console_consumer\");\n    builder.pcc.psi = {};\n    builder.pcc.native = {};",
                 proof_requests.psi, proof_requests.native),
         ));
     }
@@ -369,16 +369,16 @@ fn accepted_build_permissions_do_not_become_same_target_product_permissions() {
     write_file(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("permission_consumer");
-    builder.depend_as("product_library", Source::Path { location: "../shared" });
-    builder.build_depend_as("build_library", Source::Path { location: "../shared" });
+    Build::package(builder, "permission_consumer");
+    Build::depend_as(builder, "product_library", Source::Path { location: "../shared" });
+    Build::build_depend_as(builder, "build_library", Source::Path { location: "../shared" });
 }
 "#,
     );
     write_file(root.join("main.omg"), "pub const VALUE: u64 = 1;\n");
     write_file(
         shared.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"permission_library\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"permission_library\"); }\n",
     );
     write_file(
         shared.join("main.omg"),
@@ -890,7 +890,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     write_file(
         observation_probe.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("observation_probe");
+    Build::package(builder, "observation_probe");
 }
 "#,
     );

@@ -32,7 +32,7 @@ entry:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.application("hello");
+    Build::application(builder, "hello");
     // Declare the std dependency for this project's source layout.
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

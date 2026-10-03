@@ -66,7 +66,7 @@ fn generated_sources_publish_the_retained_native_product() {
     fixture.write(
         "root/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("generated_native");
+    Build::application(builder, "generated_native");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     let generated: BuildPath = builder.output.resolve("own.generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);

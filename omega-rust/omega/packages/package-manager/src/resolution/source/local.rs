@@ -68,7 +68,7 @@ pub fn resolve_external_local_package_source_from_hardened_base(
 /// Resolve a local project root selected for execution.
 ///
 /// Unlike a dependency source, the root of a compilation may declare either
-/// `builder.application(...)` or `builder.package(...)`. Dependencies reached
+/// `Build::application(builder, ...)` or `Build::package(builder, ...)`. Dependencies reached
 /// from it remain package-only. Keeping that distinction here prevents the CLI
 /// from falling back to directory-shaped import lookup merely because its root
 /// is an application rather than a library package.

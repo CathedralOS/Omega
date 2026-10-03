@@ -19,8 +19,8 @@ impl BuildOnlyFixture {
         std::fs::write(
             root.join("consumer/build.omg"),
             "machine build(builder: &mut Build) {
-                builder.package(\"consumer\");
-                builder.depend(Source::Path { location: \"../dependency\" });
+                Build::package(builder, \"consumer\");
+                Build::depend(builder, Source::Path { location: \"../dependency\" });
             }",
         )
         .unwrap();
@@ -31,7 +31,7 @@ impl BuildOnlyFixture {
         .unwrap();
         std::fs::write(
             root.join("dependency/build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"dependency\"); }",
+            "machine build(builder: &mut Build) { Build::package(builder, \"dependency\"); }",
         )
         .unwrap();
         Self { root }
@@ -96,7 +96,7 @@ fn build_only_review_does_not_supply_missing_imports_or_hide_invalid_main() {
         ("dependency/main.omg", "this is not Omega source"),
         (
             "dependency/build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"dependency\"); missing(); }",
+            "machine build(builder: &mut Build) { Build::package(builder, \"dependency\"); missing(); }",
         ),
     ] {
         let fixture = BuildOnlyFixture::new();

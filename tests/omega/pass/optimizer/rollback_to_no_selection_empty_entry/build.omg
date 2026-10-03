@@ -8,7 +8,7 @@
 // build that selects nothing.
 
 machine build(builder: &mut Build) {
-    builder.application("rollback_to_no_selection_empty_entry");
+    Build::application(builder, "rollback_to_no_selection_empty_entry");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

@@ -60,7 +60,7 @@ Four causes account for most of that, and each recurs:
   never compiles and the test never reaches its subject.
 - The package-name migration: a declared package or application identity
   is snake_case, so `pcc-gui`, `physical-empty` and any generator that
-  interpolates a hyphenated case label into `builder.application(...)`
+  interpolates a hyphenated case label into `Build::application(builder, ...)`
   are rejected.
 - An expectation that outlived the behavior: provider plan names carry
   their target profile (`macos_arm64::TimerProvider::satisfies::...`),

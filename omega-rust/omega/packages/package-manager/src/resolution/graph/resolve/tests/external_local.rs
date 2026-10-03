@@ -81,7 +81,7 @@ fn project_resolution_retains_an_application_root_role() {
     std::fs::create_dir_all(&source).expect("create application root");
     std::fs::write(
         source.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"driver_console\");\n}\n",
+        "machine build(builder: &mut Build) {\n    Build::application(builder, \"driver_console\");\n}\n",
     )
     .expect("write application declaration");
     std::fs::write(source.join("main.omg"), "machine root() {}\n")

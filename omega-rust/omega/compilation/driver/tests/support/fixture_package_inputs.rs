@@ -98,21 +98,21 @@ pub fn bundled_standard_library_location() -> String {
         .replace('\\', "/")
 }
 
-/// The `builder.depend` row a synthesized `build.omg` authors to take the
+/// The `Build::depend` row a synthesized `build.omg` authors to take the
 /// bundled standard library as an ordinary product dependency, indented as a
 /// build-entry statement and newline-terminated.
 pub fn bundled_standard_library_dependency_declaration() -> String {
     format!(
-        "    builder.depend(Source::Path {{ location: \"{}\" }});\n",
+        "    Build::depend(builder, Source::Path {{ location: \"{}\" }});\n",
         bundled_standard_library_location()
     )
 }
 
-/// The `builder.depend_as` row that takes the bundled standard library under
+/// The `Build::depend_as` row that takes the bundled standard library under
 /// an authored `alias`.
 pub fn bundled_standard_library_dependency_declaration_as(alias: &str) -> String {
     format!(
-        "    builder.depend_as(\"{alias}\", Source::Path {{ location: \"{}\" }});\n",
+        "    Build::depend_as(builder, \"{alias}\", Source::Path {{ location: \"{}\" }});\n",
         bundled_standard_library_location()
     )
 }
@@ -141,12 +141,12 @@ pub struct FixturePathDependency {
 /// fixture authored, read through the build vocabulary that owns them.
 ///
 /// A fixture compiles in package mode when — and only when — its `build.omg`
-/// authors at least one unconditional `builder.depend`, `depend_as`,
+/// authors at least one unconditional `Build::depend`, `depend_as`,
 /// `build_depend` or `build_depend_as` row. A project with no `build.omg`, or
 /// one with no dependency row, compiles without package inputs. Every row must
 /// name `Source::Path { location: "<path>" }`; that location must resolve
 /// relative to the declaring project; and the directory it names must itself
-/// declare `builder.package(...)`. Nothing else is admitted: the harness never
+/// declare `Build::package(builder, ...)`. Nothing else is admitted: the harness never
 /// supplies a location, a package name or an alias the fixture did not author,
 /// and every such departure panics with the fixture and the authored text
 /// rather than quietly dropping the edge. Conditional `*_when` vocabulary
@@ -345,7 +345,7 @@ fn fixture_root_declaration(project_root: &Path) -> (BuildDeclarationKind, Strin
 
 /// Package inputs for a repository fixture, or `None` when it authored no
 /// dependency at all and did not request package identity. A fixture that
-/// declares `builder.package` compiles in package mode even with an empty
+/// declares `Build::package` compiles in package mode even with an empty
 /// dependency set; an `application` fixture without a dependency row stays
 /// standalone.
 ///
@@ -369,7 +369,7 @@ pub fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageComp
 /// directory: the rows are read from the fixture's authored project, where
 /// their relative locations resolve, and the root package is bound to the
 /// copy. `None` when the fixture authored no dependency and does not declare
-/// `builder.package`.
+/// `Build::package`.
 pub fn copied_fixture_package_inputs(
     authored_project_root: &Path,
     copied_project_root: &Path,
@@ -407,7 +407,7 @@ fn dependency_free_inputs(
     .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", authored_root.display()))
 }
 
-/// A fixture that declares `builder.package` requests package identity even
+/// A fixture that declares `Build::package` requests package identity even
 /// with an empty dependency set; an `application` fixture without a
 /// dependency row stays standalone.
 fn dependency_free_package_inputs_bound_to(
@@ -1242,7 +1242,7 @@ pub fn discard_fixture_review_cache(root_path: &Path, target_name: Option<&str>)
 pub fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted_main_program_entry\");\n{}    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n",
+        "machine build(builder: &mut Build) {{\n    Build::application(builder, \"hosted_main_program_entry\");\n{}    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n",
         fixture_dependency_declarations(canary)
     )
 }
@@ -1269,7 +1269,7 @@ pub fn hosted_program_entry_owner(target: &str) -> &'static str {
 pub fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     let mut build =
-        "machine build(builder: &mut Build) {\n    builder.application(\"cross_target_canary\");\n"
+        "machine build(builder: &mut Build) {\n    Build::application(builder, \"cross_target_canary\");\n"
             .to_owned();
     build.push_str(&fixture_dependency_declarations(canary));
     if target == "uefi_x86_64" {

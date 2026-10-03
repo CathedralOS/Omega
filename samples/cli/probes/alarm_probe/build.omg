@@ -1,8 +1,8 @@
 // alarm_probe build sketch.
 
 machine build(builder: &mut Build) {
-    builder.application("alarm_probe");
-    builder.depend(Source::Path {
+    Build::application(builder, "alarm_probe");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

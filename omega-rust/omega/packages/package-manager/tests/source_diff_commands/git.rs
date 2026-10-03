@@ -60,7 +60,7 @@ fn named_and_relative_members_use_the_accepted_repository_pin_with_cold_storage(
             fixture.package(
                 "repository/modules/selected",
                 "exact_math",
-                " builder.depend_as(\"other\", Source::Path { location: \"../other\" });\n",
+                " Build::depend_as(builder, \"other\", Source::Path { location: \"../other\" });\n",
             );
             let old = fixture.commit();
             assert_eq!(
@@ -225,7 +225,7 @@ fn update_selects_a_build_scope_alias_and_retargets_its_git_row() {
             fixture.write(
                 "root/build.omg",
                 &format!(
-                    "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.build_depend_as(\"host\", {});\n}}\n",
+                    "machine build(builder: &mut Build) {{\n Build::package(builder, \"consumer\");\n Build::build_depend_as(builder, \"host\", {});\n}}\n",
                     git_source("exact_math", "HEAD"),
                 ),
             );
@@ -293,10 +293,10 @@ fn update_selects_a_build_scope_alias_and_retargets_its_git_row() {
             );
             let build = fixture.read("root/build.omg");
             assert!(
-                build.contains("builder.build_depend_as(\"host\""),
+                build.contains("Build::build_depend_as(builder, \"host\""),
                 "{build}"
             );
-            assert!(!build.contains("builder.depend"), "{build}");
+            assert!(!build.contains("Build::depend"), "{build}");
             assert!(
                 build.contains(&format!("revision: \"{original}\"")),
                 "{build}"
@@ -324,7 +324,7 @@ fn update_to_retargets_both_scope_rows_of_a_dual_purpose_package() {
             fixture.write(
                 "root/build.omg",
                 &format!(
-                    "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.depend_as(\"tool\", {request});\n builder.build_depend_as(\"tool\", {request});\n}}\n"
+                    "machine build(builder: &mut Build) {{\n Build::package(builder, \"consumer\");\n Build::depend_as(builder, \"tool\", {request});\n Build::build_depend_as(builder, \"tool\", {request});\n}}\n"
                 ),
             );
             assert_eq!(
@@ -387,7 +387,7 @@ fn update_shared_cross_scope_alias_refreshes_both_selections() {
             fixture.write(
                 "root/build.omg",
                 &format!(
-                    "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.depend_as(\"shared\", {});\n builder.build_depend_as(\"shared\", {});\n}}\n",
+                    "machine build(builder: &mut Build) {{\n Build::package(builder, \"consumer\");\n Build::depend_as(builder, \"shared\", {});\n Build::build_depend_as(builder, \"shared\", {});\n}}\n",
                     git_source("exact_math", "HEAD"),
                     git_source("other_library", "HEAD"),
                 ),

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("digital_root");
-    builder.depend(Source::Path {
+    Build::application(builder, "digital_root");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

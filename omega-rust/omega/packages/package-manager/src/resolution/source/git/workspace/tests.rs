@@ -16,14 +16,14 @@ fn member_path(value: &str) -> WorkspaceMemberPath {
 fn workspace_source(members: &[&str]) -> Vec<u8> {
     let declarations = members
         .iter()
-        .map(|member| format!(r#"builder.member("{member}");"#))
+        .map(|member| format!(r#"Build::member(builder, "{member}");"#))
         .collect::<Vec<_>>()
         .join(" ");
     format!("machine build(builder: &mut Build) {{ {declarations} }}").into_bytes()
 }
 
 fn package_source(name: &str) -> Vec<u8> {
-    format!(r#"machine build(builder: &mut Build) {{ builder.package("{name}"); }}"#).into_bytes()
+    format!(r#"machine build(builder: &mut Build) {{ Build::package(builder, "{name}"); }}"#).into_bytes()
 }
 
 #[test]
@@ -34,8 +34,8 @@ fn selects_once_and_retains_ordered_replayable_commitments() {
     let codec = package_source("codec");
     let math = br#"
         machine build(builder: &mut Build) {
-            builder.package("exact_math");
-            builder.depend(Source::Path { location: "../codec" });
+            Build::package(builder, "exact_math");
+            Build::depend(builder, Source::Path { location: "../codec" });
         }
     "#;
     let supplied_out_of_order = [
@@ -263,10 +263,10 @@ fn rejects_package_builds_outside_static_dependency_projection_policy() {
     let path = member_path("packages/a");
     let hidden_dependency = br#"
         machine helper(builder: &mut Build) {
-            builder.depend(Source::Path { location: "hidden" });
+            Build::depend(builder, Source::Path { location: "hidden" });
         }
         machine build(builder: &mut Build) {
-            builder.package("a");
+            Build::package(builder, "a");
             helper(builder);
         }
     "#;

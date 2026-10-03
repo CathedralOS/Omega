@@ -16,7 +16,7 @@ fn write_workspace(root: &Path, members: &[&str]) {
     std::fs::create_dir_all(root).expect("create workspace root");
     let declarations = members
         .iter()
-        .map(|member| format!("    builder.member(\"{member}\");\n"))
+        .map(|member| format!("    Build::member(builder, \"{member}\");\n"))
         .collect::<String>();
     std::fs::write(
         root.join("build.omg"),
@@ -254,12 +254,12 @@ fn conflicting_git_revisions_report_real_custody_and_both_request_paths() {
         root.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.package("reconciliation_root");
-    builder.depend_as("first_revision", Source::Git {{
+    Build::package(builder, "reconciliation_root");
+    Build::depend_as(builder, "first_revision", Source::Git {{
         repository: "{canonical_repository}",
         revision: "{first_revision}"
     }});
-    builder.depend_as("second_revision", Source::Git {{
+    Build::depend_as(builder, "second_revision", Source::Git {{
         repository: "{canonical_repository}",
         revision: "{second_revision}"
     }});

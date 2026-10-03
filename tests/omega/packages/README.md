@@ -5,7 +5,7 @@ current admission tests.
 They intentionally use normal external package names, not `pkg_` prefixes.
 Directory/repository names are kebab-case for clarity, but do not establish
 security identity. Each fixture declares its own snake_case name through the
-ordinary `builder.package("name")` build surface, spelling the directory's words
+ordinary `Build::package(builder, "name")` build surface, spelling the directory's words
 with underscores; the source-qualified `PackageKey`, not the name alone, is the
 lock and nominal-symbol identity. The default in-code alias is the declared name
 unchanged.

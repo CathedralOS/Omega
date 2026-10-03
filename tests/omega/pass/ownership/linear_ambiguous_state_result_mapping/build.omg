@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("linear_ambiguous_state_result_mapping");
+    Build::application(builder, "linear_ambiguous_state_result_mapping");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

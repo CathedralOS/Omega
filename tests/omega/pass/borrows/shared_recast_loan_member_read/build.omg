@@ -1,8 +1,8 @@
 // Host roots demand the complete Unit plan and its provider attachment.
 // The authored exit oracle makes the corpus execute the byte-carrier read.
 machine build(builder: &mut Build) {
-    builder.application("shared_recast_loan_member_read");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "shared_recast_loan_member_read");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

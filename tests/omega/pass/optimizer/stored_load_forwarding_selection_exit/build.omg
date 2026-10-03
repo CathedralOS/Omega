@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("stored_load_forwarding_selection_exit");
+    Build::application(builder, "stored_load_forwarding_selection_exit");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);

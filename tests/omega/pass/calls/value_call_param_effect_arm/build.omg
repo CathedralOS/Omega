@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("value_call_param_effect_arm");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "value_call_param_effect_arm");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

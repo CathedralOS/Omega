@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("runtime_subslice_and_element_read_call_operands_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "runtime_subslice_and_element_read_call_operands_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::run);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::run);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::run);

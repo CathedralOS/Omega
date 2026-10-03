@@ -19,7 +19,7 @@ invokes second;
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+            "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -124,7 +124,7 @@ invokes Host;
 }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     quiet.write("build.omg", build);
     invoking.write("build.omg", build);

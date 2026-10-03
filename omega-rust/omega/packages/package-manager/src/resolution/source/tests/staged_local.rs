@@ -13,7 +13,7 @@ use package_source::{
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-const PROPOSED: &[u8] = b"machine build(builder: &mut Build) {\n    builder.application(\"staged_root\");\n    builder.depend(Source::Path { location: \"../dependency\" });\n}\n";
+const PROPOSED: &[u8] = b"machine build(builder: &mut Build) {\n    Build::application(builder, \"staged_root\");\n    Build::depend(builder, Source::Path { location: \"../dependency\" });\n}\n";
 
 fn with_stage(name: &str, test: impl FnOnce(&Path, &SourceResolver, &StagedLocalSnapshot)) {
     let root = temp_root(name);

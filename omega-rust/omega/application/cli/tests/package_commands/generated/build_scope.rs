@@ -6,7 +6,7 @@ const LOG_MARKER: &str = "package build execution marker";
 #[test]
 fn io_derived_dependency_rejects_before_any_build_logging() {
     discovery_precedes_build_io(
-        "builder.depend(Source::Path { location: &input_bytes });",
+        "Build::depend(builder, Source::Path { location: &input_bytes });",
         "dependency source field `location` must be a direct string literal",
     );
 }
@@ -14,9 +14,9 @@ fn io_derived_dependency_rejects_before_any_build_logging() {
 fn discovery_precedes_build_io(declaration: &str, expected: &str) {
     let fixture = generated_fixture();
     let logging_build = BUILD.replace(
-        "builder.package(\"generated_table\");",
+        "Build::package(builder, \"generated_table\");",
         &format!(
-            "builder.package(\"generated_table\");\n    builder.log.write_line(\"{LOG_MARKER}\");"
+            "Build::package(builder, \"generated_table\");\n    builder.log.write_line(\"{LOG_MARKER}\");"
         ),
     );
     fixture.write("dependency/build.omg", &logging_build);
@@ -90,8 +90,8 @@ fn package_build_source_facet_rejects_absolute_and_parent_paths() {
 fn transitive_runtime_service_is_not_package_build_authority() {
     let fixture = authority_fixture(
         r#"machine build(builder: &mut Build) {
-    builder.package("runtime_build");
-    builder.depend(Source::Path { location: "../host-services" });
+    Build::package(builder, "runtime_build");
+    Build::depend(builder, Source::Path { location: "../host-services" });
     touch_runtime();
 }
 "#,

@@ -4,7 +4,7 @@
 // subject measured with --no-run.
 
 machine build(builder: &mut Build) {
-    builder.application("standalone");
+    Build::application(builder, "standalone");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

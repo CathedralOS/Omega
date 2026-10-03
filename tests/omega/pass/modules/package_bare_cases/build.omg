@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.package("package_bare_cases");
-    builder.depend_as("leaf", Source::Path { location: "leaf" });
+    Build::package(builder, "package_bare_cases");
+    Build::depend_as(builder, "leaf", Source::Path { location: "leaf" });
 }

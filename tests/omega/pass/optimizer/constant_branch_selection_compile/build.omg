@@ -2,7 +2,7 @@
 // exercises its execution through the pre-allocation stage catalog.
 
 machine build(builder: &mut Build) {
-    builder.application("constant_branch_selection_compile");
+    Build::application(builder, "constant_branch_selection_compile");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

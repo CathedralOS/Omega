@@ -123,8 +123,8 @@ The standard library is an ordinary pinned package, not an ambient global import
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.application("first_program");
-    builder.depend(Source::Git {
+    Build::application(builder, "first_program");
+    Build::depend(builder, Source::Git {
         repository: "https://github.com/CathedralOS/Omega.git",
         revision: "RELEASE_COMMIT",
         selection: PackageSelection::Named { package: "omega_language_std" }

@@ -34,7 +34,7 @@ pub struct AssembledSyntax {
     /// filename after imports have expanded the source frontier.
     pub build_source_id: Option<source::SourceId>,
     /// The validated authored application declaration (name and artifact-only
-    /// intent) when the selected build root declares `builder.application(...)`;
+    /// intent) when the selected build root declares `Build::application(builder, ...)`;
     /// `None` for package/workspace roles or a missing build root. Publication
     /// never re-derives it.
     pub application: Option<build_declarations::ApplicationDeclaration>,
@@ -59,7 +59,7 @@ pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
-    /// The validated `builder.application` declaration retained at
+    /// The validated `Build::application` declaration retained at
     /// parse-checkpoint custody; its name supplies the `.app` basename and
     /// inner executable leaf, and its artifact-only intent narrows the
     /// admitted route, all without revisiting source text.

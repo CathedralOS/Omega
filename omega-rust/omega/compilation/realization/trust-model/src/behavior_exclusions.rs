@@ -1,6 +1,6 @@
 //! Authored build behavior exclusions enforced at product admission.
 //!
-//! `builder.exclude_crash` selections arrive on the checked compilation with
+//! `Build::exclude_crash` selections arrive on the checked compilation with
 //! their declaration spans intact; the contract they select is verified here,
 //! against the same unoptimized Terminal composition the artifact will
 //! publish, before either product route admits it. The walk replays the

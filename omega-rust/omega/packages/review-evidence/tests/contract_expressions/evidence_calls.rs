@@ -26,7 +26,7 @@ requires observes(value; {caller_binding})
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -102,7 +102,7 @@ requires observes({arguments})
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+            "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
         );
         let result = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),

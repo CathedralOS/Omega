@@ -1,7 +1,7 @@
 
 machine build(builder: &mut Build) {
-    builder.package("generated_consumer");
-    builder.depend(Source::Path {
+    Build::package(builder, "generated_consumer");
+    Build::depend(builder, Source::Path {
         location: "../generated-table"
     });
 }

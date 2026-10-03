@@ -72,15 +72,15 @@ fn packaged_root_resolves_declared_path_dependency_imports() {
     project.write(
         "root/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("inspect_root");
-    builder.depend_as("facts", Source::Path { location: "../facts" });
+    Build::package(builder, "inspect_root");
+    Build::depend_as(builder, "facts", Source::Path { location: "../facts" });
 }
 "#,
     );
     let entry = project.write("root/main.omg", ROOT_SOURCE);
     project.write(
         "facts/build.omg",
-        "machine build(builder: &mut Build) {\n    builder.package(\"facts\");\n}\n",
+        "machine build(builder: &mut Build) {\n    Build::package(builder, \"facts\");\n}\n",
     );
     project.write("facts/main.omg", "pub machine value() -> u64 { 7 }\n");
     project.write("facts/x.omg", DEPENDENCY_MODULE);
@@ -115,7 +115,7 @@ fn packaged_root_resolves_declared_path_dependency_imports() {
 /// the captured snapshot. Package inspection uses the manager's sponsored
 /// candidate session, whose staged outputs and captured inputs remain private.
 const SNAPSHOT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("inspect_snapshot_root");
+    Build::package(builder, "inspect_snapshot_root");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 7];

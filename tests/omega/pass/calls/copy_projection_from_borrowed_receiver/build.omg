@@ -1,8 +1,8 @@
 // Bind the authored entry on every hosted target. The exit oracle checks the
 // copied value and unchanged borrowed source through actual native execution.
 machine build(builder: &mut Build) {
-    builder.application("copy_projection_from_borrowed_receiver");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "copy_projection_from_borrowed_receiver");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

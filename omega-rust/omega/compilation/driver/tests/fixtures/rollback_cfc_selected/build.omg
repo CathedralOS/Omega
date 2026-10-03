@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("rollback_cfc_selected");
+    Build::application(builder, "rollback_cfc_selected");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);

@@ -74,8 +74,8 @@ const INVENTORY: &[&str] = &[
 ];
 
 const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("cli_build_inputs");
-    builder.depend(Source::Path { location: "../dependency" });
+    Build::application(builder, "cli_build_inputs");
+    Build::depend(builder, Source::Path { location: "../dependency" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -118,7 +118,7 @@ const BUILD: &str = r#"machine build(builder: &mut Build) {
 "#;
 
 const DEPENDENCY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("inventory_child");
+    Build::package(builder, "inventory_child");
     let path: BuildPath = builder.source.resolve("child-only.txt");
     let descriptor: i32 = builder.source.open(path, 0);
     transition descriptor >= 0 {
@@ -336,7 +336,7 @@ fn package_review_resume_retains_inputs_and_requires_exact_decisions_and_unchang
             fs::write(
                 project.0.join("root/build.omg"),
                 BUILD.replace(
-                    "    builder.depend(Source::Path { location: \"../dependency\" });\n",
+                    "    Build::depend(builder, Source::Path { location: \"../dependency\" });\n",
                     "",
                 ),
             )

@@ -74,7 +74,7 @@ ensures result == 0;
 "#;
 
 const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("token_fixture");
+    Build::package(builder, "token_fixture");
 }
 "#;
 

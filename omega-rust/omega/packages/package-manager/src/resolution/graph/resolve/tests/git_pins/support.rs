@@ -32,7 +32,7 @@ impl Fixture {
         let fixture = Self::empty(label);
         std::fs::write(
             fixture.repository.join("build.omg"),
-            "machine build(builder: &mut Build) {\n    builder.member(\"packages/left\");\n    builder.member(\"packages/right\");\n}\n",
+            "machine build(builder: &mut Build) {\n    Build::member(builder, \"packages/left\");\n    Build::member(builder, \"packages/right\");\n}\n",
         )
         .unwrap();
         write_package(

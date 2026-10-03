@@ -22,7 +22,7 @@ satisfies NativeExit::finish via exit_binding();
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
     );
     compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("value_call_element_view_arg_compile");
+    Build::application(builder, "value_call_element_view_arg_compile");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

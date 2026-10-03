@@ -63,7 +63,7 @@ fn unclassified_foreign_call_produces_but_cannot_claim_receiver_admission() {
         project.source.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("unclassified_foreign");
+    Build::application(builder, "unclassified_foreign");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,

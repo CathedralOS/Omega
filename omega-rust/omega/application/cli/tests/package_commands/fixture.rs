@@ -29,10 +29,10 @@ impl Fixture {
         fs::create_dir(fixture.path("dependency")).unwrap();
         fixture.write(
             "root/build.omg",
-            "machine build(builder: &mut Build) {\n    builder.package(\"cli_project\");\n}\n",
+            "machine build(builder: &mut Build) {\n    Build::package(builder, \"cli_project\");\n}\n",
         );
         fixture.write("root/main.omg", "machine main() {}\n");
-        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) {\n    builder.package(\"arithmetic_kernels\");\n}\n");
+        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) {\n    Build::package(builder, \"arithmetic_kernels\");\n}\n");
         fixture.write("dependency/main.omg", "pub machine value() -> u64 { 7 }\n");
         fixture
     }

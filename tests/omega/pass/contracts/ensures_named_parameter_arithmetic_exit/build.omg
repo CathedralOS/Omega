@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("ensures_named_parameter_arithmetic_exit");
+    Build::application(builder, "ensures_named_parameter_arithmetic_exit");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(macos_x86_64::ProgramEntry, Main::main);

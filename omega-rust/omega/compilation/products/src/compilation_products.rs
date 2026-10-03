@@ -914,7 +914,7 @@ impl CompileReport {
         self.product.application()
     }
 
-    /// The retained authored `builder.application` name, when the build
+    /// The retained authored `Build::application` name, when the build
     /// declared an application role.
     pub fn application_name(&self) -> Option<&str> {
         self.product

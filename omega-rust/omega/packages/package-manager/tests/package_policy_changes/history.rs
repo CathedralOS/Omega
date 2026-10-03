@@ -229,7 +229,7 @@ fn removed_package_history_needs_no_candidate_index_old_checkout_or_cache() {
     source(
         &tree,
         "pub const VALUE: u64 = 7;\n",
-        " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
+        " Build::depend_as(builder, \"dependency\", Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "removed_package", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTIONS).unwrap();
@@ -300,7 +300,7 @@ fn root_role_replacements_and_rows_capture_in_canonical_subject_order() {
     source(
         &tree,
         main,
-        " builder.depend_as(\"service\", Source::Path { location: \"../old\" });\n",
+        " Build::depend_as(builder, \"service\", Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "old_service", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTIONS).unwrap();
@@ -313,8 +313,8 @@ fn root_role_replacements_and_rows_capture_in_canonical_subject_order() {
         tree.path("sources/root/build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.application(\"policy_fixture\");\n",
-            " builder.depend_as(\"service\", Source::Path { location: \"../new\" });\n",
+            " Build::application(builder, \"policy_fixture\");\n",
+            " Build::depend_as(builder, \"service\", Source::Path { location: \"../new\" });\n",
             " builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}\n",
         ),
     )

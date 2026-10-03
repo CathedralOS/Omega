@@ -140,9 +140,9 @@ fn native_comparison_observes_generated_candidate_without_reopening_authored_sou
         project.source.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("observed_candidate");
+    Build::application(builder, "observed_candidate");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-    builder.depend(Source::Path { location: "producer" });
+    Build::depend(builder, Source::Path { location: "producer" });
 }
 "#,
     )

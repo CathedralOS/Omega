@@ -1,8 +1,8 @@
 // Runtime remainder-result proof and exact-cast canary for every hosted target.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime_remainder_result_cast_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "runtime_remainder_result_cast_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

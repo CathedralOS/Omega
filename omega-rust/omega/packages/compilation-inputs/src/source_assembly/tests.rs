@@ -36,7 +36,7 @@ fn transitive_imports_retain_distinct_build_and_product_instances() {
     fixture.write("main.omg", "use shared;\ndata Main {}\n");
     fixture.write(
         "build.omg",
-        "use shared;\nmachine build(builder: &mut Build) { builder.application(\"assembly\"); }\n",
+        "use shared;\nmachine build(builder: &mut Build) { Build::application(builder, \"assembly\"); }\n",
     );
     fixture.write("shared.omg", "use leaf;\ndata Shared {}\n");
     fixture.write("leaf.omg", "data Leaf {}\n");

@@ -81,8 +81,8 @@ fn checked_artifact_only_reports_complete_without_artifact_lowering() {
         "source/build.omg",
         r#"
 machine build(builder: &mut Build) {
-    builder.application("report");
-    builder.artifact_only();
+    Build::application(builder, "report");
+    Build::artifact_only(builder);
     let required: RequiredOutput = builder.output.require("result.txt");
     let path: BuildPath = builder.output.resolve("result.txt");
     let descriptor: i32 = builder.output.create(path, 438);
@@ -155,7 +155,7 @@ fn the_prepared_check_route_carries_the_stage_ladder_only_when_asked() {
     let project = Project::new();
     project.write(
         "source/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"timed\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"timed\"); }\n",
     );
     project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
 
@@ -183,7 +183,7 @@ fn requested_entry_is_checked_and_reported_instead_of_main() {
     let project = Project::new();
     project.write(
         "source/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"alternate_entry\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"alternate_entry\"); }\n",
     );
     project.write("source/main.omg", "this is deliberately invalid Omega\n");
     project.write("source/entry.omg", "pub machine value() -> u64 { 7 }\n");
@@ -225,7 +225,7 @@ fn check_rejects_proof_product_requests_it_cannot_publish() {
         project.write(
             "source/build.omg",
             &format!(
-                "machine build(builder: &mut Build) {{ builder.application(\"pcc_check\"); {pcc_line} }}\n"
+                "machine build(builder: &mut Build) {{ Build::application(builder, \"pcc_check\"); {pcc_line} }}\n"
             ),
         );
         project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
@@ -245,7 +245,7 @@ fn check_rejects_proof_product_requests_it_cannot_publish() {
     let project = Project::new();
     project.write(
         "source/build.omg",
-        "machine build(builder: &mut Build) { builder.application(\"pcc_check\"); }\n",
+        "machine build(builder: &mut Build) { Build::application(builder, \"pcc_check\"); }\n",
     );
     project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
     let report = check_prepared_local_project(project.request("source/main.omg", "checked"))
@@ -259,7 +259,7 @@ fn package_check_does_not_relax_native_application_gate() {
     let project = Project::new();
     project.write(
         "source/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"checked_library\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"checked_library\"); }\n",
     );
     project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
     let report = check_prepared_local_project(project.request("source/main.omg", "checked"))
@@ -292,7 +292,7 @@ fn package_check_rejects_individual_machine_grants_before_reporting() {
     project.write(
         "source/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("machine_grant");
+    Build::application(builder, "machine_grant");
     builder.accept_boundary<Claim::accepted>();
 }
 "#,
@@ -320,7 +320,7 @@ fn application_check_settles_explicit_trust_without_native_root_policy() {
         "source/build.omg",
         r#"
 machine build(builder: &mut Build) {
-    builder.application("checked_trust");
+    Build::application(builder, "checked_trust");
     builder.accept_boundary<ClaimProvider>();
     builder.select_provider<ClaimProvider, ClaimProviderImpl>();
 }

@@ -52,7 +52,7 @@ fn write_provider_package(root: &Path) {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("shared_provider");
+    Build::package(builder, "shared_provider");
 }
 "#,
     )
@@ -94,11 +94,11 @@ fn same_name_and_symbols_from_another_lineage_cannot_spoof_selected_provider() {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.package("lineage_probe");
-    builder.depend_as("selected_provider", Source::Path {{
+    Build::package(builder, "lineage_probe");
+    Build::depend_as(builder, "selected_provider", Source::Path {{
         location: "{}"
     }});
-    builder.depend_as("lookalike_provider", Source::Path {{
+    Build::depend_as(builder, "lookalike_provider", Source::Path {{
         location: "{}"
     }});
     builder.select_provider<selected_provider::Pair, selected_provider::Provider>();

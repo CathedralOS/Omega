@@ -42,12 +42,12 @@ A library declares its own name in `build.omg`:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.package("arithmetic_kernels");
+    Build::package(builder, "arithmetic_kernels");
 }
 ```
 
-An executable uses `builder.application("name")`; a workspace lists
-`builder.member("path")` calls. Package and application names use lowercase
+An executable uses `Build::application(builder, "name")`; a workspace lists
+`Build::member(builder, "path")` calls. Package and application names use lowercase
 underscore-separated words. The default alias is the declared name unchanged;
 use `--as` to choose another. See
 [build declarations](../spec/build/declarations.md) for identity and projection.

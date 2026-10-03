@@ -199,8 +199,8 @@ fn rejects_workspace_escape_before_resolving_the_target() {
         package.join("build.omg"),
         r#"
             machine build(builder: &mut Build) {
-                builder.package("root_package");
-                builder.depend(Source::Path { location: "../../../outside" });
+                Build::package(builder, "root_package");
+                Build::depend(builder, Source::Path { location: "../../../outside" });
             }
             "#,
     )

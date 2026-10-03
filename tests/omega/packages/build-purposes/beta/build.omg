@@ -2,5 +2,5 @@
 // ordinary product edge.
 
 machine build(builder: &mut Build) {
-    builder.package("beta");
+    Build::package(builder, "beta");
 }

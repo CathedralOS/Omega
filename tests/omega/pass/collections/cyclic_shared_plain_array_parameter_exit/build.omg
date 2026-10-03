@@ -1,8 +1,8 @@
 // Deployable storage canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("cyclic_shared_plain_array_parameter_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "cyclic_shared_plain_array_parameter_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

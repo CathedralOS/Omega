@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("mutable_field_range_scalar_composition");
+    Build::application(builder, "mutable_field_range_scalar_composition");
     builder.roots.bind(macos_arm64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

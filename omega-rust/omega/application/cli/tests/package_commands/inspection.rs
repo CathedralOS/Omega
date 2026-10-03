@@ -62,7 +62,7 @@ fn build_scope_fixture() -> Fixture {
 }
 
 fn declare_dependency(fixture: &Fixture) {
-    fixture.write("root/build.omg", "machine build(builder: &mut Build) {\n    builder.package(\"cli_project\");\n    builder.depend(Source::Path { location: \"../dependency\" });\n}\n");
+    fixture.write("root/build.omg", "machine build(builder: &mut Build) {\n    Build::package(builder, \"cli_project\");\n    Build::depend(builder, Source::Path { location: \"../dependency\" });\n}\n");
 }
 
 fn install(fixture: &Fixture) {

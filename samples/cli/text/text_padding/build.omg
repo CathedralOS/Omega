@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("text_padding");
-    builder.depend(Source::Path {
+    Build::application(builder, "text_padding");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

@@ -168,13 +168,13 @@ impl Fixture {
 
 pub(super) fn build(dependencies: &str) -> String {
     format!(
-        "machine build(builder: &mut Build) {{ builder.application(\"consumer\"); {dependencies} }}\n"
+        "machine build(builder: &mut Build) {{ Build::application(builder, \"consumer\"); {dependencies} }}\n"
     )
 }
 
 pub(super) fn dependency(revision: &str) -> String {
     format!(
-        "builder.depend(Source::Git {{ repository: \"{REPOSITORY}\", revision: \"{revision}\" }});"
+        "Build::depend(builder, Source::Git {{ repository: \"{REPOSITORY}\", revision: \"{revision}\" }});"
     )
 }
 

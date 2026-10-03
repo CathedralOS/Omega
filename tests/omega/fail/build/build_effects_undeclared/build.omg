@@ -14,8 +14,8 @@ reaches Console
 }
 
 machine build(builder: &mut Build) {
-    builder.application("build_effects_undeclared");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
-    builder.build_depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "build_effects_undeclared");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::build_depend(builder, Source::Path { location: "../../../../../source/library/std" });
     write_build_log(builder);
 }

@@ -32,7 +32,7 @@ pub struct BuildConfig {
     /// or naming convention participates once a binding is present.
     pub root_bindings: Vec<RootBinding>,
     /// Behavior exclusions (wiki/spec/build/behavior_exclusions.md): the
-    /// authored `builder.exclude_crash(...)` product-admission requirements
+    /// authored `Build::exclude_crash(builder, ...)` product-admission requirements
     /// harvested from the root build machine's executed exclusion receipts,
     /// each retaining its exact toolchain case identity and authored span.
     /// These rows declare what the selected executable composition must not
@@ -40,7 +40,7 @@ pub struct BuildConfig {
     pub behavior_exclusions: Vec<AuthoredBehaviorExclusion>,
     /// Accepted component-assumption digests
     /// (wiki/spec/build/component_publication.md): the authored
-    /// `builder.accept_component_assumption(...)` declarations harvested
+    /// `Build::accept_component_assumption(builder, ...)` declarations harvested
     /// statically from the root build machine's checked call scope. An
     /// attached independent-component description that binds an inseparable
     /// assumption verifies only when its exact digest appears here; the
@@ -117,7 +117,7 @@ pub struct ComputedBuildConfig {
 /// configuration that target products and review clones share.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BuildAdmission {
-    /// The validated authored `builder.application` declaration; its name
+    /// The validated authored `Build::application` declaration; its name
     /// supplies the `.app` basename and inner executable leaf at publication
     /// and its artifact-only intent narrows the admitted route.
     pub application: Option<build_declarations::ApplicationDeclaration>,
@@ -146,7 +146,7 @@ impl BuildAdmission {
         self
     }
 
-    /// The validated `builder.artifact_only()` intent. Package and workspace
+    /// The validated `Build::artifact_only(builder)` intent. Package and workspace
     /// builds and missing build roots declare no application, so they answer
     /// `false`.
     pub const fn artifact_only(&self) -> bool {

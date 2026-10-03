@@ -164,7 +164,7 @@ fn updates_use_retained_baselines_after_old_sources_disappear() {
     source(
         &tree,
         PURE,
-        " builder.depend(Source::Path { location: \"../old\" });\n",
+        " Build::depend(builder, Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "removed_package", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTION).unwrap();

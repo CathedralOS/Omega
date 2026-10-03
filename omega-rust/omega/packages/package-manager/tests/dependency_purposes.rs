@@ -101,15 +101,15 @@ fn dual_purpose(tree: &Tree) {
         &tree.path("sources/root"),
         "purpose_root",
         concat!(
-            " builder.depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n",
-            " builder.build_depend_as(\"host_tool\", Source::Path { location: \"../host\" });\n",
+            " Build::depend_as(builder, \"product_dep\", Source::Path { location: \"../product\" });\n",
+            " Build::build_depend_as(builder, \"host_tool\", Source::Path { location: \"../host\" });\n",
         ),
     );
     package(&tree.path("sources/product"), "product_dep", "");
     package(
         &tree.path("sources/host"),
         "host_tool",
-        " builder.depend_as(\"host_lib\", Source::Path { location: \"../host-lib\" });\n",
+        " Build::depend_as(builder, \"host_lib\", Source::Path { location: \"../host-lib\" });\n",
     );
     package(&tree.path("sources/host-lib"), "host_lib", "");
 }
@@ -290,8 +290,8 @@ fn one_alias_can_select_different_packages_in_the_two_purposes() {
         &tree.path("sources/root"),
         "alias_root",
         concat!(
-            " builder.depend_as(\"shared\", Source::Path { location: \"../product\" });\n",
-            " builder.build_depend_as(\"shared\", Source::Path { location: \"../host\" });\n",
+            " Build::depend_as(builder, \"shared\", Source::Path { location: \"../product\" });\n",
+            " Build::build_depend_as(builder, \"shared\", Source::Path { location: \"../host\" });\n",
         ),
     );
     package(&tree.path("sources/product"), "product_dep", "");
@@ -368,8 +368,8 @@ fn one_package_can_serve_product_and_build_purposes() {
         &tree.path("sources/root"),
         "dual_root",
         concat!(
-            " builder.depend_as(\"std\", Source::Path { location: \"../std\" });\n",
-            " builder.build_depend_as(\"std\", Source::Path { location: \"../std\" });\n",
+            " Build::depend_as(builder, \"std\", Source::Path { location: \"../std\" });\n",
+            " Build::build_depend_as(builder, \"std\", Source::Path { location: \"../std\" });\n",
         ),
     );
     package(&tree.path("sources/std"), "std", "");
@@ -485,7 +485,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
     // the recorded build selection cannot silently disappear.
     fs::write(
         tree.path("sources/root/build.omg"),
-        "machine build(builder: &mut Build) {\n builder.package(\"purpose_root\");\n builder.depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n}\n",
+        "machine build(builder: &mut Build) {\n Build::package(builder, \"purpose_root\");\n Build::depend_as(builder, \"product_dep\", Source::Path { location: \"../product\" });\n}\n",
     )
     .unwrap();
     let storage = tree.storage("new-cache");
@@ -529,7 +529,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
     // a product edge never broadens into build authority by relabeling.
     fs::write(
         tree.path("sources/root/build.omg"),
-        "machine build(builder: &mut Build) {\n builder.package(\"purpose_root\");\n builder.build_depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n builder.depend_as(\"host_tool\", Source::Path { location: \"../host\" });\n}\n",
+        "machine build(builder: &mut Build) {\n Build::package(builder, \"purpose_root\");\n Build::build_depend_as(builder, \"product_dep\", Source::Path { location: \"../product\" });\n Build::depend_as(builder, \"host_tool\", Source::Path { location: \"../host\" });\n}\n",
     )
     .unwrap();
     assert!(matches!(

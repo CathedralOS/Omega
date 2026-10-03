@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("case_arm_payload_receiver_arg");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "case_arm_payload_receiver_arg");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

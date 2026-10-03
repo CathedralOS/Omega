@@ -197,7 +197,7 @@ fn selected_build_inferred_crash_causes_distinguish_quiet_trap_and_abort() {
         ("Abort", PackageReviewCrashCause::Abort),
     ] {
         let build = format!(
-            "machine build(builder: &mut Build) {{ builder.package(\"review_fixture\"); crash {name}; }}\n"
+            "machine build(builder: &mut Build) {{ Build::package(builder, \"review_fixture\"); crash {name}; }}\n"
         );
         let policy = project(&Fixture::with_build("", &build));
         let row = callable(&policy, "build");
@@ -218,7 +218,7 @@ fn selected_build_inferred_crash_causes_distinguish_quiet_trap_and_abort() {
 
 #[test]
 fn selected_build_inferred_crash_follows_private_helpers_without_their_names() {
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); forward(); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); forward(); }
 machine forward() { leaf(); }
 machine leaf() { crash Trap; }
 "#;

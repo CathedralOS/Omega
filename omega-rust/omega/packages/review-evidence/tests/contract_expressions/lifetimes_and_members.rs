@@ -25,7 +25,7 @@ requires metadata.len == 0
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -93,7 +93,7 @@ requires self.value <= 10
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -212,7 +212,7 @@ requires value.left == value.right
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -285,7 +285,7 @@ pub proposition balanced(pair: Pair) = pair.left == pair.right;
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -362,7 +362,7 @@ pub proposition selects_computed_member(value: i32) =
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+            r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
@@ -417,7 +417,7 @@ pub proposition selects_case_member(value: i32) =
     );
     case_package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -455,7 +455,7 @@ fn review_projects_computed_nominal_member_receivers_in_checked_contracts() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     let compile = |selected: &str| {
         let package = TempPackage::new();

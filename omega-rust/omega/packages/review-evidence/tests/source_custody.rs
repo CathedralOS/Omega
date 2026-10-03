@@ -13,7 +13,7 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -94,7 +94,7 @@ fn carried_transitive_types_project_exact_package_qualified_dependency_rows() {
     );
     root.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     middle.write(
@@ -206,7 +206,7 @@ pub machine make() -> Token { Token { value: 7u64 } }
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -294,7 +294,7 @@ invokes FilesystemHost;
     );
     canonical.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let candidate_checked = compile_review_fixture(CheckedCompileRequest {
@@ -398,8 +398,8 @@ invokes console;
     root.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review_fixture");
-    builder.depend_as("accepted_console", Source::Path { location: "../console" });
+    Build::package(builder, "review_fixture");
+    Build::depend_as(builder, "accepted_console", Source::Path { location: "../console" });
     builder.select_provider<accepted_console::Console, accepted_console::ConsoleNativeProvider>();
 }
 "#,

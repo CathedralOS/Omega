@@ -38,7 +38,7 @@ machine private_api() { }
         r#"machine build(builder: &mut Build)
 crashes Abort
 {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.accept_boundary<Host>();
     helper();
     let receipt: Receipt = Receipt { code: 1 };
@@ -429,7 +429,7 @@ reaches MachineControl + PortIo
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -466,7 +466,7 @@ machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
         "build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.accept_boundary<{target}::satisfies::Host>();
 }}
 "#,
@@ -506,7 +506,7 @@ machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
 
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let unchecked_grant = compile_review_fixture(CheckedCompileRequest {

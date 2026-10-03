@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("runtime_forwarded_value_contract_exit");
+    Build::application(builder, "runtime_forwarded_value_contract_exit");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

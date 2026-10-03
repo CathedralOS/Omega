@@ -8,9 +8,9 @@ use crate::resolution::graph::ResolvedSourceIdentity;
 use target::TargetProfile;
 
 const ORIGINAL_BUILD: &[u8] =
-    b"machine build(builder: &mut Build) {\n    builder.package(\"before_publication\");\n}\n";
+    b"machine build(builder: &mut Build) {\n    Build::package(builder, \"before_publication\");\n}\n";
 const PROPOSED_BUILD: &[u8] =
-    b"machine build(builder: &mut Build) {\n    builder.package(\"after_publication\");\n}\n";
+    b"machine build(builder: &mut Build) {\n    Build::package(builder, \"after_publication\");\n}\n";
 const MAIN: &[u8] = b"pub const PUBLIC_LIMIT: u64 = 4;\n";
 
 /// The exact target these legs prepare and review for: the compiler host's

@@ -101,8 +101,8 @@ fn resolve_diamond(tree: &TempTree, role: &str) -> ResolvedPackageSourceClosure 
         role,
         "source_text_root",
         concat!(
-            "    builder.depend_as(\"left_branch\", Source::Path { location: \"../left\" });\n",
-            "    builder.depend_as(\"right_branch\", Source::Path { location: \"../right\" });\n",
+            "    Build::depend_as(builder, \"left_branch\", Source::Path { location: \"../left\" });\n",
+            "    Build::depend_as(builder, \"right_branch\", Source::Path { location: \"../right\" });\n",
         ),
     );
     for (directory, alias) in [("left", "shared_left"), ("right", "shared_right")] {
@@ -111,7 +111,7 @@ fn resolve_diamond(tree: &TempTree, role: &str) -> ResolvedPackageSourceClosure 
             "package",
             "same_name",
             &format!(
-                "    builder.depend_as(\"{alias}\", Source::Path {{ location: \"../shared\" }});\n"
+                "    Build::depend_as(builder, \"{alias}\", Source::Path {{ location: \"../shared\" }});\n"
             ),
         );
     }
@@ -231,7 +231,7 @@ fn workspace_graph_text_recovers_without_old_source_or_cache() {
         &workspace.join("root"),
         "package",
         "workspace_root",
-        "    builder.depend_as(\"child_alias\", Source::Path { location: \"../child\" });\n",
+        "    Build::depend_as(builder, \"child_alias\", Source::Path { location: \"../child\" });\n",
     );
     write_member(&workspace.join("child"), "package", "workspace_child", "");
     let lineage = SourceLineage::git("https://github.com/CathedralOS/source-text-fixture.git")

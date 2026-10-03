@@ -2,17 +2,17 @@
 // than a source-declared support set.
 
 machine build(builder: &mut Build) {
-    builder.application("omega_compiler");
+    Build::application(builder, "omega_compiler");
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.roots.bind(alpha_bootstrap::ProgramEntry, Main::main);
-    builder.depend_as("psi", Source::Path {
+    Build::depend_as(builder, "psi", Source::Path {
         location: "../psi"
     });
-    builder.depend(Source::Path {
+    Build::depend(builder, Source::Path {
         location: "../library/std"
     });
 }

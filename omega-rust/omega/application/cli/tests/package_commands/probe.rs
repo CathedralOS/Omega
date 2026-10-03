@@ -152,8 +152,8 @@ fn application() -> Fixture {
     fixture.write(
         "root/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("probe_app");
-    builder.depend_as("numbers", Source::Path { location: "../dependency" });
+    Build::application(builder, "probe_app");
+    Build::depend_as(builder, "numbers", Source::Path { location: "../dependency" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
@@ -206,7 +206,7 @@ fn native_probe_observes_generated_package_source_in_both_engines() {
     fixture.write(
         "dependency/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("arithmetic_kernels");
+    Build::package(builder, "arithmetic_kernels");
     let generated: BuildPath = builder.output.resolve("value.generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(descriptor, "pub machine value() -> i32 { 7 }\n");
@@ -276,13 +276,13 @@ fn native_probe_keeps_transitive_package_bindings_and_retained_output() {
     std::fs::create_dir(fixture.path("dependency/leaf")).unwrap();
     fixture.write(
         "dependency/leaf/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"leaf\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"leaf\"); }\n",
     );
     fixture.write(
         "dependency/leaf/main.omg",
         "pub machine leaf_value() -> i32 { 43 }\n",
     );
-    fixture.write("dependency/build.omg", "machine build(builder: &mut Build) { builder.package(\"arithmetic_kernels\"); builder.depend(Source::Path { location: \"leaf\" }); }\n");
+    fixture.write("dependency/build.omg", "machine build(builder: &mut Build) { Build::package(builder, \"arithmetic_kernels\"); Build::depend(builder, Source::Path { location: \"leaf\" }); }\n");
     fixture.write(
         "dependency/main.omg",
         "use leaf::main;\npub machine value() -> i32 { leaf_value() }\n",

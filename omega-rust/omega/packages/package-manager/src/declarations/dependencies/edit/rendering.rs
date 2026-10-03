@@ -1,7 +1,7 @@
 use crate::declarations::dependencies::read::{
     DependencyPurpose, DependencySourceRequest, PackageSelection,
 };
-use build_declarations::DependencyOperation;
+use build_declarations::{BUILD_TYPE_NAME, DependencyOperation};
 use sha2::{Digest, Sha256};
 
 use super::BUILDER_PARAMETER_NAME;
@@ -52,7 +52,7 @@ pub fn canonical_dependency_statement(
         }
     };
     format!(
-        "{BUILDER_PARAMETER_NAME}.{}({alias}{source});",
+        "{BUILD_TYPE_NAME}::{}({BUILDER_PARAMETER_NAME}, {alias}{source});",
         operation.name()
     )
 }

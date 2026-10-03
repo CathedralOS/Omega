@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("scalar_unit_call_state_forward_exit");
+    Build::application(builder, "scalar_unit_call_state_forward_exit");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
