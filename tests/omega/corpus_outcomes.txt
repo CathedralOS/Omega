@@ -1283,7 +1283,7 @@ pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms @63377f7122bb+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 35290ms @ca8c127c90c5
-pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 2078ms @40866b59e47
+pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms @921839635ad
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9ff444c14+wt
@@ -1473,7 +1473,7 @@ pass/collections/case_array_literal_row_store_exit checked 1434ms @2d8ed253669f
 pass/collections/cyclic_shared_plain_array_parameter_exit checked 40086ms @e8b552c0b9a5+wt
 pass/collections/element_policy_array_literal_store checked 1241ms @2d8ed253669f
 pass/collections/element_view_borrow_local checked 1364ms @2d8ed253669f
-pass/collections/element_view_edge_loan checked 1913ms @8d962b7ff1df
+pass/collections/element_view_edge_loan checked 2135ms @921839635ad
 pass/collections/element_view_field_write checked 1283ms @2d8ed253669f
 pass/collections/element_view_indexed_read checked 1297ms @2d8ed253669f
 pass/collections/element_view_indexed_write checked 1179ms @2d8ed253669f
@@ -1660,7 +1660,7 @@ pass/dependent/local_alias_forwards_entry_origin checked 286ms @2d8ed253669f
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 283ms @2d8ed253669f
 pass/dependent/runtime_dependent_subtract_exit checked 1263ms @2d8ed253669f
 pass/dependent/runtime_requires_guarded_call_exit checked 1408ms @63377f7122bb+wt
-pass/dependent/runtime_sibling_len_index_exit checked 1626ms @40866b59e47
+pass/dependent/runtime_sibling_len_index_exit checked 1465ms @921839635ad
 pass/dependent/state_arrival_contract_guarded_compile checked 291ms @2d8ed253669f
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 294ms @2d8ed253669f
 pass/dependent/valuation_order_cycle checked 314ms @2d8ed253669f
@@ -1977,15 +1977,15 @@ pass/optimizer/redundant_compare_selection_compile checked 477ms @2d8ed253669f
 pass/optimizer/rollback_to_no_selection_empty_entry checked 379ms @2d8ed253669f
 pass/optimizer/stored_load_forwarding_selection_exit checked 452ms @a65d52709b8a+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
-pass/ownership/linear_ambiguous_state_result_mapping rejected 368ms @2d8ed253669f
+pass/ownership/linear_ambiguous_state_result_mapping rejected 450ms @921839635ad
 	entry machine `Main::main` returns a value, but `ProgramEntry` has no result
 pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
-pass/ownership/linear_transfer_and_consume rejected 738ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
-pass/ownership/linear_transparent_record_frontier rejected 742ms @2d8ed253669f
+pass/ownership/linear_transfer_and_consume rejected 1358ms @921839635ad
+	terminal-artifact production failed: Lowering(Unsupported("structural local changed its whole no-code ownership provenance"))
+pass/ownership/linear_transparent_record_frontier rejected 2394ms @921839635ad
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment checked 1226ms @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
@@ -2254,7 +2254,8 @@ pass/termination/inherited_requirement_guarantee_compile checked 286ms @2d8ed253
 pass/termination/joint_lexicographic_machine_call_cycle_compile checked 288ms @2d8ed253669f
 pass/termination/joint_machine_call_cycle_forwarding_compile checked 286ms @2d8ed253669f
 pass/termination/measure_borrowed_projection_range checked 302ms @2d8ed253669f
-pass/termination/measure_field_call_component checked 304ms @2d8ed253669f
+pass/termination/measure_field_call_component rejected 165ms @921839635ad
+	data `Countdown` literal cannot prove the default domain: a `where`-mentioned field's value is neither a literal nor a declared-range place whose interval decides the fact -- spell a literal, or constrain the value's declared range
 pass/termination/measure_field_computed_arrival checked 307ms @2d8ed253669f
 pass/termination/measure_field_computed_limit checked 298ms @2d8ed253669f
 pass/termination/measure_field_fresh_arrival checked 296ms @2d8ed253669f
@@ -2291,7 +2292,7 @@ pass/termination/remainder_literal_call_component checked 297ms @2d8ed253669f
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms @2d8ed253669f
 pass/termination/runtime_rank_range_state_call_exit checked 867ms @82d2bd2d7669
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms @c9c108ecb4ac+wt
-pass/termination/runtime_shrinking_slice_recursion_exit checked 852ms @2f8006be6cc9+wt
+pass/termination/runtime_shrinking_slice_recursion_exit checked 1796ms @921839635ad
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1212ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
 pass/termination/stored_reference_endpoint_arrivals checked 320ms @2d8ed253669f
@@ -2359,12 +2360,12 @@ pass/traits/generic_trait_parent_binds_requirement checked 666ms @2d8ed253669f
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms @f3a79ef091a9
 pass/traits/nominal_machine_binder_static_dispatch checked 675ms @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms @2d8ed253669f
-pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1540ms @2d8ed253669f
+pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 2016ms @921839635ad
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
 pass/traits/runtime_inherited_trait_default_exit checked 713ms @5f978f80e84b+wt
-pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1537ms @2d8ed253669f
+pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1265ms @921839635ad
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
-pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1801ms @2d8ed253669f
+pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1225ms @921839635ad
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms @2d8ed253669f
 pass/traits/static_subject_satisfies_receiver_requirement_exit checked 638ms @125b05ae4947+wt
