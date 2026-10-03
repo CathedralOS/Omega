@@ -1,0 +1,3 @@
+different integer types
+applies `Add` to a `i32` value and a `u32` value
+applies `Add` to a `u16` value and a `u32` value

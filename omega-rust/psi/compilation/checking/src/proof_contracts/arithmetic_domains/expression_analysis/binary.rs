@@ -53,6 +53,15 @@ pub(super) fn analyze(
     ) {
         return operation.declared_operator_result();
     }
+    crate::proof_contracts::arithmetic_domains::report_mismatched_integer_operands(
+        walk.program,
+        walk.machine,
+        walk.state,
+        binary.operator,
+        binary.left,
+        binary.right,
+        diagnostics,
+    );
     if !operation.is_shift() {
         operation.land_anonymous_operands(diagnostics);
     }

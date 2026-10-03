@@ -1,4 +1,4 @@
-//! Out-of-range comparison literals and mismatched operand widths.
+//! Out-of-range comparison literals and mismatched integer carriers.
 
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_literal_value, primitive_range,
@@ -71,11 +71,14 @@ pub(crate) fn report_out_of_range_comparison_literal(
     false
 }
 
-/// Bitwise operands retain one common carrier; unlike exact integer
-/// comparisons, differently typed integer places need an explicit conversion.
-/// Shifts instead take an independent bit count, and arithmetic obligations
-/// are checked separately. Anonymous literals follow their landing rules.
-pub(crate) fn report_mismatched_width_operands(
+/// Builtin arithmetic and bitwise operands retain one common integer carrier.
+/// Resolve each expression's type, not its inferred interval: calls, casts and
+/// nested computations remain typed even without a useful range proof. The
+/// caller establishes builtin meaning before applying this rule; declared
+/// operators keep their own signatures. Comparisons allow mixed integer
+/// carriers, shifts take an independent count, and anonymous values land at
+/// their typed peer. None of these type checks supplies a range fact.
+pub(crate) fn report_mismatched_integer_operands(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -86,14 +89,32 @@ pub(crate) fn report_mismatched_width_operands(
 ) -> bool {
     if !matches!(
         operator,
-        BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
+        BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
     ) {
         return false;
     }
     let operand_integer = |operand| {
-        crate::value_custody::places::declared_place_type(program, machine, state, operand)
+        if crate::value_custody::literals::has_anonymous_numeric_results(program, operand) {
+            return None;
+        }
+        state
+            .and_then(|state| {
+                crate::value_custody::expression_types::expression_result_type_reference(
+                    program, machine, state, operand,
+                )
+            })
+            .or_else(|| {
+                crate::value_custody::places::declared_place_type(program, machine, state, operand)
+            })
             .and_then(|type_reference| program.primitive_type_reference(type_reference))
-            .filter(|primitive| primitive_range(*primitive).is_some())
+            .filter(|primitive| super::integer_bit_width(*primitive).is_some())
     };
     let (Some(left_primitive), Some(right_primitive)) =
         (operand_integer(left), operand_integer(right))
@@ -105,8 +126,8 @@ pub(crate) fn report_mismatched_width_operands(
     }
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}` applies `{operator:?}` to a `{}` value and a `{}` value -- the \
-         operands have different integer types and the operation would silently truncate the wider \
-         one to the narrower width; convert one with an `as` cast so both are the same type",
+         operands have different integer types and the operation would silently truncate or \
+         reinterpret a value; convert one with an exact `as` cast so both are the same type",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
         left_primitive.name(),

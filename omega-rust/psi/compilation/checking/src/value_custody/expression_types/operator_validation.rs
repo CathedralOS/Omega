@@ -32,15 +32,6 @@ pub(crate) fn validate_binary_operand_types(
         right,
         diagnostics,
     );
-    crate::proof_contracts::arithmetic_domains::report_mismatched_width_operands(
-        program,
-        machine,
-        state,
-        operator,
-        left,
-        right,
-        diagnostics,
-    );
 }
 
 /// Whether `operand`'s type is a float (`f32`/`f64`): a landed float literal, or a place

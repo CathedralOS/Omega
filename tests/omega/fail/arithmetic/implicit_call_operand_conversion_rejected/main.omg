@@ -1,0 +1,14 @@
+// A call result is typed even when it publishes no range contract.
+data Values {}
+machine Values::unsigned() -> u32 in Wrapping {
+    transition { _ -> (7 as u32 in Wrapping) }
+}
+machine Values::small() -> u16 in Wrapping {
+    transition { _ -> (7 as u16 in Wrapping) }
+}
+machine Values::signed_operand(value: i32 in Wrapping) -> i32 in Wrapping {
+    transition { _ -> (value + Values::unsigned()) }
+}
+machine Values::wide_operand(value: u32 in Wrapping) -> u16 in Wrapping {
+    transition { _ -> (Values::small() + value) }
+}
