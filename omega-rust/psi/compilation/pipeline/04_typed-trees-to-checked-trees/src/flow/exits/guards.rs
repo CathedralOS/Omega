@@ -595,6 +595,35 @@ pub(in crate::flow) fn append_predicate_context(
     if !expression_is_stable_predicate(program, expression) {
         return;
     }
+    if let Some(predicate) = crate::facts::boolean_predicates::bind_current_guard(
+        program,
+        build.operators,
+        state_symbol,
+        statement_index,
+        expression,
+        value,
+    ) {
+        let context = crate::facts::boolean_predicates::seed(
+            semantic,
+            &predicate,
+            point,
+            FactOrigin::TransitionGuard,
+        );
+        *active_contexts =
+            retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
+        *active_constraints =
+            retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
+        reference_spans::append_flow_reference(
+            &mut build.contexts.semantic_context_refs,
+            active_contexts,
+            FlowSemanticContextRef { context },
+        );
+        append_constraint_ref(
+            &mut build.contexts.constraint_refs,
+            active_constraints,
+            FlowConstraintKind::SemanticContext { context },
+        );
+    }
     let occurrences = build.expression_occurrences_at(program, expression);
     append_observation_context(
         program,

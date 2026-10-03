@@ -7,11 +7,30 @@ use checked_trees::{CheckedStructuralPredicatePathSegment, CrashPredicateExpress
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+#[cfg(test)]
 pub(in crate::facts) fn entry_place(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<CrashPredicateExpression> {
+    entry_place_at_write_boundary(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        before_statement.saturating_add(1),
+        place,
+    )
+}
+
+fn entry_place_at_write_boundary(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    write_scan_end: usize,
     place: &crate::flow::CanonicalPlace,
 ) -> Option<CrashPredicateExpression> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
@@ -76,6 +95,7 @@ pub(in crate::facts) fn entry_place(
         machine_symbol,
         state_symbol,
         before_statement,
+        write_scan_end,
         symbol,
         &projection,
         0,
@@ -107,11 +127,49 @@ pub(crate) fn entry_parameter_place(
     before_statement: usize,
     place: &crate::flow::CanonicalPlace,
 ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
-    let expression = entry_place(
+    entry_parameter_place_at_write_boundary(
         program,
         machine_symbol,
         state_symbol,
         before_statement,
+        before_statement.saturating_add(1),
+        place,
+    )
+}
+
+/// Invocation provenance at statement entry. The caller must authenticate the
+/// observed operand's evaluated write prefix before using this namespace.
+pub(crate) fn entry_parameter_place_before_statement(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
+    entry_parameter_place_at_write_boundary(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        before_statement,
+        place,
+    )
+}
+
+fn entry_parameter_place_at_write_boundary(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    write_scan_end: usize,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
+    let expression = entry_place_at_write_boundary(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        write_scan_end,
         place,
     )?;
     let mut projections = Vec::new();

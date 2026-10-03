@@ -234,7 +234,7 @@ pub(crate) fn entry_subject(
     place.segments.extend(actual.path);
     crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &place)
         .then_some(())?;
-    crate::facts::entry_parameter_place(
+    crate::facts::entry_parameter_place_before_statement(
         program,
         state.machine_symbol,
         state.state_symbol,
@@ -296,7 +296,7 @@ pub(crate) fn entry_antecedent(
                         &place,
                     )
                     .then_some(())?;
-                    crate::facts::entry_parameter_place(
+                    crate::facts::entry_parameter_place_before_statement(
                         program,
                         state.machine_symbol,
                         state.state_symbol,
@@ -313,7 +313,7 @@ pub(crate) fn entry_antecedent(
         place.segments.extend(actual.path);
         crate::flow::operand_entry_origin_is_stable(program, &facts.flow, capture, &place)
             .then_some(())?;
-        let (position, path) = crate::facts::entry_parameter_place(
+        let (position, path) = crate::facts::entry_parameter_place_before_statement(
             program,
             state.machine_symbol,
             state.state_symbol,

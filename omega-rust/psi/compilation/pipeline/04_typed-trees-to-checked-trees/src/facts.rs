@@ -18,7 +18,11 @@ pub(crate) mod contract_occurrences;
 mod contract_plan_facts;
 mod crash_calls;
 mod crash_entry_values;
-pub(crate) use crash_entry_values::{entry_boolean_predicate, entry_parameter_place};
+#[cfg(test)]
+pub(crate) use crash_entry_values::entry_parameter_place;
+pub(crate) use crash_entry_values::{
+    entry_boolean_predicate, entry_parameter_place_before_statement,
+};
 mod crash_plan_facts;
 #[cfg(test)]
 mod declaration_requirement_tests;

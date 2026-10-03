@@ -40,10 +40,10 @@ fn named_float_requires_retain_an_assigned_field_across_a_state_edge() {
         "data Cell { value: f64; }
          boundary operator Ns::probe(value: f64) -> bool
          requires value == value && value > 0.0 && value < 2.0;
-         machine Cell::compare(&mut self) -> bool {
-             self.value = 1.5;
-             transition true { true -> next() }
-             state next(&mut self) -> bool { Ns::probe(self.value) }
+         machine Cell::compare(cell: &mut Cell) -> bool {
+             cell.value = 1.5;
+             transition true { true -> next(cell) }
+             state next(cell: &mut Cell) -> bool { Ns::probe(cell.value) }
          }",
     )
     .expect("an immutable literal observation survives an unchanged state transfer");
@@ -94,17 +94,17 @@ fn named_float_requires_reject_unestablished_bounds() {
         // Every incoming edge must deliver the same observed field value.
         "data Cell { value: f64; }
          boundary operator Ns::probe(value: f64) -> bool requires value > 0.0;
-         machine Cell::compare(&mut self, choose: bool) -> bool {
-             transition choose { true -> good() false -> bad() }
-             state good(&mut self) -> bool {
-                 self.value = 1.0;
-                 transition true { true -> joined() }
+         machine Cell::compare(cell: &mut Cell, choose: bool) -> bool {
+             transition choose { true -> good(cell) false -> bad(cell) }
+             state good(cell: &mut Cell) -> bool {
+                 cell.value = 1.0;
+                 transition true { true -> joined(cell) }
              }
-             state bad(&mut self) -> bool {
-                 self.value = -1.0;
-                 transition true { true -> joined() }
+             state bad(cell: &mut Cell) -> bool {
+                 cell.value = -1.0;
+                 transition true { true -> joined(cell) }
              }
-             state joined(&mut self) -> bool { Ns::probe(self.value) }
+             state joined(cell: &mut Cell) -> bool { Ns::probe(cell.value) }
          }",
     ] {
         let diagnostics = check(source).expect_err("missing bounds must remain unproven");
@@ -134,17 +134,17 @@ fn named_float_requires_transport_guarded_scalar_state_arguments() {
 }
 
 #[test]
-fn named_float_requires_transport_live_implicit_receiver_predicates() {
+fn named_float_requires_transport_live_named_receiver_predicates() {
     check(
         "data Cell { value: f64; }
          boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
-         machine Cell::compare(&mut self) -> bool {
-             transition self.value >= 0.0 { true -> bounded() false -> denied() }
-             state bounded(&mut self) -> bool { Ns::probe(self.value) }
-             state denied(&mut self) -> bool { false }
+         machine Cell::compare(cell: &mut Cell) -> bool {
+             transition cell.value >= 0.0 { true -> bounded(cell) false -> denied(cell) }
+             state bounded(cell: &mut Cell) -> bool { Ns::probe(cell.value) }
+             state denied(cell: &mut Cell) -> bool { false }
          }",
     )
-    .expect("an implicit receiver carries live predicates, not a historical read");
+    .expect("an explicitly forwarded receiver carries live predicates, not a historical read");
 }
 
 #[test]
@@ -162,9 +162,9 @@ fn named_float_requires_state_arguments_keep_operand_time_predicates() {
         "data Cell { value: f64; }
          boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
          machine reset(value: &mut f64) -> i32 { value = -10.0; 0 }
-         machine Cell::compare(&mut self) -> bool requires self.value >= 0.0 {
-             transition true { true -> bounded(self.value, reset(&mut self.value)) }
-             state bounded(&mut self, captured: f64, ignored: i32) -> bool {
+         machine Cell::compare(cell: &mut Cell) -> bool requires cell.value >= 0.0 {
+             transition true { true -> bounded(cell.value, reset(&mut cell.value), cell) }
+             state bounded(captured: f64, ignored: i32, cell: &mut Cell) -> bool {
                  Ns::probe(captured)
              }
          }",
@@ -207,14 +207,14 @@ fn named_float_requires_state_edges_cannot_mint_missing_predicates() {
          }",
         "data Cell { value: f64; }
          boundary operator Ns::probe(value: f64) -> bool requires value > -1.0;
-         machine Cell::compare(&mut self) -> bool {
-             transition self.value >= 0.0 { true -> overwrite() false -> denied() }
-             state overwrite(&mut self) -> bool {
-                 self.value = -10.0;
-                 transition true { true -> joined() }
+         machine Cell::compare(cell: &mut Cell) -> bool {
+             transition cell.value >= 0.0 { true -> overwrite(cell) false -> denied(cell) }
+             state overwrite(cell: &mut Cell) -> bool {
+                 cell.value = -10.0;
+                 transition true { true -> joined(cell) }
              }
-             state joined(&mut self) -> bool { Ns::probe(self.value) }
-             state denied(&mut self) -> bool { false }
+             state joined(cell: &mut Cell) -> bool { Ns::probe(cell.value) }
+             state denied(cell: &mut Cell) -> bool { false }
          }",
     ] {
         let diagnostics =

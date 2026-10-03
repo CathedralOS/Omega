@@ -231,6 +231,26 @@ fn antecedent_origin_uses_only_writes_before_its_own_operand_completion() {
             expected,
             "{arguments}"
         );
+        let (_, body) = crate::lookup::symbols::machine_state_by_symbol(
+            &checked,
+            state.machine_symbol,
+            state.state_symbol,
+        )
+        .unwrap();
+        let flag =
+            crate::flow::canonical_place_from_symbol(checked.state_parameters(body)[0].symbol)
+                .unwrap();
+        assert!(
+            crate::facts::entry_parameter_place(
+                &checked,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                &flag
+            )
+            .is_none(),
+            "an observation without an evaluated prefix must retain its whole-statement write check"
+        );
         let mut substituted = call.clone();
         substituted.operands = arena::HandleSpan::empty();
         assert!(

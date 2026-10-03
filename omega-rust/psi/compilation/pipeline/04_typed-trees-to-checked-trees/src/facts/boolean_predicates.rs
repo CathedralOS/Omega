@@ -105,6 +105,95 @@ pub(crate) fn bind_entry(
     })
 }
 
+/// Capture a selected current guard using the ordinary checked scalar algebra.
+/// The leaf bindings name current storage, including named-state parameters
+/// and saved locals; they make no claim about invocation-entry identity.
+pub(crate) fn bind_current_guard(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    value: bool,
+) -> Option<BoundPredicate> {
+    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
+    if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
+    {
+        return None;
+    }
+    let Scalar::Boolean(mut expression) = crate::values::lower_unit_scalar_argument(
+        program,
+        operators,
+        state,
+        statement_index,
+        expression,
+        PrimitiveType::Bool,
+    )?
+    else {
+        return None;
+    };
+    let symbols = crate::values::unit_scalar_binding_symbols(program, state, statement_index)?;
+    let mut bindings = Vec::new();
+    map_observations(&mut expression, &mut |operand| {
+        if bindings
+            .iter()
+            .any(|binding: &BoundObservation| binding.operand == *operand)
+        {
+            return Some(());
+        }
+        let place = match operand {
+            Scalar::Parameter { position, .. } | Scalar::Local { position, .. } => {
+                crate::flow::canonical_place_from_symbol(*symbols.get(*position)?)?
+            }
+            Scalar::StorageRead { symbol, .. } => {
+                crate::flow::canonical_place_from_symbol(*symbol)?
+            }
+            Scalar::StructuralParameterField {
+                parameter_position,
+                path,
+                ..
+            } => {
+                let (root, segments, _, _) = crate::values::resolve_structural_parameter_path(
+                    program,
+                    program.state_parameters(state),
+                    *parameter_position,
+                    path,
+                )?;
+                CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(root),
+                    segments,
+                }
+            }
+            _ => return None,
+        };
+        let type_reference = crate::flow::canonical_place_type_reference(
+            program,
+            state_symbol,
+            statement_index,
+            &place,
+        )?;
+        if program.primitive_type_reference(type_reference) != operand.primitive_type() {
+            return None;
+        }
+        bindings.push(BoundObservation {
+            operand: operand.clone(),
+            place,
+            type_reference,
+        });
+        Some(())
+    })?;
+    Some(BoundPredicate {
+        machine: machine.symbol,
+        entry_state: state.symbol,
+        expression: if value {
+            *expression
+        } else {
+            Boolean::Not(expression)
+        },
+        bindings,
+    })
+}
+
 /// Install one assertion, never separately assert its subexpressions. Every
 /// observed projection belongs to the same invalidation context.
 pub(crate) fn seed(
@@ -263,73 +352,189 @@ pub(crate) fn evaluate(
     }
 }
 
-/// A finite closure over the Boolean storage observations already in live
-/// formulas. A round reads only previously established values; unknown cycles
-/// cannot bootstrap themselves. Contradictory polarities grant no conclusion.
+/// Finite truth propagation over the selected Boolean algebra. Integer
+/// comparisons remain whole observations: knowing one never supplies a value
+/// for either integer operand. Every round uses only already established facts.
 pub(crate) fn inferred_booleans(
     predicates: &[BoundPredicate],
-    mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
+    ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
 ) -> Vec<(CanonicalPlace, bool)> {
-    let mut subjects = Vec::new();
-    for predicate in predicates {
-        for binding in &predicate.bindings {
-            if binding.operand.primitive_type() == Some(PrimitiveType::Bool)
-                && !subjects.contains(&binding.place)
-            {
-                subjects.push(binding.place.clone());
+    let Some((expressions, observations)) = normalize(predicates) else {
+        return Vec::new();
+    };
+    let Some(truths) = formula_closure(&expressions, &observations, ordinary) else {
+        return Vec::new();
+    };
+    observations
+        .into_iter()
+        .enumerate()
+        .filter_map(|(position, (place, primitive))| {
+            (primitive == PrimitiveType::Bool)
+                .then(|| {
+                    truths.iter().find_map(|(expression, value)| {
+                        (*expression == Boolean::Parameter { position })
+                            .then_some((place.clone(), *value))
+                    })
+                })
+                .flatten()
+        })
+        .collect()
+}
+
+type Observation = (CanonicalPlace, PrimitiveType);
+
+fn normalize(predicates: &[BoundPredicate]) -> Option<(Vec<Boolean>, Vec<Observation>)> {
+    let mut observations = Vec::new();
+    let expressions = predicates
+        .iter()
+        .map(|predicate| {
+            let mut expression = predicate.expression.clone();
+            map_observations(&mut expression, &mut |operand| {
+                let binding = predicate
+                    .bindings
+                    .iter()
+                    .find(|binding| binding.operand == *operand)?;
+                let primitive_type = operand.primitive_type()?;
+                let key = (binding.place.clone(), primitive_type);
+                let position = observations
+                    .iter()
+                    .position(|known| known == &key)
+                    .unwrap_or_else(|| {
+                        let position = observations.len();
+                        observations.push(key);
+                        position
+                    });
+                *operand = Scalar::Parameter {
+                    position,
+                    primitive_type,
+                };
+                Some(())
+            })?;
+            Some(expression)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((expressions, observations))
+}
+
+fn formula_closure(
+    assertions: &[Boolean],
+    observations: &[Observation],
+    mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
+) -> Option<Vec<(Boolean, bool)>> {
+    fn collect(expression: &Boolean, expressions: &mut Vec<Boolean>) {
+        if expressions.contains(expression) {
+            return;
+        }
+        expressions.push(expression.clone());
+        match expression {
+            Boolean::Not(operand) => collect(operand, expressions),
+            Boolean::And { left, right }
+            | Boolean::Or { left, right }
+            | Boolean::Equal { left, right } => {
+                collect(left, expressions);
+                collect(right, expressions);
             }
+            _ => {}
         }
     }
-    let mut known = Vec::<(CanonicalPlace, bool)>::new();
-    for subject in &subjects {
-        if let Some(ScalarValue::Boolean(value)) = ordinary(subject) {
-            known.push((subject.clone(), value));
+    fn put(truths: &mut Vec<(Boolean, bool)>, expression: &Boolean, value: bool) -> Option<()> {
+        if let Some((_, prior)) = truths.iter().find(|(known, _)| known == expression) {
+            return (*prior == value).then_some(());
+        }
+        truths.push((expression.clone(), value));
+        Some(())
+    }
+    struct Inputs<'a> {
+        values: &'a [Option<ScalarValue>],
+    }
+    impl crate::values::ScalarValueSource for Inputs<'_> {
+        fn binding(&mut self, position: usize) -> Option<ScalarValue> {
+            self.values.get(position).cloned().flatten()
+        }
+    }
+    let values = observations
+        .iter()
+        .map(|(place, _)| ordinary(place))
+        .collect::<Vec<_>>();
+    let mut expressions = Vec::new();
+    let mut truths = Vec::new();
+    for assertion in assertions {
+        collect(assertion, &mut expressions);
+        put(&mut truths, assertion, true)?;
+    }
+    for expression in &expressions {
+        if let Some(ScalarValue::Boolean(value)) = crate::values::evaluate_checked_scalar(
+            &Scalar::Boolean(Box::new(expression.clone())),
+            &mut Inputs { values: &values },
+        ) {
+            put(&mut truths, expression, value)?;
         }
     }
     loop {
         let mut additions = Vec::new();
-        for subject in &subjects {
-            if known.iter().any(|(place, _)| place == subject) {
-                continue;
-            }
-            let contradictory = [false, true].map(|candidate| {
-                predicates.iter().any(|predicate| {
-                    evaluate(predicate, |place| {
-                        if place == subject {
-                            return Some(ScalarValue::Boolean(candidate));
+        let truth = |expression: &Boolean| {
+            truths
+                .iter()
+                .find_map(|(known, value)| (known == expression).then_some(*value))
+        };
+        for expression in &expressions {
+            let result = truth(expression);
+            match expression {
+                Boolean::Not(operand) => {
+                    if let Some(value) = truth(operand) {
+                        put(&mut additions, expression, !value)?;
+                    }
+                    if let Some(value) = result {
+                        put(&mut additions, operand, !value)?;
+                    }
+                }
+                Boolean::And { left, right } | Boolean::Or { left, right } => {
+                    let is_and = matches!(expression, Boolean::And { .. });
+                    let a = truth(left);
+                    let b = truth(right);
+                    if a == Some(!is_and) || b == Some(!is_and) {
+                        put(&mut additions, expression, !is_and)?;
+                    } else if a == Some(is_and) && b == Some(is_and) {
+                        put(&mut additions, expression, is_and)?;
+                    }
+                    if result == Some(is_and) {
+                        put(&mut additions, left, is_and)?;
+                        put(&mut additions, right, is_and)?;
+                    } else if result == Some(!is_and) {
+                        if a == Some(is_and) {
+                            put(&mut additions, right, !is_and)?;
                         }
-                        known
-                            .iter()
-                            .find(|(known, _)| known == place)
-                            .map(|(_, value)| ScalarValue::Boolean(*value))
-                            .or_else(|| ordinary(place))
-                    }) == Some(false)
-                })
-            });
-            match contradictory {
-                [true, false] => additions.push((subject.clone(), true)),
-                [false, true] => additions.push((subject.clone(), false)),
-                [true, true] => return Vec::new(),
-                [false, false] => {}
+                        if b == Some(is_and) {
+                            put(&mut additions, left, !is_and)?;
+                        }
+                    }
+                }
+                Boolean::Equal { left, right } => {
+                    let a = truth(left);
+                    let b = truth(right);
+                    if let (Some(a), Some(b)) = (a, b) {
+                        put(&mut additions, expression, a == b)?;
+                    }
+                    if let Some(result) = result {
+                        if let Some(a) = a {
+                            put(&mut additions, right, a == result)?;
+                        }
+                        if let Some(b) = b {
+                            put(&mut additions, left, b == result)?;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
-        if additions.is_empty() {
-            break;
+        let previous = truths.len();
+        for (expression, value) in additions {
+            put(&mut truths, &expression, value)?;
         }
-        known.extend(additions);
-        if predicates.iter().any(|predicate| {
-            evaluate(predicate, |place| {
-                known
-                    .iter()
-                    .find(|(known, _)| known == place)
-                    .map(|(_, value)| ScalarValue::Boolean(*value))
-                    .or_else(|| ordinary(place))
-            }) == Some(false)
-        }) {
-            return Vec::new();
+        if truths.len() == previous {
+            return Some(truths);
         }
     }
-    known
 }
 
 /// Fold exact Boolean observations before moving a relation to a named state.
@@ -557,70 +762,38 @@ pub(crate) fn proves(
     required: &BoundPredicate,
     mut ordinary: impl FnMut(&CanonicalPlace) -> Option<ScalarValue>,
 ) -> bool {
-    let inferred = inferred_booleans(predicates, &mut ordinary);
-    if evaluate(required, |place| {
-        inferred
-            .iter()
-            .find(|(known, _)| known == place)
-            .map(|(_, value)| ScalarValue::Boolean(*value))
-            .or_else(|| ordinary(place))
-    }) == Some(true)
-    {
-        return true;
-    }
-    let mut observations = Vec::new();
-    let mut normalize = |predicate: &BoundPredicate| -> Option<Boolean> {
-        let mut expression = predicate.expression.clone();
-        map_observations(&mut expression, &mut |operand| {
-            let binding = predicate
-                .bindings
-                .iter()
-                .find(|binding| binding.operand == *operand)?;
-            let primitive_type = operand.primitive_type()?;
-            let key = (binding.place.clone(), primitive_type);
-            let position = observations
-                .iter()
-                .position(|known| known == &key)
-                .unwrap_or_else(|| {
-                    let position = observations.len();
-                    observations.push(key);
-                    position
-                });
-            *operand = Scalar::Parameter {
-                position,
-                primitive_type,
-            };
-            Some(())
-        })?;
-        Some(expression)
-    };
-    let Some(required) = normalize(required) else {
+    let mut all = predicates.to_vec();
+    all.push(required.clone());
+    let Some((mut expressions, observations)) = normalize(&all) else {
         return false;
     };
-    predicates
-        .iter()
-        .filter_map(&mut normalize)
-        .any(|retained| formula_implies(&retained, &required))
-}
-
-fn formula_implies(retained: &Boolean, required: &Boolean) -> bool {
-    if retained == required || matches!(required, Boolean::Constant(true)) {
-        return true;
-    }
-    if let Boolean::And { left, right } = retained
-        && (formula_implies(left, required) || formula_implies(right, required))
-    {
-        return true;
-    }
-    match required {
-        Boolean::And { left, right } => {
-            formula_implies(retained, left) && formula_implies(retained, right)
+    let normalized_required = expressions.pop().expect("required formula");
+    let Some(truths) = formula_closure(&expressions, &observations, &mut ordinary) else {
+        return false;
+    };
+    fn known(expression: &Boolean, truths: &[(Boolean, bool)]) -> Option<bool> {
+        if let Some((_, value)) = truths.iter().find(|(known, _)| known == expression) {
+            return Some(*value);
         }
-        Boolean::Or { left, right } => {
-            formula_implies(retained, left) || formula_implies(retained, right)
+        match expression {
+            Boolean::Constant(value) => Some(*value),
+            Boolean::Not(operand) => known(operand, truths).map(|value| !value),
+            Boolean::And { left, right } => match (known(left, truths), known(right, truths)) {
+                (Some(false), _) | (_, Some(false)) => Some(false),
+                (Some(true), Some(true)) => Some(true),
+                _ => None,
+            },
+            Boolean::Or { left, right } => match (known(left, truths), known(right, truths)) {
+                (Some(true), _) | (_, Some(true)) => Some(true),
+                (Some(false), Some(false)) => Some(false),
+                _ => None,
+            },
+            Boolean::Equal { left, right } => Some(known(left, truths)? == known(right, truths)?),
+            _ => None,
         }
-        _ => false,
     }
+    known(&normalized_required, &truths) == Some(true)
+        || evaluate(required, &mut ordinary) == Some(true)
 }
 
 #[cfg(test)]
@@ -676,6 +849,94 @@ mod tests {
             .unwrap()
             .place
             .clone()
+    }
+
+    #[test]
+    fn relational_whole_disjunction_discharges_implication_without_choosing_a_leaf() {
+        let (program, machine, path) = fixture();
+        let flag = Boolean::Parameter { position: 0 };
+        let first = Boolean::StructuralParameterField {
+            parameter_position: 1,
+            path: path.clone(),
+        };
+        let second = Boolean::StructuralParameterField {
+            parameter_position: 2,
+            path,
+        };
+        let guard = Boolean::Or {
+            left: Box::new(flag.clone()),
+            right: Box::new(first.clone()),
+        };
+        let relation = bind_entry(
+            &program,
+            machine,
+            implication(guard.clone(), second.clone()),
+        )
+        .unwrap();
+        let selected = bind_entry(&program, machine, guard.clone()).unwrap();
+        let second = bind_entry(&program, machine, second).unwrap();
+        let first = bind_entry(&program, machine, first).unwrap();
+        let flag = bind_entry(&program, machine, flag).unwrap();
+        let rows = [relation.clone(), selected];
+        assert!(proves(&rows, &second, |_| None));
+        assert!(!proves(&rows, &first, |_| None));
+        assert!(!proves(&rows, &flag, |_| None));
+        assert_eq!(
+            inferred_booleans(&rows, |_| None),
+            vec![(second.bindings[0].place.clone(), true)]
+        );
+        let opposite = bind_entry(&program, machine, Boolean::Not(Box::new(guard))).unwrap();
+        assert!(!proves(
+            &[relation.clone(), opposite.clone()],
+            &second,
+            |_| None
+        ));
+        let contradictory = [rows[0].clone(), rows[1].clone(), opposite];
+        assert!(inferred_booleans(&contradictory, |_| None).is_empty());
+        assert!(!proves(&contradictory, &second, |_| None));
+    }
+
+    #[test]
+    fn relational_whole_integer_comparison_preserves_operand_identity() {
+        let program = crate::tests::front_end::typed_program(
+            "machine compare(left: u8, right: u8, other: u8, ready: bool) {}",
+        );
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "compare")
+            .unwrap()
+            .symbol;
+        let comparison = |right| Boolean::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::LessThan,
+            left: Box::new(Scalar::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U8,
+            }),
+            right: Box::new(Scalar::Parameter {
+                position: right,
+                primitive_type: PrimitiveType::U8,
+            }),
+        };
+        let ready = bind_entry(&program, machine, Boolean::Parameter { position: 3 }).unwrap();
+        let relation = bind_entry(
+            &program,
+            machine,
+            implication(comparison(1), ready.expression.clone()),
+        )
+        .unwrap();
+        let selected = bind_entry(&program, machine, comparison(1)).unwrap();
+        let wrong_subject = bind_entry(&program, machine, comparison(2)).unwrap();
+        assert!(proves(
+            &[relation.clone(), selected.clone()],
+            &ready,
+            |_| None
+        ));
+        assert_eq!(
+            inferred_booleans(&[relation.clone(), selected], |_| None),
+            vec![(ready.bindings[0].place.clone(), true)]
+        );
+        assert!(!proves(&[relation, wrong_subject], &ready, |_| None));
     }
 
     #[test]

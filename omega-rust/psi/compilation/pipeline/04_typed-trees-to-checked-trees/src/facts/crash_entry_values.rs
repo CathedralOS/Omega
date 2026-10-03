@@ -42,7 +42,7 @@ mod checked_projection;
 mod literal_projection;
 mod places;
 pub(super) use checked_projection::entry_value as checked_projected_entry_value;
-pub(crate) use places::entry_parameter_place;
+pub(crate) use places::{entry_parameter_place, entry_parameter_place_before_statement};
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};
@@ -88,7 +88,7 @@ pub(crate) fn entry_boolean_predicate(
             if !admit_subject(&place) {
                 return None;
             }
-            entry_parameter_place(
+            entry_parameter_place_before_statement(
                 program,
                 machine_symbol,
                 state_symbol,
@@ -878,6 +878,7 @@ fn entry_operand_name_at(
         machine_symbol,
         state_symbol,
         before_statement,
+        before_statement.saturating_add(1),
         symbol,
         field_path,
         depth,
@@ -891,6 +892,7 @@ fn entry_operand_symbol_at(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     before_statement: usize,
+    write_scan_end: usize,
     symbol: SymbolHandle,
     field_path: &[PlaceSegment],
     depth: u32,
@@ -912,7 +914,7 @@ fn entry_operand_symbol_at(
                 machine_symbol,
                 state,
                 ordinal + 1,
-                before_statement.saturating_add(1),
+                write_scan_end,
                 local.symbol,
                 field_path,
             )
@@ -922,10 +924,10 @@ fn entry_operand_symbol_at(
         // This transports the bound value, not a current read of its
         // storage. A mutable local is admitted only while no statement
         // between its initializer and this read could have overwritten
-        // the read projection or lent it exclusive access; the containing
-        // statement itself stays in the window because its earlier
-        // operands may already have run a call that writes through an
-        // exclusive borrow. Every initializer dependency must
+        // the read projection or lent it exclusive access. The caller supplies
+        // the exact end of the write window: an unscoped expression includes
+        // its containing statement, while a captured operand separately
+        // authenticates that statement's prefix. Initializer dependencies must
         // independently be entry-relative. Decreasing the prefix also
         // prevents recursive aliases.
         return entry_operand_projected_at(
@@ -945,6 +947,7 @@ fn entry_operand_symbol_at(
         state_symbol,
         symbol,
         before_statement,
+        write_scan_end,
         field_path,
         depth,
     )
@@ -1067,6 +1070,7 @@ fn state_parameter_entry_operand(
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
     before_statement: usize,
+    write_scan_end: usize,
     field_path: &[PlaceSegment],
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
@@ -1129,7 +1133,7 @@ fn state_parameter_entry_operand(
             machine_symbol,
             state,
             0,
-            before_statement.saturating_add(1),
+            write_scan_end,
             parameter_symbol,
             field_path,
         )

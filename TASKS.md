@@ -830,17 +830,16 @@ the complete product bar; focused successes below do not establish that baseline
   Source checks use each selected exit, post-call temporary cleanup, and
   replacement facts captured after RHS evaluation but before the store.
 
-  The local candidate passes eight of ten `contextual_conditions` source checks:
-  selected-owner readiness, generic forwarding (including a negated selector),
-  reordered named-state parameters, and a taken guard whose selector is omitted
-  from the next state. Whole disjunctive and integer-comparison guards still fail
-  to prove their selected cleanup consequences. Guard implications remain separate
-  from authored clauses; historical entry conditions cannot prove current storage
-  values. Ordinary calls and operators now share operand-time capture; the valid
-  copied selector survives a later argument write. Entry-antecedent transport
-  still rejects an earlier captured selector in one chronology control. On the
-  candidate rebased onto `3278dc4c7e`, 89 of 97 focused checks pass; the other
-  five failures are operator fixtures using retired receiver syntax.
+  The local candidate passes all ten `contextual_conditions` source checks:
+  selected-owner readiness, generic forwarding, named-state transport, and whole
+  disjunctive/integer-comparison guards. The finite predicate worklist retains
+  whole-formula truth without inventing Boolean leaf or integer values; grouped
+  storage dependencies invalidate stale observations. Ordinary calls and operators
+  share operand-time capture. Entry transport checks the statement-entry state
+  plus each operand's exact prior-write prefix, preserving earlier copied values
+  across later writes. All 91 focused source controls pass on macOS ARM64,
+  including invalid/opposite guards, write chronology and named-state operator
+  contracts. This is source-checking evidence; conditional execution remains open.
 
   Remaining acceptance: execute conditional nominal cleanup on structural-return
   edges. `state_graph/returns.rs` still declines nominal owned results, and
