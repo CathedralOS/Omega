@@ -106,11 +106,11 @@ fn projected_constructor_operand_replays_exact_statement_custody() {
         "data Message { value: u8; }
          data Remainder { identity: u64; bytes: &[u8]; }
          data Relayed<T> { value: T; remainder: Remainder; }
-         machine update(relayed: Relayed<Message>) -> Relayed<Message> {
+         machine update(relayed: Relayed<Message>, observed: &mut u64) {
              let updated: Relayed<Message> = Relayed {
                  value: Message { value: 42 }, remainder: relayed.remainder
              };
-             updated
+             observed = updated.remainder.bytes.len;
          }",
     );
     let machine = original
