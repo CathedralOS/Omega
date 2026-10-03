@@ -184,25 +184,13 @@ pub(super) fn retain_available(
                             );
                         }
                     }
-                    (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Unit) => {
-                        closure.require_entry(caller_index, call.target.machine, call.target.state)
-                    }
                     (
                         CheckedUnitCallRoute::Module { .. },
-                        CheckedUnitCallResult::Structural { .. },
+                        CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
                     ) => {
-                        if facts
-                            .flow
-                            .terminal_structural_returns
-                            .claim_free_affine_for_machine(call.target.machine)
-                            .is_none()
-                        {
-                            closure.require_entry(
-                                caller_index,
-                                call.target.machine,
-                                call.target.state,
-                            );
-                        }
+                        // Call admission consumes this roster's exact body,
+                        // not a different return catalog's coverage promise.
+                        closure.require_entry(caller_index, call.target.machine, call.target.state)
                     }
                     (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
                         match scalar_targets::available_target(

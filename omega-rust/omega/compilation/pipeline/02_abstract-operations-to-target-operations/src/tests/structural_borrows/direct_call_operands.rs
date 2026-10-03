@@ -10,6 +10,56 @@ use super::{
 use abstract_operations::AbstractResult;
 use terminal_psi::{StructuralOperationResult, StructuralResultDeclaration};
 
+#[test]
+fn mixed_value_call_transport_replays_common_fields_and_payload() {
+    let source = super::source_plan(
+        r#"
+        data Message { stamp: i32; case Empty; case Number(value: i32); }
+        machine relay(message: Message) -> Message { message }
+        machine forward(message: Message) -> Message { relay(message) }
+        data Main { message: Message; }
+        machine Main::run(main: &mut Main) {
+            main.message = forward(Message::Number { stamp: 23, value: 47 });
+        }
+        "#,
+    );
+    for native in [
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+    ] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("mixed values use their declared storage at ordinary calls");
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("independent call and constructor replay");
+        for mutation in 0..3 {
+            let mut changed = target.clone();
+            let argument = changed
+                .functions
+                .iter_mut()
+                .flat_map(|function| &mut function.graph.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::Call { arguments, .. } => arguments.first_mut(),
+                    _ => None,
+                })
+                .expect("owned call argument");
+            match mutation {
+                0 => argument.source_byte_offset += 1,
+                1 => argument.shape.byte_size += 1,
+                2 => argument.access = StructuralAccess::SharedBorrow,
+                _ => unreachable!(),
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "forged argument {mutation} on {native:?}"
+            );
+        }
+    }
+}
+
 fn array_result(place: u64) -> StructuralOperationResult {
     StructuralOperationResult {
         place: PlaceId::new(place).unwrap(),

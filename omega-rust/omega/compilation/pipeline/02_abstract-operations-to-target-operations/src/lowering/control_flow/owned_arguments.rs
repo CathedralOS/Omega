@@ -9,9 +9,7 @@ use crate::LoweringError;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
-use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration};
 
 pub(super) fn is_owned_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -20,7 +18,7 @@ pub(super) fn is_owned_parameter(
     parameter.access == StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
         && parameter.projected_qualifications.is_empty()
-        && value_layout(parameter.structural_type, types).is_ok()
+        && super::aggregate_results::value_home_layout(parameter.structural_type, types).is_ok()
 }
 
 pub(super) fn argument(
@@ -32,7 +30,8 @@ pub(super) fn argument(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralArray(declaration.structural_type);
-    let expected_layout = value_layout(declaration.structural_type, types)?;
+    let expected_layout =
+        super::aggregate_results::value_home_layout(declaration.structural_type, types)?;
     let expected_shape = expected_layout.shape();
     if !is_owned_parameter(declaration, types)
         || argument.access != StructuralAccess::Owned
@@ -152,42 +151,4 @@ pub(super) fn argument(
         source,
         destination: destination.placement.clone(),
     })
-}
-
-fn value_layout(
-    structural_type: StructuralTypeId,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<target_operations::TargetStructuralHomeLayout, LoweringError> {
-    use target_operations::TargetStructuralHomeLayout;
-    match types
-        .get(&structural_type)
-        .map(|declaration| &declaration.shape)
-    {
-        Some(
-            StructuralTypeShape::Record { .. }
-            | StructuralTypeShape::FixedArray { .. }
-            | StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                ..
-            }),
-        ) => crate::lowering::structural_layout::structural_shape(
-            structural_type,
-            types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )
-        .map(TargetStructuralHomeLayout::Aggregate),
-        Some(StructuralTypeShape::Sum { .. }) => {
-            // Equal byte sizes do not establish equal tag and payload placement.
-            // Retain the same declared sum layout used by construction and reads.
-            crate::lowering::structural_layout::structural_sum_layout(
-                structural_type,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )
-            .map(TargetStructuralHomeLayout::Sum)
-        }
-        _ => super::scalar_arrays::shape(structural_type, types)
-            .map(|(_, _, shape)| TargetStructuralHomeLayout::Aggregate(shape)),
-    }
 }

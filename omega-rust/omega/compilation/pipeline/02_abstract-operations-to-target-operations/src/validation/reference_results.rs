@@ -912,22 +912,34 @@ fn establish_constructor(
     elements: Option<&[terminal_psi::StructuralArgument]>,
 ) -> Option<()> {
     let shape = &lookup(declarations, result.structural_type)?.shape;
-    let declared = match (shape, result_case) {
-        (StructuralTypeShape::Record { fields }, None) => fields.as_slice(),
-        (StructuralTypeShape::Sum { cases }, Some(result_case)) => cases
-            .iter()
-            .find(|case| case.id == result_case)?
-            .fields
-            .as_slice(),
+    // Construction's field roster is common storage followed by the selected
+    // payload. A record has only the former and a plain sum only the latter;
+    // neither arrangement changes the custody operation on those fields.
+    let (common, payload): (
+        &[terminal_psi::StructuralFieldDeclaration],
+        &[terminal_psi::StructuralFieldDeclaration],
+    ) = match (shape, result_case) {
+        (StructuralTypeShape::Record { fields }, None) => (fields, &[]),
+        (StructuralTypeShape::Sum { cases }, Some(result_case)) => (
+            &[],
+            &cases.iter().find(|case| case.id == result_case)?.fields,
+        ),
+        (StructuralTypeShape::Mixed { fields, cases }, Some(result_case)) => (
+            fields,
+            &cases.iter().find(|case| case.id == result_case)?.fields,
+        ),
         (StructuralTypeShape::FixedArray { length, .. }, None)
             if elements
                 .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>
         {
-            &[]
+            (&[], &[])
         }
         _ => return None,
     };
-    let declared = declared.iter().filter(|field| !field.relevance.is_erased());
+    let declared = common
+        .iter()
+        .chain(payload)
+        .filter(|field| !field.relevance.is_erased());
     if declared.clone().count() != fields.len() {
         return None;
     }

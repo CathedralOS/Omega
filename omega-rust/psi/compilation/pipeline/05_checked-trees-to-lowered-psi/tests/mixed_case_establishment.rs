@@ -18,6 +18,37 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
+fn owned_mixed_value_forwarding_retains_the_transitive_body() {
+    let source = r#"
+        data Message { stamp: i32; case Empty; case Number(value: i32); }
+        machine relay(message: Message) -> Message { message }
+        machine forward(message: Message) -> Message { relay(message) }
+        "#;
+    for source in [
+        source.to_owned(),
+        source.replace(
+            "relay(message) }",
+            "let staged: Message = relay(message); relay(staged) }",
+        ),
+    ] {
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("forward"))
+            .expect("forwarding body remains in the exact call closure");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("forwarding independently verifies");
+        let encoded = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+        assert_eq!(
+            terminal_codec::decode_module(&encoded).expect("decode"),
+            lowered.semantic_module
+        );
+    }
+}
+
+#[test]
 fn mixed_case_literal_zero_initializes_unnamed_common_fields() {
     let checked = crate::front_end::checked_program(SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
