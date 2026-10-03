@@ -6,8 +6,8 @@
 //! incoming facts, after all-predecessor intersection and write invalidation.
 //! A write to the sum or any prefix retires every fact below. The observation
 //! itself introduces no membership. Borrowed argument paths, reference
-//! formation, `StructuralCaseLeafCopy` and case-qualified scalar field reads
-//! share this one judgment.
+//! formation, successor loans, `StructuralCaseLeafCopy` and case-qualified
+//! scalar field reads share this one judgment.
 //!
 //! A case holds in one of two ways:
 //!
@@ -41,6 +41,70 @@ use semantic_vocabulary::{
 use terminal_psi::{OperationKind, StructuralTypeShape, TerminalMachine, TerminalModule};
 
 use super::super::machine_context::MachineReconstructionContext;
+
+/// Check edge operands before their roots are rebound to target parameters.
+/// The chosen conditional edge contributes its Boolean truth, not an asserted
+/// payload membership. The same current-fact judgment used by operations must
+/// derive every case in the path, after preceding writes invalidated facts.
+pub(in crate::verification::reconstruction) fn validate_successors(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    context: &MachineReconstructionContext<'_>,
+    axioms: &[Proposition],
+    terminator: &terminal_psi::Terminator,
+) -> Result<(), crate::ModuleError> {
+    let has_case = |argument: &terminal_psi::StructuralArgument| {
+        argument
+            .path
+            .iter()
+            .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)))
+    };
+    let validate = |edge, arguments: &[terminal_psi::StructuralArgument], facts: &[Proposition]| {
+        for argument in arguments.iter().filter(|argument| has_case(argument)) {
+            let invalid = || crate::ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: argument.place,
+            };
+            let path = crate::validation::canonical_field_path(
+                module,
+                machine,
+                argument.place,
+                &argument.path,
+            )
+            .ok_or_else(invalid)?;
+            if !active(module, machine, context, facts, argument.place, &path) {
+                return Err(invalid());
+            }
+        }
+        Ok(())
+    };
+    match terminator {
+        terminal_psi::Terminator::Jump {
+            edge,
+            structural_arguments,
+            ..
+        } => validate(*edge, structural_arguments, axioms),
+        terminal_psi::Terminator::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            for (successor, positive) in [(when_true, true), (when_false, false)] {
+                if !successor.structural_arguments.iter().any(has_case) {
+                    continue;
+                }
+                let mut selected = axioms.to_vec();
+                selected.push(Proposition::Equal(
+                    context.value_term(*condition),
+                    ScalarTerm::Boolean(positive),
+                ));
+                validate(successor.edge, &successor.structural_arguments, &selected)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
 
 /// Whether every `Case` step of `path` below `source` is proved active by the
 /// incoming facts. A path without `Case` steps names no overlay and holds.

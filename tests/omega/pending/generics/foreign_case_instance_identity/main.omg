@@ -1,0 +1,24 @@
+use omega::language::core::option;
+
+data First { value: i32; }
+data Second { value: i32; }
+
+machine first(subject: &Optional<First>) -> i32 {
+    transition subject {
+        Optional::Some { value } -> (1)
+        Optional::None -> (0)
+    }
+}
+
+machine second(subject: &Optional<Second>) -> i32 {
+    transition subject {
+        Optional::Some { value } -> (2)
+        Optional::None -> (0)
+    }
+}
+
+machine main() -> bool {
+    let left: Optional<First> = Optional::Some { value: First { value: 1 } };
+    let right: Optional<Second> = Optional::Some { value: Second { value: 2 } };
+    first(&left) == 1 && second(&right) == 2
+}

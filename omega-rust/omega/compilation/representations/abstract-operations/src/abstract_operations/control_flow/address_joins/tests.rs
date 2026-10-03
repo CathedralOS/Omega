@@ -410,6 +410,65 @@ fn array_referents_retain_nested_storage_but_cannot_hide_loans_or_cycles() {
 }
 
 #[test]
+fn projected_payload_addresses_resolve_nested_fields_without_granting_membership() {
+    use semantic_vocabulary::StructuralCaseId;
+    use terminal_psi::StructuralCaseDeclaration;
+    let mut types = catalog();
+    let selected = StructuralCaseId::new(1).unwrap();
+    types.push(declaration(
+        8,
+        StructuralTypeShape::Mixed {
+            fields: vec![field(4, StructuralFieldType::Structural(id(2)))],
+            cases: vec![StructuralCaseDeclaration {
+                id: selected,
+                identity: "Selected".into(),
+                fields: vec![field(3, StructuralFieldType::Structural(id(3)))],
+            }],
+        },
+    ));
+    let path = vec![
+        StructuralPathSegment::Case(selected),
+        StructuralPathSegment::Field("field3".into()),
+        StructuralPathSegment::Field("field3".into()),
+        StructuralPathSegment::Field("field1".into()),
+    ];
+    assert!(is_static_projection(&path));
+    assert_eq!(
+        super::referent_type(types.iter(), id(8), &path),
+        Some(id(1))
+    );
+    assert_eq!(
+        super::referent_type(types.iter(), id(8), &path[..2]),
+        Some(id(3))
+    );
+    // A case alone denotes no payload place. Nor can its namespace leak into
+    // the mixed type's common fields, or be entered beneath a plain record.
+    assert_eq!(super::referent_type(types.iter(), id(8), &path[..1]), None);
+    assert_eq!(super::referent_type(types.iter(), id(2), &path), None);
+    let mut wrong_namespace = path[..2].to_vec();
+    wrong_namespace[1] = StructuralPathSegment::Field("field4".into());
+    assert_eq!(
+        super::referent_type(types.iter(), id(8), &wrong_namespace),
+        None
+    );
+    assert_eq!(
+        super::referent_type(types.iter(), id(8), &wrong_namespace[1..]),
+        Some(id(2))
+    );
+    let mut unknown_case = path.clone();
+    unknown_case[0] = StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap());
+    assert_eq!(
+        super::referent_type(types.iter(), id(8), &unknown_case),
+        None
+    );
+    let StructuralTypeShape::Mixed { cases, .. } = &mut types[7].shape else {
+        panic!("mixed");
+    };
+    cases.push(cases[0].clone());
+    assert_eq!(super::referent_type(types.iter(), id(8), &path), None);
+}
+
+#[test]
 fn case_storage_joins_check_every_payload_recursively() {
     use semantic_vocabulary::StructuralCaseId;
     use terminal_psi::StructuralCaseDeclaration;

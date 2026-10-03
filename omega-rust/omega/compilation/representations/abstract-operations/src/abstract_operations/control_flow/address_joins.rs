@@ -64,19 +64,22 @@ pub fn is_address_join_in(
 
 /// Whether an address-join edge argument names a static place beneath its
 /// root. Byte windows, runtime indexes and reference hops have no single
-/// address fixed by the path alone.
+/// address fixed by the path alone. Case selection fixes payload geometry,
+/// not membership: Terminal verification separately proves the case active.
 pub fn is_static_projection(path: &[StructuralPathSegment]) -> bool {
     path.iter().all(|segment| {
         matches!(
             segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::FixedIndex(_)
         )
     })
 }
 
 /// The referent type an address-join argument names: `path` resolved from
-/// `root` through record fields and in-bounds fixed indexes, where an element
-/// view contributes its own live extent as the index bound. A scalar leaf
+/// `root` through record or selected-case fields and in-bounds fixed indexes.
+/// An element view contributes its own live extent as the index bound. A scalar leaf
 /// field resolves to the catalog's unique standalone declaration of that
 /// leaf's canonical shape, the same identity a borrowed `&u64` parameter
 /// declares. Erased fields, duplicate identities and every other segment
@@ -98,12 +101,50 @@ pub fn referent_type<'a>(
             .clone()
             .filter(|declaration| declaration.id == root),
     )?;
+    let mut payload_fields = None;
     for segment in path {
+        if let StructuralPathSegment::Case(identity) = segment {
+            if payload_fields.is_some() {
+                return None;
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &current.shape
+            else {
+                return None;
+            };
+            let mut matching = cases.iter().filter(|case| case.id == *identity);
+            let selected = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            payload_fields = Some(selected.fields.as_slice());
+            continue;
+        }
+        if payload_fields.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
+            return None;
+        }
         let next = match (segment, &current.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            (StructuralPathSegment::Field(identity), shape) => {
+                let fields = match payload_fields.take() {
+                    Some(fields) => fields,
+                    None => match shape {
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                        _ => return None,
+                    },
+                };
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let field = match (matching.next(), matching.next()) {
-                    (Some(field), None) if !field.relevance.is_erased() => field,
+                    (Some(field), None)
+                        if !field.relevance.is_erased()
+                            && fields
+                                .iter()
+                                .filter(|candidate| candidate.id == field.id)
+                                .count()
+                                == 1 =>
+                    {
+                        field
+                    }
                     _ => return None,
                 };
                 match &field.field_type {
@@ -145,7 +186,7 @@ pub fn referent_type<'a>(
         };
         current = next;
     }
-    Some(current.id)
+    payload_fields.is_none().then_some(current.id)
 }
 
 /// A primitive scalar, or an aggregate built only from owned scalar storage.

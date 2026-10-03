@@ -480,16 +480,16 @@ impl StateGraphEmission<'_, '_> {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                             ref subject, ref carrier_identity,
                         } => {
-                            let root = match subject.source {
+                            let (root, root_type) = match subject.source {
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                                    edge_evaluation.current_structural_place(state_parameters.get(parameter_index as usize).ok_or(
+                                    let parameter = state_parameters.get(parameter_index as usize).ok_or(
                                         LoweringError::Unsupported("Unit graph loan subject descriptor disappeared"),
-                                    )?.place)
+                                    )?;
+                                    (edge_evaluation.current_structural_place(parameter.place), parameter.structural_type)
                                 }
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                                    edge_evaluation.current_structural_place(
-                                        case_emission::result(state, binding_ordinal, operations)?.place(),
-                                    )
+                                    let produced = case_emission::result(state, binding_ordinal, operations)?;
+                                    (edge_evaluation.current_structural_place(produced.place()), produced.structural_type())
                                 }
                                 _ => {
                                     return unsupported(
@@ -497,14 +497,18 @@ impl StateGraphEmission<'_, '_> {
                                     );
                                 }
                             };
-                            let mut path = subject.path.iter().map(|segment| match segment {
-                                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
-                                    terminal_psi::StructuralPathSegment::Field(identity.clone())),
-                                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Some(
-                                    terminal_psi::StructuralPathSegment::FixedIndex(*index)),
-                                _ => None,
-                            }).collect::<Option<Vec<_>>>().ok_or(
-                                LoweringError::Unsupported("Unit graph loan path segment unsupported"),
+                            // Resolve the projection against its actual source
+                            // declaration, as for ordinary call arguments. A
+                            // case step selects geometry, not authority: the
+                            // receiving verifier still requires live membership
+                            // on the edge that borrows its payload.
+                            let mut path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                                &subject.path,
+                                root_type,
+                                &self.catalogs.structural_types,
+                                None,
+                                &mut std::iter::empty(),
+                                None,
                             )?;
                             if path.is_empty() {
                                 // A whole-place loan forwards the rooted

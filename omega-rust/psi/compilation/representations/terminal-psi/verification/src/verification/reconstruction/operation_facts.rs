@@ -21,6 +21,7 @@ use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwn
 mod boolean_polarity;
 mod byte_extent;
 mod case_hops;
+pub(super) use case_hops::validate_successors;
 mod element_extent;
 mod float_fields;
 mod primitive_elements;

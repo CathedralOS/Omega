@@ -107,8 +107,8 @@ pub use error::{
 use evidence::{validate_evidence_contract_lanes, validate_proposition_vocabulary};
 pub use foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
 use foundation::{
-    is_nonempty_exact_projection_path, is_nonempty_field_path, resolve_leaf_copy_path,
-    resolve_structural_path, validate_structural_foundation,
+    is_nonempty_field_path, resolve_leaf_copy_path, resolve_structural_path,
+    validate_structural_foundation,
 };
 pub(crate) use foundation::{
     structural_element_scalar, structural_leaf_type, view_extent_leaf_has_extent,

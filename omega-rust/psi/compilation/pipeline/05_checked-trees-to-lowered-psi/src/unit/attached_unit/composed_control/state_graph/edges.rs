@@ -696,6 +696,7 @@ pub(super) fn validate_bindings(
                     matches!(
                         segment,
                         checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
                             | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
                     )
                 })
