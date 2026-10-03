@@ -1,6 +1,5 @@
-use crate::selection::constraints::row;
+use crate::selection::constraints::resolved_row;
 use crate::selection::model::SelectedInstructionError;
-use register_model::ValidatedRegisterConstraintCatalog;
 use selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedTerminator,
 };
@@ -9,14 +8,14 @@ pub(super) fn validate_block_constraints(
     function_index: usize,
     block: &SelectedBlock,
     function: &SelectedFunction,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     for instruction in block
         .instructions
         .iter()
         .chain(std::iter::once(terminator_instruction(&block.terminator)))
     {
-        let row = row(catalog, instruction.constraint)?;
+        let row = resolved_row(function, instruction, environment)?;
         if instruction.operands.len() != row.operands.len() {
             return Err(SelectedInstructionError::ConstraintOperandMismatch {
                 function: function_index,

@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Complete machine-effect analysis for one validated selected CFG.
 
 mod compute;
+mod foreign_call;
 mod validate;
 
 pub(crate) use compute::machine_semantic_kind;

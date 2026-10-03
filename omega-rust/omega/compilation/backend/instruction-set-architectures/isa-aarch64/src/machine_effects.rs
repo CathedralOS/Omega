@@ -13,6 +13,8 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use crate::saturating_forms::SaturatingRealization;
 
 mod scalar_call;
+pub use scalar_call::aarch64_normalized_foreign_call_declaration;
+pub(crate) use scalar_call::normalized_foreign_constraint;
 
 use scalar_call::declaration as scalar_call_declaration;
 

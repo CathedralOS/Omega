@@ -68,7 +68,13 @@ pub fn validate_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
         {
             return Err(MachineEffectError::NonCanonicalFunction);
         }
-        validate_function(source_function, actual_function, constraints, catalog)?;
+        validate_function(
+            source_function,
+            actual_function,
+            physical,
+            constraints,
+            catalog,
+        )?;
     }
     if plan.identity != pre_allocation_machine_effect_identity(&plan) {
         return Err(MachineEffectError::IdentityMismatch);
@@ -80,6 +86,7 @@ pub fn validate_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
 fn validate_function(
     source: &selected_instructions::SelectedFunction,
     actual: &FunctionMachineEffects,
+    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<(), MachineEffectError> {
@@ -98,6 +105,7 @@ fn validate_function(
                 source,
                 source_instruction,
                 actual_instruction,
+                physical,
                 constraints,
                 catalog,
             )?;
@@ -118,6 +126,7 @@ fn validate_function(
                 .instructions
                 .last()
                 .expect("validated sidecar block has a terminator row"),
+            physical,
             constraints,
             catalog,
         )?;
@@ -129,6 +138,7 @@ fn validate_instruction(
     function: &SelectedFunction,
     source: &SelectedInstruction,
     actual: &InstructionMachineEffects,
+    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<(), MachineEffectError> {
@@ -146,14 +156,7 @@ fn validate_instruction(
             instruction: source.id,
         });
     }
-    let constraint = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|constraint| constraint.key == source.constraint)
-        .ok_or(MachineEffectError::ConstraintEffectMismatch {
-            instruction: source.id,
-        })?;
+    let constraint = super::foreign_call::constraint(function, source, physical, constraints)?;
     if source.operands.len() != constraint.operands.len() {
         return Err(MachineEffectError::ConstraintOperandMismatch {
             instruction: source.id,
@@ -190,7 +193,13 @@ fn validate_instruction(
             instruction: source.id,
         });
     }
-    let declaration = replay_declaration(source, catalog)?;
+    let declaration = super::foreign_call::declaration(
+        function,
+        source,
+        physical,
+        &constraint,
+        replay_declaration(source, catalog)?,
+    )?;
     if actual.instruction != source.id
         || actual.kind != source.kind
         || actual.constraint != source.constraint

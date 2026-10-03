@@ -32,8 +32,10 @@ pub(super) fn emit(
     if operation.result.is_some() != call.result.scalar_home().is_some() {
         return Err(SelectedInstructionError::custody());
     }
-    let key = crate::selection::scalar_call_abi::normalized_foreign::call_key(call, environment)
-        .ok_or_else(|| SelectedInstructionError::custody())?;
+    let constraint =
+        crate::selection::scalar_call_abi::normalized_foreign::call_constraint(call, environment)
+            .ok_or_else(|| SelectedInstructionError::custody())?;
+    let key = constraint.key;
     if !builder
         .constraints
         .keys
@@ -47,7 +49,7 @@ pub(super) fn emit(
         source,
         operation,
         key,
-        row(builder.catalog, key)?,
+        &constraint,
         environment,
     )?;
     // The private save home is disjoint from outgoing arguments and survives
@@ -247,7 +249,7 @@ pub(super) fn emit(
                 64,
                 false,
             )?;
-            builder.registers[register.0 as usize].class = row(builder.catalog, key)?
+            builder.registers[register.0 as usize].class = constraint
                 .operands
                 .get(operands.len())
                 .ok_or_else(SelectedInstructionError::custody)?
@@ -259,7 +261,7 @@ pub(super) fn emit(
     let short_result = if let Some(result) = operation.result {
         let register =
             builder.register(result.value, result.definition_site, result.scalar_type)?;
-        builder.registers[register.0 as usize].class = row(builder.catalog, key)?
+        builder.registers[register.0 as usize].class = constraint
             .operands
             .last()
             .ok_or_else(|| SelectedInstructionError::custody())?

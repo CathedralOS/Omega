@@ -40,7 +40,6 @@ pub use indirect_results::x86_64_indirect_aggregate_call_keys;
 pub use mixed_aggregate_calls::{
     x86_64_microsoft_mixed_aggregate_call_keys, x86_64_system_v_mixed_aggregate_call_keys,
 };
-pub(crate) use mixed_calls::x86_64_normalized_foreign_callback_shape;
 pub use mixed_calls::{
     x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
 };

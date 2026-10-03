@@ -86,36 +86,130 @@ pub(super) fn normalized_foreign_declaration(
     declaration.call = MachineCallEffect::DirectExternalNormalReturnV1 {
         pre_call_stack_alignment: 16,
     };
-    // Callback rows materialize the private callback address inside the call
-    // encoding: an `adrp`/`add` pair per register destination, plus a scratch
-    // store for field destinations, precede the `bl` word. The applicable
-    // alternative is the row's declared shape.
-    let row = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == constraint)
-        .expect("canonical AArch64 catalog contains its normalized-foreign-call constraint");
-    let shape = crate::register_model::aarch64_normalized_foreign_callback_shape(
-        row,
-        crate::aarch64_physical_register_model_ref(),
-    );
-    for alternative in &mut declaration.alternatives {
-        alternative.key.variant = shape.alternative_variant();
-        // Field destinations may repeat: one adrp/add/str group (12 bytes)
-        // apiece, plus the 8-byte register group and the 4-byte `bl` word.
-        alternative.size = if shape.field_scratch {
-            MachineSizeKnowledge::EncoderResolved {
-                minimum_bytes: 4 + 12 + if shape.parameter_slot.is_some() { 8 } else { 0 },
-                maximum_bytes: None,
-            }
-        } else if shape.parameter_slot.is_some() {
-            MachineSizeKnowledge::ExactBytes(12)
-        } else {
-            alternative.size
-        };
-    }
     declaration
+}
+
+/// Instantiate the complete AArch64 effects from the retained call contract.
+/// The supplied operand row must equal independent reconstruction from the
+/// canonical zero-operand mechanism template; it cannot assert its own effects.
+pub fn aarch64_normalized_foreign_call_declaration(
+    record: &selected_instructions::SelectedNormalizedForeignCall,
+    row: &register_model::RegisterInstructionConstraint,
+) -> Option<MachineEffectDeclaration> {
+    let expected = normalized_foreign_constraint(record)?;
+    if *row != expected {
+        return None;
+    }
+    let supervisor = record.call.binding.system_call().is_some();
+    let mut register_destinations = 0_u16;
+    let mut field_destinations = 0_u16;
+    for callback in &record.call.callbacks {
+        if callback.terminal_operation != record.operation {
+            return None;
+        }
+        match callback.destination {
+            calling_conventions::NativePlace::Parameter(_) => {
+                if !matches!(
+                    callback.application.placement.locations.as_slice(),
+                    [calling_conventions::ValueLocation::Register { .. }]
+                ) {
+                    return None;
+                }
+                register_destinations = register_destinations.checked_add(1)?;
+            }
+            calling_conventions::NativePlace::Field { .. } => {
+                field_destinations = field_destinations.checked_add(1)?;
+            }
+        }
+    }
+    if supervisor && !record.call.callbacks.is_empty() {
+        return None;
+    }
+    let variant = u32::from(register_destinations != 0) | (u32::from(field_destinations != 0) << 1);
+    let byte_count = if supervisor {
+        20
+    } else {
+        4_u16
+            .checked_add(register_destinations.checked_mul(8)?)?
+            .checked_add(field_destinations.checked_mul(12)?)?
+    };
+    Some(MachineEffectDeclaration {
+        semantic: MachineSemanticKind::NormalizedForeignCall,
+        constraint: row.key,
+        memory: MachineMemoryEffect::NoneV1,
+        trap: MachineTrapBehavior::NeverV1,
+        barrier: MachineBarrier::Call,
+        call: if supervisor {
+            MachineCallEffect::SupervisorNormalReturnV1
+        } else {
+            MachineCallEffect::DirectExternalNormalReturnV1 {
+                pre_call_stack_alignment: 16,
+            }
+        },
+        cleanup: MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
+                variant,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(byte_count),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded: MachineEncodedEffects {
+                external_operand_reads: row
+                    .operands
+                    .iter()
+                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
+                    .map(|operand| operand.operand)
+                    .collect(),
+                external_operand_writes: row
+                    .operands
+                    .iter()
+                    .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
+                    .map(|operand| operand.operand)
+                    .collect(),
+                implicit_unit_uses: row.implicit_uses.clone(),
+                implicit_unit_defs: row.implicit_defs.clone(),
+                implicit_unit_clobbers: row.clobbers.clone(),
+                memory: MachineEncodedMemoryEffect::NoneV1,
+                stack: MachineEncodedStackEffect::UnchangedV1,
+                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                control: if supervisor {
+                    MachineEncodedControlEffect::SupervisorCallV1
+                } else {
+                    MachineEncodedControlEffect::DirectRelativeCallV1
+                },
+            },
+        }],
+    })
+}
+
+pub(crate) fn normalized_foreign_constraint(
+    record: &selected_instructions::SelectedNormalizedForeignCall,
+) -> Option<register_model::RegisterInstructionConstraint> {
+    let target = record.call.binding.native_target()?;
+    let abi = super::aarch64_selected_abi(target).ok()?;
+    let key = if record.call.binding.system_call().is_some() {
+        *crate::aarch64_linux_system_call_keys().first()?
+    } else {
+        match abi {
+            super::Aarch64SelectedAbi::Aapcs64 => {
+                *crate::aarch64_aapcs64_normalized_foreign_call_keys().first()?
+            }
+            super::Aarch64SelectedAbi::Darwin => {
+                *crate::aarch64_darwin_normalized_foreign_call_keys().first()?
+            }
+        }
+    };
+    let physical = crate::validated_aarch64_physical_register_model();
+    let catalog = crate::aarch64_register_constraint_catalog_for(physical);
+    let base = catalog.constraints.iter().find(|row| row.key == key)?;
+    selected_instructions::calls::constraints::instantiate_foreign_call_constraint(
+        &record.call,
+        base,
+        physical,
+        |register| crate::aarch64_fixed_register_view(physical, register),
+    )
 }
 
 #[cfg(test)]

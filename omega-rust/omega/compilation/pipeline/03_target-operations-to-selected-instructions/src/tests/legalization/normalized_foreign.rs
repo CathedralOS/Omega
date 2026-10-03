@@ -597,10 +597,32 @@ fn foreign_record_results_preserve_storage_classification_and_capture_custody() 
         NativeTarget::macos_arm64(),
         NativeTarget::windows_x64(),
     ] {
-        for floating in [false, true] {
+        let mut import_template = None;
+        for (field_count, field_type) in [
+            (
+                2,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+            ),
+            (
+                1,
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+            ),
+            (
+                2,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap()),
+            ),
+            (
+                2,
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+            ),
+            (
+                3,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap()),
+            ),
+        ] {
             let (mut source, execution) = flat_record_fixture();
             let structural_type = StructuralTypeId::new(2).unwrap();
-            if floating {
+            {
                 let declaration = source
                     .structural_types
                     .make_mut()
@@ -611,10 +633,16 @@ fn foreign_record_results_preserve_storage_classification_and_capture_custody() 
                 else {
                     panic!("record")
                 };
-                fields.truncate(1);
-                fields[0].field_type = terminal_psi::StructuralFieldType::Scalar(
-                    ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
-                );
+                let template = fields[0].clone();
+                *fields = (0..field_count)
+                    .map(|position| {
+                        let mut field = template.clone();
+                        field.id = StructuralFieldId::new(position + 2).unwrap();
+                        field.identity = format!("field_{position}");
+                        field.field_type = terminal_psi::StructuralFieldType::Scalar(field_type);
+                        field
+                    })
+                    .collect();
             }
             let result = terminal_psi::StructuralOperationResult {
                 place: PlaceId::new(10).unwrap(),
@@ -675,6 +703,21 @@ fn foreign_record_results_preserve_storage_classification_and_capture_custody() 
                 environment.constraints(),
             )
             .unwrap();
+            let selected_call = selected.plan().functions[0].blocks[0]
+                .instructions
+                .iter()
+                .find(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        selected_instructions::SelectedInstructionKind::NormalizedForeignCall { .. }
+                    )
+                })
+                .unwrap();
+            assert_eq!(
+                *import_template.get_or_insert(selected_call.constraint),
+                selected_call.constraint,
+                "one import mechanism template must cover every evaluated result placement"
+            );
             assert!(
                 selected.plan().functions[0]
                     .local_storage_slots
@@ -716,7 +759,10 @@ fn foreign_record_results_preserve_storage_classification_and_capture_custody() 
                         result.place = PlaceId::new(11).unwrap();
                     } else {
                         home.layout = target_operations::TargetStructuralHomeLayout::Aggregate(
-                            calling_conventions::ValueShape::integer(16, 8),
+                            calling_conventions::ValueShape::integer(
+                                shape.byte_size + 8,
+                                shape.alignment,
+                            ),
                         );
                     }
                 }
@@ -726,6 +772,98 @@ fn foreign_record_results_preserve_storage_classification_and_capture_custody() 
                 );
             }
             for mutation in 0..3 {
+                let mut changed = selected.plan().clone();
+                let instruction = changed.functions[0].blocks[0].instructions.iter_mut()
+                    .find(|instruction| matches!(instruction.kind,
+                        selected_instructions::SelectedInstructionKind::NormalizedForeignCall { .. }))
+                    .unwrap();
+                match mutation {
+                    0 => instruction.operands.last_mut().unwrap().fixed_view = None,
+                    1 => {
+                        let operand = instruction.operands.last_mut().unwrap();
+                        operand.access = match operand.access {
+                            register_model::RegisterOperandAccess::Use => {
+                                register_model::RegisterOperandAccess::Def
+                            }
+                            _ => register_model::RegisterOperandAccess::Use,
+                        };
+                    }
+                    _ => instruction.clobbers.clear(),
+                }
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed,
+                    )
+                    .is_err(),
+                    "substituted foreign placement/effect {mutation}"
+                );
+            }
+            for mutation in 0..3 {
+                let mut changed = selected.plan().clone();
+                let roster = &mut changed.functions[0].normalized_foreign_calls;
+                match mutation {
+                    0 => roster.clear(),
+                    1 => roster.push(roster[0].clone()),
+                    _ => roster[0]
+                        .call
+                        .binding
+                        .boundary_entry_plan
+                        .call
+                        .result
+                        .as_mut()
+                        .unwrap()
+                        .locations
+                        .reverse(),
+                }
+                // Reversing a single fragment does not corrupt its placement.
+                if mutation == 2
+                    && roster[0]
+                        .call
+                        .binding
+                        .boundary_entry_plan
+                        .call
+                        .result
+                        .as_ref()
+                        .unwrap()
+                        .locations
+                        .len()
+                        < 2
+                {
+                    continue;
+                }
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed,
+                    )
+                    .is_err(),
+                    "substituted foreign call roster {mutation}"
+                );
+            }
+            let direct_result = selected.plan().functions[0].normalized_foreign_calls[0]
+                .call
+                .binding
+                .boundary_entry_plan
+                .call
+                .result
+                .as_ref()
+                .unwrap()
+                .locations
+                .iter()
+                .all(|location| {
+                    matches!(
+                        location,
+                        calling_conventions::ValueLocation::Register { .. }
+                    )
+                });
+            for mutation in 0..if direct_result { 3 } else { 0 } {
                 let mut changed = selected.plan().clone();
                 let function = &mut changed.functions[0];
                 let access = function
@@ -747,8 +885,7 @@ fn foreign_record_results_preserve_storage_classification_and_capture_custody() 
                         .position(|instruction| instruction.id == store_id)
                         .unwrap();
                     if mutation == 1 {
-                        instructions[position].operands[1] =
-                            instructions[position].operands[0].clone();
+                        instructions[position].operands[1] = instructions[position].operands[0];
                     } else {
                         instructions.remove(position);
                     }
@@ -1641,7 +1778,7 @@ fn dominated_result_fixture(placement: ResultPlacement) -> AbstractOperationPlan
             structural_parameters: Vec::new(),
             block: block(identity),
             parameters: Vec::new(),
-            operation_offset: offset.try_into().unwrap(),
+            operation_offset: offset,
         })
         .to_vec();
     function.operations = [entry, true_arm, false_arm].concat();

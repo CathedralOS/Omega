@@ -50,6 +50,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                 instructions.push(compute_instruction(
                     function,
                     instruction,
+                    physical,
                     constraints,
                     catalog,
                 )?);
@@ -66,6 +67,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
             instructions.push(compute_instruction(
                 function,
                 terminator,
+                physical,
                 constraints,
                 catalog,
             )?);
@@ -196,6 +198,7 @@ fn terminal_selected_keys(
 fn compute_instruction(
     function: &SelectedFunction,
     instruction: &SelectedInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<InstructionMachineEffects, MachineEffectError> {
@@ -212,14 +215,7 @@ fn compute_instruction(
             instruction: instruction.id,
         });
     }
-    let constraint = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == instruction.constraint)
-        .ok_or(MachineEffectError::ConstraintEffectMismatch {
-            instruction: instruction.id,
-        })?;
+    let constraint = super::foreign_call::constraint(function, instruction, physical, constraints)?;
     if instruction.operands.len() != constraint.operands.len() {
         return Err(MachineEffectError::ConstraintOperandMismatch {
             instruction: instruction.id,
@@ -256,7 +252,13 @@ fn compute_instruction(
             instruction: instruction.id,
         });
     }
-    let declaration = exact_declaration(instruction, catalog)?;
+    let declaration = super::foreign_call::declaration(
+        function,
+        instruction,
+        physical,
+        &constraint,
+        exact_declaration(instruction, catalog)?,
+    )?;
     Ok(InstructionMachineEffects {
         instruction: instruction.id,
         kind: instruction.kind,

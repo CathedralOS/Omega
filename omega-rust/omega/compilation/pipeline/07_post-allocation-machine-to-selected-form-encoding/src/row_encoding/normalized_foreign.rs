@@ -142,6 +142,7 @@ pub(super) fn encode(
                 &accesses,
                 &machine.alternative.encoded,
                 &destinations,
+                record,
             )
             .map_err(OptimizedSelectedFormEncodingError::X86_64NormalizedForeignCall)?;
             let target_fixup = encoded.fixup();
@@ -224,6 +225,7 @@ pub(super) fn encode(
                 &accesses,
                 &machine.alternative.encoded,
                 &destinations,
+                record,
             )
             .map_err(OptimizedSelectedFormEncodingError::Aarch64NormalizedForeignCall)?;
             let target_fixup = encoded.fixup();

@@ -11,7 +11,6 @@ pub(super) fn validate(
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
-    let catalog = environment.constraints();
     for (function_index, selected) in functions.iter().enumerate() {
         let graph = target
             .scalar_functions
@@ -34,10 +33,10 @@ pub(super) fn validate(
                         function_index,
                         block,
                         selected,
-                        catalog,
+                        environment,
                     )?;
                 }
-                super::integrity::validate_def_use(function_index, selected, catalog)?;
+                super::integrity::validate_def_use(function_index, selected, environment)?;
             }
             _ => return Err(SelectedInstructionError::custody()),
         }

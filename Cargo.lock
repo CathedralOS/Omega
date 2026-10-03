@@ -924,13 +924,20 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "diagnostics",
+ "function-identity",
  "layout-plans",
+ "legalized-operations",
  "optimization-core",
+ "optimization-unit",
  "post-handoff-writer-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
+ "symbols",
  "target",
+ "target-operations",
+ "task-plans",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -939,14 +946,20 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "diagnostics",
+ "function-identity",
  "layout-plans",
+ "legalized-operations",
  "optimization-core",
  "optimization-unit",
  "post-handoff-writer-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
+ "symbols",
  "target",
+ "target-operations",
+ "task-plans",
+ "terminal-psi",
 ]
 
 [[package]]

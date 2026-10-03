@@ -101,38 +101,20 @@ pub fn aarch64_aapcs64_register_call_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
-/// Normalized foreign scalar calls: integer-only Unit inputs, then mixed Unit
-/// inputs, each with Unit, integer, and IEEE result choices. Stack arguments
-/// remain outgoing custody rather than register-row operands. The trailing
-/// variants are the private-callback-position rows: each integer-bank operand
-/// position of each input bank, again with all three result choices.
-/// Rows ordered: plain inputs first, then one family per integer-bank
-/// position carrying a private parameter slot, then field-destination rows
-/// (same inputs, scratch unit implicit), then mixed parameter+field rows.
+/// One AAPCS64 import template. Evaluated call placement supplies operands.
 pub fn aarch64_aapcs64_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
-    (3000..3243)
-        .chain(3600..4572)
-        .chain(5600..5843)
-        .chain(5900..6872)
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant,
-        })
-        .collect()
+    vec![RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 3000,
+    }]
 }
 
-/// The same input/result ordering for the Darwin AAPCS64 banks.
-/// Its range is disjoint from the other convention and existing call families.
+/// One Darwin import template, distinct from AAPCS64 target custody.
 pub fn aarch64_darwin_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
-    (3300..3543)
-        .chain(4600..5572)
-        .chain(6900..7143)
-        .chain(7200..8172)
-        .map(|variant| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant,
-        })
-        .collect()
+    vec![RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 3300,
+    }]
 }
 
 /// Exact Linux AAPCS64 scalar call with two U64 arguments and one U64 result.
