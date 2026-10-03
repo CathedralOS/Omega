@@ -2040,19 +2040,88 @@ mod tests {
 
     #[test]
     fn runtime_byte_overlay_never_reloads_a_changed_selector() {
-        let source = RECORD_BYTE_LOAN.replace(
-            "let viewed: &Desc = &self.buf[offset] as &Desc;",
-            "let viewed: &Desc = &self.buf[self.offset] as &Desc; self.offset = 16;",
-        );
-        let checked = crate::front_end::checked_program(&source);
-        let error = crate::lower_machine(
+        let source = r#"
+            data Desc { tag: u8; small: u16; count: u32; }
+            data Main { buf: [u8; 24]; result: u32; offset: u32 [0..=16]; }
+            machine Main::main(main: &mut Main) {
+                let viewed: &Desc = &main.buf[main.offset] as &Desc;
+                main.offset = 16;
+                transition viewed.tag == 7 && viewed.small == 65534
+                    && viewed.count == 67305985 {
+                    true -> good(main)
+                    _ -> bad(main)
+                }
+                state good(main: &mut Main) { main.result = 70; }
+                state bad(main: &mut Main) { main.result = 71; }
+            }
+        "#;
+        let checked = crate::front_end::checked_program(source);
+        let lowered = crate::lower_machine(
             &checked,
             crate::TerminalMachineSelection::Name("Main::main"),
         )
-        .expect_err("a field selector needs an explicit formation-time capture");
+        .expect("changing the selector field preserves the captured byte coordinate");
+        let mut module = terminal_codec::decode_module(
+            &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
+        )
+        .unwrap();
+        let proofs = terminal_codec::decode_proof_bundle(
+            &terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        )
+        .unwrap();
+        terminal_verifier::verify_module(
+            &module,
+            &proofs,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("decoded observations replay their declaration-time coordinate");
+
+        let captures = module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishPrimitiveLocal { .. }
+                )
+                .then(|| (operation.id, operation.result.structural().unwrap().place))
+            })
+            .collect::<Vec<_>>();
+        let [(producer, captured)] = captures.as_slice() else {
+            panic!("one private scalar home freezes this loan's byte coordinate")
+        };
         assert!(
-            format!("{error:?}").contains("immutable captured selector"),
-            "{error:?}"
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    &operation.kind,
+                    terminal_psi::OperationKind::PrimitiveScalarRead { source, path, .. }
+                        if source == captured && path.is_empty()
+                )),
+            "record observations use the snapshot home"
+        );
+        for block in module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+        {
+            block
+                .operations
+                .retain(|operation| operation.id != *producer);
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &module,
+                &proofs,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "removing the original coordinate capture cannot fall back to a fresh field read"
         );
     }
 }

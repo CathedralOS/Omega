@@ -216,7 +216,7 @@ rows! {
         "scope:primitive-value-snapshots",
         PremiseScope,
         "a copied primitive SSA value's reaching-store query over the machine within the bounded work limit",
-        "the exact root/path store identities reaching the value, stopping at definitions and preserving only statically disjoint sibling writes; a runtime-selected element is never an exact definition and overlaps every sibling; queries never evaluate source expressions or consult the requested contract",
+        "the exact root/path store identities reaching the value, stopping at definitions and preserving statically disjoint sibling writes or inline original-parameter field writes separated from fresh primitive allocations; different incoming roots and reference/view-backed writes supply no separation; a runtime-selected element is never an exact definition and overlaps every sibling; queries never evaluate source expressions or consult the requested contract",
         &["scope:dominance-order"],
         &[tv!( "verification/reconstruction/primitive_snapshots.rs")]
     );

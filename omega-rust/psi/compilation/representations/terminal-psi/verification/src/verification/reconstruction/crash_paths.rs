@@ -81,7 +81,7 @@ pub(super) fn reconstruct(
     debug_assert!(machine.ranked_scc.is_none());
     let context = MachineReconstructionContext::new(module, machine, true);
     let mut primitive_snapshots =
-        super::primitive_snapshots::PrimitiveSnapshots::new(machine, &context.blocks);
+        super::primitive_snapshots::PrimitiveSnapshots::new(module, machine, &context.blocks);
     let mut pending = vec![(machine.entry, Vec::<Proposition>::new())];
     let mut sites = Vec::new();
     let mut budget = Budget::default();
