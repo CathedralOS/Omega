@@ -31,6 +31,9 @@ mod structural_transports;
 #[path = "../../analyses/liveness/reuse_tests.rs"]
 mod analysis_reuse;
 
+#[path = "../../analyses/allocation_legality/reuse_tests.rs"]
+mod legality_reuse;
+
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
 }

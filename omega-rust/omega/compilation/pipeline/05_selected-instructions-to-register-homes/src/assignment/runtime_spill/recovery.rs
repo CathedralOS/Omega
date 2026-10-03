@@ -33,7 +33,7 @@ use selected_instructions_to_selected_instructions::{
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
     ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
-    analyze_allocation_legality, analyze_live_ranges_reusing, analyze_liveness_reusing,
+    analyze_allocation_legality_reusing, analyze_live_ranges_reusing, analyze_liveness_reusing,
     rematerialize_selected_runtime_value, spill_selected_runtime_value,
     spill_selected_runtime_value_with_span_policy, split_selected_runtime_value,
 };
@@ -70,6 +70,7 @@ pub(super) fn analyze(
     previous: &impl ValidatedSelectedAnalysis,
     previous_liveness: &ValidatedLiveness,
     previous_ranges: &ValidatedLiveRanges,
+    previous_legality: &ValidatedAllocationLegality,
     selected: &impl ValidatedSelectedAnalysis,
 ) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
     let liveness = analyze_liveness_reusing(previous, previous_liveness, selected)
@@ -82,7 +83,9 @@ pub(super) fn analyze(
         &liveness,
     )
     .map_err(RuntimeSpillAllocationError::Ranges)?;
-    let legality = analyze_allocation_legality(
+    let legality = analyze_allocation_legality_reusing(
+        previous_ranges,
+        previous_legality,
         &ranges,
         availability,
         environment.identity(),
@@ -520,6 +523,7 @@ fn recover_over(
         std::collections::BTreeSet::new();
     let mut current_ranges = source.ranges().clone();
     let mut current_liveness = source.liveness().clone();
+    let mut current_legality = source.legality().clone();
     loop {
         let selected = steps
             .last()
@@ -610,6 +614,7 @@ fn recover_over(
                             &selected,
                             &current_liveness,
                             &current_ranges,
+                            &current_legality,
                             &SelectedProgramRef::new(&crossing),
                         )?;
                         match assign(environment, &probe.ranges, &probe.legality) {
@@ -677,6 +682,7 @@ fn recover_over(
                 &selected,
                 &current_liveness,
                 &current_ranges,
+                &current_legality,
                 &rewrite.selected(),
             )?;
             let homes = assign(environment, &facts.ranges, &facts.legality);
@@ -711,6 +717,7 @@ fn recover_over(
             Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => {
                 failure = error;
                 current_ranges = facts.ranges;
+                current_legality = facts.legality;
                 current_liveness = facts.liveness;
             }
             Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
