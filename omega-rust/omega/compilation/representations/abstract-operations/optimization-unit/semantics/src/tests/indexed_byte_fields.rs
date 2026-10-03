@@ -7,12 +7,12 @@ use optimization_unit::PsiOptimizationUnit;
 
 pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
     let source = r#"
-        domain [u8;3]::Utf8 requires valid_utf8(self);
+        domain [u8;3]::Utf8(bytes) requires valid_utf8(bytes);
         data Record { out: [u8;3] in Utf8; sibling: [u8;3] in Utf8; }
-        machine Record::replace(&mut self, position: u64 [0..=2], byte: u8 [0..=127]) {
-            self.out = "XXX";
-            self.sibling = "YYY";
-            self.out[position] = byte;
+        machine Record::replace(record: &mut Record, position: u64 [0..=2], byte: u8 [0..=127]) {
+            record.out = "XXX";
+            record.sibling = "YYY";
+            record.out[position] = byte;
         }
     "#;
     indexed_field_source_unit(source)
@@ -21,13 +21,13 @@ pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
 pub(crate) fn local_byte_field_snapshot_unit() -> PsiOptimizationUnit {
     indexed_field_source_unit(
         r#"
-        domain [u8;3]::Utf8 requires valid_utf8(self);
+        domain [u8;3]::Utf8(bytes) requires valid_utf8(bytes);
         data Record [copy] { out: [u8;3] in Utf8; }
         machine fill(record: &mut Record) { record.out = "é"; }
-        machine Record::replace(&mut self) {
+        machine Record::replace(record: &mut Record) {
             let local: Record;
             fill(&mut local);
-            self.out = local.out;
+            record.out = local.out;
         }
         "#,
     )
@@ -51,12 +51,12 @@ fn local_byte_field_snapshot_preserves_current_owned_storage() {
 pub(crate) fn indexed_field_with_primitive_sibling_unit() -> PsiOptimizationUnit {
     indexed_field_source_unit(
         r#"
-        domain [u8;3]::Utf8 requires valid_utf8(self);
+        domain [u8;3]::Utf8(bytes) requires valid_utf8(bytes);
         data Record { out: [u8;3] in Utf8; marked: [i32;3]; }
-        machine Record::replace(&mut self, position: u64 [0..=2], byte: u8 [0..=127]) {
-            self.out = "XXX";
-            self.marked[position] = 1;
-            self.out[position] = byte;
+        machine Record::replace(record: &mut Record, position: u64 [0..=2], byte: u8 [0..=127]) {
+            record.out = "XXX";
+            record.marked[position] = 1;
+            record.out[position] = byte;
         }
         "#,
     )

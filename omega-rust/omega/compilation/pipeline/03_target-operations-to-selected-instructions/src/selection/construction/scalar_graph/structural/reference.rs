@@ -121,22 +121,45 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
     address: crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
     // Keep ordinary call ownership/provenance admission before loading payload.
-    let home = super::call_pointer(builder, row, place, address.descriptor_offset)?;
-    let pointer = transport_register(builder, place, address.descriptor_offset)?;
-    memory(
-        builder,
-        row,
-        place,
-        address.descriptor_offset,
-        8,
-        SelectedMemoryAccessRole::ReadPlace,
-    )?;
-    builder.emit(
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
-        &[home, pointer],
-        provenance(row),
-    )?;
+    let mut pointer = super::call_pointer(builder, row, place, 0)?;
+    for offset in address.descriptor_offsets {
+        let home = transport_register(builder, place, offset)?;
+        builder.emit(
+            if offset == 0 {
+                SelectedInstructionKind::CopyI64
+            } else {
+                SelectedInstructionKind::AddressOffset {
+                    byte_offset: offset,
+                }
+            },
+            if offset == 0 {
+                builder.constraints.keys.copy_i64
+            } else {
+                builder
+                    .constraints
+                    .keys
+                    .address_offset
+                    .ok_or_else(invalid)?
+            },
+            &[pointer, home],
+            provenance(row),
+        )?;
+        pointer = transport_register(builder, place, offset)?;
+        memory(
+            builder,
+            row,
+            place,
+            offset,
+            8,
+            SelectedMemoryAccessRole::ReadPlace,
+        )?;
+        builder.emit(
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            builder.constraints.keys.load64.ok_or_else(invalid)?,
+            &[home, pointer],
+            provenance(row),
+        )?;
+    }
     let offset = address.referent_offset;
     let output = transport_register(builder, place, offset)?;
     builder.emit(

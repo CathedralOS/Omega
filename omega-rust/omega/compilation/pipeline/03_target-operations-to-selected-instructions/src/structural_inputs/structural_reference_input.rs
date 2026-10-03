@@ -1403,6 +1403,81 @@ pub(crate) fn case_layout(
     calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()
 }
 
+/// Geometry of a borrowed path. Each descriptor offset belongs to the
+/// storage reached by the preceding pointer load, not the original home.
+pub(crate) struct ReferenceProjection {
+    pub(crate) selected: StructuralTypeId,
+    pub(crate) descriptor_offsets: Vec<u32>,
+    pub(crate) referent_offset: u32,
+}
+
+/// Resolve every static reference crossing without choosing a backing origin.
+/// This checks declared access and layout only; callers independently retain
+/// live loan custody and the identity of the original carrier home.
+pub(crate) fn reference_projection(
+    mut root: StructuralTypeId,
+    mut path: &[StructuralPathSegment],
+    access: terminal_psi::StructuralAccess,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ReferenceProjection> {
+    use terminal_psi::StructuralAccess;
+    if access == StructuralAccess::Owned
+        || path.iter().any(|segment| {
+            !matches!(
+                segment,
+                StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::Referent
+            )
+        })
+    {
+        return None;
+    }
+    let mut descriptor_offsets = Vec::new();
+    while let Some(crossing) = path
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let (carrier, offset) = project(root, &path[..crossing], declarations)?;
+        let StructuralTypeShape::Reference {
+            referent,
+            access: granted,
+        } = declarations
+            .iter()
+            .find(|declaration| declaration.id == carrier)?
+            .shape
+        else {
+            return None;
+        };
+        if !(granted == access
+            || granted == StructuralAccess::MutableBorrow
+                && matches!(
+                    access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
+        {
+            return None;
+        }
+        if granted == StructuralAccess::WriteOnlyBorrow
+            && path[crossing + 1..].contains(&StructuralPathSegment::Referent)
+        {
+            return None;
+        }
+        descriptor_offsets.push(offset);
+        root = referent;
+        path = &path[crossing + 1..];
+    }
+    if descriptor_offsets.is_empty() {
+        return None;
+    }
+    let (selected, referent_offset) = project(root, path, declarations)?;
+    Some(ReferenceProjection {
+        selected,
+        descriptor_offsets,
+        referent_offset,
+    })
+}
+
 pub(crate) fn project(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],

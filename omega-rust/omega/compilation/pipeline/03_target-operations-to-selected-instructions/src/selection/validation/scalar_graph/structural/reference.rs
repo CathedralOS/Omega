@@ -129,26 +129,49 @@ pub(in crate::selection::validation::scalar_graph) fn borrowed_argument(
     place: semantic_vocabulary::PlaceId,
     address: crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
-    let home = super::call_pointer(replay, row, place, address.descriptor_offset)?;
-    let pointer = result(replay, place, address.descriptor_offset)?;
-    memory(
-        replay,
-        row,
-        place,
-        address.descriptor_offset,
-        8,
-        SelectedMemoryAccessRole::ReadPlace,
-    )?;
-    replay.check_instruction(
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        replay
-            .constraints
-            .keys
-            .load64
-            .ok_or_else(|| replay.invalid())?,
-        &[home, pointer],
-        &provenance(row),
-    )?;
+    let mut pointer = super::call_pointer(replay, row, place, 0)?;
+    for offset in address.descriptor_offsets {
+        let home = result(replay, place, offset)?;
+        replay.check_instruction(
+            if offset == 0 {
+                SelectedInstructionKind::CopyI64
+            } else {
+                SelectedInstructionKind::AddressOffset {
+                    byte_offset: offset,
+                }
+            },
+            if offset == 0 {
+                replay.constraints.keys.copy_i64
+            } else {
+                replay
+                    .constraints
+                    .keys
+                    .address_offset
+                    .ok_or_else(|| replay.invalid())?
+            },
+            &[pointer, home],
+            &provenance(row),
+        )?;
+        pointer = result(replay, place, offset)?;
+        memory(
+            replay,
+            row,
+            place,
+            offset,
+            8,
+            SelectedMemoryAccessRole::ReadPlace,
+        )?;
+        replay.check_instruction(
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            replay
+                .constraints
+                .keys
+                .load64
+                .ok_or_else(|| replay.invalid())?,
+            &[home, pointer],
+            &provenance(row),
+        )?;
+    }
     let offset = address.referent_offset;
     let output = result(replay, place, offset)?;
     replay.check_instruction(

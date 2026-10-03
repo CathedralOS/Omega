@@ -1554,7 +1554,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/references.rs",
-        sha256: Some("6dc94918da2d5ec3cb03ebe32c1d5498a2955750ec327f2907653fabb0262c68"),
+        sha256: Some("3597689f06cffad32c4f38418ffb6596f60d69b94c52042321ec7c72402f7526"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/references/call_paths.rs",
+        sha256: Some("96da08de8e1219279dbada7ff3a7b8c6503377131b7817ac27a85c5ea30976f6"),
         inventory_machinery: false,
     },
     ImplementationSite {

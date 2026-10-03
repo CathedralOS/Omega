@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.04, "load1_start": 7.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.04, "load1_start": 3.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -176,6 +176,8 @@ fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17
 	state `observe` receives `main.count` as both mutable and read-only
 	state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
 	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
+fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b65913386f+wt
+	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 189ms expected @c5979328a39b+wt
@@ -1277,6 +1279,8 @@ pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f
 pass/borrows/loop_descriptor_reformation_exit checked 1879ms @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2028ms @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
+pass/borrows/nested_reference_crossings_exit checked 817ms @21b65913386f+wt
+pass/borrows/nested_reference_leaf_projection_exit checked 800ms @21b65913386f+wt
 pass/borrows/owned_byte_value_call_exit checked 2324ms @07f252fc5f0d+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f

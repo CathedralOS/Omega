@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.04, "load1_start": 7.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.04, "load1_start": 3.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -70,6 +70,8 @@ pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @
 pass/borrows/loop_descriptor_reformation_exit built 1933ms exit:70 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit built 2311ms exit:9 @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
+pass/borrows/nested_reference_crossings_exit built 1082ms exit:70 @21b65913386f+wt
+pass/borrows/nested_reference_leaf_projection_exit built 980ms exit:70 @21b65913386f+wt
 pass/borrows/owned_byte_value_call_exit built 2475ms exit:70 @07f252fc5f0d
 pass/borrows/owned_nested_record_copy_exit built 956ms exit:70 @3a0c3ba44cd8+wt
 pass/borrows/projected_indexed_member_loan built 2120ms exit:0 @bed5f45e9185+wt

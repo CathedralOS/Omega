@@ -9,6 +9,9 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod call_paths;
+pub(crate) use call_paths::call_source_type;
+
 /// Stable loan identity: the place and path where the carrier was formed.
 /// Owned moves relocate the carrier, never this identity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -328,29 +331,6 @@ pub(crate) fn mutable_record_field_destination<'path>(
     }
     let referent = referent(types, source.structural_type)?;
     access_is_mutable_record(types, source.structural_type, referent).then_some((referent, suffix))
-}
-
-/// The selected child a call may borrow through one returned mutable record
-/// carrier. This is deliberately narrower than `reference_source_type`: it is
-/// call-only geometry and must not make the same spelling an escaping
-/// `EstablishReference` origin.
-pub(crate) fn mutable_record_call_argument_type(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    argument: &terminal_psi::StructuralArgument,
-) -> Option<StructuralTypeId> {
-    if !matches!(
-        argument.access,
-        terminal_psi::StructuralAccess::SharedBorrow
-            | terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-    ) {
-        return None;
-    }
-    let (referent, suffix) =
-        mutable_record_field_destination(function, types, argument.place, &argument.path)?;
-    (!suffix.is_empty()).then_some(())?;
-    leaf_type(types, referent, suffix)
 }
 
 /// A field-only carrier path ending at a reference leaf, then its referent.

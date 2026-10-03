@@ -93,7 +93,6 @@ pub(in crate::lowering) struct WritableReferentDestination {
     pub(in crate::lowering) referent: StructuralTypeId,
     /// Relative to the referent, excluding the explicit crossing.
     pub(in crate::lowering) path: Vec<StructuralPathSegment>,
-    root: ReferenceRoot,
 }
 
 fn returned_mutable_record_projection(
@@ -181,7 +180,6 @@ fn returned_mutable_record_projection(
         result: leaf.result.clone(),
         referent: *referent,
         path: tail.to_vec(),
-        root: leaf.root.clone(),
     })
 }
 
@@ -219,7 +217,9 @@ pub(super) fn reference_call_argument(
     if prefix.iter().chain(suffix).any(|segment| {
         !matches!(
             segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::Referent
         )
     }) {
         return Err(invalid());
@@ -301,6 +301,44 @@ pub(super) fn reference_call_argument(
     }
     let mut shapes = BTreeMap::new();
     let mut active = BTreeSet::new();
+    let mut referent = referent;
+    let mut granted_access = access;
+    let mut suffix = suffix;
+    while let Some(crossing) = suffix
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        if granted_access == StructuralAccess::WriteOnlyBorrow {
+            return Err(invalid());
+        }
+        let (carrier, _, _) =
+            crate::lowering::structural_layout::resolve_structural_projection_path(
+                referent,
+                &suffix[..crossing],
+                types,
+                &mut shapes,
+                &mut active,
+            )?;
+        let StructuralTypeShape::Reference {
+            referent: next,
+            access,
+        } = types.get(&carrier).ok_or_else(invalid)?.shape
+        else {
+            return Err(invalid());
+        };
+        if !(access == argument.access
+            || access == StructuralAccess::MutableBorrow
+                && matches!(
+                    argument.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
+        {
+            return Err(invalid());
+        }
+        referent = next;
+        granted_access = access;
+        suffix = &suffix[crossing + 1..];
+    }
     let (selected, shape, offset) =
         crate::lowering::structural_layout::resolve_structural_projection_path(
             referent,
@@ -418,14 +456,19 @@ pub(super) fn leaf_paths(
     Some(output)
 }
 
-/// A whole-carrier result admits one borrow permission over a primitive
-/// scalar referent; shared and exclusive carriers share that loan shape.
+/// Shared references observe their declared referent without acquiring its
+/// contents. Exclusive primitive storage uses the same pointer carrier;
+/// writable aggregates retain their separate restoration checks below.
 pub(super) fn referent(
     types: &StructuralTypeLookup<'_>,
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
     let declaration = types.get(&structural_type)?;
     match declaration.shape {
+        StructuralTypeShape::Reference {
+            referent,
+            access: StructuralAccess::SharedBorrow,
+        } if types.contains_key(&referent) => Some(referent),
         StructuralTypeShape::Reference {
             referent,
             access:
@@ -824,21 +867,7 @@ fn argument_owns_references(
             .is_some_and(|(contract, _)| contains_reference(types, contract))
 }
 
-/// Whether this argument projects through a reference carrier it borrows.
-fn is_reference_projection(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    source: &StructuralArgument,
-) -> bool {
-    let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() else {
-        return false;
-    };
-    source.access != StructuralAccess::Owned
-        && source_contract(function, live, source.place)
-            .and_then(|(contract, _)| leaf_referent(types, contract, fields))
-            .is_some()
-}
+mod call_paths;
 
 /// Whether `place` is currently suspended as a live loan's referent root.
 /// Cleanup cannot discard storage that an outstanding carrier still names.
@@ -942,21 +971,13 @@ pub(super) fn call_arguments(
     arguments: &[StructuralArgument],
 ) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>, LoweringError> {
     let mut normalized = Vec::new();
+    let mut dependencies = Vec::new();
     let mut moved = BTreeMap::new();
-    for argument in arguments {
-        if matches!(argument.path.first(), Some(StructuralPathSegment::Referent))
-            && let Some(resolved) = returned_mutable_record_projection(
-                function,
-                live,
-                types,
-                argument.place,
-                &argument.path,
-            )
-        {
-            if argument.access == StructuralAccess::Owned {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            normalized.push((resolved.root, argument.access, true));
+    for (argument_position, argument) in arguments.iter().enumerate() {
+        if argument.path.contains(&StructuralPathSegment::Referent) {
+            let resolved = call_paths::call_reference_custody(function, live, types, argument)?;
+            dependencies.push((argument_position, resolved.dependencies));
+            normalized.push((argument_position, resolved.origins, argument.access, true));
             continue;
         }
         if argument_owns_references(function, live, types, argument) {
@@ -994,7 +1015,12 @@ pub(super) fn call_arguments(
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                normalized.push((leaf.root.clone(), argument.access, true));
+                normalized.push((
+                    argument_position,
+                    vec![leaf.root.clone()],
+                    argument.access,
+                    true,
+                ));
             }
             continue;
         }
@@ -1005,23 +1031,56 @@ pub(super) fn call_arguments(
                 .values()
                 .any(|reference| reference.root.place() == argument.place)
         {
-            if !is_reference_projection(function, live, types, argument) {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            let (root, _) = normalized_source(function, live, types, argument)?;
-            normalized.push((root, argument.access, true));
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         } else {
-            normalized.push((ReferenceRoot::Place(argument.place), argument.access, false));
+            normalized.push((
+                argument_position,
+                vec![ReferenceRoot::Place(argument.place)],
+                argument.access,
+                false,
+            ));
         }
     }
-    for (position, (root, access, reference_access)) in normalized.iter().enumerate() {
-        if normalized[position + 1..]
-            .iter()
-            .any(|(other, other_access, other_reference_access)| {
+    for (position, (_, roots, access, reference_access)) in normalized.iter().enumerate() {
+        if normalized[position + 1..].iter().any(
+            |(_, others, other_access, other_reference_access)| {
                 (*reference_access || *other_reference_access)
-                    && roots_overlap(root, other)
+                    && roots
+                        .iter()
+                        .any(|root| others.iter().any(|other| roots_overlap(root, other)))
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
+            },
+        ) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+    }
+    // Resolving an inner descriptor borrows all intermediate storage for the
+    // duration of the call, even when the final referent is disjoint.
+    for (argument_position, roots) in dependencies {
+        // Owned carrier arguments normalize to their referents above, but
+        // consuming their descriptor storage also conflicts with this read.
+        if arguments.iter().enumerate().any(|(other_position, other)| {
+            other_position != argument_position
+                && other.access != StructuralAccess::SharedBorrow
+                && !other.path.contains(&StructuralPathSegment::Referent)
+                && roots.iter().any(|root| {
+                    roots_overlap(
+                        root,
+                        &ReferenceRoot::Ingress(other.place, other.path.clone()),
+                    )
+                })
+        }) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        if normalized
+            .iter()
+            .any(|(other_position, others, access, _)| {
+                *other_position != argument_position
+                    && *access != StructuralAccess::SharedBorrow
+                    && roots
+                        .iter()
+                        .any(|root| others.iter().any(|other| roots_overlap(root, other)))
             })
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));

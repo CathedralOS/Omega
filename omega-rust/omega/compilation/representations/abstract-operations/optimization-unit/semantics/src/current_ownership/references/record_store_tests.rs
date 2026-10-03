@@ -8,6 +8,168 @@ use crate::tests::support::id;
 use crate::unit_validation::references::mutable_record_field_destination;
 use terminal_psi::{StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape};
 
+/// These helper controls isolate source-contract/live-ledger joins; the authored
+/// corpus supplies full-unit acceptance.
+#[test]
+fn nested_call_borrow_checks_each_descriptor_access_and_lineage() {
+    let (mut function, mut declarations, outer) = record_carrier();
+    let inner = id(9_010, PlaceId::new);
+    let backing = id(9_011, PlaceId::new);
+    let mut inner_parameter = function.structural_parameters[0].clone();
+    inner_parameter.place = inner;
+    inner_parameter.position = function.structural_parameters.len() as u32;
+    let inner_type = inner_parameter.structural_type;
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: inner,
+            kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+                position: inner_parameter.position,
+                is_self: inner_parameter.is_self,
+            },
+        });
+    function.structural_parameters.push(inner_parameter);
+    let outer_type = id(9_002, StructuralTypeId::new);
+    declarations.push(StructuralTypeDeclaration {
+        id: outer_type,
+        identity: "test.shared-reference-to-reference".into(),
+        shape: StructuralTypeShape::Reference {
+            referent: inner_type,
+            access: StructuralAccess::SharedBorrow,
+        },
+    });
+    function.structural_parameters[0].structural_type = outer_type;
+    let types = declarations.iter().map(|row| (row.id, row)).collect();
+    let outer_identity = ReferenceIdentity {
+        place: outer,
+        path: Vec::new(),
+    };
+    let inner_identity = ReferenceIdentity {
+        place: inner,
+        path: Vec::new(),
+    };
+    let live = vec![
+        LiveReference {
+            identity: outer_identity,
+            carrier: outer,
+            carrier_path: Vec::new(),
+            root: ReferenceOrigin::Primitive(inner),
+            parent: ReferenceParent::Root(ReferenceOrigin::Primitive(inner)),
+        },
+        LiveReference {
+            identity: inner_identity,
+            carrier: inner,
+            carrier_path: Vec::new(),
+            root: ReferenceOrigin::Primitive(backing),
+            parent: ReferenceParent::Root(ReferenceOrigin::Primitive(backing)),
+        },
+    ];
+    let argument = StructuralArgument {
+        place: outer,
+        path: vec![
+            StructuralPathSegment::Referent,
+            StructuralPathSegment::Referent,
+        ],
+        access: StructuralAccess::SharedBorrow,
+    };
+    let check = |live: &[LiveReference], argument: &StructuralArgument| {
+        call_reference_custody(&function, &types, function.entry, 0, live, argument)
+    };
+    let custody = check(&live, &argument).unwrap();
+    assert_eq!(custody.origins, vec![live[1].root.clone()]);
+    assert!(custody.dependencies.contains(&live[0].root));
+    let sibling = StructuralArgument {
+        place: inner,
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    };
+    assert!(
+        call_dependency_conflict(&custody.dependencies, &sibling),
+        "moving descriptor storage conflicts independently of its contained loans"
+    );
+    assert!(
+        !custody
+            .origins
+            .iter()
+            .any(|origin| origins_overlap(origin, &ReferenceOrigin::Primitive(inner))),
+        "this control must not be explained by final-referent overlap"
+    );
+    let mut unrelated = sibling.clone();
+    unrelated.place = id(9_099, PlaceId::new);
+    assert!(!call_dependency_conflict(&custody.dependencies, &unrelated));
+    assert!(
+        check(&live[..1], &argument).is_err(),
+        "missing inner descriptor"
+    );
+    assert!(
+        check(&live[1..], &argument).is_err(),
+        "released outer descriptor"
+    );
+    let mut direct_inner = StructuralArgument {
+        place: inner,
+        path: vec![StructuralPathSegment::Referent],
+        access: StructuralAccess::MutableBorrow,
+    };
+    assert!(
+        check(&live, &direct_inner).is_err(),
+        "direct mutable use must respect enclosing shared descriptor storage"
+    );
+    assert!(
+        check(&live[1..], &direct_inner).is_ok(),
+        "ending the enclosing storage loan restores direct mutable use"
+    );
+    direct_inner.access = StructuralAccess::SharedBorrow;
+    assert!(
+        check(&live, &direct_inner).is_ok(),
+        "shared observation remains compatible with enclosing shared storage"
+    );
+    let mut changed = argument.clone();
+    changed.access = StructuralAccess::MutableBorrow;
+    assert!(
+        check(&live, &changed).is_err(),
+        "shared intermediate cannot grant mutation"
+    );
+    changed = argument.clone();
+    changed.path.push(StructuralPathSegment::Referent);
+    assert!(
+        check(&live, &changed).is_err(),
+        "forged crossing of non-reference storage"
+    );
+    changed = argument.clone();
+    changed
+        .path
+        .insert(1, StructuralPathSegment::Field("absent".into()));
+    assert!(check(&live, &changed).is_err(), "forged descriptor field");
+    let mut opaque = live.clone();
+    opaque[0].root = ReferenceOrigin::IngressLeaf(opaque[0].identity.clone());
+    assert!(
+        check(&opaque, &argument).is_err(),
+        "opaque referent cannot create a leaf"
+    );
+    let mut suspended = live.clone();
+    let mut child = live[1].clone();
+    child.identity.place = id(9_012, PlaceId::new);
+    child.carrier = child.identity.place;
+    child.parent = ReferenceParent::Reference(live[1].identity.clone());
+    suspended.push(child);
+    assert!(
+        check(&suspended, &argument).is_err(),
+        "inner permission is suspended"
+    );
+    let mut alternatives = live.clone();
+    alternatives[0].root = ReferenceOrigin::Alternatives {
+        place: inner,
+        paths: vec![
+            Vec::new(),
+            vec![StructuralPathSegment::Field("absent".into())],
+        ],
+    };
+    assert!(
+        check(&alternatives, &argument).is_err(),
+        "every origin alternative must resolve"
+    );
+}
+
 fn record_carrier() -> (
     PsiOptimizationFunction,
     Vec<StructuralTypeDeclaration>,

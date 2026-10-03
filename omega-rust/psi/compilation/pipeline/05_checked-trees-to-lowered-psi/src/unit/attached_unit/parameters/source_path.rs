@@ -346,7 +346,16 @@ pub(crate) fn source_place_path(
     };
     let mut type_reference = source_type;
     let mut path = Vec::new();
-    for projection in projections.into_iter().rev() {
+    for (position, projection) in projections.into_iter().rev().enumerate() {
+        // Root parameters already present borrowed storage. A reference field
+        // below that root is a stored descriptor: replay its crossing before
+        // unwrapping the member owner, rather than silently dropping the load.
+        if position > 0 && matches!(projection, SourceProjection::Field(..)) {
+            while let Some(shell) = validation::reference_shell(&checked.typed, type_reference) {
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                type_reference = shell.referee;
+            }
+        }
         type_reference = unqualified_source_type(checked, type_reference)?;
         match projection {
             SourceProjection::ByteRange(expression) => {

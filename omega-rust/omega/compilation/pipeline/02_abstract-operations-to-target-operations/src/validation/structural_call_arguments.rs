@@ -2977,13 +2977,9 @@ impl Replay<'_> {
         semantic: &StructuralArgument,
         declared: &StructuralParameterDeclaration,
     ) -> bool {
-        let Some(crossing) = semantic
-            .path
-            .iter()
-            .position(|segment| *segment == StructuralPathSegment::Referent)
-        else {
+        if !semantic.path.contains(&StructuralPathSegment::Referent) {
             return false;
-        };
+        }
         if !matches_argument_identity(actual, semantic, declared)
             || semantic.access == StructuralAccess::Owned
             || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -2998,35 +2994,47 @@ impl Replay<'_> {
         let Some(root) = self.roots.get(&semantic.place) else {
             return false;
         };
-        let Ok((reference_type, _)) = structural_shapes::project_static_path(
-            root.structural_type,
-            &semantic.path[..crossing],
-            self.declarations,
-        ) else {
-            return false;
-        };
-        let Some(StructuralTypeShape::Reference { referent, access }) = self
-            .declarations
+        let mut current = root.structural_type;
+        let mut path = semantic.path.as_slice();
+        while let Some(crossing) = path
             .iter()
-            .find(|declaration| declaration.id == reference_type)
-            .map(|declaration| &declaration.shape)
-        else {
-            return false;
-        };
-        if !(*access == semantic.access
-            || *access == StructuralAccess::MutableBorrow
-                && matches!(
-                    semantic.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                ))
+            .position(|segment| *segment == StructuralPathSegment::Referent)
         {
-            return false;
+            let Ok((carrier, _)) = structural_shapes::project_static_path(
+                current,
+                &path[..crossing],
+                self.declarations,
+            ) else {
+                return false;
+            };
+            let Some(StructuralTypeShape::Reference { referent, access }) = self
+                .declarations
+                .iter()
+                .find(|declaration| declaration.id == carrier)
+                .map(|declaration| &declaration.shape)
+            else {
+                return false;
+            };
+            if !(*access == semantic.access
+                || *access == StructuralAccess::MutableBorrow
+                    && matches!(
+                        semantic.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                    ))
+            {
+                return false;
+            }
+            current = *referent;
+            path = &path[crossing + 1..];
+            if *access == StructuralAccess::WriteOnlyBorrow
+                && path.contains(&StructuralPathSegment::Referent)
+            {
+                return false;
+            }
         }
-        let Ok((selected, offset)) = structural_shapes::project_static_path(
-            *referent,
-            &semantic.path[crossing + 1..],
-            self.declarations,
-        ) else {
+        let Ok((selected, offset)) =
+            structural_shapes::project_static_path(current, path, self.declarations)
+        else {
             return false;
         };
         actual.root_structural_type == root.structural_type

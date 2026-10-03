@@ -14,6 +14,130 @@ use crate::structural_inputs::structural_reference_input::shape;
 use crate::structural_inputs::structural_reference_input::store;
 
 #[test]
+fn reference_projection_restarts_offsets_and_checks_each_permission() {
+    use semantic_vocabulary::{IntegerSign, IntegerType};
+    use terminal_psi::{BindingRelevance, StructuralAccess, StructuralFieldDeclaration};
+    let identity = |value| StructuralTypeId::new(value).unwrap();
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let field = |position, name: &str, field_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(position).unwrap(),
+        identity: name.into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    };
+    let record = |number, name: &str, fields| StructuralTypeDeclaration {
+        id: identity(number),
+        identity: name.into(),
+        shape: StructuralTypeShape::Record { fields },
+    };
+    let mut declarations = vec![
+        record(
+            1,
+            "Cell",
+            vec![
+                field(1, "stamp", StructuralFieldType::Scalar(scalar)),
+                field(2, "value", StructuralFieldType::Scalar(scalar)),
+            ],
+        ),
+        StructuralTypeDeclaration {
+            id: identity(2),
+            identity: "CellReference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: identity(1),
+                access: StructuralAccess::SharedBorrow,
+            },
+        },
+        record(
+            3,
+            "Message",
+            vec![
+                field(1, "stamp", StructuralFieldType::Scalar(scalar)),
+                field(2, "body", StructuralFieldType::Structural(identity(2))),
+            ],
+        ),
+        StructuralTypeDeclaration {
+            id: identity(4),
+            identity: "MessageReference".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: identity(3),
+                access: StructuralAccess::SharedBorrow,
+            },
+        },
+        record(
+            5,
+            "Envelope",
+            vec![
+                field(1, "stamp", StructuralFieldType::Scalar(scalar)),
+                field(2, "message", StructuralFieldType::Structural(identity(4))),
+            ],
+        ),
+        StructuralTypeDeclaration {
+            id: identity(6),
+            identity: "i32".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar),
+        },
+    ];
+    let path = vec![
+        StructuralPathSegment::Field("message".into()),
+        StructuralPathSegment::Referent,
+        StructuralPathSegment::Field("body".into()),
+        StructuralPathSegment::Referent,
+        StructuralPathSegment::Field("value".into()),
+    ];
+    let resolve =
+        |declarations: &[StructuralTypeDeclaration], path: &[StructuralPathSegment], access| {
+            super::reference_projection(identity(5), path, access, declarations)
+        };
+    let projected = resolve(&declarations, &path, StructuralAccess::SharedBorrow).unwrap();
+    assert_eq!(projected.selected, identity(6));
+    assert_eq!(projected.descriptor_offsets, [8, 8]);
+    assert_eq!(projected.referent_offset, 4);
+    for access in [
+        StructuralAccess::Owned,
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        assert!(resolve(&declarations, &path, access).is_none());
+    }
+    let mut missing_crossing = path.clone();
+    missing_crossing.remove(1);
+    assert!(
+        resolve(
+            &declarations,
+            &missing_crossing,
+            StructuralAccess::SharedBorrow
+        )
+        .is_none()
+    );
+    let mut extra_crossing = path.clone();
+    extra_crossing.push(StructuralPathSegment::Referent);
+    assert!(
+        resolve(
+            &declarations,
+            &extra_crossing,
+            StructuralAccess::SharedBorrow
+        )
+        .is_none()
+    );
+    // Write-only final storage is usable; write-only intermediate storage
+    // cannot supply the next descriptor, even under a write-only request.
+    declarations[1].shape = StructuralTypeShape::Reference {
+        referent: identity(1),
+        access: StructuralAccess::WriteOnlyBorrow,
+    };
+    declarations[3].shape = StructuralTypeShape::Reference {
+        referent: identity(3),
+        access: StructuralAccess::MutableBorrow,
+    };
+    assert!(resolve(&declarations, &path, StructuralAccess::WriteOnlyBorrow).is_some());
+    declarations[3].shape = StructuralTypeShape::Reference {
+        referent: identity(3),
+        access: StructuralAccess::WriteOnlyBorrow,
+    };
+    assert!(resolve(&declarations, &path, StructuralAccess::WriteOnlyBorrow).is_none());
+}
+
+#[test]
 fn refined_scalar_geometry_uses_each_exact_carrier() {
     use semantic_vocabulary::{
         IeeeFloatFormat, IntegerSign, IntegerType, Proposition, ScalarRefinement,

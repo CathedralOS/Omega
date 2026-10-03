@@ -12,6 +12,10 @@ use super::{
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
     Terminator,
 };
+mod call_paths;
+pub(super) use call_paths::call_source_type;
+use call_paths::{call_dependency_conflict, call_reference_custody};
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ReferenceIdentity {
     place: PlaceId,
@@ -382,60 +386,9 @@ pub(crate) fn is_reference_projection(
     machine: &TerminalMachine,
     source: &StructuralArgument,
 ) -> bool {
-    (projected_carrier_type(module, machine, source).is_some()
-        || projected_call_referent_type(module, machine, source).is_some())
+    call_source_type(module, machine, source, true).is_some()
+        && source.path.contains(&StructuralPathSegment::Referent)
         && source.access != StructuralAccess::Owned
-}
-
-/// A synchronous call can lend a declared subtree of a live mutable record
-/// referent. Keep the complete suffix on the actual argument; this type walk
-/// neither forms a child carrier nor supplies an escaping result origin.
-fn projected_call_referent_type(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    source: &StructuralArgument,
-) -> Option<StructuralTypeId> {
-    if !matches!(
-        source.access,
-        StructuralAccess::MutableBorrow
-            | StructuralAccess::SharedBorrow
-            | StructuralAccess::WriteOnlyBorrow
-    ) {
-        return None;
-    }
-    let carrier_access = machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == source.place)
-        .map_or(StructuralAccess::Owned, |parameter| parameter.access);
-    if !access_covers(carrier_access, source.access) {
-        return None;
-    }
-    let (referent, suffix) =
-        mutable_record_field_destination(module, machine, source.place, &source.path)?;
-    if suffix.is_empty() {
-        return None;
-    }
-    leaf_reference_type(module, referent, suffix)
-}
-
-pub(super) fn call_source_type(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    source: &StructuralArgument,
-    allow_referent_subtree: bool,
-) -> Option<StructuralTypeId> {
-    source_type(module, machine, source).or_else(|| {
-        allow_referent_subtree
-            .then(|| projected_call_referent_type(module, machine, source))
-            .flatten()
-    })
 }
 
 pub(super) fn invalid(machine: &TerminalMachine, reason: &'static str) -> ModuleError {
@@ -1868,7 +1821,26 @@ pub(super) fn apply_operation(
     };
     let mut normalized_arguments = Vec::new();
     let mut moved = BTreeSet::new();
-    for argument in arguments {
+    for (argument_position, argument) in arguments.iter().enumerate() {
+        if argument.path.contains(&StructuralPathSegment::Referent) {
+            let custody = call_reference_custody(module, machine, live, argument)?;
+            if arguments.iter().enumerate().any(|(position, other)| {
+                position != argument_position
+                    && call_dependency_conflict(&custody.dependencies, other)
+            }) {
+                return Err(invalid(
+                    machine,
+                    "call consumes or mutates an intermediate reference carrier",
+                ));
+            }
+            normalized_arguments.push((
+                custody.origins,
+                argument.access,
+                true,
+                custody.dependencies,
+            ));
+            continue;
+        }
         if argument_owns_references(module, machine, argument) {
             if matches!(operation.kind, OperationKind::BoundaryCall { .. }) {
                 return Err(invalid(
@@ -1944,7 +1916,12 @@ pub(super) fn apply_operation(
                 {
                     return Err(invalid(machine, "owned reference argument duplicates or suspends a leaf"));
                 }
-                normalized_arguments.push((reference.root.clone(), argument.access, true));
+                normalized_arguments.push((
+                    vec![reference.root.clone()],
+                    argument.access,
+                    true,
+                    Vec::new(),
+                ));
             }
             continue;
         }
@@ -1960,52 +1937,43 @@ pub(super) fn apply_operation(
                     "call cannot access a suspended root or move its referent",
                 ));
             }
-            let root = if projected_call_referent_type(module, machine, argument).is_some() {
-                let parent = live
-                    .iter()
-                    .find(|reference| {
-                        reference.carrier == argument.place && reference.carrier_path.is_empty()
-                    })
-                    .ok_or_else(|| {
-                        invalid(
-                            machine,
-                            "projected call reference carrier is no longer live",
-                        )
-                    })?;
-                if live.iter().any(|reference|
-                    matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
-                {
-                    return Err(invalid(machine, "projected call reference remains suspended by a live child"));
-                }
-                // The call does not publish a child permission. Retaining the
-                // complete parent's origin conservatively rejects overlapping
-                // exclusive actuals even when two carriers spell them differently.
-                // The argument itself still retains its exact projected address.
-                parent.root.clone()
-            } else {
-                normalized_source(module, machine, live, argument)?.0
-            };
-            normalized_arguments.push((root, argument.access, true));
+            let root = normalized_source(module, machine, live, argument)?.0;
+            normalized_arguments.push((vec![root], argument.access, true, Vec::new()));
         } else {
             normalized_arguments.push((
-                ReferenceOrigin::Primitive(argument.place),
+                vec![ReferenceOrigin::Primitive(argument.place)],
                 argument.access,
                 false,
+                Vec::new(),
             ));
         }
     }
-    for (position, (root, access, reference_access)) in normalized_arguments.iter().enumerate() {
+    for (position, (roots, access, reference_access, dependencies)) in
+        normalized_arguments.iter().enumerate()
+    {
         if normalized_arguments[position + 1..].iter().any(
-            |(other, other_access, other_reference_access)| {
-                (*reference_access || *other_reference_access)
-                    && origins_overlap(root, other)
+            |(others, other_access, other_reference_access, other_dependencies)| {
+                ((*reference_access || *other_reference_access)
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
+                    && roots
+                        .iter()
+                        .any(|root| others.iter().any(|other| origins_overlap(root, other))))
+                    || (*other_access != StructuralAccess::SharedBorrow
+                        && dependencies
+                            .iter()
+                            .any(|root| others.iter().any(|other| origins_overlap(root, other))))
+                    || (*access != StructuralAccess::SharedBorrow
+                        && roots.iter().any(|root| {
+                            other_dependencies
+                                .iter()
+                                .any(|other| origins_overlap(root, other))
+                        }))
             },
         ) {
             return Err(invalid(
                 machine,
-                "call arguments overlap through reference origins",
+                "call arguments overlap through reference origins or descriptor dependencies",
             ));
         }
     }
