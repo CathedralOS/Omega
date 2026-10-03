@@ -1413,18 +1413,16 @@ impl Builder<'_, '_> {
         if !name.symbol.is_valid()
             || name.head_symbol != name.symbol
             || name.members.count() != 1
-            // The same finite owned walls as plain storage, but a `[linear]`
-            // member rides as a claim the selection transfer names.
-            || !validation::has_linear_owned_contents(self.program, expected)
+            // An owned carrier may retain shared descriptor leaves. Moving
+            // that carrier preserves their loans; it does not own the backing.
+            || !(validation::has_linear_owned_contents(self.program, expected)
+                || validation::has_owned_or_shared_view_fields(self.program, expected))
         {
             return None;
         }
-        let symbol = closed_data_symbol(self.program, expected)?;
-        let data = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == symbol)?;
+        let data = self.program.data_definitions().iter().find(|data| {
+            validation::member_type_substitutions(self.program, data, expected).is_some()
+        })?;
         if self
             .program
             .data_members(data)
@@ -1476,8 +1474,9 @@ impl Builder<'_, '_> {
         };
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
-            || !validation::has_linear_owned_contents(self.program, reference)
-            || closed_data_symbol(self.program, reference) != Some(symbol)
+            || !(validation::has_linear_owned_contents(self.program, reference)
+                || validation::has_owned_or_shared_view_fields(self.program, reference))
+            || validation::member_type_substitutions(self.program, data, reference).is_none()
         {
             return None;
         }

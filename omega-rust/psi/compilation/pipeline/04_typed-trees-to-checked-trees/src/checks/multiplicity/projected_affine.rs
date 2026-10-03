@@ -5,7 +5,6 @@ use crate::checks::multiplicity::linear_validation::event_statement_index;
 use crate::checks::multiplicity::linear_validation::permission_kind_for_move;
 use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_multiplicity;
-use crate::flow::FlowOwnershipEventSource;
 use checked_trees::CheckFacts;
 use checked_trees::FlowPermissionEventFact;
 use language_semantics::Multiplicity;
@@ -30,10 +29,7 @@ pub(super) fn append_transfer(
     let facts::PlaceRoot::Symbol(symbol) = event.root else {
         return;
     };
-    let FlowOwnershipEventSource::Call {
-        statement_index, ..
-    } = event.source
-    else {
+    let Some(statement_index) = event_statement_index(event.source) else {
         return;
     };
     if path.is_empty()
@@ -84,7 +80,8 @@ pub(super) fn append_transfer(
                         | TypeReferenceNode::Generic { .. }
                         | TypeReferenceNode::FixedArray { .. }
                 ) && type_multiplicity(program, type_reference) == Multiplicity::Affine
-                    && validation::has_plain_owned_contents(program, type_reference)
+                    && (validation::has_plain_owned_contents(program, type_reference)
+                        || validation::has_owned_or_shared_view_fields(program, type_reference))
             })
     };
     if !plain_affine(&root) || !plain_affine(&projected) {
