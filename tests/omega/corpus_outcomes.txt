@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 12.9, "load1_start": 12.9, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.91, "load1_start": 7.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -734,8 +734,8 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/private_callback_slot_wrong_layout rejected 73ms expected @2d8ed253669f
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
-fail/layouts/recast_integer_at_store_requires_fit rejected 458ms expected @c08960bee2b1+wt
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+fail/layouts/recast_integer_at_store_requires_fit rejected 111ms expected @1d028c299b0e+wt
+	machine `Main::main` state `main` assignment cannot prove assigned value fits integer storage for field `value`: required -128..=127
 fail/layouts/size_of_uninstantiated_plan_laid rejected 111ms expected @2d8ed253669f
 	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
 fail/memory/bump_allocator_cast_minted_vacant rejected 423ms expected @2d8ed253669f

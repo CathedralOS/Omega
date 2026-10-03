@@ -225,6 +225,17 @@ pub(super) fn validate<'a, 'p>(
     // Only a CLEANLY-analyzed RHS reaches the narrowing check -- an RHS that
     // already erred (its own overflow, a type error) is not re-flagged.
     if diagnostics.len() == before {
+        if let Some(write) = crate::value_custody::plan_laid::validate_stored_integer_write(
+            program,
+            machine,
+            current_state,
+            assignment,
+            interval,
+            &owner,
+            diagnostics,
+        ) {
+            outputs.stored_integer_writes.insert(write);
+        }
         let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
             program,
             machine,

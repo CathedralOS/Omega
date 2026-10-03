@@ -1,1 +1,1 @@
-OperationProofUnavailable
+cannot prove assigned value fits integer storage

@@ -61,6 +61,7 @@ pub use checked_trees::operators::ExactIntegerCastFact;
 pub struct ProgramValidationFacts {
     pub boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
+    pub stored_integer_writes: arena::Arena<checked_trees::values::CheckedStoredIntegerWrite>,
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
@@ -184,6 +185,7 @@ fn validate(
     }
     let mut boundary_operator_applications = Vec::new();
     let mut exact_integer_casts = Vec::new();
+    let mut stored_integer_writes = arena::Arena::new();
     callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
     float_projection_bindings::validate_float_projection_operator_bindings(
         program,
@@ -617,6 +619,7 @@ fn validate(
                     &transition_values,
                     direct_written,
                     &mut exact_integer_casts,
+                    &mut stored_integer_writes,
                     &mut boundary_operator_applications,
                     &mut bound_lookup,
                     &mut diagnostics,
@@ -657,6 +660,7 @@ fn validate(
         facts: ProgramValidationFacts {
             boundary_operator_applications,
             exact_integer_casts,
+            stored_integer_writes,
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,
             fact_call_projections,
