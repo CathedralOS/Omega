@@ -1272,7 +1272,10 @@ pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms @011fd400e8c1+wt
-pass/borrows/case_payload_state_loan_exit checked 942ms @b9ead894da43+wt
+pass/borrows/case_payload_shared_transition_exit rejected 1615ms @82ec69a91ce
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect_nested", reason: "scalar callee has no checked executable body", omission: Some("`inspect_nested` has no admitted body (local construction stopped at state graph: terminator: conditional successors: loan transfer, state 0, statement 1)") })
+pass/borrows/case_payload_state_loan_exit rejected 1588ms @82ec69a91ce
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read", reason: "scalar callee has no checked executable body", omission: Some("`read` has no admitted body (local construction stopped at state graph: terminator: guarded jump successors: loan transfer, state 0, statement 2)") })
 pass/borrows/enum_selected_view_reference_exit checked 1343ms @011fd400e8c1+wt
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f7122bb+wt
@@ -1318,7 +1321,7 @@ pass/build/runtime_depend_mapping_exit checked 1263ms @2d8ed253669f
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 1191ms @2d8ed253669f
 pass/build/same_leaf_runner_entry_left_exit checked 1954ms @26b974b5cae7+wt
 pass/build/same_leaf_runner_entry_right_exit checked 1911ms @26b974b5cae7+wt
-pass/build/uefi_os_handoff_invocation rejected 1222ms @2d8ed253669f
+pass/build/uefi_os_handoff_invocation rejected 1727ms @82ec69a91ce
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit checked 3170ms @48d34a64a938+wt
 pass/calls/borrowed_case_dispatch_member_leaf_reads checked 1633ms @2d8ed253669f
@@ -1332,7 +1335,8 @@ pass/calls/callback_private_materialization rejected 1409ms @2d8ed253669f
 pass/calls/caller_result_binding_mutable_loan_exit checked 1568ms @2d8ed253669f
 pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d973a+wt
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
-pass/calls/case_payload_clone_observation_exit checked 938ms @bb878591d2fc+wt
+pass/calls/case_payload_clone_observation_exit rejected 1554ms @82ec69a91ce
+	terminal-artifact production failed: Lowering(Unsupported("record operand substituted its projected referent path"))
 pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
 pass/calls/case_scrutinee_self_dispatch_exit checked 914ms @b9ead894da43+wt
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
@@ -1633,8 +1637,8 @@ pass/core/numeric_trapping_conversion_overflow checked 1701ms @2d8ed253669f
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms @2d8ed253669f
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f
-pass/core/task_lifecycle_operations rejected 408ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
+pass/core/task_lifecycle_operations rejected 633ms @82ec69a91ce
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` calls `Main::settle`, which has no plan; `Main::settle` has no admitted body (local construction stopped at call operation: claim transfers, statement 0)") })
 pass/core/zii_default_composite_exit checked 1479ms @2d8ed253669f
 pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
 pass/data/case_membership_union_guard_exit checked 1336ms @2d8ed253669f
@@ -1858,8 +1862,7 @@ pass/float/scalar_helper_boundary_sequence_exit checked 4671ms @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms @163770eba39c
 pass/float/x86_fma_plan_association rejected 4263ms @2d8ed253669f
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
-pass/generics/closed_indexed_quantity rejected 5735ms @921839635ad
-	terminal-artifact production failed: Lowering(Unsupported("same-carrier authored cast requires an explicit qualification edge"))
+pass/generics/closed_indexed_quantity checked 6308ms @82ec69a91ce
 pass/generics/closed_sum_case_membership checked 292ms @2d8ed253669f
 pass/generics/const_data_param checked 288ms @2d8ed253669f
 pass/generics/declared_range_endpoint_inference checked 3910ms @2d8ed253669f
@@ -1990,8 +1993,8 @@ pass/optimizer/redundant_compare_selection_compile checked 477ms @2d8ed253669f
 pass/optimizer/rollback_to_no_selection_empty_entry checked 379ms @2d8ed253669f
 pass/optimizer/stored_load_forwarding_selection_exit checked 452ms @a65d52709b8a+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
-pass/ownership/linear_ambiguous_state_result_mapping rejected 454ms @58e4f6f8667
-	entry machine `Main::main` returns a value, but `ProgramEntry` has no result
+pass/ownership/linear_ambiguous_state_result_mapping rejected 602ms @82ec69a91ce
+	terminal-artifact production failed: Lowering(Unsupported("conditional result custody requires Terminal exit-alternative correspondence"))
 pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
@@ -2007,8 +2010,7 @@ pass/parameters/byte_store_root_after_scalar_formal_exit checked 1365ms @4e4bfed
 pass/parameters/shared_and_mut_borrow_params_compile checked 298ms @2d8ed253669f
 pass/parser/deep_nesting_within_limit checked 280ms @2d8ed253669f
 pass/parser/invariant_is_an_identifier checked 286ms @2d8ed253669f
-pass/progress/provider_receiver_progress_installation rejected 1ms @58e4f6f8667
-	tests/omega/pass/progress/provider_receiver_progress_installation/main.omg:12:21: `self` receivers are retired; declare an explicit named parameter and type
+pass/progress/provider_receiver_progress_installation checked 1084ms @82ec69a91ce
 pass/proofs/accepted_axiom_cited_exit checked 1213ms @2d8ed253669f
 pass/proofs/accumulator_guarantee_exit checked 1812ms @2d8ed253669f
 pass/proofs/case_call_premises checked 304ms @2d8ed253669f
@@ -2401,7 +2403,7 @@ pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 125343ms @011f
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 29239ms @58e4f6f8667
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms @2d8ed253669f
 pass/wire/wire_data_reserved_field checked 842ms @2d8ed253669f
-pass/wire/wire_preserving_decode_relay_exit checked 1552ms @bf6726603463+wt
+pass/wire/wire_preserving_decode_relay_exit checked 12957ms @82ec69a91ce
 pass/write_only/state_forwarded_scalar_store_exit checked 999ms @2bde2a770491
 run/borrows/direct_runtime_index_write checked 2883ms @2d8ed253669f
 run/borrows/indexed_loan_element_write checked 748ms @ca8c127c90c5
