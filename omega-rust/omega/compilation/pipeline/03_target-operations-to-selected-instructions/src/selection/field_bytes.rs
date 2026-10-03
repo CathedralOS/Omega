@@ -1,7 +1,12 @@
-//! Where an indexed field byte read finds its bytes. A bounded owner keeps
+//! Where a field byte observation finds its bytes. A bounded owner keeps
 //! them inline after its live-length word; a shared view field keeps a
 //! two-word descriptor whose first word points at backing outside the root.
-//! Construction and replay share this geometry so neither re-derives it.
+//! Indexed reads, measured scans and copies share this geometry. A field's
+//! storage layout does not change with its consumer: a descriptor must be
+//! loaded, never addressed as though its words were inline payload.
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::selection) enum FieldBytes {
@@ -60,7 +65,7 @@ pub(in crate::selection) fn root_type(
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     if let Some(parameter) = super::primitive_local_input::read_parameter(function, source.place) {
-        if parameter.access != source.access
+        if !access_covers(parameter.access, source.access)
             || parameter.multiplicity == StructuralMultiplicity::Linear
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
@@ -72,15 +77,32 @@ pub(in crate::selection) fn root_type(
     if let Some(structural_type) =
         super::established_view_input::element_view_type(function, source.place)
     {
-        return (super::established_view_input::view_access(function, source.place)?
-            == source.access)
-            .then_some(structural_type);
+        return access_covers(
+            super::established_view_input::view_access(function, source.place)?,
+            source.access,
+        )
+        .then_some(structural_type);
     }
     let (_, result) = super::aggregate_result_input::home(function, source.place)?;
-    (source.access == StructuralAccess::Owned
+    (access_covers(StructuralAccess::Owned, source.access)
         && result.multiplicity != StructuralMultiplicity::Linear
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
     .then_some(result.structural_type)
+}
+
+/// Reading may narrow owned or mutable custody to a shared observation. It
+/// cannot turn a descriptor's ownership into exclusive backing permission.
+fn access_covers(
+    available: terminal_psi::StructuralAccess,
+    requested: terminal_psi::StructuralAccess,
+) -> bool {
+    use terminal_psi::StructuralAccess;
+    available == requested
+        || requested == StructuralAccess::SharedBorrow
+            && matches!(
+                available,
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+            )
 }

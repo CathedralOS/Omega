@@ -151,41 +151,6 @@ pub(super) fn field_offset(
     if source.access != StructuralAccess::SharedBorrow {
         return None;
     }
-    let signature = function.structural.as_ref()?;
-    let parameter = signature
-        .parameters
-        .iter()
-        .map(|parameter| &parameter.semantic)
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == source.place);
-    let structural_type = if let Some(parameter) = parameter {
-        if !matches!(
-            parameter.access,
-            StructuralAccess::Owned
-                | StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-        ) || parameter.multiplicity == StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return None;
-        }
-        parameter.structural_type
-    } else {
-        super::aggregate_result_input::home(function, source.place)?
-            .1
-            .structural_type
-    };
-    let (offset, _) = crate::structural_inputs::structural_reference_input::byte_field_storage(
-        structural_type,
-        &source.path,
-        *field,
-        &signature.structural_types,
-    )?;
-    offset.checked_add(8)
+    super::field_bytes::FieldBytes::resolve(function, source, *field, &[])
+        .map(super::field_bytes::FieldBytes::offset)
 }

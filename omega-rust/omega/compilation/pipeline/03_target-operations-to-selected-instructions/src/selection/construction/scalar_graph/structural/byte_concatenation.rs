@@ -166,31 +166,18 @@ pub(super) fn operand_pointer(
                 Ok(pointer)
             }
         }
-        ByteSequenceOperand::Field { source, .. } => {
-            let offset =
-                crate::selection::byte_concatenation_input::field_offset(function, operand)
+        ByteSequenceOperand::Field { source, field, .. } => {
+            let geometry =
+                crate::selection::field_bytes::FieldBytes::resolve(function, source, *field, &[])
                     .ok_or_else(invalid)?;
-            let root = builder
-                .transport
-                .pointers
-                .iter()
-                .find(|(place, _)| *place == source.place)
-                .map(|(_, pointer)| *pointer)
-                .ok_or_else(invalid)?;
-            let address = transport_register(builder, source.place, offset)?;
-            builder.emit(
-                SelectedInstructionKind::AddressOffset {
-                    byte_offset: offset,
-                },
-                builder
-                    .constraints
-                    .keys
-                    .address_offset
-                    .ok_or_else(invalid)?,
-                &[root, address],
-                provenance(row),
-            )?;
-            Ok(address)
+            super::byte_field_read::payload_pointer(
+                function,
+                builder,
+                row,
+                source.place,
+                geometry,
+                &[],
+            )
         }
     }
 }

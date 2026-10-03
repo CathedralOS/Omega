@@ -3,6 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod atomic_tests;
 #[cfg(test)]
+mod byte_comparison_tests;
+#[cfg(test)]
 mod float_conversion_tests;
 #[cfg(test)]
 mod float_result_policy_tests;
@@ -338,6 +340,23 @@ pub(in crate::exit_contract) fn validate_non_return(
             None,
         ) => true,
         (
+            SelectedInstructionKind::CompareByteSequences,
+            MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+                left_base_operand: 0,
+                left_count_operand: 1,
+                right_base_operand: 2,
+                right_count_operand: 3,
+            },
+            None,
+        ) => {
+            // Both spans have independently measured extents. The ISA scan
+            // reads those four inputs and defines only its scratch/output
+            // registers; descriptor addressing happened before this operation.
+            effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == [0, 1, 2, 3]
+                && effects.external_operand_writes == [4, 5, 6, 7]
+        }
+        (
             SelectedInstructionKind::LoadPacked { byte_offset, width },
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
@@ -503,6 +522,8 @@ pub(in crate::exit_contract) fn validate_non_return(
         (_, MachineEncodedMemoryEffect::NoneV1, _) => !matches!(
             kind,
             SelectedInstructionKind::CopyBytes
+                | SelectedInstructionKind::ScanByteSequence { .. }
+                | SelectedInstructionKind::CompareByteSequences
                 | SelectedInstructionKind::FloatResultPolicy { .. }
                 | SelectedInstructionKind::AtomicAccess { .. }
                 | SelectedInstructionKind::SaveFloatingControl { .. }

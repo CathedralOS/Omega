@@ -450,7 +450,8 @@ pub(in crate::selection) fn byte_predicate(
     if result.scalar_type != ScalarType::Boolean || count_type != integer {
         return Err(replay.invalid());
     }
-    let base = measured_span_reads(function, replay, row, operand)?;
+    let base = byte_concatenation::operand_pointer(function, replay, row, operand)?;
+    measured_span_reads(function, replay, row, operand)?;
     let cursor = byte_field_store::scratch(replay, 2)?;
     let byte = byte_field_store::scratch(replay, 3)?;
     let output =
@@ -501,8 +502,12 @@ pub(in crate::selection) fn byte_equal(
     {
         return Err(replay.invalid());
     }
-    let left_base = measured_span_reads(function, replay, row, left)?;
-    let right_base = measured_span_reads(function, replay, row, right)?;
+    let left_base = byte_concatenation::operand_pointer(function, replay, row, left)?;
+    let right_base = byte_concatenation::operand_pointer(function, replay, row, right)?;
+    // Both address computations precede the scan. Attribute both measured
+    // reads to the comparison, not the other operand's descriptor load.
+    measured_span_reads(function, replay, row, left)?;
+    measured_span_reads(function, replay, row, right)?;
     let cursor = byte_field_store::scratch(replay, 4)?;
     let left_byte = byte_field_store::scratch(replay, 5)?;
     let right_byte = byte_field_store::scratch(replay, 6)?;
@@ -541,8 +546,7 @@ fn measured_span_reads(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
     operand: &ByteSequenceOperand,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let base = byte_concatenation::operand_pointer(function, replay, row, operand)?;
+) -> Result<(), SelectedInstructionError> {
     let offset = match operand {
         ByteSequenceOperand::Field { .. } => {
             crate::selection::byte_concatenation_input::field_offset(function, operand)
@@ -579,5 +583,5 @@ fn measured_span_reads(
             SelectedMemoryAccessRole::ReadMeasuredSpan { length },
         )?;
     }
-    Ok(base)
+    Ok(())
 }
