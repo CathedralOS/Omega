@@ -13,6 +13,44 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
+#[test]
+fn structural_return_catalog_does_not_replace_a_missing_executable_callee() {
+    let checked = checked(
+        r#"
+        data Message { stamp: i32; case Empty; case Number(value: i32); }
+        machine relay(message: Message) -> Message { message }
+        machine forward(message: Message) -> Message { relay(message) }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let forward = plans
+        .machines
+        .iter()
+        .find(|plan| checked.symbols.display_path(plan.machine, "::") == "forward")
+        .expect("ordinary forwarding body")
+        .machine;
+    let relay = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .claim_free_affine_machines
+        .iter()
+        .find(|plan| checked.symbols.display_path(plan.machine, "::") == "relay")
+        .expect("specialized return plan remains available")
+        .machine;
+    let mut ordinary = plans.machines.clone();
+    let mut composed = plans.composed_machines.clone();
+    assert!(
+        ordinary.iter().any(|plan| plan.machine == relay)
+            || composed.iter().any(|plan| plan.machine == relay)
+    );
+    ordinary.retain(|plan| plan.machine != relay);
+    composed.retain(|plan| plan.machine != relay);
+    compare_reference(&checked, &mut ordinary, &mut composed);
+    assert!(!ordinary.iter().any(|plan| plan.machine == forward));
+    assert!(!composed.iter().any(|plan| plan.machine == forward));
+}
+
 fn compare_reference(
     checked: &checked_trees::CheckedTrees,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
@@ -239,15 +277,8 @@ fn retain_available_reference(
                                 (
                                     CheckedUnitCallRoute::Module { .. },
                                     CheckedUnitCallResult::Structural { .. },
-                                ) => {
-                                    unique_entries
-                                        .contains(&(call.target.machine, call.target.state))
-                                        || facts
-                                            .flow
-                                            .terminal_structural_returns
-                                            .claim_free_affine_for_machine(call.target.machine)
-                                            .is_some()
-                                }
+                                ) => unique_entries
+                                    .contains(&(call.target.machine, call.target.state)),
                             }
                         }
                         CheckedUnitEffectOperationPlan::PortWrite { .. }

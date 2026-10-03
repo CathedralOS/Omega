@@ -4,11 +4,11 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use semantic_vocabulary::{OperationId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::{StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape};
 
 fn sum_layout(
     structural_type: StructuralTypeId,
-    types: &StructuralTypeLookup<'_>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
     let declaration = types.get(&structural_type).ok_or_else(invalid)?;
@@ -71,9 +71,19 @@ pub(in crate::lowering) fn result_home_layout(
             result.structural_type,
         ));
     }
+    value_home_layout(result.structural_type, types)
+}
+
+/// Layout is a property of the complete value type, whether it arrives as an
+/// argument, a block parameter, or a call result. Ownership admission remains
+/// with those operations; a layout alone grants no transfer or borrow rights.
+pub(super) fn value_home_layout(
+    structural_type: StructuralTypeId,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<TargetStructuralHomeLayout, LoweringError> {
     if matches!(
         types
-            .get(&result.structural_type)
+            .get(&structural_type)
             .map(|declaration| &declaration.shape),
         Some(
             StructuralTypeShape::Record { .. }
@@ -89,7 +99,7 @@ pub(in crate::lowering) fn result_home_layout(
         // parameter and call-result homes retain existing owned record arrays.
         return Ok(TargetStructuralHomeLayout::Aggregate(
             crate::lowering::structural_layout::structural_shape(
-                result.structural_type,
+                structural_type,
                 types,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
@@ -97,7 +107,7 @@ pub(in crate::lowering) fn result_home_layout(
         ));
     }
     Ok(TargetStructuralHomeLayout::Sum(sum_layout(
-        result.structural_type,
+        structural_type,
         types,
     )?))
 }

@@ -1,0 +1,33 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Message {
+    stamp: i32;
+    case Empty;
+    case Number(value: i32);
+}
+
+machine relay(message: Message) -> Message { message }
+machine forward(message: Message) -> Message { relay(message) }
+
+data Main {
+    console: Binding<Console>;
+    message: Message;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.message = forward(Message::Number { stamp: 23, value: 47 });
+    transition main.message {
+        Message::Number { value } -> finish(main, value)
+        _ -> bad(main)
+    }
+
+    state finish(main: &mut Main, value: i32) {
+        transition main.message.stamp == 23 && value == 47 {
+            true -> good(main)
+            _ -> bad(main)
+        }
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
