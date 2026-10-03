@@ -236,7 +236,7 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
             // The `target` arm arrives under the row's guard; the
             // `continuation` arm is the else path and carries no guard of its
             // own, so it can never witness this route.
-            if target_enters_state(proof_plan, row.target, source, state) {
+            if target_enters_state(proof_plan, row.target, state) {
                 let TransitionGuardNode::When(condition) = row.guard else {
                     return false;
                 };
@@ -246,7 +246,7 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
                 incoming_edges += 1;
             }
             if row.continuation.is_valid()
-                && target_enters_state(proof_plan, row.continuation, source, state)
+                && target_enters_state(proof_plan, row.continuation, state)
             {
                 return false;
             }
@@ -261,12 +261,10 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
     incoming_edges > 0
 }
 
-/// Whether `target` names `state`: a `Named` target by its resolved symbol,
-/// or a `SelfTarget` on an edge written inside the state itself.
+/// Whether the transition names `state` by its resolved symbol.
 fn target_enters_state(
     proof_plan: &ProofPlan,
     target: typed_trees::statement::TransitionTargetHandle,
-    source: &typed_trees::state::State,
     state: &typed_trees::state::State,
 ) -> bool {
     if !target.is_valid() {
@@ -276,7 +274,6 @@ fn target_enters_state(
         typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
             path.symbol == state.symbol
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget => source.symbol == state.symbol,
         _ => false,
     }
 }

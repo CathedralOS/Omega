@@ -743,11 +743,11 @@ fn prepared_build_program_specializes_static_machine_helpers() {
 }
 
 #[test]
-fn admission_rejects_explicit_self_loops_before_interpretation() {
-    for witness in ["", "terminates by remaining in 0..=5;"] {
+fn admission_rejects_non_decreasing_named_loops_before_interpretation() {
+    for witness in ["", "terminates by remaining -> Nat::Descending;"] {
         let program = crate::front_end::typed_program(&format!(
-            "machine spin(remaining: u32 [0..=5]) {witness}
-             -> u32 {{ transition {{ _ -> self }} }}
+            "machine spin(remaining: u32) -> u32 {witness}
+             {{ transition {{ _ -> spin(remaining) }} }}
              machine length() -> u32 {{ spin(3) }}"
         ));
         let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
@@ -760,7 +760,7 @@ fn admission_rejects_explicit_self_loops_before_interpretation() {
             // Analyze admission only: a regression must never run this loop.
             let error = admission
                 .require_common_floor(&program, machine)
-                .expect_err("an implicit self loop has no checked termination guarantee")
+                .expect_err("a non-decreasing loop has no checked termination guarantee")
                 .reason;
             assert!(
                 error.contains("has no ordinary checked `Terminates` guarantee"),

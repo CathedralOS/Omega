@@ -215,7 +215,7 @@ fn collect_statement_dependency_symbols(
                     TransitionTargetNode::Value(handle) => {
                         collect_expression_dependency_symbols(program, *handle, symbols)
                     }
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
         }
@@ -875,7 +875,7 @@ fn collect_exact_proof_statement_edges(
                         }
                     }
                     TransitionTargetNode::Value(expression) => collect_expression!(*expression),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
         }

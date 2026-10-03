@@ -848,8 +848,7 @@ impl<'program> Collector<'program> {
                                     expressions.extend(values.iter().copied());
                                 }
                                 TransitionTargetNode::Value(value) => expressions.push(*value),
-                                TransitionTargetNode::SelfTarget
-                                | TransitionTargetNode::Terminal => {}
+                                TransitionTargetNode::Terminal => {}
                             }
                         }
                     }

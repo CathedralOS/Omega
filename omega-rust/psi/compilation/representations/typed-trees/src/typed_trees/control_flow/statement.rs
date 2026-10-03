@@ -357,7 +357,6 @@ impl StatementTable {
             TransitionTargetNode::Value(value) => TransitionTargetNode::Value(
                 target_expressions.copy_from(source_expressions, *value),
             ),
-            TransitionTargetNode::SelfTarget => TransitionTargetNode::SelfTarget,
             TransitionTargetNode::Terminal => TransitionTargetNode::Terminal,
         };
         self.insert_transition_target(target)
@@ -465,7 +464,7 @@ impl StatementTable {
             TransitionTargetNode::Value(value) => {
                 expressions.remap_symbols_in(value, symbols);
             }
-            TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+            TransitionTargetNode::Terminal => {}
         }
     }
 
@@ -578,7 +577,7 @@ impl StatementTable {
                         TransitionTargetNode::Value(value) => {
                             roots.push((Role::TransitionValue, *value));
                         }
-                        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                        TransitionTargetNode::Terminal => {}
                     }
                 }
             }
@@ -809,7 +808,6 @@ pub enum TransitionTargetNode {
         >,
     },
     Value(crate::expression::ExpressionHandle),
-    SelfTarget,
     #[default]
     Terminal,
 }

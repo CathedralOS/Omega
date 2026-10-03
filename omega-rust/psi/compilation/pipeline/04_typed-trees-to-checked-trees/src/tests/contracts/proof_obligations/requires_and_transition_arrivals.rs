@@ -188,39 +188,37 @@ fn broader_declared_local_range_does_not_prove_call_requires() {
 }
 
 #[test]
-fn rejects_self_transition_after_state_arrival_fact_is_invalidated() {
+fn rejects_named_back_edge_after_state_arrival_fact_is_invalidated() {
     let source = r#"
         data Main {
             value: i32;
         }
 
-        machine Main::main(&mut self) {
-            transition self.value > 0 {
-                true -> positive()
-                false -> done()
+        machine Main::main(context: &mut Main) {
+            transition context.value > 0 {
+                true -> positive(context)
+                false -> done(context)
             }
 
-            state positive(&mut self)
+            state positive(context: &mut Main)
             requires
-                self.value > 0
+                context.value > 0
             {
-                self.value = 0;
+                context.value = 0;
                 transition {
-                    _ -> self
+                    _ -> positive(context)
                 }
             }
 
-            state done(&mut self) {
+            state done(context: &mut Main) {
             }
         }
     "#;
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
-        .expect_err("a self back-edge must re-establish an invalidated arrival invariant");
+        .expect_err("a named back-edge must re-establish an invalidated arrival invariant");
     assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("cannot prove state arrival contract on self-transition")
-            && diagnostic.message.contains("self.value > 0")
+        diagnostic.message.contains("cannot prove")
+            && diagnostic.message.contains("context.value > 0")
     }));
 }

@@ -879,7 +879,7 @@ fn transition_targets_mention_owner(
                 TransitionTargetNode::Value(expression) => {
                     contains_owner(checked, *expression, owner)
                 }
-                TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
+                TransitionTargetNode::Terminal => false,
             },
         )
 }

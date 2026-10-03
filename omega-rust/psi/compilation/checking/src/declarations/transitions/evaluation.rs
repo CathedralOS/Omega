@@ -36,7 +36,7 @@ impl TransitionValueEnvironments {
                     program.statement_table.expression_handles(*arguments)
                 }
                 TransitionTargetNode::Value(expression) => std::slice::from_ref(expression),
-                TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => continue,
+                TransitionTargetNode::Terminal => continue,
             };
             let mut current = if positive {
                 crate::proof_contracts::arithmetic_domains::guard_narrowed_environment(

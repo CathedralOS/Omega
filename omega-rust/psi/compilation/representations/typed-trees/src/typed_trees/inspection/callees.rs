@@ -108,7 +108,7 @@ fn collect_transition_target_callees(
         TransitionTargetNode::Value(expression) => {
             collect_expression_callees(typed, *expression, visited, called);
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::Terminal => {}
     }
 }
 

@@ -1,6 +1,5 @@
 //! Explicit state inputs derived from live edge contexts, not declarations.
 use crate::flow::FlowBuildContext;
-use crate::flow::canonical_place_from_semantic_place;
 use crate::semantic::calls::CallSite;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -193,23 +192,6 @@ fn literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> O
     }
 }
 
-fn value_at_place(
-    program: &typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    build: &mut FlowBuildContext,
-    contexts: HandleSpan<FlowSemanticContextRef>,
-    place: facts::PlaceHandle,
-) -> ScalarValue {
-    let Some(place) =
-        canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
-    else {
-        return ScalarValue::Unknown;
-    };
-    build
-        .scalar_value_at_place(program, semantic, contexts, &place)
-        .unwrap_or_default()
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn record_transition(
     program: &typed_trees::TypedTrees,
@@ -241,10 +223,9 @@ pub(super) fn record_transition(
             };
             (
                 destination,
-                Some(program.statement_table.expression_handles(*arguments)),
+                program.statement_table.expression_handles(*arguments),
             )
         }
-        TransitionTargetNode::SelfTarget => (state, None),
         _ => return,
     };
     if program
@@ -262,7 +243,7 @@ pub(super) fn record_transition(
             continue;
         }
         let captured = argument_values.get(ordinal);
-        let argument = arguments.and_then(|arguments| arguments.get(ordinal));
+        let argument = arguments.get(ordinal);
         ordinal += 1;
         let scalar = program
             .primitive_type_reference(parameter.type_reference)
@@ -272,11 +253,8 @@ pub(super) fn record_transition(
             });
         let value = if !scalar {
             ScalarValue::Unknown
-        } else if arguments.is_some() {
-            captured.cloned().unwrap_or_default()
         } else {
-            let source = semantic.append_symbol_place(parameter.symbol);
-            value_at_place(program, semantic, build, contexts, source)
+            captured.cloned().unwrap_or_default()
         };
         // The integer interval this edge delivers for the parameter: a
         // literal or captured value is a point range, and a place argument
@@ -309,11 +287,7 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
-    let mut qualifications = if arguments.is_some() {
-        argument_qualifications
-    } else {
-        qualifications::capture_self(program, semantic, build, state, contexts)
-    };
+    let mut qualifications = argument_qualifications;
     qualifications.extend(qualifications::capture_receiver(
         program,
         semantic,

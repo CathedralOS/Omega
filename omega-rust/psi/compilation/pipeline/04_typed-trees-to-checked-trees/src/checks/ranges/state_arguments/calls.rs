@@ -73,24 +73,11 @@ pub(super) fn collect_state_argument_facts_for_call(
     // A transition argument's referent is storage the destination parameter
     // aliases for the whole state, exactly like attached `self`: every label
     // fact spelled under the argument's place re-keys onto the parameter's
-    // name (`put(&mut buf)` delivers `buf.i` as the callee's `buf.i`). A `->
-    // self` edge maps each parameter to its own continuing storage. Ordinary
+    // name (`put(&mut buf)` delivers `buf.i` as the callee's `buf.i`). Ordinary
     // calls and runtime-selector arguments carry no storage evidence.
     let mut argument_storages: Vec<(crate::flow::CanonicalPlace, SymbolHandle)> =
         if !receiver_transition {
             Vec::new()
-        } else if arguments.is_empty() {
-            entry
-                .parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .filter_map(|parameter| {
-                    Some((
-                        crate::flow::canonical_place_from_symbol(parameter.symbol)?,
-                        parameter.symbol,
-                    ))
-                })
-                .collect()
         } else {
             entry
                 .parameters

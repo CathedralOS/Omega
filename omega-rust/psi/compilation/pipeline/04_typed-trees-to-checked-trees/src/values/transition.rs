@@ -42,7 +42,7 @@ impl ValueFactBuilder<'_, '_> {
                     CheckedValueStatementRole::TransitionTargetValue,
                 );
             }
-            TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+            TransitionTargetNode::Terminal => {}
         }
     }
 }

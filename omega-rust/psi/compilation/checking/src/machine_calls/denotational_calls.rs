@@ -121,7 +121,7 @@ fn transition_is_fact_observation_free(
         TransitionTargetNode::Value(expression) => {
             expression_is_fact_observation_free(program, *expression)
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => true,
+        TransitionTargetNode::Terminal => true,
     };
     guard && target(transition.target) && target(transition.continuation)
 }

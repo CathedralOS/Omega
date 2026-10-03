@@ -86,13 +86,12 @@ pub(super) fn receiver_field_holds_entry_value(
     let Some(read_index) = states.iter().position(|state| state.symbol == state_symbol) else {
         return false;
     };
-    // State graph edges: the named and self targets of each transition
+    // State graph edges: the named targets of each transition
     // statement. A state can only have run before the read when a path from
     // it back to the read's state exists.
     let adjacency: Vec<Vec<usize>> = states
         .iter()
-        .enumerate()
-        .map(|(source_index, source)| {
+        .map(|source| {
             let mut outgoing = Vec::new();
             for statement in program.statement_table.statements(source.statement_nodes) {
                 let StatementNode::Transition(transition) = statement else {
@@ -110,7 +109,6 @@ pub(super) fn receiver_field_holds_entry_value(
                                 path.symbol,
                             )
                         }
-                        TransitionTargetNode::SelfTarget => Some(source_index),
                         TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => None,
                     };
                     if let Some(target_index) = target_index {
@@ -180,37 +178,6 @@ pub(super) fn receiver_field_holds_entry_value(
             })
         })
     })
-}
-
-/// Ordinals of `state`'s transition statements that re-enter it through
-/// `-> self`, forwarding the current parameter values as a fresh arrival.
-/// For a mutable parameter that arrival binds whatever its storage holds at
-/// the edge, so each ordinal needs its own pristine prefix.
-pub(super) fn self_target_ordinals(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-) -> Vec<usize> {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(ordinal, statement)| {
-            let StatementNode::Transition(transition) = statement else {
-                return None;
-            };
-            [transition.target, transition.continuation]
-                .into_iter()
-                .filter(|target| target.is_valid())
-                .any(|target| {
-                    matches!(
-                        program.statement_table.transition_target(target),
-                        TransitionTargetNode::SelfTarget
-                    )
-                })
-                .then_some(ordinal)
-        })
-        .collect()
 }
 
 /// One projection step below a binding's root. `Case` marks a sum's variant
@@ -557,6 +524,14 @@ fn statement_may_overwrite(
             (call.receiver_root_symbol == symbol
                 && receiver_call_writes(program, call.target_symbol)
                 && call_receiver_path_interferes(program, call, read_path))
+                || call_arguments_may_overwrite(
+                    program,
+                    machine_symbol,
+                    call.target_symbol,
+                    program.statement_table.expression_handles(call.arguments),
+                    symbol,
+                    read_path,
+                )
                 || program
                     .statement_table
                     .expression_handles(call.arguments)
@@ -620,31 +595,51 @@ fn transition_may_overwrite(
         .filter(|target| target.is_valid())
         .any(
             |target| match program.statement_table.transition_target(target) {
-                TransitionTargetNode::Named { arguments, .. } => program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .iter()
-                    .any(|argument| {
-                        expression_may_overwrite(
+                TransitionTargetNode::Named {
+                    path, arguments, ..
+                } => {
+                    let arguments = program.statement_table.expression_handles(*arguments);
+                    let internal =
+                        crate::lookup::symbols::machine_by_symbol(program, machine_symbol)
+                            .is_some_and(|machine| {
+                                crate::checks::termination::named_transition_target_state_index(
+                                    program,
+                                    machine,
+                                    path.symbol,
+                                )
+                                .is_some()
+                            });
+                    (!internal
+                        && call_arguments_may_overwrite(
                             program,
                             machine_symbol,
-                            *argument,
+                            path.symbol,
+                            arguments,
                             symbol,
                             read_path,
-                        )
-                    }),
+                        ))
+                        || arguments.iter().any(|argument| {
+                            expression_may_overwrite(
+                                program,
+                                machine_symbol,
+                                *argument,
+                                symbol,
+                                read_path,
+                            )
+                        })
+                }
                 TransitionTargetNode::Value(value) => {
                     expression_may_overwrite(program, machine_symbol, *value, symbol, read_path)
                 }
-                TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
+                TransitionTargetNode::Terminal => false,
             },
         )
 }
 
 /// `symbol`'s storage at `read_path` is reached by an exclusive borrow or by
-/// a call whose callee may write its `self` receiver. Writes to a different
-/// binding are not followed; their own `&mut symbol` creation is what dirties
-/// `symbol`.
+/// a call whose callee may write its receiver or a reference argument.
+/// Writes through aliases are conservatively covered by their exclusive
+/// borrow creation or the call that receives mutable access.
 fn expression_may_overwrite(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
@@ -668,6 +663,16 @@ fn expression_may_overwrite(
                 pending.push(borrow.target);
             }
             ExpressionNode::Call(call) => {
+                if call_arguments_may_overwrite(
+                    program,
+                    machine_symbol,
+                    call.target_symbol,
+                    program.expression_table.expression_handles(call.arguments),
+                    symbol,
+                    read_path,
+                ) {
+                    return true;
+                }
                 if call.receiver.is_valid()
                     && place_interferes(program, machine_symbol, call.receiver, symbol, read_path)
                     && receiver_call_writes(program, call.target_symbol)
@@ -751,4 +756,47 @@ fn receiver_call_writes(program: &TypedTrees, target_symbol: SymbolHandle) -> bo
             .is_none_or(|parameter| parameter.is_mutable),
         None => true,
     }
+}
+
+/// Passing an existing mutable reference grants the same write access as
+/// spelling a fresh exclusive borrow. Unknown callees cannot clear a place
+/// argument of writing; ordinary value parameters do not grant such access.
+fn call_arguments_may_overwrite(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    symbol: SymbolHandle,
+    read_path: &[PlaceSegment],
+) -> bool {
+    // A computed reference can select an alias without spelling one place.
+    // Lack of a resolved place is not evidence that a write is disjoint.
+    let argument_may_write = |argument: &ExpressionHandle| {
+        rooted_place_path(program, machine_symbol, *argument).is_none_or(|(root, write_path)| {
+            root == symbol && paths_interfere(&write_path, read_path)
+        })
+    };
+    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target_symbol)
+    else {
+        return arguments.iter().any(argument_may_write);
+    };
+    parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(arguments)
+        .any(|(parameter, argument)| {
+            let mut reference = parameter.type_reference;
+            let writes = loop {
+                match program.type_reference_table.type_reference(reference) {
+                    typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                        reference = *base_type
+                    }
+                    typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
+                        break access.is_exclusive();
+                    }
+                    _ => break false,
+                }
+            };
+            writes && argument_may_write(argument)
+        })
 }

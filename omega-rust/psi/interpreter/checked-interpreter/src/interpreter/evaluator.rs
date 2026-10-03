@@ -465,7 +465,6 @@ impl EvaluatedArgument {
 
 enum TransitionDecision<'program> {
     Terminal,
-    SelfTarget,
     Value(Value),
     Named {
         state: &'program State,

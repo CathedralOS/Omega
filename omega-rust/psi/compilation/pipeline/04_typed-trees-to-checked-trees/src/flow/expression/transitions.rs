@@ -58,7 +58,7 @@ impl Execution<'_, '_, '_> {
             TransitionTargetNode::Value(expression) => {
                 self.expression(*expression, contexts, constraints);
             }
-            TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+            TransitionTargetNode::Terminal => {}
         }
         // Owned values have already been captured. Reference-backed claims
         // still depend on live storage and independently stable bindings.

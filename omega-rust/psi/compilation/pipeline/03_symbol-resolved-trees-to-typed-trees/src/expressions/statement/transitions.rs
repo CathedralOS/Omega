@@ -130,9 +130,6 @@ fn lower_transition_target(
                 *expression,
             )?)
         }
-        resolved::statement::TransitionTargetNode::SelfTarget => {
-            typed::statement::TransitionTargetNode::SelfTarget
-        }
         resolved::statement::TransitionTargetNode::Terminal => {
             typed::statement::TransitionTargetNode::Terminal
         }

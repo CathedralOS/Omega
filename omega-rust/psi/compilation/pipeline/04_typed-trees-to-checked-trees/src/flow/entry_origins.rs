@@ -172,27 +172,22 @@ fn parameter_edges(
                             };
                             (
                                 index,
-                                Some(program.statement_table.expression_handles(*arguments)),
+                                program.statement_table.expression_handles(*arguments),
                             )
                         }
-                        TransitionTargetNode::SelfTarget => (source_index, None),
                         _ => continue,
                     };
                 let state = &states[target_index];
                 let mut nonself_index = 0;
                 let mut mapped = Vec::new();
                 for parameter in program.state_parameters(state) {
-                    let source_parameter = if arguments.is_none() {
-                        Some(parameter)
-                    } else if parameter.is_self {
+                    let source_parameter = if parameter.is_self {
                         program
                             .state_parameters(source)
                             .iter()
                             .find(|candidate| candidate.is_self)
                     } else {
-                        let argument = arguments
-                            .and_then(|arguments| arguments.get(nonself_index))
-                            .copied();
+                        let argument = arguments.get(nonself_index).copied();
                         nonself_index += 1;
                         argument.and_then(|argument| {
                             tracked_source_parameter(program, source, &locals, argument, parameter)

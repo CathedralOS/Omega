@@ -427,7 +427,7 @@ impl Collector<'_> {
                                     }
                                     self.expressions.extend(values.iter().rev().copied());
                                 }
-                                TransitionTarget::SelfTarget | TransitionTarget::Terminal => {}
+                                TransitionTarget::Terminal => {}
                             }
                         }
                     }

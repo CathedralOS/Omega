@@ -215,7 +215,7 @@ pub(super) fn authored_occurrences(
                         seeds.extend(operands.iter().map(|operand| Walk::Enter(*operand, true)));
                     }
                     TransitionTargetNode::Named { .. } => seeds.push(Walk::NamedTarget(target)),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
             if transition.guard == TransitionGuardNode::Always

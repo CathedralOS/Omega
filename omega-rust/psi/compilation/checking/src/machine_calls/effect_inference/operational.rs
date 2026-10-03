@@ -290,8 +290,7 @@ fn collect_transition_target_expression_calls(
         typed_trees::statement::TransitionTargetNode::Value(expression) => {
             collect_expression_calls(program, *expression, statement_index, call_ordinal, calls);
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => {}
+        typed_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 

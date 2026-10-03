@@ -203,8 +203,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                     // binds a callee's: an argument at an
                                     // erased position is that binding's
                                     // initializer, not a runtime transfer.
-                                    let target_parameters =
-                                        transition_target_parameters(program, state, path);
+                                    let target_parameters = callee_parameters(program, path.symbol);
                                     for (position, argument) in program
                                         .statement_table
                                         .expression_handles(*arguments)
@@ -235,8 +234,7 @@ pub(crate) fn validate_relevance(program: &TypedTrees, diagnostics: &mut Vec<Dia
                                     machine_context,
                                     diagnostics,
                                 ),
-                                TransitionTargetNode::SelfTarget
-                                | TransitionTargetNode::Terminal => {}
+                                TransitionTargetNode::Terminal => {}
                             }
                         }
                     }
@@ -262,22 +260,6 @@ pub(super) fn callee_parameters(
     program
         .state_by_symbol(target)
         .map(|state| program.state_parameters(state))
-}
-
-/// The parameters a named transition target binds: the sibling state (or
-/// machine entry) `path` resolves to, or the current state itself for a
-/// bare `self` re-entry. Positional transition arguments align with the
-/// target's non-`self` parameters, the same rule as call arguments.
-fn transition_target_parameters<'program>(
-    program: &'program TypedTrees,
-    state: &'program typed_trees::state::State,
-    path: &typed_trees::statement::TableNamePath,
-) -> Option<&'program [typed_trees::signature::StateParameter]> {
-    callee_parameters(program, path.symbol).or_else(|| {
-        let members = program.statement_table.name_path_members(path.members);
-        matches!(members, [member] if member.is_self_receiver())
-            .then(|| program.state_parameters(state))
-    })
 }
 
 /// A runtime argument supplied to an erased parameter position is the erased

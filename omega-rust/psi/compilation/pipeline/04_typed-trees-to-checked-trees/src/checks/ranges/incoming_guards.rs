@@ -176,8 +176,6 @@ struct Edge {
 #[derive(Clone, Copy)]
 enum EdgeArguments {
     Named(arena::HandleSpan<ExpressionHandle>),
-    /// A `self` transition keeps the current state's parameter storage.
-    Preserved,
     /// External invocation or ambiguous convergent arguments.
     Unknown,
 }
@@ -518,7 +516,7 @@ fn edge_carried_facts(
 /// The single incoming edge of `target`, or `None` when it has zero (an entry
 /// state) or several FROM DIFFERENT SOURCES (a real join the meet must handle).
 /// External invocation is an explicit unguarded predecessor of machine entry;
-/// `self` transitions participate as ordinary backedges.
+/// Named transitions to the same state participate as ordinary backedges.
 ///
 /// Multiple incoming edges that ALL share one source are a guard whose arms
 /// CONVERGE on `target` (`d < 0 { true -> t _ -> t }`): `target` is then reached
@@ -602,7 +600,6 @@ fn direct_edge_parameter_argument_places(
         EdgeArguments::Named(arguments) => {
             compose_parameter_argument_places(program, edge.target, arguments, &identity)
         }
-        EdgeArguments::Preserved => Some(identity),
         EdgeArguments::Unknown => None,
     }
 }
@@ -669,7 +666,6 @@ fn direct_edge_immutable_argument_symbols(
     let target = crate::semantic::calls::find_state(program, edge.target)?;
     let mut bindings = immutable_parameter_symbols(program, target);
     let arguments = match edge.arguments {
-        EdgeArguments::Preserved => return Some(bindings),
         EdgeArguments::Unknown => return None,
         EdgeArguments::Named(arguments) => program.statement_table.expression_handles(arguments),
     };
@@ -1012,7 +1008,6 @@ fn push_edge(
         TransitionTargetNode::Named {
             path, arguments, ..
         } => (path.symbol, EdgeArguments::Named(*arguments)),
-        TransitionTargetNode::SelfTarget => (source, EdgeArguments::Preserved),
         _ => return,
     };
     if program

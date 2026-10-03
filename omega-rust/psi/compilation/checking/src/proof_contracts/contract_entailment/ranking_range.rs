@@ -1295,7 +1295,7 @@ fn comparison_proven(
 }
 
 /// Initial-entry precision is safe only when no local edge can revisit the
-/// root. Check exact primary and continuation targets, including `self`.
+/// root. Check exact primary and continuation named targets.
 fn root_has_incoming_transition(program: &TypedTrees, machine: &Machine, root: &State) -> bool {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
@@ -1318,7 +1318,6 @@ fn root_has_incoming_transition(program: &TypedTrees, machine: &Machine, root: &
                             TransitionTargetNode::Named { path, .. } => {
                                 path.symbol == root.symbol || path.symbol == machine.symbol
                             }
-                            TransitionTargetNode::SelfTarget => state.symbol == root.symbol,
                             _ => false,
                         }
                     })

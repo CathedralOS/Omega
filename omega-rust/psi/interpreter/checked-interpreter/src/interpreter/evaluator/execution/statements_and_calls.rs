@@ -339,7 +339,6 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<TransitionDecision<'program>> {
         match target {
             TransitionTargetNode::Terminal => Ok(TransitionDecision::Terminal),
-            TransitionTargetNode::SelfTarget => Ok(TransitionDecision::SelfTarget),
             TransitionTargetNode::Value(expression) => {
                 let value = self.eval_expression_at_type(*expression, frame.return_type, frame)?;
                 Ok(TransitionDecision::Value(value))

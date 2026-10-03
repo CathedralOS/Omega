@@ -42,6 +42,6 @@ pub(super) fn check_transition_target<'program>(
             *value,
             diagnostics,
         ),
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::Terminal => {}
     }
 }

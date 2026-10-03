@@ -195,7 +195,7 @@ fn validate_statement(
                         call_ordinal,
                         diagnostics,
                     ),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
         }

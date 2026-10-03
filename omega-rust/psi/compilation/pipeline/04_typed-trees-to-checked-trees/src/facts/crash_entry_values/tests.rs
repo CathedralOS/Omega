@@ -208,15 +208,15 @@ fn mutable_snapshots_end_at_writes_and_exclusive_borrows() {
                  transition true { true -> next(input) false -> false }
              }
          }",
-        // `-> self` after a write carries the written storage into the next
-        // arrival, so no single bound snapshot exists.
+        // A guarded back-edge after a write passes the written value into
+        // the next arrival, so no single bound snapshot exists.
         "machine sink(input: bool) -> bool { input }
          machine value() -> bool {
              transition true { true -> next(false) false -> false }
              state next(mut input: bool) -> bool {
                  sink(input);
                  input = true;
-                 transition input { true -> self false -> false }
+                 transition input { true -> next(input) false -> false }
              }
          }",
     ] {
@@ -250,8 +250,8 @@ fn mutable_snapshots_end_at_writes_and_exclusive_borrows() {
 }
 
 #[test]
-fn a_pristine_self_edge_still_transports_the_bound_snapshot() {
-    // The `-> self` edge sees no writes, so it forwards the bound snapshot
+fn a_pristine_named_back_edge_still_transports_the_bound_snapshot() {
+    // The explicit back-edge sees no writes, so it forwards the bound snapshot
     // itself and `input` stays `flag` on every iteration.
     let program = typed_program(
         "machine sink(input: bool) -> bool { input }
@@ -259,7 +259,7 @@ fn a_pristine_self_edge_still_transports_the_bound_snapshot() {
              transition flag { true -> next(flag) false -> false }
              state next(mut input: bool) -> bool {
                  sink(input);
-                 transition input { true -> self false -> false }
+                 transition input { true -> next(input) false -> false }
              }
          }",
     );
@@ -272,20 +272,20 @@ fn a_pristine_self_edge_still_transports_the_bound_snapshot() {
 }
 
 #[test]
-fn mutable_receiver_field_survives_writes_confined_to_siblings() {
-    // The write-escape scan is per field: `self.other = 1` and a mutating
-    // call on `self.inner`'s attached machine never reach `self.count`, whose
+fn mutable_parameter_field_survives_writes_confined_to_siblings() {
+    // The write-escape scan is per field: `context.other = 1` and a mutating
+    // call on `context.inner` never reach `context.count`, whose
     // provenance stays intact in a non-entry state too.
     let program = typed_program(
         "data Inner { n: i32; }
-         machine Inner::bump(&mut self) { self.n = 1; }
+         machine Inner::bump(inner: &mut Inner) { inner.n = 1; }
          data Main { count: i32; other: i32; inner: Inner; }
          machine sink(input: i32) -> bool { true }
-         machine Main::run(&mut self) -> bool {
-             self.other = 1;
-             self.inner.bump();
-             transition true { true -> work() false -> true }
-             state work(&mut self) -> bool { sink(self.count); true }
+         machine Main::run(context: &mut Main) -> bool {
+             context.other = 1;
+             Inner::bump(&mut context.inner);
+             transition true { true -> work(context) false -> true }
+             state work(context: &mut Main) -> bool { sink(context.count); true }
          }",
     );
     let (machine, work) = named_state(&program, "Main::run", "work");
@@ -300,20 +300,49 @@ fn mutable_receiver_field_survives_writes_confined_to_siblings() {
 }
 
 #[test]
-fn mutable_receiver_field_later_write_still_escapes_once_the_state_reenters() {
-    // `-> self` re-enters `run`, so its post-read statements may already have
+fn mutable_parameter_field_direct_call_retires_entry_value() {
+    for argument in [
+        "context",
+        "match flag { true -> context, false -> context }",
+    ] {
+        let program = typed_program(&format!(
+            "data Main {{ count: i32; }}
+         machine overwrite(context: &mut Main) {{ context.count = -1; }}
+         machine sink(input: i32) -> bool {{ true }}
+         machine Main::run(context: &mut Main, flag: bool) -> bool {{
+             overwrite({argument});
+             transition {{ _ -> work(context) }}
+             state work(context: &mut Main) -> bool {{ sink(context.count); true }}
+         }}"
+        ));
+        let (machine, work) = named_state(&program, "Main::run", "work");
+        let (call_index, argument) = first_call_argument(&program, machine, work);
+        assert_eq!(
+            entry_operand(&program, machine, work, call_index, argument),
+            None,
+            "passing a mutable reference can change the field without an explicit borrow expression",
+        );
+    }
+}
+
+#[test]
+fn mutable_parameter_field_later_write_still_escapes_once_the_state_reenters() {
+    // The named back-edge re-enters `run`, so its post-read statements may already have
     // run on the earlier arrival: the whole state stays in the window and the
     // write ends entry identity.
     let program = typed_program(
         "data Main { count: i32; }
          machine sink(input: i32) -> bool { true }
-         machine Main::run(&mut self) -> bool {
-             sink(self.count);
-             self.count = -1;
-             transition true { true -> self false -> true }
+         machine Main::run(context: &mut Main) -> bool {
+             transition { _ -> work(context) }
+             state work(context: &mut Main) -> bool {
+                 sink(context.count);
+                 context.count = -1;
+                 transition true { true -> work(context) false -> true }
+             }
          }",
     );
-    let (machine, run) = named_state(&program, "Main::run", "run");
+    let (machine, run) = named_state(&program, "Main::run", "work");
     let (call_index, argument) = first_call_argument(&program, machine, run);
     assert_eq!(
         entry_operand(&program, machine, run, call_index, argument),

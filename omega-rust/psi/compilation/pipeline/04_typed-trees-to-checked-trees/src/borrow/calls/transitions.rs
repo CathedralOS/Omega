@@ -35,6 +35,6 @@ pub(super) fn collect_transition_target_borrow_calls(
         TransitionTargetNode::Value(expression) => {
             expression::collect_expression_borrow_calls(collection, *expression)
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::Terminal => {}
     }
 }

@@ -279,7 +279,7 @@ impl ActivationCarryAccumulator<'_> {
                 }
             }
             TransitionTargetNode::Value(expression) => self.visit_expression(*expression),
-            TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+            TransitionTargetNode::Terminal => {}
         }
     }
 

@@ -97,7 +97,6 @@ pub enum TransitionTargetSnapshot {
     Value {
         value: ExpressionSnapshot,
     },
-    SelfTarget,
     Terminal,
     Invalid {
         handle: u32,
@@ -355,7 +354,6 @@ fn transition_target_snapshot(
         TransitionTargetNode::Value(value) => TransitionTargetSnapshot::Value {
             value: expression_snapshot(program, *value),
         },
-        TransitionTargetNode::SelfTarget => TransitionTargetSnapshot::SelfTarget,
         TransitionTargetNode::Terminal => TransitionTargetSnapshot::Terminal,
     }
 }

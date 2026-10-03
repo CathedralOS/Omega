@@ -146,9 +146,8 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
                                         &mut destinations,
                                     );
                                 }
-                                TransitionTargetNode::Value(_)
-                                | TransitionTargetNode::SelfTarget
-                                | TransitionTargetNode::Terminal => {}
+                                TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
+                                }
                             }
                         }
                     }

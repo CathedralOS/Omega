@@ -277,9 +277,9 @@ fn contract_plans_fingerprint_published_halves() {
     machine Wrapper::boundary_call(&mut self) reaches Device {
         self.device.overwrite(&mut self.value);
     }
-    machine Main::direct_self_loop(&mut self) {
-        self.left = 9;
-        transition { _ -> self }
+    machine Main::direct_named_loop(context: &mut Main) {
+        context.left = 9;
+        transition { _ -> Main::direct_named_loop(context) }
     }
     machine Main::branching(&mut self) {
         transition self.left == 0 {
@@ -341,7 +341,7 @@ fn contract_plans_fingerprint_published_halves() {
     let rotating_mut_fields = symbol_of("rotating_mut_fields");
     let call_rotating_mut_fields = symbol_of("FrameOwner::call_rotating_mut_fields");
     let boundary_call = symbol_of("Wrapper::boundary_call");
-    let direct_self_loop = symbol_of("Main::direct_self_loop");
+    let direct_self_loop = symbol_of("Main::direct_named_loop");
     let branching = symbol_of("Main::branching");
     let call_bearing = symbol_of("Main::call_bearing");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())

@@ -1137,7 +1137,7 @@ fn collect_statement_edges(
                             *expression,
                         );
                     }
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
             if let TransitionGuardNode::When(guard) = transition.guard {

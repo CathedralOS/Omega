@@ -313,7 +313,6 @@ impl SyntaxTrees {
             TransitionTargetNode::Value(value) => {
                 TransitionTargetNode::Value(self.copy_expression_handle(other, *value))
             }
-            TransitionTargetNode::SelfTarget => TransitionTargetNode::SelfTarget,
             TransitionTargetNode::Terminal => TransitionTargetNode::Terminal,
         };
 

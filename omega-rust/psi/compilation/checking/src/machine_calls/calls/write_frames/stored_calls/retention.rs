@@ -36,7 +36,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         program,
         machine,
         target,
-        Some(arguments),
+        arguments,
         prefix,
         &initial,
         symbols,
@@ -94,10 +94,9 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
                             super::super::transition_topology::named_transition_target_state(
                                 program, machine, state, edge,
                             )?,
-                            Some(program.statement_table.expression_handles(*arguments)),
+                            program.statement_table.expression_handles(*arguments),
                         )
                     }
-                    TransitionTargetNode::SelfTarget => (state, None),
                     TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
                         check_exit(program, state, &prefix.stored, &arrival.slots)?;
                         continue;
@@ -191,16 +190,14 @@ fn transferred_slots(
     program: &TypedTrees,
     machine: &Machine,
     target: &State,
-    arguments: Option<&[ExpressionHandle]>,
+    arguments: &[ExpressionHandle],
     prefix: &CollectedStatementPrefix,
     carried: &[FrameSourcePlace],
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<Vec<FrameSourcePlace>> {
     let parameters = program.state_parameters(target);
-    if arguments.is_some_and(|arguments| arguments.len() != parameters.len())
-        || !prefix.divergent.is_empty()
-    {
+    if arguments.len() != parameters.len() || !prefix.divergent.is_empty() {
         return None;
     }
     let mut selected = Vec::new();
@@ -240,29 +237,15 @@ fn transferred_slots(
         if slots.is_empty() {
             continue;
         }
-        let captured = if let Some(arguments) = arguments {
-            argument_origin(
-                program,
-                machine,
-                parameter,
-                *arguments.get(index)?,
-                prefix,
-                symbols,
-                inference,
-            )?
-        } else {
-            let source = FrameSourcePlace {
-                kind: Default::default(),
-                root: parameter.symbol,
-                segments: Vec::new(),
-                builtin_coordinates: true,
-            };
-            FramePlaceOrigin {
-                path: path(program, &source),
-                precision: FramePathPrecision::Exact,
-                source,
-            }
-        };
+        let captured = argument_origin(
+            program,
+            machine,
+            parameter,
+            *arguments.get(index)?,
+            prefix,
+            symbols,
+            inference,
+        )?;
         for segments in slots {
             let slot = FrameSourcePlace {
                 kind: Default::default(),
