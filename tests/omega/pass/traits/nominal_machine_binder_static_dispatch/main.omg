@@ -1,13 +1,13 @@
 // A nominal machine binder inherits the exact trait requirement's contract.
 // Its selected declaration names the subject, and the generic body passes it
-// explicitly even while the requirement retains its legacy receiver spelling.
+// explicitly; requirement and satisfier share one named-parameter contract.
 // Specialization selects Counter::increment without a runtime dictionary.
 // Expected exit: 1.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 trait Incrementable {
-    machine increment(&mut self);
+    machine increment(subject: &mut Self);
 }
 
 data Counter {

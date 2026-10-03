@@ -17,7 +17,7 @@ data RoomEvent {
 }
 
 trait Equatable {
-    machine equals(&self, other: &Self) -> bool;
+    machine equals(subject: &Self, other: &Self) -> bool;
 }
 
 RoomEventEquatable: RoomEvent satisfies Equatable;

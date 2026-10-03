@@ -11,7 +11,7 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 trait Equatable {
-    machine equals(&self, rhs: &Self) -> bool;
+    machine equals(subject: &Self, rhs: &Self) -> bool;
 }
 
 data Point {
