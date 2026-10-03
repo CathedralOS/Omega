@@ -754,14 +754,14 @@ fn ordinary_static_call_does_not_transport_a_suspended_parent() {
     assert_rejected(
         "data Main { count: u64; other: u64; }
          machine Main::observe(main: &mut Main, child: &u64) -> u64 {
-             main.other = 3;
+             main.count = 3;
              (child)
          }
          machine Main::run(main: &mut Main) -> u64 {
              let seen: u64 = Main::observe(main, &main.count);
              (seen)
          }",
-        "both mutable and read-only",
+        "while its mutable receiver writes `main.count`",
     );
 }
 
@@ -856,7 +856,7 @@ fn ordinary_static_call_keeps_local_child_exclusivity() {
     assert_rejected(
         "data Main { count: u64; other: u64; }
          machine Main::observe(main: &mut Main, child: &u64) -> u64 {
-             main.other = 3;
+             main.count = 3;
              (child)
          }
          machine Main::run(main: &mut Main) -> u64 {
@@ -864,6 +864,6 @@ fn ordinary_static_call_keeps_local_child_exclusivity() {
              let seen: u64 = Main::observe(main, view);
              (seen)
          }",
-        "while local borrow `view` is still active",
+        "mutates `main.count` while local borrow `view` is still active",
     );
 }

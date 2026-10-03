@@ -29,10 +29,11 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    let Some(machine) = whole_mutable_receiver_machine(program, state_flow, call) else {
+    let Some(machine) = whole_mutable_receiver_machine(program, facts, state_flow, call) else {
         return;
     };
-    let data_access = explicit_jump_data_access(program, facts, state_flow, call);
+    let data_access = explicit_jump_data_access(program, facts, state_flow, call)
+        .or_else(|| subject_data_access(program, facts, state_flow, call));
     let attached = |places| attached_places(program, machine, places);
     let retained_arguments: Vec<_> = facts
         .borrow
@@ -159,8 +160,37 @@ pub(in crate::checks::borrows::calls) fn explicit_jump_data_access(
     call: &BorrowCallFact,
 ) -> Option<usize> {
     super::local_jump(program, state_flow, call)?;
-    let machine = whole_mutable_receiver_machine(program, state_flow, call)?;
+    let machine = whole_mutable_receiver_machine(program, facts, state_flow, call)?;
     retained_subject_access(program, facts, state_flow, call, machine)
+}
+
+/// The static spelling of the data-accessed subject: `Machine::state(recv, ..)`
+/// with no authored receiver operand and no jump, whose callee declares its
+/// subject as the data-binding `&mut` parameter. The one retained whole-place
+/// mutable access filling it is the receiver's own form — the footprint
+/// judgment covers it identically — while a projected argument's exclusive
+/// child loan keeps the projected-receiver checks.
+pub(in crate::checks::borrows::calls) fn subject_data_access(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call: &BorrowCallFact,
+) -> Option<usize> {
+    if super::local_jump(program, state_flow, call).is_some() {
+        return None;
+    }
+    let ordinal = entered_subject_access(program, facts, state_flow, call)?;
+    let access = facts
+        .borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+        .get(ordinal)?;
+    facts
+        .borrow
+        .access_segments
+        .span_or_empty(access.segments)
+        .is_empty()
+        .then_some(ordinal)
 }
 
 /// The same access, for a call of ANY form.
@@ -312,13 +342,19 @@ fn retained_access_for_parent(
     matching.next().is_none().then_some(ordinal)
 }
 
-/// The caller's machine when `call` passes a whole `&mut` receiver: the one
-/// receiver form judged by its footprint instead of as a single operand.
+/// The caller's machine when `call` passes a whole `&mut` subject: the one
+/// subject form judged by its footprint instead of as a single operand — an
+/// authored receiver, a jump's data parent, or a static call's data-binding
+/// `&mut` argument.
 fn whole_mutable_receiver_machine<'p>(
     program: &'p TypedTrees,
+    facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
 ) -> Option<&'p typed_trees::machine::Machine> {
+    if subject_data_access(program, facts, state_flow, call).is_some() {
+        return crate::lookup::machine_by_symbol(program, state_flow.machine_symbol);
+    }
     if !super::call_passes_receiver(program, state_flow, call)
         || !receiver_is_mutable_reference(
             program,
