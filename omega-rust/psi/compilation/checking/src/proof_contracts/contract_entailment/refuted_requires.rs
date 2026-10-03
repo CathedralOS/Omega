@@ -32,7 +32,7 @@ pub(crate) fn reject_refuted_value_call_requires(
         program,
         caller_machine,
         caller_state,
-        callee_state,
+        program.state_parameters(callee_state),
         arguments,
         self_is_argument,
     ) else {
@@ -57,6 +57,7 @@ pub(crate) fn reject_refuted_value_call_requires(
                 program.state_parameters(callee_state),
                 expression,
                 &map,
+                Some((caller_machine, caller_state)),
             ),
             StructuralJudgment::Refuted
         ) {
@@ -93,7 +94,7 @@ pub fn instantiated_value_call_requires_proven(
     program: &TypedTrees,
     caller_machine: &Machine,
     caller_state: &typed_trees::state::State,
-    callee_state: &typed_trees::state::State,
+    callee_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
     self_is_argument: bool,
@@ -102,7 +103,7 @@ pub fn instantiated_value_call_requires_proven(
         program,
         caller_machine,
         caller_state,
-        callee_state,
+        callee_parameters,
         arguments,
         self_is_argument,
     ) else {
@@ -116,9 +117,10 @@ pub fn instantiated_value_call_requires_proven(
         instantiated_fact_judgment(
             program,
             &judge,
-            program.state_parameters(callee_state),
+            callee_parameters,
             expression,
             &map,
+            Some((caller_machine, caller_state)),
         ),
         StructuralJudgment::Proven
     )
@@ -131,12 +133,11 @@ fn argument_term_map(
     program: &TypedTrees,
     caller_machine: &Machine,
     caller_state: &typed_trees::state::State,
-    callee_state: &typed_trees::state::State,
+    callee_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     self_is_argument: bool,
 ) -> Option<Vec<(String, StructuralTerm)>> {
-    let parameters = program
-        .state_parameters(callee_state)
+    let parameters = callee_parameters
         .iter()
         .filter(|parameter| self_is_argument || !parameter.is_self)
         .collect::<Vec<_>>();
@@ -266,6 +267,7 @@ pub(super) fn instantiated_fact_judgment(
     callee_parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
+    caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
     if super::structural_terms::is_case_observation(program, fact) {
         return judge.instantiated_case_judgment(callee_parameters, fact, map);
@@ -276,8 +278,22 @@ pub(super) fn instantiated_fact_judgment(
     match binary.operator {
         BinaryOperator::And => {
             match (
-                instantiated_fact_judgment(program, judge, callee_parameters, binary.left, map),
-                instantiated_fact_judgment(program, judge, callee_parameters, binary.right, map),
+                instantiated_fact_judgment(
+                    program,
+                    judge,
+                    callee_parameters,
+                    binary.left,
+                    map,
+                    caller_scope,
+                ),
+                instantiated_fact_judgment(
+                    program,
+                    judge,
+                    callee_parameters,
+                    binary.right,
+                    map,
+                    caller_scope,
+                ),
             ) {
                 (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
                     StructuralJudgment::Refuted
@@ -289,7 +305,9 @@ pub(super) fn instantiated_fact_judgment(
             }
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            let Some((left, right)) = instantiated_operands(program, judge, binary, map) else {
+            let Some((left, right)) =
+                instantiated_operands(program, judge, binary, map, caller_scope)
+            else {
                 return StructuralJudgment::Unknown;
             };
             let equality = judge.judge_equation(left, right, 0);
@@ -310,7 +328,9 @@ pub(super) fn instantiated_fact_judgment(
             // Ordering decides only over closed values: an operand that stays
             // symbolic leaves the fact for the positive prover's bound, guard,
             // and hypothesis channels.
-            let Some((left, right)) = instantiated_operands(program, judge, binary, map) else {
+            let Some((left, right)) =
+                instantiated_operands(program, judge, binary, map, caller_scope)
+            else {
                 return StructuralJudgment::Unknown;
             };
             let verdict = match (&left, &right) {
@@ -360,19 +380,94 @@ fn instantiated_operands(
     judge: &StructuralJudge,
     binary: &typed_trees::expression::TableBinaryExpression,
     map: &[(String, StructuralTerm)],
+    caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> Option<(StructuralTerm, StructuralTerm)> {
     let left = structural_term(program, binary.left)?;
     let right = structural_term(program, binary.right)?;
     Some((
-        super::structural_terms::unfold_constant_applications(
+        declared_len_extent_term(
             program,
-            judge.resolve(StructuralJudge::substitute_term(&left, map)),
+            caller_scope,
+            super::structural_terms::unfold_constant_applications(
+                program,
+                judge.resolve(StructuralJudge::substitute_term(&left, map)),
+            ),
         ),
-        super::structural_terms::unfold_constant_applications(
+        declared_len_extent_term(
             program,
-            judge.resolve(StructuralJudge::substitute_term(&right, map)),
+            caller_scope,
+            super::structural_terms::unfold_constant_applications(
+                program,
+                judge.resolve(StructuralJudge::substitute_term(&right, map)),
+            ),
         ),
     ))
+}
+
+/// A `.len` projection over a rooted member path reads a closed value when
+/// the root's declared storage is statically countable: after substitution a
+/// callee's `buffer.len` may name the caller's `[u8; 64]` field, and the same
+/// holds for a `main.nodes.len` spelled on a self receiver the judgment sees
+/// directly. Anything else — a runtime-length slice, a non-`.len` tail, or an
+/// unrooted subject — keeps its symbolic form.
+fn declared_len_extent_term(
+    program: &TypedTrees,
+    caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    term: StructuralTerm,
+) -> StructuralTerm {
+    let Some((machine, state)) = caller_scope else {
+        return term;
+    };
+    let StructuralTerm::Projection { subject, path } = &term else {
+        return term;
+    };
+    if language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
+        path.as_str(),
+    ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+    {
+        return term;
+    }
+    let mut names = Vec::new();
+    let mut current = subject.as_ref();
+    loop {
+        match current {
+            StructuralTerm::Variable(name) => {
+                names.insert(0, name.clone());
+                break;
+            }
+            // An Opaque carries a display spelling: a caller-side
+            // multi-member place (`main.control`) joins its path with
+            // `.`, so split it back into members to recover the place.
+            StructuralTerm::Opaque(name) => {
+                for (index, member) in name.split('.').enumerate() {
+                    names.insert(index, member.to_string());
+                }
+                break;
+            }
+            StructuralTerm::Projection { subject, path } => {
+                names.insert(0, path.clone());
+                current = subject.as_ref();
+            }
+            _ => return term,
+        }
+    }
+    let Some(declared) = crate::value_custody::places::declared_member_path_type(
+        program,
+        machine,
+        Some(state),
+        &names,
+    )
+    .and_then(|declared| crate::value_custody::places::unwrapped_type_reference(program, declared)) else {
+        return term;
+    };
+    let typed_trees::types::TypeReferenceNode::FixedArray {
+        length: typed_trees::types::FixedArrayLength::Literal(extent),
+        ..
+    } = program.type_reference_table.type_reference(declared)
+    else {
+        return term;
+    };
+    StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(*extent as u64))
 }
 
 /// Walk an ensures fact's `&&`-conjuncts; each `==` conjunct whose sides

@@ -36,6 +36,32 @@ pub fn collection_length_receiver(
     .then_some(member.receiver)
 }
 
+/// The constant extent a `.len` observation reads when the receiver's
+/// declared shape is statically countable: a fixed array names its declared
+/// length, and a borrow or reference spelled around such a place loans the
+/// same extent through its shell. A runtime-length slice keeps the
+/// observation symbolic — callers then discharge the bound through the
+/// carried-fact channels as before.
+pub fn declared_collection_extent(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    receiver: ExpressionHandle,
+) -> Option<usize> {
+    // `declared_place_type_raw` already reads through `&`/`&mut` spellings to
+    // the loaned place's declared type, so `(&mut control).len` on a fixed
+    // field resolves the same extent `control.len` does.
+    let declared = declared_place_type_raw(program, machine, state, receiver)?;
+    let declared = super::unwrapped_type_reference(program, declared)?;
+    match program.type_reference_table.type_reference(declared) {
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            length: typed_trees::types::FixedArrayLength::Literal(extent),
+            ..
+        } => Some(*extent),
+        _ => None,
+    }
+}
+
 /// Resolve the indexed geometry of a readable subslice occurrence. This
 /// query grants no access: each consumer retains the authored borrow and
 /// checks its access against the requested view and source loan. Write-only

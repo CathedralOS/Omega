@@ -141,13 +141,7 @@ fn prove(
     // or not the caller's intervals can name it, and a decided-true requires
     // needs no other premise.
     if validation::instantiated_value_call_requires_proven(
-        program,
-        machine,
-        state,
-        callee_state,
-        &arguments,
-        expression,
-        false,
+        program, machine, state, parameters, &arguments, expression, false,
     ) {
         return Some(true);
     }
@@ -172,6 +166,12 @@ fn prove(
     // operand reader below cannot even name literals outside i64. Discharge
     // by carrier before the evidence path runs.
     if carrier_extent_discharge(program, machine, state, &explicit, &arguments, binary) {
+        return Some(true);
+    }
+    // A `.len` over declared fixed storage is a closed value in caller scope:
+    // `64 <= control.len` on a `[u8; 64]` field or a `&mut` loan of it
+    // decides without a carried premise.
+    if constant_extent_comparison_value(program, machine, state, binary) == Some(true) {
         return Some(true);
     }
     let operand = |expression| match program.expression_table.expression(expression) {
@@ -423,6 +423,55 @@ fn carrier_extent_discharge(
             minimum.is_some_and(|minimum| bound <= minimum)
         }
         _ => false,
+    }
+}
+
+/// The decided verdict of a comparison whose `.len` subject reads a
+/// statically countable receiver: `64 <= control.len` on a `[u8; 64]` field
+/// (or a borrow spelled around it) folds the subject to its declared extent
+/// and the literal comparison evaluates closed. Anything else — a
+/// runtime-length slice, a non-length member, or no literal side — stays
+/// undecided here and falls through to the evidence channels unchanged.
+pub(super) fn constant_extent_comparison_value(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    binary: &typed_trees::expression::TableBinaryExpression,
+) -> Option<bool> {
+    let left_literal = validation::closed_integer_range_bound(program, binary.left);
+    let right_literal = validation::closed_integer_range_bound(program, binary.right);
+    let (subject, bound, subject_on_left) = match (left_literal, right_literal) {
+        (Some(value), None) => (binary.right, value, false),
+        (None, Some(value)) => (binary.left, value, true),
+        _ => return None,
+    };
+    let receiver = validation::collection_length_receiver(program, machine, Some(state), subject)?;
+    let extent = validation::declared_collection_extent(program, machine, Some(state), receiver)
+        .map(|extent| numerics::bignum::BigInt::from_u64(extent as u64))?;
+    match binary.operator {
+        BinaryOperator::Equal => Some(extent == bound),
+        BinaryOperator::NotEqual => Some(extent != bound),
+        BinaryOperator::Less => Some(
+            subject_on_left
+                .then_some(extent < bound)
+                .unwrap_or(bound < extent),
+        ),
+        BinaryOperator::LessOrEqual => Some(
+            subject_on_left
+                .then_some(extent <= bound)
+                .unwrap_or(bound <= extent),
+        ),
+        BinaryOperator::Greater => Some(
+            subject_on_left
+                .then_some(extent > bound)
+                .unwrap_or(bound > extent),
+        ),
+        BinaryOperator::GreaterOrEqual => Some(
+            subject_on_left
+                .then_some(extent >= bound)
+                .unwrap_or(bound >= extent),
+        ),
+        _ => None,
     }
 }
 

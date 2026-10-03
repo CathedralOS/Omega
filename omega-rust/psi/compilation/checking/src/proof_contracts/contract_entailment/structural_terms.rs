@@ -348,11 +348,43 @@ pub(super) fn structural_term_in_scope(
                     });
                 }
             }
+            // A `.len` over declared fixed storage reads a closed extent in
+            // the declaring scope: `main.nodes.len` on a `[Node; 4]` field is
+            // the literal 4. Runtime-length receivers keep a substitutable
+            // projection below so a call instantiation can still decide them.
+            let is_length_member =
+                language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
+                    member.member.as_str(),
+                )
+                    == Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+                    && !member.member_symbol.is_valid()
+                    && member.case_variant.is_none();
+            if is_length_member
+                && let Some((machine, state, _)) = scope
+                && let Some(receiver) = crate::value_custody::places::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                && let Some(extent) = crate::value_custody::places::declared_collection_extent(
+                    program,
+                    machine,
+                    Some(state),
+                    receiver,
+                )
+            {
+                return Some(StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
+                    extent as u64,
+                )));
+            }
             // A field read off a value receiver: when the receiver termifies
             // to a closed constructor (a struct literal, an immutable local
             // tracing to one, or a nested projection already resolved), the
-            // field term is recoverable by name. Symbolic receivers keep the
-            // whole-expression opaque name as before.
+            // field term is recoverable by name. A member path rooted at a
+            // value term is a projection of that value — kept substitutable
+            // so call instantiation can rewrite its root; receivers with no
+            // value identity keep the whole-expression opaque name as before.
             match structural_term_in_scope(program, scope, member.receiver) {
                 Some(StructuralTerm::Constructor { fields, .. }) => fields
                     .into_iter()
@@ -363,6 +395,12 @@ pub(super) fn structural_term_in_scope(
                             program.expression_table.display_name(expression),
                         ))
                     }),
+                Some(
+                    subject @ (StructuralTerm::Variable(_) | StructuralTerm::Projection { .. }),
+                ) => Some(StructuralTerm::Projection {
+                    subject: Box::new(subject),
+                    path: member.member.as_str().to_owned(),
+                }),
                 _ => Some(StructuralTerm::Opaque(
                     program.expression_table.display_name(expression),
                 )),
@@ -371,6 +409,12 @@ pub(super) fn structural_term_in_scope(
         ExpressionNode::ZeroValue(type_reference) => {
             zero_value_structural_term(program, *type_reference)
         }
+        // A borrow's referent is the bound place itself — fact
+        // instantiation strips it the same way (`&mut main.control`
+        // instantiates to `main.control`), so the term names the
+        // referent's storage and a `.len` over it folds to the declared
+        // extent.
+        ExpressionNode::Borrow(borrow) => structural_term_in_scope(program, scope, borrow.target),
         _ => None,
     }
 }

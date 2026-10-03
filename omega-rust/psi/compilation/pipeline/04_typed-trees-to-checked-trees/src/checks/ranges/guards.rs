@@ -92,6 +92,14 @@ pub(super) fn seed_value_vs_value_endpoints(
         )
         .map(|(_, high)| high),
         immutable_parameter_endpoint(program, machine, state, bound_source),
+        // A `.len` over declared fixed storage reads a constant: `hi <=
+        // main.arr.len` on a `[T; 5]` field bounds `hi` by the declared
+        // extent, no carried premise needed.
+        validation::collection_length_receiver(program, machine, Some(state), bound_source)
+            .and_then(|receiver| {
+                validation::declared_collection_extent(program, machine, Some(state), receiver)
+            })
+            .map(|extent| extent as i64),
     ]
     .into_iter()
     .flatten()

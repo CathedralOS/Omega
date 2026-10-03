@@ -181,7 +181,8 @@ fn validate_expression(
                                 &judge,
                                 parameters,
                                 *required,
-                                substitution
+                                substitution,
+                                state.map(|state| (machine, state)),
                             ),
                             StructuralJudgment::Proven
                         )

@@ -67,6 +67,79 @@ fn standing_domain_fact_proves_requirement(
     )
 }
 
+/// A `.len` over declared fixed storage is a closed value in the caller's own
+/// scope: `64 <= main.control.len` on a `[u8; 64]` field or a `&mut` loan of
+/// it decides without a carried premise. Anything else — a runtime-length
+/// slice, a non-length member, or no literal side — stays undecided and falls
+/// through to the bound, guard, and entailment channels unchanged.
+fn constant_extent_requirement_value(
+    program: &TypedTrees,
+    state_flow: &FlowStateFact,
+    expression: ExpressionHandle,
+) -> Option<bool> {
+    let machine = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)?;
+    let state = crate::semantic::calls::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    )?;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    super::super::call_bounds::constant_extent_comparison_value(program, machine, state, binary)
+}
+
+/// A call binding every parameter positionally substitutes the subject
+/// argument too (`Main::fill(main, 2, node)`): the instantiated
+/// judgment — the only channel that substitutes `self` — then decides
+/// the requires on the bound values alone. Covers every fully-bound
+/// call site, any callee state, guarded or not; receiver-form calls
+/// bind `self` implicitly and never reach full arity here.
+fn explicit_subject_call_requirement_proven(
+    program: &TypedTrees,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+        return false;
+    };
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
+        return false;
+    };
+    let Some(callee_parameters) =
+        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+    else {
+        return false;
+    };
+    let Some(site) = crate::semantic::calls::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    ) else {
+        return false;
+    };
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    if arguments.len() != callee_parameters.len() {
+        return false;
+    }
+    validation::instantiated_value_call_requires_proven(
+        program,
+        machine,
+        state,
+        callee_parameters,
+        &arguments,
+        expression,
+        true,
+    )
+}
+
 pub(super) fn proves(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -78,6 +151,7 @@ pub(super) fn proves(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let proven = closed_boolean_value(program, &facts.operators, expression) == Some(true)
+        || constant_extent_requirement_value(program, state_flow, expression) == Some(true)
         || super::super::call_bounds::proves(
             program,
             facts,
@@ -113,6 +187,7 @@ pub(super) fn proves(
             expression,
             call_frames,
         )
+        || explicit_subject_call_requirement_proven(program, state_flow, call_flow, expression)
         || if !expression_is_boolean_place_like(program, expression) {
             // R1: a DOMINATING incoming-arm guard establishes a
             // boolean requires fact -- the ranges machinery's

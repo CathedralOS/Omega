@@ -11,7 +11,7 @@ proposition second_ready() evidence Evidence;
 proposition third_ready() evidence Evidence;
 
 trait Producer {
-    machine Self::produce()
+    machine Self::produce(subject: &Self)
     requires first: first_ready()
     requires second: second_ready()
     requires third: third_ready()
@@ -24,7 +24,7 @@ data Token {
 }
 
 TokenProducer: Token satisfies Producer {
-    machine produce(&self)
+    machine produce(subject: &Self)
     requires local_first: first_ready()
     requires local_second: second_ready()
     requires local_third: third_ready()
