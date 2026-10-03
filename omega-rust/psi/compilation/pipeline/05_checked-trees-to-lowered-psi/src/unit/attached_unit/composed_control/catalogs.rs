@@ -45,6 +45,11 @@ pub(crate) struct ComposedCatalogs<'a> {
     /// dynamic continuation has neither and makes no scalar call.
     pub(in crate::unit::attached_unit) closure: &'a [symbols::SymbolHandle],
     pub(in crate::unit::attached_unit) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
+    /// The closure's scalar qualification namespace; a call's emitted
+    /// result republishes the callee's qualified result through it. A
+    /// standalone dynamic continuation carries none.
+    pub(in crate::unit::attached_unit) prepared_scalar_qualifications:
+        Option<&'a crate::expression_preparation::qualifications::PreparedScalarQualifications>,
     pub(crate) service_ids: Cow<'a, [(ServiceReachId, ServiceId)]>,
     pub(crate) next_place: u64,
     /// Private constructor, join, and literal places; not authored result ordinals.
@@ -361,6 +366,7 @@ fn lower_catalogs(
         signatures: Cow::Owned(Vec::new()),
         closure: &[],
         prepared_scalar_machines: &[],
+        prepared_scalar_qualifications: None,
         service_ids: service_ids.into(),
         next_place,
         temporary_places: Vec::new(),

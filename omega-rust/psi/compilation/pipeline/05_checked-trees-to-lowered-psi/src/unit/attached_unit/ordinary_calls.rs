@@ -16,7 +16,7 @@ use super::{
     allocate_dense, argument_evaluation, lookup_claim_id, lookup_type_id,
     lower_checked_crash_route_buckets, lower_structural_arguments,
     lower_structural_crash_route_buckets, lower_structural_path, place_id, primitive_locals,
-    terminal_scalar_type, unsupported, validate_transfer_shape,
+    unsupported, validate_transfer_shape,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -157,11 +157,11 @@ pub(super) fn prepare(
     }
     let terminal_scalar_values = argument_evaluation::validated_values(
         evaluated_scalar_arguments,
-        &checked_target
+        &target
             .scalar_parameters
             .iter()
-            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
-            .collect::<Result<Vec<_>, _>>()?,
+            .map(|parameter| parameter.value_type())
+            .collect::<Vec<_>>(),
     )?;
     let terminal_scalar_arguments = terminal_scalar_values
         .iter()

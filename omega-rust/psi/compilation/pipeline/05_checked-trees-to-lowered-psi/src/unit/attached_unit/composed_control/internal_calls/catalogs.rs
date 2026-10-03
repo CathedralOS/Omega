@@ -179,6 +179,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         // Direct dynamic leaves admit only boundary and Unit calls.
         closure: &[],
         prepared_scalar_machines: &[],
+        prepared_scalar_qualifications: None,
         service_ids: shared.service_ids.into(),
         next_place: shared.next_place,
         scalar_calls,

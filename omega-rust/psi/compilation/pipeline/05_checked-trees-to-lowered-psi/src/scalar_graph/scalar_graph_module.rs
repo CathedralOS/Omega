@@ -28,7 +28,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 };
 
 mod pending_blocks;
-mod qualifications;
+pub(crate) mod qualifications;
 mod ranking;
 mod short_circuit_staging;
 mod state_borrows;

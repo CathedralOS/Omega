@@ -56,6 +56,15 @@ impl StateGraphEmission<'_, '_> {
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(self.catalogs.next_operation - 1);
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
+            shared_qualifications: self
+                .catalogs
+                .prepared_scalar_qualifications
+                .cloned()
+                .unwrap_or_else(
+                crate::expression_preparation::qualifications::PreparedScalarQualifications::empty,
+            ),
+            machine: None,
+            qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
@@ -298,7 +307,6 @@ impl StateGraphEmission<'_, '_> {
         let condition = if let Some(true_ordinal) = conditional_true_ordinal {
             branch_guard = evaluation.branch_guard(
                 checked,
-                owner,
                 state.state,
                 true_ordinal,
                 &values,
@@ -338,7 +346,6 @@ impl StateGraphEmission<'_, '_> {
             }
             branch_guard = evaluation.branch_guard(
                 checked,
-                owner,
                 state.state,
                 first.statement_ordinal(),
                 &values,

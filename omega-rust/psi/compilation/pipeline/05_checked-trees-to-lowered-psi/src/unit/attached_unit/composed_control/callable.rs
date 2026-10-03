@@ -51,6 +51,10 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     /// state's scalar calls resolve against exactly as an ordinary body's do.
     pub closure: &'a [symbols::SymbolHandle],
     pub prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
+    /// The closure's scalar qualification namespace; a call's emitted
+    /// result republishes the callee's qualified result through it.
+    pub prepared_scalar_qualifications:
+        &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
 }
 
 pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
@@ -93,6 +97,7 @@ pub(in crate::unit::attached_unit) fn emit(
         signatures: Cow::Borrowed(shared.signatures),
         closure: shared.closure,
         prepared_scalar_machines: shared.prepared_scalar_machines,
+        prepared_scalar_qualifications: Some(shared.prepared_scalar_qualifications),
         service_ids: Cow::Borrowed(shared.service_ids),
         scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
             shared.machine_ids.to_vec(),

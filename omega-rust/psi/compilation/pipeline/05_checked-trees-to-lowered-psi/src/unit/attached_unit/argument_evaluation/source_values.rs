@@ -4,8 +4,8 @@
 use super::{
     CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedTrees, Evaluation,
     LoweringError, ScalarType, ValueDeclaration, direct_expression_contains_short_circuit,
-    emit_direct_expression, prepare_shared_qualifications, scalar_carriers, terminal_scalar_type,
-    unsupported, validate_direct_parameter_types,
+    emit_direct_expression, scalar_carriers, terminal_scalar_type, unsupported,
+    validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -20,7 +20,6 @@ impl Evaluation {
     pub(crate) fn branch_guard(
         &self,
         checked: &CheckedTrees,
-        machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         statement: u32,
         values: &[ValueDeclaration],
@@ -52,7 +51,6 @@ impl Evaluation {
             binding,
             ScalarType::Boolean,
         )?;
-        prepare_shared_qualifications(checked, machine, values)?;
         let bindings = self
             .scalar_bindings
             .clone()
@@ -254,7 +252,7 @@ impl Evaluation {
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
             .with_byte_record_loans(&self.byte_record_loans);
-        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
+        let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()
             .map(|value| value.value_type())
@@ -275,7 +273,7 @@ impl Evaluation {
         }
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
-            &qualifications,
+            qualifications,
             machine,
             1,
         )

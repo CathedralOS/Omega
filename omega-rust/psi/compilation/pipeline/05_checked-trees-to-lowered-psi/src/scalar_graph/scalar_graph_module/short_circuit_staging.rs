@@ -352,17 +352,28 @@ impl GraphEmission<'_> {
                 erased_proof_arguments,
                 structural_arguments,
             } => {
+                let edge = edge_id(self.next_edge_identity);
                 let mut terminator = qualifications::emit(
-                    target,
+                    scalar_source_block(self.identity_base, target),
+                    edge,
+                    self.terminal_machine,
                     &arguments,
                     &structural_arguments,
                     &stage_parameters,
-                    &self.state_parameters,
-                    self.terminal_machine,
-                    self.identity_base,
-                    &mut self.next_edge_identity,
-                    &mut self.scalar_qualifications,
+                    self.state_parameters
+                        .get(target)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar qualification has no successor declarations",
+                        ))?,
+                    &self.scalar_qualifications.sets,
+                    &mut self.scalar_qualifications.coercions,
                 )?;
+                self.next_edge_identity =
+                    self.next_edge_identity
+                        .checked_add(1)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar qualification edge identity overflow",
+                        ))?;
                 let Terminator::Jump {
                     erased_arguments: scalar_actuals,
                     erased_proof_arguments: proof_actuals,

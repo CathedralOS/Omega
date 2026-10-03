@@ -306,7 +306,10 @@ impl OperationFrame<'_, '_> {
         }
         let arguments = argument_evaluation::validated_values(
             inputs.evaluated_scalar_arguments,
-            target_scalar_parameters,
+            &target_scalar_parameters
+                .iter()
+                .map(|scalar_type| (*scalar_type).into())
+                .collect::<Vec<_>>(),
         )?
         .iter()
         .map(|value| value.id)
