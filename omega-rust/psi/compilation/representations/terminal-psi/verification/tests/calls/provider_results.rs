@@ -521,6 +521,187 @@ fn scalar_provider_requires_only_rows_the_declaration_publishes() {
     validate_module(&module).expect("a declared precondition holds at every call");
 }
 
+/// The declaration's parameter/result are 1/2; the candidate's are 2/3.
+/// Equality of source spelling or numeric coordinates cannot replace substitution.
+fn scalar_contract_rows(normal_return: bool, candidate: bool) -> Vec<Proposition> {
+    let parameter = if candidate { 2 } else { 1 };
+    let first = if normal_return {
+        let result = if candidate { 3 } else { 2 };
+        Proposition::Equal(boolean_value(parameter), boolean_value(result))
+    } else {
+        Proposition::Equal(boolean_value(parameter), ScalarTerm::boolean(true))
+    };
+    vec![
+        first,
+        Proposition::Equal(boolean_value(parameter), boolean_value(parameter)),
+    ]
+}
+
+fn scalar_contract_provider_module(
+    normal_return: bool,
+    declared: Vec<Proposition>,
+    candidate: Vec<Proposition>,
+) -> TerminalModule {
+    let mut module = scalar_provider_module();
+    // Check conformance without introducing caller proof obligations.
+    module.machines[0].blocks[0].operations.clear();
+    if normal_return {
+        module.boundary_machines[0].scalar_ensures = declared;
+        module.machines[1].contract.ensures = candidate
+            .into_iter()
+            .enumerate()
+            .map(|(index, proposition)| terminal_psi::ContractClause {
+                obligation: semantic_vocabulary::ObligationId::new(999 + index as u64).unwrap(),
+                proposition,
+            })
+            .collect();
+    } else {
+        module.boundary_machines[0].scalar_requires = declared;
+        module.machines[1].contract.requires = candidate;
+    }
+    module
+}
+
+#[test]
+fn scalar_provider_contracts_rejoin_split_and_grouped_conjuncts_by_position() {
+    for normal_return in [false, true] {
+        for declared_grouped in [false, true] {
+            for candidate_grouped in [false, true] {
+                let group = |mut rows: Vec<Proposition>, grouped| {
+                    if grouped {
+                        // Nested conjunction and Truth preserve the same two facts.
+                        let second = rows.pop().unwrap();
+                        rows.push(Proposition::Conjunction(vec![Proposition::Truth, second]));
+                        vec![Proposition::Conjunction(rows)]
+                    } else {
+                        rows
+                    }
+                };
+                let module = scalar_contract_provider_module(
+                    normal_return,
+                    group(scalar_contract_rows(normal_return, false), declared_grouped),
+                    group(scalar_contract_rows(normal_return, true), candidate_grouped),
+                );
+                validate_module(&module).unwrap_or_else(|error| {
+                    panic!(
+                        "normal_return={normal_return}, declared_grouped={declared_grouped}, \
+                         candidate_grouped={candidate_grouped}: {error:?}"
+                    )
+                });
+            }
+        }
+    }
+}
+
+#[test]
+fn scalar_provider_contracts_treat_truth_as_an_empty_requirement() {
+    for normal_return in [false, true] {
+        for (declared, candidate) in [
+            (vec![Proposition::Truth], Vec::new()),
+            (Vec::new(), vec![Proposition::Truth]),
+        ] {
+            validate_module(&scalar_contract_provider_module(
+                normal_return,
+                declared,
+                candidate,
+            ))
+            .expect("Truth adds no required fact in either contract direction");
+        }
+    }
+}
+
+#[test]
+fn scalar_provider_contracts_reject_missing_or_substituted_conjuncts() {
+    for normal_return in [false, true] {
+        for mutation in ["missing", "substituted"] {
+            let mut declared = scalar_contract_rows(normal_return, false);
+            let mut candidate = scalar_contract_rows(normal_return, true);
+            // Requires flow from declaration to candidate; guarantees flow back.
+            let available = if normal_return {
+                &mut candidate
+            } else {
+                &mut declared
+            };
+            if mutation == "missing" {
+                available.remove(0);
+            } else {
+                let parameter = if normal_return { 2 } else { 1 };
+                available[0] =
+                    Proposition::Equal(boolean_value(parameter), ScalarTerm::boolean(false));
+            }
+            let module = scalar_contract_provider_module(normal_return, declared, candidate);
+            assert_eq!(
+                validate_module(&module).unwrap_err(),
+                ModuleError::InvalidProviderCandidate {
+                    boundary: boundary_id(1),
+                    candidate: machine_id(2),
+                },
+                "normal_return={normal_return}, mutation={mutation}",
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_provider_contracts_do_not_extract_conditional_or_alternative_facts() {
+    for normal_return in [false, true] {
+        for conditional in [false, true] {
+            let mut declared = scalar_contract_rows(normal_return, false);
+            let mut candidate = scalar_contract_rows(normal_return, true);
+            let available = if normal_return {
+                &mut candidate
+            } else {
+                &mut declared
+            };
+            let required = available.remove(0);
+            let other = available[0].clone();
+            available.push(if conditional {
+                Proposition::Implication {
+                    premise: Box::new(other),
+                    conclusion: Box::new(required),
+                }
+            } else {
+                Proposition::Disjunction(vec![other, required])
+            });
+            let module = scalar_contract_provider_module(normal_return, declared, candidate);
+            assert_eq!(
+                validate_module(&module).unwrap_err(),
+                ModuleError::InvalidProviderCandidate {
+                    boundary: boundary_id(1),
+                    candidate: machine_id(2),
+                },
+                "normal_return={normal_return}, conditional={conditional}",
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_provider_contracts_preserve_exact_conditional_and_alternative_rows() {
+    for normal_return in [false, true] {
+        for conditional in [false, true] {
+            let wrap = |mut rows: Vec<Proposition>| {
+                let right = rows.pop().unwrap();
+                let left = rows.pop().unwrap();
+                vec![if conditional {
+                    Proposition::Implication {
+                        premise: Box::new(left),
+                        conclusion: Box::new(right),
+                    }
+                } else {
+                    Proposition::Disjunction(vec![left, right])
+                }]
+            };
+            validate_module(&scalar_contract_provider_module(
+                normal_return,
+                wrap(scalar_contract_rows(normal_return, false)),
+                wrap(scalar_contract_rows(normal_return, true)),
+            ))
+            .expect("an exactly substituted compound row remains a whole fact");
+        }
+    }
+}
+
 #[test]
 fn provider_crash_refinement_applies_to_scalar_results() {
     let mut module = scalar_provider_module();
