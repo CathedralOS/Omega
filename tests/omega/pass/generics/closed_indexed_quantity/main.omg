@@ -96,7 +96,7 @@ machine qualify_i64_meters(value: i64) -> i64 in Quantity<Units::METER> {
 machine retag_i64<const To: Unit>(
     value: i64 [0..=100]
 ) -> i64 [0..=100] in Quantity<To> {
-    let tagged: i64 [0..=100] in Quantity<To> = (value as i64 [0..=100] in Quantity<To>);
+    let tagged: i64 in Quantity<To> = (value as i64 in Quantity<To>);
     transition { _ -> tagged }
 }
 
