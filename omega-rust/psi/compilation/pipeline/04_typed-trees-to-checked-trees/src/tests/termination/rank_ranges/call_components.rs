@@ -798,25 +798,24 @@ fn unranged_natural_call_guards_preserve_boolean_wrapper_orientation() {
     }
 }
 
-const STATEFUL: &str = r#"
-data Main {}
-machine Main::count(&mut self, remaining: u32 [0..=9])
+#[test]
+fn component_members_keep_internal_cycles_under_the_local_ranking_rule() {
+    const STATEFUL: &str = r#"
+machine count(remaining: u32 [0..=9])
 terminates by remaining in 0..=9;
 -> u32 {
     transition remaining > 0 { true -> hold(remaining) false -> remaining }
     state hold(pending: u32 [0..=9]) {
-        transition pending > 1 { true -> hold(pending - 1) false -> self.step(pending) }
+        transition pending > 1 { true -> hold(pending - 1) false -> step(pending) }
     }
 }
-machine Main::step(&mut self, n: u32 [0..=9])
+machine step(n: u32 [0..=9])
 terminates by n in 0..=9;
 -> u32 {
-    transition n > 0 { true -> self.count(n - 1) false -> n }
+    transition n > 0 { true -> count(n - 1) false -> n }
 }
 "#;
 
-#[test]
-fn component_members_keep_internal_cycles_under_the_local_ranking_rule() {
     // The whole-component judgment witnesses cross-machine call edges only;
     // every internal arrival still answers to the member's own ranking
     // judgment. A strictly decreasing internal loop beside the weak
@@ -824,23 +823,20 @@ fn component_members_keep_internal_cycles_under_the_local_ranking_rule() {
     prove(STATEFUL);
     // A member that can loop internally without descent is rejected even
     // though the component's call edges are well-formed: `hold(pending)`
-    // arrives with the rank unchanged, and `self.count(pending)` re-enters
+    // arrives with the rank unchanged, and `count(pending)` re-enters
     // the entry without descent.
     reject(&STATEFUL.replace("hold(pending - 1)", "hold(pending)"));
-    reject(&STATEFUL.replace(
-        "false -> self.step(pending)",
-        "false -> self.count(pending)",
-    ));
+    reject(&STATEFUL.replace("false -> step(pending)", "false -> count(pending)"));
     // The optional range is not needed for local descent. The arrival
     // telescope names the same rank in `hold`, whose actual current value
     // must decrease independently of the mutually recursive call proof.
     let unranged = STATEFUL.replace(" in 0..=9", "");
     prove(&unranged);
     let standalone = unranged
-        .split("machine Main::step")
+        .split("machine step")
         .next()
         .unwrap()
-        .replace("false -> self.step(pending)", "false -> pending");
+        .replace("false -> step(pending)", "false -> pending");
     prove(&standalone);
     reject(&unranged.replace("hold(pending - 1)", "hold(pending)"));
     reject(&standalone.replace("hold(pending - 1)", "hold(pending)"));
