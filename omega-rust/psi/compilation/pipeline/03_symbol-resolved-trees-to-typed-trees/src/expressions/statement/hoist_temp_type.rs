@@ -884,7 +884,7 @@ fn dependent_exact_range_substituted(
             ExpressionNode::Integer(literal) => literal.value_i64()?,
             _ => return None,
         };
-        let (field, offset) = resolved_symbolic_max_bound(expressions, *maximum)?;
+        let (field, offset) = resolved_symbolic_max_bound(source_trees, *maximum)?;
         let field_type = attached_field_type(source_trees, data_name, &field)?;
         let (_, field_high) = declared_exact_range(source_trees, &field_type)?;
         let high = field_high.checked_add(offset)?;
@@ -900,29 +900,32 @@ fn dependent_exact_range_substituted(
 }
 
 /// Resolved-tree twin of `typed_trees::dependent_ranges`'s recognizer
-/// (`self.<field>` plus an optional literal offset). Kept to the same
-/// admissible class -- the typed-level gate has already validated it.
+/// (`<param>.<field>` on a subject parameter plus an optional literal
+/// offset). Kept to the same admissible class -- the typed-level gate has
+/// already validated it. Subject position is decided by the receiver's
+/// resolved symbol, never by its spelling.
 fn resolved_symbolic_max_bound(
-    expressions: &resolved::expression::ExpressionTable,
+    source_trees: &resolved::SymbolResolvedTrees,
     bound: ExpressionHandle,
 ) -> Option<(String, i64)> {
-    let self_field = |handle: ExpressionHandle| -> Option<String> {
+    let expressions = &source_trees.tables.bodies.expressions;
+    let subject_field = |handle: ExpressionHandle| -> Option<String> {
         let ExpressionNode::Member(member) = expressions.expression(handle) else {
             return None;
         };
         let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
             return None;
         };
-        let [only] = expressions.name_path_members(path.members) else {
+        let [_] = expressions.name_path_members(path.members) else {
             return None;
         };
-        only.is_self_receiver()
+        resolved_receiver_is_subject_parameter(source_trees, path.symbol)
             .then(|| member.member.as_str().to_owned())
     };
     match expressions.expression(bound) {
-        ExpressionNode::Member(_) => Some((self_field(bound)?, 0)),
+        ExpressionNode::Member(_) => Some((subject_field(bound)?, 0)),
         ExpressionNode::Binary(binary) => {
-            let field = self_field(binary.left)?;
+            let field = subject_field(binary.left)?;
             let ExpressionNode::Integer(literal) = expressions.expression(binary.right) else {
                 return None;
             };
@@ -935,6 +938,86 @@ fn resolved_symbolic_max_bound(
             Some((field, offset))
         }
         _ => None,
+    }
+}
+
+/// Whether `symbol` names a parameter holding a subject position: a
+/// machine state parameter carrying `is_self`, declaring the owning
+/// machine's attached data, or typed by the `Self` carrier -- the
+/// resolved-stage mirror of `typed_trees::dependent_ranges`'s
+/// `receiver_is_subject_parameter`. A resolved name's symbol identifies
+/// one parameter program-wide, so the answer never depends on which
+/// signature asks.
+fn resolved_receiver_is_subject_parameter(
+    source_trees: &resolved::SymbolResolvedTrees,
+    receiver: symbols::SymbolHandle,
+) -> bool {
+    if !receiver.is_valid() {
+        return false;
+    }
+    for machine in source_trees.machines.iter() {
+        for state_handle in source_trees.machine_state_handles(machine.storage.states) {
+            let state = source_trees.machine_state(*state_handle);
+            for parameter in source_trees.state_parameters(state.parameters) {
+                if parameter.symbol == receiver {
+                    return parameter.is_self
+                        || resolved_type_names_attached_data(
+                            source_trees,
+                            &parameter.type_reference,
+                            machine.attached_data_symbol,
+                        )
+                        || resolved_type_is_self(source_trees, &parameter.type_reference);
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Whether `type_reference` names `attached_data_symbol` once references
+/// and constraints are stripped -- the resolved twin of
+/// `TypedTrees::type_reference_names_attached_data`.
+fn resolved_type_names_attached_data(
+    source_trees: &resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    attached_data_symbol: symbols::SymbolHandle,
+) -> bool {
+    if !attached_data_symbol.is_valid() {
+        return false;
+    }
+    match type_reference {
+        TypeReference::Named { symbol, .. } => *symbol == attached_data_symbol,
+        TypeReference::Reference(reference) => resolved_type_names_attached_data(
+            source_trees,
+            source_trees.child_type_reference(reference.storage.referee),
+            attached_data_symbol,
+        ),
+        TypeReference::Constrained(constrained) => resolved_type_names_attached_data(
+            source_trees,
+            source_trees.child_type_reference(constrained.storage.base_type),
+            attached_data_symbol,
+        ),
+        _ => false,
+    }
+}
+
+/// Whether `type_reference` is the `Self` carrier once references and
+/// constraints are stripped.
+fn resolved_type_is_self(
+    source_trees: &resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> bool {
+    match type_reference {
+        TypeReference::SelfType { .. } => true,
+        TypeReference::Reference(reference) => resolved_type_is_self(
+            source_trees,
+            source_trees.child_type_reference(reference.storage.referee),
+        ),
+        TypeReference::Constrained(constrained) => resolved_type_is_self(
+            source_trees,
+            source_trees.child_type_reference(constrained.storage.base_type),
+        ),
+        _ => false,
     }
 }
 
@@ -1125,7 +1208,7 @@ fn dependent_product_index_interval(
         return None;
     }
     let (a_expr, fb_expr) = {
-        let left_is_field = resolved_symbolic_max_bound(expressions, product.left)
+        let left_is_field = resolved_symbolic_max_bound(&lowerer.source_trees, product.left)
             .is_some_and(|(_, offset)| offset == 0);
         if left_is_field {
             (product.right, product.left)
@@ -1133,7 +1216,7 @@ fn dependent_product_index_interval(
             (product.left, product.right)
         }
     };
-    let (fb, fb_offset) = resolved_symbolic_max_bound(expressions, fb_expr)?;
+    let (fb, fb_offset) = resolved_symbolic_max_bound(&lowerer.source_trees, fb_expr)?;
     if fb_offset != 0 {
         return None;
     }
@@ -1188,7 +1271,7 @@ fn strict_dependent_param_field(
         else {
             return None;
         };
-        let (field, offset) = resolved_symbolic_max_bound(expressions, *maximum)?;
+        let (field, offset) = resolved_symbolic_max_bound(lowerer.source_trees, *maximum)?;
         let offset = if *end_inclusive {
             offset
         } else {
@@ -1274,7 +1357,7 @@ fn resolved_product_coupling_operand(
     expression: ExpressionHandle,
 ) -> Option<String> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
-    if let Some((field, 0)) = resolved_symbolic_max_bound(expressions, expression) {
+    if let Some((field, 0)) = resolved_symbolic_max_bound(&lowerer.source_trees, expression) {
         return Some(field);
     }
     let ExpressionNode::Cast(cast) = expressions.expression(expression) else {
@@ -1286,7 +1369,7 @@ fn resolved_product_coupling_operand(
     {
         return None;
     }
-    let (field, 0) = resolved_symbolic_max_bound(expressions, cast.value)? else {
+    let (field, 0) = resolved_symbolic_max_bound(&lowerer.source_trees, cast.value)? else {
         return None;
     };
     let target = lowerer
