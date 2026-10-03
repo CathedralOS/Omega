@@ -85,11 +85,11 @@ fn collection_premises_prove_exit(
 }
 
 /// Whether one exit's live facts prove a scalar postcondition: the entry
-/// contexts prove the predicate, or the exit's exact return and live place
-/// values evaluate it. These are the two live-context routes
-/// `check_exit_ensures` offers a Boolean fact; package exit evidence replays
-/// these alongside the separately rechecked component-induction route. This
-/// helper itself grants no assumption, entailment or invariant authority.
+/// contexts prove the predicate, or the exit's exact return and current scalar
+/// or live place values evaluate it. Ordinary exit checking and package exit
+/// evidence share these routes, alongside separately rechecked component
+/// induction. Callers must establish exact invocation origins before using this
+/// helper; it grants no assumption, entailment or invariant authority.
 pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
     program: &'program typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -102,6 +102,7 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         fact.payload,
         facts::FactPayload::ContractBooleanExpression { .. }
     ) && (semantic_contexts_prove_contract_fact(program, &facts.semantic, entry_contexts, fact)
+        || super::current_values::proves_exit(program, exit_flow, fact, call_frames)
         || scalars::proves(program, facts, exit_flow, entry_contexts, fact, call_frames))
 }
 
@@ -166,12 +167,26 @@ pub(super) fn check_exit_ensures(
                 })
                 .map(|origin| program.symbols.name(origin.entry_parameter))
                 .collect::<Vec<_>>();
-            let proved = semantic_contexts_prove_contract_fact(
-                program,
-                &facts.semantic,
-                &entry_contexts,
-                fact,
-            );
+            let proved = if matches!(
+                fact.payload,
+                facts::FactPayload::ContractBooleanExpression { .. }
+            ) {
+                live_contexts_prove_scalar_postcondition(
+                    program,
+                    facts,
+                    exit_flow,
+                    &entry_contexts,
+                    fact,
+                    call_frames,
+                )
+            } else {
+                semantic_contexts_prove_contract_fact(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    fact,
+                )
+            };
             let authorized_route = match fact.payload {
                 facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
                     .machines()
@@ -228,21 +243,12 @@ pub(super) fn check_exit_ensures(
                 || evidence_assignment
                 || (missing_origins.is_empty()
                     && (proved
-                        || super::current_values::proves_exit(program, exit_flow, fact, call_frames)
                         || result_domains::proves_result_domain(
                             program,
                             facts,
                             exit_flow,
                             &entry_contexts,
                             fact,
-                        )
-                        || scalars::proves(
-                            program,
-                            facts,
-                            exit_flow,
-                            &entry_contexts,
-                            fact,
-                            call_frames,
                         )
                         || super::content_preservation::proves_exit(
                             program,

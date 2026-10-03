@@ -1,8 +1,8 @@
 //! Bridge the arithmetic entailment engine's postcondition stand-downs to the
 //! flow checker's existing live-context judgment: a membership's exact subject
 //! and domain, or a scalar predicate proved by the entry contexts or the exit's
-//! exact return and live place values, or the shared all-arrival component
-//! induction judgment. Every normal exit is derived from the
+//! exact return and current scalar or live place values, or the shared
+//! all-arrival component induction judgment. Every normal exit is derived from the
 //! checked flow, rather than supplied by the certificate. An authored
 //! postcondition, an entry annotation, or a partial exit roster is not proof,
 //! and a predicate its own `requires` discharges keeps that certificate.
@@ -246,3 +246,6 @@ fn reconstruct<'program>(
     )
     .ok()
 }
+
+#[cfg(test)]
+mod mutable_tests;
