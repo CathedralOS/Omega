@@ -418,7 +418,7 @@ fn copied_byte_field() -> LegalizedScalarFunction {
             terminal_psi::StructuralPathSegment::Field("bytes".into()),
         ]),
         byte_offset: 0,
-        shape: calling_conventions::ValueShape::borrowed_reference(16, 8),
+        shape: calling_conventions::ValueShape::integer(16, 8),
         indices: Vec::new(),
     };
     function
@@ -499,7 +499,7 @@ fn copied_descriptor_selection_cannot_copy_mutable_whole_authority() {
         source,
         path: abstract_operations::StructuralCopyPath::Ordinary(Vec::new()),
         byte_offset: 0,
-        shape: calling_conventions::ValueShape::borrowed_reference(16, 8),
+        shape: calling_conventions::ValueShape::integer(16, 8),
         indices: Vec::new(),
     };
     assert_eq!(view_access(&function, place(302)), None);
