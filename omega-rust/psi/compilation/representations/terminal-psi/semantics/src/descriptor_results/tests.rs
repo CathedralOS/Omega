@@ -1,6 +1,10 @@
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorPathSegment};
-use semantic_vocabulary::{BlockId, StructuralFieldId};
+use semantic_vocabulary::{BlockId, ContractId, EdgeId, StructuralFieldId};
+use terminal_psi::{
+    Block, MachineContract, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, TerminalMachineResult,
+};
 
 fn place(id: u64) -> PlaceId {
     PlaceId::new(id).unwrap()
@@ -1291,4 +1295,280 @@ fn returned_aggregate_slots_do_not_exchange_sibling_backing() {
         analysis.symbolic_source_origins(machine(2), pos(4), &whole(5)),
         Some(vec![DescriptorSourceOrigin::IncomingSlot(slot(2, 2))])
     );
+}
+
+fn terminal_parameter(
+    access: StructuralAccess,
+    structural_type: StructuralTypeId,
+) -> StructuralParameterDeclaration {
+    StructuralParameterDeclaration {
+        place: place(1),
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }
+}
+fn terminal_body(
+    identity: u64,
+    access: StructuralAccess,
+    structural_type: StructuralTypeId,
+) -> TerminalMachine {
+    let entry = BlockId::new(1).unwrap();
+    TerminalMachine {
+        id: machine(identity),
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![terminal_parameter(access, structural_type)],
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: place(1),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry_claims: Vec::new(),
+        declared_service_reach: Vec::new(),
+        closed_reach_application: None,
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry,
+        blocks: vec![Block {
+            id: entry,
+            parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(identity).unwrap(),
+            crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    }
+}
+
+#[test]
+fn descriptor_free_crash_result_does_not_poison_unrelated_slot_replay() {
+    let mut catalog = types();
+    catalog.push(StructuralTypeDeclaration {
+        id: ty(3),
+        identity: "empty result".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let mut callee = terminal_body(1, StructuralAccess::SharedBorrow, ty(1));
+    callee.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: place(9),
+        structural_type: ty(3),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    callee.structural_places.push(StructuralPlaceDeclaration {
+        id: place(9),
+        kind: StructuralPlaceKind::Result,
+    });
+    callee.blocks[0].terminator = Terminator::Crash {
+        edge: EdgeId::new(1).unwrap(),
+        cause: terminal_psi::CrashCause::Abort,
+        site_guard: Vec::new(),
+        frontier_lower_bound: Vec::new(),
+    };
+    let mut module = TerminalModule::for_entry(machine(1));
+    module.structural_types = catalog;
+    module.machines.push(callee);
+    let mut graphs = terminal_graph(&module);
+    assert_eq!(graphs.len(), 1);
+    assert!(graphs[0].returns.is_none());
+    assert!(graphs[0].normal_exits.is_empty());
+    let mut caller = new_graph(2);
+    caller.flow.insert(
+        pos(0),
+        DescriptorFlowStep {
+            successors: vec![edge(1)],
+            ..Default::default()
+        },
+    );
+    caller.flow.insert(pos(1), DescriptorFlowStep::default());
+    caller.calls.insert(
+        pos(0),
+        DescriptorInvocation {
+            callee: machine(1),
+            arguments: vec![Some(whole(1))],
+            result: None,
+        },
+    );
+    graphs.push(caller);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graphs);
+    // No result backing is invented, and the absence of any normal return
+    // does not erase the caller's independently known descriptor contents.
+    assert!(analysis.flow(machine(2)).is_some());
+    assert_eq!(
+        analysis.symbolic_source_origins(machine(2), pos(1), &slot(2, 1)),
+        Some(vec![DescriptorSourceOrigin::IncomingSlot(slot(2, 1))])
+    );
+
+    let TerminalMachineResult::Structural(result) = &mut module.machines[0].result else {
+        unreachable!()
+    };
+    result.structural_type = ty(2);
+    let graphs = terminal_graph(&module);
+    assert!(graphs[0].returns.as_ref().unwrap().is_empty());
+    // A real descriptor-bearing result with no return remains unavailable;
+    // it is not treated as an empty descriptor or as a descriptor-free result.
+    assert!(reconstruct_stored_effects(&module.structural_types, &graphs, machine(1)).is_none());
+}
+
+#[test]
+fn returned_case_slots_are_empty_only_for_a_declared_inactive_payload() {
+    use semantic_vocabulary::{OperationId, StructuralCaseId};
+    use terminal_psi::{
+        OperationResult, RecordFieldInitializer, RecordFieldValue, StructuralCaseDeclaration,
+        StructuralOperationResult,
+    };
+    let sound = StructuralCaseId::new(1).unwrap();
+    let empty = StructuralCaseId::new(2).unwrap();
+    let mut module = TerminalModule::for_entry(machine(1));
+    module.structural_types = types();
+    let StructuralTypeShape::Record { fields } = &module.structural_types[1].shape else {
+        unreachable!()
+    };
+    let payload = fields[0].clone();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: ty(3),
+        identity: "result cases".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![
+                StructuralCaseDeclaration {
+                    id: sound,
+                    identity: "sound".into(),
+                    fields: vec![payload.clone()],
+                },
+                StructuralCaseDeclaration {
+                    id: empty,
+                    identity: "empty".into(),
+                    fields: Vec::new(),
+                },
+            ],
+        },
+    });
+    let mut callee = terminal_body(1, StructuralAccess::SharedBorrow, ty(1));
+    callee.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: place(9),
+        structural_type: ty(3),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    callee.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: place(9),
+            kind: StructuralPlaceKind::Result,
+        },
+        StructuralPlaceDeclaration {
+            id: place(3),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: OperationId::new(1).unwrap(),
+                structural_type: ty(3),
+            },
+        },
+    ]);
+    callee.blocks[0].operations.push(Operation {
+        id: OperationId::new(1).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: place(3),
+            structural_type: ty(3),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishStructuralCase {
+            result_case: sound,
+            fields: vec![RecordFieldInitializer {
+                field: payload.id,
+                value: RecordFieldValue::Structural(StructuralArgument {
+                    place: place(1),
+                    path: Vec::new(),
+                    access: StructuralAccess::SharedBorrow,
+                }),
+            }],
+        },
+    });
+    callee.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: EdgeId::new(1).unwrap(),
+        source: place(3),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    module.machines.push(callee);
+    let location = DescriptorLocation {
+        root: place(3),
+        path: vec![
+            DescriptorPathSegment::Case(sound),
+            DescriptorPathSegment::Field(payload.id),
+        ],
+    };
+    let graphs = terminal_graph(&module);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graphs);
+    assert_eq!(
+        analysis.source_origins(machine(1), pos(1), &location),
+        Some(vec![DescriptorCallOrigin::Argument {
+            source: place(1),
+            projection: Projection::new(&[])
+        }])
+    );
+    assert!(analysis.stored_effects(machine(1)).is_some());
+
+    let OperationKind::EstablishStructuralCase { fields, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    fields.clear();
+    let graphs = terminal_graph(&module);
+    assert!(reconstruct_stored_effects(&module.structural_types, &graphs, machine(1)).is_none());
+
+    let OperationKind::EstablishStructuralCase { result_case, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *result_case = empty;
+    let graphs = terminal_graph(&module);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graphs);
+    assert_eq!(
+        analysis.source_origins(machine(1), pos(1), &location),
+        Some(vec![DescriptorCallOrigin::Empty])
+    );
+    assert!(analysis.stored_effects(machine(1)).is_some());
+
+    let OperationKind::EstablishStructuralCase { result_case, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *result_case = StructuralCaseId::new(99).unwrap();
+    assert!(terminal_graph(&module).is_empty());
 }

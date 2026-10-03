@@ -9,7 +9,18 @@ pub(super) fn adapt(
 ) -> Option<DescriptorMachine> {
     let mut graph = DescriptorMachine {
         id: machine.id,
-        returns: machine.result.structural().map(|_| Vec::new()),
+        returns: machine
+            .result
+            .structural()
+            .filter(|result| {
+                replay::descriptor_slots(
+                    &module.structural_types,
+                    result.place,
+                    result.structural_type,
+                )
+                .is_some_and(|slots| !slots.is_empty())
+            })
+            .map(|_| Vec::new()),
         places: Vec::new(),
         place_types: BTreeMap::new(),
         entry: (machine.entry, 0),
@@ -275,6 +286,20 @@ pub(super) fn adapt(
                     if let OperationKind::EstablishStructuralCase { result_case, .. } =
                         &operation.kind
                     {
+                        let result_type = result?.structural_type;
+                        let shape = &module
+                            .structural_types
+                            .iter()
+                            .find(|row| row.id == result_type)?
+                            .shape;
+                        let cases = match shape {
+                            StructuralTypeShape::Sum { cases }
+                            | StructuralTypeShape::Mixed { cases, .. } => cases,
+                            _ => return None,
+                        };
+                        if !cases.iter().any(|case| case.id == *result_case) {
+                            return None;
+                        }
                         // The retained constructor tag proves that sibling-case
                         // payload slots do not exist in this value. Only those
                         // slots have no backing; an unresolved live field stays
