@@ -1476,3 +1476,133 @@ fn projected_constructor_operands_keep_parameter_and_result_cleanup_separate() {
         "same-typed residuals keep their exact root identity"
     );
 }
+
+#[test]
+fn projected_constructor_block_parameter_custody_survives_staging_edges() {
+    let mut module = projected_constructor_module(false, false);
+    let caller = &mut module.machines[0];
+    let mut construction = caller.blocks[0].clone();
+    construction.id = block_id(3);
+    let mut parameter = caller.structural_parameters[0].clone();
+    parameter.place = place_id(7);
+    construction.structural_parameters = vec![parameter];
+    let mut disposal = caller.blocks[0].clone();
+    disposal.id = block_id(4);
+    disposal.operations = vec![construction.operations.pop().unwrap()];
+    let mut exit = caller.blocks[0].clone();
+    exit.id = block_id(5);
+    exit.operations.clear();
+    exit.terminator = Terminator::ReturnUnit {
+        edge: edge_id(5),
+        trivial_affine_discards: vec![place_id(4)],
+    };
+    let jump = |edge, target| Terminator::Jump {
+        edge: edge_id(edge),
+        target: block_id(target),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    caller.blocks[0].operations.clear();
+    caller.blocks[0].terminator = jump(1, 3);
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(StructuralArgument {
+        place: place_id(1),
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    });
+    let OperationKind::EstablishRecord { fields } = &mut construction.operations[0].kind else {
+        unreachable!()
+    };
+    let terminal_psi::RecordFieldValue::Structural(argument) = &mut fields[0].value else {
+        unreachable!()
+    };
+    argument.place = place_id(7);
+    construction.terminator = jump(3, 4);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut disposal.operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].place = place_id(7);
+    disposal.terminator = jump(4, 5);
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut disposal.terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.push(terminal_psi::StructuralAffineDiscard {
+        place: place_id(7),
+        path: vec![StructuralPathSegment::Field("left".into())],
+        structural_type: structural_type_id(1),
+    });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(7),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: block_id(3),
+            position: 0,
+        },
+    });
+    caller.blocks.extend([construction, disposal, exit]);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the live sibling survives staging and its later exact residual closes the root");
+
+    let mut moved_again = module.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut moved_again.machines[0].blocks[2].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("right".into())];
+    assert!(
+        validate_module(&moved_again).is_err(),
+        "staging does not restore moved custody"
+    );
+
+    let mut wrong_complement = module.clone();
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut wrong_complement.machines[0].blocks[2].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards[0].path = vec![StructuralPathSegment::Field("middle".into())];
+    assert!(
+        validate_module(&wrong_complement).is_err(),
+        "later cleanup uses all preceding transfers"
+    );
+
+    let mut missing = module;
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut missing.machines[0].blocks[2].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.clear();
+    assert!(
+        validate_module(&missing).is_err(),
+        "surviving partial custody cannot escape final return"
+    );
+}

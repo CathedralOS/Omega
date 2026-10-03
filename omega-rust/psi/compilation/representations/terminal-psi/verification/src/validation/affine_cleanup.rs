@@ -5,8 +5,8 @@ use super::{
     OperationKind, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind,
     StructuralTypeId, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, partial_affine_residuals,
-    partial_affine_root_type, resolve_structural_path,
+    TerminalMachineResult, TerminalModule, Terminator, partial_affine_root_type,
+    resolve_structural_path,
 };
 mod continuation;
 
@@ -142,7 +142,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<(), ModuleError> {
     for block in &machine.blocks {
-        continuation::validate(module, machine, block, machines)?;
+        continuation::validate(module, machine, block)?;
         let invalid = || ModuleError::InvalidPartialAffineCleanup {
             machine: machine.id,
             block: block.id,

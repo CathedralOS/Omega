@@ -120,6 +120,7 @@ fn close_jump(
         module,
         machine,
         block.id,
+        parameter_order,
         &mut frontier,
         residual_affine_discards,
     )?;
