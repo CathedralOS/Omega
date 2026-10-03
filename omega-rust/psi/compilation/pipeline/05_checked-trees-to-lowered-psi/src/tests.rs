@@ -80,6 +80,7 @@ mod structural_return_cases;
 mod structural_scalar_store;
 mod suspension_call_plans;
 mod transition_arm_calls;
+mod two_state_guarantees;
 mod unit_cleanup;
 mod unit_plan_omission_surface;
 mod value_case_dispatch;

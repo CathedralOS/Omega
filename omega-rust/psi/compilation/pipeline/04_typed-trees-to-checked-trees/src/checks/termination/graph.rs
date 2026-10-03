@@ -23,7 +23,7 @@ pub(super) fn machine_has_cycle(
 /// Build the per-state adjacency list of the machine's transition graph. The
 /// index of each entry corresponds to the state's position in
 /// `program.machine_states(machine)`.
-pub(super) fn machine_adjacency(
+pub(crate) fn machine_adjacency(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<Vec<usize>> {
@@ -38,7 +38,7 @@ pub(super) fn machine_adjacency(
 /// using an iterative Tarjan traversal. Each returned component is a list of
 /// state indices; components are returned in reverse topological order, which
 /// is irrelevant to callers that only care about cycle membership.
-pub(super) fn strongly_connected_components(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
+pub(crate) fn strongly_connected_components(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
     let count = adjacency.len();
     let mut index_counter = 0usize;
     let mut indices = vec![usize::MAX; count];
@@ -103,7 +103,7 @@ pub(super) fn strongly_connected_components(adjacency: &[Vec<usize>]) -> Vec<Vec
 
 /// True when the component forms a cycle: either more than one state, or a
 /// single state with a transition back to itself.
-pub(super) fn component_is_cyclic(adjacency: &[Vec<usize>], component: &[usize]) -> bool {
+pub(crate) fn component_is_cyclic(adjacency: &[Vec<usize>], component: &[usize]) -> bool {
     if component.len() > 1 {
         return true;
     }
