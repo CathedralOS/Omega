@@ -1088,10 +1088,10 @@ fn std_importing_application_closure(
 use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
-    self.console.write_line("std check once");
+    main.console.write_line("std check once");
 }
 "#,
     )
