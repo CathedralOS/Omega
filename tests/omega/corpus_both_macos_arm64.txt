@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.37, "load1_start": 7.1, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 9.27, "load1_start": 8.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/calls/guarded_arm_view_range_tail_call_exit built 1362ms exit:70 interpreter-exit:70 interpreter:agrees @d1b852badb4c+wt
 pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 interpreter-exit:1 interpreter:agrees @25d3c2dff582+wt
@@ -21,4 +21,7 @@ pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 inte
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt
 pass/text/zii_default_string_equality_exit built 1986ms exit:70 interpreter-exit:70 interpreter:agrees @7e2fff8c80ba+wt
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 4199ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
+pass/wire/runtime_wire_encode_byte_slice_exit built 2403ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 4316ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
 pass/wire/runtime_wire_utf8_edge_verdicts_exit built 16975ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
