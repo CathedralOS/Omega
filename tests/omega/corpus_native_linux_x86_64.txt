@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": null, "load1_end": 4.88, "load1_start": 4.88, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 4.58, "load1_start": 2.19, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -60,7 +60,7 @@ pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
-pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1421ms exit:70 @bd26d3a01ac1
+pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1431ms exit:70 @34627c25182b
 pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
@@ -347,7 +347,7 @@ pass/dependent/local_alias_forwards_entry_origin checked 319ms @2d8ed253669f+wt
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 318ms @2d8ed253669f+wt
 pass/dependent/runtime_dependent_subtract_exit built 986ms exit:2 @2d8ed253669f+wt
 pass/dependent/runtime_requires_guarded_call_exit built 1348ms exit:6 @2d8ed253669f+wt
-pass/dependent/runtime_sibling_len_index_exit built 1336ms exit:7 @e459ca044a2c
+pass/dependent/runtime_sibling_len_index_exit built 1412ms exit:7 @34627c25182b
 pass/dependent/state_arrival_contract_guarded_compile checked 370ms @2d8ed253669f+wt
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 368ms @2d8ed253669f+wt
 pass/dependent/valuation_order_cycle checked 387ms @2d8ed253669f+wt
@@ -450,8 +450,8 @@ pass/filesystem/native_metadata_blocks rejected 17912ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_metadata_ctime_dev rejected 46050ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_metadata_ino incomplete 362862ms @2d8ed253669f+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 64 unproved; the module is not shown invalid
+pass/filesystem/native_metadata_ino incomplete 136503ms @34627c25182b
+	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 92 unproved; the module is not shown invalid
 pass/filesystem/native_metadata_nlink rejected 1733ms @2d8ed253669f+wt
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_read_dir_iter rejected 1285ms @2d8ed253669f+wt
@@ -473,7 +473,7 @@ pass/filesystem/wrapper_lock_metadata_exit rejected 496ms @2d8ed253669f+wt
 	state `lock_shared` expects 2 argument(s), got 1
 	state `try_lock` expects 2 argument(s), got 1
 	state `try_lock_shared` expects 2 argument(s), got 1
-pass/filesystem/wrapper_open_with_exit rejected 163413ms @9baafc0ace88
+pass/filesystem/wrapper_open_with_exit rejected 166109ms @34627c25182b
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 3202ms @2d8ed253669f+wt
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
@@ -733,10 +733,8 @@ pass/range/runtime_guarded_runtime_index_increment_exit built 864ms exit:1 @2d8e
 pass/ranges/runtime_subject_guard_compound_read_exit built 1175ms exit:70 @f64782b89114+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit built 858ms exit:70 @2d8ed253669f+wt
 pass/recast/nested_operand_view_compile checked 400ms @a3bac00e54bb
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 851ms @a3bac00e54bb
-	state `inspect` receives `main` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
-	state `write_values` receives `main` while local borrow `write` is still active (borrowed at statement 0; its last use is at statement 1)
-	statement 5 mutates `main.source[1].unsigned_value` while local borrow `read` is still active (borrowed at statement 4; its last use is at statement 5)
+pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 1274ms @34627c25182b
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 5)
 pass/recast/runtime_bool_representation_recast_exit built 1909ms exit:70 @a3bac00e54bb
 pass/recast/runtime_float_range_representation_recast_exit built 4207ms exit:70 @a3bac00e54bb
 pass/recast/runtime_guarded_offset_recast_exit built 1728ms exit:70 @a3bac00e54bb
@@ -765,7 +763,7 @@ pass/slices/byte_sequence_literal_tail_return_compile rejected 472ms @69dd09ed5a
 	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/observations.rs", line: 65, column: 28 } }
 pass/slices/callee_non_byte_view_len_index_subslice built 1330ms exit:9 @9baafc0ace88
 pass/slices/disjoint_mut_subslice_windows_compile checked 278ms @2d8ed253669f+wt
-pass/slices/domained_runtime_end_subslice_exit built 1356ms exit:70 @2c44d70118d1+wt
+pass/slices/domained_runtime_end_subslice_exit built 1419ms exit:70 @34627c25182b
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 283ms @2d8ed253669f+wt
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 281ms @2d8ed253669f+wt
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 286ms @2d8ed253669f+wt
@@ -774,7 +772,7 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 280ms @2d8ed253669
 pass/slices/local_array_element_view_exit built 1375ms exit:70 @2d8ed253669f+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 900ms exit:70 @2d8ed253669f+wt
 pass/slices/requires_field_count_alias_index_compile checked 281ms @2d8ed253669f+wt
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1353ms exit:3 @e459ca044a2c
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1458ms exit:3 @34627c25182b
 pass/slices/runtime_join_meet_bound_exit built 826ms exit:70 @2d8ed253669f+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 801ms exit:21 @2d8ed253669f+wt
 pass/slices/runtime_nested_subslice_fixed_index_exit built 904ms exit:215 @2d8ed253669f+wt
@@ -919,11 +917,10 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 1813ms @2d8ed25
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 1524ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit built 4743ms exit:70 @2d8ed253669f+wt
-pass/text/runtime_owned_string_byte_view_exit rejected 1553ms @2d8ed253669f+wt
+pass/text/runtime_owned_string_byte_view_exit rejected 1245ms @34627c25182b
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
 pass/text/runtime_param_domain_forward_exit built 959ms exit:70 @9baafc0ace88
-pass/text/runtime_slice_indexed_string_guard_exit rejected 1076ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/text/runtime_slice_indexed_string_guard_exit built 4091ms exit:70 @34627c25182b
 pass/text/runtime_stdin_command_branch_exit rejected 1345ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
 pass/text/runtime_stdin_line_buffering_exit built 2674ms exit:0 stdout:match @9baafc0ace88
@@ -976,8 +973,8 @@ pass/wire/runtime_wire_decode_ranged_field_exit rejected 1330ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 6)
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 6602ms exit:70 @9baafc0ace88
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 73459ms exit:70 @9baafc0ace88
-pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 1439ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 3)
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 957ms @34627c25182b
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(196), place: PlaceId(3) }))
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1620ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
 pass/wire/runtime_wire_exact_array_without_count_exit built 10428ms exit:70 @9baafc0ace88
@@ -987,8 +984,8 @@ pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1664ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/wire_compatibility_migration_across_shapes built 524ms @2d8ed253669f+wt
 pass/wire/wire_data_reserved_field built 814ms @2d8ed253669f+wt
-pass/wire/wire_preserving_decode_relay_exit rejected 1736ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 3)
+pass/wire/wire_preserving_decode_relay_exit rejected 887ms @34627c25182b
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: claim-free affine result` (state 0, statement 3)
 run/borrows/direct_runtime_index_write built 2083ms exit:9 @2d8ed253669f+wt
 run/borrows/local_mut_borrow built 1464ms exit:0 @2d8ed253669f+wt
 run/borrows/mut_record_loan_member_access built 2044ms exit:0 @2d8ed253669f+wt
