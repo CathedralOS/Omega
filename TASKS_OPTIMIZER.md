@@ -126,12 +126,18 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
   Remaining work:
 
-  - Admission: foreign-class values without a pure bit-transport pair (including
-    vector/non-IEEE values) and entry-bound victims with an edge back to the
-    entry block still reject in `runtime_spill/admission.rs`. Preserve that
-    refusal until storage geometry and entry redefinition replay are supported.
-    IEEE transport and early-clobber tied uses with shared co-readers already
-    work; `tests/read_modify_write.rs` pins a dedicated reload for the tied use.
+  - Admission: entry-bound victims with an edge back to the entry block now
+    admit in `runtime_spill/admission.rs` — the boundary store re-executes on
+    every arrival, a consistent plan cannot rewrite an entry register, and
+    the store's own read keeps it live across the re-entry path — with
+    `rewrites/runtime_spill/validation.rs` replay revalidating the route and
+    `tests/parameters.rs` pinning the emitted program, its liveness, and the
+    last-writer slot geometry under re-entry. Foreign-class values without a
+    pure bit-transport pair still reject; the current scalar representation
+    carries only Boolean, Integer and IeeeFloat, so vector/non-IEEE admission
+    needs a representation and target capability first. IEEE transport and
+    early-clobber tied uses with shared co-readers already work;
+    `tests/read_modify_write.rs` pins a dedicated reload for the tied use.
   - Composition: fixed-view probe declines, pressure after materialized copies,
     and pressure after active-resident rematerialization already enter runtime
     spill with their validated prefix (`assignment/recovery.rs`). Residual
