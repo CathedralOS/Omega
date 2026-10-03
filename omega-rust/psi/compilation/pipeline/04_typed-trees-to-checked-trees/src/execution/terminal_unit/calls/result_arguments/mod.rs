@@ -862,7 +862,7 @@ pub(super) fn argument(
             let ExpressionNode::Call(authored) = program.expression_table.expression(source) else {
                 return None;
             };
-            if authored.target_symbol != producer.target_symbol
+            if crate::flow::call_target_symbol(program, authored) != producer.target_symbol
                 || super::super::control::structural_operands::result(
                     program,
                     facts,

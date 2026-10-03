@@ -155,9 +155,10 @@ pub(super) fn is_record_value(
                 // A call's structural product is a fresh owned arm value: the
                 // builder admits it under the same exact return-type and
                 // plain-custody rule it checks when constructing the node.
-                let Some(returned) =
-                    crate::flow::call_target_return_type(program, call.target_symbol)
-                else {
+                let Some(returned) = crate::flow::call_target_return_type(
+                    program,
+                    crate::flow::call_target_symbol(program, call),
+                ) else {
                     return false;
                 };
                 if program.normalized_type_identity(returned)
@@ -446,9 +447,10 @@ fn projected_leaf_type(
         facts::PlaceRoot::Symbol(symbol) => symbol_declared_type(program, symbol)?,
         facts::PlaceRoot::Expression(expression) => {
             match program.expression_table.expression(expression) {
-                ExpressionNode::Call(call) => {
-                    crate::flow::call_target_return_type(program, call.target_symbol)?
-                }
+                ExpressionNode::Call(call) => crate::flow::call_target_return_type(
+                    program,
+                    crate::flow::call_target_symbol(program, call),
+                )?,
                 _ => return None,
             }
         }
@@ -854,7 +856,8 @@ impl Builder<'_, '_> {
         } else if let ExpressionNode::Call(call) =
             self.program.expression_table.expression(expression)
         {
-            let returned = crate::flow::call_target_return_type(self.program, call.target_symbol)?;
+            let call_target = crate::flow::call_target_symbol(self.program, call);
+            let returned = crate::flow::call_target_return_type(self.program, call_target)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
                 || !(validation::has_linear_owned_contents(self.program, returned)
@@ -865,13 +868,13 @@ impl Builder<'_, '_> {
             {
                 return None;
             }
-            let (source_call, call_ordinal) = self.call_ordinal(expression, call.target_symbol)?;
+            let (source_call, call_ordinal) = self.call_ordinal(expression, call_target)?;
             self.record_call_arguments(
                 pure,
                 values,
                 u32::try_from(self.statement_index).ok()?,
                 call_ordinal,
-                call.target_symbol,
+                call_target,
                 self.program
                     .expression_table
                     .expression_handles(call.arguments),

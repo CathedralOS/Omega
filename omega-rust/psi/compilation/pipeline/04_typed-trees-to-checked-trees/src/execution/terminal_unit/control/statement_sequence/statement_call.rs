@@ -126,7 +126,9 @@ pub(super) fn plan(
         let ExpressionNode::Call(authored) = program.expression_table.expression(expression) else {
             return None;
         };
-        if call.authored_expression != expression || call.target_symbol != authored.target_symbol {
+        if call.authored_expression != expression
+            || call.target_symbol != crate::flow::call_target_symbol(program, authored)
+        {
             return None;
         }
     }

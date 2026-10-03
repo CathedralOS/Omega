@@ -479,8 +479,13 @@ fn expression_call(
     {
         return unsupported("call source custody has an invalid authored argument span");
     }
+    // A named `Namespace::requirement(...)` call keeps an invalid authored
+    // leaf; the live target identity is its selected boundary declaration —
+    // the same identity the flow occurrence and the emitted call record carry.
+    let source_target = typed_trees::operator::selected_boundary_operator(&checked.typed, call)
+        .map_or(call.target_symbol, |operator| operator.symbol);
     Ok((
-        call.target_symbol,
+        source_target,
         checked
             .typed
             .expression_table

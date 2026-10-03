@@ -27,6 +27,16 @@
 //! the checked `operator_use`); and every crash-qualified use inside the
 //! closure must produce a row, so a use whose join or contract cannot be
 //! reconstructed fails closed instead of lowering as a crash-free operation.
+//!
+//! A named `Namespace::requirement(...)` call lowers as a `BoundaryCall`
+//! operation instead of a scalar operation: its crash carrier is the call's
+//! own boundary declaration, whose `crash_routes` the boundary lowering
+//! already installs in the declaration-local formal telescope the verifier
+//! substitutes at each call. The named site therefore installs no operation
+//! row of its own — `validate_named_site_carrier` joins the checked site to
+//! that declaration through the same exact source-occurrence relation and
+//! fails closed when the carrier or its published routes cannot be
+//! reconstructed.
 
 use std::collections::BTreeMap;
 
@@ -45,11 +55,13 @@ use crate::proofs::crash_routes::lower_formal_crash_routes;
 use crate::terminal_identities::dense_identity;
 
 /// Install one operation crash contract row per checked operator crash site
-/// owned by a machine in `source_machines`, and reject any crash-qualified
-/// operator use in that closure that has no such site.
+/// owned by a machine in `source_machines`, verify each named site's
+/// boundary-call carrier through `projection_sources`, and reject any
+/// crash-qualified operator use in that closure that has no such site.
 pub(crate) fn retain_operation_crash_contracts(
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
+    projection_sources: &[(symbols::SymbolHandle, MachineId)],
     lowered: &mut LoweredPsi,
 ) -> Result<(), LoweringError> {
     let sites = source_machines
@@ -60,8 +72,11 @@ pub(crate) fn retain_operation_crash_contracts(
     validate_every_crash_qualified_use_has_a_site(checked, source_machines, &sites)?;
     let mut rows = sites
         .iter()
-        .map(|site| lower_site(checked, lowered, site))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|site| lower_site(checked, projection_sources, lowered, site))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
     rows.sort_by_key(|row| (row.machine, row.operation));
     if rows
         .windows(2)
@@ -73,39 +88,6 @@ pub(crate) fn retain_operation_crash_contracts(
         return unsupported("operation crash contracts were already installed on this module");
     }
     lowered.semantic_module.operation_crash_contracts = rows;
-    Ok(())
-}
-
-/// Reject, before any body lowering, a crash-qualified named
-/// `Namespace::requirement(...)` call in the selected machine. A named call
-/// has no source-occurrence join to an emitted operation, so its crash
-/// contract has no Terminal carrier yet; refusing it here keeps the refusal
-/// a crash obligation rather than whatever incidental plan gap the body
-/// would otherwise report first.
-pub(crate) fn reject_unjoinable_named_sites(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<(), LoweringError> {
-    let operators = &checked.facts.operators;
-    let publishes_crash = |contracts: arena::HandleSpan<SignatureContract>| {
-        checked
-            .typed
-            .signature_contracts
-            .span_or_empty(contracts)
-            .iter()
-            .any(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
-    };
-    for (_, named_use) in operators.named_uses.iter() {
-        if matches!(named_use.origin, CheckedValueOrigin::StateStatement { machine_symbol, .. }
-                if machine_symbol == machine)
-            && operator_declaration(checked, named_use.selected_operator_symbol)
-                .is_some_and(|(_, contracts)| publishes_crash(contracts))
-        {
-            return unsupported(
-                "named operator crash invocation has no Terminal operation join to carry its contract",
-            );
-        }
-    }
     Ok(())
 }
 
@@ -163,9 +145,14 @@ fn validate_every_crash_qualified_use_has_a_site(
 
 fn lower_site(
     checked: &CheckedTrees,
+    projection_sources: &[(symbols::SymbolHandle, MachineId)],
     lowered: &LoweredPsi,
     site: &CheckedCrashOperatorSite,
-) -> Result<TerminalOperationCrashContract, LoweringError> {
+) -> Result<Option<TerminalOperationCrashContract>, LoweringError> {
+    if site.named_use.is_valid() {
+        return validate_named_site_carrier(checked, projection_sources, lowered, site)
+            .map(|()| None);
+    }
     let (machine_id, operation_id, operand_order) = emitted_operation(lowered, site)?;
     let machine = lowered
         .semantic_module
@@ -230,12 +217,116 @@ fn lower_site(
         .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
     let crash_continuations =
         terminal_verifier::substitute_crash_routes(&published_routes, &substitutions);
-    Ok(TerminalOperationCrashContract {
+    Ok(Some(TerminalOperationCrashContract {
         machine: machine_id,
         operation: operation_id,
         published_routes,
         crash_continuations,
-    })
+    }))
+}
+
+/// A named `Namespace::requirement(...)` call's crash carrier is the
+/// `BoundaryCall` operation's own boundary declaration: the boundary lowering
+/// already publishes the checked routes on that declaration, and the
+/// verifier substitutes the call's actuals into them. Verify the whole join
+/// rather than trusting a shape — the named call's authored expression and
+/// checked selected identity name exactly one source-occurrence row; that
+/// row lands on a `BoundaryCall` inside the site's own lowered machine; and
+/// the call's boundary declaration is an operator requirement whose scalar
+/// telescope agrees with the site's declaration and which publishes exactly
+/// the site's checked routes. Any drift means the contract has no Terminal
+/// carrier and the program fails closed instead of lowering crash-free.
+fn validate_named_site_carrier(
+    checked: &CheckedTrees,
+    projection_sources: &[(symbols::SymbolHandle, MachineId)],
+    lowered: &LoweredPsi,
+    site: &CheckedCrashOperatorSite,
+) -> Result<(), LoweringError> {
+    let named_use = checked.facts.operators.named_uses.get(site.named_use);
+    let CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        ..
+    } = named_use.origin
+    else {
+        return unsupported("named operator crash invocation has no machine-local origin");
+    };
+    let source_site = checked_trees::NominalMachineUseSite::Expression(named_use.expression);
+    let mut joins = lowered.source_call_occurrences.iter().filter(|occurrence| {
+        occurrence.source_site == Some(source_site)
+            && occurrence.source_state == state_symbol
+            && occurrence.source_target == site.selected_operator
+    });
+    let join = match (joins.next(), joins.next()) {
+        (Some(join), None) => join,
+        (None, _) => {
+            return unsupported(
+                "named operator crash invocation has no emitted boundary call to carry its contract",
+            );
+        }
+        (Some(_), Some(_)) => {
+            return unsupported("named operator crash invocation joins more than one emitted call");
+        }
+    };
+    let machine_id = projection_sources
+        .iter()
+        .find_map(|(source, id)| (*source == machine_symbol).then_some(*id))
+        .ok_or(LoweringError::Unsupported(
+            "named operator crash invocation's machine has no Terminal lowering",
+        ))?;
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == machine_id)
+        .ok_or(LoweringError::Unsupported(
+            "named operator crash invocation joins a Terminal machine outside the lowered module",
+        ))?;
+    let operation = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == join.terminal_operation)
+        .ok_or(LoweringError::Unsupported(
+            "named operator crash invocation joins an operation outside its Terminal machine",
+        ))?;
+    let terminal_psi::OperationKind::BoundaryCall {
+        boundary,
+        arguments,
+        ..
+    } = &operation.kind
+    else {
+        return unsupported(
+            "named operator crash invocation joins an operation that is not its boundary call",
+        );
+    };
+    let declaration = lowered
+        .semantic_module
+        .boundary_machines
+        .iter()
+        .find(|declaration| declaration.id == *boundary)
+        .ok_or(LoweringError::Unsupported(
+            "named operator crash invocation's boundary call names no retained declaration",
+        ))?;
+    if declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Operator
+        || arguments.len() != declaration.scalar_parameters.len()
+    {
+        return unsupported(
+            "named operator crash invocation's boundary call disagrees with the operator requirement shape",
+        );
+    }
+    validate_operator_signature(checked, site, &declaration.scalar_parameters)?;
+    if declaration.crash_routes
+        != lower_formal_crash_routes(
+            published_buckets(checked, site)?,
+            &declaration.scalar_parameters,
+        )?
+    {
+        return unsupported(
+            "named operator crash invocation's boundary declaration publishes different crash routes than its checked site",
+        );
+    }
+    Ok(())
 }
 
 /// The exact emitted operation for one site, and how that operation reads the
@@ -255,11 +346,6 @@ fn emitted_operation(
     ),
     LoweringError,
 > {
-    if site.named_use.is_valid() {
-        return unsupported(
-            "named operator crash invocation has no Terminal operation join to carry its contract",
-        );
-    }
     let operator_use: CheckedOperatorUseHandle = site.operator_use;
     // `IeeeFloatCompare` carries its own comparison identity, so an IEEE
     // comparison is always emitted over the authored operand order.
@@ -496,7 +582,8 @@ mod tests {
     }
 
     /// Re-run the retention pass on the already-lowered module after the test
-    /// rewrites the emission's own occurrence joins.
+    /// rewrites the emission's own occurrence joins. The fixtures select one
+    /// machine, so its projection is the module entry.
     fn retain_again(checked: &CheckedTrees, lowered: &mut LoweredPsi) -> LoweringError {
         lowered.semantic_module.operation_crash_contracts.clear();
         let source_machines = checked
@@ -507,7 +594,8 @@ mod tests {
             .iter()
             .map(|selection| selection.machine)
             .collect::<Vec<_>>();
-        retain_operation_crash_contracts(checked, &source_machines, lowered)
+        let projection_sources = entry_projection(checked, lowered);
+        retain_operation_crash_contracts(checked, &source_machines, &projection_sources, lowered)
             .expect_err("the rewritten occurrence join must fail closed")
     }
 
@@ -579,26 +667,161 @@ mod tests {
         );
     }
 
-    /// A `Namespace::requirement(...)` call has no source-occurrence join to
-    /// an emitted operation, so its crash contract has no Terminal carrier.
-    /// The refusal runs before any body lowering.
+    /// A crash-qualified `Namespace::requirement(...)` call lowers as a
+    /// `BoundaryCall` whose own boundary declaration carries the published
+    /// routes. No `operation_crash_contracts` row is installed — the
+    /// declaration is the contract's carrier — but the checked site must
+    /// still join one exact emitted boundary call.
+    const NAMED_CRASH_CALL_SOURCE: &str = r#"
+        boundary operator == Meaning::equal(left: u16, right: u16) -> bool crashes Trap;
+        machine choose(left: u16, right: u16) -> bool { Meaning::equal(left, right) }
+    "#;
+
+    /// The named crash invocation beside an unrelated primitive comparison:
+    /// `choose` emits an `IntegerLessThan` the corrupted join can point at, a
+    /// scalar operation that is not the boundary call.
+    const NAMED_CRASH_CALL_BESIDE_COMPARISON_SOURCE: &str = r#"
+        boundary operator == Meaning::equal(left: u16, right: u16) -> bool crashes Trap;
+        machine choose(left: u16, right: u16) -> bool {
+            let order: bool = left < right;
+            Meaning::equal(left, right) && order
+        }
+    "#;
+
+    /// The entry machine's projection for the single-machine fixtures, so the
+    /// named-site carrier check can rejoin its own lowered machine.
+    fn entry_projection(
+        checked: &CheckedTrees,
+        lowered: &LoweredPsi,
+    ) -> Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)> {
+        checked
+            .typed
+            .machines()
+            .iter()
+            .filter(|machine| machine.name.as_str() == "choose")
+            .map(|machine| (machine.symbol, lowered.semantic_module.entry))
+            .collect()
+    }
+
     #[test]
-    fn named_operator_crash_invocation_fails_before_lowering() {
-        let checked = checked(
-            r#"
-            boundary operator == Meaning::equal(left: u16, right: u16) -> bool crashes Trap;
-            machine choose(left: u16, right: u16) -> bool { Meaning::equal(left, right) }
-            "#,
+    fn named_operator_crash_invocation_lowers_through_its_boundary_call() {
+        let checked = checked(NAMED_CRASH_CALL_SOURCE);
+        let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+            .expect("a named crash invocation lowers through its boundary call");
+        assert!(
+            lowered.semantic_module.operation_crash_contracts.is_empty(),
+            "the boundary declaration carries the named call's contract, not an operation row"
         );
-        let error = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
-            .expect_err("a named crash invocation has no operation join");
+        let declaration = lowered
+            .semantic_module
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.identity.contains("equal"))
+            .expect("the named call retains its boundary declaration");
+        assert_eq!(
+            declaration.kind,
+            semantic_vocabulary::BoundaryRequirementKind::Operator,
+        );
+        assert!(
+            !declaration.crash_routes.is_empty(),
+            "the declaration publishes the named call's checked crash routes"
+        );
+        assert!(
+            lowered
+                .semantic_module
+                .machines
+                .iter()
+                .flat_map(|machine| machine.blocks.iter())
+                .flat_map(|block| block.operations.iter())
+                .any(|operation| matches!(
+                    &operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { boundary, .. }
+                        if *boundary == declaration.id
+                )),
+            "the named call emits a BoundaryCall on its retained declaration"
+        );
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("the named crash invocation's module verifies");
+    }
+
+    #[test]
+    fn named_operator_crash_invocation_rejects_a_missing_occurrence_join() {
+        let checked = checked(NAMED_CRASH_CALL_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+            .expect("a named crash invocation lowers through its boundary call");
+        lowered.source_call_occurrences.clear();
+        let source_machines = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .map(|selection| selection.machine)
+            .collect::<Vec<_>>();
+        let error = retain_operation_crash_contracts(
+            &checked,
+            &source_machines,
+            &entry_projection(&checked, &lowered),
+            &mut lowered,
+        )
+        .expect_err("a missing occurrence join must fail closed");
         assert!(
             matches!(
                 error,
                 LoweringError::Unsupported(message)
-                    if message.contains("no Terminal operation join")
+                    if message.contains("no emitted boundary call")
             ),
-            "a named crash invocation must not lower silently: {error:?}"
+            "a named crash invocation without an occurrence join must not lower: {error:?}"
+        );
+    }
+
+    #[test]
+    fn named_operator_crash_invocation_rejects_a_non_boundary_carrier() {
+        let checked = checked(NAMED_CRASH_CALL_BESIDE_COMPARISON_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
+            .expect("a named crash invocation lowers through its boundary call");
+        // Point the exact occurrence at an operation that is not the boundary
+        // call: the contract has no positional carrier on a scalar operation.
+        let stray_operation = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.blocks.iter())
+            .flat_map(|block| block.operations.iter())
+            .find_map(|operation| {
+                (!matches!(
+                    &operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { .. }
+                ))
+                .then_some(operation.id)
+            })
+            .expect("choose emits a non-boundary operation beside the call");
+        lowered
+            .source_call_occurrences
+            .iter_mut()
+            .for_each(|occurrence| occurrence.terminal_operation = stray_operation);
+        let source_machines = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .map(|selection| selection.machine)
+            .collect::<Vec<_>>();
+        let error = retain_operation_crash_contracts(
+            &checked,
+            &source_machines,
+            &entry_projection(&checked, &lowered),
+            &mut lowered,
+        )
+        .expect_err("a non-boundary carrier must fail closed");
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message)
+                    if message.contains("is not its boundary call")
+            ),
+            "a named crash invocation must not borrow an arbitrary operation: {error:?}"
         );
     }
 
@@ -752,7 +975,7 @@ mod tests {
             .iter()
             .map(|selection| selection.machine)
             .collect::<Vec<_>>();
-        let error = retain_operation_crash_contracts(&checked, &source_machines, &mut lowered)
+        let error = retain_operation_crash_contracts(&checked, &source_machines, &[], &mut lowered)
             .expect_err("reinstalling over existing rows must fail closed");
         assert!(
             matches!(

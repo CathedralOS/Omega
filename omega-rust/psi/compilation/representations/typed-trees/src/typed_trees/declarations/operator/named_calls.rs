@@ -51,6 +51,27 @@ pub fn resolve_named_expression_call<'program>(
     Some(*selected)
 }
 
+/// The `boundary operator` declaration an expression call selects: the leaf
+/// target for a resolved call, or the ambiguity-checked named selection when
+/// the authored leaf carries none. Every call's flow occurrence keys on the
+/// same identity — consumers that compare or dispatch on it resolve the same
+/// declaration — so a named boundary call never drops out of a `target_symbol`
+/// match. `None` means the call selects no `boundary operator` at all (an
+/// ordinary machine, a trait requirement, an ambiguous or machine-token
+/// candidate); consumers needing the flow identity keep the authored leaf.
+pub fn selected_boundary_operator<'program>(
+    program: &'program TypedTrees,
+    call: &crate::expression::TableCallExpression,
+) -> Option<&'program OperatorDefinition> {
+    resolve_named_expression_call(program, call).filter(|operator| {
+        operator.is_boundary
+            && program
+                .operators()
+                .iter()
+                .any(|candidate| candidate.symbol == operator.symbol)
+    })
+}
+
 /// Return every named operator matching an expression call's retained path and
 /// arity. Result-overload normalization uses this before one exact result
 /// dispatch has been selected, when ordinary single-candidate resolution must

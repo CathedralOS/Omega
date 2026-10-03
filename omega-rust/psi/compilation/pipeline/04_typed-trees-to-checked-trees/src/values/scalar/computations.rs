@@ -355,7 +355,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         &mut structural_values,
                         statement_ordinal,
                         call_ordinal,
-                        call.target_symbol,
+                        crate::flow::call_target_symbol(program, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
                 }
@@ -387,7 +387,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             &mut structural_values,
                             statement_ordinal,
                             0,
-                            call.target_symbol,
+                            crate::flow::call_target_symbol(program, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
@@ -474,7 +474,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         &mut structural_values,
                         statement_ordinal,
                         0,
-                        call.target_symbol,
+                        crate::flow::call_target_symbol(program, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
                     if validation::unit_statement_call_is_supported(
@@ -680,7 +680,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             &mut structural_values,
                             statement_ordinal,
                             0,
-                            call.target_symbol,
+                            crate::flow::call_target_symbol(program, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
@@ -1306,9 +1306,10 @@ impl Builder<'_, '_> {
                 if let Some(selection) = self.integer_min_max(expression, &call, expected_type) {
                     return Some(selection);
                 }
-                if let Some(operator) =
-                    boundary_calls::boundary_operator(self.program, call.target_symbol)
-                {
+                if let Some(operator) = boundary_calls::boundary_operator(
+                    self.program,
+                    crate::flow::call_target_symbol(self.program, &call),
+                ) {
                     return self.boundary_operator_call(expression, &call, operator, expected_type);
                 }
                 if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {

@@ -1559,11 +1559,18 @@ the complete product bar; focused successes below do not establish that baseline
   traps or opaque provider bodies cannot narrow authored contracts.
 
   - Generalize selected-use/operation joins beyond IEEE/integer comparisons.
-    Named uses still reject before lowering; structural telescopes and call
-    carriers need exact operand mapping, provider commitment and independent
-    Psi/Omega replay through one occurrence relation. Scalar IEEE equality/
-    inequality guards exist; float ordering, generic and structural-formal
-    routes still need portable predicates, preserving the original guard.
+    Named uses now join the exact emitted `BoundaryCall` through one
+    source-occurrence relation: the named call's crash contract stays on its
+    boundary declaration, whose published routes retention redecides against
+    the checked site, and a missing, duplicated or non-boundary join fails
+    closed. Borrow, flow, service reach, Terminal emission and source custody
+    share the canonical operator identity. Structural telescopes and call
+    carriers still need exact operand mapping, provider commitment and
+    independent Psi/Omega replay; crash-qualified operator invocations reject
+    before Terminal production at `validate_selected_operator_terminal_custody`,
+    so no run fixture exists yet. Scalar IEEE equality/inequality guards
+    exist; float ordering, generic and structural-formal routes still need
+    portable predicates, preserving the original guard.
   - Finish invocation-outcome trace/refinement under
     [reconstructed observations](wiki/spec/terminal-psi/observations.md#reconstructed-rows):
     actual outcome, substituted guards, abandoned claims, staged writeback and

@@ -74,7 +74,9 @@ fn exact_mutable_referent(
         crate::semantic::calls::CallSite::Expression {
             expression,
             call: authored,
-        } if *expression == call.authored_expression => authored.target_symbol,
+        } if *expression == call.authored_expression => {
+            crate::flow::call_target_symbol(program, authored)
+        }
         _ => return None,
     };
     if !target_symbol.is_valid() || target_symbol != call.target_symbol {
