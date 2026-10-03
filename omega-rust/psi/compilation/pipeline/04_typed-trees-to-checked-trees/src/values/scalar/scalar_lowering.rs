@@ -457,19 +457,7 @@ pub(crate) fn lower_scalar_expression(
         ) {
             return Some(read);
         }
-        if let Some(read) = view_member_nested_index_read(
-            program,
-            operators,
-            expression,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        ) {
-            return Some(read);
-        }
-        if let Some(read) = parameter_member_nested_index_read(
+        if let Some(read) = member_nested_index_read(
             program,
             operators,
             expression,
@@ -1666,123 +1654,6 @@ fn view_element_field_read(
 /// selector below the first declines: the element path's static
 /// vocabulary carries no runtime segment (a separately filed design).
 #[allow(clippy::too_many_arguments)]
-fn view_member_nested_index_read(
-    program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
-    expression: ExpressionHandle,
-    parameters: &[StateParameter],
-    authored_parameters: &[StateParameter],
-    parameter_types: &[PrimitiveType],
-    locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-    // Enclosing `Indexed` selectors peel outermost-first; the collection
-    // they select must resolve to a view local through a member prefix —
-    // every other collection shape belongs to the parameter arms.
-    let mut enclosing = Vec::new();
-    let mut selection_expression = expression;
-    while let ExpressionNode::Indexed(indexed) =
-        program.expression_table.expression(selection_expression)
-    {
-        enclosing.push(selection_expression);
-        selection_expression = indexed.collection;
-    }
-    if enclosing.is_empty() {
-        return None;
-    }
-    let Some((symbol, path, mut element_type)) =
-        structural_fields::view_local_place(program, authored_parameters, selection_expression)
-    else {
-        return None;
-    };
-    let mut selectors = enclosing.into_iter().rev();
-    let first = selectors.next()?;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(first) else {
-        return None;
-    };
-    if !structural_fields::indexed_read_is_builtin(
-        program,
-        operators,
-        authored_parameters,
-        first,
-        element_type,
-        indexed.index,
-    ) {
-        return None;
-    }
-    let index =
-        land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
-            .or_else(|| {
-                lower_scalar_expression(
-                    program,
-                    operators,
-                    indexed.index,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )
-                .map(|(index, _)| index)
-            })?;
-    let index_type = scalar_expression_type(&index)?;
-    if !is_integer(index_type) || index_type == PrimitiveType::Addr {
-        return None;
-    }
-    element_type = fixed_array_element(program, element_type)?;
-    let mut element_path = Vec::new();
-    for enclosing_expression in selectors {
-        let ExpressionNode::Indexed(indexed) =
-            program.expression_table.expression(enclosing_expression)
-        else {
-            return None;
-        };
-        if !structural_fields::indexed_read_is_builtin(
-            program,
-            operators,
-            authored_parameters,
-            enclosing_expression,
-            element_type,
-            indexed.index,
-        ) {
-            return None;
-        }
-        // A selector below the element index carries no runtime position:
-        // the static element path spells it as `FixedIndex`. A runtime
-        // selector in that position needs the separately filed runtime
-        // segment vocabulary.
-        element_path.push(CheckedStructuralPredicatePathSegment::FixedIndex(
-            u64::try_from(
-                program
-                    .expression_table
-                    .constant_integer_value(indexed.index)?,
-            )
-            .ok()?,
-        ));
-        element_type = fixed_array_element(program, element_type)?;
-    }
-    let primitive_type = program.primitive_type_reference(element_type)?;
-    if !is_integer(primitive_type)
-        && !matches!(
-            primitive_type,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        )
-    {
-        return None;
-    }
-    Some((
-        CheckedScalarExpression::StructuralParameterIndexedRead {
-            root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
-            path,
-            index: Box::new(index),
-            inner_indexes: Vec::new(),
-            element_path,
-            primitive_type,
-        },
-        program.arithmetic_domain_for_type_reference(element_type),
-    ))
-}
-
 /// The checked coordinate an element path's runtime selector evaluates to.
 /// Scalar parameters retain their scalar namespace; program-point field reads
 /// retain their structural source. Local and computed selectors need their own
@@ -1837,12 +1708,13 @@ fn runtime_index_coordinate(
 /// whose `Field` step between two runtime selectors neither
 /// `nested_element_read`'s consecutive-selector chain nor
 /// `view_element_field_read`'s member-last walk can spell. The `Indexed`
-/// directly over the parameter place supplies `index`; every `Indexed`
-/// selector above a member contributes its own element-path segment —
-/// `FixedIndex` for a literal, `RuntimeIndex` for a runtime selector — and
-/// each `Member` contributes a `Field` step.
+/// directly over the structural place — a parameter, a view local, or an
+/// owned local, whichever the member prefix resolves to — supplies `index`;
+/// every `Indexed` selector above a member contributes its own element-path
+/// segment — `FixedIndex` for a literal, `RuntimeIndex` for a runtime
+/// selector — and each `Member` contributes a `Field` step.
 #[allow(clippy::too_many_arguments)]
-fn parameter_member_nested_index_read(
+fn member_nested_index_read(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
@@ -1872,6 +1744,18 @@ fn parameter_member_nested_index_read(
                     indexed.collection,
                 )
                 .is_some()
+                    || structural_fields::view_local_place(
+                        program,
+                        authored_parameters,
+                        indexed.collection,
+                    )
+                    .is_some()
+                    || structural_fields::owned_local_place(
+                        program,
+                        authored_parameters,
+                        indexed.collection,
+                    )
+                    .is_some()
                 {
                     break cursor;
                 }
@@ -1913,10 +1797,13 @@ fn parameter_member_nested_index_read(
         locals,
         exact_integer_casts,
     )?;
+    // Parameter and view-local roots emit indexed element reads; an owned
+    // local's emission keeps its static-only element path for now.
     if selection.through_view
         || !matches!(
             selection.root,
             checked_trees::CheckedStorageRoot::Parameter { .. }
+                | checked_trees::CheckedStorageRoot::ViewLocal { .. }
         )
     {
         return None;
