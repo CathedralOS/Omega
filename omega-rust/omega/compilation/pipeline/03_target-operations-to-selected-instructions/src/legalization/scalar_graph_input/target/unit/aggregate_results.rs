@@ -79,7 +79,12 @@ pub(super) fn validate(
                                                 | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }, ..
                                         }
                                 ) || argument.access != terminal_psi::StructuralAccess::Owned
-                                    || !argument.path.is_empty()
+                                    || (!argument.path.is_empty() && match declaration.field_type {
+                                        terminal_psi::StructuralFieldType::Structural(expected) =>
+                                            owned_projected_field_source(optimized, argument, &unit.structural_types)
+                                                .map_or(true, |(selected, _)| selected != expected),
+                                        _ => true,
+                                    })
                             }
                         }
                 })
@@ -259,9 +264,9 @@ pub(super) fn validate(
                             return Err(LegalizationError::custody());
                         };
                         if argument.access != terminal_psi::StructuralAccess::Owned
-                            || !argument.path.is_empty() || argument.place == result.place
+                            || argument.place == result.place
                         { return Err(LegalizationError::custody()); }
-                        let (actual, multiplicity) = owned_field_source(optimized, argument.place)?;
+                        let (actual, multiplicity) = owned_projected_field_source(optimized, argument, &unit.structural_types)?;
                         if actual != expected || (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                             && multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
                         { return Err(LegalizationError::custody()); }
@@ -325,4 +330,37 @@ fn owned_field_source(
         return Err(LegalizationError::custody());
     }
     Ok((structural_type, multiplicity))
+}
+
+fn owned_projected_field_source(
+    function: &PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<
+    (
+        semantic_vocabulary::StructuralTypeId,
+        terminal_psi::StructuralMultiplicity,
+    ),
+    LegalizationError,
+> {
+    let (root, multiplicity) = owned_field_source(function, argument.place)?;
+    if argument.path.is_empty() {
+        return Ok((root, multiplicity));
+    }
+    if argument.access != terminal_psi::StructuralAccess::Owned
+        || multiplicity != terminal_psi::StructuralMultiplicity::Affine
+        || !argument.path.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+    {
+        return Err(LegalizationError::custody());
+    }
+    let (_, selected) =
+        terminal_semantics::canonical_static_projection(types.iter(), root, &argument.path)
+            .ok_or_else(LegalizationError::custody)?;
+    Ok((selected.id, multiplicity))
 }

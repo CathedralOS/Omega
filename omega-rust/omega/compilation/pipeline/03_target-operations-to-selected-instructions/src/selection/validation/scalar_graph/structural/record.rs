@@ -124,6 +124,9 @@ pub(super) fn write_fields(
                 )?;
             }
             terminal_psi::RecordFieldValue::Structural(argument) => {
+                let source_offset =
+                    crate::selection::record_input::operand_offset(source, argument)
+                        .ok_or_else(|| invalid())?;
                 if field_shape.byte_size == 0 {
                     continue;
                 }
@@ -139,11 +142,12 @@ pub(super) fn write_fields(
                             .find(|parameter| parameter.semantic.place == argument.place)
                     })
                     .filter(|_| {
-                        !replay
-                            .transport
-                            .pointers
-                            .iter()
-                            .any(|(place, _)| *place == argument.place)
+                        argument.path.is_empty()
+                            && !replay
+                                .transport
+                                .pointers
+                                .iter()
+                                .any(|(place, _)| *place == argument.place)
                     })
                 {
                     if !crate::selection::aggregate_result_input::inline_argument_fragments(
@@ -201,21 +205,27 @@ pub(super) fn write_fields(
                     .ok_or_else(|| invalid())?;
                 let mut cursor = 0u32;
                 while cursor < field_shape.byte_size {
-                    let width = chunk(field_shape.byte_size - cursor, cursor, offset + cursor);
+                    let source_position =
+                        source_offset.checked_add(cursor).ok_or_else(|| invalid())?;
+                    let width = chunk(
+                        field_shape.byte_size - cursor,
+                        source_position,
+                        offset + cursor,
+                    );
                     let (input, displacement) = super::memory_pointer(
                         replay,
                         row,
                         argument.place,
                         input,
-                        cursor,
+                        source_position,
                         u32::from(width),
                     )?;
-                    let value = super::result(replay, argument.place, cursor)?;
+                    let value = super::result(replay, argument.place, source_position)?;
                     memory(
                         replay,
                         row,
                         argument.place,
-                        cursor,
+                        source_position,
                         u32::from(width),
                         SelectedMemoryAccessRole::ReadPlace,
                     )?;

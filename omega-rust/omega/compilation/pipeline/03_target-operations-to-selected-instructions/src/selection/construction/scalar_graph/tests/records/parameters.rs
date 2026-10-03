@@ -376,3 +376,142 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
         );
     }
 }
+
+#[test]
+fn projected_constructor_child_keeps_its_exact_source_displacement() {
+    use semantic_vocabulary::{OperationId, PlaceId};
+    use terminal_psi::{
+        RecordFieldValue, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
+    };
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let mut source = nested_fixture(target, 2);
+        let signature = source.structural.as_mut().unwrap();
+        let mut declarations = signature.structural_types.to_vec();
+        let StructuralTypeShape::Record { fields } = &mut declarations
+            .iter_mut()
+            .find(|declaration| declaration.id == StructuralTypeId::new(3).unwrap())
+            .unwrap()
+            .shape
+        else {
+            panic!("parent record")
+        };
+        fields.swap(0, 1); // Put the selected child after one byte of unrelated storage.
+        signature.structural_types = declarations.into();
+        signature.result.as_mut().unwrap().multiplicity = StructuralMultiplicity::Affine;
+        let parent = &mut source.blocks[0].instructions[3];
+        let LegalizedScalarInstructionKind::EstablishRecord { result, fields, .. } =
+            &mut parent.kind
+        else {
+            panic!("parent record")
+        };
+        result.multiplicity = StructuralMultiplicity::Affine;
+        fields.swap(0, 1);
+        let parent_place = result.place;
+        let mut selected_row = parent.clone();
+        let operation = OperationId::new(5).unwrap();
+        selected_row.operation = operation;
+        selected_row.fuel[0].site = super::PsiProvenance::Operation(operation);
+        let LegalizedScalarInstructionKind::EstablishRecord { result, fields, .. } =
+            &mut selected_row.kind
+        else {
+            unreachable!()
+        };
+        result.place = PlaceId::new(4).unwrap();
+        let RecordFieldValue::Structural(argument) = &mut fields[1].value else {
+            panic!("child")
+        };
+        argument.place = parent_place;
+        argument.path = vec![StructuralPathSegment::Field("child".into())];
+        let result = result.clone();
+        source
+            .structural
+            .as_mut()
+            .unwrap()
+            .structural_places
+            .push(StructuralPlaceDeclaration {
+                id: result.place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: operation,
+                    structural_type: result.structural_type,
+                },
+            });
+        source.blocks[0].instructions.push(selected_row);
+        source.provenance.operations.push(operation);
+        let LegalizedScalarTerminator::Return(returned) = &mut source.blocks[0].terminator else {
+            panic!("return")
+        };
+        returned.value = LegalizedScalarReturnValue::Structural {
+            source: legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                operation,
+                result,
+            },
+        };
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: Vec::new(),
+        };
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |source: &LegalizedScalarFunction, selected: &SelectedFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                source,
+                selected,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&source, &selected).unwrap();
+        assert!(
+            selected
+                .memory_accesses
+                .iter()
+                .any(|access| access.place == parent_place
+                    && access.byte_offset == 1
+                    && access.role == selected_instructions::SelectedMemoryAccessRole::ReadPlace)
+        );
+        let mut wrong_coordinate = selected.clone();
+        let access = wrong_coordinate
+            .memory_accesses
+            .iter_mut()
+            .find(|access| {
+                access.place == parent_place
+                    && access.byte_offset == 1
+                    && access.role == selected_instructions::SelectedMemoryAccessRole::ReadPlace
+            })
+            .unwrap();
+        access.byte_offset = 0;
+        assert!(validate(&source, &wrong_coordinate).is_err());
+        for mutation in 0..2 {
+            let mut changed = source.clone();
+            let LegalizedScalarInstructionKind::EstablishRecord { fields, .. } =
+                &mut changed.blocks[0].instructions[4].kind
+            else {
+                unreachable!()
+            };
+            let RecordFieldValue::Structural(argument) = &mut fields[1].value else {
+                unreachable!()
+            };
+            if mutation == 0 {
+                argument.path = vec![StructuralPathSegment::Field("last".into())];
+            } else {
+                argument.access = StructuralAccess::SharedBorrow;
+            }
+            assert!(validate(&changed, &selected).is_err());
+        }
+    }
+}

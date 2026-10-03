@@ -118,6 +118,10 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
+            LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
+            | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => fields.iter().any(|field|
+                matches!(&field.value, terminal_psi::RecordFieldValue::Structural(argument)
+                    if argument.place == place && !argument.path.is_empty())),
             LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::AtomicAccess { location, .. } => location.place == place,
             // Byte operations read the owner's length and backing, not a

@@ -73,6 +73,21 @@ pub(super) fn field_shape(
         return None;
     }
     let declarations = &source.structural.as_ref()?.structural_types;
+    if let RecordFieldValue::Structural(argument) = &field.value
+        && !argument.path.is_empty()
+    {
+        let StructuralFieldType::Structural(expected_type) = expected.field_type else {
+            return None;
+        };
+        let (selected, _) = projected_operand(source, argument)?;
+        if selected != expected_type
+            || argument.place == parent.place
+            || parent.multiplicity == StructuralMultiplicity::Unrestricted
+        {
+            return None;
+        }
+        return crate::structural_inputs::structural_reference_input::shape(selected, declarations);
+    }
     let shape = match (&field.value, &expected.field_type) {
         (RecordFieldValue::Structural(argument), field_type)
             if matches!(
@@ -309,5 +324,76 @@ fn descriptor_family(actual: Option<&StructuralTypeShape>, expected: &Structural
             }),
         ) => true,
         _ => false,
+    }
+}
+
+/// Exact static constructor selection over the original owned affine home.
+/// Return the source displacement as well as its type so construction and replay
+/// cannot accidentally copy the root's leading bytes for a later field.
+fn projected_operand(
+    source: &LegalizedScalarFunction,
+    argument: &terminal_psi::StructuralArgument,
+) -> Option<(semantic_vocabulary::StructuralTypeId, u32)> {
+    if argument.access != terminal_psi::StructuralAccess::Owned
+        || argument.path.is_empty()
+        || !argument.path.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+    {
+        return None;
+    }
+    let signature = source.structural.as_ref()?;
+    let mut parameters = signature
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.semantic)
+        .chain(
+            source
+                .blocks
+                .iter()
+                .filter(|block| block.id != source.entry_block)
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .filter(|parameter| parameter.place == argument.place);
+    let root = if let Some(parameter) = parameters.next() {
+        if parameters.next().is_some()
+            || parameter.access != terminal_psi::StructuralAccess::Owned
+            || parameter.multiplicity != StructuralMultiplicity::Affine
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return None;
+        }
+        parameter.structural_type
+    } else {
+        let (_, result) = super::aggregate_result_input::home(source, argument.place)?;
+        if result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+        {
+            return None;
+        }
+        result.structural_type
+    };
+    crate::structural_inputs::structural_reference_input::project(
+        root,
+        &argument.path,
+        &signature.structural_types,
+    )
+}
+
+pub(super) fn operand_offset(
+    source: &LegalizedScalarFunction,
+    argument: &terminal_psi::StructuralArgument,
+) -> Option<u32> {
+    if argument.path.is_empty() {
+        Some(0)
+    } else {
+        projected_operand(source, argument).map(|(_, offset)| offset)
     }
 }
