@@ -1,4 +1,4 @@
-// PASS canary: an owned `self` receiver on a linear type is ordinary
+// PASS canary: an owned receiver parameter on a linear type is ordinary
 // parameter syntax — it discharges only through an authorized disposition.
 // `Receipt` declares no `Receipt::drop` cleanup plan, so neither normal
 // completion nor `drop` may retire the claim; the declared consuming
@@ -9,7 +9,7 @@ data Receipt [linear] {
     code: i32;
 }
 
-boundary requirement Receipt::ack(self);
+boundary requirement Receipt::ack(receipt: Receipt);
 
 machine ack_ordinary(receipt: Receipt) {
     Receipt::ack(receipt);

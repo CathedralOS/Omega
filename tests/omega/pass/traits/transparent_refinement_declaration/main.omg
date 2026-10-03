@@ -4,8 +4,8 @@
 // evidence binders (`B: L satisfies R`) are its legal consumers.
 
 trait Logger {
-    machine write(&mut self) suspends; blocks;
-    machine flush(&mut self);
+    machine write(subject: &mut Self) suspends; blocks;
+    machine flush(subject: &mut Self);
 }
 
 trait LocalLogger = Logger {

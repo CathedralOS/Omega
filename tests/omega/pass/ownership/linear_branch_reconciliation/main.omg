@@ -1,7 +1,7 @@
 // PASS canary (decision 21): transition arms are alternatives, not sequential
 // copies. Both paths transfer the same obligation into a consuming state.
 data Receipt [linear] { code: i32; }
-boundary requirement Receipt::ack(self);
+boundary requirement Receipt::ack(receipt: Receipt);
 
 data Main { choose_first: bool; }
 
