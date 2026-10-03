@@ -59,7 +59,14 @@ fn adapt(
     let mut graph = DescriptorMachine {
         id: function.machine,
         entry: (function.entry, 0),
-        returns: function.result.structural().map(|_| Vec::new()),
+        returns: function
+            .result
+            .structural()
+            .filter(|result| {
+                kernel::descriptor_slots(types, result.place, result.structural_type)
+                    .is_some_and(|slots| !slots.is_empty())
+            })
+            .map(|_| Vec::new()),
         places: Vec::new(),
         place_types: BTreeMap::new(),
         flow: BTreeMap::new(),
@@ -414,6 +421,18 @@ fn adapt(
                 O::EstablishRecord { result, fields, .. }
                 | O::EstablishCase { result, fields, .. } => {
                     if let O::EstablishCase { result_case, .. } = operation {
+                        let shape = &types
+                            .iter()
+                            .find(|row| row.id == result.structural_type)?
+                            .shape;
+                        let cases = match shape {
+                            StructuralTypeShape::Sum { cases }
+                            | StructuralTypeShape::Mixed { cases, .. } => cases,
+                            _ => return None,
+                        };
+                        if !cases.iter().any(|case| case.id == *result_case) {
+                            return None;
+                        }
                         for slot in
                             kernel::descriptor_slots(types, result.place, result.structural_type)?
                         {
