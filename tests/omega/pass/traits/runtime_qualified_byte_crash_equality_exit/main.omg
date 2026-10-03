@@ -7,7 +7,7 @@ requires
     valid_utf8(bytes);
 
 trait Equatable {
-    machine equals(&self, rhs: &Self) -> bool;
+    machine equals(subject: &Self, rhs: &Self) -> bool;
 }
 data Message { active: bool; text: [u8; 8] in Utf8; }
 MessageEquatable: Message satisfies Equatable;
