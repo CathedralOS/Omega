@@ -29,10 +29,11 @@
 //! it there. The two signatures must agree exactly; checking rejects a
 //! terminal call whose result differs from the caller's declared result.
 //!
+//! Scalar operand computations retain their nested calls; the shared argument
+//! schedule evaluates them inside the selected arm in authored order.
 //! Honest boundaries: structural results are not planned here; an arm call
-//! transfers no claims, is its statement's only call (its guard makes none), and has no operand that needs its own establishment (nested
-//! calls, constructed values or arrays), because those operands would have to
-//! run inside the arm as well.
+//! transfers no claims, its guard makes no call, and no structural operand
+//! needs a separate establishment.
 use super::{
     CheckFacts, CheckedUnitStructuralParameterPlan, ScalarCalleePlans, TransitionExit,
     TransitionTargetNode, TypedTrees, control,
@@ -72,9 +73,9 @@ pub(super) fn invoked_callable(
 }
 
 /// Plan a guarded arm's terminal machine call as the arm's own operation.
-/// The arm's one flow call must be the invocation itself (preorder zero, so
-/// the arm's guard makes no call before it), with no operand that needs a
-/// separate establishment.
+/// The outer flow call is the invocation itself (preorder zero, so the arm's
+/// guard makes no call before it). Every nested scalar call must belong to
+/// an operand computation; structural operands need no separate establishment.
 ///
 /// A scalar-result machine forwards the callee's result: the call binds it
 /// at `next_scalar_binding`, the ordinal the arm's namespace (the state's
@@ -118,27 +119,30 @@ pub(super) fn arm_call(
     trace.phase("state graph: terminator: terminal call arm: occurrence");
     trace.statement(Some(statement_ordinal));
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let mut occurrences = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(flow.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == statement_ordinal as usize
-                && !facts.flow.control.is_retired(state.symbol, call)
-        });
+    let calls = facts.flow.control.calls.span_or_empty(flow.calls);
+    let mut occurrences = calls.iter().filter(|call| {
+        call.statement_index == statement_ordinal as usize
+            && call.call_ordinal == 0
+            && !facts.flow.control.is_retired(state.symbol, call)
+    });
     let call = occurrences.next()?;
     // Flow custody retains the resolved authored symbol, which can name the
     // machine rather than its entry state. Compare executable destinations
     // without replacing that source identity in the ordinary call fact.
     if occurrences.next().is_some()
-        || call.call_ordinal != 0
         || control::terminal_callable_target(program, machine, call.target_symbol)
             .is_none_or(|(selected, _)| selected != target)
     {
         return None;
     }
+    control::call_owns_statement_operands(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        call,
+        calls,
+    )?;
     if !control::structural_operands::operations_for_call(program, facts, machine, state, call)?
         .is_empty()
     {
@@ -208,6 +212,54 @@ pub(super) fn has_guarded_machine_arm(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn guarded_terminal_operands_retain_nested_call_custody() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/omega/pass/calls/runtime_guarded_terminal_operand_order_exit/main.omg"
+        ));
+        let checked = crate::tests::front_end::checked_program(source);
+        let program = &checked.typed;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "choose")
+            .expect("caller");
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(machine.symbol)
+                .is_none(),
+            "an incomplete fused graph must yield to the common invocation plan"
+        );
+        let trace = super::control::LocalConstructionTrace::default();
+        let plan = super::super::build_traced(
+            program,
+            &checked.facts,
+            super::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+            },
+            &mut crate::execution::terminal_unit::types::ShapeCollector::new(program),
+            machine,
+            None,
+            &trace,
+        )
+        .unwrap_or_else(|| panic!("nested terminal operand plan: {:?}", trace.stage()));
+        let calls = plan.states[0]
+            .operation_dependencies()
+            .filter_map(|operation| operation.call())
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2, "each arm owns one outer invocation");
+        assert_eq!(calls[0].scalar_arguments.len(), 2);
+        assert!(calls[0].scalar_arguments.iter().all(|argument| matches!(
+            argument,
+            checked_trees::CheckedCallScalarArgument::Computation(_)
+        )));
+    }
+
     #[test]
     fn conditional_requirement_calls_retain_callable_targets_and_plans() {
         for source in [

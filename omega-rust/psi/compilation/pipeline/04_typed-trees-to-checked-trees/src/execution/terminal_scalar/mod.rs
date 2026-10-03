@@ -202,7 +202,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
             return false;
         };
         graph.ranked_scc = ranked_scc;
-        let Some(rows) = successors::resolve_arguments(program, expressions, proof_terms, graph)
+        let Some(rows) = successors::resolve_arguments(program, expressions, computations, proof_terms, graph)
         else {
             declined.push((
                 graph.machine,
@@ -294,6 +294,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
         if successors::validate(
             program,
             expressions,
+            computations,
             graph,
             &plans.structural_transfers,
             &plans.scalar_arguments,

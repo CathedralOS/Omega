@@ -851,6 +851,60 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     Some(outer)
 }
 
+/// A separately scheduled invocation owns its scalar operand calls through
+/// the same computation roots as an invocation in the statement sequence.
+/// Every remaining occurrence at that statement must belong to those roots;
+/// a guard call or an unrelated occurrence cannot acquire operand custody.
+pub(in crate::execution::terminal_unit) fn call_owns_statement_operands(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    calls: &[checked_trees::FlowCallFact],
+) -> Option<()> {
+    if call.call_ordinal != 0
+        || facts.flow.control.is_retired(state, call)
+        || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
+    {
+        return None;
+    }
+    let site = crate::semantic::calls::find_call_site(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    )?;
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let mut consumed = Vec::new();
+    collect_argument_calls(
+        program,
+        facts,
+        machine,
+        state,
+        call,
+        arguments,
+        calls,
+        &mut consumed,
+    )?;
+    calls
+        .iter()
+        .filter(|candidate| candidate.statement_index == call.statement_index)
+        .all(|candidate| {
+            std::ptr::eq(candidate, call)
+                || facts.flow.control.is_retired(state, candidate)
+                || program
+                    .symbols
+                    .builtin_function_for_symbol(candidate.target_symbol)
+                    .is_some_and(|function| function.has_empty_write_frame())
+                || consumed
+                    .iter()
+                    .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), candidate))
+        })
+        .then_some(())
+}
+
 fn collect_argument_calls(
     program: &TypedTrees,
     facts: &CheckFacts,
