@@ -136,6 +136,39 @@ execution and native exit/output. A moved refusal is still unfinished work.
   spelling with no exclusivity exception added to checking; a genuine second
   exclusive loan still rejects, with a fixture naming that.
 
+- **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
+  `samples/cli/games/dungeon_crawler_cli` holds 253 of the 458 receiver
+  declarations left in the tree -- 55% of the migration -- and its rewrite is
+  finished and sound. It is blocked on a MEASUREMENT, not on a compiler
+  refusal.
+  The rewrite checks. `omega --check` on the migrated 18-file app completes in
+  about 62 seconds with no diagnostics, which it could not do before
+  fbbbc0253983 (projected arguments compose per argument). Three earlier walls
+  cleared on the way: the default-domain obligation on a threaded subject
+  (743851d348c), a transform that dropped the subject of a bodyless `satisfies`
+  declaration, and a transform that rewrote `self.add_item(..)` -- a sibling
+  MACHINE call -- into an unqualified call resolving to the same-named STATE.
+  The diff is audited clean: no by-value receiver became a borrow, no
+  boundary-trait requirement was touched, and the three signatures that lost
+  their subject (`MazeBuilder::{blank_exit,empty_enemy,empty_reward}`) have
+  bodies that never read the data and call sites that pass none.
+  What is unknown: whether its full NATIVE build terminates. It exceeds 1500
+  seconds. That cannot be settled in this environment -- a foreground command
+  is capped at 600 seconds, a larger `--timeout` is silently clamped, and both
+  `run_in_background` and a `nohup`-disowned launch are killed when the
+  spawning call ends, leaving a zero-byte log that looks like a crash. Its
+  baseline is a FAST failure (`lowering unsupported: borrowed argument changed
+  its checked access or target custody`), so an unbounded build is not
+  obviously an improvement and the sample rule -- a migration may not make a
+  sample fail earlier -- cannot be applied either way.
+  Next step for whoever has the budget: run
+  `tools/sample_native_gate.py --filter games/dungeon_crawler_cli --timeout 5400`
+  to completion on the saved rewrite and compare against the documented exit.
+  If it terminates and meets its oracle, the migration lands as-is. If the
+  build itself is the defect, the cost of planning an app this size is the
+  finding, and `--check` at 62 seconds says the cost is in lowering or
+  codegen, not in checking.
+
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
   [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
