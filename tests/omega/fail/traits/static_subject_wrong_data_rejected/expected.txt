@@ -1,1 +1,1 @@
-parameter 0: expected `&mut self`, got `other: &mut Other`
+parameter 0: expected `subject: &mut Self`, got `other: &mut Other`

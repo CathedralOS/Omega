@@ -513,8 +513,9 @@ impl TypedTrees {
             crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 self.type_reference_names_attached_data(*base_type, attached_data_symbol)
             }
-            crate::types::TypeReferenceNode::Named { symbol, .. } => {
+            crate::types::TypeReferenceNode::Named { symbol, name } => {
                 *symbol == attached_data_symbol
+                    || (name.as_str() == "Self" && attached_data_symbol.is_valid())
             }
             _ => false,
         }
