@@ -3953,6 +3953,17 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   indexed and explicit-reference calls, duplicate-overload rejection and
   changed-access rejection as controls.
 
+  `borrows/returned_record_field_read_exit` again executes native and interpreter
+  exit 70 on macOS ARM64, reading each runtime-selected address at its nested
+  offset. Selection and object publication retain the reference's declared
+  readable access instead of rewriting a mutable carrier as shared. Field reads
+  use the common exact producer-identity query, not another producer whitelist.
+  `borrows/static_record_reference_return_exit` also retains all four authored
+  shared/mutable return observations and executes exit 0 in both engines.
+  Preserve missing-dereference, substituted-origin and changed-access rejection;
+  the composed mutation and shared-return controls retain exits 70/181. The
+  ordinary `omega run --both` still requires package review in this checkout.
+
   Acceptance: execute caller-visible projected/forwarded writes, owned-field
   mutable/write-only subloans, legal synchronized shared observations and
   register/stack reference passing on matching hosts, including Linux AArch64

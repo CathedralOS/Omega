@@ -1632,7 +1632,7 @@ fn assert_reference_field_read_retains_carrier(
         result,
         source: StructuralArgument {
             place: carrier,
-            access: StructuralAccess::SharedBorrow,
+            access: StructuralAccess::MutableBorrow,
             path: vec![StructuralPathSegment::Referent],
         },
         case: None,
@@ -1642,12 +1642,13 @@ fn assert_reference_field_read_retains_carrier(
     for corruption in [
         "missing crossing",
         "static origin",
+        "invented attenuation",
         "producer",
         "write-only",
     ] {
         let mut changed = target.clone();
         match corruption {
-            "missing crossing" | "static origin" => {
+            "missing crossing" | "static origin" | "invented attenuation" => {
                 let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
                     &mut changed.graph.blocks[0].operations[1]
                 else {
@@ -1655,6 +1656,8 @@ fn assert_reference_field_read_retains_carrier(
                 };
                 if corruption == "missing crossing" {
                     source.path.clear();
+                } else if corruption == "invented attenuation" {
+                    source.access = StructuralAccess::SharedBorrow;
                 } else {
                     source.place = function.structural_parameters[0].place;
                     source.path = vec![StructuralPathSegment::Field("holder".into())];
