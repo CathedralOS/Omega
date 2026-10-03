@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.73, "load1_start": 4.73, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.43, "load1_start": 6.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -852,11 +852,9 @@ fail/proofs/linear_range_sum_false_twin rejected 244ms expected @2d8ed253669f
 	machine `false_sum_of_bounded` cannot prove ensures contract proof fact `a + b >= 2 && a + b <= 19` from the requires contract
 fail/proofs/machine_parameterized_runtime_data_rejected rejected 245ms expected @2d8ed253669f
 	data `RuntimeCallback` is parameterized by a static machine but has a runtime layout; `<machine ...>` on data is reserved for proof-only families (recursive data has no layout)
-fail/proofs/mutable_ranked_accumulator_wrong_step rejected 149ms expected @580604e70477+wt
+fail/proofs/mutable_ranked_accumulator_wrong_step rejected 159ms expected @6571128ff286
+	cannot prove requires contract for call accumulate from accumulate: remaining + accumulator == total (needs fact `remaining + accumulator == total` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 	cannot prove ensures contract for exit from accumulate at statement 3: result == total
-	cannot prove state arrival contract on self-transition in accumulate state `entry` at statement 2: remaining + accumulator == total
-	cannot prove state arrival contract on self-transition in accumulate state `entry` at statement 2: remaining + accumulator == total
-	cannot prove state arrival contract on self-transition in accumulate state `entry` at statement 2: remaining + accumulator == total
 fail/proofs/nat_exact_subtraction_requires_order rejected 676ms expected @2d8ed253669f
 	cannot prove requires contract for call subtract from remaining: used <= total (needs fact `right <= left` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/nat_metric_false_gap_zero rejected 321ms expected @2d8ed253669f
@@ -2039,7 +2037,7 @@ pass/proofs/runtime_byte_predicate_state_contract_exit checked 724ms @767b982de1
 pass/proofs/runtime_decreases_u64_measure_exit checked 1636ms @2d8ed253669f
 pass/proofs/runtime_inductive_climbing_sum_exit checked 785ms @08b483f23366+wt
 pass/proofs/runtime_inductive_gauss_sum_exit checked 1055ms @b5a937001475+wt
-pass/proofs/runtime_mutable_ranked_accumulator_exit checked 798ms @580604e70477+wt
+pass/proofs/runtime_mutable_ranked_accumulator_exit checked 1078ms @6571128ff286
 pass/proofs/runtime_nat_structural_recursion_exit checked 1175ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_early_exit checked 1867ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 1671ms @2d8ed253669f
