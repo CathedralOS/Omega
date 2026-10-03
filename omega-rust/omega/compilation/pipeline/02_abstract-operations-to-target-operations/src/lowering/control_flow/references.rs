@@ -144,25 +144,20 @@ fn returned_mutable_record_projection(
         return None;
     }
     let root = leaf.root.place();
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root)?;
-    if !matches!(
-        parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || function
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == root)
-    {
-        return None;
-    }
+    // The returned loan may point into an arrival or an activation-local
+    // owner. Validate each possible origin through the same storage contract
+    // used when lending it; its physical residence does not grant authority.
     let exact_origin = |path: &[StructuralPathSegment]| {
-        leaf_type(types, parameter.structural_type, path) == Some(*referent)
+        direct_storage_type(
+            function,
+            live,
+            types,
+            &StructuralArgument {
+                place: root,
+                path: path.to_vec(),
+                access: StructuralAccess::WriteOnlyBorrow,
+            },
+        ) == Some(*referent)
     };
     if !match &leaf.root {
         ReferenceRoot::Place(_) => exact_origin(&[]),
