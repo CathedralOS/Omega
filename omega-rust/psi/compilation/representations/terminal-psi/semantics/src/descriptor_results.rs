@@ -17,8 +17,10 @@ use terminal_psi::{
 use crate::borrowed_storage::Projection;
 use crate::descriptor_lifetimes::{DescriptorFlowStep, DescriptorLocation, DescriptorPosition};
 mod compatibility;
+mod owned_shape;
 mod replay;
 pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
+pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 mod terminal_flow;
 pub use replay::{
     DescriptorAnalysis, DescriptorStoredCallEffect, DescriptorStoredEffect, DescriptorStoredOrigin,
@@ -105,6 +107,12 @@ pub fn return_origins(
     machine: &TerminalMachine,
     source: PlaceId,
 ) -> Option<Vec<DescriptorResultOrigin>> {
+    let result = machine.result.structural()?;
+    if result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !is_shared_descriptor(module.structural_types.iter(), result.structural_type)
+    {
+        return None;
+    }
     let graph = terminal_graph(module);
     let row = graph.iter().find(|row| row.id == machine.id)?;
     let mut origins = Vec::new();
@@ -123,6 +131,67 @@ pub fn return_origins(
         )?);
     }
     (!origins.is_empty()).then_some(origins)
+}
+
+/// Replay an exact current return position in a caller-provided executable
+/// catalog. Both Terminal and Omega adapters retain the same declared slots.
+/// This supplies backing provenance, never carrier ownership or access.
+pub fn reconstruct_return_slots_external(
+    types: &[StructuralTypeDeclaration],
+    machines: &[DescriptorMachine],
+    identity: MachineId,
+    position: DescriptorPosition,
+    source: PlaceId,
+) -> bool {
+    let Some(machine) = machines.iter().find(|machine| machine.id == identity) else {
+        return false;
+    };
+    if !machine.returns.as_ref().is_some_and(|returns| {
+        returns.iter().any(|(returned_position, location)| {
+            *returned_position == position && *location == DescriptorLocation::whole(source)
+        })
+    }) {
+        return false;
+    }
+    replay::return_slots_have_external_backing(types, machines, identity, position, source)
+        .is_some()
+}
+
+/// Every descriptor slot inside this exact returned aggregate has independently
+/// reconstructed nonlocal backing, or is absent under a retained constructor
+/// case. This proves provenance only; source ownership, slot access, claims and
+/// the result signature remain the return validator's separate obligations.
+pub fn return_slots_have_external_backing(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> bool {
+    let graph = terminal_graph(module);
+    let Some(row) = graph.iter().find(|row| row.id == machine.id) else {
+        return false;
+    };
+    let Some(returns) = &row.returns else {
+        return false;
+    };
+    let mut found = false;
+    for (position, location) in returns
+        .iter()
+        .filter(|(_, location)| location.root == source && location.path.is_empty())
+    {
+        found = true;
+        if replay::return_slots_have_external_backing(
+            &module.structural_types,
+            &graph,
+            machine.id,
+            *position,
+            location.root,
+        )
+        .is_none()
+        {
+            return false;
+        }
+    }
+    found
 }
 
 /// Substitute the callee's formal backing with this call's actual projections.
