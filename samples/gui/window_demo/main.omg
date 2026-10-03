@@ -87,107 +87,107 @@ data DemoGuiProvider {
 macos_arm64 machine DemoGuiProvider::provider_defaults(defaults: &mut DemoGuiProvider) {
     defaults.select_provider<Gui, DemoGuiProvider>();
 }
-macos_arm64 machine DemoGuiProvider::window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 satisfies Gui::window_create
+macos_arm64 machine DemoGuiProvider::window_create(demo_gui_provider: &mut DemoGuiProvider, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 satisfies Gui::window_create
 reaches CoreGraphics + ObjectiveC
 {
-    self.rx = F64::from_i32(x);
-    self.ry = F64::from_i32(y);
-    self.rw = F64::from_i32(width);
-    self.rh = F64::from_i32(height);
-    self.rw = self.rw - 16.0;
-    self.rh = self.rh - 39.0;
+    demo_gui_provider.rx = F64::from_i32(x);
+    demo_gui_provider.ry = F64::from_i32(y);
+    demo_gui_provider.rw = F64::from_i32(width);
+    demo_gui_provider.rh = F64::from_i32(height);
+    demo_gui_provider.rw = demo_gui_provider.rw - 16.0;
+    demo_gui_provider.rh = demo_gui_provider.rh - 39.0;
     let cbuf1: [u8; 14] = "NSApplication\0";
-    self.cls = objc_get_class(&cbuf1[0]);
+    demo_gui_provider.cls = objc_get_class(&cbuf1[0]);
     let cbuf2: [u8; 18] = "sharedApplication\0";
-    self.sel = objc_register_selector(&cbuf2[0]);
-    self.app = objc_send(self.cls, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf2[0]);
+    demo_gui_provider.app = objc_send(demo_gui_provider.cls, demo_gui_provider.sel);
     let cbuf3: [u8; 21] = "setActivationPolicy:\0";
-    self.sel = objc_register_selector(&cbuf3[0]);
-    self.rc = objc_send_scalar(self.app, self.sel, 0);
+    demo_gui_provider.sel = objc_register_selector(&cbuf3[0]);
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.app, demo_gui_provider.sel, 0);
     let cbuf4: [u8; 9] = "NSWindow\0";
-    self.cls = objc_get_class(&cbuf4[0]);
+    demo_gui_provider.cls = objc_get_class(&cbuf4[0]);
     let cbuf5: [u8; 6] = "alloc\0";
-    self.sel = objc_register_selector(&cbuf5[0]);
-    self.tmp = objc_send(self.cls, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf5[0]);
+    demo_gui_provider.tmp = objc_send(demo_gui_provider.cls, demo_gui_provider.sel);
     let cbuf6: [u8; 45] = "initWithContentRect:styleMask:backing:defer:\0";
-    self.sel = objc_register_selector(&cbuf6[0]);
-    self.window = objc_send_rect(self.tmp, self.sel, self.rx, self.ry, self.rw, self.rh, 15, 2, 0);
+    demo_gui_provider.sel = objc_register_selector(&cbuf6[0]);
+    demo_gui_provider.window = objc_send_rect(demo_gui_provider.tmp, demo_gui_provider.sel, demo_gui_provider.rx, demo_gui_provider.ry, demo_gui_provider.rw, demo_gui_provider.rh, 15, 2, 0);
     let cbuf7: [u8; 12] = "NSImageView\0";
-    self.cls = objc_get_class(&cbuf7[0]);
+    demo_gui_provider.cls = objc_get_class(&cbuf7[0]);
     let cbuf8: [u8; 6] = "alloc\0";
-    self.sel = objc_register_selector(&cbuf8[0]);
-    self.tmp = objc_send(self.cls, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf8[0]);
+    demo_gui_provider.tmp = objc_send(demo_gui_provider.cls, demo_gui_provider.sel);
     let cbuf9: [u8; 15] = "initWithFrame:\0";
-    self.sel = objc_register_selector(&cbuf9[0]);
-    self.view = objc_send_rect(self.tmp, self.sel, self.rx, self.ry, self.rw, self.rh, 0, 0, 0);
+    demo_gui_provider.sel = objc_register_selector(&cbuf9[0]);
+    demo_gui_provider.view = objc_send_rect(demo_gui_provider.tmp, demo_gui_provider.sel, demo_gui_provider.rx, demo_gui_provider.ry, demo_gui_provider.rw, demo_gui_provider.rh, 0, 0, 0);
     let cbuf10: [u8; 17] = "setImageScaling:\0";
-    self.sel = objc_register_selector(&cbuf10[0]);
-    self.rc = objc_send_scalar(self.view, self.sel, 1);
+    demo_gui_provider.sel = objc_register_selector(&cbuf10[0]);
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.view, demo_gui_provider.sel, 1);
     let cbuf11: [u8; 16] = "setContentView:\0";
-    self.sel = objc_register_selector(&cbuf11[0]);
-    self.rc = objc_send_scalar(self.window, self.sel, self.view);
+    demo_gui_provider.sel = objc_register_selector(&cbuf11[0]);
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.window, demo_gui_provider.sel, demo_gui_provider.view);
     let cbuf12: [u8; 8] = "release\0";
-    self.relsel = objc_register_selector(&cbuf12[0]);
+    demo_gui_provider.relsel = objc_register_selector(&cbuf12[0]);
     let cbuf13: [u8; 9] = "NSString\0";
-    self.cls = objc_get_class(&cbuf13[0]);
+    demo_gui_provider.cls = objc_get_class(&cbuf13[0]);
     let cbuf14: [u8; 6] = "alloc\0";
-    self.sel = objc_register_selector(&cbuf14[0]);
-    self.tmp = objc_send(self.cls, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf14[0]);
+    demo_gui_provider.tmp = objc_send(demo_gui_provider.cls, demo_gui_provider.sel);
     let cbuf15: [u8; 20] = "initWithUTF8String:\0";
-    self.sel = objc_register_selector(&cbuf15[0]);
-    self.tmp = objc_send_byte_string(self.tmp, self.sel, &title[0]);
+    demo_gui_provider.sel = objc_register_selector(&cbuf15[0]);
+    demo_gui_provider.tmp = objc_send_byte_string(demo_gui_provider.tmp, demo_gui_provider.sel, &title[0]);
     let cbuf16: [u8; 10] = "setTitle:\0";
-    self.sel = objc_register_selector(&cbuf16[0]);
-    self.rc = objc_send_scalar(self.window, self.sel, self.tmp);
-    self.rc = objc_send(self.tmp, self.relsel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf16[0]);
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.window, demo_gui_provider.sel, demo_gui_provider.tmp);
+    demo_gui_provider.rc = objc_send(demo_gui_provider.tmp, demo_gui_provider.relsel);
     let cbuf17: [u8; 7] = "center\0";
-    self.sel = objc_register_selector(&cbuf17[0]);
-    self.rc = objc_send(self.window, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf17[0]);
+    demo_gui_provider.rc = objc_send(demo_gui_provider.window, demo_gui_provider.sel);
     let cbuf18: [u8; 22] = "makeKeyAndOrderFront:\0";
-    self.sel = objc_register_selector(&cbuf18[0]);
-    self.rc = objc_send_scalar(self.window, self.sel, 0);
+    demo_gui_provider.sel = objc_register_selector(&cbuf18[0]);
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.window, demo_gui_provider.sel, 0);
     let cbuf19: [u8; 27] = "activateIgnoringOtherApps:\0";
-    self.sel = objc_register_selector(&cbuf19[0]);
-    self.rc = objc_send_scalar(self.app, self.sel, 1);
-    self.space = cg_color_space_rgb();
+    demo_gui_provider.sel = objc_register_selector(&cbuf19[0]);
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.app, demo_gui_provider.sel, 1);
+    demo_gui_provider.space = cg_color_space_rgb();
     // Pump scratch, once: the distantPast date, the run-loop-mode NSString, the
     // nextEvent/sendEvent:/isVisible/keyWindow selectors, and the event mask.
     let cbuf20: [u8; 7] = "NSDate\0";
-    self.cls = objc_get_class(&cbuf20[0]);
+    demo_gui_provider.cls = objc_get_class(&cbuf20[0]);
     let cbuf21: [u8; 12] = "distantPast\0";
-    self.sel = objc_register_selector(&cbuf21[0]);
-    self.date = objc_send(self.cls, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf21[0]);
+    demo_gui_provider.date = objc_send(demo_gui_provider.cls, demo_gui_provider.sel);
     let cbuf22: [u8; 9] = "NSString\0";
-    self.cls = objc_get_class(&cbuf22[0]);
+    demo_gui_provider.cls = objc_get_class(&cbuf22[0]);
     let cbuf23: [u8; 6] = "alloc\0";
-    self.sel = objc_register_selector(&cbuf23[0]);
-    self.tmp = objc_send(self.cls, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf23[0]);
+    demo_gui_provider.tmp = objc_send(demo_gui_provider.cls, demo_gui_provider.sel);
     let cbuf24: [u8; 20] = "initWithUTF8String:\0";
-    self.sel = objc_register_selector(&cbuf24[0]);
+    demo_gui_provider.sel = objc_register_selector(&cbuf24[0]);
     let cbuf25: [u8; 22] = "kCFRunLoopDefaultMode\0";
-    self.mode = objc_send_string(self.tmp, self.sel, &cbuf25[0]);
+    demo_gui_provider.mode = objc_send_string(demo_gui_provider.tmp, demo_gui_provider.sel, &cbuf25[0]);
     let cbuf26: [u8; 48] = "nextEventMatchingMask:untilDate:inMode:dequeue:\0";
-    self.psel = objc_register_selector(&cbuf26[0]);
-    self.mask = 4294967295;
+    demo_gui_provider.psel = objc_register_selector(&cbuf26[0]);
+    demo_gui_provider.mask = 4294967295;
     let cbuf27: [u8; 11] = "sendEvent:\0";
-    self.dsel = objc_register_selector(&cbuf27[0]);
+    demo_gui_provider.dsel = objc_register_selector(&cbuf27[0]);
     let cbuf28: [u8; 10] = "isVisible\0";
-    self.vsel = objc_register_selector(&cbuf28[0]);
+    demo_gui_provider.vsel = objc_register_selector(&cbuf28[0]);
     let cbuf29: [u8; 10] = "keyWindow\0";
-    self.ksel = objc_register_selector(&cbuf29[0]);
+    demo_gui_provider.ksel = objc_register_selector(&cbuf29[0]);
     // Open the rolling autorelease pool msg_peek cycles (never popped at exit
     // on purpose: a later peek after a final pop would pop a dead token, and
     // process exit reclaims everything anyway).
-    self.pool = objc_pool_push();
-    transition { _ -> ret() }
-    state ret(&mut self) -> u64 { self.window }
+    demo_gui_provider.pool = objc_pool_push();
+    transition { _ -> ret(demo_gui_provider) }
+    state ret(demo_gui_provider: &mut DemoGuiProvider) -> u64 { demo_gui_provider.window }
 }
-macos_arm64 machine DemoGuiProvider::get_dc(&mut self, window: u64) -> u64  satisfies Gui::get_dc
+macos_arm64 machine DemoGuiProvider::get_dc(demo_gui_provider: &mut DemoGuiProvider, window: u64) -> u64  satisfies Gui::get_dc
 {
     transition { _ -> ret(window) }
     state ret(window: u64) -> u64 { window }
 }
-macos_arm64 machine DemoGuiProvider::msg_peek(&mut self, message: [u64; 6]) -> u32 satisfies Gui::msg_peek
+macos_arm64 machine DemoGuiProvider::msg_peek(demo_gui_provider: &mut DemoGuiProvider, message: [u64; 6]) -> u32 satisfies Gui::msg_peek
 reaches ObjectiveC
 {
     // Cycle the rolling autorelease pool opened at window_create: the pop
@@ -195,69 +195,69 @@ reaches ObjectiveC
     // then), the push opens the scope this peek's event lands in. The date,
     // mode string, selector, and mask are window_create-cached — this machine
     // used to rebuild all four (and leak the NSString) on every single peek.
-    self.rc = objc_pool_pop(self.pool);
-    self.pool = objc_pool_push();
-    self.evt = objc_send_scalar4(self.app, self.psel, self.mask, self.date, self.mode, 1);
+    demo_gui_provider.rc = objc_pool_pop(demo_gui_provider.pool);
+    demo_gui_provider.pool = objc_pool_push();
+    demo_gui_provider.evt = objc_send_scalar4(demo_gui_provider.app, demo_gui_provider.psel, demo_gui_provider.mask, demo_gui_provider.date, demo_gui_provider.mode, 1);
     // Arm states must stay side-effect-free (the value-call effect fence):
     // both arms complete with a pure terminal value instead of mutating r32.
-    transition self.evt != 0 { true -> got() _ -> ret() }
+    transition demo_gui_provider.evt != 0 { true -> got() _ -> ret() }
     state got() -> u32 { 1 }
     state ret() -> u32 { 0 }
 }
-macos_arm64 machine DemoGuiProvider::msg_translate(&mut self, message: [u64; 6]) -> u32  satisfies Gui::msg_translate
+macos_arm64 machine DemoGuiProvider::msg_translate(demo_gui_provider: &mut DemoGuiProvider, message: [u64; 6]) -> u32  satisfies Gui::msg_translate
 {
-    self.r32 = 1;
-    transition { _ -> ret() }
-    state ret(&mut self) -> u32 { self.r32 }
+    demo_gui_provider.r32 = 1;
+    transition { _ -> ret(demo_gui_provider) }
+    state ret(demo_gui_provider: &mut DemoGuiProvider) -> u32 { demo_gui_provider.r32 }
 }
-macos_arm64 machine DemoGuiProvider::msg_dispatch(&mut self, message: [u64; 6]) -> u64 satisfies Gui::msg_dispatch
+macos_arm64 machine DemoGuiProvider::msg_dispatch(demo_gui_provider: &mut DemoGuiProvider, message: [u64; 6]) -> u64 satisfies Gui::msg_dispatch
 reaches ObjectiveC
 {
-    self.rc = objc_send_scalar(self.app, self.dsel, self.evt);
-    transition { _ -> ret() }
-    state ret(&mut self) -> u64 { self.rc }
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.app, demo_gui_provider.dsel, demo_gui_provider.evt);
+    transition { _ -> ret(demo_gui_provider) }
+    state ret(demo_gui_provider: &mut DemoGuiProvider) -> u64 { demo_gui_provider.rc }
 }
-macos_arm64 machine DemoGuiProvider::is_window(&mut self, window: u64) -> u32 satisfies Gui::is_window
+macos_arm64 machine DemoGuiProvider::is_window(demo_gui_provider: &mut DemoGuiProvider, window: u64) -> u32 satisfies Gui::is_window
 reaches ObjectiveC
 {
-    self.rc = objc_send(window, self.vsel);
-    self.r32 = narrow_u64_to_u32_wrapping(self.rc);
-    transition { _ -> ret() }
-    state ret(&mut self) -> u32 { self.r32 }
+    demo_gui_provider.rc = objc_send(window, demo_gui_provider.vsel);
+    demo_gui_provider.r32 = narrow_u64_to_u32_wrapping(demo_gui_provider.rc);
+    transition { _ -> ret(demo_gui_provider) }
+    state ret(demo_gui_provider: &mut DemoGuiProvider) -> u32 { demo_gui_provider.r32 }
 }
-macos_arm64 machine DemoGuiProvider::blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 satisfies Gui::blit
+macos_arm64 machine DemoGuiProvider::blit(demo_gui_provider: &mut DemoGuiProvider, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 satisfies Gui::blit
 reaches CoreGraphics + ObjectiveC
 {
     let source_width_wide: i64 = source_width as i64;
     let source_height_wide: i64 = source_height as i64;
-    self.fbw = source_width_wide;
-    self.fbh = source_height_wide;
-    self.stride = source_width_wide << 2;
-    self.fbwf = F64::from_u32(source_width);
-    self.fbhf = F64::from_u32(source_height);
-    self.ctx = cg_bitmap_context(&pixels[0], self.fbw, self.fbh, 8, self.stride, self.space, 8198);
-    self.cgimg = cg_bitmap_context_image(self.ctx);
+    demo_gui_provider.fbw = source_width_wide;
+    demo_gui_provider.fbh = source_height_wide;
+    demo_gui_provider.stride = source_width_wide << 2;
+    demo_gui_provider.fbwf = F64::from_u32(source_width);
+    demo_gui_provider.fbhf = F64::from_u32(source_height);
+    demo_gui_provider.ctx = cg_bitmap_context(&pixels[0], demo_gui_provider.fbw, demo_gui_provider.fbh, 8, demo_gui_provider.stride, demo_gui_provider.space, 8198);
+    demo_gui_provider.cgimg = cg_bitmap_context_image(demo_gui_provider.ctx);
     let cbuf30: [u8; 8] = "NSImage\0";
-    self.cls = objc_get_class(&cbuf30[0]);
+    demo_gui_provider.cls = objc_get_class(&cbuf30[0]);
     let cbuf31: [u8; 6] = "alloc\0";
-    self.sel = objc_register_selector(&cbuf31[0]);
-    self.tmp = objc_send(self.cls, self.sel);
+    demo_gui_provider.sel = objc_register_selector(&cbuf31[0]);
+    demo_gui_provider.tmp = objc_send(demo_gui_provider.cls, demo_gui_provider.sel);
     let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
-    self.sel = objc_register_selector(&cbuf32[0]);
-    self.nsimg = objc_send_image_size(self.tmp, self.sel, self.cgimg, self.fbwf, self.fbhf);
+    demo_gui_provider.sel = objc_register_selector(&cbuf32[0]);
+    demo_gui_provider.nsimg = objc_send_image_size(demo_gui_provider.tmp, demo_gui_provider.sel, demo_gui_provider.cgimg, demo_gui_provider.fbwf, demo_gui_provider.fbhf);
     let cbuf33: [u8; 10] = "setImage:\0";
-    self.sel = objc_register_selector(&cbuf33[0]);
-    self.rc = objc_send_scalar(self.view, self.sel, self.nsimg);
+    demo_gui_provider.sel = objc_register_selector(&cbuf33[0]);
+    demo_gui_provider.rc = objc_send_scalar(demo_gui_provider.view, demo_gui_provider.sel, demo_gui_provider.nsimg);
     // Per-frame lifecycle: the context and CGImage are Create-rule owned, and
     // setImage: retains the NSImage, so drop our +1 on all three — without
     // these releases every presented frame leaked ~3 objects at ~60fps.
-    self.rc = cg_context_release(self.ctx);
-    self.rc = cg_image_release(self.cgimg);
-    self.rc = objc_send(self.nsimg, self.relsel);
+    demo_gui_provider.rc = cg_context_release(demo_gui_provider.ctx);
+    demo_gui_provider.rc = cg_image_release(demo_gui_provider.cgimg);
+    demo_gui_provider.rc = objc_send(demo_gui_provider.nsimg, demo_gui_provider.relsel);
     // The samples assert `blit == source_height` (every source scanline copied).
-    self.r32 = source_height;
-    transition { _ -> ret() }
-    state ret(&mut self) -> u32 { self.r32 }
+    demo_gui_provider.r32 = source_height;
+    transition { _ -> ret(demo_gui_provider) }
+    state ret(demo_gui_provider: &mut DemoGuiProvider) -> u32 { demo_gui_provider.r32 }
 }
 
 data DemoClockProvider {
@@ -268,10 +268,10 @@ data DemoClockProvider {
 macos_arm64 machine DemoClockProvider::provider_defaults(defaults: &mut DemoClockProvider) {
     defaults.select_provider<Clock, DemoClockProvider>();
 }
-macos_arm64 machine DemoClockProvider::sleep(&mut self, milliseconds: u32) satisfies Clock::sleep
+macos_arm64 machine DemoClockProvider::sleep(demo_clock_provider: &mut DemoClockProvider, milliseconds: u32) satisfies Clock::sleep
 {
-    self.timeout = narrow_u32_to_i32_wrapping(milliseconds);
-    self.rc = darwin_poll(0, 0, self.timeout);
+    demo_clock_provider.timeout = narrow_u32_to_i32_wrapping(milliseconds);
+    demo_clock_provider.rc = darwin_poll(0, 0, demo_clock_provider.timeout);
 }
 
 data Main {
@@ -296,38 +296,38 @@ data Main {
     c: i32;
     px: i32;
 }
-machine Main::main(&mut self) reaches Clock + Console + CoreGraphics + DarwinClock + Gui + ObjectiveC {
+machine Main::main(main: &mut Main) reaches Clock + Console + CoreGraphics + DarwinClock + Gui + ObjectiveC {
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
-    self.cls[0] = 35;
-    self.cls[1] = 51;
-    self.cls[2] = 50;
-    self.cls[3] = 55;
-    self.cls[4] = 55;
-    self.cls[5] = 48;
-    self.cls[6] = 0;
+    main.cls[0] = 35;
+    main.cls[1] = 51;
+    main.cls[2] = 50;
+    main.cls[3] = 55;
+    main.cls[4] = 55;
+    main.cls[5] = 48;
+    main.cls[6] = 0;
     // "omega demo\0"
-    self.title[0] = 111;
-    self.title[1] = 109;
-    self.title[2] = 101;
-    self.title[3] = 103;
-    self.title[4] = 97;
-    self.title[5] = 32;
-    self.title[6] = 100;
-    self.title[7] = 101;
-    self.title[8] = 109;
-    self.title[9] = 111;
-    self.title[10] = 0;
+    main.title[0] = 111;
+    main.title[1] = 109;
+    main.title[2] = 101;
+    main.title[3] = 103;
+    main.title[4] = 97;
+    main.title[5] = 32;
+    main.title[6] = 100;
+    main.title[7] = 101;
+    main.title[8] = 109;
+    main.title[9] = 111;
+    main.title[10] = 0;
     // BITMAPINFOHEADER: 64x64 top-down 32bpp BI_RGB.
-    self.info[0] = 40;
-    self.info[1] = 64;
-    self.info[2] = 0 - 64;
-    self.info[3] = 2097153;
+    main.info[0] = 40;
+    main.info[1] = 64;
+    main.info[2] = 0 - 64;
+    main.info[3] = 2097153;
     // WS_VISIBLE | WS_OVERLAPPEDWINDOW (0x10CF0000): a real titled app window,
     // not a naked popup. The outer size is padded (+16, +39)
     // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
-    self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 200, 200, 272, 295);
-    transition self.hwnd > 0 { true -> dc(&mut self) _ -> bad(&mut self) }
+    main.hwnd = main.gui.window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
+    transition main.hwnd > 0 { true -> dc(main) _ -> bad(main) }
     state dc(main: &mut Main) {
         main.hdc = main.gui.get_dc(main.hwnd);
         main.frame = 0;
