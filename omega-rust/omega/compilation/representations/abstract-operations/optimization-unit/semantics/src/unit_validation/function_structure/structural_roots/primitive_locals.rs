@@ -50,32 +50,32 @@ pub(super) fn validate(
                 _ => None,
             })
     };
-    let valid =
-        match operation {
-            O::EstablishPrimitiveLocal {
-                psi_operation,
-                result,
-                value,
-            } => {
-                local_matches(result, value.scalar_type)
-                    && function.structural_places.iter().any(|place| {
-                        place.id == result.place
-                            && place.kind
-                                == StructuralPlaceKind::OperationResult {
-                                    producer: *psi_operation,
-                                    structural_type: result.structural_type,
-                                }
-                    })
-            }
-            O::PrimitiveLocalStore {
-                destination, value, ..
-            } => local(*destination).is_some_and(|result| local_matches(result, value.scalar_type)),
-            O::PrimitiveScalarRead {
-                source,
-                path,
-                result,
-                ..
-            } => (path.is_empty()
+    let valid = match operation {
+        O::EstablishPrimitiveLocal {
+            psi_operation,
+            result,
+            value,
+        } => {
+            local_matches(result, value.scalar_type)
+                && function.structural_places.iter().any(|place| {
+                    place.id == result.place
+                        && place.kind
+                            == StructuralPlaceKind::OperationResult {
+                                producer: *psi_operation,
+                                structural_type: result.structural_type,
+                            }
+                })
+        }
+        O::PrimitiveLocalStore {
+            destination, value, ..
+        } => local(*destination).is_some_and(|result| local_matches(result, value.scalar_type)),
+        O::PrimitiveScalarRead {
+            source,
+            path,
+            result,
+            ..
+        } => {
+            (path.is_empty()
                 && local(*source).is_some_and(|local| local_matches(local, result.scalar_type)))
                 || (!path.is_empty()
                     && claim_free(*source)
@@ -119,9 +119,10 @@ pub(super) fn validate(
                                 parameter.structural_type,
                                 path,
                             ) == Some(result.scalar_type)
-                    }),
-            _ => true,
-        };
+                    })
+        }
+        _ => true,
+    };
     if valid {
         Ok(())
     } else {

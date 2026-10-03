@@ -598,7 +598,9 @@ fn plain_field(
                         && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
                 }) || plain_aggregate(nested, declarations, active)
             }
-            StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
+            StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => {
+                scalar_shape(scalar).is_some()
+            }
             StructuralFieldType::BoundedInteger(bounds) => {
                 scalar_shape(ScalarType::Integer(bounds.integer_type())).is_some()
             }
@@ -1147,6 +1149,7 @@ pub(crate) fn field_shape(
 ) -> Option<ValueShape> {
     match field {
         StructuralFieldType::Scalar(scalar) => scalar_shape(*scalar),
+        StructuralFieldType::Atomic(_) => scalar_shape(field.atomic_scalar_type()?),
         // Geometry follows the carrier, not the restriction's endpoints.
         // Store admission below still requires separate restricted-field evidence.
         StructuralFieldType::BoundedInteger(bounds) => {
@@ -1711,7 +1714,9 @@ fn scalar_field_geometry(
                         if Ok(integer) == semantic_vocabulary::IntegerType::new(
                             semantic_vocabulary::IntegerSign::Unsigned, 64))
                 }
-                StructuralFieldType::Scalar(actual) => !observes_byte_length && actual == scalar,
+                StructuralFieldType::Scalar(actual) | StructuralFieldType::Atomic(actual) => {
+                    !observes_byte_length && actual == scalar
+                }
                 StructuralFieldType::IeeeFloat(format) => {
                     !observes_byte_length && ScalarType::IeeeFloat(format) == scalar
                 }

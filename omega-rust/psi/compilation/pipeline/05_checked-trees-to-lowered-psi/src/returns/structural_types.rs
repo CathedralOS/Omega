@@ -55,6 +55,45 @@ pub(crate) fn terminal_byte_sequence_carrier(
     }
 }
 
+/// Preserve one field contract across records, case payloads and retained types.
+/// Atomic access authority belongs to the declaration, never to a caller shape.
+pub(crate) fn lower_field_type(
+    field_type: &CheckedUnitStructuralFieldType,
+    type_ids: &[(String, StructuralTypeId)],
+) -> Result<StructuralFieldType, LoweringError> {
+    Ok(match field_type {
+        CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
+            StructuralFieldType::BoundedInteger(*integer)
+        }
+        CheckedUnitStructuralFieldType::Atomic(primitive) => {
+            StructuralFieldType::Atomic(terminal_scalar_type(*primitive)?)
+        }
+        CheckedUnitStructuralFieldType::Scalar(primitive) => {
+            terminal_structural_field_type(*primitive)?
+        }
+        CheckedUnitStructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates,
+        } => StructuralFieldType::PredicateByteSequence {
+            carrier: terminal_byte_sequence_carrier(*carrier),
+            predicates: *predicates,
+        },
+        CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
+            StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+        }
+        CheckedUnitStructuralFieldType::Structural { type_identity } => {
+            StructuralFieldType::Structural(lookup_type_id(type_ids, type_identity)?)
+        }
+        CheckedUnitStructuralFieldType::ProviderBacked { .. }
+        | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
+            return unsupported("provider-backed fields require attached provider erasure");
+        }
+        CheckedUnitStructuralFieldType::Erased { type_identity } => StructuralFieldType::Erased {
+            type_identity: type_identity.clone(),
+        },
+    })
+}
+
 pub(crate) fn lower_mixed_fields(
     fields: &[checked_trees::CheckedUnitStructuralFieldPlan],
     type_ids: &[(String, StructuralTypeId)],
@@ -67,38 +106,7 @@ pub(crate) fn lower_mixed_fields(
             if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
                 return unsupported("mixed structural type has duplicate field identities");
             }
-            let field_type = match &field.field_type {
-                CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
-                    StructuralFieldType::BoundedInteger(*integer)
-                }
-                CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                    terminal_structural_field_type(*primitive)?
-                }
-                CheckedUnitStructuralFieldType::PredicateByteSequence {
-                    carrier,
-                    predicates,
-                } => StructuralFieldType::PredicateByteSequence {
-                    carrier: terminal_byte_sequence_carrier(*carrier),
-                    predicates: *predicates,
-                },
-                CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
-                    StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier))
-                }
-                CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                    StructuralFieldType::Structural(lookup_type_id(type_ids, type_identity)?)
-                }
-                CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
-                    return unsupported(
-                        "provider-backed fields are outside mixed structural lowering",
-                    );
-                }
-                CheckedUnitStructuralFieldType::Erased { type_identity } => {
-                    StructuralFieldType::Erased {
-                        type_identity: type_identity.clone(),
-                    }
-                }
-            };
+            let field_type = lower_field_type(&field.field_type, type_ids)?;
             Ok(StructuralFieldDeclaration {
                 id: structural_field_id(allocate_dense(next_field)?),
                 identity: field.identity.clone(),
@@ -337,33 +345,7 @@ pub(crate) fn retain_additional_structural_types(
                                 "scalar cleanup structural fields are invalid",
                             ));
                         }
-                        let field_type = match &field.field_type {
-                            CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
-                            CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                                terminal_structural_field_type(*primitive)?
-                            }
-                            CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
-                            CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
-                                StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(
-                                    *carrier,
-                                ))
-                            }
-                            CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                                StructuralFieldType::Structural(lookup_type_id(
-                                    &type_ids,
-                                    type_identity,
-                                )?)
-                            }
-                            CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                            | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
-                                return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
-                            }
-                            CheckedUnitStructuralFieldType::Erased { type_identity } => {
-                                StructuralFieldType::Erased {
-                                    type_identity: type_identity.clone(),
-                                }
-                            }
-                        };
+                        let field_type = lower_field_type(&field.field_type, &type_ids)?;
                         Ok(StructuralFieldDeclaration {
                             id: structural_field_id(allocate_dense(&mut next_field)?),
                             identity: field.identity.clone(),
@@ -407,33 +389,7 @@ pub(crate) fn retain_additional_structural_types(
                                                 "scalar cleanup structural sum payload fields are invalid",
                                             ));
                                         }
-                                        let field_type = match &field.field_type {
-                                            CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
-                                            CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                                                terminal_structural_field_type(*primitive)?
-                                            }
-                                            CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
-                                            CheckedUnitStructuralFieldType::ByteSequence(
-                                                carrier,
-                                            ) => StructuralFieldType::ByteSequence(
-                                                terminal_byte_sequence_carrier(*carrier),
-                                            ),
-                                            CheckedUnitStructuralFieldType::Structural {
-                                                type_identity,
-                                            } => StructuralFieldType::Structural(lookup_type_id(
-                                                &type_ids,
-                                                type_identity,
-                                            )?),
-                                            CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                                            | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
-                                                return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
-                                            }
-                                            CheckedUnitStructuralFieldType::Erased {
-                                                type_identity,
-                                            } => StructuralFieldType::Erased {
-                                                type_identity: type_identity.clone(),
-                                            },
-                                        };
+                                        let field_type = lower_field_type(&field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,
@@ -534,33 +490,7 @@ pub(crate) fn lower_structural_type_plans(
                                     "structural Unit control type has duplicate field identities",
                                 ));
                             }
-                            let field_type = match &field.field_type {
-                                CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
-                                CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                                    terminal_structural_field_type(*primitive)?
-                                }
-                                CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
-                                CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
-                                    StructuralFieldType::ByteSequence(
-                                        terminal_byte_sequence_carrier(*carrier),
-                                    )
-                                }
-                                CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                                    StructuralFieldType::Structural(lookup_type_id(
-                                        &type_ids,
-                                        type_identity,
-                                    )?)
-                                }
-                                CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                                | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
-                                    return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
-                                }
-                                CheckedUnitStructuralFieldType::Erased { type_identity } => {
-                                    StructuralFieldType::Erased {
-                                        type_identity: type_identity.clone(),
-                                    }
-                                }
-                            };
+                            let field_type = lower_field_type(&field.field_type, &type_ids)?;
                             Ok(StructuralFieldDeclaration {
                                 id: structural_field_id(allocate_dense(&mut next_field)?),
                                 identity: field.identity.clone(),
@@ -605,32 +535,7 @@ pub(crate) fn lower_structural_type_plans(
                                                     "structural sum case has duplicate payload field identities",
                                                 ));
                                             }
-                                            let field_type = match &field.field_type {
-                                                CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
-                                                CheckedUnitStructuralFieldType::Scalar(
-                                                    primitive,
-                                                ) => terminal_structural_field_type(*primitive)?,
-                                                CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
-                                                CheckedUnitStructuralFieldType::ByteSequence(
-                                                    carrier,
-                                                ) => StructuralFieldType::ByteSequence(
-                                                    terminal_byte_sequence_carrier(*carrier),
-                                                ),
-                                                CheckedUnitStructuralFieldType::Structural {
-                                                    type_identity,
-                                                } => StructuralFieldType::Structural(
-                                                    lookup_type_id(&type_ids, type_identity)?,
-                                                ),
-                                                CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                                                | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
-                                                    return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
-                                                }
-                                                CheckedUnitStructuralFieldType::Erased {
-                                                    type_identity,
-                                                } => StructuralFieldType::Erased {
-                                                    type_identity: type_identity.clone(),
-                                                },
-                                            };
+                                            let field_type = lower_field_type(&field.field_type, &type_ids)?;
                                             Ok(StructuralFieldDeclaration {
                                                 id: structural_field_id(allocate_dense(
                                                     &mut next_field,

@@ -368,7 +368,7 @@ pub(super) fn validate_composed_release(
     if state.operations[producer_index + 1..release_index]
         .iter()
         .any(|operation| {
-            super::scalar_arrays::source_statement(operation)
+            super::statement_custody::source_statement(operation)
                 .is_some_and(|statement| statement >= boundary)
         })
     {
@@ -444,7 +444,7 @@ pub(super) fn validate_releases(
         if machine.operations[index + 1..release_index]
             .iter()
             .any(|operation| {
-                super::scalar_arrays::source_statement(operation)
+                super::statement_custody::source_statement(operation)
                     .is_some_and(|statement| statement >= boundary)
             })
         {

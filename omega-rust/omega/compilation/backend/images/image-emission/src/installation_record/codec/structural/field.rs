@@ -21,6 +21,14 @@ pub(crate) fn encode_structural_field(
     encode_identity(bytes, &field.identity)?;
     bytes.push(u8::from(field.relevance.is_erased()));
     match &field.field_type {
+        StructuralFieldType::Atomic(_) => {
+            bytes.push(10);
+            let scalar = field
+                .field_type
+                .atomic_scalar_type()
+                .ok_or(InstallationError::InvalidStructuralTypeShape)?;
+            crate::installation_record::codec::unit::scalar::encode_scalar_type(bytes, scalar)?;
+        }
         StructuralFieldType::BoundedInteger(bounds) => {
             bytes.push(8);
             crate::installation_record::codec::unit::scalar::encode_integer_type(
@@ -125,6 +133,15 @@ pub(crate) fn decode_structural_field(
         value => return Err(InstallationError::InvalidBoolean(value)),
     };
     let field_type = match reader.u8()? {
+        10 => {
+            let field = StructuralFieldType::Atomic(
+                crate::installation_record::codec::unit::scalar::decode_scalar_type(reader)?,
+            );
+            field
+                .atomic_scalar_type()
+                .ok_or(InstallationError::InvalidStructuralTypeShape)?;
+            field
+        }
         9 => {
             let carrier_tag = reader.u8()?;
             let access_tag = reader.u8()?;

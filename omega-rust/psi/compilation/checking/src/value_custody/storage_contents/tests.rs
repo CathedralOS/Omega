@@ -15,7 +15,7 @@ fn input(program: &TypedTrees) -> TypeReferenceHandle {
 fn owned_snapshots_and_constructor_storage_retain_bounded_byte_predicates() {
     for carrier in ["Bytes", "[Bytes; 2]", "Holder<Holder<Bytes>>"] {
         let program = crate::front_end::typed_program(&format!(
-            "domain [u8; 16]::Text requires valid_utf8(self);
+            "domain [u8; 16]::Text(bytes) requires valid_utf8(bytes);
              data Bytes [copy] {{ value: [u8; 16] in Text; count: u32 in Wrapping; }}
              data Holder<T> {{ value: T; }}
              machine inspect(value: {carrier}) {{}}"
@@ -40,13 +40,13 @@ fn owned_snapshots_do_not_admit_loans_cleanup_or_unrepresented_predicates() {
         "data Bytes { value: &[u8]; }",
         "data Bytes { value: &mut [u8; 16] in Text; }",
         "data Bytes [linear] { value: [u8; 16] in Text; }",
-        "data Bytes { value: [u8; 16] in Text; } machine Bytes::drop(&mut self) {}",
+        "data Bytes { value: [u8; 16] in Text; } machine Bytes::drop(value: &mut Bytes) {}",
         "data Bytes { value [erased]: [u8; 16] in Text; }",
         "data Bytes { value: [u8; 16] in Strict; }",
     ] {
         let program = crate::front_end::typed_program(&format!(
-            "domain [u8; 16]::Text requires valid_utf8(self);
-             domain [u8; 16]::Strict requires valid_utf8(self) && non_empty(self);
+            "domain [u8; 16]::Text(bytes) requires valid_utf8(bytes);
+             domain [u8; 16]::Strict(bytes) requires valid_utf8(bytes) && non_empty(bytes);
              {declaration}
              machine inspect(value: Bytes) {{}}"
         ));
@@ -63,8 +63,8 @@ fn owned_snapshots_do_not_admit_loans_cleanup_or_unrepresented_predicates() {
 #[test]
 fn structural_construction_shares_interval_members_without_erasing_other_obligations() {
     let program = crate::front_end::typed_program(
-        "domain i32::Ten requires 0 <= self && self <= 10;
-         domain i32::NonZero requires self != 0;
+        "domain i32::Ten(value) requires 0 <= value && value <= 10;
+         domain i32::NonZero(value) requires value != 0;
          data Gauge { level: i32 in Ten; }
          data Nested { gauge: Gauge; }
          data Choice { case Unset; case Set(level: i32 in Ten); }
@@ -131,6 +131,67 @@ fn arithmetic_policy_preserves_aggregate_contents_and_loan_exclusions() {
         &forged, reference
     ));
     assert!(!has_stable_observable_contents(&forged, reference));
+}
+
+#[test]
+fn atomic_storage_does_not_supply_stable_observations_through_shared_loans() {
+    for atomic in ["AtomicBool", "AtomicU32", "AtomicU64"] {
+        for carrier in [
+            atomic.to_owned(),
+            format!("&{atomic}"),
+            format!("[{atomic}; 2]"),
+            format!("&[{atomic}]"),
+            format!("Holder<Holder<{atomic}>>"),
+            format!("&Holder<{atomic}>"),
+        ] {
+            let program = crate::front_end::typed_program(&format!(
+                "data Holder<T> {{ value: T; }}
+                 machine inspect(value: {carrier}) {{}}"
+            ));
+            let reference = input(&program);
+            assert!(
+                !has_stable_observable_contents(&program, reference),
+                "{carrier}"
+            );
+            assert!(!has_service_seam_contents(&program, reference), "{carrier}");
+            if !carrier.starts_with('&') {
+                assert!(
+                    super::has_plain_owned_contents(&program, reference),
+                    "{carrier}"
+                );
+                assert!(
+                    super::has_structural_construction_contents(&program, reference),
+                    "{carrier}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn ordinary_shared_contents_remain_stable_but_erased_atomics_do_not_cross_seams() {
+    for scalar in ["bool", "u32", "u64"] {
+        let program = crate::front_end::typed_program(&format!(
+            "data Holder<T> {{ value: T; }}
+             machine inspect(value: &Holder<[{scalar}; 2]>) {{}}"
+        ));
+        let reference = input(&program);
+        assert!(
+            has_stable_observable_contents(&program, reference),
+            "{scalar}"
+        );
+        assert!(has_service_seam_contents(&program, reference), "{scalar}");
+    }
+    let program = crate::front_end::typed_program(
+        "data Sealed { value: u32; proof [erased]: AtomicU32; }
+         machine inspect(value: Sealed) {}",
+    );
+    let reference = input(&program);
+    assert!(has_service_seam_contents(&program, reference));
+    assert!(super::has_structural_construction_contents(
+        &program, reference
+    ));
+    assert!(!has_stable_observable_contents(&program, reference));
 }
 
 #[test]
@@ -215,7 +276,7 @@ fn service_seam_contents_keep_the_runtime_exclusions() {
          machine inspect(value: Sealed) {}",
         "data Evidence { case Only; }
          data Sealed { payload: u64; proof [erased]: Evidence; }
-         machine Sealed::drop(&mut self) {}
+         machine Sealed::drop(value: &mut Sealed) {}
          machine inspect(value: Sealed) {}",
     ] {
         let program = crate::front_end::typed_program(carrier);

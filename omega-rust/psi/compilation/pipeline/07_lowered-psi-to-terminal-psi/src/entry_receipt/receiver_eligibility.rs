@@ -724,7 +724,9 @@ fn zero_valid_fields(
                 if nullary_determined_evidence(checked, type_identity, entry));
         (is_receiver || !field.relevance.is_erased() || determined_erased)
             && match field.field_type {
-                StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
+                StructuralFieldType::Scalar(_)
+                | StructuralFieldType::Atomic(_)
+                | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::BoundedInteger(integer) => {
                     integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))

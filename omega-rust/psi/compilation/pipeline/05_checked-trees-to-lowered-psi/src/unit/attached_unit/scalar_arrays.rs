@@ -3,10 +3,10 @@
 //! Completion uses the sibling structural-completion checker; this module owns
 //! array shape, storage and operand correspondence.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
-    Multiplicity, Operation, OperationKind, OperationResult, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, Operation,
+    OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
+    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::expression_preparation::source_custody::array_sources::construction_expression;
@@ -223,74 +223,6 @@ pub(super) fn validate_shape(
         }
     }
     unsupported("array source carrier is cyclic")
-}
-
-pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
-    match operation {
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-            Some(result.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
-            Some(result.statement_index)
-        }
-        // A structural result names its binding statement; every other call
-        // names its coordinate's statement.
-        CheckedUnitEffectOperationPlan::Call(call) => Some(
-            call.structural_result()
-                .map_or(call.coordinate.statement_index, |result| {
-                    result.statement_index
-                }),
-        ),
-        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
-            Some(result.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-            statement_index, ..
-        }
-        | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            statement_index, ..
-        }
-        | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
-            statement_index, ..
-        }
-        | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
-            statement_index, ..
-        } => Some(*statement_index),
-        CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => {
-            Some(coordinate.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-            Some(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::AtomicAccess(access) => Some(access.statement_index),
-        CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
-            Some(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(store) => {
-            Some(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
-            Some(result.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::StoreStructuralField {
-            statement_index, ..
-        } => Some(*statement_index),
-        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store.statement_index),
-        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-            Some(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
-        CheckedUnitEffectOperationPlan::ElementViewWrite(write) => Some(write.statement_index),
-        CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
-            Some(write.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-        | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-        | CheckedUnitEffectOperationPlan::Complete { .. } => None,
-    }
 }
 
 pub(super) fn emit(

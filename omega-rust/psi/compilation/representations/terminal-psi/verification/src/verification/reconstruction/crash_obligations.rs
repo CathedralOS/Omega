@@ -224,7 +224,7 @@ pub(super) fn operation_needs_site_facts(
                 && (published.alternatives.contains(&CrashRouteGuard::Truth)
                     || route.alternatives.iter().all(|guard| {
                         published.alternatives.contains(guard)
-                            && route_retains_entry_meaning(guard, machine)
+                            && route_retains_entry_meaning(guard, module, machine)
                     }))
         })
     };
@@ -259,7 +259,7 @@ pub(super) fn append_operation_site(
         axioms
             .iter()
             .filter(|proposition| {
-                super::crash_field_origins::retains_entry_meaning(proposition, machine)
+                super::crash_field_origins::retains_entry_meaning(proposition, module, machine)
             })
             .cloned()
             .collect()
@@ -417,7 +417,7 @@ fn reconstruct_continuation_obligations(
                 && (published.alternatives == [CrashRouteGuard::Truth]
                     || continuation.alternatives.iter().all(|route| {
                         published.alternatives.contains(route)
-                            && route_retains_entry_meaning(route, caller)
+                            && route_retains_entry_meaning(route, module, caller)
                     }))
         })
     };
@@ -440,7 +440,7 @@ fn reconstruct_continuation_obligations(
                     published.cause == continuation.cause
                         && (published.alternatives == [CrashRouteGuard::Truth]
                             || (published.alternatives.contains(route)
-                                && route_retains_entry_meaning(route, caller)))
+                                && route_retains_entry_meaning(route, module, caller)))
                 })
             })
             .collect();
@@ -485,7 +485,11 @@ fn reconstruct_continuation_obligations(
                     .requires
                     .iter()
                     .filter(|requirement| {
-                        super::crash_field_origins::retains_entry_meaning(requirement, caller)
+                        super::crash_field_origins::retains_entry_meaning(
+                            requirement,
+                            module,
+                            caller,
+                        )
                     })
                     .cloned()
                     .collect(),
@@ -499,12 +503,18 @@ fn reconstruct_continuation_obligations(
 /// Identical syntax is direct coverage only when it still denotes the same
 /// invocation-entry value. A callee's mutable field guard denotes call-time
 /// storage, even after substitution gives it the caller's original place ID.
-fn route_retains_entry_meaning(route: &CrashRouteGuard, machine: &TerminalMachine) -> bool {
+fn route_retains_entry_meaning(
+    route: &CrashRouteGuard,
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> bool {
     match route {
         CrashRouteGuard::Truth => true,
-        CrashRouteGuard::Predicate(predicate) => {
-            super::crash_field_origins::retains_entry_meaning(predicate.proposition(), machine)
-        }
+        CrashRouteGuard::Predicate(predicate) => super::crash_field_origins::retains_entry_meaning(
+            predicate.proposition(),
+            module,
+            machine,
+        ),
     }
 }
 

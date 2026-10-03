@@ -97,6 +97,16 @@ pub(super) fn retain_scalar_field(
             _ => return None,
         }
     }
+    let atomic = matches!(program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Named { symbol, .. }
+            if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_atomic()));
+    if atomic {
+        // Atomic events have no restricted-resident establishment proof. Do
+        // not silently erase a declared interval while retaining the cell.
+        return declared_bounds
+            .is_none()
+            .then_some(CheckedUnitStructuralFieldType::Atomic(primitive));
+    }
     let Some((minimum, maximum)) = declared_bounds else {
         return Some(CheckedUnitStructuralFieldType::Scalar(primitive));
     };

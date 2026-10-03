@@ -282,19 +282,41 @@ fn lower_integer_read(
     field: StructuralFieldId,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
-    let structural_type = readable_source_type(machine, source).ok_or_else(invalid)?;
+    let (structural_type, access) = readable_source_type(machine, source).ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
     // A call result's `Reference` shell keeps the loan's access on the type;
     // the observed record is its referent, the same peel the verifying and
     // codec-side validators apply to this read.
-    let observed_root = match structural_types
+    let (observed_root, access) = match structural_types
         .iter()
         .find(|declaration| declaration.id == structural_type)
         .map(|declaration| &declaration.shape)
     {
-        Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
-        _ => structural_type,
+        Some(StructuralTypeShape::Reference { referent, access }) => (*referent, *access),
+        _ => (structural_type, access),
     };
+    let access = terminal_semantics::observed_field_backing_access(
+        structural_types.iter(),
+        observed_root,
+        path,
+        access,
+    )
+    .ok_or_else(invalid)?;
+    let declaration = terminal_semantics::observed_field_declaration(
+        structural_types.iter(),
+        observed_root,
+        path,
+        field,
+    )
+    .ok_or_else(invalid)?;
+    if matches!(declaration.field_type, StructuralFieldType::Atomic(_))
+        && !matches!(
+            access,
+            StructuralAccess::Owned | StructuralAccess::MutableBorrow
+        )
+    {
+        return Err(invalid());
+    }
     if !matches!(result.scalar_type, ScalarType::Integer(_))
         || observed_scalar_field(structural_types, observed_root, path, field)
             != Some(result.scalar_type)
@@ -313,7 +335,10 @@ fn lower_integer_read(
     })
 }
 
-fn readable_source_type(machine: &TerminalMachine, source: PlaceId) -> Option<StructuralTypeId> {
+fn readable_source_type(
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> Option<(StructuralTypeId, StructuralAccess)> {
     if machine
         .entry_claims
         .iter()
@@ -340,7 +365,7 @@ fn readable_source_type(machine: &TerminalMachine, source: PlaceId) -> Option<St
             && parameter.multiplicity != StructuralMultiplicity::Linear
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty())
-        .then_some(parameter.structural_type);
+        .then_some((parameter.structural_type, parameter.access));
     }
     // The verified producer and availability checks retain the actual result root;
     // it never acquires an incoming-parameter identity merely to be observed.
@@ -354,7 +379,7 @@ fn readable_source_type(machine: &TerminalMachine, source: PlaceId) -> Option<St
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
-    .then_some(result.structural_type)
+    .then_some((result.structural_type, StructuralAccess::Owned))
 }
 
 pub(super) fn exact_parameter(
@@ -556,7 +581,9 @@ fn unique_relevant_scalar_field(
         return None;
     }
     match &field.field_type {
-        StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+        StructuralFieldType::Scalar(scalar_type) | StructuralFieldType::Atomic(scalar_type) => {
+            Some(*scalar_type)
+        }
         StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
         StructuralFieldType::BoundedInteger(bounds) if allow_bounded_integer => {
             Some(ScalarType::Integer(bounds.integer_type()))

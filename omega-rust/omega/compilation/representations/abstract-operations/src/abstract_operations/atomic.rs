@@ -199,6 +199,30 @@ pub struct AbstractAtomicLocation {
     pub field: StructuralFieldId,
 }
 
+/// Distinct simultaneous exclusive arrivals have disjoint live storage after
+/// ownership validation. Shared roots, unknown roots, and roots from different
+/// arrival groups supply no such evidence; the latter can rename the same home.
+pub fn atomic_roots_may_alias<'parameters>(
+    arrivals: impl Iterator<Item = &'parameters [terminal_psi::StructuralParameterDeclaration]>,
+    left: PlaceId,
+    right: PlaceId,
+) -> bool {
+    left == right
+        || !arrivals.into_iter().any(|parameters| {
+            let exclusive = |root| {
+                parameters.iter().any(|parameter| {
+                    parameter.place == root
+                        && matches!(
+                            parameter.access,
+                            terminal_psi::StructuralAccess::Owned
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        )
+                })
+            };
+            exclusive(left) && exclusive(right)
+        })
+}
+
 /// One normalized atomic memory event.
 ///
 /// `location` names the exact atomic location whose per-location
@@ -427,6 +451,8 @@ impl AbstractAtomicEvent {
 /// authorize a claim; revisiting a cycle supplies no initial-residency fact.
 /// `root_before_edge` receives predecessor, successor and successor-local root;
 /// `None` means the edge cannot preserve that whole-storage identity.
+/// `roots_may_alias` reconstructs current root authority independently: distinct
+/// local names alone do not establish disjoint storage.
 ///
 /// `global_sequential_order` and fence-pair synchronization likewise
 /// constrain only cross-activation observation; they carry no checkable
@@ -444,6 +470,7 @@ pub fn happens_before_atomic_coherence_violation(
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     entry: BlockId,
     root_before_edge: impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
+    roots_may_alias: impl Fn(PlaceId, PlaceId) -> bool,
 ) -> Option<(BlockId, usize, AtomicCoherenceViolation)> {
     // Atomic events claimable by a retained edge, keyed by the operation
     // identity they stand under across the whole activation. Duplicate
@@ -487,6 +514,7 @@ pub fn happens_before_atomic_coherence_violation(
                         index,
                         location,
                         &root_before_edge,
+                        &roots_may_alias,
                     )
                 })
                 .unwrap_or_default();
@@ -542,6 +570,7 @@ fn reaching_writes(
     index: usize,
     location: &AbstractAtomicLocation,
     root_before_edge: &impl Fn(BlockId, BlockId, PlaceId) -> Option<PlaceId>,
+    roots_may_alias: &impl Fn(PlaceId, PlaceId) -> bool,
 ) -> BTreeSet<ReachingWrite> {
     let mut reached = BTreeSet::new();
     let mut visited = BTreeSet::new();
@@ -564,7 +593,7 @@ fn reaching_writes(
                 stopped = true;
                 break;
             }
-            if invalidates_location(operation, &location) {
+            if invalidates_location(operation, &location, roots_may_alias) {
                 reached.insert(ReachingWrite::Unknown);
                 stopped = true;
                 break;
@@ -607,10 +636,38 @@ fn reaching_writes(
     reached
 }
 
-fn invalidates_location(operation: &AbstractOperation, location: &AbstractAtomicLocation) -> bool {
+fn invalidates_location(
+    operation: &AbstractOperation,
+    location: &AbstractAtomicLocation,
+    roots_may_alias: &impl Fn(PlaceId, PlaceId) -> bool,
+) -> bool {
+    // Access polarity is not a write summary for atomic storage. A shared
+    // callee may modify the cell; without its event history this activation
+    // cannot name the call's prior or retain an earlier reads-from claim.
+    if matches!(operation, AbstractOperation::CallDynamic { .. }) {
+        return true;
+    }
+    let called_arguments = match operation {
+        AbstractOperation::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments.as_slice(),
+        _ => &[],
+    };
+    if called_arguments.iter().any(|argument| {
+        argument.place == location.root || roots_may_alias(argument.place, location.root)
+    }) {
+        return true;
+    }
     operation.storage_mutations().into_iter().any(|mutation| {
         if mutation.place != location.root {
-            return false;
+            // A different root can select this very cell through another loan.
+            // Its path and field namespace cannot prove cross-root separation.
+            return roots_may_alias(mutation.place, location.root);
         }
         // These writes select a scalar leaf exactly. Other mutation families
         // may carry aliases or replace a parent, so their root remains a fence.
@@ -885,6 +942,7 @@ mod tests {
             &dominators,
             block(1),
             |_, _, root| Some(root),
+            |_, _| false,
         )
         .map(|(_, index, violation)| (index, violation))
     }
@@ -926,6 +984,7 @@ mod tests {
             &dominators,
             block(1),
             |_, _, root| Some(root),
+            |_, _| false,
         )
     }
 
@@ -953,6 +1012,7 @@ mod tests {
                 &dominators,
                 block(1),
                 |_, _, root| Some(if root == place(2) { backing } else { root }),
+                |_, _| false,
             );
             assert_eq!(result.is_none(), backing == place(1));
         }
@@ -964,7 +1024,8 @@ mod tests {
                 &predecessors,
                 &dominators,
                 block(1),
-                |_, _, root| { Some(if root == place(2) { place(1) } else { root }) }
+                |_, _, root| { Some(if root == place(2) { place(1) } else { root }) },
+                |_, _| false,
             ),
             Some((block(2), 0, V::ReadsFrom(R::InitialResidencyAfterWrite)))
         );
@@ -985,7 +1046,8 @@ mod tests {
                 &predecessors,
                 &dominators,
                 block(1),
-                |_, _, root| Some(root)
+                |_, _, root| Some(root),
+                |_, _| false,
             )
             .is_some()
         );
@@ -1012,7 +1074,8 @@ mod tests {
                 &predecessors,
                 &dominators,
                 block(1),
-                |_, _, root| Some(root)
+                |_, _, root| Some(root),
+                |_, _| false,
             ),
             Some((
                 block(2),
@@ -1083,6 +1146,7 @@ mod tests {
             ordinary_store,
             write_only,
             call(terminal_psi::StructuralAccess::MutableBorrow),
+            call(terminal_psi::StructuralAccess::SharedBorrow),
         ] {
             assert_eq!(
                 coherence(&[stored.clone(), invalidating, observed.clone()]),
@@ -1094,14 +1158,6 @@ mod tests {
                 ))
             );
         }
-        assert_eq!(
-            coherence(&[
-                stored,
-                call(terminal_psi::StructuralAccess::SharedBorrow),
-                observed
-            ]),
-            None
-        );
     }
 
     #[test]

@@ -92,8 +92,9 @@ pub(super) fn reconstruct(
             .blocks
             .get(&current)
             .expect("validated successor names an exact block");
-        axioms
-            .retain(|proposition| crash_field_origins::retains_entry_meaning(proposition, machine));
+        axioms.retain(|proposition| {
+            crash_field_origins::retains_entry_meaning(proposition, module, machine)
+        });
         if let Some(history) = histories.get_mut(&current) {
             if history.contains(&axioms) {
                 // The same block and ordered premises deterministically
@@ -145,7 +146,7 @@ pub(super) fn reconstruct(
             )?;
             budget.retain(axioms.len().saturating_sub(prior_facts), machine.id)?;
             axioms.retain(|proposition| {
-                crash_field_origins::retains_entry_meaning(proposition, machine)
+                crash_field_origins::retains_entry_meaning(proposition, module, machine)
             });
             operation_obligations.clear();
         }

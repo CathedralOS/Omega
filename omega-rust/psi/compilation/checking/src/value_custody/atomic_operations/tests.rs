@@ -46,18 +46,18 @@ fn validation_messages(source: &str) -> Vec<String> {
     }
 }
 
-const NOT_MUTABLE: &str = "assignment cannot write `value` because it is not mutable in this state";
+const NOT_MUTABLE: &str = "assignment cannot write `cell` because it is not mutable in this state";
 
 #[test]
 fn fetch_carrier_recovers_its_family_from_the_interpreter_model() {
     let program = crate::front_end::typed_program(
         "data Cell { value: AtomicU32; }
-         machine Cell::publish(&self) {
-             let prior: u32 = self.value.fetch_or(1, Publish);
-             let before: u32 = self.value.fetch_add(2, ReceivePublish);
-             let mask: u32 = self.value.fetch_and(3, NoOrdering);
-             let flipped: u32 = self.value.fetch_xor(4, Receive);
-             let less: u32 = self.value.fetch_sub(5, GlobalOrder);
+         machine Cell::publish(cell: &Cell) {
+             let prior: u32 = cell.value.fetch_or(1, Publish);
+             let before: u32 = cell.value.fetch_add(2, ReceivePublish);
+             let mask: u32 = cell.value.fetch_and(3, NoOrdering);
+             let flipped: u32 = cell.value.fetch_xor(4, Receive);
+             let less: u32 = cell.value.fetch_sub(5, GlobalOrder);
          }",
     );
     let carried: Vec<_> = publish_assignments(&program)
@@ -87,16 +87,16 @@ fn shared_receiver_admits_atomic_store_and_fetch_but_not_plain_writes() {
     assert_eq!(
         validation_messages(
             "data Cell { value: AtomicU32; }
-             machine Cell::publish(&self, value: u32) {
-                 self.value.store(value, NoOrdering);
-                 let prior: u32 = self.value.fetch_or(1, Publish);
+             machine Cell::publish(cell: &Cell, value: u32) {
+                 cell.value.store(value, NoOrdering);
+                 let prior: u32 = cell.value.fetch_or(1, Publish);
              }"
         ),
         Vec::<String>::new()
     );
     let plain = validation_messages(
         "data Cell { value: u32; }
-         machine Cell::publish(&self, value: u32) { self.value = value; }",
+         machine Cell::publish(cell: &Cell, value: u32) { cell.value = value; }",
     );
     assert!(
         plain.iter().any(|message| message.contains(NOT_MUTABLE)),
@@ -104,7 +104,7 @@ fn shared_receiver_admits_atomic_store_and_fetch_but_not_plain_writes() {
     );
     let plain_store = validation_messages(
         "data Cell { value: u32; }
-         machine Cell::publish(&self, value: u32) { self.value.store(value, NoOrdering); }",
+         machine Cell::publish(cell: &Cell, value: u32) { cell.value.store(value, NoOrdering); }",
     );
     assert!(
         plain_store
@@ -114,7 +114,7 @@ fn shared_receiver_admits_atomic_store_and_fetch_but_not_plain_writes() {
     );
     let direct = validation_messages(
         "data Cell { value: AtomicU32; }
-         machine Cell::publish(&self, value: u32) { self.value = value; }",
+         machine Cell::publish(cell: &Cell, value: u32) { cell.value = value; }",
     );
     assert!(
         direct.iter().any(|message| message.contains(NOT_MUTABLE)),
@@ -126,7 +126,7 @@ fn shared_receiver_admits_atomic_store_and_fetch_but_not_plain_writes() {
 fn shared_receiver_atomic_store_still_reports_an_unknown_field() {
     let messages = validation_messages(
         "data Cell { value: AtomicU32; }
-         machine Cell::publish(&self, value: u32) { self.valeu.store(value, NoOrdering); }",
+         machine Cell::publish(cell: &Cell, value: u32) { cell.valeu.store(value, NoOrdering); }",
     );
     assert!(
         messages

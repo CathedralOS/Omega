@@ -1313,7 +1313,7 @@ pub(super) fn validate_integer_structural_field(
     // A constructed/call-result record remains a local result, not a
     // synthetic parameter. The verifier separately checks its producer,
     // dominance, live ownership and loans at this observation.
-    if let Some(local) = machine
+    if let Some((producer, local)) = machine
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
@@ -1337,8 +1337,8 @@ pub(super) fn validate_integer_structural_field(
                     | OperationKind::EstablishMutableElementView { .. }
             )
         })
-        .filter_map(|producer| producer.result.structural())
-        .find(|local| local.place == *source)
+        .filter_map(|producer| producer.result.structural().map(|local| (producer, local)))
+        .find(|(_, local)| local.place == *source)
     {
         // The observed field belongs to a record carrier or to the payload of
         // the case a final `Case` step selects; which case is active is the
@@ -1346,14 +1346,22 @@ pub(super) fn validate_integer_structural_field(
         // A call result's `Reference` shell keeps the loan's access on the
         // type; the observed record is its referent, matching the peel the
         // validating verifier applies for the same read.
-        let observed_root = match module
+        let (observed_root, access) = match module
             .structural_types
             .iter()
             .find(|declaration| declaration.id == local.structural_type)
             .map(|declaration| &declaration.shape)
         {
-            Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
-            _ => local.structural_type,
+            Some(StructuralTypeShape::Reference { referent, access }) => (*referent, *access),
+            _ => (
+                local.structural_type,
+                match &producer.kind {
+                    OperationKind::EstablishReference { source }
+                    | OperationKind::EstablishElementView { source, .. }
+                    | OperationKind::EstablishMutableElementView { source, .. } => source.access,
+                    _ => terminal_psi::StructuralAccess::Owned,
+                },
+            ),
         };
         let matching = terminal_semantics::observed_field_declaration(
             module.structural_types.iter(),
@@ -1361,7 +1369,16 @@ pub(super) fn validate_integer_structural_field(
             path,
             *field,
         )
-        .is_some_and(|candidate| candidate.field_type.scalar_type() == Some(result.scalar_type));
+        .is_some_and(|candidate| {
+            candidate.field_type.scalar_type() == Some(result.scalar_type)
+                && scalar_observation_authorized(
+                    module,
+                    observed_root,
+                    path,
+                    &candidate.field_type,
+                    access,
+                )
+        });
         if !matching
             || local.multiplicity == StructuralMultiplicity::Linear
             || !local.qualifications.is_empty()
@@ -1407,6 +1424,16 @@ pub(super) fn validate_integer_structural_field(
     )
     .filter(|candidate| match candidate.field_type {
         StructuralFieldType::Scalar(scalar_type) => scalar_type == result.scalar_type,
+        StructuralFieldType::Atomic(scalar_type) => {
+            scalar_type == result.scalar_type
+                && scalar_observation_authorized(
+                    module,
+                    parameter.structural_type,
+                    path,
+                    &candidate.field_type,
+                    parameter.access,
+                )
+        }
         StructuralFieldType::BoundedInteger(bounded) => {
             ScalarType::Integer(bounded.integer_type()) == result.scalar_type
         }
@@ -1435,6 +1462,29 @@ pub(super) fn validate_integer_structural_field(
         return malformed("scalar structural field has invalid source custody");
     }
     Ok(())
+}
+
+/// Scalar representation alone grants no permission to snapshot a shared cell.
+fn scalar_observation_authorized(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    field: &StructuralFieldType,
+    access: terminal_psi::StructuralAccess,
+) -> bool {
+    !matches!(field, StructuralFieldType::Atomic(_))
+        || matches!(
+            terminal_semantics::observed_field_backing_access(
+                module.structural_types.iter(),
+                root,
+                path,
+                access,
+            ),
+            Some(
+                terminal_psi::StructuralAccess::Owned
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
+        )
 }
 
 pub(super) fn validate_store_dynamic_descriptor(

@@ -119,7 +119,7 @@ pub(crate) fn canonical_field_path_from_type(
         return Some(path);
     }
     let mut written = Vec::with_capacity(path.len());
-    for segment in path {
+    for (position, segment) in path.iter().enumerate() {
         match segment {
             StructuralPathSegment::Case(_)
             | StructuralPathSegment::Referent
@@ -140,6 +140,11 @@ pub(crate) fn canonical_field_path_from_type(
                     _ => None,
                 }?;
                 written.push(CanonicalStructuralPathSegment::Field(field.id));
+                // Storage geometry includes every relevant leaf, not only a
+                // structural child. This grants no borrow or scalar authority.
+                if position + 1 == path.len() {
+                    return Some(written);
+                }
                 structural_type = match field.field_type {
                     StructuralFieldType::Structural(next) => next,
                     _ => return None,

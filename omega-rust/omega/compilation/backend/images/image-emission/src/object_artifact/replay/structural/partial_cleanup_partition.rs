@@ -98,6 +98,7 @@ fn finite_cleanup_type(
                         finite_cleanup_type(nested, declarations, active, complete)?;
                     }
                     StructuralFieldType::Scalar(_)
+                    | StructuralFieldType::Atomic(_)
                     | StructuralFieldType::IeeeFloat(_)
                     | StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },

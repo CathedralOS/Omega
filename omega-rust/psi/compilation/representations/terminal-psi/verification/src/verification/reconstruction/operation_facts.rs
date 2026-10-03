@@ -357,16 +357,16 @@ pub(super) fn append_operation(
                 .observes_places(proposition, &[result.place])
         });
     }
-    if let OperationKind::AtomicAccess { place, event, .. } = &operation.kind {
+    if let OperationKind::AtomicAccess { event, .. } = &operation.kind {
         // An atomic event states nothing about its result: another
         // participant may intervene between events, so the observed prior is
         // an unconstrained value of the leaf type, not the last store. A
-        // modifying event also retires every observation of its root; the
-        // conservative whole-root scope keeps sibling snapshots from
-        // outliving a write they cannot see.
+        // modifying event retires observations of potentially aliasing atomic
+        // residents. Shared invocation roots need not have distinct backing;
+        // ordinary siblings and immutable result snapshots remain unchanged.
         if event.modifies_resident() {
             field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-                !context.storage.observes_places(proposition, &[*place])
+                !context.storage.observes_shared_mutation(proposition)
             });
         }
         return Ok(());

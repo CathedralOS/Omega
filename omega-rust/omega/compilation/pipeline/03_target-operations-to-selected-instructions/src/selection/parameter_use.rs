@@ -40,6 +40,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 // Forming a reference needs the incoming address even when
                 // this activation never reads the referent's contents.
                 LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
+                LegalizedScalarInstructionKind::AtomicAccess { location, .. } => location.place == place,
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
                 LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {

@@ -12,14 +12,15 @@ use std::collections::BTreeMap;
 use proof_admission::{Obligation, ObligationClass};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId,
-    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     BindingRelevance, Operation, OperationKind, StructuralAccess, StructuralArgument,
     StructuralFieldType, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
-use terminal_semantics::{CallResultRule, call_composition_semantic_row};
+use terminal_semantics::{
+    CallResultRule, SharedMutation, call_composition_semantic_row, shared_mutation,
+};
 
 use crate::ModuleError;
 
@@ -29,6 +30,9 @@ use super::reconstruction::{
 use super::substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,
 };
+
+#[cfg(test)]
+mod tests;
 
 pub(super) fn compose_call_operation(
     module: &TerminalModule,
@@ -632,46 +636,6 @@ fn compose_structural_scalar_call(
     Ok(())
 }
 
-/// The structural type `place` carries at its root in `caller`.
-fn caller_place_root_type(caller: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
-    if let Some(parameter) = caller
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-    {
-        return Some(parameter.structural_type);
-    }
-    if let Some(parameter) = caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
-        .find(|parameter| parameter.place == place)
-    {
-        return Some(parameter.structural_type);
-    }
-    caller.structural_places.iter().find_map(|row| {
-        if row.id != place {
-            return None;
-        }
-        match row.kind {
-            StructuralPlaceKind::OperationResult {
-                structural_type, ..
-            }
-            | StructuralPlaceKind::ByteSequenceLiteral {
-                structural_type, ..
-            }
-            | StructuralPlaceKind::TrivialAffineLocal {
-                structural_type, ..
-            } => Some(structural_type),
-            StructuralPlaceKind::Parameter { position, .. } => caller
-                .structural_parameters
-                .get(position as usize)
-                .map(|parameter| parameter.structural_type),
-            _ => None,
-        }
-    })
-}
-
 /// The structural type reached by a canonical argument prefix. `Field` steps
 /// resolve inside records, `FixedIndex` steps inside a fixed array's extent,
 /// and `Case` steps supply no owned structural namespace here.
@@ -719,7 +683,7 @@ fn mint_static_extent_axiom(
     prefix: &[CanonicalStructuralPathSegment],
     axioms: &mut Vec<Proposition>,
 ) {
-    let Some(root) = caller_place_root_type(caller, argument.place) else {
+    let Some(root) = super::storage_observations::place_root_type(caller, argument.place) else {
         return;
     };
     let Some(end) = canonical_path_end_type(module, root, prefix) else {
@@ -844,15 +808,17 @@ fn structural_contract_substitutions(
         // lend a valid descriptor, but cannot rename an observed binder to
         // its whole backing. Only an unobserved binder can be omitted.
         let stored_view_field =
-            caller_place_root_type(caller, argument.place).is_some_and(|root| {
-                terminal_semantics::stored_view_field_presentation(
-                    module.structural_types.iter(),
-                    root,
-                    argument,
-                    parameter,
-                )
-                .is_some()
-            });
+            super::storage_observations::place_root_type(caller, argument.place).is_some_and(
+                |root| {
+                    terminal_semantics::stored_view_field_presentation(
+                        module.structural_types.iter(),
+                        root,
+                        argument,
+                        parameter,
+                    )
+                    .is_some()
+                },
+            );
         if observed
             || (!crate::validation::is_reference_projection(module, caller, argument)
                 && !borrowed_presentation
@@ -955,10 +921,9 @@ fn invalidate_mutated_arguments(
     storage: &super::storage_observations::StorageObservations<'_>,
     capture_snapshots: bool,
 ) {
-    // Descriptor parameters have no caller-local backing identity. A mutable
-    // interface therefore fences all current storage observations; a shared
-    // interface carries no write permission. Copied scalar values survive.
-    let parameter_may_write = |ordinal| {
+    // Descriptor parameters erase their concrete receiver type and backing.
+    // Shared interfaces can reach atomics, but never authorize ordinary writes.
+    let parameter_access = |ordinal| {
         module
             .dynamic_dispatch
             .parameters
@@ -966,7 +931,6 @@ fn invalidate_mutated_arguments(
             .find(|parameter| parameter.owner == machine.id && parameter.ordinal == ordinal)
             .expect("validated dynamic parameter exists")
             .access
-            == StructuralAccess::MutableBorrow
     };
     let selected_source = |ordinal| {
         &module
@@ -979,6 +943,7 @@ fn invalidate_mutated_arguments(
     };
     let mut arguments = arguments.iter().collect::<Vec<_>>();
     let mut unknown_write = false;
+    let mut unknown_shared_write = false;
     match &operation.kind {
         OperationKind::CallDynamicScalar {
             descriptor_ordinal, ..
@@ -998,7 +963,9 @@ fn invalidate_mutated_arguments(
         | OperationKind::CallDynamicParameterUnit {
             parameter_ordinal, ..
         } => {
-            unknown_write |= parameter_may_write(*parameter_ordinal);
+            let access = parameter_access(*parameter_ordinal);
+            unknown_write |= access != StructuralAccess::SharedBorrow;
+            unknown_shared_write |= access == StructuralAccess::SharedBorrow;
         }
         _ => {}
     }
@@ -1026,7 +993,9 @@ fn invalidate_mutated_arguments(
                 arguments.push(selected_source(descriptor.rebound_selection_ordinal));
             }
             terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal } => {
-                unknown_write |= parameter_may_write(ordinal);
+                let access = parameter_access(ordinal);
+                unknown_write |= access != StructuralAccess::SharedBorrow;
+                unknown_shared_write |= access == StructuralAccess::SharedBorrow;
             }
         }
     }
@@ -1035,10 +1004,12 @@ fn invalidate_mutated_arguments(
         .filter(|argument| {
             matches!(
                 argument.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+                    | StructuralAccess::SharedBorrow
             )
         })
-        .map(|argument| {
+        .filter_map(|argument| {
             // A dynamic element or byte window may write anywhere under its
             // containing carrier, but cannot reach that carrier's siblings.
             let prefix_end = argument
@@ -1059,7 +1030,22 @@ fn invalidate_mutated_arguments(
                 argument.place,
                 &argument.path[..prefix_end],
             );
-            (argument.place, path)
+            let shared = argument.access == StructuralAccess::SharedBorrow;
+            if shared {
+                let mutation =
+                    super::storage_observations::place_root_type(machine, argument.place)
+                        .zip(path.as_deref())
+                        .map(|(root, path)| {
+                            shared_mutation(module.structural_types.iter(), root, path)
+                        })
+                        .unwrap_or(SharedMutation::Unbounded);
+                // Two incoming shared roots may denote the same cell. Their
+                // distinct PlaceIds are not alias-disjoint evidence. Expire
+                // only unstable observations, never ordinary field siblings.
+                unknown_shared_write |= mutation != SharedMutation::None;
+                return None;
+            }
+            Some((argument.place, path))
         })
         .collect::<Vec<_>>();
     if unknown_write
@@ -1085,13 +1071,16 @@ fn invalidate_mutated_arguments(
         .filter(|argument| argument.access == StructuralAccess::Owned)
         .map(|argument| argument.place)
         .collect::<Vec<_>>();
-    if !written.is_empty() || !consumed.is_empty() {
+    if !written.is_empty() || !consumed.is_empty() || unknown_shared_write {
         super::field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-            !written.iter().any(|(root, path)| match path {
-                Some(path) => storage.observes_write(proposition, *root, path),
-                None => storage.observes_places(proposition, &[*root]),
-            }) && (consumed.is_empty()
-                || !storage.observes_unversioned_places(proposition, &consumed))
+            let observes_shared_mutation = storage.observes_shared_mutation(proposition);
+            !(unknown_shared_write && observes_shared_mutation)
+                && !written.iter().any(|(root, path)| match path {
+                    Some(path) => storage.observes_write(proposition, *root, path),
+                    None => storage.observes_places(proposition, &[*root]),
+                })
+                && (consumed.is_empty()
+                    || !storage.observes_unversioned_places(proposition, &consumed))
         });
     }
 }

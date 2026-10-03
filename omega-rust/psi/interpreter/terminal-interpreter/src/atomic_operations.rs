@@ -11,10 +11,10 @@
 use semantic_vocabulary::{IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+    StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
-use crate::custody::{direct_scalar_field_type, resolve_structural_arguments};
+use crate::custody::resolve_structural_arguments;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -53,6 +53,7 @@ impl TerminalExecution {
                 let writable = matches!(
                     parameter.access,
                     StructuralAccess::Owned
+                        | StructuralAccess::SharedBorrow
                         | StructuralAccess::MutableBorrow
                         | StructuralAccess::WriteOnlyBorrow
                 );
@@ -78,12 +79,18 @@ impl TerminalExecution {
         )?
         .pop()
         .ok_or_else(malformed)?;
-        let scalar_type = direct_scalar_field_type(
-            &self.program.structural_types,
-            parent.structural_type,
-            field,
-        )
-        .ok_or_else(malformed)?;
+        let scalar_type = self
+            .program
+            .structural_types
+            .get(&parent.structural_type)
+            .and_then(|declaration| match &declaration.shape {
+                StructuralTypeShape::Record { fields } => fields
+                    .iter()
+                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+                    .and_then(|field| field.field_type.atomic_scalar_type()),
+                _ => None,
+            })
+            .ok_or_else(malformed)?;
         let cell =
             StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field);
         let operand = |value| {

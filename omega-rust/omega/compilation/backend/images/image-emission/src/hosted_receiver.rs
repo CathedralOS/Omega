@@ -1139,6 +1139,7 @@ fn validate_receiver_fields(
                     | semantic_vocabulary::ScalarType::Integer(_)
                     | semantic_vocabulary::ScalarType::IeeeFloat(_),
                 )
+                | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_) => {}
                 StructuralFieldType::BoundedInteger(integer)
                     if integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
@@ -1293,6 +1294,7 @@ fn zero_valid_field(
             StructuralFieldType::Scalar(
                 ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
             )
+            | StructuralFieldType::Atomic(_)
             | StructuralFieldType::IeeeFloat(_) => true,
             StructuralFieldType::BoundedInteger(integer) => {
                 integer.contains(IntegerValue::Signed(0))

@@ -555,8 +555,8 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 109 + `u16` vocabulary
-marker 113 + the entry machine id, followed by the module's counted tables in
+Module bytes are `PSITERM\0` + `u16` format marker 114 + `u16` vocabulary
+marker 116 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
 <!-- module-table-order -->
@@ -806,6 +806,8 @@ occurrence and provider-selection evidence.
 | 4 | IeeeFloat | IEEE float format |
 | 5 | ByteSequence | byte-sequence carrier |
 | 6 | BoundedInteger | integer type + integer value minimum + integer value maximum |
+| 7 | PredicateByteSequence | byte-sequence carrier + predicate-set bits |
+| 8 | Atomic | scalar type; only Boolean and fixed-width, non-address integers are admitted |
 
 <!-- structural-access-tags -->
 
@@ -1724,14 +1726,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (113). A
+debug map envelopes then carry the shared `u16` vocabulary marker (116). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 109 | yes |
+| semantic module | `PSITERM\0` | 114 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

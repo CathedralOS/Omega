@@ -17,6 +17,60 @@ use terminal_psi::{
 fn place(value: u64) -> PlaceId {
     PlaceId::new(value).unwrap()
 }
+
+#[test]
+fn shared_mutation_observations_cover_atomic_aliases_not_plain_siblings_or_ssa() {
+    let mut module = fixture();
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![
+            StructuralFieldDeclaration {
+                id: StructuralFieldId::new(1).unwrap(),
+                identity: "atomic".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Atomic(ScalarType::Boolean),
+            },
+            StructuralFieldDeclaration {
+                id: StructuralFieldId::new(2).unwrap(),
+                identity: "ordinary".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            },
+        ],
+    };
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let mut alias = machine.structural_parameters[0].clone();
+    alias.place = place(2);
+    alias.position = 1;
+    machine.structural_parameters.push(alias);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place(2),
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    let storage = StorageObservations::new(&module, &module.machines[0]);
+    for root in [place(1), place(2)] {
+        for (field, mutable) in [(1, true), (2, false)] {
+            let observation = Proposition::Equal(
+                ScalarTerm::BooleanField {
+                    root,
+                    path: vec![CanonicalStructuralPathSegment::Field(
+                        StructuralFieldId::new(field).unwrap(),
+                    )],
+                },
+                ScalarTerm::Boolean(true),
+            );
+            assert_eq!(storage.observes_shared_mutation(&observation), mutable);
+        }
+    }
+    let snapshot = Proposition::Equal(
+        ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
+    assert!(!storage.observes_shared_mutation(&snapshot));
+}
 fn machine(value: u64) -> MachineId {
     MachineId::new(value).unwrap()
 }

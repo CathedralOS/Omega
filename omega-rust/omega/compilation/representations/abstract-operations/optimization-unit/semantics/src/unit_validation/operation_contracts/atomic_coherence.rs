@@ -78,6 +78,18 @@ pub(crate) fn validate_function_atomic_coherence(
             }
             mapped
         },
+        |left, right| {
+            abstract_operations::atomic::atomic_roots_may_alias(
+                std::iter::once(function.structural_parameters.as_slice()).chain(
+                    function
+                        .blocks
+                        .iter()
+                        .map(|block| block.structural_parameters.as_slice()),
+                ),
+                left,
+                right,
+            )
+        },
     ) {
         Some((block, node, violation)) => Err(
             OptimizationUnitValidationError::AtomicEventCoherenceMismatch {

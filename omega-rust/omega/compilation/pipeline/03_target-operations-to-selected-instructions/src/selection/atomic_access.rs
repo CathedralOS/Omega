@@ -29,13 +29,6 @@ pub(super) fn form(
     if parameter.access != location.access
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || !matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        )
-        || event.modifies_resident() && parameter.access == StructuralAccess::SharedBorrow
         || event.observes_resident() && parameter.access == StructuralAccess::WriteOnlyBorrow
         || row.result.is_some() != event.observes_resident()
         || row
@@ -64,7 +57,7 @@ pub(super) fn form(
     let declaration = fields
         .iter()
         .find(|declaration| declaration.id == *field && !declaration.relevance.is_erased())?;
-    if declaration.field_type != StructuralFieldType::Scalar(ScalarType::Integer(*scalar_type)) {
+    if declaration.field_type != StructuralFieldType::Atomic(ScalarType::Integer(*scalar_type)) {
         return None;
     }
     let (offset, size, indices) = crate::structural_inputs::structural_reference_input::store(

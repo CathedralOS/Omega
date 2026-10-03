@@ -45,7 +45,7 @@ fn artifact(body: &str) -> (TerminalModule, Vec<u8>, Vec<u8>) {
     let source = format!(
         "boundary trait Report {{ machine value(v: u32) reaches Report; }}
         data Cell {{ counter: AtomicU32; }}
-        machine Cell::run(&mut self) reaches Report {{
+        machine Cell::run(cell: &Cell) reaches Report {{
             {body}
         }}"
     );
@@ -160,11 +160,11 @@ fn substitute(
 }
 
 const SEQUENCE: &str = "
-    self.counter.store(10, Publish);
-    let observed: u32 = self.counter.load(Receive);
-    let added: u32 = self.counter.fetch_add(5, ReceivePublish);
-    let displaced: u32 = self.counter.swap(20, GlobalOrder);
-    let prior: u32 = self.counter.compare_exchange(20, 30, GlobalOrder, Receive);
+    cell.counter.store(10, Publish);
+    let observed: u32 = cell.counter.load(Receive);
+    let added: u32 = cell.counter.fetch_add(5, ReceivePublish);
+    let displaced: u32 = cell.counter.swap(20, GlobalOrder);
+    let prior: u32 = cell.counter.compare_exchange(20, 30, GlobalOrder, Receive);
     Report::value(observed);
     Report::value(added);
     Report::value(displaced);
@@ -178,7 +178,7 @@ fn every_serial_event_keeps_its_location_orderings_and_coherence_edges() {
     let receiver = machine
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.is_self)
+        .find(|parameter| parameter.position == 0)
         .expect("receiver");
     let StructuralTypeShape::Record { fields } = &module
         .structural_types
@@ -371,26 +371,75 @@ fn a_substituted_location_ordering_operand_or_edge_is_refused() {
 }
 
 #[test]
+fn shared_callee_mutation_does_not_leave_a_known_atomic_predecessor() {
+    let (_, semantic, proof) = source_artifact(
+        "data Cell { counter: AtomicU32; }
+        machine Cell::write(cell: &Cell) { cell.counter.store(2, NoOrdering); }
+        machine Cell::run(cell: &Cell) -> u32 {
+            cell.counter.store(1, NoOrdering);
+            Cell::write(cell);
+            let observed: u32 = cell.counter.load(NoOrdering);
+            (observed)
+        }",
+    );
+    assert!(matches!(
+        lower(&semantic, &proof),
+        Err(ArtifactLoweringError::Lowering(
+            LoweringError::UnsupportedAtomicCoherence(_)
+        ))
+    ));
+}
+
+#[test]
+fn different_shared_roots_do_not_prove_an_atomic_predecessor_survives() {
+    for mutation in [
+        "second.counter.store(2, NoOrdering);",
+        "Cell::write(second);",
+    ] {
+        let (_, semantic, proof) = source_artifact(&format!(
+            "data Cell {{ counter: AtomicU32; }}
+            machine Cell::write(cell: &Cell) {{ cell.counter.store(2, NoOrdering); }}
+            machine Cell::run(first: &Cell, second: &Cell) -> u32 {{
+                first.counter.store(1, NoOrdering);
+                {mutation}
+                let observed: u32 = first.counter.load(NoOrdering);
+                (observed)
+            }}"
+        ));
+        assert!(
+            matches!(
+                lower(&semantic, &proof),
+                Err(ArtifactLoweringError::Lowering(
+                    LoweringError::UnsupportedAtomicCoherence(_)
+                ))
+            ),
+            "{mutation}"
+        );
+    }
+}
+
+#[test]
 fn a_join_of_distinct_writes_names_no_single_predecessor() {
     // Both arms write the cell; the load after the join has two candidate
     // writes and no retained edge could name the one it observes.
     let (_, semantic, proof) = artifact(
         "
-        self.counter.store(1, NoOrdering);
-        transition self.counter == 1 {
-            true -> first()
-            false -> second()
+        cell.counter.store(1, NoOrdering);
+        let branch: u32 = cell.counter.load(NoOrdering);
+        transition branch == 1 {
+            true -> first(cell)
+            false -> second(cell)
         }
-        state first(&mut self) {
-            self.counter.store(2, NoOrdering);
-            transition { _ -> observe() }
+        state first(cell: &Cell) {
+            cell.counter.store(2, NoOrdering);
+            transition { _ -> observe(cell) }
         }
-        state second(&mut self) {
-            self.counter.store(3, NoOrdering);
-            transition { _ -> observe() }
+        state second(cell: &Cell) {
+            cell.counter.store(3, NoOrdering);
+            transition { _ -> observe(cell) }
         }
-        state observe(&mut self) {
-            let seen: u32 = self.counter.load(NoOrdering);
+        state observe(cell: &Cell) {
+            let seen: u32 = cell.counter.load(NoOrdering);
             Report::value(seen);
         }
         ",
@@ -474,7 +523,7 @@ fn named_state_parameters_preserve_each_atomic_backing_and_event_root() {
 }
 
 #[test]
-fn changed_incoming_backing_event_root_or_initial_residency_is_refused() {
+fn changed_event_root_or_initial_residency_is_refused() {
     let (_, semantic, proof) = source_artifact(NAMED_SEQUENCE);
     let verified = unit(&semantic, &proof);
     let plan = lower(&semantic, &proof).expect("named atomic state parameters lower");
@@ -484,29 +533,10 @@ fn changed_incoming_backing_event_root_or_initial_residency_is_refused() {
         .location()
         .expect("compare exchange location")
         .root;
-    let mut swapped_arrival = verified.clone();
-    let function = &mut swapped_arrival.functions[0];
-    let bindings = function
-        .blocks
-        .iter_mut()
-        .flat_map(|block| &mut block.nodes)
-        .find_map(|node| match &mut node.operation {
-            AbstractOperation::Jump {
-                structural_bindings,
-                ..
-            } if structural_bindings.len() == 2 => Some(structural_bindings),
-            _ => None,
-        })
-        .expect("two same-type incoming contexts");
-    let first = bindings[0].argument.clone();
-    bindings[0].argument = bindings[1].argument.clone();
-    bindings[1].argument = first;
-    optimization_unit::restamp_psi_function_derived_metadata(function)
-        .expect("rebuild operation-derived metadata after the binding substitution");
-    swapped_arrival.identity =
-        optimization_unit::recompute_psi_optimization_unit_identity(&swapped_arrival);
+    // These unconditional source aliases canonicalize to their original roots.
+    // Retained binding substitutions are exercised by optimization-unit
+    // semantics' `atomic_coherence_rejects_stale_initial_and_wrong_forwarded_backing`.
     let substitutions = [
-        ("swapped incoming contexts", swapped_arrival),
         (
             "other context at the same observer",
             substitute(&verified, 3, |operation| {

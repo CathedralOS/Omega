@@ -18,8 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Scalar representation views retain equal-width carrier changes
-        // and the checked byte-to-Boolean landing obligation.
-        115
+        // Atomic field identity survives independently of its scalar carrier.
+        116
     }
 }

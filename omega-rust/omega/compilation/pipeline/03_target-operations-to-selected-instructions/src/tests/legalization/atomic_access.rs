@@ -56,7 +56,7 @@ fn fixture(
                         id: field,
                         identity: "value".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Scalar(scalar_type),
+                        field_type: StructuralFieldType::Atomic(scalar_type),
                     },
                 ],
             },
@@ -157,6 +157,61 @@ fn fixture(
     .unwrap();
     optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     (source, target, unit)
+}
+
+#[test]
+fn shared_atomic_cells_keep_authority_through_selection() {
+    atomic_cells_keep_authority_through_selection(StructuralAccess::SharedBorrow);
+}
+
+#[test]
+fn owned_atomic_cells_keep_addressable_storage_through_selection() {
+    atomic_cells_keep_authority_through_selection(StructuralAccess::Owned);
+}
+
+fn atomic_cells_keep_authority_through_selection(access: StructuralAccess) {
+    let native = NativeTarget::macos_arm64();
+    let (mut source, _, _) = fixture(native, true);
+    let function = &mut source.functions[0];
+    function.structural_parameters[0].access = access;
+    // Atomic-only uses must retain storage independently of the ordinary store
+    // which would otherwise force a captured pointer or addressable home.
+    function.operations.retain(|operation| {
+        !matches!(
+            operation,
+            AbstractOperation::StructuralScalarFieldStore { .. }
+        )
+    });
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
+    let legal = crate::legalize_target_operations(&target, &source, &unit).unwrap();
+    crate::validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let constraints = crate::selection_constraints(&legal, &environment);
+    let selected = crate::select_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .unwrap();
+    crate::validate_selected_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+        selected.plan().clone(),
+    )
+    .unwrap();
 }
 
 #[test]

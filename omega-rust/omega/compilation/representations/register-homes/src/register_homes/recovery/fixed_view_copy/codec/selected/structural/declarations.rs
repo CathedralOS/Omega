@@ -157,6 +157,10 @@ fn encode_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
             BindingRelevance::Erased => 2,
         });
         match &field.field_type {
+            StructuralFieldType::Atomic(scalar) => {
+                bytes.push(8);
+                encode_scalar(bytes, *scalar);
+            }
             StructuralFieldType::BoundedInteger(bounds) => {
                 bytes.push(6);
                 bounded_integer::encode(bytes, *bounds);
@@ -210,6 +214,13 @@ fn decode_fields(
             tag => return Err(FixedViewCopyDecodeError::UnknownBindingRelevance(tag)),
         };
         let field_type = match cursor.byte()? {
+            8 => {
+                let field = StructuralFieldType::Atomic(decode_scalar(cursor)?);
+                field
+                    .atomic_scalar_type()
+                    .ok_or(FixedViewCopyDecodeError::UnknownStructuralFieldType(8))?;
+                field
+            }
             6 => StructuralFieldType::BoundedInteger(bounded_integer::decode(cursor)?),
             1 => StructuralFieldType::Scalar(decode_scalar(cursor)?),
             2 => StructuralFieldType::IeeeFloat(match cursor.byte()? {

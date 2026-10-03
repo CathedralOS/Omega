@@ -64,6 +64,7 @@ fn validate_byte_observations(
 /// Rejoin the current root contract and custody before observing or modifying it.
 fn validate_atomic_access(
     function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     node: u32,
     operation: &O,
@@ -86,9 +87,28 @@ fn validate_atomic_access(
     let signature = function
         .arrival_parameter(location.root)
         .ok_or_else(invalid)?;
-    // Terminal storage does not yet retain atomic-cell identity. Preserve its
-    // existing access boundary rather than granting shared mutation to a field.
-    if (event.joins_modification_order() && signature.access == StructuralAccess::SharedBorrow)
+    let carrier = crate::unit_validation::structural_catalog::resolve_structural_path(
+        structural_types,
+        signature.structural_type,
+        &location.path,
+    )
+    .ok_or_else(invalid)?;
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &structural_types.get(&carrier).ok_or_else(invalid)?.shape
+    else {
+        return Err(invalid());
+    };
+    // Shared access grants atomic operations only on a declared atomic cell,
+    // never an ordinary same-width scalar. Observation still needs read access.
+    if !fields.iter().any(|field| {
+        field.id == location.field
+            && !field.relevance.is_erased()
+            && matches!(
+                field.field_type,
+                terminal_psi::StructuralFieldType::Atomic(_)
+            )
+    }) || !signature.qualifications.is_empty()
+        || !signature.projected_qualifications.is_empty()
         || (event.observes_resident() && signature.access == StructuralAccess::WriteOnlyBorrow)
     {
         return Err(invalid());
@@ -164,7 +184,14 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut frontier.live_references,
             )?;
             validate_byte_observations(function, block_id, node_index, &node.operation, &frontier)?;
-            validate_atomic_access(function, block_id, node_index, &node.operation, &frontier)?;
+            validate_atomic_access(
+                function,
+                structural_types,
+                block_id,
+                node_index,
+                &node.operation,
+                &frontier,
+            )?;
 
             // A store into an owned home writes the value it holds right now:
             // an owned result or an owned block arrival must still be whole

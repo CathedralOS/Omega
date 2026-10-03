@@ -376,7 +376,8 @@ pub(super) fn validate(
             continue;
         }
         if !machine.operations.iter().any(|operation| {
-            super::scalar_arrays::source_statement(operation) == Some(index as u32)
+            super::statement_custody::covered_statements(operation)
+                .any(|statement| statement == index as u32)
         }) {
             return unsupported("structural result body omits an authored statement");
         }

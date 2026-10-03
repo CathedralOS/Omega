@@ -21,6 +21,9 @@ mod tests;
 #[derive(Clone, PartialEq, Eq)]
 enum ContentType {
     Scalar(PrimitiveType),
+    /// Scalar-sized storage with synchronized mutation through shared access.
+    /// Its layout does not make the resident an immutable entry observation.
+    Atomic(PrimitiveType),
     Array(Box<ContentType>, usize),
     Slice(Box<ContentType>),
     Shared(Box<ContentType>),
@@ -39,7 +42,7 @@ enum ContentType {
 impl ContentType {
     fn size(&self) -> usize {
         match self {
-            Self::Scalar(_) | Self::ConstValue | Self::View => 1,
+            Self::Scalar(_) | Self::Atomic(_) | Self::ConstValue | Self::View => 1,
             Self::Array(element, _) => 1 + element.size(),
             Self::Slice(element) | Self::Shared(element) => 1 + element.size(),
             Self::Data(_, arguments) => 1 + arguments.iter().map(Self::size).sum::<usize>(),
@@ -357,6 +360,17 @@ fn resolve(
                 return Some(argument.clone());
             }
             if let Some(primitive) = program.primitive_type_reference(reference) {
+                let atomic = match program.symbols.builtin_type_atom(*symbol) {
+                    Some(atom) => atom.is_atomic(),
+                    None => program
+                        .placed_field_plan_for_type_reference(reference)
+                        .is_some_and(|field| {
+                            matches!(field.access, access_plans::FieldAccess::Atomic { .. })
+                        }),
+                };
+                if atomic {
+                    return Some(ContentType::Atomic(primitive));
+                }
                 return Some(ContentType::Scalar(primitive));
             }
             let data = definition(program, *symbol)?;
@@ -501,7 +515,7 @@ fn resolve(
             let contents = resolve(program, *base_type, arguments, requirement)?;
             let understood = rows.iter().all(|constraint| match constraint {
                 typed_trees::types::TypeConstraintNode::Range { .. } => {
-                    matches!(contents, ContentType::Scalar(_))
+                    matches!(contents, ContentType::Scalar(_) | ContentType::Atomic(_))
                 }
                 // Operation policy changes neither storage nor custody. The
                 // underlying contents have already been classified recursively;
@@ -527,7 +541,7 @@ fn resolve(
                             ContentsRequirement::NumericOwned
                                 | ContentsRequirement::RepresentedOwned
                                 | ContentsRequirement::StructuralConstruction
-                        ) && matches!(contents, ContentType::Scalar(_))
+                        ) && matches!(contents, ContentType::Scalar(_) | ContentType::Atomic(_))
                             && is_plain_value_domain(program, domain)
                             && crate::exact_declared_domain_interval(program, domain).is_some())
                         || (matches!(requirement,
@@ -631,6 +645,12 @@ fn check_contents(
     let ContentType::Data(symbol, arguments) = resolved else {
         return match resolved {
             ContentType::Scalar(_) => true,
+            // Shared atomic access may change the resident without invalidating
+            // the loan. Owned storage classification is not observation authority.
+            ContentType::Atomic(_) => !matches!(
+                requirement,
+                ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
+            ),
             ContentType::Array(element, _)
             | ContentType::Slice(element)
             | ContentType::Shared(element) => {

@@ -350,7 +350,7 @@ pub(crate) fn resolve_typed(
                 return unsupported("runtime field observation has an erased or ambiguous field");
             }
             let declared = match field.field_type {
-                StructuralFieldType::Scalar(scalar) => scalar,
+                StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => scalar,
                 StructuralFieldType::BoundedInteger(integer) => {
                     ScalarType::Integer(integer.integer_type())
                 }
@@ -388,7 +388,7 @@ pub(crate) fn resolve_typed(
         }
         if ordinal + 1 == path.len() {
             let declared = match field.field_type {
-                StructuralFieldType::Scalar(scalar) => scalar,
+                StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => scalar,
                 StructuralFieldType::BoundedInteger(integer) => {
                     ScalarType::Integer(integer.integer_type())
                 }

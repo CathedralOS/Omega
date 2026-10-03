@@ -117,6 +117,8 @@ pub struct CheckedUnitStructuralFieldPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralFieldType {
     Scalar(PrimitiveType),
+    /// Atomic storage retains its access contract separately from its carrier.
+    Atomic(PrimitiveType),
     BoundedInteger(semantic_vocabulary::BoundedIntegerType),
     ByteSequence(CheckedByteSequenceCarrier),
     PredicateByteSequence {

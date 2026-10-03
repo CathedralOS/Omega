@@ -249,6 +249,12 @@ fn validate_structural_fields(
             });
         }
         match &field.field_type {
+            StructuralFieldType::Atomic(_) if field.field_type.atomic_scalar_type().is_none() => {
+                return Err(ModuleError::InvalidStructuralFieldIdentity {
+                    structural_type,
+                    field: field.id,
+                });
+            }
             StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
                 return Err(ModuleError::InvalidErasedStructuralField {
                     structural_type,
@@ -264,6 +270,7 @@ fn validate_structural_fields(
                 });
             }
             StructuralFieldType::Scalar(_)
+            | StructuralFieldType::Atomic(_)
             | StructuralFieldType::BoundedInteger(_)
             | StructuralFieldType::IeeeFloat(_)
             | StructuralFieldType::Structural(_)

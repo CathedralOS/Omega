@@ -694,7 +694,9 @@ fn is_material_write_only_type(
                         return false;
                     }
                     match field.field_type {
-                        StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::Atomic(_)
+                        | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(child) => pending.push(child),
                         StructuralFieldType::ByteSequence(_)
                         | StructuralFieldType::PredicateByteSequence { .. }

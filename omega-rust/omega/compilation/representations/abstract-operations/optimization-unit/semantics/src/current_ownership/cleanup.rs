@@ -385,6 +385,7 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
                         && (!integer.is_address() || integer.bits() == 64)
                 }
                 StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::IeeeFloat(_))
+                | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::ByteSequence(_)
                 | StructuralFieldType::PredicateByteSequence { .. }
