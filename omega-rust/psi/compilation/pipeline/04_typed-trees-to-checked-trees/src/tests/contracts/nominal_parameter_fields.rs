@@ -14,6 +14,49 @@ const DEFINITIONS: &str = r#"
 "#;
 
 #[test]
+fn boundary_write_preserves_disjoint_declared_field_domains() {
+    let source = r#"
+        domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+        pub data Line { case Invalid; case Complete(count: u64); case End(count: u64); }
+        pub boundary trait Console { machine read(input: &mut [u8]) -> Line blocks; crashes Trap; }
+        data Room { label: [u8; 8] in Utf8; }
+        data Game { console: Binding<Console>; room: Room; input: [u8; 32]; }
+        machine Game::main(game: &mut Game) reaches Console {
+            transition block game.console.read(&mut game.input) {
+                Line::Complete { count } -> received(game, count)
+                Line::End { count } -> received(game, count)
+                _ -> done(game)
+            }
+            state received(game: &mut Game, count: u64) { transition { _ -> done(game) } }
+            state done(game: &mut Game) {}
+        }
+    "#;
+    for (field, accepted) in [("input", true), ("room.label", false)] {
+        let source = source.replace("&mut game.input", &format!("&mut game.{field}"));
+        let mut typed = crate::tests::front_end::typed_program_with_core_service(&source);
+        crate::tests::bind_fixture_fused_service_erasures(&mut typed);
+        match lower_typed_trees(typed, &CheckingRequest::settled()) {
+            Ok(_) => assert!(
+                accepted,
+                "writing the qualified field must retire its domain"
+            ),
+            Err(diagnostics) => {
+                assert!(
+                    !accepted,
+                    "a sibling write must preserve its facts: {diagnostics:#?}"
+                );
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains("Utf8")),
+                    "{diagnostics:#?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn receiver_and_named_inputs_share_nonzero_nested_field_obligations() {
     for (signature, subject, next_signature, next_call) in [
         ("Packet::touch(&mut self)", "self", "&mut self", "next()"),

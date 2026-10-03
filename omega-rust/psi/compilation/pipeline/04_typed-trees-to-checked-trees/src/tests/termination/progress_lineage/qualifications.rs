@@ -72,20 +72,21 @@ fn a_reference_argument_requires_its_fact_to_survive_later_operands() {
     // operand can no longer write the referent: `done(context,
     // change(context))` is a borrow conflict, not a lost fact. The claim is
     // still checked after every operand rather than at the argument's own
-    // evaluation. A later `&mut self` call on the carrier whose slot supplied
-    // the reference exposes that slot and retires the claim; a later write to
-    // a disjoint carrier field keeps it.
+    // evaluation. An opaque call may replace the carrier's reference slot;
+    // complete empty and disjoint write frames instead preserve its origin.
     for (operand, preserved) in [
         ("0", true),
         ("bump(&mut carrier.count)", true),
-        ("carrier.touch()", false),
+        ("carrier.touch()", true),
+        ("host.expose(&mut carrier)", false),
     ] {
         let fixture = source(&format!(
             r#"
-            data Carrier {{ context: &Context; count: u64; }}
+            pub data Carrier {{ context: &Context; count: u64; }}
+            pub boundary trait Host {{ machine expose(carrier: &mut Carrier) -> u64; }}
             machine Carrier::touch(&mut self) -> u64 {{ 0 }}
             machine bump(count: &mut u64) -> u64 {{ count = 1; 0 }}
-            machine route(mut carrier: Carrier) -> u64
+            machine route(host: Binding<Host>, mut carrier: Carrier) -> u64 reaches Host
             requires carrier.context.scheduler in WeakFair
             {{
                 transition {{ _ -> done(carrier.context, {operand}) }}
@@ -93,10 +94,19 @@ fn a_reference_argument_requires_its_fact_to_survive_later_operands() {
             }}
         "#
         ));
-        if preserved {
-            checked(&fixture);
-        } else {
-            reject(&fixture, "borrowed");
+        let mut typed = crate::tests::front_end::typed_program_with_core_service(&fixture);
+        crate::tests::bind_fixture_fused_service_erasures(&mut typed);
+        match lower_typed_trees(typed, &CheckingRequest::settled()) {
+            Ok(_) => assert!(preserved, "opaque write must retire the reference origin"),
+            Err(diagnostics) => {
+                assert!(!preserved, "{operand}: {diagnostics:#?}");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("cannot prove requires contract for call borrowed")),
+                    "{diagnostics:#?}"
+                );
+            }
         }
     }
 }
