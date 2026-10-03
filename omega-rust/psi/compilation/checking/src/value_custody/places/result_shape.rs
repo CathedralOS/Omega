@@ -1,6 +1,8 @@
 //! Reference-result classification for binding replacement. Literal projections
 //! use their declared fields or every possible array element; purity is not
 //! evidence that the resulting value is owned rather than a reference.
+//! Collection metadata is a scalar observation, not a storage projection:
+//! its receiver's reference carrier does not become the result's carrier.
 
 use super::{
     data_definition_for_type, data_field_or_payload_type, declared_place_type_raw,
@@ -27,6 +29,15 @@ pub(crate) fn expression_result_is_reference(
     let mut saw_result = false;
     let mut saw_reference = false;
     while let Some((expression, mut projections)) = pending.pop() {
+        if projections.is_empty()
+            && super::collection_length_receiver(program, machine, Some(state), expression)
+                .is_some()
+        {
+            // Use the shared builtin-meaning query: a nominal field named
+            // `len` may itself contain a reference and must keep its type.
+            saw_result = true;
+            continue;
+        }
         if !matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Borrow(_)
@@ -151,4 +162,45 @@ fn projected_type_is_reference(
             TypeReferenceNode::Reference { .. }
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expression_result_is_reference;
+    use typed_trees::statement::StatementNode;
+
+    #[test]
+    fn collection_metadata_does_not_erase_nominal_reference_fields() {
+        let program = crate::front_end::typed_program(
+            "data Holder { len: &u64; items: &[u32]; }
+             machine inspect(items: &[u32], fixed: &[u32; 3], holder: &Holder) {
+                 let slice_length: u64 = items.len;
+                 let array_length: u64 = fixed.len;
+                 let field_length: u64 = holder.items.len;
+                 let nominal_reference: &u64 = holder.len;
+             }",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let classifications = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| {
+                let StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                Some(expression_result_is_reference(
+                    &program,
+                    machine,
+                    state,
+                    local.initial_value,
+                ))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            classifications,
+            [Some(false), Some(false), Some(false), Some(true)]
+        );
+    }
 }

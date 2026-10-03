@@ -13,6 +13,35 @@ const SUCCESSOR_WRITE: &str = "
 ";
 
 #[test]
+fn collection_length_referent_store_retains_its_write_frame_across_calls() {
+    let program = crate::front_end::typed_program(
+        "data Main {}
+         machine Main::count(seen: &mut u64, sub: &[i32]) { seen = sub.len; }
+         machine Main::elements(seen: &mut u64, items: &[i32], lo: u64, hi: u64) {
+             transition lo <= hi && hi <= items.len {
+                 true -> Main::count(seen, items[lo..hi])
+                 false -> skipped(seen)
+             }
+             state skipped(seen: &mut u64) { seen = 0; }
+         }",
+    );
+    let resolver = crate::CallFrameResolver::new(&program).expect("resolver");
+    for machine in program.machines() {
+        let frames = resolver.inferred_machine_state_write_frames(machine);
+        for (state, frame) in program.machine_states(machine).iter().zip(frames) {
+            assert_eq!(
+                frame.complete_paths(),
+                Some(["$P0".to_owned()].as_slice()),
+                "{}::{}",
+                machine.name,
+                state.name,
+            );
+            assert_eq!(resolver.inferred_state_write_frame(machine, state), frame);
+        }
+    }
+}
+
+#[test]
 fn borrowed_array_record_replacement_has_a_storage_write_frame() {
     let program = crate::front_end::typed_program(
         "data Entry { observed: &u64; value: u64; }
