@@ -841,11 +841,23 @@ pub fn local_record_loans(
             .iter()
             .filter(|(_, loan)| facts.borrow.loan_owner_path(loan) == owner_path);
         let (handle, loan) = *matching.next()?;
+        // A stored carrier's loan kind is the access its field declared: a
+        // shared `&T` captures a read loan, exclusive carriers capture their
+        // mutable or write-only loan -- the same kind derivation
+        // `result_loan` applies to shared views.
+        let expected_kind = match source.source.access {
+            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
+            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
+            CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
+            CheckedStructuralAccess::Owned => return None,
+        };
+        let expected_segments =
+            expected_loan_segments(program, parameter.type_reference, &source.source.path)?;
         if matching.next().is_some()
             || loan.statement_index != statement_index as usize
             || loan.root_symbol != parameter.symbol
-            || loan.kind != checked_trees::BorrowAccessKind::Mutable
-            || !facts.borrow.loan_segments(loan).is_empty()
+            || loan.kind != expected_kind
+            || facts.borrow.loan_segments(loan) != expected_segments.as_slice()
         {
             return None;
         }
@@ -887,6 +899,63 @@ pub fn local_record_loans(
         output.push((source, handle));
     }
     Some(output)
+}
+
+/// The loan segments a borrowed initializer source projects under its
+/// parameter's declared type, spelled in the ownership vocabulary the
+/// ledger records. Field hops resolve through the nominal owner exactly as
+/// the owner-path walk does; literal fixed-array hops keep their ordinal.
+/// Runtime-indexed, case and referent hops have no initializer-side
+/// producer (`borrowed_initializer_source` admits Field and FixedIndex
+/// hops only), so anything else declines the source.
+fn expected_loan_segments(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Vec<facts::PlaceSegment>> {
+    let mut selected = root;
+    let mut segments = Vec::with_capacity(path.len());
+    for segment in path {
+        match segment {
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                let data = nominal_member_owner_type(program, selected)?;
+                let field = program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        typed_trees::data::DataMember::Field(field)
+                            if field.path_identity() == *identity =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    })?;
+                segments.push(facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
+                selected = field.type_reference;
+            }
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                let mut carrier = selected;
+                loop {
+                    match program.type_reference_table.type_reference(carrier) {
+                        TypeReferenceNode::Constrained { base_type, .. } => carrier = *base_type,
+                        TypeReferenceNode::FixedArray { element_type, .. }
+                        | TypeReferenceNode::Slice { element_type } => {
+                            selected = *element_type;
+                            break;
+                        }
+                        _ => return None,
+                    }
+                }
+                segments.push(facts::PlaceSegment::FixedIndex {
+                    index: usize::try_from(*index).ok()?,
+                });
+            }
+            _ => return None,
+        }
+    }
+    Some(segments)
 }
 
 /// Replay an owned actual's captured leaf at the exact consuming call. This
