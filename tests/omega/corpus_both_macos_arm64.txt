@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 5.23, "load1_start": 5.51, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 13.03, "load1_start": 13.03, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/borrows/returned_record_field_read_exit built 1319ms exit:70 interpreter-exit:70 interpreter:agrees @2816825e8941
 pass/borrows/static_record_reference_return_exit built 1196ms exit:0 interpreter-exit:0 interpreter:agrees @2816825e8941
@@ -41,8 +41,10 @@ pass/recast/runtime_record_array_view_mutable_write_exit built 4386ms exit:70 in
 pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1625ms exit:3 interpreter-exit:3 interpreter:agrees @f7e9667e2f4a
 pass/structs/case_field_type_store_shapes built 2978ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
+pass/structs/runtime_completed_array_elements_exit built 2368ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
 pass/structs/runtime_local_array_snapshot_exit built 1454ms exit:70 interpreter-exit:70 interpreter:agrees @a0af6064e4c8+wt
+pass/structs/runtime_nonzero_array_elements_exit built 2275ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt
 pass/text/declared_record_view_field_fill_exit built 1235ms exit:70 interpreter-exit:70 interpreter:agrees @20ff4f468d4e+wt
 pass/text/zii_default_string_equality_exit built 1986ms exit:70 interpreter-exit:70 interpreter:agrees @7e2fff8c80ba+wt

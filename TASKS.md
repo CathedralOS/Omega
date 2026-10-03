@@ -2076,113 +2076,39 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
-- **RECORD-LITERAL-ARRAY-FIELD.** Compose the remaining owned-array producers
-  into record literals.
-  Empty record-array fields and their nested array extents now lend through the
-  ordinary mutable-record call path: `omega run --both
-  tests/omega/pass/collections/empty_record_array_borrow_exit/main.omg` exits 0
-  natively and interpreted on Linux x86-64, after the helper writes the caller's
-  scalar neighbor. `nested_empty_record_array_borrow_exit` checks both sides of
-  a nested empty-array field and the parent record's neighbors; index 0 into the
-  same empty element type still rejects. This closes empty-shell admission and
-  native geometry, not the remaining owned element producers below.
-  Literal closed primitive array members already compose at local, nested,
-  return and field-store sites: stage 04's shared `structural_value` sends them to
-  `CheckedStructuralValueKind::ScalarArray`, whose row-major leaves are keyed
-  `StructuralArrayElement { expression, element_ordinal }`, and stage 05
-  replays each leaf and emits `EstablishScalarArray` as the record's field.
-  `pass/structs/record_literal_array_field` runs natively with exit 0; it
-  observes through `self` fields because same-state reads of such a record
-  local (`local_scalar_record_field`) and moving the local into a field
-  (`continuation cleanup owner`) are still refused. A state's owned record
-  arrival reads its array members in its block home:
-  `pass/structs/runtime_state_record_array_element_read_exit` exits 70
-  natively and on the checked interpreter.
-  Named primitive-array operands now use ordinary `CopiedStructuralPlace`:
-  `pass/structs/runtime_named_array_record_member_exit` exits 70 natively and
-  on the checked interpreter. Copy permission is separate from root discovery,
-  where whole-array call arguments already have a payload producer.
-  Case payloads now use that same producer and authored member replay.
-  `pass/structs/runtime_case_array_payload_exit` exits 70 with `omega run --both`
-  on macOS ARM64: construction stores [30, 40], and selected payload reads
-  observe both elements. Case-qualified reads compose an independently checked
-  payload-carrier copy with an ordinary primitive read; copied aggregate homes
-  retain their producer/type custody in native selection. Nested-array reads
-  verify, while leaf substitution and copies above their selecting case reject.
-  Structural-element array literals whose members are themselves literals
-  (records, closed primitive arrays, omitted zeros, nested such arrays) over a
-  zero-constructible shape now establish as one `EstablishZeroedStructural`
-  plus one authored leaf store each (stage 05
-  `structural_values/fixed_array.rs`; bounded fields carry their range
-  obligation). `pass/structs/runtime_struct_array_literal_exit` exits 70
-  natively. Remaining owned producers: elements that transfer an existing owner
-  (places, call products), shapes without a universal zero (bounded fields
-  excluding 0, views, byte sequences) and element-policy arrays still meet the
-  "fixed array literal has no Terminal establishment" refusal. The Terminal
-  interpreter lags the verifier here: it refuses affine
-  `EstablishZeroedStructural`, scalar stores into zeroed homes, and projected
-  moves out of records with fixed-array members, so stage 05's
-  `structural_array_literals` tests verify rather than execute. Both local
-  record-array customers run natively with exit 171:
-  `pass/calls/caller_structural_result_indexed_borrow_exit` lends
-  `&mut rooms[i]` of the local home as its bare element, and
-  `pass/calls/runtime_mutable_local_parameter_write_exit` reads
-  `rooms[0].exit_count` back through the selector and member. Primitive-array
-  elements now use the same exact-subtree loan rule: on macOS ARM64,
-  `pass/calls/runtime_local_scalar_array_element_loan_exit` exits 70 after a
-  helper mutates `values[position]` and the caller observes both the changed
-  value and the untouched neighbor. Terminal verification and canonical
-  encoding retain parameter/producer backing and the original projection;
-  access, availability, bounds and overlap remain independently checked.
+- **RECORD-LITERAL-ARRAY-FIELD.** Finish source observations of completed
+  view-bearing array elements. At `87fbc2ac74c` on macOS ARM64, completing two
+  `Tag { label: &[u8] in Utf8; weight: i32; }` values with literal labels,
+  moving them into `Envelope { elements: [left, right] }`, then comparing
+  `envelope.elements[0].weight` and `[1].weight` still omits the unit plan at
+  `state graph: terminator: conditional successors: guard expression`.
+  Comparing the labels fails at the same phase. This is stage 04's retained
+  guard construction in `execution/terminal_unit/state_graph/terminator.rs`,
+  before Terminal publication; byte equality alone is not the cause, and
+  construction execution for this source composition remains unverified.
+  Reproduce with the `Tag` declaration from
+  `pass/domains/record_literal_view_member_store_exit`, two completed owners
+  labelled `"amulet"`/`"ring"` with weights 3/4, and a `[Tag; 2]` record member.
+  Acceptance is `omega run --both` observing both labels and scalar neighbors
+  with exit **70**, retaining descriptor backing and ownership checks.
 
-  `pass/structs/runtime_array_member_snapshot_exit` exits 70 natively and on
-  the checked interpreter on macOS ARM64 at `03e30df59d33` plus this repair:
-  `Packet { samples: context.samples, stamp: stamp(context) }`
-  retains [30, 40] while the later operand writes the source's first element
-  to 90. Scalar bindings and effects share the projected-assignment inventory;
-  an incomplete scalar graph cannot preempt the complete ordinary effect body.
-  Checked interpretation captures owned operands before later effects through
-  one operation shared by calls and record, case, and array construction;
-  reference destinations and referents retain their aliases. The call-order
-  control `structural/runtime_structural_operand_snapshot_exit` now also
-  agrees between engines (exit 42). The mutable local-array composition is also
-  implemented: on macOS ARM64 at `a0af6064e4c`, the new
-  `structs/runtime_local_array_snapshot_exit` and its field-backed control both
-  execute natively and in the checked interpreter with exit 70 under
-  `python3 tools/corpus_gate.py --both --filter structs/runtime_local_array_snapshot_exit,structs/runtime_array_member_snapshot_exit`.
-  Ordinary local establishment and whole-array argument loans preserve the
-  earlier `[30, 40]` snapshot while the later operand changes the local to
-  `[90, 40]`. Keep `fail/borrows/local_array_borrow_operand_read` as the
-  conflicting-access control; this closes the obsolete mutable-local
-  establishment frontier, not the remaining owned element producers above.
-  The ordinary `omega run --both` route still returns exit 200 for pending
-  package-review acceptance; no project decisions were manufactured.
+  Completed owned places and ordinary call products now compose into fixed
+  record-array members, including fields whose numeric domain excludes zero:
+  `omega run --both tests/omega/pass/structs/runtime_completed_array_elements_exit/main.omg`
+  and `runtime_nonzero_array_elements_exit/main.omg` exit **70** in both engines.
+  Exact element type, extent, authored order, projected custody and restricted
+  field reads are independently checked. Keep these and the existing literal,
+  case-payload and array-snapshot controls green. Literal labels, borrowed
+  descriptors, reference-bearing elements and padded byte elements have
+  representation-level coverage; that does not close their source-to-run work.
 
-  The wire customers construct their records and call the checked codec
-  machines `omega/packages/compilation-inputs/src/wire_codec_sources.rs`
-  generates per called schema. The generated decoder's final
-  `verdict = WireVerdict::Sound` replaces the whole referent of its
-  `&mut WireVerdict` state loan through a root window
-  (`MoveStructuralField`/`StoreStructuralField` with no field and an empty
-  path; `pass/borrows/runtime_whole_referent_*_exit` exit 70 natively). On
-  macOS ARM64 with the view-arrival repair on `5fb2e19e1f1`, unchanged
-  `pass/wire/runtime_wire_decode_rejects_wrong_era_exit` and
-  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit` compile and execute
-  with exit 70 under `python3 tools/corpus_gate.py --native --filter
-  wire/runtime_wire_decode_rejects_wrong_era_exit,wire/runtime_wire_roundtrip_nested_and_repeated_exit`.
-  Terminal reconstruction now joins each borrowed view's observed length to
-  its own `ViewExtent` and substitutes exact structural arguments in state
-  arrival requirements. The full sample and noncanonical-varint customers
-  still need rerunning; their prior view-length blocker is not a current failure
-  measurement. The authored-plan customer now executes with native/interpreter
-  exit 70 on Linux x86-64 after the shared Build policy-context repair recorded
-  under CANARY-CORPUS. The round trip compiles in 163884 ms; sampling
-  found register-home validation under spill recovery, specifically
-  `05_selected-instructions-to-register-homes/src/assignment/home_assignment/validate/`.
-  Reduce that measured work without bypassing replay. Acceptance stays unchanged `samples/cli/systems/wire_protocol`
-  and `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
-  13-byte encode/decode, room 300, samples [150, -2], depth -64. Run checked
-  and interpreter/native legs; leaving an omission cluster is not execution.
+  Wire acceptance remains unchanged `samples/cli/systems/wire_protocol` and
+  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit **70** with
+  13-byte encode/decode, room 300, samples [150, -2], depth -64. Both run with
+  native/interpreter agreement at `87fbc2ac74c`; retain them as controls.
+  The former blanket zero-establishment/interpreter refusal is no longer the
+  frontier. Remaining owned byte-sequence and element-policy compositions need
+  a current failing program before selecting another implementation slice.
 
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under
