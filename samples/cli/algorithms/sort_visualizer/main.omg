@@ -23,7 +23,7 @@ requires
 domain [u8; 3]::Utf8(bytes)
 requires
     valid_utf8(bytes);
-pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes DarwinClock; }
+pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
 
 // Declared-host Clock wiring, the pattern `samples/gui/window_app` carries: a
 // provider data, a target-scoped `provider_defaults` that selects it, and a
@@ -34,7 +34,7 @@ data PacingClockProvider { }
 macos_arm64 machine PacingClockProvider::provider_defaults(defaults: &mut PacingClockProvider) {
     defaults.select_provider<Clock, PacingClockProvider>();
 }
-macos_arm64 machine PacingClockProvider::sleep(pacing_clock_provider: &mut PacingClockProvider, milliseconds: u32) satisfies Clock::sleep
+macos_arm64 machine PacingClockProvider::sleep(milliseconds: u32) satisfies Clock::sleep
 {
     let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
     let rc: i32 = darwin_poll(0, 0, timeout);

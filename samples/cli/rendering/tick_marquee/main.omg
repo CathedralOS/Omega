@@ -15,8 +15,8 @@ domain [u8; 12]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 pub boundary trait Clock2 {
-    machine sleep(&mut self, milliseconds: u32) invokes DarwinClock;
-    machine tick_count(&mut self) -> u64 invokes DarwinClock;
+    machine sleep(milliseconds: u32) invokes DarwinClock;
+    machine tick_count() -> u64 invokes DarwinClock;
 }
 
 // Declared-host Clock2 wiring over the darwin leaves. `tick_count` must answer
@@ -29,12 +29,12 @@ data MarqueeClockProvider { }
 macos_arm64 machine MarqueeClockProvider::provider_defaults(defaults: &mut MarqueeClockProvider) {
     defaults.select_provider<Clock2, MarqueeClockProvider>();
 }
-macos_arm64 machine MarqueeClockProvider::sleep(marquee_clock_provider: &mut MarqueeClockProvider, milliseconds: u32) satisfies Clock2::sleep
+macos_arm64 machine MarqueeClockProvider::sleep(milliseconds: u32) satisfies Clock2::sleep
 {
     let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
     let rc: i32 = darwin_poll(0, 0, timeout);
 }
-macos_arm64 machine MarqueeClockProvider::tick_count(marquee_clock_provider: &mut MarqueeClockProvider) -> u64 satisfies Clock2::tick_count
+macos_arm64 machine MarqueeClockProvider::tick_count() -> u64 satisfies Clock2::tick_count
 {
     let ns: u64 = darwin_clock_ns(6);
     ns / 1000000
