@@ -44,6 +44,54 @@ fn recursive_array_classification_is_policy_specific() {
 }
 
 #[test]
+fn large_homogeneous_float_values_follow_each_policys_memory_cutoff() {
+    let shapes = [
+        shape(BoundaryValueClass::Float, 8, 8),
+        shape(
+            BoundaryValueClass::FixedArray {
+                element: 0,
+                length: 4,
+            },
+            32,
+            8,
+        ),
+    ];
+    let graph = BoundaryValueGraph {
+        shapes: &shapes,
+        fields: &[],
+    };
+    for (policy, expected) in [
+        (
+            CallingPolicy::Aapcs64,
+            ValueShape::homogeneous_float_aggregate(8, 4),
+        ),
+        (CallingPolicy::SystemVAMD64, ValueShape::integer(32, 8)),
+        (CallingPolicy::MicrosoftX64, ValueShape::integer(32, 8)),
+    ] {
+        let classified = graph.classify(1, policy).unwrap();
+        assert_eq!(classified, expected);
+        graph.validate_abi_shape(1, classified, policy).unwrap();
+        crate::evaluate_ordinary_boundary_entry_plan(
+            policy,
+            &crate::CallSignature {
+                parameters: vec![classified],
+                result: Some(classified),
+            },
+        )
+        .expect("classification must be a realizable ordinary argument/result shape");
+    }
+    assert!(
+        graph
+            .validate_abi_shape(
+                1,
+                ValueShape::homogeneous_float_aggregate(8, 4),
+                CallingPolicy::SystemVAMD64
+            )
+            .is_err()
+    );
+}
+
+#[test]
 fn authored_policy_cannot_publish_a_preclassified_shape_for_the_wrong_abi() {
     let shapes = four_f32_array();
     let graph = BoundaryValueGraph {

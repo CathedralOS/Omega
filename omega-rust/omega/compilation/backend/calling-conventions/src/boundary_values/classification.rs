@@ -15,9 +15,12 @@ pub(super) fn classify_boundary_aggregate(
         .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
     let mut leaves = Vec::new();
     collect_boundary_scalar_leaves(signature, root, 0, &mut leaves, 0)?;
+    // SysV's SSE aggregate vocabulary covers at most two eightbytes. Larger
+    // homogeneous records use its ordinary memory placement, while AAPCS64
+    // still gives up to four homogeneous members dedicated floating registers.
     if let Some(members) = homogeneous_float_leaf_shape(shape, &leaves) {
         if policy == CallingPolicy::Aapcs64
-            || (policy == CallingPolicy::SystemVAMD64 && members > 1)
+            || (policy == CallingPolicy::SystemVAMD64 && members > 1 && shape.byte_size <= 16)
         {
             return Ok(ValueClass::HomogeneousFloatAggregate { members });
         }

@@ -597,31 +597,11 @@ where
     {
         return Err(invalid());
     }
-    // The call's operand roster is every register-resident argument word in
-    // canonical bank order — GPR scalars and structural referent pointers,
-    // then IEEE inputs — followed by the optional scalar result definition.
-    let register_arguments = record
-        .call
-        .scalar_arguments
-        .iter()
-        .filter(|argument| {
-            matches!(
-                argument.placement.locations.as_slice(),
-                [ValueLocation::Register { .. }]
-            )
-        })
-        .count()
-        + record
-            .call
-            .structural_arguments
-            .iter()
-            .filter(|argument| {
-                matches!(
-                    argument.destination.locations.as_slice(),
-                    [ValueLocation::Register { .. }]
-                )
-            })
-            .count();
+    // Parameter identities are not operand offsets: an aggregate may
+    // contribute multiple fragments or one owned-copy pointer.
+    let register_positions =
+        selected_instructions::calls::constraints::foreign_argument_registers(&record.call);
+    let register_arguments = register_positions.len();
     if instruction.operands.len()
         != register_arguments + foreign_result_operand_count(record).ok_or_else(invalid)?
     {
@@ -647,32 +627,6 @@ where
             }
         }
     }
-    // A callback materialization with a `Parameter` destination claims the
-    // parameter's register placement without occupying a call-row operand —
-    // the address bytes travel inside the call encoding — so its position is
-    // excluded from the operand roster here just as the arity check above
-    // already does.
-    let mut register_positions = plan
-        .parameters
-        .iter()
-        .enumerate()
-        .filter(|(position, placement)| {
-            !record.call.callbacks.iter().any(|callback| {
-                usize::try_from(callback.application.native_ordinal) == Ok(*position)
-                    && matches!(
-                        callback.destination,
-                        calling_conventions::NativePlace::Parameter(_)
-                    )
-            }) && matches!(
-                placement.locations.as_slice(),
-                [ValueLocation::Register { .. }]
-            )
-        })
-        .map(|(position, _)| position)
-        .collect::<Vec<_>>();
-    register_positions.sort_by_key(|position| {
-        plan.parameters[*position].shape.class == calling_conventions::ValueClass::Float
-    });
     let mut scalar_arguments = Vec::new();
     for (scalar_ordinal, argument) in record.call.scalar_arguments.iter().enumerate() {
         let native_position = usize::try_from(argument.parameter_index).map_err(|_| invalid())?;
@@ -686,7 +640,7 @@ where
         }
         let register_operand = register_positions
             .iter()
-            .position(|position| *position == native_position)
+            .position(|(position, _)| *position == native_position)
             .unwrap_or(register_arguments);
         let (source, span) = match argument.source {
             source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }

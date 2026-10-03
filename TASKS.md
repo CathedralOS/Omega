@@ -4257,13 +4257,22 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   arguments/results under the [calling-plan contract](wiki/spec/build/calling_plans.md).
   Owners: Omega stages 02 and 03, backend call-frame emission.
 
-  Stage 02 already retains whole owned arguments from caller parameters or
-  affine call-result homes, borrowed descriptors, and scalar formal order.
-  Stage 03's `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
-  and `selection/scalar_call_abi/normalized_foreign.rs::validate` only admit
-  nonempty field-path borrows placed as one pointer word. Extend these consumers
-  through emission using the selected aggregate locations and descriptor words;
-  owned indirect placement must not become a semantic borrow.
+  Owned whole-place arguments now use the shared ordinary/foreign argument
+  transport: independently reconstructed storage and ABI classification,
+  register fragments, floating banks, stack payloads and private indirect copies.
+  Stage 03 and fragment publication retain each fragment's native parameter
+  ordinal; an indirect owned copy is not a semantic borrow. Constructed replay
+  controls cover four target ABIs, mixed banks and register exhaustion.
+  Borrowed descriptor transport remains unfinished; extend the consumers using
+  evaluated descriptor words without substituting the descriptor's address.
+
+  On macOS ARM64, `python3 tools/corpus_gate.py --native --filter
+  providers/foreign_owned_record_exit` executes exit 70: two libc `inet_makeaddr`
+  records survive intervening calls and pass by value to `inet_lnaof`, returning
+  exact host parts 66051 and 513. Ordinary boundary input transfers now retire
+  affine locals through the same source/Terminal custody checks as internal
+  calls; constructor, internal-call and boundary-call producers preserve
+  duplicate-transfer, use-before-establishment and forged-evidence rejection.
 
   Aggregate results retain structural completion homes through target lowering,
   legalization, ordinary call-result storage, recovery encoding and fragment
@@ -4281,9 +4290,12 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   retained evaluated plans; signature/callback catalog permutations are removed.
   Constructed selection and encoding tests cover multi-register, floating and
   indirect results on all four targets, including corrupted placement and call
-  rosters. Native indirect-result execution and owned/descriptor arguments remain
-  unfinished; complete them using the evaluated ABI plan, preserving the
-  distinction between storage geometry and ABI classification. The native
+  rosters. Native indirect-result execution and descriptor arguments remain
+  unfinished. Complete physical foreign-call evidence still has a borrowed
+  projection-only source join in `native-artifact/src/physical/derivation/foreign_calls.rs`;
+  successful native execution does not close that evidence frontier. Extend it
+  from exact Terminal occurrences and retained plans, preserving the distinction
+  between storage geometry and ABI classification. The native
   `providers/` sweep still has the pre-existing provider-admission rejection in
   `checked_boundary_requirement_dispatch_exit` and the Linux-only execution
   requirement in `kernel_import_result_chain_exit` on macOS; neither is pinned

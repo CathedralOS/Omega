@@ -47,6 +47,53 @@ pub fn foreign_call_record<'function>(
     (matching.next().is_none() && unique == record).then_some(record)
 }
 
+/// Explicit parameter register fragments in the retained call's operand order.
+///
+/// This is a projection, not plan or source-custody validation. Call owners
+/// still independently validate their retained evidence. A multi-register value
+/// contributes every fragment; an owned indirect value contributes its pointer.
+/// Stack fragments have no call operand, and private callback parameters are
+/// materialized by the call encoding rather than ordinary argument transport.
+pub fn foreign_argument_registers(
+    call: &LegalizedNormalizedForeignCall,
+) -> Vec<(usize, MachineRegister)> {
+    let mut parameters = call
+        .binding
+        .boundary_entry_plan
+        .call
+        .parameters
+        .iter()
+        .enumerate()
+        .filter(|(position, _)| {
+            !call.callbacks.iter().any(|callback| {
+                usize::try_from(callback.application.native_ordinal) == Ok(*position)
+                    && matches!(callback.destination, NativePlace::Parameter(_))
+            })
+        })
+        .collect::<Vec<_>>();
+    parameters.sort_by_key(|(_, placement)| placement.shape.class == ValueClass::Float);
+    parameters
+        .into_iter()
+        .flat_map(|(position, placement)| {
+            placement
+                .locations
+                .iter()
+                .filter_map(move |location| match location {
+                    ValueLocation::Register { register, .. }
+                    | ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Register(register),
+                        ..
+                    } => Some((position, *register)),
+                    ValueLocation::Stack { .. }
+                    | ValueLocation::Indirect {
+                        pointer: IndirectPointerLocation::Stack { .. },
+                        ..
+                    } => None,
+                })
+        })
+        .collect()
+}
+
 /// Derive exact explicit operands and implicit effects for one retained call.
 ///
 /// Register fragments preserve placement order within each authored parameter;
@@ -179,34 +226,12 @@ pub fn instantiate_foreign_call_constraint(
     row.implicit_uses.sort_unstable();
     row.implicit_uses.dedup();
 
-    let mut parameters = plan
-        .call
-        .parameters
-        .iter()
-        .enumerate()
-        .filter(|(parameter, _)| !private_parameters.contains(parameter))
-        .collect::<Vec<_>>();
-    parameters.sort_by_key(|(_, placement)| placement.shape.class == ValueClass::Float);
-    for (_, placement) in parameters {
-        for location in &placement.locations {
-            let register = match location {
-                ValueLocation::Register { register, .. }
-                | ValueLocation::Indirect {
-                    pointer: IndirectPointerLocation::Register(register),
-                    ..
-                } => *register,
-                ValueLocation::Stack { .. }
-                | ValueLocation::Indirect {
-                    pointer: IndirectPointerLocation::Stack { .. },
-                    ..
-                } => continue,
-            };
-            append_operand(
-                &mut row,
-                register_view(physical, register, &fixed_register_view)?,
-                RegisterOperandAccess::Use,
-            )?;
-        }
+    for (_, register) in foreign_argument_registers(call) {
+        append_operand(
+            &mut row,
+            register_view(physical, register, &fixed_register_view)?,
+            RegisterOperandAccess::Use,
+        )?;
     }
     if let Some(result) = &plan.call.result {
         for location in &result.locations {
