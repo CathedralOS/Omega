@@ -5,7 +5,7 @@ use omega::language::core::binding;
 // bag.cells.as_mut_slice()` lends the array's contiguous storage under an
 // exclusive loan. The machine writes an element through the view and
 // observes the write through the owning collection on the transition guard.
-// `sow` exercises the same establishment rooted at `self`.
+// `sow` exercises the same establishment rooted at the subject.
 
 data Bag {
     cells: [i32; 4];

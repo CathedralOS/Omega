@@ -4,7 +4,7 @@
 // computes (11 versus 37). The build selects `right::Runner::run` as
 // ProgramEntry through `builder.product.entry`, a helper returns the
 // description, and `roots.bind` consumes it. `run` observes its own
-// module's provider result through the ordinary `self.reader.read()` call
+// module's provider result through the ordinary `main.reader.read()` call
 // and the state branch, then exits with it: a swapped selection or a
 // leaf-keyed attachment that crossed modules exits 11 or 65.
 use left;

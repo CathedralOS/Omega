@@ -1,4 +1,4 @@
-// A two-case `transition self` match where BOTH arms return their own case's
+// A two-case `transition` on the subject match where BOTH arms return their own case's
 // payload lowers as one structural split: each case edge binds its payload
 // parameter and the arm returns it. The mc_self2 wall left the else arm's
 // deferred read unsubstituted on the shared field carrier. Exits 70 only when

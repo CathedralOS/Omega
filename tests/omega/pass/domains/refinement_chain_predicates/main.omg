@@ -1,5 +1,5 @@
 // A refinement chain declares a child domain whose requirements include the
-// parent's: `domain Player::Alive::Critical` desugars to `requires self in
+// parent's: `domain Player::Alive::Critical` desugars to `requires player in
 // Player::Alive` plus the child's own facts. Establishing the child discharges
 // the parent predicate first, then the child's, and the member-relative
 // spelling `Player in Alive::Critical` names `Player::Alive::Critical`.
