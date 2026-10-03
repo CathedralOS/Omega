@@ -2,8 +2,9 @@
 // params, the dominating guard `lo <= hi && hi <= main.arr.len` (a) lowers
 // natively (the fixed-array `.len` guard-operand fold -> CompareStaticValue)
 // and (b) discharges the prover's subslice bound obligations; the true arm
-// passes `main.arr[lo..hi]` as a slice ARGUMENT (frame-slot START + END feed
-// the seeded-then-shrunk descriptor). consume sees len 3 -> exit 3.
+// passes `main.arr[lo..hi]` as a slice argument. The consumer sees length 3.
+// An empty window reaches the consumer; reversed and out-of-range bounds
+// return the refusal code without evaluating a slice. Success exits 3.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -12,25 +13,29 @@ data Main {
     arr: [i32; 5];
 }
 
-machine Main::main(main: &mut Main) {
-    transition { _ -> Main::view(main, 1, 4) }
-}
-
-machine Main::view(main: &mut Main, lo: u64, hi: u64) reaches Console {
-    let arr_lo__hi_value: i32 = main.arr[lo..hi];
-    transition lo <= hi && hi <= main.arr.len {
-        true -> Main::consume(main, arr_lo__hi_value)
-        false -> bad(main)
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i32 = Main::view(main, 1, 4);
+    let empty: i32 = Main::view(main, 5, 5);
+    let reversed: i32 = Main::view(main, 4, 1);
+    let outside: i32 = Main::view(main, 1, 6);
+    transition result == 3 && empty == 0 && reversed == 8 && outside == 8 {
+        true -> finish(main, result)
+        false -> finish(main, 9)
     }
-    state bad(main: &mut Main) { main.console.exit_process(8); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
-machine Main::consume(main: &mut Main, sub: &[i32]) reaches Console {
+machine Main::view(main: &Main, lo: u64, hi: u64) -> i32 {
+    transition lo <= hi && hi <= main.arr.len {
+        true -> Main::consume(main.arr[lo..hi])
+        false -> 8
+    }
+}
+
+machine Main::consume(sub: &[i32]) -> i32 {
     let n: u64 = sub.len;
     transition n == 3 {
-        true -> matched(main)
-        false -> unmatched(main)
+        true -> 3
+        false -> 0
     }
-    state matched(main: &mut Main) { main.console.exit_process(3); }
-    state unmatched(main: &mut Main) { main.console.exit_process(0); }
 }
