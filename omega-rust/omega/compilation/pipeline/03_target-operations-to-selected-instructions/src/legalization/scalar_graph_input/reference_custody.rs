@@ -283,92 +283,6 @@ pub(in crate::legalization) fn writable_referent_destination(
     returned_mutable_record_projection(custody, function, types, carrier, path)
 }
 
-/// Rejoin one call-only projection through a returned mutable record. The
-/// target row retains its actual pointer home and explicit referent crossing.
-pub(in crate::legalization) fn returned_record_call_argument(
-    argument: &StructuralArgument,
-    declaration: &terminal_psi::StructuralParameterDeclaration,
-    destination: &calling_conventions::ValuePlacement,
-    caller: &PsiOptimizationFunction,
-    target_caller: &super::TargetFunction,
-    custody: &Custody,
-    types: &[StructuralTypeDeclaration],
-) -> Result<Option<target_operations::TargetStructuralArgument>, LegalizationError> {
-    let Some(resolved) =
-        returned_mutable_record_projection(custody, caller, types, argument.place, &argument.path)
-    else {
-        return Ok(None);
-    };
-    let Some((StructuralPathSegment::Referent, _)) = argument.path.split_first() else {
-        return Ok(None);
-    };
-    if argument.access == StructuralAccess::Owned
-        || argument.access != declaration.access
-        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
-        || !declaration.qualifications.is_empty()
-        || !declaration.projected_qualifications.is_empty()
-    {
-        return Err(invalid());
-    }
-    let has_exact_home = target_caller.graph.blocks.iter().flat_map(|block| &block.operations).any(|operation| {
-        matches!(operation, target_operations::TargetUnitOperation::Call {
-            psi_operation,
-            result: target_operations::TargetCallResult::Structural { result, result_home: Some(_), .. },
-            ..
-        } if *psi_operation == resolved.producer && result == &resolved.result)
-    });
-    let access_is_compatible = matches!(
-        argument.access,
-        StructuralAccess::SharedBorrow
-            | StructuralAccess::MutableBorrow
-            | StructuralAccess::WriteOnlyBorrow
-    );
-    let (selected, source_byte_offset) =
-        crate::structural_inputs::structural_reference_input::project(
-            resolved.referent,
-            &resolved.path,
-            types,
-        )
-        .ok_or_else(invalid)?;
-    let selected_shape =
-        crate::structural_inputs::structural_reference_input::shape(selected, types)
-            .ok_or_else(invalid)?;
-    let expected_shape = calling_conventions::ValueShape::borrowed_reference(
-        selected_shape.byte_size,
-        selected_shape.alignment,
-    );
-    let source_shape =
-        crate::structural_inputs::structural_reference_input::shape(resolved.referent, types)
-            .ok_or_else(invalid)?;
-    if !has_exact_home
-        || !access_is_compatible
-        || selected != declaration.structural_type
-        || destination.shape != expected_shape
-        || selected_shape
-            .byte_size
-            .checked_add(source_byte_offset)
-            .is_none_or(|end| end > source_shape.byte_size)
-    {
-        return Err(invalid());
-    }
-    Ok(Some(target_operations::TargetStructuralArgument {
-        place: argument.place,
-        access: argument.access,
-        path: argument.path.clone(),
-        root_structural_type: resolved.result.structural_type,
-        structural_type: selected,
-        shape: destination.shape,
-        source_byte_offset,
-        fixed_array_length: None,
-        element_stride: None,
-        indices: Vec::new(),
-        source: target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: resolved.producer,
-        },
-        destination: destination.clone(),
-    }))
-}
-
 #[track_caller]
 fn invalid() -> LegalizationError {
     LegalizationError::custody()
@@ -1872,10 +1786,8 @@ fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) ->
     true
 }
 
-/// Resolve a `.., Referent` call argument through the replayed custody map to
-/// its referent root place. The emitted target argument names the root's ABI
-/// placement (or local producer) as transport evidence; custody — which leaf
-/// loans the referent — is retained in `path`, never in pointer bits.
+/// Transport the live reference leaf's address word from its original carrier.
+/// Custody proves the loan; its possible origins never select runtime pointer bits.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::legalization) fn referent_argument(
     argument: &StructuralArgument,
@@ -1886,96 +1798,134 @@ pub(in crate::legalization) fn referent_argument(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let Some((StructuralPathSegment::Referent, carrier_path)) = argument.path.split_last() else {
-        return Err(invalid());
-    };
-    let referent_scalar = super::primitive_locals::scalar(types, declaration.structural_type)
-        .and_then(super::scalar_shape)
-        .ok_or_else(|| invalid())?;
-    if argument.access == StructuralAccess::Owned
+    let crossing = argument
+        .path
+        .iter()
+        .position(|segment| matches!(segment, StructuralPathSegment::Referent))
+        .ok_or_else(invalid)?;
+    if argument.path.iter().enumerate().any(|(position, segment)| {
+        position != crossing
+            && !matches!(
+                segment,
+                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            )
+    }) || argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
-        || declaration.is_self
         || declaration.multiplicity != StructuralMultiplicity::Unrestricted
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
-        || destination.shape
-            != calling_conventions::ValueShape::borrowed_reference(
-                referent_scalar.byte_size,
-                referent_scalar.alignment,
-            )
     {
         return Err(invalid());
     }
+    let (carrier_path, crossing_and_suffix) = argument.path.split_at(crossing);
+    let suffix = &crossing_and_suffix[1..];
     let leaf = custody
         .leaf(argument.place, carrier_path)
-        .ok_or_else(|| invalid())?;
-    if leaf.referent != declaration.structural_type {
+        .ok_or_else(invalid)?;
+    if custody
+        .leaves
+        .values()
+        .any(|child| child.parent.as_ref() == Some(&leaf.identity))
+    {
         return Err(invalid());
     }
-    let Root::Place(root) = &leaf.root else {
-        // An ingress leaf's referent storage belongs to the caller; no local
-        // pointer exists to transport.
+    let root_type = source_contract(caller, custody, argument.place).ok_or_else(invalid)?;
+    let (reference_type, _) = crate::structural_inputs::structural_reference_input::project(
+        root_type,
+        carrier_path,
+        types,
+    )
+    .ok_or_else(invalid)?;
+    let StructuralTypeShape::Reference { referent, access } = types
+        .iter()
+        .find(|declaration| declaration.id == reference_type)
+        .ok_or_else(invalid)?
+        .shape
+    else {
         return Err(invalid());
     };
-    let (root_type, source) =
-        if let Some((producer, result, value)) = super::primitive_locals::producer(caller, *root) {
-            if !super::primitive_locals::valid_result(caller, producer, result) {
-                return Err(invalid());
-            }
-            let referent_shape = super::scalar_shape(value.scalar_type).ok_or_else(|| invalid())?;
-            if destination.shape
-                != calling_conventions::ValueShape::borrowed_reference(
-                    referent_shape.byte_size,
-                    referent_shape.alignment,
-                )
-            {
-                return Err(invalid());
-            }
-            (
-                result.structural_type,
-                target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-                    psi_operation: producer,
-                },
-            )
-        } else {
-            let source = super::structural_parameters(target_caller)
-                .and_then(|parameters| parameters.iter().find(|parameter| parameter.place == *root))
-                .ok_or_else(|| invalid())?;
-            let allowed = match source.access {
-                StructuralAccess::MutableBorrow => true,
-                StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-                StructuralAccess::WriteOnlyBorrow => {
-                    argument.access == StructuralAccess::WriteOnlyBorrow
-                }
-                StructuralAccess::Owned => false,
-            };
-            if !allowed {
-                return Err(invalid());
-            }
-            (source.structural_type, source.placement.clone().into())
-        };
-    if root_type != declaration.structural_type {
-        let reference_type = source_contract(caller, custody, argument.place)
-            .and_then(|carrier| leaf_type(types, carrier, carrier_path))
+    let allowed = match access {
+        StructuralAccess::MutableBorrow => matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        ),
+        StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+        _ => false,
+    };
+    let (selected, source_byte_offset) =
+        crate::structural_inputs::structural_reference_input::project(referent, suffix, types)
             .ok_or_else(invalid)?;
-        if argument.access != StructuralAccess::SharedBorrow
-            || !terminal_semantics::reference_source_compatible(
-                types.iter(),
-                root_type,
-                reference_type,
-            )
+    let shape = crate::structural_inputs::structural_reference_input::shape(selected, types)
+        .ok_or_else(invalid)?;
+    if !allowed
+        || leaf.referent != referent
+        || selected != declaration.structural_type
+        || destination.shape
+            != calling_conventions::ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
+    {
+        return Err(invalid());
+    }
+    let source = if let Some(parameter) = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)
+    {
+        let retained = super::structural_parameters(target_caller)
+            .and_then(|parameters| {
+                parameters
+                    .iter()
+                    .find(|parameter| parameter.place == argument.place)
+            })
+            .ok_or_else(invalid)?;
+        if parameter.access == StructuralAccess::WriteOnlyBorrow
+            || retained.structural_type != root_type
         {
             return Err(invalid());
         }
-    }
+        retained.placement.clone().into()
+    } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == argument.place)
+            .map(|parameter| (block.id, parameter))
+    }) {
+        if parameter.access != StructuralAccess::Owned
+            || parameter.multiplicity == StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return Err(invalid());
+        }
+        target_operations::TargetStructuralArgumentSource::BlockParameter {
+            block,
+            place: argument.place,
+        }
+    } else {
+        let (producer, result) = super::structural_case::source_result(caller, argument.place)?;
+        if result.structural_type != root_type
+            || result.multiplicity == StructuralMultiplicity::Linear
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+        {
+            return Err(invalid());
+        }
+        target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: producer,
+        }
+    };
     Ok(target_operations::TargetStructuralArgument {
-        place: *root,
+        place: argument.place,
         access: argument.access,
         path: argument.path.clone(),
         root_structural_type: root_type,
-        structural_type: declaration.structural_type,
+        structural_type: selected,
         shape: destination.shape,
-        source_byte_offset: 0,
+        source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
         indices: Vec::new(),

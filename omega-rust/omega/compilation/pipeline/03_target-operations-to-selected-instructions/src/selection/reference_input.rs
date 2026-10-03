@@ -159,36 +159,68 @@ pub(super) fn store_destination<'path>(
     mutable_projection(function, result.place, path)
 }
 
-pub(super) fn is_reference_type(
-    function: &LegalizedScalarFunction,
-    identity: StructuralTypeId,
-) -> bool {
-    function.structural.as_ref().is_some_and(|signature| {
-        signature.structural_types.iter().any(|declaration| {
-            declaration.id == identity
-                && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-        })
-    })
-}
-
 /// An outgoing borrow transports the pointer word, not the carrier home's
 /// address. Exact target metadata must retain the authored carrier and path.
 pub(super) fn borrowed_argument(
     function: &LegalizedScalarFunction,
     argument: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
-) -> Option<u32> {
-    let target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } =
-        target.source
+) -> Option<BorrowedReferenceAddress> {
+    let root = root_type(function, argument.place)?;
+    let signature = function.structural.as_ref()?;
+    let declarations = &signature.structural_types;
+    match &target.source {
+        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            let (producer, result) = super::aggregate_result_input::home(function, argument.place)?;
+            if producer != *psi_operation || result.structural_type != root {
+                return None;
+            }
+        }
+        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            let parameter = signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == argument.place)?;
+            if parameter.target.placement != *placement
+                || parameter.semantic.structural_type != root
+                || parameter.semantic.access == StructuralAccess::WriteOnlyBorrow
+            {
+                return None;
+            }
+        }
+        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            let (owner, parameter) =
+                super::aggregate_result_input::block_home(function, argument.place)?;
+            if owner != *block || *place != argument.place || parameter.structural_type != root {
+                return None;
+            }
+        }
+        _ => return None,
+    }
+    let crossing = argument
+        .path
+        .iter()
+        .position(|segment| matches!(segment, StructuralPathSegment::Referent))?;
+    if argument.path.iter().enumerate().any(|(position, segment)| {
+        position != crossing
+            && !matches!(
+                segment,
+                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            )
+    }) {
+        return None;
+    }
+    let (prefix, crossing_and_suffix) = argument.path.split_at(crossing);
+    let suffix = &crossing_and_suffix[1..];
+    let (carrier, descriptor_offset) =
+        crate::structural_inputs::structural_reference_input::project(root, prefix, declarations)?;
+    let StructuralTypeShape::Reference { referent, access } = declarations
+        .iter()
+        .find(|declaration| declaration.id == carrier)?
+        .shape
     else {
         return None;
     };
-    let (producer, result) = super::aggregate_result_input::home(function, argument.place)?;
-    let (referent, access) = carrier_referent(function, result)?;
-    let (StructuralPathSegment::Referent, suffix) = argument.path.split_first()? else {
-        return None;
-    };
-    let declarations = &function.structural.as_ref()?.structural_types;
     let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
         referent,
         suffix,
@@ -207,11 +239,10 @@ pub(super) fn borrowed_argument(
         _ => false,
     };
     (allowed_access
-        && producer == psi_operation
         && target.place == argument.place
         && target.path == argument.path
         && target.access == argument.access
-        && target.root_structural_type == result.structural_type
+        && target.root_structural_type == root
         && target.structural_type == selected
         && target.source_byte_offset == offset
         && target.shape == ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
@@ -219,7 +250,15 @@ pub(super) fn borrowed_argument(
         && target.indices.is_empty()
         && target.fixed_array_length.is_none()
         && target.element_stride.is_none())
-    .then_some(offset)
+    .then_some(BorrowedReferenceAddress {
+        descriptor_offset,
+        referent_offset: offset,
+    })
+}
+
+pub(super) struct BorrowedReferenceAddress {
+    pub(super) descriptor_offset: u32,
+    pub(super) referent_offset: u32,
 }
 
 fn carrier_referent(

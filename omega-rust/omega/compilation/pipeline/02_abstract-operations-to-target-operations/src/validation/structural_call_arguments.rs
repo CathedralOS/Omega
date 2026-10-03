@@ -2730,37 +2730,18 @@ impl Replay<'_> {
         declared: &StructuralParameterDeclaration,
         expected_plan: &CallPlan,
     ) -> Result<(), OperationId> {
-        if matches!(semantic.path.first(), Some(StructuralPathSegment::Referent)) {
-            if self.returned_record_projection(psi_operation, actual, semantic, declared) {
-                let Some(destination) = expected_plan.parameters.get(plan_index) else {
-                    return Err(psi_operation);
-                };
-                return (actual.destination == *destination)
-                    .then_some(())
-                    .ok_or(psi_operation);
-            }
-            if semantic.path.len() > 1 {
+        if semantic.path.contains(&StructuralPathSegment::Referent) {
+            if !self.reference_projection(actual, semantic, declared) {
                 return Err(psi_operation);
             }
+            return expected_plan
+                .parameters
+                .get(plan_index)
+                .is_some_and(|destination| actual.destination == *destination)
+                .then_some(())
+                .ok_or(psi_operation);
         }
-        // A `.., Referent` argument transports the referent root's
-        // pointer: `place` names the root whose canonical storage
-        // `source` must identify (replayed by argument-source custody),
-        // while `path` retains the carrier-relative custody projection
-        // verbatim. The carrier place itself is loan custody, not a
-        // pointer source.
-        if matches!(semantic.path.last(), Some(StructuralPathSegment::Referent)) {
-            if !matches_referent_argument(
-                actual,
-                semantic,
-                declared,
-                self.declarations,
-                self.source,
-                self.roots,
-            ) {
-                return Err(psi_operation);
-            }
-        } else if !matches_argument_identity(actual, semantic, declared) {
+        if !matches_argument_identity(actual, semantic, declared) {
             return Err(psi_operation);
         }
         let Some(referent) =
@@ -2987,22 +2968,24 @@ impl Replay<'_> {
         Ok(())
     }
 
-    /// Reconstruct a projected argument through one earlier returned mutable
-    /// record. Both rows retain the actual address carrier; the target offset
-    /// is measured after loading its pointer, not within a guessed ingress.
-    fn returned_record_projection(
+    /// Reconstruct the carrier descriptor and its referent projection from
+    /// source types. Canonical storage is checked separately against the same
+    /// carrier place; provenance never substitutes for the stored pointer.
+    fn reference_projection(
         &self,
-        call: OperationId,
         actual: &TargetStructuralArgument,
         semantic: &StructuralArgument,
         declared: &StructuralParameterDeclaration,
     ) -> bool {
-        let [StructuralPathSegment::Referent, suffix @ ..] = semantic.path.as_slice() else {
+        let Some(crossing) = semantic
+            .path
+            .iter()
+            .position(|segment| *segment == StructuralPathSegment::Referent)
+        else {
             return false;
         };
-        if semantic.access == StructuralAccess::Owned
-            || actual.access != semantic.access
-            || actual.access != declared.access
+        if !matches_argument_identity(actual, semantic, declared)
+            || semantic.access == StructuralAccess::Owned
             || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !declared.qualifications.is_empty()
             || !declared.projected_qualifications.is_empty()
@@ -3012,97 +2995,46 @@ impl Replay<'_> {
         {
             return false;
         }
-        let Some(call_position) = self.source.operations.iter().position(|operation| {
-            matches!(operation, AbstractOperation::CallStructural { psi_operation, .. }
-                if *psi_operation == call)
-        }) else {
+        let Some(root) = self.roots.get(&semantic.place) else {
             return false;
         };
-        let mut producers = self.source.operations[..call_position].iter().filter_map(
-            |operation| match operation {
-                AbstractOperation::CallStructural {
-                    psi_operation,
-                    result:
-                        AbstractStructuralCallResult::Structural {
-                            result,
-                            returned_claim_transfers,
-                            selected_evidence,
-                        },
-                    ..
-                } if result.place == semantic.place => Some((
-                    *psi_operation,
-                    result,
-                    returned_claim_transfers,
-                    selected_evidence,
-                )),
-                _ => None,
-            },
-        );
-        let Some((producer, result, returned_claims, evidence)) = producers.next() else {
+        let Ok((reference_type, _)) = structural_shapes::project_static_path(
+            root.structural_type,
+            &semantic.path[..crossing],
+            self.declarations,
+        ) else {
             return false;
         };
-        if producers.next().is_some()
-            || !returned_claims.is_empty()
-            || !evidence.is_empty()
-            || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.qualification_establishments.is_empty()
-            || !result.claims.is_empty()
-        {
-            return false;
-        }
-        let Some((referent, access)) = self.declarations.iter().find_map(|declaration| {
-            if declaration.id != result.structural_type {
-                return None;
-            }
-            match &declaration.shape {
-                StructuralTypeShape::Reference { referent, access } => Some((*referent, *access)),
-                _ => None,
-            }
-        }) else {
-            return false;
-        };
-        if access != StructuralAccess::MutableBorrow {
-            return false;
-        }
-        if !self.declarations.iter().any(|declaration| {
-            declaration.id == referent
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-        }) {
-            return false;
-        }
-        let Some([reference]) = self
-            .expected_reference_results
-            .get(&producer)
-            .map(Vec::as_slice)
+        let Some(StructuralTypeShape::Reference { referent, access }) = self
+            .declarations
+            .iter()
+            .find(|declaration| declaration.id == reference_type)
+            .map(|declaration| &declaration.shape)
         else {
             return false;
         };
-        if !reference.path.is_empty()
-            || reference.root_paths.is_empty()
-            || actual.place != semantic.place
+        if !(*access == semantic.access
+            || *access == StructuralAccess::MutableBorrow
+                && matches!(
+                    semantic.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
         {
             return false;
         }
-        let Ok((selected, offset)) =
-            structural_shapes::project_static_path(referent, suffix, self.declarations)
-        else {
+        let Ok((selected, offset)) = structural_shapes::project_static_path(
+            *referent,
+            &semantic.path[crossing + 1..],
+            self.declarations,
+        ) else {
             return false;
         };
-        // Custody retains every possible origin, but the callee consumes the
-        // address actually returned. The offset is relative to that referent,
-        // never to the carrier's pointer-storage home or an arbitrary origin.
-        actual.path == semantic.path
-            && actual.root_structural_type == result.structural_type
+        actual.root_structural_type == root.structural_type
             && actual.structural_type == selected
-            && actual.structural_type == declared.structural_type
             && actual.source_byte_offset == offset
-            && actual.source
-                == TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: producer,
-                }
-            && matches_projected_carrier(actual, selected, self.declarations)
+            && structural_shapes::reconstruct(selected, self.declarations).is_ok_and(|shape| {
+                actual.shape == structural_shapes::parameter_shape(shape, actual.access)
+            })
     }
 
     /// The retained result row must be the source-declared result verbatim,
@@ -3486,110 +3418,6 @@ fn matches_argument_identity(
         && actual.structural_type == declared.structural_type
 }
 
-/// A `.., Referent` argument carries the referent root's pointer, so the
-/// compositional `place` + `path` reading does not apply: `place` names the
-/// root place whose canonical storage `source` must identify (replayed by
-/// `structural_argument_sources`), `path` retains the carrier-relative custody
-/// projection verbatim, and the declared parameter must be a primitive
-/// borrowed reference. No projection offset or array descriptor is
-/// transported.
-fn matches_referent_argument(
-    actual: &TargetStructuralArgument,
-    semantic: &StructuralArgument,
-    declared: &StructuralParameterDeclaration,
-    declarations: &[StructuralTypeDeclaration],
-    source: &AbstractFunction,
-    roots: &BTreeMap<PlaceId, RootDeclaration>,
-) -> bool {
-    let Some((StructuralPathSegment::Referent, carrier_path)) = semantic.path.split_last() else {
-        return false;
-    };
-    let Some(backing) = roots.get(&actual.place) else {
-        return false;
-    };
-    let mut carrier_types = source
-        .operations
-        .iter()
-        .filter_map(AbstractOperation::structural_result)
-        .filter(|(_, result)| result.place == semantic.place)
-        .map(|(_, result)| result.structural_type)
-        .chain(
-            source
-                .structural_parameters
-                .iter()
-                .chain(
-                    source
-                        .block_entries
-                        .iter()
-                        .filter(|entry| entry.block != source.entry)
-                        .flat_map(|entry| &entry.structural_parameters),
-                )
-                .filter(|parameter| parameter.place == semantic.place)
-                .map(|parameter| parameter.structural_type),
-        );
-    let Some(carrier_type) = carrier_types.next() else {
-        return false;
-    };
-    if carrier_types.next().is_some() {
-        return false;
-    }
-    let Ok((reference_type, _)) =
-        structural_shapes::project_static_path(carrier_type, carrier_path, declarations)
-    else {
-        return false;
-    };
-    let Some(StructuralTypeShape::Reference { referent, access }) = declarations
-        .iter()
-        .find(|declaration| declaration.id == reference_type)
-        .map(|declaration| &declaration.shape)
-    else {
-        return false;
-    };
-    // The root remains the original producer's storage; the reference leaf
-    // supplies the independently checked observation type and access.
-    if *referent != declared.structural_type
-        || !(*access == semantic.access
-            || *access == StructuralAccess::MutableBorrow
-                && matches!(
-                    semantic.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                ))
-        || actual.root_structural_type != backing.structural_type
-        || (actual.root_structural_type != declared.structural_type
-            && (semantic.access != StructuralAccess::SharedBorrow
-                || !terminal_semantics::reference_source_compatible(
-                    declarations.iter(),
-                    backing.structural_type,
-                    reference_type,
-                )))
-    {
-        return false;
-    }
-    carrier_path
-        .iter()
-        .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-        && semantic.access != StructuralAccess::Owned
-        && !declared.is_self
-        && declared.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && declared.access != StructuralAccess::Owned
-        && declared.qualifications.is_empty()
-        && declared.projected_qualifications.is_empty()
-        && matches!(
-            declarations
-                .iter()
-                .find(|declaration| declaration.id == declared.structural_type)
-                .map(|declaration| &declaration.shape),
-            Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
-        )
-        && actual.access == semantic.access
-        && actual.access == declared.access
-        && actual.path == semantic.path
-        && actual.structural_type == declared.structural_type
-        && actual.source_byte_offset == 0
-        && actual.fixed_array_length.is_none()
-        && actual.element_stride.is_none()
-}
-
 fn no_code_cleanup(actions: &[TerminalAffineCleanupAction]) -> bool {
     actions.iter().all(|action| {
         matches!(
@@ -3893,6 +3721,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 ..
             } => (result.place, result.structural_type, result.multiplicity, true),
             AbstractOperation::EstablishRecord { result, .. }
+            | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::EstablishStructuralLocal { result, .. }
             | AbstractOperation::StructuralLeafCopy { result, .. }

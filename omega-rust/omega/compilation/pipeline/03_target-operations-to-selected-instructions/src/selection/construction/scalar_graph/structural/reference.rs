@@ -118,11 +118,26 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: semantic_vocabulary::PlaceId,
-    offset: u32,
+    address: crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
     // Keep ordinary call ownership/provenance admission before loading payload.
-    let home = super::call_pointer(builder, row, place, 0)?;
-    let pointer = load(builder, row, place, home)?;
+    let home = super::call_pointer(builder, row, place, address.descriptor_offset)?;
+    let pointer = transport_register(builder, place, address.descriptor_offset)?;
+    memory(
+        builder,
+        row,
+        place,
+        address.descriptor_offset,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load64 { byte_offset: 0 },
+        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        &[home, pointer],
+        provenance(row),
+    )?;
+    let offset = address.referent_offset;
     let output = transport_register(builder, place, offset)?;
     builder.emit(
         if offset == 0 {

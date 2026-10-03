@@ -77,22 +77,19 @@ pub(super) fn validate(
     let source = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
-            let source = crate::emission::call_source_custody::projected_receivers::source(
+            crate::emission::call_source_custody::projected_receivers::source(
                 checked,
                 caller.symbol,
                 state.symbol,
                 statement as usize,
                 named,
-            )?;
-            if source.path != argument.path {
-                return unsupported("record operand substituted its projected path");
-            }
-            source
+            )?
         }
         _ => return unsupported("record operand has no supported source owner"),
     };
     let root = source.root;
     let endpoint = source.endpoint();
+    let whole_source = source.path.is_empty();
     let parameters = checked.state_parameters(state);
     let reference = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -184,7 +181,7 @@ pub(super) fn validate(
                 // place below. Their enclosing attachment need not have an
                 // incidentally interned named type; its identity was checked
                 // above independently of the producer's argument plan.
-                if argument.path.is_empty() {
+                if whole_source {
                     checked
                         .type_reference_table
                         .find_named_type_reference(caller.attached_data_symbol)
@@ -200,7 +197,7 @@ pub(super) fn validate(
         }
         _ => return unsupported("record operand has no supported source owner"),
     };
-    let reference = if argument.path.is_empty() {
+    let reference = if whole_source {
         reference
     } else {
         validation::declared_place_type_raw(&checked.typed, caller, Some(state), named).ok_or(
@@ -216,13 +213,12 @@ pub(super) fn validate(
     {
         return unsupported("borrowed operand has unrepresented source constraints");
     }
-    // A stored-borrow endpoint (`message.body: &Cell`) presents the referent
-    // its captured reference observes — the same carrier a shared-borrow
-    // local's own declared type already produces at the source owner match
-    // above. Peel admitted reference layers to the referent: a mutable
-    // referent loans into any readable formal, a shared one only into a
-    // shared formal — the same authority rule the local arm applies.
+    // Reconstruct both the referent type and its address. Each stored shell
+    // crossed here contributes a Referent step; the captured authored place
+    // remains unchanged for borrow-fact replay. Checking type alone would
+    // accept a descriptor address as though it named the backing value.
     let mut carrier = peeled;
+    let mut projected_path = source.path.clone();
     loop {
         let TypeReferenceNode::Reference {
             access, referee, ..
@@ -235,7 +231,11 @@ pub(super) fn validate(
         {
             break;
         }
+        projected_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
         carrier = validation::peel_declared_constraints(&checked.typed, *referee);
+    }
+    if projected_path != argument.path {
+        return unsupported("record operand substituted its projected referent path");
     }
     match checked.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { .. } => {}
@@ -381,6 +381,69 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+
+    #[test]
+    fn whole_borrowed_source_rejects_an_invented_reference_crossing() {
+        for local in [false, true] {
+            let prefix = if local { "let view: &Cell = cell;" } else { "" };
+            let argument = if local { "view" } else { "cell" };
+            let checked = crate::front_end::checked_program(&format!(
+                "data Cell {{ value: i32; }}
+                 machine read(cell: &Cell) -> i32 {{ cell.value }}
+                 machine exercise(cell: &Cell) -> i32 {{ {prefix} read({argument}) }}"
+            ));
+            let plans = &checked.facts.values.scalar_computations;
+            let root = plans
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .find(|root| {
+                    matches!(plans.nodes.get(root.root).kind,
+                    CheckedScalarComputationKind::Call { structural_arguments, .. }
+                        if !structural_arguments.is_empty())
+                })
+                .expect("borrowed call computation")
+                .clone();
+            let expression = plans.nodes.get(root.root).authored_root;
+            let replay = |candidate: &checked_trees::CheckedTrees| {
+                super::super::validate_computation_calls(
+                    candidate,
+                    root.machine,
+                    root.state,
+                    root.statement_ordinal,
+                    root.root,
+                    expression,
+                )
+            };
+            replay(&checked).expect("whole source borrows its existing referent");
+            let CheckedScalarComputationKind::Call {
+                structural_arguments,
+                ..
+            } = plans.nodes.get(root.root).kind
+            else {
+                panic!("call");
+            };
+            let mut changed = checked.clone();
+            let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+                changed
+                    .facts
+                    .values
+                    .scalar_computations
+                    .structural_arguments
+                    .get_mut(structural_arguments.start())
+            else {
+                panic!("place");
+            };
+            assert!(argument.path.is_empty());
+            argument
+                .path
+                .push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+            assert!(
+                replay(&changed).is_err(),
+                "an untrusted path cannot change how the authored root is interpreted"
+            );
+        }
+    }
 
     #[test]
     fn qualified_byte_field_computation_replays_exact_path_access_and_carrier() {

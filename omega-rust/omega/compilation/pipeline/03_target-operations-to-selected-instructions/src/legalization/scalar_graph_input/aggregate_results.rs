@@ -535,12 +535,12 @@ pub(in crate::legalization) fn call_argument(
         .structural_parameters
         .get(position)
         .ok_or(LegalizationError::custody())?;
-    // `.., Referent` spellings resolve through replayed reference custody;
-    // the transported value names the referent root, never the carrier.
-    if matches!(
-        argument.path.last(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
+    // Reference arguments load the exact live descriptor in their carrier.
+    if argument
+        .path
+        .iter()
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
+    {
         let target_caller = native
             .functions
             .iter()

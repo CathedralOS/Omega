@@ -12,6 +12,8 @@ use terminal_production::{
 };
 use terminal_psi::{OperationKind, Terminator};
 
+mod stored_carriers;
+
 #[test]
 fn local_record_returned_loan_replays_exact_root_path_and_access() {
     for (declaration, argument) in [

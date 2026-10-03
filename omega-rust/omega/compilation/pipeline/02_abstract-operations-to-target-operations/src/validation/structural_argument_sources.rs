@@ -158,6 +158,11 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 result,
                 ..
             }
+            | AbstractOperation::EstablishReference {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::EstablishScalarArray {
                 psi_operation,
                 result,

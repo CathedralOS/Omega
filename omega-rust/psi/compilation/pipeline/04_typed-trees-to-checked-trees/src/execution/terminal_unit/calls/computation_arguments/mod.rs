@@ -515,11 +515,26 @@ pub(crate) fn borrowed_nominal_argument(
     {
         return None;
     }
-    let (reference, path) = if place.segments.is_empty() {
+    let (mut reference, mut path) = if place.segments.is_empty() {
         (reference, Vec::new())
     } else {
         projected_borrowed_path(program, machine, state.symbol, call.statement_index, place)?
     };
+    // The selected storage and the callee's referent are different endpoints
+    // when the storage contains a reference. Normalize type and address in
+    // lockstep: type-only normalization would pass the descriptor as its
+    // referent. Root formal loans were already represented by their referent
+    // above; only reference shells still present here require a crossing.
+    while let Some(shell) = validation::reference_shell(program, reference) {
+        if shell.access != language_semantics::ReferenceAccess::Mutable
+            && !(shell.access == language_semantics::ReferenceAccess::Shared
+                && target_access == CheckedStructuralAccess::SharedBorrow)
+        {
+            return None;
+        }
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        reference = shell.referee;
+    }
     // Eligibility belongs to the borrowed endpoint, not its unrelated siblings.
     // Root membership/access and the exact authored receiver loan are retained
     // independently; this never constructs or copies the enclosing record.
@@ -679,7 +694,6 @@ pub(crate) fn borrowed_nominal_argument(
     } else {
         shapes.add_type(target.type_reference, &[], &[])?
     };
-    let mut path = path;
     if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source
         && let Some((ordinal, _)) = program.state_local_declaration(state, symbol)
         && validation::reference_result_custody::primitive_local_source(program, state, ordinal)

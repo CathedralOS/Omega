@@ -22,22 +22,12 @@ pub(super) fn validate_borrowed_argument(
     else {
         return None;
     };
-    // A whole returned record and its children borrow through the completed
-    // carrier's address word. Primitive static referents keep their route below.
-    if (semantic.path.len() > 1
-        || signature.structural_types.iter().any(|declaration| {
-            declaration.id == target.structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::Record { .. }
-                )
-        }))
-        && matches!(
-            semantic.path.first(),
-            Some(terminal_psi::StructuralPathSegment::Referent)
-        )
+    if semantic
+        .path
+        .iter()
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
     {
-        return validate_returned_record_projection(
+        return validate_reference_argument(
             source,
             call,
             operation,
@@ -45,23 +35,6 @@ pub(super) fn validate_borrowed_argument(
             semantic,
             target,
             indices,
-            signature,
-        );
-    }
-    // A `.., Referent` argument transports its referent root's pointer; the
-    // carrier place names loan custody only and is never a pointer source.
-    if matches!(
-        semantic.path.last(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
-        return validate_referent_argument(
-            source,
-            call,
-            operation,
-            argument_index,
-            semantic,
-            target,
-            signature,
         );
     }
     // Only incoming structural parameters participate in the caller's ABI.
@@ -585,12 +558,8 @@ pub(super) fn validate_borrowed_argument(
     Some(())
 }
 
-/// Validate the physical pointer row for a child borrowed through one
-/// returned mutable-record carrier. Selection checks the completed carrier
-/// home and referent-relative geometry. The possible origins remain guarded by
-/// `validate_optimized_selection_custody`, which re-legalizes this immutable
-/// plan from the raw target/reference-result roster before publication.
-fn validate_returned_record_projection(
+/// Reconstruct a reference leaf's address independently of its producer family.
+fn validate_reference_argument(
     source: &LegalizedScalarFunction,
     call: &LegalizedScalarCall,
     operation: semantic_vocabulary::OperationId,
@@ -598,81 +567,14 @@ fn validate_returned_record_projection(
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
-    signature: &legalized_operations::LegalizedStructuralContract,
 ) -> Option<()> {
-    let (terminal_psi::StructuralPathSegment::Referent, suffix) = semantic.path.split_first()?
-    else {
+    if !indices.is_empty() {
         return None;
-    };
-    if !suffix.iter().all(|segment| {
-        matches!(
-            segment,
-            terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_)
-        )
-    }) || semantic.access == StructuralAccess::Owned
-        || target.access != semantic.access
-        || target.fixed_array_length.is_some()
-        || target.element_stride.is_some()
-        || !indices.is_empty()
-        || target.path != semantic.path
+    }
+    if matches!(target.source, target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } if psi_operation == operation)
     {
         return None;
     }
-    let mut producers = source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter_map(|instruction| match &instruction.kind {
-            legalized_operations::LegalizedScalarInstructionKind::Call(produced)
-                if instruction.operation != operation
-                    && produced
-                        .structural_result
-                        .as_ref()
-                        .is_some_and(|result| result.place == semantic.place) =>
-            {
-                Some((instruction.operation, produced))
-            }
-            _ => None,
-        });
-    let (producer, produced) = producers.next()?;
-    if producers.next().is_some() {
-        return None;
-    }
-    let result = produced.structural_result.as_ref()?;
-    if producer == operation
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !result.claims.is_empty()
-    {
-        return None;
-    }
-    let (referent, access) = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
-        .and_then(|declaration| match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { referent, access } => {
-                Some((*referent, *access))
-            }
-            _ => None,
-        })?;
-    if access != StructuralAccess::MutableBorrow
-        || !signature.structural_types.iter().any(|declaration| {
-            declaration.id == referent
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::Record { .. }
-                )
-        })
-    {
-        return None;
-    }
-    // Rejoin the actual producer and full authored crossing. A static ingress
-    // re-root is no longer an alternative representation of this argument:
-    // selection must load the address returned by the executed callee.
     crate::selection::reference_input::borrowed_argument(source, semantic, target)?;
     let shape = target.shape;
     let expected = evaluate_call_plan(
@@ -756,152 +658,4 @@ fn exclusive_projection_shape(
             shape.byte_size,
             shape.alignment,
         ))
-}
-
-/// A `.., Referent` argument transports its referent root's pointer; the
-/// carrier place names loan custody only. Legalization's custody replay
-/// resolved the root; this join re-derives the same ABI identity from the
-/// retained argument metadata alone.
-fn validate_referent_argument(
-    source: &LegalizedScalarFunction,
-    call: &LegalizedScalarCall,
-    operation: semantic_vocabulary::OperationId,
-    argument_index: usize,
-    semantic: &terminal_psi::StructuralArgument,
-    target: &target_operations::TargetStructuralArgument,
-    signature: &legalized_operations::LegalizedStructuralContract,
-) -> Option<()> {
-    let (last, carrier_path) = semantic.path.split_last()?;
-    if !matches!(last, terminal_psi::StructuralPathSegment::Referent)
-        || !carrier_path
-            .iter()
-            .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
-        || semantic.access == StructuralAccess::Owned
-        || target.access != semantic.access
-        || target.path != semantic.path
-        || target.source_byte_offset != 0
-        || target.fixed_array_length.is_some()
-        || target.element_stride.is_some()
-    {
-        return None;
-    }
-    let carrier = crate::selection::reference_input::root_type(source, semantic.place)?;
-    let (reference_type, _) = crate::structural_inputs::structural_reference_input::project(
-        carrier,
-        carrier_path,
-        &signature.structural_types,
-    )?;
-    let terminal_psi::StructuralTypeShape::Reference { referent, access } = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == reference_type)?
-        .shape
-    else {
-        return None;
-    };
-    if referent != target.structural_type
-        || !(access == semantic.access
-            || access == StructuralAccess::MutableBorrow
-                && matches!(
-                    semantic.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                ))
-        || (target.root_structural_type != target.structural_type
-            && (semantic.access != StructuralAccess::SharedBorrow
-                || !terminal_semantics::reference_source_compatible(
-                    signature.structural_types.iter(),
-                    target.root_structural_type,
-                    reference_type,
-                )))
-    {
-        return None;
-    }
-    let scalar = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == target.structural_type)
-        .and_then(|declaration| match declaration.shape {
-            terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-            _ => None,
-        })?;
-    let referent = scalar_shape(scalar)?;
-    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
-    if target.shape != shape || target.destination.shape != shape {
-        return None;
-    }
-    match &target.source {
-        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-            psi_operation,
-        } => {
-            let (producer, result, local_scalar, _) =
-                crate::selection::primitive_local_input::local(source, target.place)?;
-            if *psi_operation != producer
-                || producer == operation
-                || result.structural_type != target.root_structural_type
-                || scalar_shape(local_scalar)?.byte_size != referent.byte_size
-                || scalar_shape(local_scalar)?.alignment != referent.alignment
-            {
-                return None;
-            }
-        }
-        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
-            let parameter = signature
-                .parameters
-                .iter()
-                .find(|parameter| parameter.semantic.place == target.place)?;
-            let allowed = match parameter.semantic.access {
-                StructuralAccess::MutableBorrow => true,
-                StructuralAccess::SharedBorrow => semantic.access == StructuralAccess::SharedBorrow,
-                StructuralAccess::WriteOnlyBorrow => {
-                    semantic.access == StructuralAccess::WriteOnlyBorrow
-                }
-                StructuralAccess::Owned => false,
-            };
-            if !allowed
-                || parameter.semantic.structural_type != target.root_structural_type
-                || parameter.semantic.is_self
-                || *placement != parameter.target.placement
-            {
-                return None;
-            }
-        }
-        _ => return None,
-    }
-    let expected = evaluate_call_plan(
-        source.call_plan.policy,
-        &CallSignature {
-            parameters: call
-                .arguments
-                .iter()
-                .enumerate()
-                .map(|(position, argument)| match argument {
-                    LegalizedScalarArgument::Scalar {
-                        source: value,
-                        placement,
-                    } => {
-                        let shape = scalar_shape(scalar_value_type(source, *value)?)?;
-                        (placement.shape == shape).then_some(shape)
-                    }
-                    LegalizedScalarArgument::Structural { target, .. } => {
-                        Some(if position == argument_index {
-                            shape
-                        } else {
-                            target.shape
-                        })
-                    }
-                })
-                .collect::<Option<Vec<_>>>()?,
-            result: call
-                .result_placement
-                .as_ref()
-                .map(|placement| placement.shape),
-        },
-    )
-    .ok()?;
-    if call.call_plan != expected
-        || Some(&target.destination) != expected.parameters.get(argument_index)
-    {
-        return None;
-    }
-    Some(())
 }
