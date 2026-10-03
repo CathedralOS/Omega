@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.12, "load1_start": 2.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.18, "load1_start": 6.18, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -474,7 +474,7 @@ pass/domains/bodyless_owner_establishment checked 181ms
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 146ms
 pass/domains/call_requires_domain_intersection_preserved checked 198ms
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 186ms
-pass/domains/case_payload_predicate_domain_member_exit built 881ms exit:70 @b496135c814a
+pass/domains/case_payload_predicate_domain_member_exit built 881ms exit:70 @2efb222df04d
 pass/domains/domain_operator_requires_discharged checked 202ms
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 196ms
 pass/domains/domain_param_forwarded checked 218ms
@@ -487,7 +487,7 @@ pass/domains/module_domain_narrow_import_spelling checked 143ms
 pass/domains/qualified_mutable_field_exit built 1115ms exit:0 @b027f59996c3+wt
 pass/domains/record_interval_domain_member_exit built 857ms exit:70 @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit built 1047ms exit:70 stdout:match @bd26d3a01ac1+wt
-pass/domains/record_predicate_domain_member_exit built 970ms exit:70 @b496135c814a
+pass/domains/record_predicate_domain_member_exit built 970ms exit:70 @2efb222df04d
 pass/domains/refinement_chain_predicates checked 148ms
 pass/domains/refinement_chain_routed_provenance checked 167ms
 pass/domains/runtime_result_domain_machine_overload_exit built 1950ms exit:70 @48008365d839
