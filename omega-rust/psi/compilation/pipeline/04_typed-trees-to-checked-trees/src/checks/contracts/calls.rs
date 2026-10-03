@@ -67,6 +67,12 @@ pub(super) fn check_call_requires(
                         expression,
                         incoming_guards,
                         call_frames,
+                    ) || super::current_values::proves_call(
+                        program,
+                        state_flow,
+                        call_flow,
+                        expression,
+                        call_frames,
                     )
                 }
                 _ => semantic_contexts_prove_contract_fact(
