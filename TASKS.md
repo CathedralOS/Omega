@@ -2571,14 +2571,6 @@ same flow already performed, not the check itself.
   OMEGA_LOWER_MEMO=1` on the corpus runner; the default parallel job count
   makes the counts order-dependent).
 
-- **LOWERING-NOMINAL-RETURN-CLONE.** (new-scope) Stage 05's
-  `returns/structural_scalar_return/nominal.rs` (`let mut staged =
-  checked.clone()`) copies the entire `CheckedTrees` for each nominal
-  structural return it stages. Stage the return against a local record of the
-  changed facts instead. Acceptance: no `checked.clone()` in stage 05
-  non-test code; corpus `--filter returns,structs/` check and native
-  unchanged.
-
 - **CHECKED-LEDGER-VERIFY-ONCE.** (new-scope) Stage 05's
   `machine_lowering/checked_ledger.rs::verify` is now linear in events: each
   permission event resolves its machine through `machine_by_symbol` and its
