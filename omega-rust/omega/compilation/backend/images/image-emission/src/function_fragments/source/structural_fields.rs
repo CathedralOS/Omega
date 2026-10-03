@@ -1063,8 +1063,10 @@ pub(super) fn retained(
         }
         // Rejoin the pointer's exact producer home above; source/graph replay
         // checks live custody. Origin alternatives must not select its address.
+        // Observation retains the carrier's declaration; it does not mint a
+        // separate shared loan or erase the existing mutable permission.
         carrier = *referent;
-        access = terminal_psi::StructuralAccess::SharedBorrow;
+        access = *reference_access;
         root_path.push(terminal_psi::StructuralPathSegment::Referent);
     }
     // A final `Case` step names the payload overlay the field belongs to. It

@@ -312,6 +312,23 @@ fn returned_reference_source(projected: bool) -> abstract_operations::AbstractOp
             source: place(8),
         },
     );
+    // Reading after replacement retains the carrier's actual mutable access;
+    // an observation must not rewrite that declaration as a shared loan.
+    caller.operations.insert(
+        4,
+        AbstractOperation::StructuralScalarFieldRead {
+            psi_operation: operation(30),
+            result: abstract_operations::AbstractResult {
+                value: semantic_vocabulary::ValueId::new(30).unwrap(),
+                scalar_type: integer(64),
+            },
+            source: place(8),
+            path: vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(2).unwrap(),
+            )],
+            field: StructuralFieldId::new(1).unwrap(),
+        },
+    );
     source.functions.push(callee);
     source
 }
@@ -350,6 +367,31 @@ fn returned_reference_window_loads_the_pointer_and_replays_exact_custody() {
         )
         .unwrap();
         let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+            StructuralAccess::Owned,
+        ] {
+            let mut changed = legal.plan().clone();
+            let observation = changed.scalar_functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|row| row.operation == operation(30))
+                .expect("read after replacement");
+            let legalized_operations::LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                source: argument,
+                ..
+            } = &mut observation.kind
+            else {
+                unreachable!()
+            };
+            argument.access = access;
+            assert!(
+                crate::validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                "observation must retain the exact carrier declaration, not substitute {access:?}"
+            );
+        }
         let environment =
             register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = crate::selection_constraints(&legal, &environment);
@@ -422,7 +464,7 @@ fn returned_reference_window_loads_the_pointer_and_replays_exact_custody() {
                 "mutation {mutation}"
             );
         }
-        for operation in [operation(2), operation(3)] {
+        for operation in [operation(2), operation(3), operation(30)] {
             let mut changed = selected.plan().clone();
             let block = &mut changed.functions[0].blocks[0];
             let pointer_load = block

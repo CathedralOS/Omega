@@ -242,103 +242,60 @@ pub(super) fn read_geometry(
                     return None;
                 }
                 parameter.structural_type
-            } else if let Some(result) = source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
-                .find_map(|row| match &row.kind {
-                    Instruction::EstablishElementView { result, .. }
-                    | Instruction::ElementViewSubslice { result, .. } => {
-                        (result.place == argument.place).then_some(result)
-                    }
-                    _ => None,
-                })
-            {
-                // A read through an element view resolves the view's declared
-                // element geometry; either view family lends a SharedBorrow
-                // read, matching the access minted at legalization.
-                let expected_access = match result.multiplicity {
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine => {
-                        StructuralAccess::SharedBorrow
-                    }
-                    _ => return None,
-                };
-                if argument.access != expected_access {
-                    return None;
-                }
-                result.structural_type
             } else {
-                let mut producers = source
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
-                    .filter_map(|row| {
-                        // Explicit and zeroed construction, copies and call
-                        // results all publish owned homes. Reads retain the
-                        // exact producer/type custody regardless of how that
-                        // home's fields were initialized.
-                        let result = match &row.kind {
-                            Instruction::EstablishReference { result, .. }
-                            | Instruction::EstablishRecord { result, .. }
-                            | Instruction::EstablishZeroedStructural { result, .. }
-                            | Instruction::StructuralLeafCopy { result, .. } => result,
-                            Instruction::Call(call) => call.structural_result.as_ref()?,
-                            _ => return None,
-                        };
-                        (result.place == argument.place).then_some((row.operation, result))
-                    });
-                let (producer, result) = producers.next()?;
-                if producers.next().is_some()
-                    || result.multiplicity == StructuralMultiplicity::Linear
+                // The producer publishes the exact storage declaration. Reads
+                // consume that identity, not a second list of admitted producer
+                // operations. Replaying geometry cannot create permissions.
+                let (_, result) =
+                    super::aggregate_result_input::operation_result(source, argument.place)?;
+                if result.multiplicity == StructuralMultiplicity::Linear
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
                     || !result.claims.is_empty()
-                    || !signature.structural_places.iter().any(|declaration| {
-                        declaration.id == argument.place
-                            && declaration.kind
-                                == StructuralPlaceKind::OperationResult {
-                                    producer,
-                                    structural_type: result.structural_type,
-                                }
-                    })
                 {
                     return None;
                 }
-                let expected_access = if signature.structural_types.iter().any(|declaration| {
-                    declaration.id == result.structural_type
-                        && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-                }) {
-                    StructuralAccess::SharedBorrow
-                } else {
-                    StructuralAccess::Owned
+                let expected_access = match signature
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == result.structural_type)?
+                    .shape
+                {
+                    // A read does not attenuate the retained carrier declaration:
+                    // mutable references remain mutable, even when observing.
+                    StructuralTypeShape::Reference { access, .. } => access,
+                    StructuralTypeShape::ElementView { .. } => StructuralAccess::SharedBorrow,
+                    _ => StructuralAccess::Owned,
                 };
                 if argument.access != expected_access {
                     return None;
                 }
                 result.structural_type
             };
-            let (structural_type, path) =
-                if let Some((terminal_psi::StructuralPathSegment::Referent, suffix)) =
-                    argument.path.split_first()
-                {
-                    let StructuralTypeShape::Reference {
-                        referent,
-                        access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
-                    } = signature
-                        .structural_types
-                        .iter()
-                        .find(|declaration| declaration.id == structural_type)?
-                        .shape
-                    else {
-                        return None;
-                    };
-                    if argument.access != StructuralAccess::SharedBorrow {
-                        return None;
-                    }
-                    (referent, suffix)
-                } else {
-                    (structural_type, argument.path.as_slice())
+            let (structural_type, path) = if let Some((
+                terminal_psi::StructuralPathSegment::Referent,
+                suffix,
+            )) = argument.path.split_first()
+            {
+                let StructuralTypeShape::Reference {
+                    referent,
+                    access:
+                        access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                } = signature
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == structural_type)?
+                    .shape
+                else {
+                    return None;
                 };
+                if argument.access != access {
+                    return None;
+                }
+                (referent, suffix)
+            } else {
+                (structural_type, argument.path.as_slice())
+            };
             // A case-qualified read loads from its payload overlay; the
             // offset comes from that declared case's layout, never the row.
             let (offset, _) = match &row.kind {
