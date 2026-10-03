@@ -142,11 +142,11 @@ machine Main::main(main: &mut Main) reaches Console {
     state check_f64(main: &mut Main, ok: bool) {
         transition ok { true -> good(main) false -> bad_f64(main) }
     }
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad_f32_negative_payload(main: &mut Main) { main.console.exit_process(71); }
-    state bad_f32_negative_nan(main: &mut Main) { main.console.exit_process(72); }
-    state bad_f32_zero(main: &mut Main) { main.console.exit_process(73); }
-    state bad_f32_positive_nan(main: &mut Main) { main.console.exit_process(74); }
-    state bad_f32_positive_payload(main: &mut Main) { main.console.exit_process(75); }
-    state bad_f64(main: &mut Main) { main.console.exit_process(77); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad_f32_negative_payload(main: &mut Main) { Console::exit_process(71); }
+    state bad_f32_negative_nan(main: &mut Main) { Console::exit_process(72); }
+    state bad_f32_zero(main: &mut Main) { Console::exit_process(73); }
+    state bad_f32_positive_nan(main: &mut Main) { Console::exit_process(74); }
+    state bad_f32_positive_payload(main: &mut Main) { Console::exit_process(75); }
+    state bad_f64(main: &mut Main) { Console::exit_process(77); }
 }
