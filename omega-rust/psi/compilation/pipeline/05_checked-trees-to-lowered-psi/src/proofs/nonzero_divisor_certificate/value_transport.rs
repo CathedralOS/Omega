@@ -53,12 +53,32 @@ pub(super) fn prove(
 struct RetainedEqualities {
     refined: Vec<ProofNode>,
     defining: Vec<ProofNode>,
+    alternatives: Vec<(usize, ProofNode)>,
 }
 
 impl RetainedEqualities {
-    fn forms(self) -> impl Iterator<Item = Vec<ProofNode>> {
-        let defining = (self.refined != self.defining).then_some(self.defining);
-        std::iter::once(self.refined).chain(defining)
+    fn forms(&self) -> impl Iterator<Item = Vec<ProofNode>> + '_ {
+        let defining = (self.refined != self.defining).then_some(&self.defining);
+        std::iter::once(&self.refined)
+            .chain(defining)
+            .map_while(|equalities| {
+                super::search_context::spend(equalities.len() as u64)?;
+                Some(equalities.clone())
+            })
+            .chain(
+                self.alternatives
+                    .iter()
+                    .map_while(|(position, alternative)| {
+                        // The checker uses the first equation for a subject. Offer
+                        // one competing equation at a time, retaining its checked
+                        // citation and dependency closure. This is a bounded linear
+                        // search, not a Cartesian product of all equation choices.
+                        super::search_context::spend(self.defining.len() as u64)?;
+                        let mut equalities = self.defining.clone();
+                        equalities[*position] = alternative.clone();
+                        Some(equalities)
+                    }),
+            )
     }
 }
 
@@ -76,6 +96,7 @@ fn retained_equalities(
     let mut equalities = RetainedEqualities {
         refined: Vec::new(),
         defining: Vec::new(),
+        alternatives: Vec::new(),
     };
     let mut remaining = 4096usize;
     while let Some(value) = pending.pop() {
@@ -87,13 +108,15 @@ fn retained_equalities(
         // Prefer a defining equation over an alias in the opposite direction.
         // In particular an incoming formal must not be expanded back into the
         // result whose definition already depends on that formal.
-        let fact = facts.iter().find(|fact| {
+        let mut definitions = facts.iter().filter(|fact| {
             matches!(fact.proposition,
                 Proposition::Equal(left @ ScalarTerm::Value { id, .. }, right)
                     if *id == value && left != right
             )
         });
-        let Some(fact) = fact else { continue };
+        let Some(fact) = definitions.next() else {
+            continue;
+        };
         let Proposition::Equal(endpoint, observed) = fact.proposition else {
             continue;
         };
@@ -146,7 +169,20 @@ fn retained_equalities(
         };
         equality.conclusion.visit_value_ids(&mut retain_dependency);
         if &equality.conclusion != fact.proposition {
-            fact.proposition.visit_value_ids(retain_dependency);
+            fact.proposition.visit_value_ids(&mut retain_dependency);
+        }
+        for alternative in definitions {
+            remaining = remaining.checked_sub(1)?;
+            super::search_context::spend(1)?;
+            if alternative.proposition == fact.proposition {
+                continue;
+            }
+            alternative
+                .proposition
+                .visit_value_ids(&mut retain_dependency);
+            equalities
+                .alternatives
+                .push((equalities.defining.len(), alternative.proof()));
         }
         equalities.refined.push(equality);
         equalities.defining.push(fact.proof());
