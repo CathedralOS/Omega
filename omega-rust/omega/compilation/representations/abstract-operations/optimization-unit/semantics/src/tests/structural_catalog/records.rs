@@ -458,3 +458,60 @@ fn refined_record_fields_require_exact_current_value_and_predicate_authority() {
 }
 
 mod calls;
+
+#[test]
+fn record_initializers_skip_erased_declarations_without_renumbering_fields() {
+    for affine in [false, true] {
+        let mut candidate = record_unit(affine);
+        let mut declarations = candidate.structural_types.to_vec();
+        let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
+            unreachable!();
+        };
+        let mut left = fields[0].clone();
+        let mut right = fields[1].clone();
+        left.id = id(932, semantic_vocabulary::StructuralFieldId::new);
+        right.id = id(934, semantic_vocabulary::StructuralFieldId::new);
+        let erased = |ordinal| StructuralFieldDeclaration {
+            id: id(ordinal, semantic_vocabulary::StructuralFieldId::new),
+            identity: format!("erased{ordinal}"),
+            relevance: terminal_psi::BindingRelevance::Erased,
+            field_type: StructuralFieldType::Erased {
+                type_identity: "EvidenceWithNominalCleanup".into(),
+            },
+        };
+        *fields = vec![erased(931), left, erased(933), right, erased(935)];
+        candidate.structural_types = declarations.into();
+        for node in &mut candidate.functions[0].blocks[0].nodes[1..3] {
+            let AbstractOperation::EstablishRecord { fields, .. } = &mut node.operation else {
+                unreachable!();
+            };
+            fields[0].field = id(932, semantic_vocabulary::StructuralFieldId::new);
+            fields[1].field = id(934, semantic_vocabulary::StructuralFieldId::new);
+        }
+        refresh_function_derivatives(&mut candidate, 0);
+        validate_psi_optimization_unit(&candidate)
+            .expect("erased declarations retain semantic identity but no runtime custody");
+        for mutation in ["erased", "missing", "duplicate", "order"] {
+            let mut changed = candidate.clone();
+            let AbstractOperation::EstablishRecord { fields, .. } =
+                &mut changed.functions[0].blocks[0].nodes[1].operation
+            else {
+                unreachable!();
+            };
+            match mutation {
+                "erased" => fields[0].field = id(931, semantic_vocabulary::StructuralFieldId::new),
+                "missing" => {
+                    fields.pop();
+                }
+                "duplicate" => fields.push(fields[0].clone()),
+                "order" => fields.reverse(),
+                _ => unreachable!(),
+            }
+            refresh_function_derivatives(&mut changed, 0);
+            assert!(
+                validate_psi_optimization_unit(&changed).is_err(),
+                "{mutation}"
+            );
+        }
+    }
+}

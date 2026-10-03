@@ -151,7 +151,7 @@ pub(super) fn register_custody_operation(
         return Ok(true);
     }
     if let OperationKind::EstablishRecord { fields } = &operation.kind {
-        super::super::record::fields(module, machine, operation)?;
+        let _ = super::super::record::fields(module, machine, operation)?;
         for obligation in fields.iter().filter_map(|field| match field.value {
             terminal_psi::RecordFieldValue::Scalar {
                 range_obligation, ..

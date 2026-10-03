@@ -762,7 +762,10 @@ fn establish_record(
             ));
         }
     };
-    if declarations.len() != fields.len() {
+    let declarations = declarations
+        .iter()
+        .filter(|field| !field.relevance.is_erased());
+    if declarations.clone().count() != fields.len() {
         return Err(invalid(
             function,
             block,
@@ -782,7 +785,7 @@ fn establish_record(
     }
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
-    for (declaration, field) in declarations.iter().zip(fields) {
+    for (declaration, field) in declarations.zip(fields) {
         let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };

@@ -1,0 +1,26 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Evidence { tag: i32; }
+machine Evidence::drop(evidence: &mut Evidence) {}
+data Carrier { before: i32; proof [erased]: Evidence; after: i32; }
+data Main { console: Binding<Console>; }
+
+machine inspect(carrier: &Carrier) -> bool {
+    carrier.before == 17 && carrier.after == 29
+}
+machine run() -> bool {
+    let carrier: Carrier = Carrier {
+        after: 29, proof: Evidence { tag: 101 }, before: 17
+    };
+    inspect(&carrier)
+}
+machine Main::main(main: &mut Main) reaches Console {
+    let observed: bool = run();
+    transition observed {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &Main) { main.console.exit_process(70); }
+    state bad(main: &Main) { main.console.exit_process(71); }
+}

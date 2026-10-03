@@ -55,3 +55,22 @@ fn copy_composition_excludes_exclusive_references_and_affine_records() {
         );
     }
 }
+
+#[test]
+fn erased_type_witnesses_do_not_grant_copy_authority() {
+    for property in ["", "[linear]"] {
+        let program = crate::front_end::typed_program(&format!(
+            "data Witness {property} {{ tag: u64; }}
+             data Invalid [copy] {{ proof [erased]: Witness; }}
+             machine entry() {{}}",
+        ));
+        let diagnostics = crate::validate_program(&program)
+            .expect_err("erased affine and linear Type witnesses remain noncopyable");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("data `Invalid` declares `[copy]` but field `proof` is not `copy`")),
+            "{property}: {diagnostics:?}"
+        );
+    }
+}

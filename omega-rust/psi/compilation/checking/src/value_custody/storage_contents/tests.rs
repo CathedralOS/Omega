@@ -571,7 +571,6 @@ fn borrowed_storage_does_not_erase_exclusive_access_or_opaque_members() {
         "data Packet { readings: &write [i32]; }",
         "data Packet { readings: &mut [u8]; }",
         "data Packet { readings: &mut i32; }",
-        "data Packet { readings [erased]: &[i32]; }",
         "data Packet [linear] { readings: &[i32]; }",
         "data Packet { count: AtomicU64; }",
         "data Packet { value: i32 in Even; }",
@@ -586,4 +585,111 @@ fn borrowed_storage_does_not_erase_exclusive_access_or_opaque_members() {
             "{declaration}"
         );
     }
+}
+
+#[test]
+fn erased_members_preserve_semantics_without_becoming_runtime_storage() {
+    for carrier in ["Packet", "[Packet; 2]", "Wrapper<Packet>", "Choice"] {
+        let program = crate::front_end::typed_program(&format!(
+            "data Evidence {{ value: i32; }}
+             machine Evidence::drop(value: &mut Evidence) {{}}
+             data Packet {{ before: i32; proof [erased]: Evidence; after: i32; }}
+             data Wrapper<T> {{ value: T; }}
+             data Choice {{ case Empty; case Present(value: Packet); }}
+             machine inspect(value: {carrier}) {{}}"
+        ));
+        let reference = input(&program);
+        assert!(
+            super::has_plain_owned_contents_with_numeric_constraints(&program, reference),
+            "{carrier}"
+        );
+        assert!(
+            super::has_borrowed_storage_contents(&program, reference),
+            "{carrier}"
+        );
+        assert!(!super::has_plain_owned_contents_with_represented_constraints(&program, reference));
+        assert!(!super::has_stable_observable_contents(&program, reference));
+    }
+    let program = crate::front_end::typed_program(
+        "data Packet { readings [erased]: &[i32]; }
+         machine inspect(value: Packet) {}",
+    );
+    assert!(super::has_borrowed_storage_contents(
+        &program,
+        input(&program)
+    ));
+    // Erasure does not excuse an unresolved semantic declaration or turn a
+    // relevant exclusive loan into supported storage.
+    for declaration in [
+        "data Packet { proof [erased]: Missing; }",
+        "data Packet { proof [erased]: i32; value: &mut i32; }",
+        "data Packet [linear] { proof [erased]: i32; value: i32; }",
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "{declaration} machine inspect(value: Packet) {{}}"
+        ));
+        let reference = input(&program);
+        assert!(
+            !super::has_plain_owned_contents_with_numeric_constraints(&program, reference),
+            "{declaration}"
+        );
+        assert!(
+            !super::has_borrowed_storage_contents(&program, reference),
+            "{declaration}"
+        );
+    }
+}
+
+#[test]
+fn erased_runtime_storage_keeps_the_exact_nested_linear_claim_frontier() {
+    let program = crate::front_end::typed_program(
+        "data Witness [linear] { tag: u64; }
+         data Inner { proof [erased]: Witness; }
+         data Outer { payload: u64; inner [erased]: Inner; }
+         machine inspect(value: Outer) {}",
+    );
+    let reference = input(&program);
+    assert_eq!(
+        program.type_multiplicity(reference),
+        language_semantics::Multiplicity::Affine
+    );
+    assert!(super::has_plain_owned_contents_with_numeric_constraints(
+        &program, reference
+    ));
+    assert!(super::has_borrowed_storage_contents(&program, reference));
+    let field = |owner: &str, name: &str| {
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == owner)
+            .unwrap();
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(field)
+                }
+                _ => None,
+            })
+            .unwrap()
+    };
+    let inner = field("Outer", "inner");
+    let proof = field("Inner", "proof");
+    assert_eq!(
+        crate::linear_claim_frontier(&program, reference),
+        vec![crate::ClaimFrontierClaim {
+            path: vec![
+                facts::PlaceSegment::Field {
+                    symbol: inner.symbol
+                },
+                facts::PlaceSegment::Field {
+                    symbol: proof.symbol
+                },
+            ],
+            type_reference: proof.type_reference,
+            conditional: false,
+        }],
+        "erased storage admission cannot discharge or relocate the witness claim",
+    );
 }

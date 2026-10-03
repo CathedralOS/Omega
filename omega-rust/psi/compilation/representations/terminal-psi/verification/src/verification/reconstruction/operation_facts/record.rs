@@ -26,7 +26,7 @@ pub(super) fn append(
     axioms.retain(|proposition| {
         !crate::validation::proposition_observes_places(proposition, &[result.place])
     });
-    for (declaration, binding) in declarations.iter().zip(fields) {
+    for (declaration, binding) in declarations.clone().zip(fields) {
         if let terminal_psi::RecordFieldValue::Scalar {
             value,
             range_obligation,
@@ -50,7 +50,7 @@ pub(super) fn append(
             });
         }
     }
-    for (declaration, binding) in declarations.iter().zip(fields) {
+    for (declaration, binding) in declarations.clone().zip(fields) {
         let terminal_psi::RecordFieldValue::Scalar { value, .. } = binding.value else {
             let terminal_psi::RecordFieldValue::Structural(argument) = &binding.value else {
                 unreachable!()

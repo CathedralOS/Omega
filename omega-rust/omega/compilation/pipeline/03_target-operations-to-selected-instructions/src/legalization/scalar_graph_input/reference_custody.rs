@@ -1364,9 +1364,18 @@ pub(in crate::legalization) fn apply(
             else {
                 return Err(invalid());
             };
+            let declarations = declarations
+                .iter()
+                .filter(|field| !field.relevance.is_erased());
+            if fields.len() != declarations.clone().count() {
+                return Err(invalid());
+            }
             let mut relocations = Vec::new();
             let mut moved = BTreeSet::new();
             for (field, declaration) in fields.iter().zip(declarations) {
+                if field.field != declaration.id {
+                    return Err(invalid());
+                }
                 let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
                     continue;
                 };

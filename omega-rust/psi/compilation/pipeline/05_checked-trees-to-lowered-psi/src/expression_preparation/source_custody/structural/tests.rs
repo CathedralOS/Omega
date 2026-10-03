@@ -1263,3 +1263,158 @@ fn mutable_byte_region_establishment_replays_carrier_and_affine_custody() {
         "the captured source access remains exact"
     );
 }
+
+#[test]
+fn erased_record_initializers_retain_independent_semantic_replay() {
+    let original = crate::front_end::checked_program(
+        "data Evidence { tag: i32; }
+         data Carrier { payload: i32; proof [erased]: Evidence; }
+         machine make() -> Carrier {
+             Carrier { payload: 1, proof: Evidence { tag: 17 } }
+         }",
+    );
+    let (machine, state, operation) = operation(&original);
+    validate(&original, machine, state, &operation)
+        .expect("erased initializer retains its authored semantic computation");
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = &operation else {
+        panic!("record construction");
+    };
+    let plans = &original.facts.values.structural_values;
+    let CheckedStructuralValueKind::Record { fields, .. } = plans.nodes.get(*value).kind else {
+        panic!("outer record");
+    };
+    let proof_field = arena::Handle::from_parts(
+        fields.start().arena_index() + 1,
+        fields.start().generation(),
+    );
+    let proof = plans.record_fields.get(proof_field);
+    let checked_trees::CheckedStructuralRecordFieldValue::Structural(evidence) = proof.value else {
+        panic!("erased evidence value");
+    };
+    let CheckedStructuralValueKind::Record { fields, .. } = plans.nodes.get(evidence).kind else {
+        panic!("evidence constructor");
+    };
+    let tag = plans.record_fields.get(fields.start());
+    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(computation) = tag.value else {
+        panic!("retained proof computation");
+    };
+    let (computation_root, retained_root) = original
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .find(|(_, root)| root.root == computation)
+        .expect("semantic scalar root exists independently of runtime emission");
+    assert_eq!(
+        super::operand_source(
+            &original,
+            state,
+            retained_root.statement_ordinal,
+            retained_root.role,
+        )
+        .expect("semantic scope reaches nested erased initializers"),
+        (tag.expression, checked_trees::types::PrimitiveType::I32),
+    );
+    assert!(
+        super::operand_source(
+            &original,
+            state,
+            retained_root.statement_ordinal,
+            checked_trees::CheckedScalarExpressionRole::RecordField {
+                expression: tag.expression,
+                field_ordinal: 0,
+            },
+        )
+        .is_err(),
+        "an existing literal is not a constructor scope"
+    );
+    for mutation in [
+        "subject",
+        "type",
+        "cycle",
+        "occurrence",
+        "literal",
+        "primitive",
+        "root",
+    ] {
+        let mut changed = original.clone();
+        match mutation {
+            "subject" => {
+                changed
+                    .facts
+                    .values
+                    .structural_values
+                    .record_fields
+                    .get_mut(proof_field)
+                    .expression = tag.expression;
+            }
+            "type" => {
+                changed
+                    .facts
+                    .values
+                    .structural_values
+                    .record_fields
+                    .get_mut(proof_field)
+                    .type_reference = tag.type_reference;
+            }
+            "cycle" => {
+                changed
+                    .facts
+                    .values
+                    .structural_values
+                    .record_fields
+                    .get_mut(proof_field)
+                    .value = checked_trees::CheckedStructuralRecordFieldValue::Structural(*value);
+            }
+            "occurrence" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(computation)
+                    .authored_root = proof.expression;
+            }
+            "literal" => {
+                let checked_trees::CheckedScalarComputationKind::Value(
+                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                ) = &mut changed
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(computation)
+                    .kind
+                else {
+                    panic!("evidence integer literal");
+                };
+                *literal = numerics::literals::IntegerLiteral::from_value(99)
+                    .with_landing(literal.landing().unwrap());
+            }
+            "primitive" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get_mut(computation)
+                    .primitive_type = checked_trees::types::PrimitiveType::U64;
+            }
+            "root" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .get_mut(computation_root)
+                    .root = arena::Handle::invalid();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate(&changed, machine, state, &operation).is_err(),
+            "erasure must not waive {mutation} custody"
+        );
+    }
+}

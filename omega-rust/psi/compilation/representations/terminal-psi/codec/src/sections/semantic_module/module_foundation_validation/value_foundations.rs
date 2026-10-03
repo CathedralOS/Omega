@@ -370,7 +370,10 @@ pub(super) fn validate_establish_record(
     else {
         return malformed("record result is not a record");
     };
-    if fields.len() != declarations.len() {
+    let declarations = declarations
+        .iter()
+        .filter(|field| !field.relevance.is_erased());
+    if fields.len() != declarations.clone().count() {
         return malformed("record field roster differs");
     }
     for (field, declaration) in fields.iter().zip(declarations) {

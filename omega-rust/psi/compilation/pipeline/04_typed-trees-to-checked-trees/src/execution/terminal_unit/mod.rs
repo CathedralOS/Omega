@@ -1331,10 +1331,16 @@ pub(super) fn scalar_graph_record_shapes(
     if !shapes.domains.is_empty()
         || !shapes.types.values().all(|declaration| {
             matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields }
-            if fields.iter().all(|field| !field.relevance.is_erased()
-                && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
-                    | CheckedUnitStructuralFieldType::BoundedInteger(_) | CheckedUnitStructuralFieldType::RefinedScalar { .. }
-                    | CheckedUnitStructuralFieldType::Structural { .. })))
+            if fields.iter().all(|field| {
+                if field.relevance.is_erased() {
+                    matches!(field.field_type, CheckedUnitStructuralFieldType::Erased { .. })
+                } else {
+                    matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
+                        | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                        | CheckedUnitStructuralFieldType::RefinedScalar { .. }
+                        | CheckedUnitStructuralFieldType::Structural { .. })
+                }
+            }))
         })
     {
         return None;

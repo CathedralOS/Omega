@@ -42,7 +42,8 @@ pub(super) fn fields(
     let StructuralTypeShape::Record { fields: expected } = &declaration.shape else {
         return None;
     };
-    if fields.len() != expected.len() {
+    let expected = expected.iter().filter(|field| !field.relevance.is_erased());
+    if fields.len() != expected.clone().count() {
         return None;
     }
     let mut offset = 0u32;

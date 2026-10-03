@@ -56,6 +56,8 @@ impl ContentType {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ContentsRequirement {
     PlainOwned,
+    /// Runtime scalar/record storage; erased members retain their resolved
+    /// semantic type without imposing runtime contents on this classification.
     NumericOwned,
     /// An already established owned value whose exact constrained type survives
     /// the transfer. Bounded byte predicates describe live contents as well as
@@ -761,13 +763,16 @@ fn check_contents(
         if field.relevance.is_erased() {
             // An erased member never materializes runtime contents; it still
             // must resolve to declared storage so the semantic member exists.
-            // A drop carrier keeps it as owned cargo and a service seam leaves
-            // it inside the observed place, so neither asks its contents to be
-            // stable or cleanup-owned — only resolvable.
+            // Runtime construction/storage and in-place loans do not execute,
+            // lend, or dispose of the erased subject. Its proof, multiplicity
+            // and provenance remain obligations of semantic checking. Copy and
+            // stable-observation classifiers keep their separate admission.
             return matches!(
                 requirement,
-                ContentsRequirement::CleanupOwned
+                ContentsRequirement::NumericOwned
+                    | ContentsRequirement::CleanupOwned
                     | ContentsRequirement::StructuralConstruction
+                    | ContentsRequirement::BorrowedStorage
                     | ContentsRequirement::SeamMarshal
             ) && resolve(program, field.type_reference, &substitutions, requirement)
                 .is_some();

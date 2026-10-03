@@ -846,7 +846,8 @@ fn establish_fields(
         }
         _ => return None,
     };
-    if declared.len() != fields.len() {
+    let declared = declared.iter().filter(|field| !field.relevance.is_erased());
+    if declared.clone().count() != fields.len() {
         return None;
     }
     let mut consumed = BTreeSet::new();

@@ -1183,3 +1183,77 @@ fn qualified_shared_byte_field_rejects_invalid_contents_before_constructor_commi
         b"ok"
     );
 }
+
+#[test]
+fn record_erased_declarations_have_no_runtime_initializers_or_storage() {
+    let mut module = record_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!();
+    };
+    let scalar_type = unsigned(0).scalar_type();
+    *fields = (1..=5)
+        .map(|ordinal| StructuralFieldDeclaration {
+            id: StructuralFieldId::new(ordinal).unwrap(),
+            identity: format!("member{ordinal}"),
+            relevance: if ordinal % 2 == 0 {
+                BindingRelevance::Relevant
+            } else {
+                BindingRelevance::Erased
+            },
+            field_type: if ordinal % 2 == 0 {
+                StructuralFieldType::Scalar(scalar_type)
+            } else {
+                StructuralFieldType::Erased {
+                    type_identity: "EvidenceWithNominalCleanup".into(),
+                }
+            },
+        })
+        .collect();
+    let operation = &mut module.machines[0].blocks[0].operations[0];
+    let OperationKind::EstablishRecord { fields } = &mut operation.kind else {
+        unreachable!();
+    };
+    let mut initializer = fields[0].clone();
+    initializer.field = StructuralFieldId::new(2).unwrap();
+    *fields = vec![initializer.clone()];
+    initializer.field = StructuralFieldId::new(4).unwrap();
+    fields.push(initializer);
+    let (mut execution, result) = run(&module, &[unsigned(37)]);
+    assert_eq!(result, TerminalExecutionResult::Unit);
+    assert_eq!(execution.structural_scalar_fields.len(), 2);
+    assert!(
+        execution
+            .structural_scalar_fields
+            .values()
+            .all(|value| *value == unsigned(37))
+    );
+    assert!(execution.reference_referents.is_empty());
+    assert!(execution.structural_element_view_fields.is_empty());
+    assert!(execution.live_affine_frontier.is_empty());
+
+    let operation = &module.machines[0].blocks[0].operations[0];
+    let OperationKind::EstablishRecord { fields } = &operation.kind else {
+        unreachable!();
+    };
+    let mut result = operation.result.structural().unwrap().clone();
+    result.place = PlaceId::new(20).unwrap();
+    for mutation in ["erased", "missing", "duplicate", "order"] {
+        let mut changed = fields.clone();
+        match mutation {
+            "erased" => changed[0].field = StructuralFieldId::new(1).unwrap(),
+            "missing" => {
+                changed.pop();
+            }
+            "duplicate" => changed.push(changed[0].clone()),
+            "order" => changed.reverse(),
+            _ => unreachable!(),
+        }
+        let before = execution.structural_scalar_fields.clone();
+        assert!(
+            execution.establish_record(&result, &changed).is_err(),
+            "{mutation}"
+        );
+        assert_eq!(execution.structural_scalar_fields, before);
+        assert!(!execution.structural_values.contains_key(&result.place));
+    }
+}

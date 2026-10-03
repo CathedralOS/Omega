@@ -123,7 +123,7 @@ pub(crate) fn validate_unit_operation_static(
             crate::validation::scalar::case::fields(module, machine, operation)?;
         }
         OperationKind::EstablishRecord { .. } => {
-            crate::validation::record::fields(module, machine, operation)?;
+            let _ = crate::validation::record::fields(module, machine, operation)?;
         }
         OperationKind::EstablishStructuralCase { .. } => {
             crate::validation::structural::case::fields(module, machine, operation)?;

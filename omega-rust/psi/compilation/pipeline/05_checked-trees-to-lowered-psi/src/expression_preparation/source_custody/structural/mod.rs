@@ -1499,7 +1499,9 @@ fn append_argument_scopes(
     Ok(())
 }
 
-/// Locate only operands of actual constructors and matches beneath this value.
+/// Locate semantic operands of actual constructors and matches beneath this
+/// value, including erased initializers. Relevance controls runtime emission,
+/// not whether retained source computations owe exact authored custody.
 /// A retained role cannot authorize reading an unrelated expression in the arena.
 pub(crate) fn operand_source(
     checked: &CheckedTrees,
@@ -1678,8 +1680,7 @@ pub(crate) fn operand_source(
                         .iter()
                         .find_map(|member| match member {
                             checked_trees::data::DataMember::Field(declaration)
-                                if declaration.symbol == field.field_symbol
-                                    && !declaration.relevance.is_erased() =>
+                                if declaration.symbol == field.field_symbol =>
                             {
                                 Some(declaration)
                             }
@@ -1739,9 +1740,7 @@ pub(crate) fn operand_source(
                 .ok_or(LoweringError::Unsupported(
                     "structural operand member declaration missing",
                 ))?;
-                if !declaration.relevance.is_erased() {
-                    pending.push((field.value, declaration.type_reference));
-                }
+                pending.push((field.value, declaration.type_reference));
             }
             continue;
         }

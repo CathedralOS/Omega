@@ -38,9 +38,12 @@ pub(super) fn validate(
             else {
                 return Err(LegalizationError::custody());
             };
+            let declarations = declarations
+                .iter()
+                .filter(|field| !field.relevance.is_erased());
             if psi_operation != expected_operation
                 || fields != expected_fields
-                || fields.len() != declarations.len()
+                || fields.len() != declarations.clone().count()
                 || *result_home
                     != scalar_graph_input::aggregate_results::result_home(
                         optimized,
