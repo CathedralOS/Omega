@@ -727,6 +727,26 @@ fn close_return_structural(
             block: block.id,
         });
     }
+    // Constructor and copy eligibility does not prove that nested descriptors
+    // outlive this activation. Check every aggregate slot before any of those
+    // claim-free alternatives; direct reference returns keep their own judgment.
+    let external_slots = terminal_semantics::descriptor_results::aggregate_descriptor_slots(
+        &module.structural_types,
+        *source,
+        source_signature.structural_type,
+    )
+    .is_some_and(|slots| {
+        slots.is_empty()
+            || terminal_semantics::descriptor_results::return_slots_have_external_backing(
+                module, machine, *source,
+            )
+    });
+    if !external_slots {
+        return Err(ModuleError::NonCanonicalStructuralReturnClaims {
+            machine: machine.id,
+            block: block.id,
+        });
+    }
     let exact_payloadless_claim_free_return = returned_claims.is_empty()
         && source_signature.multiplicity == StructuralMultiplicity::Unrestricted
         && super::super::structural::result_contracts::has_empty_qualification_rosters(
