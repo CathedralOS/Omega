@@ -1510,6 +1510,7 @@ fn scalar_descriptor_write_ends_at_its_last_observation() {
         for later_observation in [false, true] {
             let child_write = if element_view {
                 O::ElementViewWrite {
+                    path: Vec::new(),
                     psi_operation: instruction(2),
                     destination: place(1),
                     index: value(1),
@@ -1578,6 +1579,7 @@ fn scalar_descriptor_write_ends_at_its_last_observation() {
                     unreachable!()
                 };
                 function.blocks[0].nodes[2].operation = O::ElementViewWrite {
+                    path: Vec::new(),
                     psi_operation,
                     destination,
                     index,

@@ -1309,10 +1309,10 @@ fn returned_view_calls_replay_backing_origins_result_homes_and_memory_reads() {
             })
             .collect::<Vec<_>>();
         assert_eq!(calls.len(), 2);
-        // Each call substitutes its immediate actual. The second origin is
-        // the first descriptor result; its own call row retains the original
-        // input backing. Neither result becomes an independent allocation.
-        for (call, actual) in calls.into_iter().zip([1, 4]) {
+        // Each call resolves its actual through the current descriptor cohort.
+        // Both results retain the original input backing; the intermediate
+        // descriptor carrier is not an independent backing allocation.
+        for (call, actual) in calls.into_iter().zip([1, 1]) {
             assert!(
                 matches!(call.descriptor_origins.as_slice(), [Origin::Argument { source, exact: true, indirect: false }]
                 if source.place == PlaceId::new(actual).unwrap() && source.path.is_empty()),
@@ -1765,6 +1765,321 @@ fn representation_byte_region_replays_endpoints_layout_and_proof_custody() {
                 changed
             )
             .is_err()
+        );
+    }
+}
+
+#[test]
+fn projected_element_stores_replay_boolean_and_bounded_leaf_custody() {
+    use super::owned_block_store::id;
+    use legalized_operations::LegalizedScalarInstructionKind as K;
+    use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+    use target_operations::TargetUnitOperation;
+    for boolean in [false, true] {
+        let mut source = source();
+        let scalar = if boolean {
+            ScalarType::Boolean
+        } else {
+            integer(IntegerSign::Unsigned, 16)
+        };
+        let mut types = source.structural_types.iter().cloned().collect::<Vec<_>>();
+        let StructuralTypeShape::Record { fields } = &mut types[0].shape else {
+            panic!("element record");
+        };
+        fields[1].field_type = if boolean {
+            StructuralFieldType::Scalar(scalar)
+        } else {
+            StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+                    IntegerValue::Unsigned(0),
+                    IntegerValue::Unsigned(100),
+                )
+                .unwrap(),
+            )
+        };
+        source.structural_types = types.into();
+        let function = &mut source.functions[0];
+        function.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+        function.parameters.push(AbstractParameter {
+            value: id(5),
+            scalar_type: scalar,
+        });
+        function.result = AbstractFunctionResult::Scalar(AbstractResult {
+            value: id(4),
+            scalar_type: scalar,
+        });
+        let O::ElementViewRead { result, .. } = &mut function.operations[1] else {
+            panic!("read");
+        };
+        result.scalar_type = scalar;
+        let O::Return { scalar_type, .. } = &mut function.operations[2] else {
+            panic!("return");
+        };
+        *scalar_type = scalar;
+        function.operations.insert(
+            1,
+            O::ElementViewWrite {
+                psi_operation: id(3),
+                destination: id(1),
+                index: id(1),
+                value: id(5),
+                length: id(2),
+                obligation: id(2),
+                path: vec![Segment::Field("value".into())],
+            },
+        );
+        let seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let goal = terminal_semantics::element_view_write_goal(
+            source.structural_types.as_slice(),
+            id(1),
+            &[Segment::Field("value".into())],
+            id(1),
+            id(2),
+            id(5),
+        )
+        .unwrap();
+        let fact = |operation, obligation, goal| {
+            optimization_unit::AcceptedObligationFact::new(
+                seed.psi,
+                [4; 32],
+                source.functions[0].machine,
+                id(operation),
+                id(obligation),
+                terminal_codec::canonical_proposition_order_key(&goal).unwrap(),
+            )
+        };
+        let count = integer(IntegerSign::Unsigned, 64);
+        let bounds = semantic_vocabulary::Proposition::LessThan(
+            semantic_vocabulary::ScalarTerm::value(id(1), count),
+            semantic_vocabulary::ScalarTerm::value(id(2), count),
+        );
+        let unit = optimization_unit::attach_accepted_obligation_facts(
+            seed.clone(),
+            vec![fact(2, 1, bounds.clone()), fact(3, 2, goal)],
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        if !boolean {
+            let missing_range = optimization_unit::attach_accepted_obligation_facts(
+                seed.clone(),
+                vec![fact(2, 1, bounds.clone()), fact(3, 2, bounds)],
+            )
+            .unwrap();
+            assert!(matches!(optimization_unit_semantics::validate_psi_optimization_unit(&missing_range), Err(optimization_unit_semantics::OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)));
+        }
+        for native in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::macos_arm64(),
+        ] {
+            let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+            let mut changed = targeted.clone();
+            let TargetUnitOperation::ElementViewWrite { path, .. } = changed.functions[0]
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|row| matches!(row, TargetUnitOperation::ElementViewWrite { .. }))
+                .unwrap()
+            else {
+                panic!("write");
+            };
+            *path = vec![Segment::Field("prefix".into())];
+            assert!(crate::legalize_target_operations(&changed, &source, &unit).is_err());
+            let mut changed = legalized.plan().clone();
+            let K::ElementViewWrite { path, .. } = &mut changed.scalar_functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|row| matches!(row.kind, K::ElementViewWrite { .. }))
+                .unwrap()
+                .kind
+            else {
+                panic!("write");
+            };
+            path.clear();
+            assert!(
+                crate::validate_legalized_operations(&targeted, &source, &unit, changed).is_err()
+            );
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legalized, &environment);
+            let selected = crate::select_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+            let mut changed = selected.plan().clone();
+            let store = changed.functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|row| {
+                    matches!(
+                        row.kind,
+                        selected_instructions::SelectedInstructionKind::Store {
+                            byte_offset: 8,
+                            ..
+                        }
+                    )
+                })
+                .unwrap();
+            let selected_instructions::SelectedInstructionKind::Store { byte_offset, .. } =
+                &mut store.kind
+            else {
+                unreachable!();
+            };
+            *byte_offset = 0;
+            assert!(
+                crate::validate_selected_instructions(
+                    &legalized,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn typed_collection_views_replay_padded_layout_and_validity() {
+    use super::owned_block_store::id;
+    use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+    use target_operations::{TargetElementView, TargetUnitOperation};
+    let record = |sign, maximum, names: [&str; 2]| StructuralTypeShape::Record {
+        fields: vec![
+            StructuralFieldDeclaration {
+                id: id(1),
+                identity: names[0].into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::BoundedInteger(
+                    BoundedIntegerType::new(
+                        IntegerType::new(sign, 16).unwrap(),
+                        if sign == IntegerSign::Signed {
+                            IntegerValue::Signed(0)
+                        } else {
+                            IntegerValue::Unsigned(0)
+                        },
+                        if sign == IntegerSign::Signed {
+                            IntegerValue::Signed(maximum)
+                        } else {
+                            IntegerValue::Unsigned(maximum as u128)
+                        },
+                    )
+                    .unwrap(),
+                ),
+            },
+            StructuralFieldDeclaration {
+                id: id(2),
+                identity: names[1].into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            },
+        ],
+    };
+    let mut source = array_arrival_source(StructuralAccess::SharedBorrow);
+    let mut types = source.structural_types.iter().cloned().collect::<Vec<_>>();
+    types[0].shape = record(IntegerSign::Signed, 100, ["signed", "enabled"]);
+    types[3].shape = StructuralTypeShape::ElementView { element: id(5) };
+    types.push(StructuralTypeDeclaration {
+        id: id(5),
+        identity: "Wide".into(),
+        shape: record(IntegerSign::Unsigned, 200, ["unsigned", "active"]),
+    });
+    source.structural_types = types.into();
+    let O::EstablishElementView { element, .. } = &mut source.functions[0].operations[2] else {
+        panic!("establish");
+    };
+    *element = id(5);
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+        for mutation in 0..2 {
+            let mut changed = targeted.clone();
+            let TargetUnitOperation::EstablishElementView {
+                view:
+                    TargetElementView::Established {
+                        element_stride,
+                        element,
+                        ..
+                    },
+                ..
+            } = changed.functions[0]
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|row| matches!(row, TargetUnitOperation::EstablishElementView { .. }))
+                .unwrap()
+            else {
+                panic!("descriptor");
+            };
+            assert_eq!(
+                *element_stride, 4,
+                "padding belongs to repeated element stride"
+            );
+            if mutation == 0 {
+                *element_stride = 3;
+            } else {
+                *element = id(1);
+            }
+            assert!(crate::legalize_target_operations(&changed, &source, &unit).is_err());
+            assert!(
+                crate::validate_legalized_operations(
+                    &changed,
+                    &source,
+                    &unit,
+                    legalized.plan().clone()
+                )
+                .is_err()
+            );
+        }
+        let mut changed = source.clone();
+        let mut types = changed.structural_types.iter().cloned().collect::<Vec<_>>();
+        types[4].shape = record(IntegerSign::Unsigned, 50, ["unsigned", "active"]);
+        changed.structural_types = types.into();
+        assert!(
+            abstract_operations_to_target_operations::lower_to_target_operations(
+                &changed,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native)
+            )
+            .is_err(),
+            "source validity does not imply a narrower range"
         );
     }
 }

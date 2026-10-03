@@ -230,6 +230,32 @@ impl Checker<'_> {
         value: ValueId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        if let Boolean::ElementViewRead {
+            psi_operation,
+            source_value,
+            source,
+            view,
+            index,
+            length,
+            obligation,
+            path,
+            element_byte_offset,
+        } = expression
+        {
+            let resolved = resolve(value, aliases);
+            return *source_value == resolved
+                && self.element_view(view, *source, aliases)
+                && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
+                    if operation == psi_operation && result.value == resolved && expected == source
+                    && result.scalar_type == ScalarType::Boolean
+                    && path == expected_path
+                    && super::super::byte_views::element_type(self.optimized, *source, self.types)
+                        .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_geometry(
+                            element, path, result.scalar_type, self.types))
+                        .is_some_and(|(offset, _)| offset == *element_byte_offset)
+                    && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)));
+        }
         if let Boolean::BlockParameter(parameter) = expression {
             return parameter.value == resolve(value, aliases)
                 && parameter.scalar_type == ScalarType::Boolean

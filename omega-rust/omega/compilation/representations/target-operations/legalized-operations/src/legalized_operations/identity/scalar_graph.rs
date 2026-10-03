@@ -642,6 +642,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     }
                 }
                 LegalizedScalarInstructionKind::ElementViewWrite {
+                    path,
                     destination,
                     index,
                     value,
@@ -650,6 +651,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     accepted_fact,
                 } => {
                     bytes.push(44);
+                    super::structural_types::encode_structural_path(bytes, path);
                     for identity in [
                         destination.get(),
                         index.get(),

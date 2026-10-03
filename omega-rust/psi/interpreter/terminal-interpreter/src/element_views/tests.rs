@@ -597,6 +597,7 @@ fn terminal_mutable_element_subslice_writes_original_scalar_home_and_restored_pa
         suspension_crossing: None,
         result: OperationResult::Unit,
         kind: OperationKind::ElementViewWrite {
+            path: Vec::new(),
             destination: child,
             index,
             value,
@@ -1043,6 +1044,7 @@ fn representation_write(destination: u64, index: u64, value: u64) -> Operation {
         suspension_crossing: None,
         result: OperationResult::Unit,
         kind: OperationKind::ElementViewWrite {
+            path: Vec::new(),
             destination: PlaceId::new(destination).unwrap(),
             index: ValueId::new(index).unwrap(),
             value: ValueId::new(value).unwrap(),
@@ -1121,7 +1123,12 @@ fn representation_element_view_writes_live_bytes_through_transferred_descriptor(
     );
     assert!(
         execution
-            .write_representation_element(&nested, 0, execution.values[&ValueId::new(6).unwrap()])
+            .write_representation_element(
+                &nested,
+                0,
+                &[],
+                execution.values[&ValueId::new(6).unwrap()]
+            )
             .is_err()
     );
     assert!(
@@ -1178,7 +1185,7 @@ fn representation_element_view_refuses_bad_bounds_tiling_layout_and_authority() 
     };
     assert!(
         execution
-            .write_representation_element(&view, 2, scalar)
+            .write_representation_element(&view, 2, &[], scalar)
             .is_err()
     );
     assert!(
@@ -1189,7 +1196,7 @@ fn representation_element_view_refuses_bad_bounds_tiling_layout_and_authority() 
     let shared = view.subslice(0, 2, StructuralAccess::SharedBorrow).unwrap();
     assert!(
         execution
-            .write_representation_element(&shared, 0, scalar)
+            .write_representation_element(&shared, 0, &[], scalar)
             .is_err()
     );
 }
@@ -1246,3 +1253,5 @@ fn representation_element_view_reads_exact_normalized_record_leaf() {
     path[0] = StructuralPathSegment::Field("other".into());
     assert!(execution.execute_element_view_read(&wrong).is_err());
 }
+
+mod typed;

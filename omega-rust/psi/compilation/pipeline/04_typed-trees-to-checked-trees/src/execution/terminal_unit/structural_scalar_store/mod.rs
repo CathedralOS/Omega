@@ -526,6 +526,49 @@ fn plan_assignment(
             primitive_type,
             trace,
         )?;
+        if byte_stores::element_view_element_reference(program, state, &destination).is_some() {
+            // The existing carrier walk and leaf admission own the field's
+            // identity and scalar value. A descriptor contributes its live
+            // outer index/length pair; the remaining projection stays within
+            // that element, with the same field and index semantics.
+            let (outer, projected) = carrier.path.split_first()?;
+            let index = match outer {
+                CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    checked_trees::CheckedScalarExpression::IntegerLiteral {
+                        literal: numerics::literals::IntegerLiteral::from_value(
+                            i64::try_from(*index).ok()?,
+                        ),
+                    }
+                }
+                CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                ) => facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(
+                        state.symbol,
+                        statement_index,
+                        CheckedScalarExpressionRole::AssignmentIndex { depth: *depth },
+                    )?
+                    .1
+                    .clone(),
+                _ => return None,
+            };
+            let mut path = projected.to_vec();
+            path.push(CheckedUnitStructuralPathSegment::Field(
+                terminal_field_identity(program, field.symbol)?,
+            ));
+            return Some(vec![CheckedUnitEffectOperationPlan::ElementViewWrite(
+                checked_trees::CheckedElementViewWritePlan {
+                    statement_index,
+                    destination: destination.root.destination(),
+                    index,
+                    path,
+                    element: primitive_type,
+                    value,
+                },
+            )]);
+        }
         return Some(vec![
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
                 CheckedStructuralScalarFieldStorePlan {

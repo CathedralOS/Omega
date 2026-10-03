@@ -223,6 +223,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.slice(path, encode_structural_path_segment);
         }
         O::ElementViewWrite {
+            path,
             psi_operation,
             destination,
             index,
@@ -231,6 +232,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             obligation,
         } => {
             bytes.u8(88);
+            bytes.slice(path, encode_structural_path_segment);
             bytes.id(*psi_operation);
             bytes.id(*destination);
             bytes.id(*index);

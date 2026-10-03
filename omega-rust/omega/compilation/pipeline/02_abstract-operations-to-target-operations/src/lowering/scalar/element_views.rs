@@ -155,20 +155,23 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
         source,
         &mut Vec::new(),
     )?;
-    let ScalarType::Integer(scalar_type) = result.scalar_type else {
-        return Err(invalid());
-    };
-    let expression = match operation {
+    let known = match operation {
         AbstractOperation::ElementViewLength { .. } => {
+            let ScalarType::Integer(scalar_type) = result.scalar_type else {
+                return Err(invalid());
+            };
             if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
                 return Err(invalid());
             }
-            TargetIntegerExpression::ElementViewLength {
-                psi_operation,
-                source_value: result.value,
-                source,
-                view: Box::new(view),
-                length_byte_offset: 8,
+            KnownScalar::Integer {
+                scalar_type,
+                value: KnownInteger::Runtime(TargetIntegerExpression::ElementViewLength {
+                    psi_operation,
+                    source_value: result.value,
+                    source,
+                    view: Box::new(view),
+                    length_byte_offset: 8,
+                }),
             }
         }
         AbstractOperation::ElementViewRead {
@@ -198,28 +201,40 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
             if index_type.sign() != IntegerSign::Unsigned || index_type.bits() != 64 {
                 return Err(invalid());
             }
-            TargetIntegerExpression::ElementViewRead {
-                psi_operation,
-                source_value: result.value,
-                source,
-                view: Box::new(view),
-                index: Box::new(index_value.clone().into_expression(*index)),
-                length: *length,
-                obligation: *obligation,
-                path: path.clone(),
-                element_byte_offset,
+            match result.scalar_type {
+                ScalarType::Integer(scalar_type) => KnownScalar::Integer {
+                    scalar_type,
+                    value: KnownInteger::Runtime(TargetIntegerExpression::ElementViewRead {
+                        psi_operation,
+                        source_value: result.value,
+                        source,
+                        view: Box::new(view),
+                        index: Box::new(index_value.clone().into_expression(*index)),
+                        length: *length,
+                        obligation: *obligation,
+                        path: path.clone(),
+                        element_byte_offset,
+                    }),
+                },
+                ScalarType::Boolean => KnownScalar::BooleanRuntime(
+                    target_operations::TargetBooleanExpression::ElementViewRead {
+                        psi_operation,
+                        source_value: result.value,
+                        source,
+                        view: Box::new(view),
+                        index: Box::new(index_value.clone().into_expression(*index)),
+                        length: *length,
+                        obligation: *obligation,
+                        path: path.clone(),
+                        element_byte_offset,
+                    },
+                ),
+                _ => return Err(invalid()),
             }
         }
         _ => return Ok(false),
     };
-    insert_value(
-        values,
-        result.value,
-        KnownScalar::Integer {
-            scalar_type,
-            value: KnownInteger::Runtime(expression),
-        },
-    )?;
+    insert_value(values, result.value, known)?;
     provenance.push(psi_operation);
     Ok(true)
 }
@@ -239,9 +254,18 @@ fn element_leaf_offset(
     else {
         return None;
     };
+    scalar_leaf_offset(structural_types, *element, path, scalar)
+}
+
+fn scalar_leaf_offset(
+    structural_types: &StructuralTypeLookup<'_>,
+    element: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    scalar: ScalarType,
+) -> Option<u32> {
     if terminal_semantics::element_view_leaf_scalar(
         structural_types.catalog().as_slice(),
-        *element,
+        element,
         path,
     ) != Some(scalar)
     {
@@ -254,10 +278,10 @@ fn element_leaf_offset(
     let mut active = BTreeSet::new();
     if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
         let (parent, parent_offset) = if prefix.is_empty() {
-            (*element, 0)
+            (element, 0)
         } else {
             let (parent, _, offset) = resolve_structural_projection_path(
-                *element,
+                element,
                 prefix,
                 structural_types,
                 &mut cache,
@@ -276,7 +300,7 @@ fn element_leaf_offset(
             );
         }
     }
-    resolve_structural_projection_path(*element, path, structural_types, &mut cache, &mut active)
+    resolve_structural_projection_path(element, path, structural_types, &mut cache, &mut active)
         .ok()
         .map(|(_, _, offset)| offset)
 }
@@ -706,8 +730,51 @@ fn established_source(
         projected_type,
         element,
         region,
+        source.access,
     )
     .ok_or_else(invalid)?;
+    if region == terminal_psi::ElementViewRegion::WholeCollection {
+        if let Some(StructuralTypeShape::FixedArray {
+            element: original, ..
+        }) = structural_types.get(&projected_type).map(|row| &row.shape)
+        {
+            if *original != element {
+                let relation = terminal_semantics::element_representation_relation(
+                    structural_types.values().copied(),
+                    *original,
+                    element,
+                    source.access,
+                )
+                .ok_or_else(invalid)?;
+                for (identity, layout) in [
+                    (*original, &relation.source_layout),
+                    (element, &relation.target_layout),
+                ] {
+                    let shape = crate::lowering::structural_layout::structural_shape(
+                        identity,
+                        structural_types,
+                        &mut shape_cache,
+                        &mut active,
+                    )?;
+                    if u64::from(shape.byte_size) != layout.size
+                        || u64::from(shape.alignment) != layout.alignment
+                        || layout.leaves.iter().any(|leaf| {
+                            scalar_leaf_offset(
+                                structural_types,
+                                identity,
+                                &leaf.path,
+                                leaf.scalar_type,
+                            )
+                            .map(u64::from)
+                                != Some(leaf.offset)
+                        })
+                    {
+                        return Err(invalid());
+                    }
+                }
+            }
+        }
+    }
     let (length, storage, representation) = match geometry {
         terminal_semantics::ElementViewRegionGeometry::WholeCollection(collection) => {
             (collection.length, collection.storage, None)

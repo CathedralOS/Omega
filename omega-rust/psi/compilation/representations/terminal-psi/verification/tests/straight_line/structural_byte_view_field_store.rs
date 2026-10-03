@@ -388,6 +388,7 @@ fn borrowed_backing_fixture() -> TerminalModule {
             suspension_crossing: None,
             result,
             kind: OperationKind::EstablishElementView {
+                region: terminal_psi::ElementViewRegion::WholeCollection,
                 source: terminal_psi::StructuralArgument {
                     place: id(4),
                     path: vec![],
@@ -716,6 +717,7 @@ fn out_parameter_store_rejects_callee_local_backing() {
             suspension_crossing: None,
             result: view_result,
             kind: OperationKind::EstablishElementView {
+                region: terminal_psi::ElementViewRegion::WholeCollection,
                 destination: id(31),
                 source: terminal_psi::StructuralArgument {
                     place: id(30),

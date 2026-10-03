@@ -207,6 +207,58 @@ fn validate_structural_field_range_authority(
                     return Err(invalid);
                 }
             }
+            O::ElementViewWrite {
+                psi_operation,
+                destination,
+                path,
+                index,
+                value,
+                length,
+                obligation,
+            } => {
+                let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                let root = super::operation_contracts::structural_source_contract(
+                    function,
+                    *destination,
+                    false,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let Some(StructuralTypeShape::ElementView { element }) =
+                    types.get(&root.structural_type).map(|row| &row.shape)
+                else {
+                    return Err(invalid);
+                };
+                if root.access != terminal_psi::StructuralAccess::MutableBorrow {
+                    return Err(invalid);
+                }
+                let goal = terminal_semantics::element_view_write_goal(
+                    &unit.structural_types,
+                    *element,
+                    path,
+                    *index,
+                    *length,
+                    *value,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let proposition = terminal_codec::canonical_proposition_order_key(&goal)
+                    .map_err(|_| invalid.clone())?;
+                if unit
+                    .accepted_obligation_facts
+                    .iter()
+                    .filter(|fact| {
+                        fact.machine == function.machine
+                            && fact.operation == *psi_operation
+                            && fact.obligation == *obligation
+                            && fact.proposition == proposition
+                            && fact.psi == unit.psi
+                            && fact.has_canonical_identity()
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(invalid);
+                }
+            }
             O::ByteSequenceWrite {
                 psi_operation,
                 index,

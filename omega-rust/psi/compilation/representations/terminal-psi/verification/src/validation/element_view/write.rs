@@ -127,9 +127,11 @@ fn mutable_view_type(
             }
             Ok(parameter.structural_type)
         }
-        StructuralPlaceKind::OperationResult { .. } => Ok(mutable_result(module, machine, destination)
-            .ok_or_else(invalid)?
-            .structural_type),
+        StructuralPlaceKind::OperationResult { .. } => {
+            Ok(mutable_result(module, machine, destination)
+                .ok_or_else(invalid)?
+                .structural_type)
+        }
         _ => Err(invalid()),
     }
     .and_then(|structural_type| {
@@ -151,6 +153,7 @@ fn value_leaf_scalar(
     module: &TerminalModule,
     machine: &TerminalMachine,
     structural_type: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
     value: ValueId,
 ) -> Option<ScalarType> {
     let declared = module
@@ -158,21 +161,18 @@ fn value_leaf_scalar(
         .iter()
         .find_map(|declaration| match declaration.shape {
             StructuralTypeShape::ElementView { element } if declaration.id == structural_type => {
-                module
-                    .structural_types
-                    .iter()
-                    .find_map(|leaf| match leaf.shape {
-                        StructuralTypeShape::PrimitiveScalar(scalar_type) if leaf.id == element => {
-                            Some(scalar_type)
-                        }
-                        _ => None,
-                    })
+                terminal_semantics::element_view_leaf_scalar(
+                    &module.structural_types,
+                    element,
+                    path,
+                )
             }
             _ => None,
         });
     let actual = machine
         .parameters
         .iter()
+        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
         .find(|declaration| declaration.id == value)
         .map(|declaration| declaration.scalar_type)
         .or_else(|| {
@@ -202,16 +202,18 @@ pub(in crate::validation) fn validate(
     let invalid = || ModuleError::InvalidElementViewWrite(operation.id);
     let OperationKind::ElementViewWrite {
         destination,
+        path,
         index,
         value,
         length,
         ..
-    } = operation.kind
+    } = &operation.kind
     else {
         return Err(invalid());
     };
+    let (destination, index, value, length) = (*destination, *index, *value, *length);
     let structural_type = mutable_view_type(module, machine, operation, destination)?;
-    value_leaf_scalar(module, machine, structural_type, value).ok_or_else(invalid)?;
+    value_leaf_scalar(module, machine, structural_type, path, value).ok_or_else(invalid)?;
     // The index is an element count like the length it is bounded by; the
     // typed-operand pass pins both to `u64`, and the write must name the
     // dominating length observation of this same source.
@@ -220,6 +222,7 @@ pub(in crate::validation) fn validate(
     let index_type = machine
         .parameters
         .iter()
+        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
         .find(|declaration| declaration.id == index)
         .map(|declaration| declaration.scalar_type)
         .or_else(|| {

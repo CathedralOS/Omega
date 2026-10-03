@@ -42,6 +42,7 @@ const OP_FACTS_POLARITY: &str = "omega-rust/psi/compilation/representations/term
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_ELEMENT_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs";
 const TS_SE_ELEMENT_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/element_extent.rs";
+const TS_ELEMENT_REPRESENTATION: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/element_representation.rs";
 const TS_REPRESENTATION_REGIONS: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/representation_regions.rs";
 const TS_COLLECTION_BACKING: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/collection_backing.rs";
@@ -694,7 +695,7 @@ static OP_BYTE_SEQUENCE_EQUAL: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
     "operation:establish-element-view",
-    "a validated shared element-view establishment over an exact-element collection or a total normalized representation region of original fixed byte backing",
+    "a validated shared element-view establishment over an exact-element collection, a normalized typed collection whose source leaf bit sets imply target validity, or a total normalized representation region of original fixed byte backing",
     "the establishment observation; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
     EFFECT_DEPS,
     &[
@@ -705,13 +706,14 @@ static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_ELEMENTS_ESTABLISH,
         TS_COLLECTION_BACKING,
+        TS_ELEMENT_REPRESENTATION,
         TS_REPRESENTATION_REGIONS,
         OP_FACTS_ELEMENT_EXTENT,
     ],
 );
 static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
     "operation:establish-mutable-element-view",
-    "a validated mutable element-view establishment over an exact-element collection or a total normalized representation region of original fixed byte backing",
+    "a validated mutable element-view establishment over an exact-element collection, a normalized typed collection with equivalent leaf bit sets and padding geometry and no overlapping source occurrence qualifications, or a total normalized representation region of original fixed byte backing",
     "the establishment observation; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
     EFFECT_DEPS,
     &[
@@ -723,6 +725,7 @@ static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         VAL_ELEMENTS_MUTABLE_ESTABLISH,
         VAL_ELEMENTS_ESTABLISH,
         TS_COLLECTION_BACKING,
+        TS_ELEMENT_REPRESENTATION,
         TS_REPRESENTATION_REGIONS,
         OP_FACTS_ELEMENT_EXTENT,
     ],
@@ -765,14 +768,23 @@ static OP_ELEMENT_VIEW_READ: TrustedSurfaceEntry = entry(
 );
 static OP_ELEMENT_VIEW_WRITE: TrustedSurfaceEntry = entry(
     "operation:element-view-write",
-    "a validated in-bounds element-view element store",
+    "a validated mutable element-view store at an exact static scalar leaf path, with an index bound and both declared bounded-integer endpoints proved in the single write obligation",
     "the write observation; propositions observing the destination extent are invalidated",
     &[
         "fact:structural-effect-observation",
         "invalidation:element-view-write",
         "formation:operation-validation",
     ],
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_ELEMENTS_WRITE],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        TS_SE_ELEMENT_EXTENT,
+        OP_FACTS,
+        OP_FACTS_ELEMENT_EXTENT,
+        VAL_OPS,
+        VAL_ELEMENTS_WRITE,
+    ],
 );
 static OP_ELEMENT_VIEW_SUBSLICE: TrustedSurfaceEntry = entry(
     "operation:element-view-subslice",

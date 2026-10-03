@@ -433,6 +433,7 @@ fn validate_surviving_byte_operations(
                     )
                 }
                 O::ElementViewWrite {
+                    path,
                     destination,
                     index,
                     value,
@@ -442,6 +443,7 @@ fn validate_surviving_byte_operations(
                 } => (
                     terminal_psi::OperationResult::Unit,
                     terminal_psi::OperationKind::ElementViewWrite {
+                        path: path.clone(),
                         destination: *destination,
                         index: *index,
                         value: *value,

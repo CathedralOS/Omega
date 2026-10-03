@@ -3536,105 +3536,48 @@ completion syntax or other terminal service is a prerequisite.
   loan admission; **TERMINAL-SLICE-VIEW-VOCABULARY** owns broader view bounds;
   **PLAN-LAID-VIEWS** owns provider-backed establishment and access plans.
 
-- **RECAST-SOURCE-POSITIONS.** Carry representation-compatible shared/mutable
-  re-views through checked trees and native execution, following the
-  [recast contract](wiki/spec/layouts/recasts.md). `checking::value_custody::recasts`
-  judges statement-reachable guards, call arguments and nested operands.
-  Checked trees retain a whole-place scalar re-view as
-  `CheckedScalarExpression::RepresentationView` over the source read at its
-  declared carrier; stage 05's `expression_preparation/representation_view.rs`
-  replays equal-width integer views as the modular image, and the field-read
-  equality check in `bindings/structural_fields::resolve` stays exact. Preserve
-  checked layout/validity, backing identity, lifetime, access and whole-place
-  reads through ordinary expression sequencing and temporary loans.
+- **RECAST-SOURCE-POSITIONS.** Finish the remaining source-to-execution
+  representation views under the [recast contract](wiki/spec/layouts/recasts.md).
+  Preserve source storage, access and lifetime; shared views require validity
+  implication and mutable views require both directions. The owning source
+  judgment and supported positions are documented in
+  [checking/recasts.md](omega-rust/psi/compilation/checking/recasts.md).
 
-  On base `f64782b891147a98314a566696a5a5e044378c43`, Linux x86-64
-  native production rejects `runtime_shared_domain_weakening_recast_exit` and
-  the equivalent mutable domain/range siblings at stage 05 `Unit graph dropped
-  or added a body effect`; their checked interpretation returns 70. Replaying
-  storage with `validation::declared_carriers_match` in
-  `unit/attached_unit/statement_custody.rs` instead of full qualification
-  identity makes all three unchanged programs return 70 natively and in the
-  interpreter (`python tools/corpus_gate.py --both --filter
-  runtime_shared_domain_weakening_recast_exit,runtime_mutable_equivalent_domain_recast_exit,runtime_mutable_equivalent_range_recast_exit`;
-  [reproducer](tests/omega/pass/recast/runtime_shared_domain_weakening_recast_exit/README.md)).
-  The checked recast judgment still owns qualification legality; exact loan
-  geometry, access and activation still own statement erasure.
+  On macOS ARM64, with this change on base `921839635adb`,
+  `omega run --both tests/omega/pass/recast/runtime_aggregate_slice_representation_recast_exit/main.omg`
+  exits **70** in both engines after ordinary package review. Whole typed-array
+  views retain distinct source/target field identities, bounded integer and
+  Boolean validity, padded element stride and the original mutable cells.
+  `ElementViewWrite` carries the projected path and independently proves the
+  target leaf's range as well as its index bound. Runtime-offset byte regions
+  retain their separate total-validity and exact-tiling contract. Keep
+  `runtime_interior_slice_congruent_offset_exit` as the captured-region control.
 
-  Keep `runtime_bool_representation_recast_exit` and
-  `runtime_float_range_representation_recast_exit` as native/interpreter
-  exit-70 controls. Scalar and record-leaf cross-carrier observations use
-  Terminal `ScalarRepresentationView`; byte-to-bool guards retain and prove
-  the canonical 0/1 landing through ordinary scalar computations. Preserve
-  write-only rejection and the mutable bool-as-unconstrained-byte rejection.
+  `python3 tools/corpus_gate.py --both --filter recast/` measures 18 pass-tier
+  fixtures: 15 execute with native/interpreter exit **70**, one Linux-only
+  fixture builds, one remains compile-only, and the remaining executable
+  customer `runtime_interior_slice_view_mutable_write_exit` rejects its direct
+  receiver reads of backing still held by mutable `tail` and `pairs` formals.
+  Move those observations across the state edge that drops each loan, as the
+  existing interior control does, then carry its runtime byte-family slice and
+  byte-backed record field writes through the same descriptor path. Do not
+  weaken the loan rule: `interior_slice_exclusive_backing_read` pins it.
+  Formation is owned by stage 04 `values/scalar/computations/slice_view.rs`,
+  source replay by stage 05 `expression_preparation/source_custody/structural`,
+  and independent geometry/validity by Terminal `semantics` and `verification`.
 
-  Fixed-index nested-array reads and stores through byte-backed record loans
-  now retain normalized geometry and live backing identity through stage 05's
-  `Evaluation` and `ScalarBindings`; shared read-only loans use the same route.
-  On base `e94b9f79576` with this repair, macOS ARM64
-  `python3 tools/corpus_gate.py --native
-  --filter runtime_plan_laid_nested_fixed_array_mutable_write_exit` observes
-  native exit 70 on the unchanged source; the `--both` leg also observes
-  interpreter exit 70. The public
-  `omega run --both tests/omega/pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit/main.omg`
-  stops at missing package-review acceptance (exit 200); review approval remains
-  separate from compiler acceptance. Full value replay needs local-root
-  projection semantics
-  in `source_custody/value_correspondence/mod.rs` (currently requires a parameter
-  root for nested element suffixes); coordinate with its live static-text owner.
-  Carry the captured-loan context through remaining structural/literal operand
-  namespaces when extending those compositions, not through per-use recognizers.
+  `runtime_recast_record_view_indexed_write_exit` binds only Linux x86-64;
+  retain its native exit-70 acceptance on that host. `nested_operand_view_compile`
+  intentionally has no executable entry. Shared and mutable typed views must
+  continue to preserve source qualifications; an unrelated domain cannot be
+  retained across mutation merely because leaf layouts match.
 
-  With this change on base `e416dc26b7e`, `python3 tools/corpus_gate.py --native
-  --filter recast/` on macOS ARM64 builds and exits 70 for
-  `runtime_shared_domain_weakening_recast_exit`,
-  `runtime_mutable_equivalent_domain_recast_exit` and
-  `runtime_guarded_offset_recast_exit`; a runtime-offset byte-region read
-  replays byte by byte from its first `u8` element, and
-  `runtime_integer_bit_view_recast_exit` pins equal-width integer and signed
-  byte-region views with the interpreter in agreement. The remaining executable
-  customers stop at these missing capabilities:
-
-  - Stores through a `&mut` recast loan
-    (`runtime_mutable_equivalent_range_recast_exit`, `structural field store:
-    target place`): `structural_scalar_store/destination.rs::rejoin_loan_local`
-    does not peel the recast, and the stored view-carrier value needs a retained
-    store re-view into the source carrier that stage 05 replays.
-  - Runtime-offset byte-region stores
-    (`runtime_offset_byte_recast_mutable_write_exit` at `structural field store:
-    target place`) share the `&mut` recast store gap above; the store must
-    write each footprint byte with its own index obligation.
-  - Typed-record and slice views stop at `attached data shape`
-    (`runtime_mutable_equivalent_record_recast_exit`,
-    `runtime_shared_record_float_range_weakening_exit`), `parameter transfer`
-    (`runtime_aggregate_slice_representation_recast_exit` and the byte-family
-    portion of `runtime_interior_slice_view_mutable_write_exit`). Finish the
-    source-to-descriptor route for whole typed-array recasts, preserving their
-    leaf validity relations, and runtime byte-family slice formation. The
-    existing `EstablishElementView` / `EstablishMutableElementView` region
-    contract now carries captured byte endpoints with independently checked
-    bounds, exact tiling, full-bit element validity and loan lifetime; extend
-    the owning source/descriptor paths rather than adding recast-specific
-    operations. Keep `runtime_interior_slice_congruent_offset_exit` as an
-    exit-70 native/interpreter control. Its readback drops the mutable slice on
-    a state edge first; `interior_slice_exclusive_backing_read` rejects direct
-    backing access while the view remains held. Apply that same loan boundary
-    to the remaining interior byte/record canary before claiming execution.
-    Record views share referee-record declaration minting.
-
-  `nested_operand_view_compile` checks without an executable entry. Immutable
-  `&mut` place-loan locals read their loaned place in scalar operands; other
-  reference locals initialized from place loans remain shared work with
-  **STATE-LOCAL-VALUE-FRONTIER** / **REFERENCE-LOCAL-BINDING-ROUTES**, and range
-  syntax migration belongs to **CANONICALIZE-SCALAR-RANGE-CONTRACTS**.
-
-  Acceptance: let-bound and inline equivalents of supported scalar, record,
-  array and slice re-views execute, with mutable writes visible through the
-  original backing. Run `python3 tools/corpus_gate.py --native --filter recast/`
-  on matching hosts and require the authored exit results. Incompatible
-  geometry/validity, access escalation and conflicting backing use reject at
-  their source locations. Keep proof-only recasts fenced and preserve precise
-  symbolic/boundary-witness footprint refusals and placed-view restrictions.
+  Acceptance: the remaining interior byte/record customer and let-bound/inline
+  equivalents execute with writes visible through the original backing.
+  Run the recast native gate on matching hosts and require authored results.
+  Incompatible geometry/validity, access escalation and conflicting backing
+  access reject at their source locations. Keep proof-only and placed-storage
+  recasts fenced, with precise symbolic and boundary-witness refusals.
 
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
   preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),

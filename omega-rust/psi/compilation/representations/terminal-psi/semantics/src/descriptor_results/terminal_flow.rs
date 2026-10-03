@@ -115,17 +115,35 @@ pub(super) fn adapt(
                     let source_location = location(source.place, &source.path, None)?;
                     step.derivations
                         .push((source_location.clone(), destination.clone()));
-                    if matches!(
-                        operation.kind,
+                    let preserves_coordinates = match &operation.kind {
                         OperationKind::EstablishElementView {
-                            region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
-                            ..
-                        } | OperationKind::EstablishMutableElementView {
-                            region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+                            source,
+                            element,
+                            region,
                             ..
                         }
-                    ) {
-                        // Relative element coordinates cannot refine byte backing coordinates.
+                        | OperationKind::EstablishMutableElementView {
+                            source,
+                            element,
+                            region,
+                            ..
+                        } => crate::runtime_structural_path_tip(
+                            module.structural_types.iter(),
+                            *graph.place_types.get(&source.place)?,
+                            &source.path,
+                        )
+                        .is_some_and(|collection| {
+                            crate::collection_view_preserves_coordinates(
+                                module.structural_types.iter(),
+                                collection.id,
+                                *element,
+                                *region,
+                            )
+                        }),
+                        _ => true,
+                    };
+                    if !preserves_coordinates {
+                        // Viewed element paths cannot refine differently named backing paths.
                         let mut projection = Projection::new(&[]);
                         projection.exact = false;
                         graph

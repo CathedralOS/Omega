@@ -201,6 +201,7 @@ impl Checker<'_> {
                         *extent,
                         *element_stride,
                         expected_region,
+                        argument.access,
                     )
             }
             TargetElementView::Subslice {
@@ -397,6 +398,7 @@ impl Checker<'_> {
         extent: u64,
         element_stride: u32,
         region: terminal_psi::ElementViewRegion,
+        access: terminal_psi::StructuralAccess,
     ) -> bool {
         // A borrowed byte view carries a `FixedByteRange` window over the
         // fixed array its collection path names: the window bounds the array and
@@ -423,9 +425,15 @@ impl Checker<'_> {
             collection,
             element,
             region,
+            access,
         ) else {
             return false;
         };
+        if region == terminal_psi::ElementViewRegion::WholeCollection
+            && !crate::structural_inputs::structural_reference_input::typed_collection_layout_matches(
+                collection, element, access, self.types,
+            )
+        { return false; }
         let backing =
             match geometry {
                 terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => backing,

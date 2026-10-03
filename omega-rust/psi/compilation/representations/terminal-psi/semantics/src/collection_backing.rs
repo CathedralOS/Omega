@@ -60,3 +60,45 @@ pub fn collection_backing<'types>(
         _ => None,
     }
 }
+
+/// Reconstruct a typed whole-collection loan. Exact element identity preserves
+/// arbitrary established layouts; nonidentity needs the common leaf relation.
+pub fn collection_view_backing<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    collection: StructuralTypeId,
+    element: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+) -> Option<CollectionBacking> {
+    if let Some(backing) = collection_backing(types.clone(), collection, element) {
+        return Some(backing);
+    }
+    let mut declarations = types.clone().filter(|row| row.id == collection);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    let StructuralTypeShape::FixedArray {
+        element: source,
+        length,
+    } = declaration.shape
+    else {
+        return None;
+    };
+    crate::element_representation_relation(types, source, element, access)?;
+    Some(CollectionBacking {
+        length,
+        storage: CollectionStorage::Inline,
+    })
+}
+
+/// Whether target element paths retain their source meaning without a leaf map.
+/// Inexact geometry is conservative backing overlap, not indirect provenance.
+pub fn collection_view_preserves_coordinates<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    collection: StructuralTypeId,
+    element: StructuralTypeId,
+    region: terminal_psi::ElementViewRegion,
+) -> bool {
+    matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+        && collection_backing(types, collection, element).is_some()
+}

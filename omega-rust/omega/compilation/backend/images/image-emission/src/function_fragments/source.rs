@@ -763,6 +763,19 @@ fn element_operation_retained(
                 },
             )
             | (
+                AbstractOperation::ElementViewRead { psi_operation, .. },
+                TargetUnitOperation::ScalarDefinition {
+                    expression:
+                        TargetScalarExpression::Boolean(
+                            target_operations::TargetBooleanExpression::ElementViewRead {
+                                psi_operation: retained,
+                                ..
+                            },
+                        ),
+                    ..
+                },
+            )
+            | (
                 AbstractOperation::ElementViewSubslice { psi_operation, .. },
                 TargetUnitOperation::ElementViewSubslice {
                     view:

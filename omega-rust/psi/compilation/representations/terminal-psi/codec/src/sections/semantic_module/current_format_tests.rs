@@ -8,7 +8,7 @@ use terminal_psi::VocabularyMarker;
 // at block offset 264 and module offset 309 (end); these are part of the
 // current body, not markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 115, 0, 116, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 116, 0, 116, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -782,6 +782,7 @@ fn element_view_write_requires_a_valid_module_to_encode() {
         suspension_crossing: None,
         result: OperationResult::Unit,
         kind: OperationKind::ElementViewWrite {
+            path: Vec::new(),
             destination: PlaceId::new(1).unwrap(),
             index: ValueId::new(1).unwrap(),
             value: ValueId::new(2).unwrap(),

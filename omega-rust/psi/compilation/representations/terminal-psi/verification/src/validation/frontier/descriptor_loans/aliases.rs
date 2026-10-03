@@ -105,8 +105,18 @@ pub(super) fn reconstruct_in(
                 }
             }
             let descriptor = match &operation.kind {
-                OperationKind::EstablishElementView { source, region, .. }
-                | OperationKind::EstablishMutableElementView { source, region, .. } => {
+                OperationKind::EstablishElementView {
+                    source,
+                    element,
+                    region,
+                    ..
+                }
+                | OperationKind::EstablishMutableElementView {
+                    source,
+                    element,
+                    region,
+                    ..
+                } => {
                     let mut projection = accesses::projection(
                         module,
                         machine,
@@ -115,11 +125,20 @@ pub(super) fn reconstruct_in(
                         None,
                         position,
                     );
-                    // Child element indices and source octet indices use different units.
-                    if matches!(
-                        region,
-                        terminal_psi::ElementViewRegion::RepresentationBytes { .. }
-                    ) {
+                    // Reinterpreted element fields may have different source identities.
+                    let preserves_coordinates =
+                        crate::validation::element_view::establishment::source_collection_type(
+                            module, machine, source,
+                        )
+                        .is_some_and(|collection| {
+                            terminal_semantics::collection_view_preserves_coordinates(
+                                module.structural_types.iter(),
+                                collection,
+                                *element,
+                                *region,
+                            )
+                        });
+                    if !preserves_coordinates {
                         projection.exact = false;
                     }
                     Some((source.place, projection))
@@ -171,16 +190,31 @@ pub(super) fn reconstruct_in(
                 // A temporary exclusive whole-array descriptor supplies the
                 // parent capability; its narrowed child owns the live loan.
                 // Shared establishment itself must keep its backing stable.
-                let is_birth = matches!(
-                    operation.kind,
+                let is_birth = match &operation.kind {
                     OperationKind::EstablishElementView {
-                        region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
-                        ..
-                    } | OperationKind::EstablishMutableElementView {
-                        region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+                        source,
+                        element,
+                        region,
                         ..
                     }
-                ) || matches!(
+                    | OperationKind::EstablishMutableElementView {
+                        source,
+                        element,
+                        region,
+                        ..
+                    } => crate::validation::element_view::establishment::source_collection_type(
+                        module, machine, source,
+                    )
+                    .is_none_or(|collection| {
+                        !terminal_semantics::collection_view_preserves_coordinates(
+                            module.structural_types.iter(),
+                            collection,
+                            *element,
+                            *region,
+                        )
+                    }),
+                    _ => false,
+                } || matches!(
                     operation.kind,
                     OperationKind::ElementViewSubslice { .. }
                         | OperationKind::ByteSequenceSubslice { .. }

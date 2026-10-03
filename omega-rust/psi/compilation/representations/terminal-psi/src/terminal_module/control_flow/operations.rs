@@ -562,6 +562,7 @@ pub enum OperationKind {
     /// operation-result place no shared-view establishment produced.
     ElementViewWrite {
         destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
         index: ValueId,
         value: ValueId,
         length: ValueId,

@@ -237,15 +237,22 @@ fn adapt(
                 | O::EstablishReference { result, source, .. } => {
                     let destination = DescriptorLocation::whole(result.place);
                     if let Some(source) = location(source.place, &source.path, None) {
-                        if matches!(
-                            operation,
-                            O::EstablishElementView {
-                                region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
-                                ..
-                            }
-                        ) {
+                        if let O::EstablishElementView {
+                            source: argument,
+                            element,
+                            region,
+                            ..
+                        } = operation
+                            && !element_coordinates_preserved(
+                                function,
+                                types.iter(),
+                                argument,
+                                *element,
+                                *region,
+                            )
+                        {
                             // Location owns the source prefix. Later target-element
-                            // coordinates must not refine this byte-backed region.
+                            // coordinates must not refine differently typed backing.
                             let mut projection = Projection::new(&[]);
                             projection.exact = false;
                             graph.projections.insert(
@@ -664,4 +671,30 @@ fn writable_descriptor_slots(
             })
             .collect(),
     )
+}
+
+/// Coordinate precision is distinct from backing identity. A representation
+/// view can rename fields or change index units while borrowing the same home.
+pub(crate) fn element_coordinates_preserved<'a>(
+    function: &PsiOptimizationFunction,
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    source: &terminal_psi::StructuralArgument,
+    element: semantic_vocabulary::StructuralTypeId,
+    region: terminal_psi::ElementViewRegion,
+) -> bool {
+    let Some(root) = crate::unit_validation::operation_contracts::structural_source_contract(
+        function,
+        source.place,
+        false,
+    ) else {
+        return false;
+    };
+    let Some(collection) = terminal_semantics::runtime_structural_path_tip(
+        types.clone(),
+        root.structural_type,
+        &source.path,
+    ) else {
+        return false;
+    };
+    terminal_semantics::collection_view_preserves_coordinates(types, collection.id, element, region)
 }

@@ -241,11 +241,23 @@ source-chain access.
 `EstablishElementView` and `EstablishMutableElementView` borrow an initialized
 contiguous collection through its exact declared source path. A `u8` collection
 produces its borrowed byte descriptor; another element type produces an
-`ElementView` with that element identity. Both operations check the same
-collection/result correspondence for `WholeCollection`. The shared operation requires shared source
+`ElementView` with its declared element identity. `WholeCollection` preserves
+identical element types directly. Different element types require equal normalized
+layout, including padding, and corresponding leaf representation sets: containment
+for a shared view and equality for a mutable view. Source and target field paths
+remain distinct; matching byte offsets do not equate their declared identities.
+The shared operation requires shared source
 access and an unrestricted result; the mutable operation requires mutable
 source access and an affine result. A borrowed byte result must name the exact
 `u8` element declaration and cannot substitute an owned byte carrier.
+
+The typed relation admits fixed integer and IEEE carriers, Boolean leaves,
+and bounded integer leaves recursively within records and arrays. Raw-byte
+formation still requires total leaf validity. A mutable view with different
+element types rejects source root qualifications and projected qualifications
+that overlap the borrowed path unless their preservation is independently
+established; equal leaf layouts cannot preserve an arbitrary relational domain.
+No view formation grants new result qualifications.
 
 A bounded byte-array reference is another presentation of that fixed backing:
 its carrier stores a pointer and its declaration supplies the exact extent.
@@ -314,7 +326,7 @@ and no derived element views.
 | --- | --- | --- |
 | `ElementViewLength { source }` | Exact `u64` element count. | An available shared or exact mutable element view; the count is the view's own stored runtime length, not a field merely named length. |
 | `ElementViewRead { source, index, length, obligation, path }` | The scalar at `path` inside the selected element: the element itself when `path` is empty. | A `[copy]` element type; `u64` index and length; dominating length observation of the identical view; checked `index < length`; a static `path` of record fields and literal indexes ending at a scalar leaf of the element (`view[i].value`). |
-| `ElementViewWrite { destination, index, value, length, obligation }` | Unit; replace one element without changing extent. | Exclusive mutable element view; an element-typed value; `u64` index and current same-view length; checked `index < length`; the displaced element's disposal must be legal at that edge. |
+| `ElementViewWrite { destination, path, index, value, length, obligation }` | Unit; replace the scalar leaf at `path` inside one element without changing extent. | Exclusive mutable element view; a value with the projected leaf's carrier; `u64` index and current same-view length; checked `index < length` and both declared bounds for a bounded integer leaf. The static field/literal-index path selects the same leaf in replay; an empty path selects a scalar element. |
 | `ElementViewSubslice { source, start, end, length, obligation }` | Shared or mutable element view of `[start, end)` over the identical backing, without increasing source access. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length` in element units. |
 
 A by-value `ElementViewRead` exists only for `[copy]` element types: a

@@ -181,6 +181,8 @@ pub struct CheckedElementViewWritePlan {
     pub statement_index: u32,
     pub destination: crate::CheckedStoreRoot,
     pub index: CheckedScalarExpression,
+    /// Projection within the selected element; empty for a scalar element.
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub element: PrimitiveType,
     pub value: crate::CheckedStoreValue,
 }

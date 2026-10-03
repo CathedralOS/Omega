@@ -61,12 +61,14 @@ pub(in crate::validation) fn collection_source_matches(
     element: StructuralTypeId,
     view_type: StructuralTypeId,
     region: terminal_psi::ElementViewRegion,
+    access: StructuralAccess,
 ) -> bool {
     match terminal_semantics::element_view_region_geometry(
         module.structural_types.iter(),
         collection,
         element,
         region,
+        access,
     ) {
         Some(terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing)) => {
             backing.storage == terminal_semantics::CollectionStorage::Inline
@@ -206,7 +208,14 @@ pub(in crate::validation) fn validate_establishment(
     {
         return Err(invalid());
     }
-    if !collection_source_matches(module, collection, element, result.structural_type, region) {
+    if !collection_source_matches(
+        module,
+        collection,
+        element,
+        result.structural_type,
+        region,
+        source.access,
+    ) {
         return Err(invalid());
     }
     Ok(())
