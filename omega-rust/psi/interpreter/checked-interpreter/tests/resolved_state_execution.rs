@@ -317,3 +317,57 @@ fn resolved_calls_evaluate_arguments_once_in_source_order() {
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }
+
+#[test]
+fn self_arrivals_retain_current_mutable_parameters() {
+    let fixture = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/omega/pass/proofs/runtime_mutable_ranked_accumulator_exit/main.omg"
+    ));
+    let recurrence = &fixture[fixture
+        .find("machine accumulate(")
+        .expect("authored recurrence")..];
+    let checked = crate::front_end::checked_program(&format!(
+        "{recurrence}
+         machine main() -> i32 {{
+             let result: u64 = accumulate(3, 4, 7);
+             transition result == 7 {{ true -> 70 false -> 71 }}
+         }}"
+    ));
+    let outcome = interpret_entry(
+        &checked,
+        BuildMachineEntry::Name("main"),
+        &[],
+        InterpretOptions::default(),
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn self_arrivals_refresh_guard_calls_and_keep_alias_policies() {
+    // Exercise the typed execution API independently of source proof discovery:
+    // the ordinary helper guard is executed anew on each identity arrival.
+    // The mutable alias writes the same parameter home under its wrapping policy.
+    let typed = crate::front_end::typed_program(
+        "machine positive(value: u64) -> bool { value > 0 }
+         machine walk(mut remaining: u64, mut value: u8 in Wrapping) -> u64
+         requires remaining > 0 && remaining <= 3
+         terminates by remaining -> Nat::Descending;
+         {
+             let alias: &mut u8 in Wrapping = &mut value;
+             alias = alias + 1;
+             remaining = remaining - 1;
+             transition positive(remaining) {
+                 true -> self
+                 false -> finish(value)
+             }
+             state finish(value: u8 in Wrapping) -> u64 { value as u64 }
+         }
+         machine main() -> u64 { walk(3, 254) }",
+    );
+    assert_eq!(
+        checked_interpreter::evaluate_const_machine(&typed, "main"),
+        Ok(1),
+    );
+}
