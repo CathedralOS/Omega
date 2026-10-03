@@ -298,55 +298,6 @@ execution and native exit/output. A moved refusal is still unfinished work.
   `pass/memory/secondary_processor_canary`'s `request_cancel(&self)`, whose
   borrow form has no call site in the fixture at all.
 
-- **STATIC-DEPENDENT-BOUND-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
-  The R1a dependent-maximum recognizer is keyed to the literal `self`
-  spelling, so no dependent bound can be written statically and the diagnostic
-  says so itself: "A dependent maximum (`[0..=self.<field>]`) is supported on
-  machine STATE PARAMETERS whose named field carries an enforced literal
-  integer range". Rewriting `state read(main: &mut Main, i: u32 [0..=main.count])`
-  is refused with "declares a range whose bound is not a constant integer
-  expression", which is a worse outcome than the receiver form, so the two
-  customers stay receiver-spelled for now.
-
-  The site is `omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/evidence/dependent_ranges.rs:207`
-  (`self_field_name`), whose last line is `only.is_self_receiver().then(..)`.
-  It is a syntax-only recognizer holding just an `ExpressionTable`, so it
-  cannot know the subject's name; `DependentBoundClass::ScopedName` does not
-  catch `main.count` either, because that is a Member rather than a bare name,
-  and `SiblingLen` requires `.len`. Generalizing therefore means threading the
-  state's data binding into the recognizer. The caller already computes it:
-  `checks/ranges/dependent_params.rs:60` calls `program.state_data_binding(machine, state)`
-  to spell the proof atom, so the fact side is migrated and only the
-  recognizer is not.
-
-  Scope is 6 call sites of `symbolic_range_maximum` across 4 crates --
-  `checks/ranges/types.rs:252`, `checks/ranges/dependent_params.rs:106`,
-  `proof/src/obligations/plan.rs:252`,
-  `checking/src/proof_contracts/arithmetic_domains/dependent_relations.rs:97`,
-  `.../range_constraints.rs:164` and
-  `checking/src/value_custody/type_references/constraint_validation.rs:548` --
-  and each needs a machine/state context it may not currently hold, which is
-  why this is split out rather than attempted alongside fixture work. Update
-  the diagnostic text in the same change; it currently teaches the retired
-  spelling. Customers:
-  `tests/omega/fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`.
-  Both have since been respelled to `[0..=main.count]` and BOTH NOW PIN
-  NOTHING: each rejects on the non-constant-bound diagnostic rather than its
-  authored `satisfies dependent parameter`, so the gate reports
-  `expected_satisfied: False` and two fixtures "rejected without their
-  expected fragment".
-
-  Do not read that as migration damage and do not repair it by editing the
-  expectations. Measured by restoring the receiver spelling on
-  `dependent_arg_unrelated_rejected` and re-running the gate: it rejects
-  without its expected fragment that way too, because the parse refusal
-  "`self` receivers are retired" cannot match `satisfies dependent parameter`
-  either. The pin was lost when `self` was retired, not when the fixture was
-  respelled, and the respelling cannot restore it. Both pins return only when
-  the recognizer accepts a subject-rooted bound; until then the corpus has no
-  coverage of the R1a dependent-parameter obligation at all, which is the
-  reason to do this work rather than the two fixtures being individually red.
-
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Remaining customer: `tests/omega/pass/core/task_lifecycle_operations`.
   On the case-loan candidate based on `b03305417fb` (macOS ARM64),
@@ -1735,8 +1686,15 @@ the complete product bar; focused successes below do not establish that baseline
   exit-70 control `collections/runtime_borrowed_fixed_array_state_reads_exit`.
   The sample's public `omega run --both` reaches pending package review and
   exits 200; no decisions were accepted. Follow its README for that separate
-  acceptance. Reproduce `dot_product` and `horner_eval` before assigning their
-  next failure; do not reuse the retired cycle-parameter diagnosis.
+  acceptance. At `e56af86474b`, the byte-identical `dot_product` and
+  `horner_eval` bodies also execute on macOS ARM64 with native/interpreter
+  agreement and exact stdout: exit 32 in
+  `collections/runtime_shared_array_dot_product_exit` and exit 70 in
+  `collections/runtime_shared_array_polynomial_exit`. These pin shared caller
+  storage across a two-array reduction and an indexed initial state argument
+  followed by a multiply-add recurrence. Their sample READMEs retain the public
+  CLI commands: both public runs exit 200 awaiting package decisions, with
+  none accepted. Do not reopen the retired shared-array cycle diagnosis.
 
   - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
     relations: broader qualified/partial ownership, reference-bearing or

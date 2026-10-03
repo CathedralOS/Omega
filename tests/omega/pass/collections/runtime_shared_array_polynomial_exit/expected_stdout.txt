@@ -1,0 +1,3 @@
+horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method
+PASS: p(2) == 57 (exit 70)
+[press Enter to close]
