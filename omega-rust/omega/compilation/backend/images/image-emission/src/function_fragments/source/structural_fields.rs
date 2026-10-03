@@ -602,6 +602,7 @@ pub(super) fn view_replacement_retained(
         path,
         field,
         source,
+        ..
     } = operation
     else {
         return false;

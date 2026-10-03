@@ -353,7 +353,7 @@ unit, charged before execution.
 | `WriteOnlyPrimitiveStore` | Original destination root, path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. Path elements may be `RuntimeIndex` segments, each with the obligation the store owns. The referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. The carrier composes record fields and fixed-array elements, literal or `RuntimeIndex`, in any order; each runtime element's bound is an obligation the store owns. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source (borrowed view or established owned concatenation), exact dominating source-length observation, and capacity obligation. |
-| `StructuralByteViewFieldStore` | Destination parameter, carrier path, final shared borrowed-view field, and the whole established byte literal whose descriptor replaces the field's. No length, capacity or bytes are retained: the field takes the source's backing and extent. |
+| `StructuralByteViewFieldStore` | Destination parameter, carrier path, final shared borrowed-view field, established readable descriptor source, and optional exact byte-predicate obligation. No length, capacity or bytes are retained: the field takes the source's backing and extent. |
 | `ByteSequenceStore` | Whole bounded-owned destination parameter, whole immutable source, exact dominating source-length observation, and capacity obligation. The destination's primitive byte qualifications remain required after replacement. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 | `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte local, exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. It needs no synthetic record or field identity. |
@@ -522,21 +522,45 @@ bounded byte-field store, including its leading `Referent` crossing. The field
 then denotes the source's exact backing and extent: no byte is copied, the
 displaced descriptor's backing is neither read nor released, and sibling fields
 are untouched. A stored view must not outlive its backing
-([lifetimes](../language/lifetimes.md)), so the source's backing must outlive
-the destination root. A quoted literal's view denotes immutable image storage,
-never a state-local owner ([quoted bytes](../language/data_and_literals.md#quoted-bytes)),
-so an established byte literal satisfies this for every root; it is the only
-admitted source. A parameter or block-parameter view, subslice, leaf copy or
-owned concatenation carries no lifetime relation to the destination root here
-and rejects, even when its contents equal a literal's. Source predicates replay
-from the literal's exact octets and must imply every declared field predicate,
-as for the owned store; an establishment qualification roster is neither
-required nor a substitute for the octets. A record literal assigned through an
-exclusive root decomposes into one store per member: shared view members take
-this store, the rest scalar field stores. The store costs one logical operation
-unit, invalidates every observation of the replaced field, and creates no
-ownership frontier entry. Copy permission on an enclosing `[copy]` record
-neither establishes the field's predicates nor extends the source's loan.
+([lifetimes](../language/lifetimes.md)). Replay follows the exact current
+reference leaves through parameters, projected copies, subslices, ordinary call
+results and state transfers. Literal descriptors borrow immutable image storage;
+the established empty descriptor borrows nothing. An unknown descriptor is
+neither an empty descriptor nor evidence that a call preserved the incoming slot.
+
+Assignment evaluates the source before retiring the overwritten field's loans.
+Installing the descriptor retains its possible backing regions until the last
+live copy is retired. Replacing one field leaves sibling and detached copies'
+loans intact. Borrowed carrier aliases select the same storage slot; copying an
+owned carrier creates separate slots retaining the copied loans. Normal-return
+call summaries transport stored reference leaves even when the call returns
+Unit, preserving incoming leaves on paths that do not replace them. Local backing
+cannot escape on a normal exit, be disposed, or be re-established while a
+surviving descriptor borrows it. A temporary store may be replaced before its
+backing dies; the destination root's lexical lifetime alone does not decide
+that relation. A crash has no normal survivor or cleanup continuation.
+
+An incoming descriptor's backing is distinct from the storage occupied by its
+slot. A body may retain a compatibility requirement between that captured
+backing and an exclusive storage access. Every ordinary invocation must
+discharge the requirement using its actual pre-call backing and storage, or
+propagate the exact relation to its caller. Unresolved actuals do not remove
+an invocation from this check. External entry requires independently
+established compatibility; a mutable formal alone does not establish it.
+Replacing the incoming slot does not change a surviving copy's captured backing.
+
+Source predicates replay independently of backing lifetime. Literal octets and
+current declared predicates can imply the destination's requirements directly;
+otherwise the operation carries an obligation for the required predicates on
+its exact current source. Accepted runtime content observations may discharge
+that obligation. A copied qualification roster, a different equal-typed source,
+or stale observations cannot substitute for it. A record literal assigned
+through an exclusive root decomposes into one store per member: shared view
+members take this store, the rest scalar field stores. The store costs one
+logical operation unit, invalidates every observation of the replaced field,
+and creates no ownership frontier entry. Copy permission on an enclosing
+`[copy]` record neither establishes the field's predicates nor extends the
+source's loan.
 
 A shared view field is observed like its plain carrier: `StructuralByteSequenceFieldLength`
 reads the stored descriptor's extent and `StructuralByteSequenceFieldRead` the

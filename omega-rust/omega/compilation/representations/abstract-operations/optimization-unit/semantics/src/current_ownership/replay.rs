@@ -147,7 +147,10 @@ pub(super) fn validate_current_ownership_cfg(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &super::CallAccesses,
     entry: CurrentOwnership,
-) -> Result<(), OptimizationUnitValidationError> {
+) -> Result<
+    Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
+    OptimizationUnitValidationError,
+> {
     let pins = super::address_joins::AddressJoinPins::new(
         function,
         functions,
@@ -838,5 +841,5 @@ pub(super) fn validate_current_ownership_cfg(
     }
 
     super::references::validate_return_coverage(function, &returned_reference_sources)?;
-    Ok(())
+    Ok(pins.descriptor_requirements())
 }

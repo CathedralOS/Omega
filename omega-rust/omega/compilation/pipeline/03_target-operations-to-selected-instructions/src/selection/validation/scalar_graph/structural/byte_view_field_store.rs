@@ -1,5 +1,5 @@
 //! Independently replay one shared view field's descriptor replacement: two
-//! word loads from the established literal's descriptor, then two word stores
+//! word loads from the established source's descriptor, then two word stores
 //! at the field's descriptor offset in the original root.
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -46,7 +46,14 @@ pub(super) fn replace(
                 | StructuralAccess::WriteOnlyBorrow
         )
         || *source == destination.place
-        || crate::selection::established_view_input::literal_view_type(function, *source).is_none()
+        || !crate::selection::established_view_input::view_type(function, *source).is_some_and(
+            |identity| {
+                signature
+                    .structural_types
+                    .iter()
+                    .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
+            },
+        )
         || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
             indices,
             &geometry.elements,
@@ -58,7 +65,7 @@ pub(super) fn replace(
     let extent_offset = descriptor_offset
         .checked_add(8)
         .ok_or_else(|| replay.invalid())?;
-    let literal = replay
+    let descriptor = replay
         .transport
         .pointers
         .iter()
@@ -103,7 +110,7 @@ pub(super) fn replace(
     replay.check_instruction(
         SelectedInstructionKind::Load64 { byte_offset: 0 },
         load64,
-        &[literal, backing],
+        &[descriptor, backing],
         &provenance(row),
     )?;
     let extent = result(replay, *source, 8)?;
@@ -118,7 +125,7 @@ pub(super) fn replace(
     replay.check_instruction(
         SelectedInstructionKind::Load64 { byte_offset: 8 },
         load64,
-        &[literal, extent],
+        &[descriptor, extent],
         &provenance(row),
     )?;
     super::runtime_address::footprint(

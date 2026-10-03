@@ -111,6 +111,7 @@ fn store(
                 path,
                 field: StructuralFieldId::new(1).unwrap(),
                 source: PlaceId::new(2).unwrap(),
+                predicate_obligation: None,
             },
         ],
     );
@@ -144,7 +145,7 @@ fn every_activation_replaces_its_parameter_field_with_image_backed_literal() {
 fn indexed_view_fields_retain_selector_custody_and_mutable_access() {
     let source = super::structural_borrows::source_plan(
         r#"
-        domain [u8]::Utf8 requires valid_utf8(self);
+        domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
         data Room { name: &[u8] in Utf8; }
         data Main { rooms: [Room; 3]; }
         machine Main::run(root: &mut Main) {

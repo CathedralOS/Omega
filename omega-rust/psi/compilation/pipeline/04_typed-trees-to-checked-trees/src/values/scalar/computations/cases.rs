@@ -277,45 +277,12 @@ impl Builder<'_, '_> {
         })
     }
 
-    /// The dense structural-namespace index of the authored parameter at
-    /// `authored_position`, the coordinate structural argument plans use. A
-    /// borrowed `self` joins that namespace only when the receiver-observation
-    /// check retains it, a decision made after this emission, so a different
-    /// subject root positioned after such a receiver can never settle its
-    /// dense index here.
     pub(super) fn dense_structural_parameter_index(&self, authored_position: usize) -> Option<u32> {
-        let subject_is_self = self
-            .authored_parameters
-            .get(authored_position)
-            .is_some_and(|parameter| parameter.is_self);
-        if !subject_is_self
-            && self
-                .authored_parameters
-                .iter()
-                .take(authored_position)
-                .any(|parameter| {
-                    parameter.is_self
-                        && crate::execution::terminal_unit::is_reference(
-                            self.program,
-                            parameter.type_reference,
-                        )
-                })
-        {
-            return None;
-        }
-        u32::try_from(
-            self.authored_parameters
-                .iter()
-                .take(authored_position)
-                .filter(|parameter| {
-                    crate::execution::terminal_unit::structural_parameter_candidate(
-                        self.program,
-                        parameter,
-                    )
-                })
-                .count(),
+        crate::execution::terminal_unit::types::dense_structural_parameter_index(
+            self.program,
+            self.authored_parameters,
+            authored_position,
         )
-        .ok()
     }
 
     /// Membership and stored values share the same authored field computations.

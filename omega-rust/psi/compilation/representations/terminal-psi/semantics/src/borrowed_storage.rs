@@ -12,7 +12,7 @@ use terminal_psi::StructuralPathSegment;
 pub type Position = (BlockId, u32);
 pub type AliasSources = BTreeMap<PlaceId, Vec<(PlaceId, Projection)>>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Projection {
     pub path: Vec<StructuralPathSegment>,
     pub exact: bool,

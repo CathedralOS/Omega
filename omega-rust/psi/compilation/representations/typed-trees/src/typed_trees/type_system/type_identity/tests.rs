@@ -536,6 +536,14 @@ fn lifetime_only_applications_preserve_the_runtime_nominal_identity() {
         symbols: builder.finish(),
         ..TypedTrees::default()
     };
+    for symbol in &owners {
+        program.push_data_definition(DataDefinition {
+            symbol: *symbol,
+            name: Identifier::generated("same diagnostic spelling"),
+            lifetime_parameters: vec![Identifier::generated("declared")],
+            ..DataDefinition::default()
+        });
+    }
     let bare = program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -554,6 +562,10 @@ fn lifetime_only_applications_preserve_the_runtime_nominal_identity() {
                 lifetime_arguments: vec![Identifier::generated(lifetime)],
                 arguments: empty,
             });
+        assert_eq!(
+            program.closed_data_definition(applied).unwrap().symbol,
+            owners[0]
+        );
         assert_eq!(
             program.normalized_type_identity(bare),
             program.normalized_type_identity(applied)
@@ -589,6 +601,19 @@ fn lifetime_only_applications_preserve_the_runtime_nominal_identity() {
             lifetime_arguments: vec![Identifier::generated("first")],
             arguments: empty,
         });
+    assert_eq!(
+        program.closed_data_definition(other).unwrap().symbol,
+        owners[1]
+    );
+    let wrong_arity = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: owners[0],
+            base_name: Identifier::generated("Carrier"),
+            lifetime_arguments: vec![],
+            arguments: empty,
+        });
+    assert!(program.closed_data_definition(wrong_arity).is_none());
     assert_ne!(
         program.normalized_type_identity(bare),
         program.normalized_type_identity(other)
@@ -608,6 +633,24 @@ fn lifetime_only_applications_preserve_the_runtime_nominal_identity() {
             lifetime_arguments: vec![Identifier::generated("first")],
             arguments,
         });
+    assert!(
+        program
+            .closed_data_definition(with_runtime_argument)
+            .is_none()
+    );
+    let mut open = program.clone();
+    let mut declaration = open.data_definitions()[0].clone();
+    open.push_data_type_parameter(&mut declaration, crate::data::TypeParameter::default());
+    let owner = open
+        .tables
+        .data_definitions
+        .iter()
+        .find(|(_, data)| data.symbol == owners[0])
+        .unwrap()
+        .0;
+    *open.tables.data_definitions.get_mut(owner) = declaration;
+    assert!(open.closed_data_definition(other).is_some());
+    assert!(open.closed_data_definition(bare).is_none());
     assert_ne!(
         program.normalized_type_identity(bare),
         program.normalized_type_identity(with_runtime_argument)

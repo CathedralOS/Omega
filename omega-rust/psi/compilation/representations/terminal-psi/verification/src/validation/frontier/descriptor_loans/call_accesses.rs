@@ -13,6 +13,7 @@ use terminal_psi::{
     TerminalModule, Terminator,
 };
 use terminal_semantics::borrowed_storage::{self, Position, Projection};
+use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 struct ParameterAccess {
     position: usize,
@@ -31,15 +32,28 @@ pub(super) struct CallAccesses {
 }
 
 impl CallAccesses {
+    #[cfg(test)]
     pub(super) fn new(module: &TerminalModule) -> Self {
+        let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+        Self::new_in(module, &mut analysis)
+    }
+
+    pub(super) fn new_in(module: &TerminalModule, analysis: &mut DescriptorAnalysis<'_>) -> Self {
         let mut result = Self::default();
         for machine in &module.machines {
-            result.reconstruct(module, machine.id, 0);
+            result.reconstruct(module, machine.id, 0, analysis);
         }
         result
     }
 
-    fn reconstruct(&mut self, module: &TerminalModule, identity: MachineId, depth: usize) {
+    fn reconstruct(
+        &mut self,
+        module: &TerminalModule,
+        identity: MachineId,
+        depth: usize,
+        analysis: &mut DescriptorAnalysis<'_>,
+    ) {
         if self.summaries.contains_key(&identity) {
             return;
         }
@@ -69,7 +83,7 @@ impl CallAccesses {
         {
             return;
         }
-        let origins = aliases::reconstruct(module, machine);
+        let origins = aliases::reconstruct_in(module, machine, analysis);
         let mut summary = Summary {
             parameters: machine.structural_parameters.len(),
             accesses: Vec::new(),
@@ -78,7 +92,7 @@ impl CallAccesses {
             for (index, operation) in block.operations.iter().enumerate() {
                 let position = (block.id, index as u32);
                 if let Some((callee, _)) = ordinary_call(operation) {
-                    self.reconstruct(module, callee, depth + 1);
+                    self.reconstruct(module, callee, depth + 1, analysis);
                     if !self.summaries.get(&callee).is_some_and(Option::is_some) {
                         return;
                     }
@@ -86,7 +100,15 @@ impl CallAccesses {
                     return;
                 }
                 for access in self.operation(module, machine, operation, position) {
-                    if !append_access(machine, &origins.aliases, access, &mut summary) {
+                    if !append_access(
+                        module,
+                        machine,
+                        &origins.aliases,
+                        position,
+                        access,
+                        &mut summary,
+                        analysis,
+                    ) {
                         return;
                     }
                 }
@@ -101,19 +123,22 @@ impl CallAccesses {
                 {
                     return;
                 }
-                Terminator::StructuralCase { source, .. } => {
+                Terminator::StructuralCase { source, .. }
                     if !append_access(
+                        module,
                         machine,
                         &origins.aliases,
+                        (block.id, block.operations.len() as u32),
                         accesses::Access {
                             place: *source,
                             projection: Projection::new(&[]),
                             exclusive: false,
                         },
                         &mut summary,
-                    ) {
-                        return;
-                    }
+                        analysis,
+                    ) =>
+                {
+                    return;
                 }
                 _ => {}
             }
@@ -162,12 +187,15 @@ impl CallAccesses {
 }
 
 fn append_access(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     aliases: &borrowed_storage::AliasSources,
+    position: Position,
     access: accesses::Access,
     summary: &mut Summary,
+    analysis: &mut DescriptorAnalysis<'_>,
 ) -> bool {
-    for region in borrowed_storage::resolve(aliases, access.place, access.projection) {
+    for region in accesses::regions(module, machine, aliases, position, &access, analysis) {
         let Some(position) = machine
             .structural_parameters
             .iter()

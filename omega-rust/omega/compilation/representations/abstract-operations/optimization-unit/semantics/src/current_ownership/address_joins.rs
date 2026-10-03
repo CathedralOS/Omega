@@ -29,6 +29,7 @@
 
 pub(super) mod borrowed_regions;
 mod descriptor_loans;
+pub(crate) use descriptor_loans::validate_compatibility;
 mod range_relations;
 
 use crate::OptimizationUnitValidationError;
@@ -56,6 +57,12 @@ pub(super) struct AddressJoinPins {
 }
 
 impl AddressJoinPins {
+    pub(super) fn descriptor_requirements(
+        &self,
+    ) -> Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement> {
+        self.descriptor_loans.requirements()
+    }
+
     pub(super) fn new(
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,

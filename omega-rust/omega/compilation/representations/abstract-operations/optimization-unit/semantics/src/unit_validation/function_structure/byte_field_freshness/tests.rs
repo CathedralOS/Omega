@@ -401,7 +401,7 @@ fn indexed_byte_field_length_freshness_examines_backedges_and_missing_arrivals()
 fn indexed_descriptor_replacement_retires_the_previous_length() {
     let unit = crate::tests::indexed_byte_fields::indexed_field_source_unit(
         r#"
-        domain [u8]::Utf8 requires valid_utf8(self);
+        domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
         data Room { name: &[u8] in Utf8; }
         data Record { rooms: [Room; 3]; }
         machine Record::replace(root: &mut Record) {

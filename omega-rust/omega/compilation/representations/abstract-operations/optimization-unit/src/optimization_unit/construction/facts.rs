@@ -80,6 +80,11 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             range_obligation: Some(obligation),
             ..
         }
+        | O::StructuralByteViewFieldStore {
+            psi_operation,
+            predicate_obligation: Some(obligation),
+            ..
+        }
         | O::EstablishByteSequenceConcatenation {
             psi_operation,
             capacity_obligation: obligation,

@@ -103,13 +103,9 @@ fn assigned_stored_origins(
     )?;
     // A reference-typed bare name is a local rebinding that stays with the
     // alias paths. A member path instead writes inside its root's storage:
-    // an exclusive stored leaf's slot is replaced in place, while a shared
-    // leaf's rebind retires only that leaf's frozen origin — its spliced
-    // provenance is the unknown marker, never the value's claimed subject —
-    // and the rest of the record survives instead of going opaque.
-    let shared_leaf_rebind = super::super::type_reference_is_reference(program, target_type)
-        && !source.segments.is_empty()
-        && !super::super::type_may_carry_write(program, target_type);
+    // a stored leaf's slot is replaced in place. Shared and exclusive leaves
+    // use the same captured value origin; unreadable or unresolved values keep
+    // an explicit unknown row rather than recovering the old slot's source.
     if super::super::type_reference_is_reference(program, target_type) && source.segments.is_empty()
     {
         return None;
@@ -205,20 +201,10 @@ fn assigned_stored_origins(
         symbols,
         inference,
         include_shared,
-        &|expression, reference, implicit_borrow, inference| {
-            if shared_leaf_rebind {
-                reference_subjects::unknown_readonly_origin(program, reference, "")
-                    .map(|origin| vec![origin])
-            } else if include_shared {
-                reference_subjects::value_origin(
-                    program,
-                    machine,
-                    expression,
-                    symbols,
-                    inference,
-                    aliases,
-                    stored,
-                    implicit_borrow,
+        &|expression, reference, _implicit_borrow, inference| {
+            if include_shared {
+                reference_subjects::backing_origin(
+                    program, machine, expression, symbols, inference, aliases, stored,
                 )
                 .or_else(|| reference_subjects::unknown_readonly_origin(program, reference, ""))
                 .map(|origin| vec![origin])
@@ -268,7 +254,15 @@ fn assigned_stored_origins(
         }
     }
     for leaf in leaves.references {
-        for origin in canonical_reference_origins(program, &leaf.origin, aliases, stored) {
+        // Shared-value producers already captured their reference boundary.
+        // Resolving that value through the current slot again would redirect
+        // aliases after replacement.
+        let captured = if include_shared {
+            vec![leaf.origin.clone()]
+        } else {
+            canonical_reference_origins(program, &leaf.origin, aliases, stored)
+        };
+        for origin in captured {
             let mut local_segments = source.segments.clone();
             local_segments.extend(leaf.local_segments.iter().copied());
             replaced.references.push(StoredWriteOrigin {

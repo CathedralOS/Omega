@@ -510,3 +510,44 @@ fn cyclic_boundary_view_argument_cannot_widen_borrow_access() {
         ));
     }
 }
+
+#[test]
+fn cyclic_byte_predicates_require_the_current_operand_length() {
+    let mut module = view_cycle();
+    module.machines[0].blocks[1].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(30, OperationId::new),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(30, ValueId::new),
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::ByteSequencePredicate {
+            operand: terminal_psi::control_flow::ByteSequenceOperand::Whole {
+                source: id(2, PlaceId::new),
+                length: id(10, ValueId::new),
+            },
+            predicate: terminal_psi::ByteSequencePredicate::ValidUtf8,
+        },
+    });
+    validate_module(&module).expect("cyclic content observations carry no disposal debt");
+    // A valid scalar input cannot impersonate the current length observation.
+    let OperationKind::ByteSequencePredicate { operand, .. } = &mut module.machines[0].blocks[1]
+        .operations
+        .last_mut()
+        .unwrap()
+        .kind
+    else {
+        panic!("predicate")
+    };
+    operand.remap_length(&mut |_| id(1, ValueId::new));
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidByteSequencePredicateLength {
+            operation: id(30, OperationId::new),
+            source: id(2, PlaceId::new),
+            length: id(1, ValueId::new),
+        })
+    );
+}

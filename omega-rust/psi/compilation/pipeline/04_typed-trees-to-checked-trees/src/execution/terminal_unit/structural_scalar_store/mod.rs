@@ -237,10 +237,10 @@ pub(super) fn build_structural_call_result_field_store(
     Some(store)
 }
 
-/// A completed byte owner replaces live bytes and length together, not a raw
-/// fixed array or a borrowed descriptor. Destination selection is shared with
-/// authored byte values; only the already-evaluated source differs.
-pub(super) fn build_owned_byte_call_result_store(
+/// A completed byte value uses the destination's ordinary replacement:
+/// owned contents copy bytes and length; shared fields copy the descriptor.
+/// Destination selection is independent of how the RHS value was produced.
+pub(super) fn build_byte_call_result_store(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -464,13 +464,15 @@ fn plan_assignment(
         )
         .map(|store| vec![store]);
     }
-    // A shared view field holds a relocatable descriptor. Replacing it
-    // installs a stored loan, so the value must outlive the destination
-    // root: a quoted literal's image storage does (structural_access.md,
-    // `StructuralByteViewFieldStore`). Other views decline below.
+    // Descriptor replacement borrows its actual backing. The operation plan
+    // retains that operand; source and receiving loan replay enforce lifetime.
     if is_shared_view_field(program, field.type_reference) {
-        return view_field_store::literal_store(
+        return view_field_store::store(
             program,
+            facts,
+            machine,
+            state,
+            roots,
             &destination,
             carrier.path,
             field,
@@ -769,11 +771,16 @@ fn record_literal_stores(
         if is_shared_view_field(program, declaration.type_reference) {
             stores.push(view_field_store::member_store(
                 program,
+                facts,
+                machine,
+                state,
+                roots,
                 destination,
                 carrier.path.clone(),
                 declaration,
                 statement_index,
                 field.expression,
+                AssignmentSource::Authored,
             )?);
             continue;
         }

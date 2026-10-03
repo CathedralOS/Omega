@@ -218,17 +218,19 @@ fn lower_catalogs(
             .flat_map(|state| &state.structural_parameters)
             .map(|parameter| parameter.type_identity.clone()),
     );
-    type_roots.extend(
-        states
-            .iter()
-            .flat_map(|state| state.operation_dependencies())
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-                    Some(result.type_identity.clone())
-                }
-                _ => None,
-            }),
-    );
+    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    for operation in states
+        .iter()
+        .flat_map(|state| state.operation_dependencies())
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
+        super::super::catalog::collect_operation_type_roots(
+            checked,
+            plans,
+            operation,
+            &mut type_roots,
+        )?;
+    }
     type_roots.extend(
         states
             .iter()
@@ -262,7 +264,6 @@ fn lower_catalogs(
             .iter()
             .filter_map(|(target, _)| target.attachment().map(str::to_owned)),
     );
-    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let (structural_types, type_ids) =
         lower_unit_structural_type_roots(checked, plans, &type_roots)?;
     let mut domain_roots = plans

@@ -489,6 +489,7 @@ mod tests {
                     path: "local".into(),
                     precision: FramePathPrecision::Exact,
                     source: FrameSourcePlace {
+                        kind: Default::default(),
                         root: local_symbol,
                         segments: path,
                         builtin_coordinates: true,

@@ -9,6 +9,11 @@ fn main() -> io::Result<()> {
         "psi-terminal-verifier-source-closure.bin",
     )?;
     write_source_closure(
+        Path::new("../semantics/src"),
+        b"PSI-TERMINAL-SEMANTICS-SOURCE-CLOSURE-v1\0",
+        "psi-terminal-semantics-source-closure.bin",
+    )?;
+    write_source_closure(
         Path::new("../src"),
         b"PSI-TERMINAL-REPRESENTATION-SOURCE-CLOSURE-v1\0",
         "psi-terminal-representation-source-closure.bin",

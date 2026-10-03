@@ -54,9 +54,9 @@ pub use byte_sequence_predicates::{
     byte_copied_field_predicates_at_call, byte_field_root, byte_literal_qualifications_hold,
     byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
     byte_parameter_predicates, byte_parameter_predicates_from_domains,
-    byte_parameter_predicates_in, byte_qualification_predicates_in,
+    byte_parameter_predicates_in, byte_predicate_requirement, byte_qualification_predicates_in,
     byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
-    indexed_byte_store_goal,
+    indexed_byte_store_goal, shared_byte_field_copy_predicates,
 };
 pub use call_composition::{
     BorrowedReferentPresentation, CallArgumentRule, CallCompositionSchema,
@@ -74,7 +74,7 @@ pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_ref
 pub use primitive_place::{
     canonical_primitive_path, canonical_static_projection, fixed_array_place_shape,
     primitive_place_type, primitive_projection_type, primitive_read_projection_type,
-    runtime_element_field,
+    runtime_element_field, runtime_structural_path_tip,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,
@@ -109,8 +109,8 @@ pub use service_binding::{fused_service_field_carrier, fused_service_field_match
 pub use shared_mutation::{SharedMutation, shared_mutation};
 pub use static_path::{
     canonical_case_leaf_type, canonical_structural_path_tip, interior_member_borrow,
-    runtime_index_bound, runtime_index_selects, runtime_structural_path_tip,
-    structural_paths_may_overlap, structural_paths_select_same_location,
+    runtime_index_bound, runtime_index_selects, structural_paths_may_overlap,
+    structural_paths_select_same_location,
 };
 pub use storage_regions::{
     StorageRegion, canonical_field_storage_region, projected_storage_region,

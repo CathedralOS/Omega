@@ -82,10 +82,9 @@ pub(crate) fn byte_field_store_capacity(
     }
 }
 
-/// A descriptor replacement writes one shared borrowed-view field below the
-/// same exclusive destination a bounded field store names. Its source must
-/// be a literal place: image storage is the only backing the verifier
-/// admitted as outliving the destination root.
+/// Descriptor shape and readable custody are independent of backing lifetime.
+/// The current-position descriptor analysis checks the latter; a literal,
+/// arrival and completed operation result use the same source contract here.
 pub(crate) fn byte_view_field_store_is_valid(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
@@ -102,11 +101,21 @@ pub(crate) fn byte_view_field_store_is_valid(
     else {
         return false;
     };
-    destination != source
-        && matches!(source_kind, Some(StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. })
-        if structural_types.get(structural_type).is_some_and(|declaration| {
-            declaration.shape.is_borrowed_byte_view()
-        }))
+    if source_kind.is_none() || destination == source {
+        return false;
+    }
+    let Some(contract) = crate::unit_validation::operation_contracts::structural_source_contract(
+        function, *source, true,
+    ) else {
+        return false;
+    };
+    matches!(
+        contract.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::Owned
+    ) && contract.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && structural_types
+            .get(&contract.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
         && writable_byte_field_carrier(function, *destination, path, *field, structural_types)
             == Some(ByteSequenceCarrier::BorrowedView {
                 access: Some(StructuralAccess::SharedBorrow),

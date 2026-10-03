@@ -1,114 +1,61 @@
-//! Descriptor value-instance transport reconstructed from Terminal operations.
-//! Derivations keep every captured cohort; simultaneous edges rename values
-//! from the pre-edge state. Cleanup that can observe payload keeps it live;
-//! no-code disposal of an exact borrowed descriptor observes no referent.
-//! Affine frontier replay still requires the carrier's complete disposition.
-
+//! Shared current-body descriptor transport with independent Terminal cleanup
+//! observations. Slot replacement, alias writeback and call effects come from
+//! the same prepared graph as backing-origin replay.
+use semantic_vocabulary::PlaceId;
 use std::collections::BTreeMap;
-
-use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
-use terminal_psi::{
-    Operation, OperationKind, RecordFieldValue, StructuralArgument, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalModule, Terminator,
-};
+use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator};
 use terminal_semantics::descriptor_lifetimes::{
-    DescriptorFlowEdge, DescriptorFlowStep, DescriptorPosition as Position,
+    DescriptorFlowEdge, DescriptorFlowStep, DescriptorLocation, DescriptorPosition as Position,
 };
+use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 pub(super) fn reconstruct(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
 ) -> BTreeMap<Position, DescriptorFlowStep> {
-    let mut steps = BTreeMap::new();
+    let mut steps = analysis
+        .flow(machine.id)
+        .unwrap_or_else(|| unknown_flow(machine));
     for block in &machine.blocks {
         for (index, operation) in block.operations.iter().enumerate() {
-            let index = u32::try_from(index).expect("validated Terminal operation index fits u32");
-            let definition = result_definition(machine, operation);
-            let derivations = definition
-                .map(|result| match &operation.kind {
-                    OperationKind::EstablishElementView { source, .. }
-                    | OperationKind::EstablishMutableElementView { source, .. }
-                    | OperationKind::EstablishReference { source } => vec![(source.place, result)],
-                    OperationKind::ElementViewSubslice { source, .. }
-                    | OperationKind::ByteSequenceSubslice { source, .. } => vec![(*source, result)],
-                    OperationKind::StructuralLeafCopy { source, .. }
-                        if operation.result.structural().is_some_and(|result|
-                            terminal_semantics::descriptor_results::is_shared_descriptor(module.structural_types.iter(), result.structural_type)) => vec![(*source, result)],
-                    OperationKind::CallStructural { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. } =>
-                        terminal_semantics::descriptor_results::call_origins(module, machine, operation)
-                            .into_iter().flatten().filter_map(|origin| match origin {
-                                terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, .. } => Some((source, result)),
-                                terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. } => None,
-                            }).collect(),
-                    OperationKind::EstablishRecord { fields }
-                    | OperationKind::EstablishStructuralCase { fields, .. } => fields
-                        .iter()
-                        .filter_map(|field| match &field.value {
-                            RecordFieldValue::Structural(argument) => {
-                                Some((argument.place, result))
-                            }
-                            RecordFieldValue::Scalar { .. } => None,
-                        })
-                        .collect(),
-                    _ => Vec::new(),
-                })
-                .unwrap_or_default();
-            let mut inputs = Vec::new();
-            operation.kind.clone().map_structural_uses(&mut |place| {
-                inputs.push(place);
-                place
-            });
-            steps.insert(
-                (block.id, index),
-                DescriptorFlowStep {
-                    definitions: definition.into_iter().collect(),
-                    authority_derivations: if matches!(
-                        operation.kind,
-                        OperationKind::EstablishElementView { .. }
-                            | OperationKind::EstablishMutableElementView { .. }
-                            | OperationKind::EstablishReference { .. }
-                            | OperationKind::ElementViewSubslice { .. }
-                            | OperationKind::ByteSequenceSubslice { .. }
-                            | OperationKind::StructuralLeafCopy { .. }
-                            | OperationKind::CallStructural { .. }
-                            | OperationKind::CallStructuralWithScalarArguments { .. }
-                    ) {
-                        derivations.clone()
-                    } else {
-                        Vec::new()
-                    },
-                    derivations,
-                    inputs,
-                    may_escape: super::accesses::may_escape(module, machine, operation),
-                    successors: vec![DescriptorFlowEdge {
-                        target: (block.id, index + 1),
-                        parameters: Vec::new(),
-                        bindings: Vec::new(),
-                    }],
-                },
-            );
+            if let Some(step) = steps.get_mut(&(block.id, index as u32)) {
+                step.may_escape |= super::accesses::may_escape(module, machine, operation);
+            }
         }
-        let mut step = DescriptorFlowStep::default();
+        let position = (block.id, block.operations.len() as u32);
+        let Some(step) = steps.get_mut(&position) else {
+            continue;
+        };
+        let mut observe = |place| {
+            let raw = DescriptorLocation::whole(place);
+            step.inputs.push(raw.clone());
+            if let Some(location) = analysis.location(machine.id, position, &raw) {
+                step.inputs.push(location);
+            }
+        };
+        let disposal = |place| !descriptor_disposal(module, machine, place);
         match &block.terminator {
             Terminator::Jump {
-                target,
-                structural_arguments,
+                trivial_affine_discards,
+                residual_affine_discards,
+                ..
+            }
+            | Terminator::ReturnUnitPartialAffine {
                 trivial_affine_discards,
                 residual_affine_discards,
                 ..
             } => {
-                step.inputs
-                    .extend(structural_arguments.iter().map(|argument| argument.place));
-                step.inputs.extend(
-                    trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .filter(|place| !descriptor_disposal(module, machine, *place)),
-                );
-                step.inputs
-                    .extend(residual_affine_discards.iter().map(|discard| discard.place));
-                add_edge(machine, &mut step, *target, structural_arguments);
+                for place in trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .filter(|place| disposal(*place))
+                {
+                    observe(place);
+                }
+                for discard in residual_affine_discards {
+                    observe(discard.place);
+                }
             }
             Terminator::Conditional {
                 when_true,
@@ -116,164 +63,132 @@ pub(super) fn reconstruct(
                 ..
             } => {
                 for edge in [when_true, when_false] {
-                    step.inputs.extend(
-                        edge.structural_arguments
-                            .iter()
-                            .map(|argument| argument.place),
-                    );
-                    step.inputs.extend(
-                        edge.trivial_affine_discards
-                            .iter()
-                            .copied()
-                            .filter(|place| !descriptor_disposal(module, machine, *place)),
-                    );
-                    add_edge(machine, &mut step, edge.target, &edge.structural_arguments);
+                    for place in edge
+                        .trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .filter(|place| disposal(*place))
+                    {
+                        observe(place);
+                    }
                 }
             }
             Terminator::StructuralCase { source, cases } => {
-                step.inputs.push(*source);
-                for case in cases {
-                    step.inputs.extend(
-                        case.trivial_affine_discards
-                            .iter()
-                            .copied()
-                            .filter(|place| !descriptor_disposal(module, machine, *place)),
-                    );
-                    // Case payload bindings are scalar in this vocabulary;
-                    // no structural cohort is manufactured from field IDs.
-                    add_edge(machine, &mut step, case.target, &[]);
+                observe(*source);
+                for edge in cases {
+                    for place in edge
+                        .trivial_affine_discards
+                        .iter()
+                        .copied()
+                        .filter(|place| disposal(*place))
+                    {
+                        observe(place);
+                    }
                 }
             }
             Terminator::ReturnStructural {
-                source,
+                trivial_affine_discards,
+                ..
+            }
+            | Terminator::ReturnUnit {
                 trivial_affine_discards,
                 ..
             } => {
-                step.inputs.push(*source);
-                step.inputs.extend(
-                    trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .filter(|place| !descriptor_disposal(module, machine, *place)),
-                );
-                step.may_escape = true;
+                for place in trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .filter(|place| disposal(*place))
+                {
+                    observe(place);
+                }
             }
             Terminator::Return {
                 cleanup_actions, ..
             } => {
-                step.inputs
-                    .extend(cleanup_actions.iter().filter_map(|action| match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) => {
-                            (!descriptor_disposal(module, machine, *place)).then_some(*place)
+                for action in cleanup_actions {
+                    match action {
+                        TerminalAffineCleanupAction::DiscardRoot(place) if disposal(*place) => {
+                            observe(*place)
                         }
+                        TerminalAffineCleanupAction::DiscardRoot(_) => {}
                         TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                            Some(discard.place)
+                            observe(discard.place)
                         }
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup.place),
-                    }));
-            }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } => {
-                step.inputs.extend(
-                    trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .filter(|place| !descriptor_disposal(module, machine, *place)),
-                );
-            }
-            Terminator::ReturnUnitPartialAffine {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
-            } => {
-                step.inputs.extend(
-                    trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .filter(|place| !descriptor_disposal(module, machine, *place)),
-                );
-                step.inputs
-                    .extend(residual_affine_discards.iter().map(|discard| discard.place));
+                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            observe(cleanup.place)
+                        }
+                    }
+                }
             }
             Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-                step.inputs
-                    .extend(cleanups.iter().map(|cleanup| cleanup.place));
+                for cleanup in cleanups {
+                    observe(cleanup.place);
+                }
             }
             Terminator::Crash { .. } => {}
         }
-        steps.insert(
-            (
-                block.id,
-                u32::try_from(block.operations.len())
-                    .expect("validated Terminal operation index fits u32"),
-            ),
-            step,
-        );
     }
     steps
 }
 
-fn result_definition(machine: &TerminalMachine, operation: &Operation) -> Option<PlaceId> {
-    let result = operation.result.structural()?;
-    machine
-        .structural_places
-        .iter()
-        .any(|declaration| {
-            declaration.id == result.place
-                && declaration.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer: operation.id,
-                        structural_type: result.structural_type,
-                    }
-        })
-        .then_some(result.place)
-}
-
-fn add_edge(
-    machine: &TerminalMachine,
-    step: &mut DescriptorFlowStep,
-    target: BlockId,
-    arguments: &[StructuralArgument],
-) {
-    let destination = machine.blocks.iter().find(|block| block.id == target);
-    let parameters = destination
-        .into_iter()
-        .flat_map(|block| &block.structural_parameters)
-        .map(|parameter| parameter.place)
-        .collect::<Vec<_>>();
-    if destination.is_some() && parameters.len() == arguments.len() {
-        step.successors.push(DescriptorFlowEdge {
-            target: (target, 0),
-            bindings: arguments
-                .iter()
-                .zip(&parameters)
-                .map(|(argument, parameter)| (argument.place, *parameter))
-                .collect(),
-            parameters,
-        });
-    } else {
-        // Structural validation rejects this edge independently. Until then,
-        // never truncate a zip and silently retire a possibly carried cohort:
-        // retain every old name and every possible destination, and pin escape.
-        step.may_escape = true;
-        step.inputs
-            .extend(machine.structural_places.iter().map(|place| place.id));
-        step.successors.push(DescriptorFlowEdge {
-            target: (target, 0),
-            parameters: Vec::new(),
-            bindings: machine
-                .structural_places
-                .iter()
-                .flat_map(|place| {
-                    parameters
+// Unresolved provenance never retires a cohort or grants a new carrier's
+// authority. Preserve control reachability and pin every surviving old name.
+fn unknown_flow(machine: &TerminalMachine) -> BTreeMap<Position, DescriptorFlowStep> {
+    let mut steps = BTreeMap::new();
+    for block in &machine.blocks {
+        for index in 0..block.operations.len() {
+            steps.insert(
+                (block.id, index as u32),
+                DescriptorFlowStep {
+                    inputs: machine
+                        .structural_places
                         .iter()
-                        .map(move |parameter| (place.id, *parameter))
-                })
-                .collect(),
-        });
+                        .map(|place| DescriptorLocation::whole(place.id))
+                        .collect(),
+                    may_escape: true,
+                    successors: vec![DescriptorFlowEdge {
+                        target: (block.id, index as u32 + 1),
+                        parameters: vec![],
+                        bindings: vec![],
+                    }],
+                    ..DescriptorFlowStep::default()
+                },
+            );
+        }
+        let targets = match &block.terminator {
+            Terminator::Jump { target, .. } => vec![*target],
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.target, when_false.target],
+            Terminator::StructuralCase { cases, .. } => {
+                cases.iter().map(|case| case.target).collect()
+            }
+            _ => vec![],
+        };
+        steps.insert(
+            (block.id, block.operations.len() as u32),
+            DescriptorFlowStep {
+                inputs: machine
+                    .structural_places
+                    .iter()
+                    .map(|place| DescriptorLocation::whole(place.id))
+                    .collect(),
+                may_escape: true,
+                successors: targets
+                    .into_iter()
+                    .map(|target| DescriptorFlowEdge {
+                        target: (target, 0),
+                        parameters: vec![],
+                        bindings: vec![],
+                    })
+                    .collect(),
+                ..DescriptorFlowStep::default()
+            },
+        );
     }
+    steps
 }
 
 /// Only an authenticated affine view result has no-code carrier disposal.
@@ -290,5 +205,21 @@ fn descriptor_disposal(module: &TerminalModule, machine: &TerminalMachine, place
                         ) || declaration.shape.is_borrowed_byte_view())
                 })
         },
+    )
+}
+
+pub(super) fn location(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> Option<DescriptorLocation> {
+    terminal_semantics::descriptor_lifetimes::descriptor_location(
+        &module.structural_types,
+        root,
+        super::accesses::root_type(machine, root)?,
+        path,
+        field,
     )
 }

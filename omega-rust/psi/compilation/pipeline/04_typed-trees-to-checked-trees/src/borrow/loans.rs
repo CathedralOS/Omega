@@ -57,6 +57,7 @@ mod aggregate;
 mod mutable_view_results;
 mod owner_paths;
 mod returned_carriers;
+mod stored_calls;
 pub(crate) mod types;
 
 use types::{is_reference_type, reference_borrow_access_kind};
@@ -146,9 +147,9 @@ pub(super) fn statement_borrow_loans(
                 true,
             )
         }
+        StatementNode::Call(_) => stored_calls::loans(program, state, machine_symbol, statement),
         StatementNode::RootBinding(_)
         | StatementNode::AssemblyFact(_)
-        | StatementNode::Call(_)
         | StatementNode::Expression(_)
         | StatementNode::Transition(_) => Vec::new(),
     }

@@ -155,7 +155,9 @@ pub(in crate::validation) fn validate_structural_argument(
                             && (source_policy != StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                                 || argument.access != StructuralAccess::Owned)
                             && (argument.path.is_empty() || argument.access != StructuralAccess::Owned)
-                            && crate::validation::record::completed_source(module, caller, argument.place).is_some() =>
+                            && (crate::validation::record::completed_source(module, caller, argument.place).is_some()
+                                || (argument.access != StructuralAccess::Owned
+                                    && crate::validation::record::loan_source(module, caller, argument.place).is_some())) =>
                     {
                         // Call-scoped loans retain the same completed backing
                         // at ordinary and boundary calls. The producer checks
@@ -163,7 +165,11 @@ pub(in crate::validation) fn validate_structural_argument(
                         // availability here, and the common argument checks
                         // below preserve projection, access and qualification.
                         // This does not admit owned boundary transfers.
-                        let result = crate::validation::record::completed_source(module, caller, argument.place)?;
+                        let result = if argument.access == StructuralAccess::Owned {
+                            crate::validation::record::completed_source(module, caller, argument.place)?
+                        } else {
+                            crate::validation::record::loan_source(module, caller, argument.place)?
+                        };
                         Some((result.structural_type, result.multiplicity, StructuralAccess::Owned, &[][..], &[][..]))
                     }
                     StructuralPlaceKind::OperationResult { .. }

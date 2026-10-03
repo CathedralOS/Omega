@@ -19,6 +19,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
     encode_len(bytes, call.descriptor_origins.len());
     for origin in &call.descriptor_origins {
         match origin {
+            crate::LegalizedDescriptorOrigin::Empty => bytes.push(2),
             crate::LegalizedDescriptorOrigin::Argument {
                 source,
                 exact,

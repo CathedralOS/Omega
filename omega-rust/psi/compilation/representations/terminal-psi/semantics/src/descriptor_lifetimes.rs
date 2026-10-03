@@ -4,41 +4,87 @@
 //! and escapes. This pure replay tracks value instances through simultaneous
 //! assignments; it grants no access and supplies no source or proof authority.
 
-use semantic_vocabulary::{BlockId, PlaceId};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralFieldId};
 use std::collections::{BTreeMap, BTreeSet};
+
+mod locations;
+pub use locations::{descriptor_location, descriptor_location_type, descriptor_path};
 
 pub type DescriptorPosition = (BlockId, u32);
 
-#[derive(Default)]
+/// Canonical carrier address. This is not a backing-storage projection.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DescriptorLocation {
+    pub root: PlaceId,
+    pub path: Vec<DescriptorPathSegment>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DescriptorPathSegment {
+    Referent,
+    Field(StructuralFieldId),
+    FixedIndex(u64),
+    Case(StructuralCaseId),
+}
+
+impl DescriptorLocation {
+    pub fn whole(root: PlaceId) -> Self {
+        Self {
+            root,
+            path: Vec::new(),
+        }
+    }
+    pub fn contains(&self, other: &Self) -> bool {
+        self.root == other.root && other.path.starts_with(&self.path)
+    }
+    pub fn transported(&self, source: &Self, destination: &Self) -> Option<Self> {
+        if !source.contains(self) {
+            return None;
+        }
+        let mut path = destination.path.clone();
+        path.extend_from_slice(&self.path[source.path.len()..]);
+        Some(Self {
+            root: destination.root,
+            path,
+        })
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct DescriptorFlowStep {
-    pub definitions: Vec<PlaceId>,
-    pub derivations: Vec<(PlaceId, PlaceId)>,
-    /// Transparent descendant aliases only. Aggregate capture keeps a cohort
-    /// live, but cannot authorize accesses to the rest of that aggregate.
-    pub authority_derivations: Vec<(PlaceId, PlaceId)>,
-    pub inputs: Vec<PlaceId>,
+    pub definitions: Vec<DescriptorLocation>,
+    pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
+    /// Exact transparent carrier transport. A stored field lends no authority
+    /// for its siblings or the containing record.
+    pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
+    pub inputs: Vec<DescriptorLocation>,
     pub may_escape: bool,
     pub successors: Vec<DescriptorFlowEdge>,
 }
 
+#[derive(Clone)]
 pub struct DescriptorFlowEdge {
     pub target: DescriptorPosition,
-    pub parameters: Vec<PlaceId>,
-    pub bindings: Vec<(PlaceId, PlaceId)>,
+    pub parameters: Vec<DescriptorLocation>,
+    pub bindings: Vec<(DescriptorLocation, DescriptorLocation)>,
 }
 
 impl DescriptorFlowEdge {
-    fn forward(&self, source: PlaceId) -> impl Iterator<Item = PlaceId> + '_ {
-        // Every actual belongs to the pre-edge state. A swap must not read a
-        // destination after another binding has replaced that destination.
-        (!self.parameters.contains(&source))
-            .then_some(source)
-            .into_iter()
-            .chain(
-                self.bindings.iter().filter_map(move |(actual, parameter)| {
-                    (*actual == source).then_some(*parameter)
-                }),
-            )
+    pub fn forward(&self, source: &DescriptorLocation) -> Vec<DescriptorLocation> {
+        let mut result = Vec::new();
+        if !self
+            .parameters
+            .iter()
+            .any(|parameter| parameter.contains(source))
+        {
+            result.push(source.clone());
+        }
+        result.extend(
+            self.bindings
+                .iter()
+                .filter_map(|(actual, parameter)| source.transported(actual, parameter)),
+        );
+        result
     }
 }
 
@@ -47,46 +93,70 @@ pub fn descriptor_live_positions(
     birth: DescriptorPosition,
     descriptor: PlaceId,
 ) -> BTreeSet<DescriptorPosition> {
+    descriptor_location_live_positions(steps, birth, &DescriptorLocation::whole(descriptor))
+}
+
+pub fn descriptor_location_live_positions(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> BTreeSet<DescriptorPosition> {
     // Materialize only reachable (position, name) links. Returning to the
     // formation kills its old result name, not independently carried aliases.
-    type Occurrence = (DescriptorPosition, PlaceId);
+    type Occurrence = (DescriptorPosition, DescriptorLocation);
     let mut pending = Vec::new();
     if let Some(step) = steps.get(&birth) {
         for edge in &step.successors {
-            pending.extend(edge.forward(descriptor).map(|name| (edge.target, name)));
+            pending.extend(
+                edge.forward(descriptor)
+                    .into_iter()
+                    .map(|name| (edge.target, name)),
+            );
         }
     }
     let mut visited = BTreeSet::new();
     let mut predecessors = BTreeMap::<Occurrence, BTreeSet<Occurrence>>::new();
     let mut observations = Vec::new();
     let mut escaped = Vec::new();
-    while let Some(occurrence @ (position, name)) = pending.pop() {
-        if !visited.insert(occurrence) {
+    while let Some(occurrence) = pending.pop() {
+        let (position, name) = &occurrence;
+        if !visited.insert(occurrence.clone()) {
             continue;
         }
-        let Some(step) = steps.get(&position) else {
+        let Some(step) = steps.get(position) else {
             continue;
         };
-        if step.inputs.contains(&name) {
-            observations.push(occurrence);
+        if step
+            .inputs
+            .iter()
+            .any(|input| input.contains(name) || name.contains(input))
+        {
+            observations.push(occurrence.clone());
             if step.may_escape {
-                escaped.push(position);
+                escaped.push(*position);
             }
         }
         let mut outputs = Vec::new();
-        if !step.definitions.contains(&name) {
-            outputs.push(name);
+        if !step
+            .definitions
+            .iter()
+            .any(|definition| definition.contains(name))
+        {
+            outputs.push(name.clone());
         }
         outputs.extend(
             step.derivations
                 .iter()
-                .filter_map(|(source, result)| (*source == name).then_some(*result)),
+                .filter_map(|(source, result)| name.transported(source, result)),
         );
         for edge in &step.successors {
             for output in &outputs {
-                for destination in edge.forward(*output) {
+                for destination in edge.forward(output) {
                     let next = (edge.target, destination);
-                    predecessors.entry(next).or_default().insert(occurrence);
+                    predecessors
+                        .entry(next.clone())
+                        .or_default()
+                        .insert(occurrence.clone());
                     pending.push(next);
                 }
             }
@@ -94,12 +164,13 @@ pub fn descriptor_live_positions(
     }
     let mut observed = BTreeSet::new();
     let mut live = BTreeSet::new();
-    while let Some(occurrence @ (position, _)) = observations.pop() {
-        if !observed.insert(occurrence) {
+    while let Some(occurrence) = observations.pop() {
+        let position = occurrence.0;
+        if !observed.insert(occurrence.clone()) {
             continue;
         }
         live.insert(position);
-        observations.extend(predecessors.get(&occurrence).into_iter().flatten().copied());
+        observations.extend(predecessors.get(&occurrence).into_iter().flatten().cloned());
     }
     // A name kill cannot retire an untracked escape. Its possible alias
     // persists along every subsequent control edge until activation exit.
@@ -124,10 +195,34 @@ pub fn descriptor_authorized_places(
     birth: DescriptorPosition,
     descriptor: PlaceId,
 ) -> BTreeMap<DescriptorPosition, BTreeSet<PlaceId>> {
+    descriptor_location_authorized_locations(steps, birth, &DescriptorLocation::whole(descriptor))
+        .into_iter()
+        .map(|(position, locations)| {
+            (
+                position,
+                locations
+                    .into_iter()
+                    .filter(|location| location.path.is_empty())
+                    .map(|location| location.root)
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+pub fn descriptor_location_authorized_locations(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
     let Some(formation) = steps.get(&birth) else {
         return BTreeMap::new();
     };
-    if !formation.definitions.contains(&descriptor) {
+    if !formation
+        .definitions
+        .iter()
+        .any(|definition| definition.contains(descriptor))
+    {
         return BTreeMap::new();
     }
     let mut pending = formation
@@ -156,9 +251,6 @@ pub fn descriptor_authorized_places(
                 .push((*position, edge));
         }
     }
-    // Start with no authority, including around downstream cycles. Iteration
-    // can add only names justified by every predecessor; it never seeds a
-    // guessed loop invariant or drops an unvisited arm of a diamond.
     let mut established = steps
         .keys()
         .map(|position| (*position, BTreeSet::new()))
@@ -177,49 +269,19 @@ pub fn descriptor_authorized_places(
                     .map(|(predecessor, edge)| {
                         let step = &steps[predecessor];
                         let before = &established[predecessor];
-                        let mut after = before
-                            .iter()
-                            .filter(|place| !step.definitions.contains(place))
-                            .copied()
-                            .collect::<BTreeSet<_>>();
-                        for result in &step.definitions {
-                            let sources = step
-                                .authority_derivations
-                                .iter()
-                                .filter(|(_, destination)| destination == result)
-                                .map(|(source, _)| source)
-                                .collect::<Vec<_>>();
-                            if !sources.is_empty()
-                                && sources.iter().all(|source| before.contains(source))
-                            {
-                                after.insert(*result);
-                            }
-                        }
+                        let mut after = transport_authority(
+                            before,
+                            &step.definitions,
+                            &step.authority_derivations,
+                        );
                         if *predecessor == birth {
-                            after.insert(descriptor);
+                            after.insert(descriptor.clone());
                         }
-                        let mut carried = after
-                            .iter()
-                            .filter(|place| !edge.parameters.contains(place))
-                            .copied()
-                            .collect::<BTreeSet<_>>();
-                        for parameter in &edge.parameters {
-                            let mut bindings = edge
-                                .bindings
-                                .iter()
-                                .filter(|(_, target)| target == parameter);
-                            if let Some((source, _)) = bindings.next()
-                                && bindings.next().is_none()
-                                && after.contains(source)
-                            {
-                                carried.insert(*parameter);
-                            }
-                        }
-                        carried
+                        transport_authority(&after, &edge.parameters, &edge.bindings)
                     });
             let mut current = incoming.next().unwrap_or_default();
             for other in incoming {
-                current.retain(|place| other.contains(place));
+                current.retain(|location| other.contains(location));
             }
             if established.get(&position) != Some(&current) {
                 established.insert(position, current);
@@ -230,6 +292,40 @@ pub fn descriptor_authorized_places(
             return established;
         }
     }
+}
+
+fn transport_authority(
+    before: &BTreeSet<DescriptorLocation>,
+    definitions: &[DescriptorLocation],
+    derivations: &[(DescriptorLocation, DescriptorLocation)],
+) -> BTreeSet<DescriptorLocation> {
+    let mut after = before
+        .iter()
+        .filter(|location| {
+            !definitions
+                .iter()
+                .any(|definition| definition.contains(location))
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let candidates = before
+        .iter()
+        .flat_map(|location| {
+            derivations
+                .iter()
+                .filter_map(move |(source, destination)| location.transported(source, destination))
+        })
+        .collect::<BTreeSet<_>>();
+    for candidate in candidates {
+        let sources = derivations
+            .iter()
+            .filter_map(|(source, destination)| candidate.transported(destination, source))
+            .collect::<Vec<_>>();
+        if !sources.is_empty() && sources.iter().all(|source| before.contains(source)) {
+            after.insert(candidate);
+        }
+    }
+    after
 }
 
 #[cfg(test)]

@@ -84,6 +84,7 @@ use std::borrow::Cow;
 
 mod atomic_access;
 mod boundary_calls;
+mod byte_operands;
 mod calls;
 pub(super) use calls::CallInputs;
 
@@ -1128,13 +1129,12 @@ impl OperationFrame<'_, '_> {
                 indexes,
                 self.calls,
             )?;
+            let source = self.byte_descriptor_operand(store)?;
             let kind = crate::emission::structural_byte_sequence_store::emit_view_field_store(
-                store,
                 destination,
                 path,
-                self.structural_types.declarations(),
-                self.private_places.literals(),
-                self.next_place,
+                source,
+                &mut self.calls.next_obligation_identity,
                 self.operations,
             )?;
             self.push_unit(kind);

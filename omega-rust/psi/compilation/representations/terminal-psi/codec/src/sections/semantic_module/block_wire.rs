@@ -226,12 +226,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             path,
             field,
             source,
+            predicate_obligation,
         } => storage_operations::encode_structural_byte_view_field_store(
             writer,
             destination,
             path,
             field,
             source,
+            predicate_obligation,
         )?,
         OperationKind::StructuralByteSequenceFieldLength {
             source,
@@ -830,7 +832,10 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             storage_operations::decode_structural_byte_sequence_field_store(reader)?
         }
         operation_tags::STRUCTURAL_BYTE_VIEW_FIELD_STORE => {
-            storage_operations::decode_structural_byte_view_field_store(reader)?
+            storage_operations::decode_structural_byte_view_field_store(reader, false)?
+        }
+        operation_tags::PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE => {
+            storage_operations::decode_structural_byte_view_field_store(reader, true)?
         }
         operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH => {
             storage_operations::decode_structural_byte_sequence_field_length(reader)?
@@ -1212,6 +1217,52 @@ mod tests {
                 trivial_affine_discards: Vec::new(),
             },
         }
+    }
+
+    #[test]
+    fn byte_view_store_preserves_optional_predicate_obligation_on_wire() {
+        let store = Operation {
+            id: id(2),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralByteViewFieldStore {
+                destination: id(3),
+                path: vec![StructuralPathSegment::Field("item".into())],
+                field: id(4),
+                source: id(5),
+                predicate_obligation: None,
+            },
+        };
+        let mut writer = Writer::default();
+        super::encode_operation(&mut writer, &store).unwrap();
+        let plain = writer.finish();
+        assert_eq!(plain[10], 100, "existing proof-free store wire tag");
+        assert_eq!(
+            super::decode_operation(&mut Reader::new(&plain)),
+            Ok(store.clone())
+        );
+
+        let mut checked = store;
+        let OperationKind::StructuralByteViewFieldStore {
+            predicate_obligation,
+            ..
+        } = &mut checked.kind
+        else {
+            unreachable!()
+        };
+        *predicate_obligation = Some(id(7));
+        let mut writer = Writer::default();
+        super::encode_operation(&mut writer, &checked).unwrap();
+        let encoded = writer.finish();
+        assert_eq!(encoded[10], 106);
+        assert_eq!(encoded.len(), plain.len() + 8);
+        assert_eq!(&encoded[11..plain.len() - 1], &plain[11..plain.len() - 1]);
+        assert_eq!(
+            super::decode_operation(&mut Reader::new(&encoded)),
+            Ok(checked)
+        );
+        assert!(super::decode_operation(&mut Reader::new(&encoded[..encoded.len() - 2])).is_err());
     }
 
     #[test]

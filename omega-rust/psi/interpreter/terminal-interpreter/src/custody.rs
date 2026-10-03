@@ -447,6 +447,20 @@ pub(crate) fn resolve_structural_path_type(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<StructuralTypeId, TerminalInterpretError> {
+    resolve_structural_path_type_with_leaf(
+        structural_types,
+        root,
+        path,
+        terminal_psi::StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+fn resolve_structural_path_type_with_leaf(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+) -> Result<StructuralTypeId, TerminalInterpretError> {
     if let Some(declaration) =
         terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
     {
@@ -457,16 +471,32 @@ pub(crate) fn resolve_structural_path_type(
     // carrier declaration. Keep that endpoint conversion here: shared path
     // geometry must not erase bounded-field observation or store obligations.
     let invalid = || TerminalInterpretError::AffineProjectionNotRepresentable;
+    let field = inline_structural_field(structural_types, root, path).ok_or_else(invalid)?;
+    let shape = leaf_shape(&field.field_type).ok_or_else(invalid)?;
+    structural_types
+        .values()
+        .find(|declaration| declaration.shape == shape)
+        .map(|declaration| declaration.id)
+        .ok_or_else(invalid)
+}
+
+/// Resolve an inline field endpoint without manufacturing a standalone type.
+/// Both storage presentation and explicit leaf-copy presentation use this
+/// exact field/case geometry; only their endpoint carrier differs.
+pub(crate) fn inline_structural_field<'a>(
+    structural_types: &'a BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<&'a terminal_psi::StructuralFieldDeclaration> {
     let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
-        return Err(invalid());
+        return None;
     };
     let (carrier, case) = match carrier.split_last() {
         Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
         _ => (carrier, None),
     };
     let declaration =
-        terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, carrier)
-            .ok_or_else(invalid)?;
+        terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, carrier)?;
     let fields = match (&declaration.shape, case) {
         (
             StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
@@ -475,25 +505,12 @@ pub(crate) fn resolve_structural_path_type(
         (
             StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
             Some(case),
-        ) => {
-            &cases
-                .iter()
-                .find(|candidate| candidate.id == case)
-                .ok_or_else(invalid)?
-                .fields
-        }
-        _ => return Err(invalid()),
+        ) => &cases.iter().find(|candidate| candidate.id == case)?.fields,
+        _ => return None,
     };
-    let shape = fields
+    fields
         .iter()
         .find(|field| field.identity == *identity && !field.relevance.is_erased())
-        .and_then(|field| field.field_type.canonical_leaf_shape())
-        .ok_or_else(invalid)?;
-    structural_types
-        .values()
-        .find(|declaration| declaration.shape == shape)
-        .map(|declaration| declaration.id)
-        .ok_or_else(invalid)
 }
 
 pub(crate) fn bind_entry_claims(
@@ -566,9 +583,42 @@ pub(crate) fn project_structural_value(
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    project_structural_value_with_leaf(
+        structural_types,
+        root,
+        path,
+        terminal_psi::StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+/// A copy materializes an inline leaf's value carrier, while ordinary
+/// projections keep the storage presentation and its authority unchanged.
+pub(crate) fn project_structural_leaf_copy(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    root: &TerminalStructuralValue,
+    path: &[StructuralPathSegment],
+) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    project_structural_value_with_leaf(
+        structural_types,
+        root,
+        path,
+        terminal_psi::StructuralFieldType::leaf_copy_shape,
+    )
+}
+
+fn project_structural_value_with_leaf(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    root: &TerminalStructuralValue,
+    path: &[StructuralPathSegment],
+    leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
+) -> Result<TerminalStructuralValue, TerminalInterpretError> {
     let mut value = root.clone();
-    value.structural_type =
-        resolve_structural_path_type(structural_types, root.structural_type, path)?;
+    value.structural_type = resolve_structural_path_type_with_leaf(
+        structural_types,
+        root.structural_type,
+        path,
+        leaf_shape,
+    )?;
     if !path.is_empty() {
         value.qualifications.clear();
     }

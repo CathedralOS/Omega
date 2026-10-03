@@ -289,26 +289,18 @@ fn retired_in_body(
                 .source_structural_result_binding_ordinal()
                 .into_iter()
                 .collect(),
-            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                match store.value.nodes.get(store.value.root) {
-                    checked_trees::CheckedByteSequenceValue::CallResult {
-                        state: producer_state,
-                        statement_index,
-                        binding_ordinal,
-                        ..
-                    } if *producer_state == state.state
-                        && *statement_index == store.statement_index
-                        && state.operations.iter().filter_map(result).any(|result| {
-                            result.binding_ordinal == *binding_ordinal
-                                && result.statement_index == *statement_index
-                                && result.multiplicity == Multiplicity::Unrestricted
-                        }) =>
-                    {
-                        vec![*binding_ordinal]
-                    }
-                    _ => Vec::new(),
-                }
-            }
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => store
+                .value
+                .completed_call_binding_ordinal()
+                .filter(|binding_ordinal| {
+                    state.operations.iter().filter_map(result).any(|result| {
+                        result.binding_ordinal == *binding_ordinal
+                            && result.statement_index == store.statement_index
+                            && result.multiplicity == Multiplicity::Unrestricted
+                    })
+                })
+                .into_iter()
+                .collect(),
             _ => Vec::new(),
         })
         .chain(completed_operands)

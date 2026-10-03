@@ -48,8 +48,8 @@ pub enum CheckedByteSequenceStoreDestination {
         field_identity: String,
     },
     /// One shared borrowed-view field whose descriptor the value replaces;
-    /// no bytes are copied. The value is a literal, whose image storage
-    /// outlives every root.
+    /// no bytes are copied. A descriptor value retains its actual source;
+    /// independent loan replay proves that source outlives every later use.
     ViewField {
         carrier_path: Vec<CheckedUnitStructuralPathSegment>,
         field_identity: String,
@@ -70,6 +70,25 @@ impl CheckedByteSequenceValuePlan {
         plan
     }
 
+    /// The completed structural call this value observes. Source correspondence
+    /// separately authenticates the expression and call occurrence; this query
+    /// lets the ordinary schedule treat descriptor and owned-byte consumers alike.
+    pub fn completed_call_binding_ordinal(&self) -> Option<u32> {
+        let value = self
+            .nodes
+            .iter()
+            .find_map(|(identity, value)| (identity == self.root).then_some(value))?;
+        match value {
+            CheckedByteSequenceValue::CallResult {
+                binding_ordinal, ..
+            } => Some(*binding_ordinal),
+            CheckedByteSequenceValue::Descriptor { source, .. } => {
+                source.source_structural_result_binding_ordinal()
+            }
+            _ => None,
+        }
+    }
+
     /// Only a literal root can lend image storage without an owned construction.
     pub fn literal_bytes(&self) -> Option<&[u8]> {
         self.nodes.iter().find_map(|(identity, value)| match value {
@@ -84,6 +103,12 @@ impl CheckedByteSequenceValuePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedByteSequenceValue {
     Literal(Vec<u8>),
+    /// A completed descriptor value, distinct from a byte-content snapshot.
+    /// No fabricated capacity or owned copy can represent its backing loan.
+    Descriptor {
+        expression: typed_trees::expression::ExpressionHandle,
+        source: crate::CheckedUnitStructuralArgumentPlan,
+    },
     /// An already completed call, rejoined to its exact authored occurrence
     /// and structural result binding before the store observes its live length.
     CallResult {

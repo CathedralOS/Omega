@@ -290,6 +290,9 @@ pub enum OperationKind {
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
         source: PlaceId,
+        /// Proves the destination's predicates from the exact current source.
+        /// Absent only when independent static source replay implies them.
+        predicate_obligation: Option<ObligationId>,
     },
     /// Read one byte of the exact field's live storage using its dominating
     /// length observation. `path` resolves from the root to the record

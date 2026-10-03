@@ -459,6 +459,20 @@ pub(super) fn completed_source<'a>(
     completed_source_where(module, machine, place, plain_type, false)
 }
 
+/// A call-scoped loan retains its owned carrier, including any shared
+/// descriptors stored within it. Lending that carrier mutably permits replacing
+/// a descriptor slot; it does not grant writes to the descriptor's backing.
+/// The producer and live-loan replays separately check establishment and every
+/// retained backing region. Owned transfers keep `completed_source`'s plain
+/// payload contract.
+pub(super) fn loan_source<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    completed_source_where(module, machine, place, shared_view_carrier_type, false)
+}
+
 /// An owned local under memberwise establishment is a writable destination
 /// root before its members complete: the establishment declares the root's
 /// type and custody, and the member operations finish it. It is not a
@@ -516,13 +530,7 @@ pub(super) fn constructed_source<'a>(
     machine: &'a TerminalMachine,
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    completed_source_where(
-        module,
-        machine,
-        place,
-        |module, root| constructible_type(module, root),
-        false,
-    )
+    completed_source_where(module, machine, place, constructible_type, false)
 }
 
 /// The `completed_source` producer set under the view-descriptor gate: a copy
@@ -624,7 +632,7 @@ pub(super) fn validate_uses(
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let validate = |place| {
-        if completed_source(module, machine, place).is_some() && !available.contains(&place) {
+        if loan_source(module, machine, place).is_some() && !available.contains(&place) {
             Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                 operation: operation.id,
                 place,
@@ -687,6 +695,7 @@ pub(super) fn validate_uses(
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
         | OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+        | OperationKind::StructuralByteViewFieldStore { destination, .. }
         | OperationKind::AtomicAccess {
             place: destination, ..
         } => validate(*destination)?,

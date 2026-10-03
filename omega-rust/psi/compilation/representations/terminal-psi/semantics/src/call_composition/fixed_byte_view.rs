@@ -1,6 +1,6 @@
 //! Exact fixed-array windows for shared and mutable byte-view call loans.
 
-use crate::static_path::runtime_structural_path_tip;
+use crate::runtime_structural_path_tip;
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,

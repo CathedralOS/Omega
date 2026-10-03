@@ -15,11 +15,11 @@ use checked_trees::{
 };
 
 const TAGGED: &str = r#"
-    domain [u8]::Utf8 requires valid_utf8(self);
+    domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
     data Tag { label: &[u8] in Utf8; weight: i32; }
     data Main { tag: Tag; }
-    machine Main::main(&mut self) {
-        self.tag = Tag { weight: 4, label: "ring" };
+    machine Main::main(root: &mut Main) {
+        root.tag = Tag { weight: 4, label: "ring" };
     }
 "#;
 
@@ -96,19 +96,19 @@ fn a_quoted_view_member_decomposes_into_its_descriptor_store_in_authored_order()
     ));
 }
 
-/// The literal view member has no construction: a local initialized from a
-/// record literal with one keeps the rooted value but establishes nothing,
-/// so the body plans no Unit machine.
+/// The current construction planner does not emit a literal view member:
+/// a record local keeps the rooted value but establishes nothing. Preserve
+/// that readiness boundary until ordinary construction owns this producer.
 #[test]
 fn a_quoted_view_member_is_never_established_as_a_local() {
     let typed = crate::tests::front_end::typed_program(
         r#"
-        domain [u8]::Utf8 requires valid_utf8(self);
+        domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
         data Tag { label: &[u8] in Utf8; weight: i32; }
         data Main { weight: i32; }
-        machine Main::main(&mut self) {
+        machine Main::main(root: &mut Main) {
             let tag: Tag = Tag { label: "ring", weight: 4 };
-            self.weight = tag.weight;
+            root.weight = tag.weight;
         }
     "#,
     );

@@ -132,7 +132,7 @@ pub(crate) fn check_flow_call_borrows(
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
-    check_persistent_borrow_assignments(program, call_frames, &mut diagnostics);
+    check_persistent_borrow_assignments(program, facts, call_frames, &mut diagnostics);
 
     // Receiver read footprints serve only this pass's whole-receiver call
     // judgments; they build on the first call that needs them.

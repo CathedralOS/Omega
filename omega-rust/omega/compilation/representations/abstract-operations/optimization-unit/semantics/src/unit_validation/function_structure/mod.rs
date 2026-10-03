@@ -54,6 +54,9 @@ pub(crate) fn validate_function(
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     cycle_policy: &control_flow::ControlCyclePolicy,
     call_accesses: &current_ownership::CallAccesses,
+    descriptor_requirements: &mut Vec<
+        terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
+    >,
 ) -> Result<(), OptimizationUnitValidationError> {
     if !valid_service_ceiling(&function.published_service_ceiling, services) {
         return Err(
@@ -125,7 +128,7 @@ pub(crate) fn validate_function(
         structural_domains,
     )?;
     validate_places_and_claims(function)?;
-    current_ownership::validate_current_ownership_frontier(
+    let requirements = current_ownership::validate_current_ownership_frontier_collecting(
         function,
         &control_flow.blocks,
         &control_flow.successors,
@@ -133,5 +136,7 @@ pub(crate) fn validate_function(
         boundary_machines,
         structural_types,
         call_accesses,
-    )
+    )?;
+    descriptor_requirements.extend(requirements);
+    Ok(())
 }

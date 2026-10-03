@@ -169,9 +169,32 @@ fn builtin_coordinates(
         ExpressionNode::Indexed(indexed) => {
             // Check the collection spine before contextual projection. This
             // rules out calls and authored indexing beneath a later index.
-            if !builtin_coordinates(program, machine, state, indexed.collection, depth + 1)
-                || declared_indexed_projection_type(program, machine, state, expression).is_none()
+            if !builtin_coordinates(program, machine, state, indexed.collection, depth + 1) {
+                return false;
+            }
+            if let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
             {
+                // A window keeps its collection's backing rather than
+                // selecting an element type. Authenticate the range operator
+                // and each present bound before interpreting that geometry.
+                let collection =
+                    declared_place_type_raw(program, machine, state, indexed.collection)
+                        .and_then(|reference| super::unwrapped_type_reference(program, reference));
+                return collection.is_some_and(|reference| {
+                    matches!(
+                        program.type_reference_table.type_reference(reference),
+                        typed_trees::types::TypeReferenceNode::Slice { .. }
+                            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                    )
+                }) && has_builtin_subslice_meaning(program, machine, state, expression)
+                    && [range.start, range.end].into_iter().all(|bound| {
+                        !bound.is_valid()
+                            || crate::has_builtin_bound_expression_meaning(
+                                program, machine, state, bound,
+                            )
+                    });
+            }
+            if declared_indexed_projection_type(program, machine, state, expression).is_none() {
                 return false;
             }
             let operands = [

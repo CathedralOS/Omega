@@ -127,6 +127,7 @@ impl TerminalExecution {
             path,
             field,
             source,
+            ..
         } = &operation.kind
         else {
             return Err(invalid());

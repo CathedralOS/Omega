@@ -24,6 +24,9 @@ use crate::terminal_identities::{
 };
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
+mod operation_types;
+pub(super) use operation_types::collect_operation_type_roots;
+
 /// Root the leaf type identity of every structural argument plan reachable
 /// inside a structural value tree: member/fixed-index leaf reads mint the
 /// projected leaf's own identity (`slice(named(u8))` for a `&'a [u8]`
@@ -352,40 +355,8 @@ pub(super) fn lower_unit_structural_types_including(
             }
         }
         for operation in body.operations() {
+            collect_operation_type_roots(checked, plans, operation, &mut roots)?;
             match operation {
-                // A local reference can be the sole use of both its original
-                // backing carrier and its viewed reference carrier. Neither
-                // identity need occur in a function signature.
-                CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
-                    roots.push(result.type_identity.clone());
-                    roots.push(source.type_identity.clone());
-                }
-                // A view subslice's result can be the body's only owner of
-                // its view type: a range over a fixed-array field narrows a
-                // view no earlier binding or parameter declared.
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
-                    roots.push(result.type_identity.clone());
-                }
-                // A leaf observed through a shared-borrowed place (`source.f`
-                // on `&'a` storage) projects a type that no signature,
-                // parameter or result owns: its argument plan mints the leaf's
-                // own identity, and emission resolves that identity against
-                // this shared catalog, so the leaf type must be rooted here.
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result, value, ..
-                } => {
-                    roots.push(result.type_identity.clone());
-                    collect_value_roots(checked, *value, &mut roots)?;
-                    if establishes_byte_element_view(checked, plans, &result.type_identity, *value)?
-                    {
-                        roots.push(BYTE_VIEW_ELEMENT_TYPE_IDENTITY.to_owned());
-                    }
-                }
-                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-                    type_identity, ..
-                } => roots.push(type_identity.clone()),
                 // An ordinary structural call into a Unit body roots its
                 // callee's structural signature.
                 CheckedUnitEffectOperationPlan::Call(call)

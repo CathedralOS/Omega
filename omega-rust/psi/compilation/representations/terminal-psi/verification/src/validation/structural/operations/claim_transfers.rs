@@ -37,7 +37,7 @@ pub(crate) fn is_record_loan(
     argument.access != StructuralAccess::Owned
         && parameter.access == argument.access
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && crate::validation::record::completed_source(module, caller, argument.place)
+        && crate::validation::record::loan_source(module, caller, argument.place)
             .map(|result| result.structural_type)
             .or_else(|| {
                 // Views and initialized scalar-array payloads also retain

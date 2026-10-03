@@ -588,9 +588,7 @@ pub(super) fn account(
         let copied_into_byte_store = result.multiplicity == Multiplicity::Unrestricted
             && operations[producer_index + 1..].iter().any(|operation| {
                 matches!(operation, CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
-                    if store.value.nodes.iter().any(|(_, value)| matches!(value,
-                        checked_trees::CheckedByteSequenceValue::CallResult { binding_ordinal, .. }
-                            if *binding_ordinal == result.binding_ordinal)))
+                    if store.value.completed_call_binding_ordinal() == Some(result.binding_ordinal))
             });
         // An unrestricted anonymous call result has no statement-local
         // disposal owner: its statement may bind the enclosing scalar call.

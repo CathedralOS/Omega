@@ -173,6 +173,7 @@ pub(super) fn replace_view_descriptor(
         path,
         field,
         source,
+        ..
     } = operation
     else {
         return Err(unsupported());
@@ -192,14 +193,32 @@ pub(super) fn replace_view_descriptor(
                 }
         },
     )?;
-    let literal = live.views.get(source).is_some_and(|(producer, _)| {
-        function.operations.iter().any(|operation| {
-            matches!(operation, AbstractOperation::EstablishByteSequenceLiteral {
-                psi_operation, place, ..
-            } if psi_operation == producer && place.id == *source)
+    // The source is an already available two-word descriptor. Its backing
+    // lifetime is independently replayed on the current optimization graph;
+    // native lowering must not infer that lifetime from a producer family.
+    let source_type = live
+        .views
+        .get(source)
+        .map(|(_, identity)| *identity)
+        .or_else(|| {
+            function
+                .arrival_parameter(*source)
+                .filter(|parameter| {
+                    matches!(
+                        parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    ) && (live.block_views.contains(source)
+                        || prepared.parameters.iter().any(|row| row.place == *source))
+                })
+                .map(|parameter| parameter.structural_type)
+        });
+    if source == destination
+        || !source_type.is_some_and(|identity| {
+            structural_types
+                .get(&identity)
+                .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
         })
-    });
-    if source == destination || !literal {
+    {
         return Err(unsupported());
     }
     let indices = super::primitive_storage::field_indices(

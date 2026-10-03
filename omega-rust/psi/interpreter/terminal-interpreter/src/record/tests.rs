@@ -650,3 +650,250 @@ fn zeroed_affine_record_retains_its_disposal_until_the_exit() {
     );
     assert_eq!(execution.live_affine_frontier().count(), 0);
 }
+
+#[test]
+fn stored_descriptor_leaf_copy_keeps_its_backing_window_after_replacement() {
+    use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
+    use crate::values::{
+        StructuralByteSequenceRuntimeField, StructuralRuntimePlace, TerminalStructuralValue,
+    };
+    let mut module = unit_module();
+    let holder = StructuralTypeId::new(1).unwrap();
+    let view = StructuralTypeId::new(2).unwrap();
+    let field = StructuralFieldId::new(1).unwrap();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: holder,
+            identity: "Holder".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "text".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::SharedBorrow),
+                        },
+                    ),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "[u8]".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: None,
+            }),
+        },
+    ];
+    let (mut execution, _) = run(&module, &[]);
+    let source = PlaceId::new(20).unwrap();
+    let destination = PlaceId::new(21).unwrap();
+    let root = TerminalStructuralValue {
+        opaque_identity: 9000,
+        structural_type: holder,
+        qualifications: vec![],
+        path: vec![],
+    };
+    let cell = StructuralByteSequenceRuntimeField {
+        parent: StructuralRuntimePlace::from(&root),
+        field,
+    };
+    let backing = ByteSequenceView::new(b"xabcz".to_vec());
+    let window = backing.subslice(1, 4).unwrap();
+    execution.structural_values.insert(source, root);
+    execution
+        .structural_byte_sequence_fields
+        .insert(cell.clone(), window.clone());
+    let path = vec![StructuralPathSegment::Field("text".into())];
+    assert!(
+        crate::custody::resolve_structural_path_type(
+            &execution.program.structural_types,
+            holder,
+            &path,
+        )
+        .is_err(),
+        "ordinary storage projection must not invent a descriptor carrier"
+    );
+    // Full source-derived lowering/verification covers admission. This owning
+    // execution control checks the actual descriptor payload and replacement.
+    execution
+        .execute_structural_leaf_copy(&Operation {
+            id: OperationId::new(50).unwrap(),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: destination,
+                structural_type: view,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: vec![],
+                projected_qualifications: vec![],
+                qualification_establishments: vec![],
+                claims: vec![],
+            }),
+            kind: OperationKind::StructuralLeafCopy { source, path },
+        })
+        .unwrap();
+    let ByteSequenceBinding::Immutable(copied) = &execution.byte_sequence_values[&destination]
+    else {
+        panic!("shared descriptor")
+    };
+    assert_eq!(copied.bytes(), b"abc");
+    assert_eq!(
+        copied.bytes().as_ptr(),
+        window.bytes().as_ptr(),
+        "descriptor copy shares exact backing and offset"
+    );
+    execution
+        .structural_byte_sequence_fields
+        .insert(cell, ByteSequenceView::new(b"new".to_vec()));
+    assert_eq!(
+        execution.byte_sequence_values[&destination]
+            .immutable()
+            .unwrap()
+            .bytes(),
+        b"abc"
+    );
+}
+
+#[test]
+fn admitted_case_descriptor_copy_uses_the_current_payload_cell() {
+    use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
+    use crate::structural_inputs::case_membership::StructuralCaseContents;
+    use crate::values::{
+        StructuralByteSequenceRuntimeField, StructuralRuntimePlace, TerminalStructuralValue,
+    };
+    let mut module = unit_module();
+    let sum = StructuralTypeId::new(1).unwrap();
+    let view = StructuralTypeId::new(2).unwrap();
+    let case = StructuralCaseId::new(1).unwrap();
+    let field = StructuralFieldId::new(1).unwrap();
+    let source = PlaceId::new(20).unwrap();
+    let destination = PlaceId::new(21).unwrap();
+    let producer = OperationId::new(50).unwrap();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: sum,
+            identity: "Envelope".into(),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![StructuralCaseDeclaration {
+                    id: case,
+                    identity: "Text".into(),
+                    fields: vec![StructuralFieldDeclaration {
+                        id: field,
+                        identity: "payload".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(view),
+                    }],
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "[u8]".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: None,
+            }),
+        },
+    ];
+    let operation = Operation {
+        id: producer,
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: destination,
+            structural_type: view,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            qualification_establishments: vec![],
+            claims: vec![],
+        }),
+        kind: OperationKind::StructuralCaseLeafCopy {
+            source,
+            path: vec![
+                CanonicalStructuralPathSegment::Case(case),
+                CanonicalStructuralPathSegment::Field(field),
+            ],
+        },
+    };
+    // Establish that this is an admitted structural-child case projection,
+    // not a new inline-byte case grammar invented by the execution path.
+    let mut admitted = module.clone();
+    let machine = &mut admitted.machines[0];
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: source,
+            position: 0,
+            is_self: false,
+            structural_type: sum,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+        });
+    machine.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: destination,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: view,
+            },
+        },
+    ]);
+    machine
+        .contract
+        .requires
+        .push(Proposition::StructuralCaseMembership {
+            subject: StructuralCaseSubject::new(source, vec![]),
+            case,
+        });
+    machine.blocks[0].operations.push(operation.clone());
+    terminal_verifier::validate_module(&admitted)
+        .expect("structural descriptor child is an admitted case-copy endpoint");
+
+    let (mut execution, _) = run(&module, &[]);
+    let root = TerminalStructuralValue {
+        opaque_identity: 9100,
+        structural_type: sum,
+        qualifications: vec![],
+        path: vec![],
+    };
+    let storage = StructuralRuntimePlace::from(&root);
+    execution.structural_values.insert(source, root);
+    execution.structural_cases.insert(
+        storage.clone(),
+        StructuralCaseContents {
+            structural_type: sum,
+            case,
+        },
+    );
+    execution.structural_byte_sequence_fields.insert(
+        StructuralByteSequenceRuntimeField {
+            parent: storage.clone(),
+            field,
+        },
+        ByteSequenceView::new(b"case".to_vec()),
+    );
+    execution.execute_structural_leaf_copy(&operation).unwrap();
+    let ByteSequenceBinding::Immutable(bytes) = &execution.byte_sequence_values[&destination]
+    else {
+        panic!("shared descriptor")
+    };
+    assert_eq!(bytes.bytes(), b"case");
+    execution.structural_values.remove(&destination);
+    execution.byte_sequence_values.remove(&destination);
+    execution.structural_cases.get_mut(&storage).unwrap().case = StructuralCaseId::new(2).unwrap();
+    assert!(
+        execution.execute_structural_leaf_copy(&operation).is_err(),
+        "another discriminator cannot select the same-spelled payload cell"
+    );
+}

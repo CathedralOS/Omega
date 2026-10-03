@@ -647,37 +647,26 @@ where
                     source_predicates(catalogs, function, *backing, remaining, memo)?.subslice(),
                 );
             }
-            super::byte_views::owned_byte_result(
-                function,
-                Some(&declaration.kind),
-                source,
-                |identity| {
-                    catalogs.types.clone().any(|declaration| {
-                        declaration.id == identity
-                            && matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
+            let (_, result) = node.operation.structural_result()?;
+            if result.place != source
+                || result.structural_type != structural_type
+                || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                || !result.projected_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || !result.claims.is_empty()
+                || !catalogs.types.clone().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: None | Some(StructuralAccess::SharedBorrow)
+                                    }
                             )
-                    })
-                },
-            )?;
-            let (result, operands) = match &node.operation {
-                Operation::EstablishByteSequenceConcatenation {
-                    result,
-                    left,
-                    right,
-                    ..
-                } => (result, Some((left, right))),
-                Operation::CallStructural {
-                    result:
-                        abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
-                    ..
-                } => (result, None),
-                _ => return None,
-            };
-            if result.place != source || result.structural_type != structural_type {
+                        )
+                })
+            {
                 return None;
             }
             let declared = terminal_semantics::byte_qualification_predicates_in(
@@ -685,6 +674,43 @@ where
                 structural_type,
                 &result.qualifications,
             )?;
+            // Signature/custody validation independently rejoins ordinary call
+            // results. Here only their declared value predicates are imported.
+            if let Operation::StructuralLeafCopy {
+                source: backing,
+                path: abstract_operations::StructuralCopyPath::Ordinary(path),
+                ..
+            } = &node.operation
+                && catalogs.types.clone().any(|declaration| {
+                    declaration.id == structural_type && declaration.shape.is_borrowed_byte_view()
+                })
+            {
+                let captured = if path.is_empty() {
+                    source_predicates(catalogs, function, *backing, remaining, memo)?
+                } else {
+                    let (root, access) =
+                        super::byte_field_freshness::byte_field_root(function, *backing)?;
+                    if access == StructuralAccess::WriteOnlyBorrow {
+                        return None;
+                    }
+                    terminal_semantics::shared_byte_field_copy_predicates(
+                        catalogs.types.clone(),
+                        root,
+                        path,
+                    )?
+                };
+                let mut predicates = declared;
+                for predicate in captured.predicates() {
+                    predicates.insert(predicate);
+                }
+                return Some(predicates);
+            }
+            let operands = match &node.operation {
+                Operation::EstablishByteSequenceConcatenation { left, right, .. } => {
+                    Some((left, right))
+                }
+                _ => None,
+            };
             if function
                 .blocks
                 .iter()

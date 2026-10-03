@@ -231,6 +231,7 @@ fn operation_leaves_custody(
     }
     match &operation.kind {
         OperationKind::EstablishReference { source } => clears(source.place),
+        OperationKind::ByteSequencePredicate { operand, .. } => clears(operand.source()),
         OperationKind::ReleaseReference { source }
         | OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
@@ -270,6 +271,11 @@ fn operation_leaves_custody(
             ..
         }
         | OperationKind::StructuralByteSequenceFieldStore {
+            destination,
+            source,
+            ..
+        }
+        | OperationKind::StructuralByteViewFieldStore {
             destination,
             source,
             ..
@@ -963,23 +969,36 @@ fn cycle_operation_eligible(
         }
         OperationKind::ByteSequenceSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
-                crate::validation::byte_sequence::subslice::borrowed_result_in_module(module, machine, result.place)
-                    == Some(result)
+                crate::validation::byte_sequence::subslice::borrowed_result_in_module(
+                    module,
+                    machine,
+                    result.place,
+                ) == Some(result)
             })
         }
         OperationKind::EstablishElementView { .. } | OperationKind::ElementViewSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
-                crate::validation::element_view::subslice::borrowed_result_in_module(module, machine, result.place)
-                    == Some(result)
+                crate::validation::element_view::subslice::borrowed_result_in_module(
+                    module,
+                    machine,
+                    result.place,
+                ) == Some(result)
             })
         }
         OperationKind::EstablishMutableElementView { .. } => {
             operation.result.structural().is_some_and(|result| {
-                crate::validation::element_view::write::mutable_result(module, machine, result.place)
-                    == Some(result)
+                crate::validation::element_view::write::mutable_result(
+                    module,
+                    machine,
+                    result.place,
+                ) == Some(result)
             })
         }
-        OperationKind::ByteSequenceLength { .. }
+        // Content predicates observe the current bytes and produce a scalar;
+        // they retain no custody on a backedge. Ordinary operand validation
+        // still requires readable backing and its current dominating length.
+        OperationKind::ByteSequencePredicate { .. }
+        | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ElementViewLength { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. }
@@ -993,6 +1012,7 @@ fn cycle_operation_eligible(
         | OperationKind::ElementViewWrite { .. }
         | OperationKind::ByteSequenceStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteViewFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. } => {
             operation.result == OperationResult::Unit

@@ -116,28 +116,41 @@ impl TypedTrees {
             TypeReferenceNode::Generic {
                 base_symbol,
                 lifetime_arguments,
+                arguments,
                 ..
-            } if lifetime_arguments.is_empty() => {
-                self.unique_data_definition_by_symbol(*base_symbol)?;
-                let identity = self.normalized_type_identity(reference);
-                let mut instances = self.data_definitions().iter().filter(|data| {
-                    let Some(origin) = data.generic_instance else {
-                        return false;
-                    };
-                    self.type_reference_table.contains_type_reference(origin)
-                        && matches!(self.type_reference_table.type_reference(origin),
-                            TypeReferenceNode::Generic { base_symbol: owner, lifetime_arguments, .. }
-                                if owner == base_symbol && lifetime_arguments.is_empty())
-                        && self.normalized_type_identity(origin) == identity
-                });
-                let instance = instances.next()?;
-                if instances.next().is_some() {
+            } => {
+                let owner = self.unique_data_definition_by_symbol(*base_symbol)?;
+                if lifetime_arguments.len() != owner.lifetime_parameters.len() {
                     return None;
                 }
-                if !instance.lifetime_parameters.is_empty() {
-                    return None;
+                let arguments = self.type_reference_table.type_reference_handles(*arguments);
+                if arguments.is_empty() {
+                    // Regions do not specialize runtime layout. A lifetime-only
+                    // application names this exact closed declaration; its
+                    // borrowing relations are checked separately at each use.
+                    owner
+                } else {
+                    if arguments.len() != self.data_type_parameters(owner).len() {
+                        return None;
+                    }
+                    let identity = self.normalized_type_identity(reference);
+                    let mut instances = self.data_definitions().iter().filter(|data| {
+                        let Some(origin) = data.generic_instance else {
+                            return false;
+                        };
+                        self.type_reference_table.contains_type_reference(origin)
+                            && matches!(self.type_reference_table.type_reference(origin),
+                                TypeReferenceNode::Generic { base_symbol: origin_owner, lifetime_arguments, .. }
+                                    if origin_owner == base_symbol && lifetime_arguments.is_empty())
+                            && self.normalized_type_identity(origin) == identity
+                            && data.lifetime_parameters == owner.lifetime_parameters
+                    });
+                    let instance = instances.next()?;
+                    if instances.next().is_some() {
+                        return None;
+                    }
+                    self.unique_data_definition_by_symbol(instance.symbol)?
                 }
-                self.unique_data_definition_by_symbol(instance.symbol)?
             }
             _ => return None,
         };

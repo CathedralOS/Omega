@@ -88,6 +88,7 @@ fn module() -> TerminalModule {
                 path: Vec::new(),
                 field: StructuralFieldId::new(1).unwrap(),
                 source: place_id(source),
+                predicate_obligation: None,
             },
             OperationResult::Unit,
         )

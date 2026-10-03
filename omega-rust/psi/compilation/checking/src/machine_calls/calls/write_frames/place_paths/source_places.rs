@@ -13,8 +13,18 @@ use crate::machine_calls::calls::write_frames::caller_aliases::{
     CallerWriteSite, caller_statement_owner,
 };
 
+/// Storage category is independent of coordinate precision. Static backing
+/// comes only from a literal producer, never from an absent declaration root.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(in crate::machine_calls::calls::write_frames) enum FrameSourceKind {
+    #[default]
+    Declaration,
+    ImageStorage,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::machine_calls::calls::write_frames) struct FrameSourcePlace {
+    pub(in crate::machine_calls::calls::write_frames) kind: FrameSourceKind,
     pub(in crate::machine_calls::calls::write_frames) root: SymbolHandle,
     pub(in crate::machine_calls::calls::write_frames) segments: Vec<PlaceSegment>,
     /// Permission to interpret candidate selectors as primitive coordinates.
@@ -23,6 +33,18 @@ pub(in crate::machine_calls::calls::write_frames) struct FrameSourcePlace {
 }
 
 impl FrameSourcePlace {
+    pub(in crate::machine_calls::calls::write_frames) fn image_storage() -> Self {
+        Self {
+            kind: FrameSourceKind::ImageStorage,
+            builtin_coordinates: true,
+            ..Self::default()
+        }
+    }
+
+    pub(in crate::machine_calls::calls::write_frames) fn is_static(&self) -> bool {
+        self.kind == FrameSourceKind::ImageStorage
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn from_expression(
         program: &TypedTrees,
         expression: ExpressionHandle,
@@ -40,6 +62,7 @@ impl FrameSourcePlace {
         let builtin_coordinates = !segments_have_index_geometry(segments)
             || source_has_builtin_coordinates(program, root, expression);
         Self {
+            kind: FrameSourceKind::Declaration,
             root,
             segments: segments.to_vec(),
             builtin_coordinates,
@@ -52,7 +75,7 @@ impl FrameSourcePlace {
         &self,
         segments: &[PlaceSegment],
     ) -> Self {
-        if !self.root.is_valid() {
+        if !self.root.is_valid() && !self.is_static() {
             return Self::default();
         }
         let mut projected = self.clone();
@@ -78,7 +101,7 @@ impl FrameSourcePlace {
         whole_expression: ExpressionHandle,
         base_expression: ExpressionHandle,
     ) -> Self {
-        if !self.root.is_valid() {
+        if !self.root.is_valid() && !self.is_static() {
             return Self::default();
         }
         let mut facts = FactPlan::default();
@@ -120,7 +143,7 @@ impl FrameSourcePlace {
         &self,
         relative: &Self,
     ) -> Self {
-        if !self.root.is_valid() || !relative.root.is_valid() {
+        if (!self.root.is_valid() && !self.is_static()) || !relative.root.is_valid() {
             return Self::default();
         }
         let mut result = self.clone();

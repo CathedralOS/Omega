@@ -86,17 +86,21 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             .flat_map(|state| &state.structural_parameters)
             .map(|parameter| parameter.type_identity.clone()),
     );
-    type_roots.extend(
-        states
-            .iter()
-            .flat_map(|state| state.operation_dependencies())
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-            .filter_map(|operation| {
-                operation
-                    .discardable_structural_result()
-                    .map(|(result, _)| result.type_identity.clone())
-            }),
+    let plans = crate::unit::attached_unit::bodies::UnitPlans::published(
+        &checked.facts.flow.terminal_unit_effects,
     );
+    for operation in states
+        .iter()
+        .flat_map(|state| state.operation_dependencies())
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
+        crate::unit::attached_unit::catalog::collect_operation_type_roots(
+            checked,
+            plans,
+            operation,
+            &mut type_roots,
+        )?;
+    }
     type_roots.extend(
         states
             .iter()

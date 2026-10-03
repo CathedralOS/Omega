@@ -21,6 +21,7 @@ use super::{
 mod block_entry;
 mod block_parameters;
 mod descriptor_loans;
+pub(in crate::validation) use descriptor_loans::validate_compatibility;
 mod operations;
 mod shared_loans;
 mod terminators;
@@ -253,6 +254,9 @@ pub(super) fn validate_structural_frontier(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     dominators: &crate::control_graph::DominatorTree,
+    requirements: Option<
+        &mut Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
+    >,
 ) -> Result<VerifiedMachineStructuralFrontiers, ModuleError> {
     let mut snapshots = VerifiedMachineStructuralFrontiers {
         machine: machine.id,
@@ -330,6 +334,9 @@ pub(super) fn validate_structural_frontier(
         }
     }
     super::references::validate_return_coverage(machine, &returned_reference_sources)?;
+    if let Some(requirements) = requirements {
+        requirements.extend(descriptor_loans.requirements());
+    }
     Ok(snapshots)
 }
 
@@ -552,7 +559,11 @@ fn validate_owned_reads(
                 && arguments.iter().filter(|argument| argument.place == *place).all(|argument|
                     matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
                         && argument.path.is_empty()))
-            && !super::record::completed_source(module, machine, *place).is_some_and(|result| {
+            // Lending a copyable carrier with stored views does not create
+            // affine disposal debt. Its establishment must still dominate this
+            // use (`record::validate_uses`), and descriptor replay retains the
+            // loans in its fields independently of the carrier's custody.
+            && !super::record::loan_source(module, machine, *place).is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
             })
             && !(super::scalar::array::plain_return_source(module, machine, *place)

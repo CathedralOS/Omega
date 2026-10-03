@@ -146,23 +146,6 @@ pub(super) fn local_origin(
     Some(source)
 }
 
-/// Body-derived helper relations need exact nominal projections as well as
-/// their conservative write footprint. Loaded reference slots need their own
-/// frozen evidence and cannot be identified from a referent's type alone.
-pub(super) fn initializer_origin(
-    program: &TypedTrees,
-    machine: &Machine,
-    expression: ExpressionHandle,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    aliases: &[(String, FramePlaceOrigin)],
-    stored: &[StoredLocalOrigins],
-) -> Option<FramePlaceOrigin> {
-    value_origin(
-        program, machine, expression, symbols, inference, aliases, stored, false,
-    )
-}
-
 pub(super) fn value_origin(
     program: &TypedTrees,
     machine: &Machine,
@@ -224,14 +207,120 @@ pub(super) fn value_origin(
         )?
     };
     let mut origins =
-        stored_origins::canonical_reference_origins(program, &Some(origin), aliases, stored)
-            .into_iter();
+        captured_value_origins(program, expression, &origin, aliases, stored).into_iter();
     let origin = origins.next()??;
     if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
         return None;
     }
     validate_source_projection(program, machine, state, index, &origin.source, stored)?;
     Some(origin)
+}
+
+/// Storage provenance for a reference-valued producer. Unlike an exact
+/// subject, a range may retain a conservative collection region. The ordinary
+/// alias walk authenticates the producer and captured binding; builtin selector
+/// custody and exact nominal prefixes remain mandatory. This relation carries
+/// lifetime/mutation obligations, never descriptor equality or predicates.
+pub(super) fn backing_origin(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Option<FramePlaceOrigin> {
+    let (state, _, index) = caller_aliases::caller_statement_owner(
+        program,
+        machine,
+        caller_aliases::CallerWriteSite::Expression(expression),
+    )?;
+    let isolated = program.statement_table.statements(state.statement_nodes)[..index]
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local)
+                if type_is_caller_isolated_local(program, local.type_reference)
+                    && !type_reference_is_reference(program, local.type_reference) =>
+            {
+                Some(local.name.as_str().to_owned())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut diagnostics = Vec::new();
+    let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return None;
+    }
+    let origin = stable_alias_initializer_origin(
+        program,
+        machine,
+        &machine_symbols,
+        inference,
+        expression,
+        program.state_parameters(state),
+        &isolated,
+        aliases,
+        &[],
+        symbols,
+        true,
+        stored,
+    )?;
+    let mut candidates =
+        captured_value_origins(program, expression, &origin, aliases, stored).into_iter();
+    let origin = candidates.next()??;
+    if candidates.next().is_some()
+        || (!origin.source.root.is_valid() && !origin.source.is_static())
+        || !origin.source.builtin_coordinates
+    {
+        return None;
+    }
+    if origin.source.is_static() {
+        return Some(origin);
+    }
+    // An exact alias may later serve exact-reference consumers. Preserve their
+    // existing source-declaration/selector authentication rather than allowing
+    // the conservative backing query to manufacture exact identity.
+    if origin.precision == FramePathPrecision::Exact {
+        declared_initializer_origin(
+            program, machine, expression, symbols, inference, false, aliases, stored,
+        )?;
+    }
+    let mut prefix = origin.source.clone();
+    if let Some(index) = prefix.segments.iter().position(|segment| {
+        matches!(
+            segment,
+            PlaceSegment::Index { .. }
+                | PlaceSegment::FixedIndex { .. }
+                | PlaceSegment::FixedRange { .. }
+        )
+    }) {
+        prefix.segments.truncate(index);
+    }
+    validate_source_projection(program, machine, state, index, &prefix, stored)?;
+    Some(origin)
+}
+
+/// Alias rows are captured reference values. Resolve fresh field loads only
+/// beyond the reference boundary already crossed by the original alias.
+fn captured_value_origins(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    origin: &FramePlaceOrigin,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Vec<Option<FramePlaceOrigin>> {
+    let raw = FrameSourcePlace::from_expression(program, expression);
+    if raw.root.is_valid()
+        && let Some((_, captured)) = aliases
+            .iter()
+            .find(|(name, _)| program.symbols.name(raw.root) == name)
+    {
+        return stored_origins::captured_reference_projection_origins(
+            program, captured, origin, stored,
+        );
+    }
+    stored_origins::canonical_reference_origins(program, &Some(origin.clone()), &[], stored)
 }
 
 fn declared_initializer_origin(
