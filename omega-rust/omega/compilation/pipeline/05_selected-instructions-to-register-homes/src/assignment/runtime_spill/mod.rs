@@ -85,10 +85,9 @@ pub(crate) enum RuntimeSpillSource {
     PreAllocation(StagedPreAllocationOptimizationRun),
 }
 
-/// The independently replayed manifest base every allocation this recovery
-/// produces must carry: the pre-physical root, the completion identities of
-/// any executed rewrite suites the prefix ran under, and the recorded prefix
-/// transformations ahead of every spill step.
+/// The declared manifest base during production, independently reconstructed
+/// at allocation admission: the pre-physical root, completion identities of
+/// executed rewrite suites, and prefix transformations ahead of every spill.
 #[derive(Debug)]
 pub(crate) struct RuntimeSpillManifestBase {
     pub(crate) pre_physical: PrePhysicalOptimizationManifestIdentity,
@@ -265,6 +264,76 @@ impl RuntimeSpillSource {
         }
     }
 
+    /// Project the declared prefix from the retained source's immutable custody.
+    /// This does not admit the composition: completed suites retain produced
+    /// receipts, and a declined probe retains its recorded verdict. Independent
+    /// allocation replay must reconstruct both before publishing any facts.
+    fn declared_manifest(&self) -> RuntimeSpillManifestBase {
+        match self {
+            Self::Legality(source)
+            | Self::DeclinedFixedView {
+                legality: source, ..
+            } => RuntimeSpillManifestBase {
+                pre_physical: source.custody().manifest(),
+                selected_lowering_completion: None,
+                pre_allocation_completion: None,
+                prefix: Vec::new(),
+            },
+            Self::FixedViewCopies(reanalysis) => {
+                let upstream = reanalysis.custody();
+                RuntimeSpillManifestBase {
+                    pre_physical: upstream.source().manifest(),
+                    selected_lowering_completion: None,
+                    pre_allocation_completion: None,
+                    prefix: vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                        upstream.source().transformation(),
+                    )],
+                }
+            }
+            Self::ActiveResidentRematerialization(pressure) => {
+                let upstream = pressure.custody();
+                RuntimeSpillManifestBase {
+                    pre_physical: upstream.source().manifest(),
+                    selected_lowering_completion: None,
+                    pre_allocation_completion: None,
+                    prefix: vec![
+                        PostAllocationSelectedTransformation::PressureRematerialization(
+                            upstream.rematerialization(),
+                        ),
+                    ],
+                }
+            }
+            Self::SelectedLowering(run) => {
+                let upstream = run.custody();
+                RuntimeSpillManifestBase {
+                    pre_physical: upstream.source().manifest(),
+                    selected_lowering_completion: Some(upstream.identity()),
+                    pre_allocation_completion: None,
+                    prefix: upstream
+                        .iterations()
+                        .iter()
+                        .map(|iteration| {
+                            PostAllocationSelectedTransformation::LiteralFold(iteration.fold())
+                        })
+                        .collect(),
+                }
+            }
+            Self::PreAllocation(run) => {
+                let upstream = run.custody();
+                RuntimeSpillManifestBase {
+                    pre_physical: upstream.source().manifest(),
+                    selected_lowering_completion: None,
+                    pre_allocation_completion: Some(upstream.identity()),
+                    prefix: upstream
+                        .iterations()
+                        .iter()
+                        .map(|iteration| iteration.transformation().into())
+                        .collect(),
+                }
+            }
+        }
+    }
+
     /// Independently revalidate the source custody chain, returning the
     /// manifest base every manifest this recovery produces must carry: the
     /// pre-physical root, the completion identities of any executed rewrite
@@ -281,7 +350,7 @@ impl RuntimeSpillSource {
     pub(crate) fn upstream_manifest(
         &self,
     ) -> Result<RuntimeSpillManifestBase, RuntimeSpillAllocationError> {
-        match self {
+        let matches = match self {
             Self::Legality(source) => {
                 let upstream = validate_optimized_allocation_legality_custody(
                     source.live_range_stage(),
@@ -289,12 +358,7 @@ impl RuntimeSpillSource {
                     source.legality(),
                 )
                 .map_err(RuntimeSpillAllocationError::Upstream)?;
-                Ok(RuntimeSpillManifestBase {
-                    pre_physical: upstream.manifest(),
-                    selected_lowering_completion: None,
-                    pre_allocation_completion: None,
-                    prefix: Vec::new(),
-                })
+                upstream == source.custody()
             }
             Self::DeclinedFixedView {
                 legality, decline, ..
@@ -307,16 +371,10 @@ impl RuntimeSpillSource {
                 .map_err(RuntimeSpillAllocationError::Upstream)?;
                 let budget = legality.budget_per_pass();
                 match probe_optimized_fixed_precolored_segment_homes(legality, budget) {
-                    Err(error) if error.capacity_decline() == Some(*decline) => {
-                        Ok(RuntimeSpillManifestBase {
-                            pre_physical: upstream.manifest(),
-                            selected_lowering_completion: None,
-                            pre_allocation_completion: None,
-                            prefix: Vec::new(),
-                        })
-                    }
-                    _ => Err(RuntimeSpillAllocationError::ProbeMismatch),
+                    Err(error) if error.capacity_decline() == Some(*decline) => {}
+                    _ => return Err(RuntimeSpillAllocationError::ProbeMismatch),
                 }
+                upstream == legality.custody()
             }
             Self::FixedViewCopies(reanalysis) => {
                 let upstream = validate_optimized_selected_reanalysis_custody(
@@ -326,61 +384,31 @@ impl RuntimeSpillSource {
                     reanalysis.legality(),
                 )
                 .map_err(RuntimeSpillAllocationError::UpstreamReanalysis)?;
-                Ok(RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: None,
-                    pre_allocation_completion: None,
-                    prefix: vec![PostAllocationSelectedTransformation::FixedViewCopy(
-                        upstream.source().transformation(),
-                    )],
-                })
+                upstream == reanalysis.custody()
             }
             Self::ActiveResidentRematerialization(pressure) => {
                 let upstream =
                     crate::validate_optimized_active_resident_rematerialization_pressure(pressure)
                         .map_err(RuntimeSpillAllocationError::UpstreamRematerialization)?;
-                Ok(RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: None,
-                    pre_allocation_completion: None,
-                    prefix: vec![
-                        PostAllocationSelectedTransformation::PressureRematerialization(
-                            upstream.rematerialization(),
-                        ),
-                    ],
-                })
+                upstream == pressure.custody()
             }
             Self::SelectedLowering(run) => {
                 let upstream = validate_selected_lowering_optimization_custody(run)
                     .map_err(RuntimeSpillAllocationError::UpstreamSelectedLowering)?;
-                Ok(RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: Some(upstream.identity()),
-                    pre_allocation_completion: None,
-                    prefix: upstream
-                        .iterations()
-                        .iter()
-                        .map(|iteration| {
-                            PostAllocationSelectedTransformation::LiteralFold(iteration.fold())
-                        })
-                        .collect(),
-                })
+                &upstream == run.custody()
             }
             Self::PreAllocation(run) => {
                 let upstream = validate_pre_allocation_optimization_custody(run)
                     .map_err(RuntimeSpillAllocationError::UpstreamPreAllocation)?;
-                Ok(RuntimeSpillManifestBase {
-                    pre_physical: upstream.source().manifest(),
-                    selected_lowering_completion: None,
-                    pre_allocation_completion: Some(upstream.identity()),
-                    prefix: upstream
-                        .iterations()
-                        .iter()
-                        .map(|iteration| iteration.transformation().into())
-                        .collect(),
-                })
+                &upstream == run.custody()
             }
+        };
+        if !matches {
+            return Err(RuntimeSpillAllocationError::ReceiptMismatch);
         }
+        // Sharing the projection is safe only after comparing the complete
+        // independently reconstructed receipts, including ordered iterations.
+        Ok(self.declared_manifest())
     }
 }
 
