@@ -397,7 +397,13 @@ pub(super) fn admit_calls<'a>(
                 .symbol,
             state,
         );
-        let arm_calls = state.arm_calls();
+        let arm_sequences = state
+            .terminator
+            .return_arms()
+            .into_iter()
+            .map(|arm| arm.operation_dependencies().collect::<Vec<_>>())
+            .filter(|sequence| !sequence.is_empty())
+            .collect::<Vec<_>>();
         let edge_sequences = state
             .successors()
             .into_iter()
@@ -422,43 +428,41 @@ pub(super) fn admit_calls<'a>(
             // A composite argument established on an edge runs at the same
             // point, on its selected edge alone, and its member calls may
             // read or take the state's own results through that sequence.
-            let arm_sequence;
-            let edge_sequence = edge_sequences.iter().find(|sequence| {
-                sequence
-                    .iter()
-                    .any(|selected| std::ptr::eq(*selected, operation))
-            });
-            let caller = if let Some(edge_sequence) = edge_sequence {
-                arm_sequence = state
+            let caller_sequence;
+            let selected_sequence = edge_sequences
+                .iter()
+                .chain(&arm_sequences)
+                .find(|sequence| {
+                    sequence
+                        .iter()
+                        .any(|selected| std::ptr::eq(*selected, operation))
+                });
+            let caller = if let Some(selected_sequence) = selected_sequence {
+                caller_sequence = state
                     .operations
                     .iter()
-                    .chain(edge_sequence.iter().copied())
+                    .chain(selected_sequence.iter().copied())
                     .cloned()
                     .collect::<Vec<_>>();
                 CallerView {
-                    operations: &arm_sequence,
+                    operations: &caller_sequence,
                     ..caller
                 }
-            } else if arm_calls
-                .iter()
-                .any(|selected| std::ptr::eq(*selected, operation))
-                // A structural arm whose value is a call publishes that call
-                // as its producer; it runs on its selected arm exactly as a
-                // terminal call arm does.
-                || (operation.call().is_some()
-                    && !state
-                        .operations
-                        .iter()
-                        .any(|body| std::ptr::eq(body, operation)))
+            } else if operation.call().is_some()
+                && !state
+                    .operations
+                    .iter()
+                    .any(|body| std::ptr::eq(body, operation))
             {
-                arm_sequence = state
+                // Legacy guarded structural returns retain their call directly.
+                caller_sequence = state
                     .operations
                     .iter()
                     .chain(std::iter::once(operation))
                     .cloned()
                     .collect::<Vec<_>>();
                 CallerView {
-                    operations: &arm_sequence,
+                    operations: &caller_sequence,
                     ..caller
                 }
             } else {

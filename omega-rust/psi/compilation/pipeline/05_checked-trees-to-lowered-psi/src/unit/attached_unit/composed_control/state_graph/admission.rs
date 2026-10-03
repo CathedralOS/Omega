@@ -756,17 +756,19 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     {
                         call.coordinate.statement_index as usize
                     }
-                    checked_trees::CheckedConditionalReturnArm::Call(operation) => {
-                        validate_arm_call(
-                            checked,
-                            plan,
-                            source,
-                            state,
-                            return_source,
-                            return_ordinal,
-                            operation,
-                        )?
-                    }
+                    checked_trees::CheckedConditionalReturnArm::Call {
+                        operands,
+                        operation,
+                    } => validate_arm_call(
+                        checked,
+                        plan,
+                        source,
+                        state,
+                        return_source,
+                        return_ordinal,
+                        operands,
+                        operation,
+                    )?,
                     // A scalar arm returns the value checking retained under its
                     // own `Return` role: the machine's result is that scalar and
                     // the authored arm names a value, not a state.
@@ -832,8 +834,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 )?;
                 if !matches!(
                     (when_true, when_false),
-                    (checked_trees::CheckedConditionalReturnArm::Call(_), _)
-                        | (_, checked_trees::CheckedConditionalReturnArm::Call(_))
+                    (checked_trees::CheckedConditionalReturnArm::Call { .. }, _)
+                        | (_, checked_trees::CheckedConditionalReturnArm::Call { .. })
                 ) {
                     return unsupported("Unit graph conditional completion has no terminal call");
                 }
@@ -842,7 +844,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     (when_false, false_source, terminator_ordinal + 1),
                 ] {
                     match arm {
-                        checked_trees::CheckedConditionalReturnArm::Call(operation) => {
+                        checked_trees::CheckedConditionalReturnArm::Call {
+                            operands,
+                            operation,
+                        } => {
                             validate_arm_call(
                                 checked,
                                 plan,
@@ -850,6 +855,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 state,
                                 arm_source,
                                 arm_ordinal,
+                                operands,
                                 operation,
                             )?;
                         }
@@ -1276,7 +1282,10 @@ fn validate_guarded_return(
     }
     let ordinal = match (arm, destination) {
         (
-            checked_trees::CheckedConditionalReturnArm::Call(operation),
+            checked_trees::CheckedConditionalReturnArm::Call {
+                operands,
+                operation,
+            },
             checked_trees::CheckedScalarBranchDestination::Jump(selected),
         ) if !selected.is_continuation
             && operation
@@ -1290,6 +1299,7 @@ fn validate_guarded_return(
                 state,
                 transition,
                 selected.statement_ordinal as usize,
+                operands,
                 operation,
             )?;
             return Ok(selected.statement_ordinal);
@@ -1362,6 +1372,7 @@ fn validate_arm_call(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     transition: &checked_trees::statement::TableTransition,
     ordinal: usize,
+    operands: &checked_trees::CheckedOperandSequence,
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
 ) -> Result<usize, LoweringError> {
     let Some(call) = operation.call() else {
@@ -1397,6 +1408,42 @@ fn validate_arm_call(
     )? != transition.target
     {
         return unsupported("Unit graph call arm names a different authored target");
+    }
+    crate::unit::attached_unit::argument_schedule::validate_operand_preparation(
+        checked,
+        plan.machine,
+        state.state,
+        operands,
+        operation,
+    )?;
+    for operand in operands.iter() {
+        match operand {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                crate::expression_preparation::source_custody::structural::validate(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    operand,
+                )?;
+            }
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                source,
+                result,
+                elements,
+            } => {
+                crate::unit::attached_unit::scalar_arrays::validate(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    *source,
+                    result,
+                    elements,
+                )?;
+            }
+            // The shared call admission handles calls in this sequence with
+            // their complete preceding result namespace.
+            _ => {}
+        }
     }
     crate::emission::call_source_custody::validate_operation(
         checked,

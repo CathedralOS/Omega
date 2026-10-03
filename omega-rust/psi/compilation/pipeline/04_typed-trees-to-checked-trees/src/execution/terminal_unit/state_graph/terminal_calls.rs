@@ -29,17 +29,18 @@
 //! it there. The two signatures must agree exactly; checking rejects a
 //! terminal call whose result differs from the caller's declared result.
 //!
-//! Scalar operand computations retain their nested calls; the shared argument
-//! schedule evaluates them inside the selected arm in authored order.
+//! Scalar operand computations retain their nested calls. Structural operands
+//! retain the ordinary preparation sequence; the shared argument schedule
+//! evaluates both inside the selected arm in authored order.
 //! Honest boundaries: structural results are not planned here; an arm call
-//! transfers no claims and no structural operand needs a separate establishment.
+//! transfers no claims.
 use super::{
     CheckFacts, CheckedUnitStructuralParameterPlan, ScalarCalleePlans, TransitionExit,
     TransitionTargetNode, TypedTrees, control,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::control::bind_scalar_call_result;
-use crate::execution::terminal_unit::types::{is_unit, state_flow};
+use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, state_flow};
 
 /// The exact callable destination an arm invokes. Local state transfers and
 /// entry re-entry remain state-graph edges; requirements keep their declaration
@@ -73,8 +74,8 @@ pub(super) fn invoked_callable(
 
 /// Plan a guarded arm's terminal machine call as the arm's own operation.
 /// The outer flow call names this exact transition target after the guard's
-/// earlier occurrences. Every nested scalar call must belong to an operand
-/// computation; structural operands need no separate establishment.
+/// earlier occurrences. Operand computations and structural preparation retain
+/// their own calls and execute inside this arm's completion block.
 ///
 /// A scalar-result machine forwards the callee's result: the call binds it
 /// at `next_scalar_binding`, the ordinal the arm's namespace (the state's
@@ -84,10 +85,16 @@ pub(super) fn arm_call(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    local_results: &[(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
+    preamble: &[checked_trees::CheckedUnitEffectOperationPlan],
     result: &checked_trees::CheckedControlResultPlan,
     next_scalar_binding: usize,
     transition: &typed_trees::statement::TableTransition,
@@ -150,6 +157,29 @@ pub(super) fn arm_call(
     {
         return None;
     }
+    trace.phase("state graph: terminator: terminal call arm: operands");
+    let mut structural_results = local_results.to_vec();
+    let mut preparation = preamble.to_vec();
+    let predecessor_count = preparation.len();
+    let mut structural_count = super::returns::next_result_ordinal(preamble)?;
+    control::structural_operands::plan_call_operands(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        state,
+        structural,
+        &[],
+        entry_claims,
+        &mut structural_results,
+        &mut preparation,
+        &mut structural_count,
+        call,
+        trace,
+    )?;
+    trace.phase("state graph: terminator: terminal call arm: operand occurrences");
+    trace.statement(Some(statement_ordinal));
     control::call_owns_statement_computations(
         program,
         facts,
@@ -158,11 +188,6 @@ pub(super) fn arm_call(
         call,
         calls,
     )?;
-    if !control::structural_operands::operations_for_call(program, facts, machine, state, call)?
-        .is_empty()
-    {
-        return None;
-    }
     trace.phase("state graph: terminator: terminal call arm: call operation");
     trace.statement(Some(statement_ordinal));
     let operation = build_call_operation(
@@ -177,7 +202,7 @@ pub(super) fn arm_call(
         call,
         false,
         scalar_result.map(|result| ExpectedCallValueResult::Scalar(result.primitive_type)),
-        &[],
+        &structural_results,
         trace,
     )?;
     let planned = operation.call()?;
@@ -191,7 +216,12 @@ pub(super) fn arm_call(
         Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
         None => operation,
     };
-    Some(checked_trees::CheckedConditionalReturnArm::Call(operation))
+    control::statement_sequence::consume_results(&mut preparation, &operation)?;
+    preparation.drain(..predecessor_count);
+    Some(checked_trees::CheckedConditionalReturnArm::Call {
+        operands: checked_trees::CheckedOperandSequence::new(preparation),
+        operation,
+    })
 }
 
 /// Whether this state's authored tail holds a guarded arm that invokes
@@ -233,7 +263,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../tests/omega/pass/calls/runtime_guarded_terminal_operand_order_exit/main.omg"
         ));
-        assert_guarded_terminal_call_custody(source, 0);
+        assert_guarded_terminal_call_custody(source, 0, 0);
     }
 
     #[test]
@@ -242,10 +272,23 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../tests/omega/pass/calls/runtime_guarded_terminal_guard_order_exit/main.omg"
         ));
-        assert_guarded_terminal_call_custody(source, 1);
+        assert_guarded_terminal_call_custody(source, 1, 0);
     }
 
-    fn assert_guarded_terminal_call_custody(source: &str, call_ordinal: u32) {
+    #[test]
+    fn guarded_terminal_structural_operands_retain_selected_preparation() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/omega/pass/calls/runtime_guarded_terminal_array_operands_exit/main.omg"
+        ));
+        assert_guarded_terminal_call_custody(source, 0, 1);
+    }
+
+    fn assert_guarded_terminal_call_custody(
+        source: &str,
+        call_ordinal: u32,
+        operand_operations: usize,
+    ) {
         let checked = crate::tests::front_end::checked_program(source);
         let program = &checked.typed;
         let machine = program
@@ -253,6 +296,48 @@ mod tests {
             .iter()
             .find(|machine| machine.name.as_str() == "choose")
             .expect("caller");
+        if operand_operations != 0 {
+            let state = &program.machine_states(machine)[0];
+            let site = crate::semantic::calls::find_call_site(
+                program,
+                machine.symbol,
+                state.symbol,
+                0,
+                call_ordinal as usize,
+            )
+            .expect("first selected arm has its authored call coordinate");
+            let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = site else {
+                panic!("first selected arm is the terminal invocation");
+            };
+            let (_, return_type) =
+                super::control::terminal_callable_target(program, machine, path.symbol)
+                    .expect("terminal invocation resolves its result signature");
+            assert_eq!(
+                program.primitive_type_reference(return_type),
+                Some(typed_trees::types::PrimitiveType::U64)
+            );
+            let arrays = crate::values::call_array_constructions(
+                program,
+                &checked.facts.flow,
+                machine,
+                state,
+                0,
+            );
+            assert_eq!(
+                arrays.len(),
+                1,
+                "terminal invocation {:?} at statement0/call{call_ordinal} retains its array actual",
+                program.symbols.get(path.symbol),
+            );
+            assert_eq!(
+                arrays[0].source,
+                checked_trees::CheckedArrayConstructionSource::CallArgument {
+                    call_ordinal,
+                    parameter_position: 1,
+                },
+                "the structural actual keeps its full authored formal position"
+            );
+        }
         assert!(
             checked
                 .facts
@@ -276,6 +361,12 @@ mod tests {
             &trace,
         )
         .unwrap_or_else(|| panic!("nested terminal operand plan: {:?}", trace.stage()));
+        for arm in plan.states[0].terminator.return_arms() {
+            let checked_trees::CheckedConditionalReturnArm::Call { operands, .. } = arm else {
+                panic!("terminal invocation arm");
+            };
+            assert_eq!(operands.iter().count(), operand_operations);
+        }
         let calls = plan.states[0]
             .operation_dependencies()
             .filter_map(|operation| operation.call())

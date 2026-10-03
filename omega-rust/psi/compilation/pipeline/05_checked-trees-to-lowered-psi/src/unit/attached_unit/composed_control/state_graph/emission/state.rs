@@ -253,7 +253,7 @@ impl StateGraphEmission<'_, '_> {
                     },
                 ) => Some(*statement_ordinal),
                 (true, checked_trees::CheckedConditionalReturnArm::Structural(_)) => None,
-                (true, checked_trees::CheckedConditionalReturnArm::Call(operation)) => {
+                (true, checked_trees::CheckedConditionalReturnArm::Call { operation, .. }) => {
                     operation.call().map(|call| call.coordinate.statement_index)
                 }
             },

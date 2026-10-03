@@ -549,7 +549,7 @@ pub(super) fn validate(
                     }
                     // A case arm's terminal call would also owe the selected
                     // subject's disposal, which no case edge retains yet.
-                    checked_trees::CheckedConditionalReturnArm::Call(_) => {
+                    checked_trees::CheckedConditionalReturnArm::Call { .. } => {
                         return unsupported("Unit case completion lacks subject disposal custody");
                     }
                 }

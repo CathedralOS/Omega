@@ -1596,7 +1596,7 @@ pub(super) fn return_discards(
             | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 return_arm: checked_trees::CheckedConditionalReturnArm::Unit { .. }
                     | checked_trees::CheckedConditionalReturnArm::Scalar { .. }
-                    | checked_trees::CheckedConditionalReturnArm::Call(_),
+                    | checked_trees::CheckedConditionalReturnArm::Call { .. },
                 ..
             }
             // Each arm completes the machine, after its terminal call if any.

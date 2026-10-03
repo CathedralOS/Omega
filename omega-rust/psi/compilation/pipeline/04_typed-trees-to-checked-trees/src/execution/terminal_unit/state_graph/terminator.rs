@@ -383,10 +383,13 @@ pub(super) fn build(
                             program,
                             facts,
                             scalar_callees,
+                            shapes,
                             machine,
                             state,
                             structural,
                             entry_claims,
+                            local_results,
+                            operations,
                             &result,
                             next_scalar_binding,
                             transition,
@@ -446,8 +449,8 @@ pub(super) fn build(
                     (Err((when_true, true_operands)), Err((when_false, false_operands)))
                         if matches!(
                             (&when_true, &when_false),
-                            (checked_trees::CheckedConditionalReturnArm::Call(_), _)
-                                | (_, checked_trees::CheckedConditionalReturnArm::Call(_))
+                            (checked_trees::CheckedConditionalReturnArm::Call { .. }, _)
+                                | (_, checked_trees::CheckedConditionalReturnArm::Call { .. })
                         ) =>
                     {
                         operations.extend(true_operands);
@@ -569,6 +572,7 @@ pub(super) fn build(
                             state,
                             structural,
                             entry_claims,
+                            local_results,
                             &result,
                             next_scalar_binding,
                             operations,
@@ -643,6 +647,7 @@ pub(super) fn build(
                             state,
                             structural,
                             entry_claims,
+                            local_results,
                             &result,
                             next_scalar_binding,
                             operations,
@@ -756,6 +761,10 @@ fn guarded_return_arm(
     state: &typed_trees::state::State,
     structural: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    local_results: &[(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
     result: &checked_trees::CheckedControlResultPlan,
     next_scalar_binding: usize,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
@@ -771,10 +780,13 @@ fn guarded_return_arm(
             program,
             facts,
             scalar_callees,
+            shapes,
             machine,
             state,
             structural,
             entry_claims,
+            local_results,
+            operations,
             result,
             next_scalar_binding,
             transition,
