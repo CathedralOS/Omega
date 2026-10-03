@@ -60,7 +60,7 @@ fn stored_transport(
     VirtualRegisterId,
     selected_instructions::LocalStorageSlotId,
     u32,
-    bool,
+    u16,
 )> {
     match transport {
         // An address transport stores a pointer it forms, never bytes it reads.
@@ -70,8 +70,8 @@ fn stored_transport(
             argument,
             destination,
             byte_size,
-            ..
-        } => Some((argument, destination, byte_size, true)),
+            alignment,
+        } => Some((argument, destination, byte_size, alignment)),
     }
 }
 
