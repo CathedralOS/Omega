@@ -831,12 +831,19 @@ fn component_members_keep_internal_cycles_under_the_local_ranking_rule() {
         "false -> self.step(pending)",
         "false -> self.count(pending)",
     ));
-    // An unranged member is held to the same local rule: its internal loop
-    // cannot borrow the component's transported entry telescope, so even the
-    // decreasing arrival stays unproven, matching the standalone judgment.
+    // The optional range is not needed for local descent. The arrival
+    // telescope names the same rank in `hold`, whose actual current value
+    // must decrease independently of the mutually recursive call proof.
     let unranged = STATEFUL.replace(" in 0..=9", "");
-    reject(&unranged);
+    prove(&unranged);
+    let standalone = unranged
+        .split("machine Main::step")
+        .next()
+        .unwrap()
+        .replace("false -> self.step(pending)", "false -> pending");
+    prove(&standalone);
     reject(&unranged.replace("hold(pending - 1)", "hold(pending)"));
+    reject(&standalone.replace("hold(pending - 1)", "hold(pending)"));
 }
 
 const DUPLICATED: &str = r#"
