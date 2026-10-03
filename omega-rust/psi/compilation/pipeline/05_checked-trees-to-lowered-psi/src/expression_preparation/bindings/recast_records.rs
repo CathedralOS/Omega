@@ -7,11 +7,22 @@ use super::super::{
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone)]
 pub(crate) struct ByteOverlayField {
     pub offset: u64,
     pub scalar_type: ScalarType,
     pub stored_type: ScalarType,
+    pub indices: Vec<ByteOverlayIndex>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ByteOverlayIndex {
+    pub selector: checked_trees::CheckedRuntimeIndex,
+    pub stride: u64,
+    pub extent: u64,
 }
 
 pub(crate) struct ByteOverlaySource {
@@ -42,13 +53,35 @@ impl ByteOverlaySource {
         path: &[checked_trees::CheckedUnitStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ByteOverlayField, LoweringError> {
-        let projection =
-            validation::recast_scalar_path_projection(&checked.typed, self.referee, path).ok_or(
-                LoweringError::Unsupported(
-                    "record byte overlay lost its checked projection geometry",
-                ),
-            )?;
-        self.projection(projection, scalar_type)
+        let geometry = validation::recast_scalar_path_geometry(&checked.typed, self.referee, path)
+            .ok_or(LoweringError::Unsupported(
+                "record byte overlay lost its checked projection geometry",
+            ))?;
+        self.geometry(geometry, path, scalar_type)
+    }
+
+    pub(crate) fn geometry(
+        &self,
+        geometry: validation::RecastScalarGeometry,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ByteOverlayField, LoweringError> {
+        let mut field = self.projection(geometry.projection, scalar_type)?;
+        for index in geometry.indices {
+            let Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector)) =
+                path.get(index.path_index)
+            else {
+                return unsupported("record byte overlay substituted its runtime coordinate");
+            };
+            field.indices.push(ByteOverlayIndex {
+                selector: selector.clone(),
+                stride: u64::try_from(index.stride)
+                    .map_err(|_| LoweringError::Unsupported("record array stride exceeds u64"))?,
+                extent: u64::try_from(index.extent)
+                    .map_err(|_| LoweringError::Unsupported("record array extent exceeds u64"))?,
+            });
+        }
+        Ok(field)
     }
 
     pub(crate) fn projection(
@@ -72,6 +105,7 @@ impl ByteOverlaySource {
                 .stored_integer
                 .map(ScalarType::Integer)
                 .unwrap_or(scalar_type),
+            indices: Vec::new(),
         })
     }
 }
@@ -112,10 +146,7 @@ pub(crate) fn byte_record_observation(
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     primitive: PrimitiveType,
 ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
-    use checked_trees::{
-        CheckedScalarExpression, CheckedStructuralPredicatePathSegment as Predicate,
-        CheckedUnitStructuralPathSegment as Projection,
-    };
+    use checked_trees::{CheckedScalarExpression, CheckedUnitStructuralPathSegment as Projection};
     let mut matching = loans.iter().filter(|loan| loan.symbol == symbol);
     let Some(loan) = matching.next() else {
         return Ok(None);
@@ -126,69 +157,42 @@ pub(crate) fn byte_record_observation(
     // Preparing a declaration must not reject an unused unsupported loan.
     // Its observation, if any, owns the retained capture failure.
     let loan = loan.capture.as_ref().map_err(Clone::clone)?;
-    let projection_segment = |segment: &Predicate| match segment {
-        Predicate::Field(field) => Ok(Projection::Field(field.clone())),
-        Predicate::FixedIndex(index) => Ok(Projection::FixedIndex(*index)),
-        _ => unsupported("record byte observation needs a statically bounded layout path"),
-    };
-    let mut leaf_path = path
-        .iter()
-        .map(projection_segment)
-        .collect::<Result<Vec<_>, _>>()?;
+    // Geometry consumes only path positions. The scratch assignment markers
+    // below stand for these ordered expressions, never emitted source evidence.
+    let mut selectors = Vec::new();
+    let mut leaf_path = Vec::new();
+    append_observation_path(bindings, path, &mut leaf_path, &mut selectors)?;
     for selector in std::iter::once(index).chain(inner_indexes) {
-        let CheckedScalarExpression::IntegerLiteral { literal } = selector else {
-            return unsupported("record byte observation needs retained runtime array bounds");
-        };
-        leaf_path.push(Projection::FixedIndex(literal.value_u64().ok_or(
-            LoweringError::Unsupported("record byte observation has an invalid array index"),
-        )?));
+        if let CheckedScalarExpression::IntegerLiteral { literal } = selector {
+            leaf_path.push(Projection::FixedIndex(literal.value_u64().ok_or(
+                LoweringError::Unsupported("record byte observation has an invalid array index"),
+            )?));
+        } else {
+            append_coordinate(
+                bindings.expression(selector)?,
+                &mut leaf_path,
+                &mut selectors,
+            )?;
+        }
     }
-    leaf_path.extend(
-        element_path
-            .iter()
-            .map(projection_segment)
-            .collect::<Result<Vec<_>, _>>()?,
-    );
+    append_observation_path(bindings, element_path, &mut leaf_path, &mut selectors)?;
     let scalar_type = terminal_scalar_type(primitive)?;
-    let projection =
+    let geometry =
         loan.layout
-            .scalar_path_projection(&leaf_path)
+            .scalar_path_geometry(&leaf_path)
             .ok_or(LoweringError::Unsupported(
                 "record byte observation lost its normalized scalar leaf",
             ))?;
-    let projection = loan.overlay.projection(projection, scalar_type)?;
+    let projection = loan.overlay.geometry(geometry, &leaf_path, scalar_type)?;
+    if projection.indices.len() != selectors.len() {
+        return unsupported("record byte observation changed its runtime coordinate roster");
+    }
     let source = bindings.byte_record_backing(loan.source)?;
     let (prefix, coordinate) = match &loan.runtime_index {
-        Some(selector) => {
-            let primitive_type = loan.selector_primitive.ok_or(LoweringError::Unsupported(
-                "record byte observation lost its captured selector type",
-            ))?;
-            let selector = match selector {
-                checked_trees::CheckedRuntimeIndex::Parameter { position } => {
-                    CheckedScalarExpression::Parameter {
-                        position: *position as usize,
-                        primitive_type,
-                    }
-                }
-                checked_trees::CheckedRuntimeIndex::Local { position } => {
-                    CheckedScalarExpression::Local {
-                        position: *position as usize,
-                        primitive_type,
-                    }
-                }
-                _ => {
-                    return unsupported(
-                        "record byte observation cannot reload a mutable captured selector",
-                    );
-                }
-            };
-            (
-                loan.carrier_path.as_slice(),
-                crate::expression_preparation::prepare_expression::exact_u64_index(
-                    bindings.expression(&selector)?,
-                )?,
-            )
-        }
+        Some(_) => (
+            loan.carrier_path.as_slice(),
+            bindings.byte_record_coordinate(symbol)?,
+        ),
         None => {
             let Some((terminal_psi::StructuralPathSegment::FixedIndex(index), prefix)) =
                 loan.carrier_path.split_last()
@@ -204,6 +208,29 @@ pub(crate) fn byte_record_observation(
             )
         }
     };
+    let mut coordinate = coordinate;
+    for (ordinal, (index, selector)) in projection.indices.iter().zip(selectors).enumerate() {
+        if index.selector
+            != (checked_trees::CheckedRuntimeIndex::AssignmentIndex {
+                depth: u32::try_from(ordinal).map_err(|_| {
+                    LoweringError::Unsupported("record byte coordinate ordinal overflow")
+                })?,
+            })
+        {
+            return unsupported("record byte observation reordered its runtime coordinates");
+        }
+        let selector = bounded_coordinate(selector, index.extent)?;
+        let scaled = integer_coordinate_binary(
+            crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactMultiply,
+            selector,
+            coordinate_literal(index.stride),
+        );
+        coordinate = integer_coordinate_binary(
+            crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactAdd,
+            coordinate,
+            scaled,
+        );
+    }
     byte_overlay_read(
         source,
         prefix,
@@ -268,4 +295,104 @@ pub(crate) fn byte_overlay_read(
         }
         _ => unsupported("record byte overlay cannot decode its stored integer carrier"),
     }
+}
+
+/// Keep the exact selected coordinate while requiring its declared dimension's
+/// bound. The inner ExactSubtract proves index <= extent-1; the outer one
+/// returns that same index. The operand occurs once and no assumed fact is made.
+pub(crate) fn bounded_coordinate(
+    selector: LoweredDirectExpression,
+    extent: u64,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind::ExactSubtract;
+    let maximum = extent.checked_sub(1).ok_or(LoweringError::Unsupported(
+        "record byte observation selects an empty array",
+    ))?;
+    let selector = crate::expression_preparation::prepare_expression::exact_u64_index(selector)?;
+    Ok(integer_coordinate_binary(
+        ExactSubtract,
+        coordinate_literal(maximum),
+        integer_coordinate_binary(ExactSubtract, coordinate_literal(maximum), selector),
+    ))
+}
+
+fn coordinate_literal(value: u64) -> LoweredDirectExpression {
+    LoweredDirectExpression::IntegerLiteral {
+        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(value)),
+        scalar_type: ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is an admitted scalar carrier"),
+        ),
+    }
+}
+
+fn integer_coordinate_binary(
+    kind: crate::emission::operation_emission::integer::LoweredIntegerBinaryKind,
+    left: LoweredDirectExpression,
+    right: LoweredDirectExpression,
+) -> LoweredDirectExpression {
+    LoweredDirectExpression::IntegerBinary {
+        kind,
+        scalar_type: left.scalar_type(),
+        left: Box::new(left),
+        right: Box::new(right),
+    }
+}
+
+fn append_coordinate(
+    selector: LoweredDirectExpression,
+    path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    selectors: &mut Vec<LoweredDirectExpression>,
+) -> Result<(), LoweringError> {
+    let depth = u32::try_from(selectors.len()).map_err(|_| {
+        LoweringError::Unsupported("record byte observation has too many coordinates")
+    })?;
+    path.push(
+        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+            checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+        ),
+    );
+    selectors.push(selector);
+    Ok(())
+}
+
+fn append_observation_path(
+    bindings: &super::ScalarBindings,
+    supplied: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    selectors: &mut Vec<LoweredDirectExpression>,
+) -> Result<(), LoweringError> {
+    use checked_trees::{
+        CheckedRuntimeIndex, CheckedStructuralPredicatePathSegment as Predicate,
+        CheckedUnitStructuralPathSegment as Projection,
+    };
+    for segment in supplied {
+        match segment {
+            Predicate::Field(field) => path.push(Projection::Field(field.clone())),
+            Predicate::FixedIndex(index) => path.push(Projection::FixedIndex(*index)),
+            Predicate::RuntimeIndex(index) => {
+                let selector = match index {
+                    CheckedRuntimeIndex::Parameter { position } => {
+                        bindings.runtime_index_parameter(*position)?
+                    }
+                    CheckedRuntimeIndex::Local { position } => {
+                        bindings.runtime_index_local(*position)?
+                    }
+                    CheckedRuntimeIndex::StructuralField(field) => {
+                        bindings.runtime_index_field(field)?
+                    }
+                    CheckedRuntimeIndex::AssignmentIndex { .. } => {
+                        return unsupported(
+                            "record byte observation has an assignment-only coordinate",
+                        );
+                    }
+                };
+                append_coordinate(selector, path, selectors)?;
+            }
+            Predicate::Case(_) => {
+                return unsupported("record byte observation cannot reinterpret a case payload");
+            }
+        }
+    }
+    Ok(())
 }
