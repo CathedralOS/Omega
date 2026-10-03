@@ -2,7 +2,7 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 trait Shape {
-    machine code(shape: &Self) -> i32;
+    machine code(subject: &Self) -> i32;
 }
 
 data Item [copy] {
@@ -18,9 +18,9 @@ machine Item::code(item: &Item) -> i32 {
 }
 
 Primary: Item satisfies Shape {
-    machine code(item: &Item) -> i32 {
+    machine code(subject: &Self) -> i32 {
         transition {
-            _ -> item.value
+            _ -> subject.value
         }
     }
 }
@@ -32,7 +32,7 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     let erased: &dyn Shape = &main.item as &dyn Item::Primary;
-    let result: i32 = erased.code();
+    let result: i32 = Shape::code(erased);
     transition result == 0 {
         true -> good(main)
         _ -> bad(main)
