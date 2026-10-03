@@ -893,54 +893,70 @@ impl ScalarBindings {
         self
     }
 
-    /// Resolve an already source-validated whole primitive borrow without
-    /// materializing its contents as an immutable scalar argument.
+    /// Resolve the exact primitive endpoint of an already source-validated loan.
+    /// A local reference owns a carrier, not a new primitive home: its retained
+    /// `Referent` projection reaches the viewed type while the reference keeps
+    /// the original backing identity. The same catalog walk checks parameter
+    /// and local projections, including authority at every reference crossing.
     pub(crate) fn primitive_borrow(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         scalar_type: ScalarType,
+        structural_types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
-        let access = match argument.access {
-            checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-            checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                StructuralAccess::MutableBorrow
-            }
-            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-                StructuralAccess::WriteOnlyBorrow
-            }
-            checked_trees::CheckedStructuralAccess::Owned => {
-                return unsupported("computed primitive argument cannot transfer ownership");
-            }
+        use structural_paths::PreparedArgumentTip;
+        use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+        let access = structural_paths::terminal_access(argument.access);
+        let permits = |granted, requested| {
+            matches!(
+                (granted, requested),
+                (
+                    StructuralAccess::SharedBorrow,
+                    StructuralAccess::SharedBorrow
+                ) | (
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                ) | (
+                    StructuralAccess::WriteOnlyBorrow,
+                    StructuralAccess::WriteOnlyBorrow
+                )
+            )
         };
-        if !argument.path.is_empty() {
-            return unsupported("computed primitive argument requires a whole referent");
+        if access == StructuralAccess::Owned {
+            return unsupported("computed primitive argument cannot transfer ownership");
         }
-        let place = match argument.source {
+        let (place, root_type) = match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
-                primitive_storage_place(&self.primitive_storage, symbol, scalar_type)?
+                if !argument.path.is_empty() {
+                    return unsupported(
+                        "computed primitive storage argument is not a whole referent",
+                    );
+                }
+                return Ok(StructuralArgument {
+                    place: primitive_storage_place(&self.primitive_storage, symbol, scalar_type)?,
+                    path: Vec::new(),
+                    access,
+                });
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                // A `&T` local is itself a shared-borrow join result: the call
-                // loans the referent's exact established place onward under
-                // the same custody rather than copying the scalar out of it.
                 let mut locals = self
                     .structural_locals
                     .iter()
                     .filter(|row| row.symbol == symbol);
-                let StructuralLocalBinding {
-                    argument: source, ..
-                } = locals.next().ok_or(LoweringError::Unsupported(
+                let source = locals.next().ok_or(LoweringError::Unsupported(
                     "computed primitive borrow lost its established local",
                 ))?;
                 if !symbol.is_valid()
                     || locals.next().is_some()
-                    || source.access != StructuralAccess::SharedBorrow
-                    || !source.path.is_empty()
+                    || source.argument.access != StructuralAccess::SharedBorrow
+                    || !source.argument.path.is_empty()
                     || access != StructuralAccess::SharedBorrow
                 {
                     return unsupported("computed primitive borrow changes its local custody");
                 }
-                source.place
+                (source.argument.place, source.structural_type)
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
@@ -954,31 +970,40 @@ impl ScalarBindings {
                 if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
-                    || !matches!(
-                        (parameter.access, access),
-                        (
-                            StructuralAccess::SharedBorrow,
-                            StructuralAccess::SharedBorrow
-                        ) | (
-                            StructuralAccess::MutableBorrow,
-                            StructuralAccess::SharedBorrow
-                                | StructuralAccess::MutableBorrow
-                                | StructuralAccess::WriteOnlyBorrow
-                        ) | (
-                            StructuralAccess::WriteOnlyBorrow,
-                            StructuralAccess::WriteOnlyBorrow
-                        )
-                    )
+                    || !permits(parameter.access, access)
                 {
                     return unsupported("computed primitive borrow widens parameter custody");
                 }
-                parameter.place
+                (parameter.place, parameter.structural_type)
             }
             _ => return unsupported("computed primitive borrow has no supported source place"),
         };
+        let projection = structural_paths::prepare_argument_projection(
+            &argument.path,
+            root_type,
+            structural_types,
+        )?;
+        let actual_type = match projection.tip {
+            PreparedArgumentTip::Declaration(declaration) => match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(primitive) => Some(primitive),
+                _ => None,
+            },
+            PreparedArgumentTip::Inline(StructuralFieldType::Scalar(primitive)) => Some(*primitive),
+            _ => None,
+        };
+        if actual_type != Some(scalar_type)
+            || projection
+                .crossed_accesses
+                .iter()
+                .any(|granted| !permits(*granted, access))
+        {
+            return unsupported(
+                "computed primitive borrow changed its endpoint or reference authority",
+            );
+        }
         Ok(StructuralArgument {
             place,
-            path: Vec::new(),
+            path: structural_paths::lower_structural_path(&argument.path)?,
             access,
         })
     }

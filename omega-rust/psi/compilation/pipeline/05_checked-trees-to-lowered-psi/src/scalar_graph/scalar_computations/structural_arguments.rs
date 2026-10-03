@@ -298,7 +298,7 @@ pub(super) fn lower(
                         "computed borrow referent is not primitive",
                     ))?;
             bindings
-                .primitive_borrow(argument, terminal_scalar_type(primitive)?)
+                .primitive_borrow(argument, terminal_scalar_type(primitive)?, structural_types)
                 .and_then(PreparedStructuralArgument::from_static)
         })
         .collect()
