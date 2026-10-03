@@ -1387,6 +1387,18 @@ fn validate_arm_call(
             checked_trees::CheckedControlResultPlan::Scalar { primitive_type },
             checked_trees::CheckedUnitCallResult::Scalar(result),
         ) => result.primitive_type == *primitive_type && result.statement_index as usize == ordinal,
+        (
+            checked_trees::CheckedControlResultPlan::Structural(signature),
+            checked_trees::CheckedUnitCallResult::Structural {
+                binding,
+                discard_result_on_return,
+            },
+        ) => {
+            binding.type_identity == signature.type_identity
+                && binding.multiplicity == signature.multiplicity
+                && binding.statement_index as usize == ordinal
+                && !discard_result_on_return
+        }
         _ => false,
     };
     if !completes

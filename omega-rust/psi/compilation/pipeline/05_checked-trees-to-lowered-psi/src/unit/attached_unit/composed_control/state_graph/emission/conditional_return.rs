@@ -82,9 +82,9 @@ impl StateGraphEmission<'_, '_> {
                     operations,
                 )?
             }
-            // The arm alone invokes its terminal machine call, then completes
-            // with the disposal a Unit return performs. A scalar call's result
-            // is the machine's: it returns the value the call just bound.
+            // The selected arm evaluates its operands and invokes its call
+            // once. Ordinary completion then forwards the exact result the
+            // call bound, with cleanup appropriate to that result's custody.
             checked_trees::CheckedConditionalReturnArm::Call {
                 operands,
                 operation,
@@ -110,20 +110,37 @@ impl StateGraphEmission<'_, '_> {
                     next_edge,
                     operations,
                 )?;
-                let edge = edge_id(allocate_dense(next_edge)?);
-                let discards = super::state::return_root_discards(
-                    checked,
-                    state,
-                    operations,
-                    &arm_evaluation,
-                    state_parameters,
-                )?;
-                match operation.call().and_then(|call| call.scalar_result()) {
-                    None => Terminator::ReturnUnit {
-                        edge,
-                        trivial_affine_discards: discards,
+                let result = operation
+                    .call()
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph call arm lost its call result",
+                    ))?
+                    .result();
+                match result {
+                    checked_trees::CheckedUnitCallResult::Structural { .. } => {
+                        super::super::guarded::complete_structural_return(
+                            checked,
+                            plan,
+                            state,
+                            operation,
+                            &planned[..planned.len() - 1],
+                            state_parameters,
+                            &mut arm_evaluation,
+                            next_edge,
+                            operations,
+                        )?
+                    }
+                    checked_trees::CheckedUnitCallResult::Unit => Terminator::ReturnUnit {
+                        edge: edge_id(allocate_dense(next_edge)?),
+                        trivial_affine_discards: super::state::return_root_discards(
+                            checked,
+                            state,
+                            operations,
+                            &arm_evaluation,
+                            state_parameters,
+                        )?,
                     },
-                    Some(binding) => {
+                    checked_trees::CheckedUnitCallResult::Scalar(binding) => {
                         let value = arm_call_result(
                             binding,
                             state.scalar_parameters.len(),
@@ -131,12 +148,18 @@ impl StateGraphEmission<'_, '_> {
                             &arm_values,
                         )?;
                         Terminator::Return {
-                            edge,
+                            edge: edge_id(allocate_dense(next_edge)?),
                             value: value.id,
-                            cleanup_actions: discards
-                                .into_iter()
-                                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                                .collect(),
+                            cleanup_actions: super::state::return_root_discards(
+                                checked,
+                                state,
+                                operations,
+                                &arm_evaluation,
+                                state_parameters,
+                            )?
+                            .into_iter()
+                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                            .collect(),
                         }
                     }
                 }

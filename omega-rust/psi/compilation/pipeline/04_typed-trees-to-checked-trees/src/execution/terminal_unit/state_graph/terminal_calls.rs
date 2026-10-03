@@ -21,9 +21,9 @@
 //! for an invocation (`values::scalar::expression_plans::transition`), like an
 //! expression call's.
 //!
-//! The callee's normal result completes this machine, so Unit and primitive
-//! scalar results are planned. A scalar result is the call's ordinary scalar
-//! binding: the unconditional arm binds it as the state's returned value
+//! The callee's normal result completes this machine. A scalar result is the
+//! call's ordinary scalar binding: the unconditional arm binds it as the
+//! state's returned value
 //! (`CheckedScalarReturnPlan::Binding` at the transition), and a guarded arm
 //! binds it at the next ordinal of the namespace its arm inherits and returns
 //! it there. The two signatures must agree exactly; checking rejects a
@@ -32,15 +32,20 @@
 //! Scalar operand computations retain their nested calls. Structural operands
 //! retain the ordinary preparation sequence; the shared argument schedule
 //! evaluates both inside the selected arm in authored order.
-//! Honest boundaries: structural results are not planned here; an arm call
+//! Structural results use the ordinary call binding after operand preparation;
+//! completion transfers that value instead of discarding it. An arm call still
 //! transfers no claims.
 use super::{
     CheckFacts, CheckedUnitStructuralParameterPlan, ScalarCalleePlans, TransitionExit,
     TransitionTargetNode, TypedTrees, control,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
-use crate::execution::terminal_unit::control::bind_scalar_call_result;
-use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, state_flow};
+use crate::execution::terminal_unit::control::{
+    bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,
+};
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, is_unit, machine_binders, state_flow,
+};
 
 /// The exact callable destination an arm invokes. Local state transfers and
 /// entry re-entry remain state-graph edges; requirements keep their declaration
@@ -107,18 +112,40 @@ pub(super) fn arm_call(
     let return_type = crate::flow::call_target_return_type(program, target)?;
     // The callee's normal result is this machine's result, so the two
     // signatures must agree exactly; checking rejects any other pairing.
-    let scalar_result = match result {
-        checked_trees::CheckedControlResultPlan::Unit if is_unit(program, return_type) => None,
+    let (scalar_result, mut structural_result) = match result {
+        checked_trees::CheckedControlResultPlan::Unit if is_unit(program, return_type) => {
+            (None, None)
+        }
         checked_trees::CheckedControlResultPlan::Scalar { primitive_type }
             if program.primitive_type_reference(return_type) == Some(*primitive_type)
                 && program.normalized_type_identity(return_type)
                     == program.normalized_type_identity(state.return_type) =>
         {
-            Some(checked_trees::CheckedUnitScalarResultBindingPlan {
-                statement_index: statement_ordinal,
-                binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
-                primitive_type: *primitive_type,
-            })
+            (
+                Some(checked_trees::CheckedUnitScalarResultBindingPlan {
+                    statement_index: statement_ordinal,
+                    binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
+                    primitive_type: *primitive_type,
+                }),
+                None,
+            )
+        }
+        checked_trees::CheckedControlResultPlan::Structural(expected)
+            if program.normalized_type_identity(return_type)
+                == program.normalized_type_identity(state.return_type) =>
+        {
+            let binding = checked_structural_result_type(
+                program,
+                shapes,
+                return_type,
+                &machine_binders(program, machine),
+            )?;
+            if binding.type_identity != expected.type_identity
+                || binding.multiplicity != expected.multiplicity
+            {
+                return None;
+            }
+            (None, Some(binding))
         }
         _ => return None,
     };
@@ -178,6 +205,10 @@ pub(super) fn arm_call(
         call,
         trace,
     )?;
+    if let Some(binding) = &mut structural_result {
+        binding.statement_index = statement_ordinal;
+        binding.binding_ordinal = u32::try_from(structural_count).ok()?;
+    }
     trace.phase("state graph: terminator: terminal call arm: operand occurrences");
     trace.statement(Some(statement_ordinal));
     control::call_owns_statement_computations(
@@ -201,20 +232,36 @@ pub(super) fn arm_call(
         entry_claims,
         call,
         false,
-        scalar_result.map(|result| ExpectedCallValueResult::Scalar(result.primitive_type)),
+        structural_result
+            .as_ref()
+            .map(ExpectedCallValueResult::Structural)
+            .or_else(|| {
+                scalar_result.map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
+            }),
         &structural_results,
         trace,
     )?;
     let planned = operation.call()?;
-    if *planned.result() != checked_trees::CheckedUnitCallResult::Unit
-        || !planned.claim_transfers().is_empty()
+    if !planned.claim_transfers().is_empty()
         || planned.coordinate.statement_index != statement_ordinal
     {
         return None;
     }
-    let operation = match scalar_result {
-        Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
-        None => operation,
+    let operation = match (scalar_result, structural_result) {
+        (Some(result), None) => bind_scalar_call_result(facts, operation, result, true)?,
+        (None, Some(result)) => {
+            let mut operation = bind_structural_call_result(operation, result.clone())?;
+            let (binding, discard) = operation.call_mut()?.structural_result_mut()?;
+            if *binding != result {
+                return None;
+            }
+            *discard = false;
+            operation
+        }
+        (None, None) if *planned.result() == checked_trees::CheckedUnitCallResult::Unit => {
+            operation
+        }
+        _ => return None,
     };
     control::statement_sequence::consume_results(&mut preparation, &operation)?;
     preparation.drain(..predecessor_count);

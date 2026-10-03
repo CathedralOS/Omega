@@ -1,0 +1,18 @@
+data Output { value: u64; }
+machine make(value: u64) -> Output { Output { value: value } }
+machine choose(take: bool) -> Output {
+    transition take {
+        true -> make(70)
+        _ -> make(71)
+    }
+}
+machine main() crashes Trap {
+    let first: Output = choose(true);
+    let second: Output = choose(false);
+    transition first.value == 70 && second.value == 71 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
