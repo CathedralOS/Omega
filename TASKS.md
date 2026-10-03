@@ -3734,17 +3734,20 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `checks/contracts/exits/cyclic_headers.rs` caches only admitted exits;
   stage 05's `proofs/scalar_block_invariants/cyclic_guarantees.rs` searches again.
 
-  Complete multi-state induction beyond the single-header restriction and
-  storage-changing `self` transitions. A two-state accumulator with strict
-  descent on both authored cyclic edges still fails to prove its exit
-  guarantee against the invocation's `previous` parameter. Preserve
-  establishment, every arrival's simultaneous substitution, and exact
-  source/Terminal scope; an authored state edge cannot borrow the preserving
-  implementation-edge exception to strict ranking.
+  Finish invariant discovery through states without direct exits, transfer of
+  established relations between distinct cyclic components, and storage-changing
+  `self` transitions. The sequential-component case in
+  `cyclic_headers::tests::an_external_cyclic_frame_is_not_the_invocation` still
+  cannot relate the first component's carried `previous` to its invocation when
+  establishing the second component. Preserve establishment, every arrival's
+  simultaneous substitution, and exact source/Terminal scope; an authored state
+  edge cannot borrow the preserving implementation-edge exception to strict
+  ranking.
 
   Retain the native `runtime_ranked_accumulator_guarantee_exit`,
-  `runtime_inductive_climbing_sum_exit`, and `runtime_inductive_gauss_sum_exit`
-  controls. Their guarantees survive serialization, independent verification,
+  `runtime_two_state_accumulator_exit`, `runtime_inductive_climbing_sum_exit`,
+  and `runtime_inductive_gauss_sum_exit` controls. Their guarantees survive
+  package review, serialization, independent verification,
   and execution. Preserve Wrapping's equality-only polynomial reasoning and
   each additive ranking step's independently proved no-wrap condition. Wrong
   accumulator arrivals must reject while the same cycle certificate remains
