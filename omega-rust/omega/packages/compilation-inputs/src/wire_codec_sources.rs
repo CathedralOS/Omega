@@ -2374,18 +2374,21 @@ fn emit_encode_machine(
                 emitter.enc_varint(&content_label, &bits, &after);
             }
             MemberShape::BorrowedSlice { element } => {
-                // A borrowed view frames as a length varint then its
-                // elements: raw bytes for `u8`, packed varints wider.
-                let stage = format!("field_{}_body", member.number);
-                emitter.enc_varint(
-                    &content_label,
-                    &format!("value.{}.len", member.name),
-                    &stage,
-                );
+                // Each sequence has one byte-length prefix. For raw bytes
+                // this is the view extent; packed scalars measure their
+                // encoded extent themselves, with no element-count prefix.
                 match element {
-                    SliceElement::Byte => emitter.enc_slice_bytes(&stage, &member.name, &after),
+                    SliceElement::Byte => {
+                        let stage = format!("field_{}_body", member.number);
+                        emitter.enc_varint(
+                            &content_label,
+                            &format!("value.{}.len", member.name),
+                            &stage,
+                        );
+                        emitter.enc_slice_bytes(&stage, &member.name, &after);
+                    }
                     SliceElement::Scalar(kind) => {
-                        emitter.enc_packed_slice(&stage, &member.name, *kind, &after)
+                        emitter.enc_packed_slice(&content_label, &member.name, *kind, &after)
                     }
                 }
             }
@@ -2799,14 +2802,53 @@ mod tests {
                 Message::decode(&mut sample, &main.buffer, &mut main.read, &mut main.verdict);
             }}"#
         );
+        generated_codec(&source)
+    }
+
+    fn generated_codec(source: &str) -> Option<String> {
         let mut sources = SourceMap::default();
-        let source_id = sources.add("wire.omg".into(), source.clone()).source_id;
-        let tokens = source_files_to_tokens::Lexer::new(&source)
+        let source_id = sources.add("wire.omg".into(), source.to_owned()).source_id;
+        let tokens = source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .unwrap();
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
         generated_wire_codec_source(&syntax, &sources)
+    }
+
+    #[test]
+    fn borrowed_sequences_encode_one_byte_extent_without_an_element_count() {
+        for element in ["u8", "u32", "u64", "i32", "i64", "bool"] {
+            let generated = generated_codec(&format!(
+                "data Message {{ #0 items: &[{element}]; }}
+                 data Sample {{ items: &[{element}]; }}
+                 data Main {{ buffer: [u8; 64]; written: u64; }}
+                 machine Main::main(main: &mut Main) {{
+                     let sample: Sample;
+                     Message::encode(&sample, &mut main.buffer, &mut main.written);
+                 }}"
+            ))
+            .expect("borrowed sequence encoder");
+            let content = generated
+                .split("state field_0_content(")
+                .nth(1)
+                .expect("field content entry")
+                .split("\n    state ")
+                .next()
+                .unwrap();
+            if element == "u8" {
+                assert!(content.contains("value.items.len"));
+                assert!(!generated.contains("_measure("));
+            } else {
+                assert!(content.contains(&format!("let view: &[{element}] = value.items;")));
+                assert!(
+                    content
+                        .contains("field_0_content_measure(value, out, written, at, 0, 0, view)")
+                );
+                assert!(!generated.contains("let bits: u64 = value.items.len;"));
+                assert!(generated.contains("let bits: u64 = acc as u64;"));
+            }
+        }
     }
 
     #[test]

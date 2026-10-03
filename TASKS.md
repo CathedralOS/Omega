@@ -2096,10 +2096,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   allowing overlapping writes. Acceptance remains native/interpreter exit 70,
   encoding `[0, 0, 2, 72, 105]` with written count 5.
   `wire/runtime_wire_encode_borrowed_scalar_slice_exit`
-  still executes incorrectly: native 71 versus interpreter 70, reproduced
-  with unchanged `d5edf66da5` compiler sources. Preserve the authored range and
-  the single packed-byte-length prefix; its retained repair also needs record
-  field descriptor-demand discovery in native selection.
+  also rejects with `BorrowedDescriptorLoanDisturbed` (operation 173, place 3)
+  on macOS ARM64 at `e26283d597` plus the single-prefix encoder repair;
+  interpretation exits 70. Generated packed-scalar encoding now emits only
+  its measured byte-length prefix, not an additional element count, and the
+  fixture's authored exit-70 oracle prevents recording rejection as success.
+  Remaining dependencies are descriptor-backed access compatibility, retention
+  of the authored `source[0..3]` field range in stage 05
+  `structural_values/emission.rs`, and record-field descriptor demand in native
+  selection. The interior-region work owns those producer and consumer paths.
+  Acceptance is the unchanged program encoding exactly eight bytes
+  `[0, 0, 5, 1, 128, 1, 129, 1]` with native/interpreter exit 70. The public
+  command in its README currently stops at ordinary package review (exit 200).
   `wire/runtime_wire_decode_byte_slice_exit` stops at stage 04
   `structural field store: borrowed view field: declared domains`.
   **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals. Those two wire
