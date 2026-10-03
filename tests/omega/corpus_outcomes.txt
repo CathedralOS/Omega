@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.12, "load1_start": 2.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.18, "load1_start": 6.18, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -552,7 +552,7 @@ fail/domains/call_requires_unproven rejected 219ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call heal from Main::main: main.player in Player::Valid
 fail/domains/capacity_specializations_disagree_in_one_owner rejected 275ms expected @2d8ed253669f
 	domain `[u8; N]::Utf8` is declared more than once with different normalized semantics; repeated capacity specializations may share a name only when their semantic identities are equal
-fail/domains/case_payload_predicate_invalid_literal rejected 135ms expected @b496135c814a
+fail/domains/case_payload_predicate_invalid_literal rejected 135ms expected @2efb222df04d
 	construction of `Divisor` field `amount` is not proven in domain `i32::NonZero`; a field declared `in i32::NonZero` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/domains/domain_alias_cycle rejected 277ms expected @2d8ed253669f
 	public interface selects private data `Socket`
@@ -1672,7 +1672,7 @@ pass/domains/bodyless_owner_establishment checked 299ms @2d8ed253669f
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 285ms @2d8ed253669f
 pass/domains/call_requires_domain_intersection_preserved checked 293ms @2d8ed253669f
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 285ms @4e4bfed13aee+wt
-pass/domains/case_payload_predicate_domain_member_exit checked 764ms @b496135c814a
+pass/domains/case_payload_predicate_domain_member_exit checked 764ms @2efb222df04d
 pass/domains/domain_operator_requires_discharged checked 295ms @2d8ed253669f
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 289ms @2d8ed253669f
 pass/domains/domain_param_forwarded checked 280ms @4e4bfed13aee+wt
@@ -1685,7 +1685,7 @@ pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
 pass/domains/qualified_mutable_field_exit checked 931ms @b027f59996c3+wt
 pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit checked 1024ms @bd26d3a01ac1+wt
-pass/domains/record_predicate_domain_member_exit checked 791ms @b496135c814a
+pass/domains/record_predicate_domain_member_exit checked 791ms @2efb222df04d
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb
