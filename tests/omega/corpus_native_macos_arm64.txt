@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.84, "load1_start": 6.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.0, "load1_start": 7.17, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -643,8 +643,7 @@ pass/float/runtime_named_float_to_integer_conversion_exit built 1366ms exit:70 @
 pass/float/runtime_named_fma_sequence_exit built 4765ms exit:70 @8b1dc72a53ca+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
 pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
-pass/float/runtime_total_order_satisfiers_exit rejected 3372ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
+pass/float/runtime_total_order_satisfiers_exit built 19983ms exit:70 @7e0a52664189
 pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9fed+wt
 pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
@@ -904,6 +903,7 @@ pass/recast/runtime_nested_record_byte_store_exit built 975ms exit:70 @2517a050d
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1791ms exit:70 @48008365d839
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 728ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_scalar_parameter_shared_views_exit built 990ms exit:70 @7e0a52664189
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922
 pass/recast/runtime_shared_record_float_range_weakening_exit built 2419ms exit:70 @f3aa5908ce43
 pass/references/mutable_loan_member_read_initializes_local_exit built 1229ms exit:70 @a1e2cd93d1e7
