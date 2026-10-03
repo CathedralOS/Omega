@@ -381,10 +381,10 @@ pub(super) fn structural_term_in_scope(
             // A field read off a value receiver: when the receiver termifies
             // to a closed constructor (a struct literal, an immutable local
             // tracing to one, or a nested projection already resolved), the
-            // field term is recoverable by name. A member path rooted at a
-            // value term is a projection of that value — kept substitutable
-            // so call instantiation can rewrite its root; receivers with no
-            // value identity keep the whole-expression opaque name as before.
+            // field term is recoverable by name. Collection length remains
+            // a substitutable projection so call instantiation can recover
+            // the actual extent. Ordinary symbolic fields retain the same
+            // vocabulary as callee_term_with_machines and citation intake.
             match structural_term_in_scope(program, scope, member.receiver) {
                 Some(StructuralTerm::Constructor { fields, .. }) => fields
                     .into_iter()
@@ -397,7 +397,7 @@ pub(super) fn structural_term_in_scope(
                     }),
                 Some(
                     subject @ (StructuralTerm::Variable(_) | StructuralTerm::Projection { .. }),
-                ) => Some(StructuralTerm::Projection {
+                ) if is_length_member => Some(StructuralTerm::Projection {
                     subject: Box::new(subject),
                     path: member.member.as_str().to_owned(),
                 }),
