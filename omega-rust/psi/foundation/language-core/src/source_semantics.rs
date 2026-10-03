@@ -9,7 +9,7 @@ pub mod receiver_binding;
 
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary
 /// data defaults to `Affine`, and `[linear]` maps to `Linear`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub enum Multiplicity {
     /// Freely duplicable and discardable (`[copy]`).
     Unrestricted,

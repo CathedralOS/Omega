@@ -15,22 +15,21 @@ use language_semantics::{
 /// then refuse malformed or duplicated ledger rows before lowering reads them.
 pub(crate) fn verify(checked: &CheckedTrees) -> Result<(), LoweringError> {
     let ownership = &checked.facts.flow.ownership;
-    let mut events = Vec::new();
+    // The ledger is verified once over every event, so both of its lookups
+    // read declaration indices rather than scanning the program per event,
+    // and duplicate detection is a set membership rather than a linear
+    // `contains` over everything seen so far.
+    let mut seen = std::collections::HashSet::with_capacity(ownership.permissions.len());
     for (_, event) in ownership.permissions.iter() {
         // Product pruning retains a machine's permission rows as evidence
         // after the machine declaration leaves the surface; the row still
         // names a declared machine symbol, so only a forged handle — which
         // resolves to no machine declaration at all — rejects.
-        match checked
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == event.machine_symbol)
-        {
+        match checked.machine_by_symbol(event.machine_symbol) {
             Some(machine) => {
-                if !checked
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == event.state_symbol)
+                if checked
+                    .state_position_by_symbol(machine.symbol, event.state_symbol)
+                    .is_none()
                 {
                     return Err(LoweringError::Unsupported(
                         "checked permission event names no declared state of its machine",
@@ -47,12 +46,11 @@ pub(crate) fn verify(checked: &CheckedTrees) -> Result<(), LoweringError> {
                 }
             }
         }
-        if events.contains(&event) {
+        if !seen.insert(event) {
             return Err(LoweringError::Unsupported(
                 "checked permission ledger repeats an identical event",
             ));
         }
-        events.push(event);
         // A live obligation always names the claim that stays open: entry
         // places mint one, written destinations mint one, and a linear
         // handoff keeps its claim across a call boundary. Loans settle as

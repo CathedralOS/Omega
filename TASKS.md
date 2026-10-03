@@ -2601,14 +2601,31 @@ same flow already performed, not the check itself.
   unchanged.
 
 - **CHECKED-LEDGER-VERIFY-ONCE.** (new-scope) Stage 05's
-  `machine_lowering/checked_ledger.rs::verify` runs on every
-  `lower_machine` call (`machine_lowering.rs`), so once per entry and
-  callback artifact. Each permission event does a linear
-  `checked.machines().iter().find(..)` plus a state scan, and duplicate
-  detection uses `events.contains` on a `Vec` (quadratic). Index machines and
-  states once, detect duplicates with a set, and verify once per checked
-  program. Acceptance: one `verify` call per `CheckedTrees`, linear in
-  events; the ledger rejection fixtures still reject.
+  `machine_lowering/checked_ledger.rs::verify` is now linear in events: each
+  permission event resolves its machine through `machine_by_symbol` and its
+  state through `state_position_by_symbol` instead of scanning the program,
+  and duplicate detection is a `HashSet` insert instead of `events.contains`
+  on a growing `Vec`. That needed `Hash` on `FlowPermissionEventFact`, on the
+  five `language_semantics` permission enums and `Multiplicity`, and a manual
+  `Hash` for `HandleSpan<T>` hashing exactly the start and count its
+  `PartialEq` compares -- the same pair of impls `Handle<T>` already carries,
+  so no `T: Hash` bound is introduced. The seven `checked_ledger` tests,
+  including the rejection canaries, still pass.
+
+  What remains is the other half of the acceptance: ONE `verify` call per
+  `CheckedTrees`. It still runs per `lower_machine`, so once per entry and
+  callback artifact over the same whole-program ledger. Do NOT close this by
+  hoisting the call out of `lower_machine` into its callers: four product
+  sites construct a `TerminalProductionRequest`
+  (`driver/src/terminal/terminal_artifact.rs:116`,
+  `driver/src/terminal/native_proposal/mod.rs:53`,
+  `products/src/checked_compilation/terminal.rs` and package-manager's
+  `admission/terminal_authority.rs`), so hoisting turns a guaranteed
+  invariant into an obligation each of them must remember, and a future site
+  that forgets it skips ledger verification silently. The sound home is
+  wherever the `CheckedTrees` is frozen, so the ledger is verified by
+  construction before any artifact is produced; that overlaps
+  **CHECKING-FROZEN-PROGRAM-CONTEXT** and should land with it.
 
 - **RESOLVE-SYNTAX-FOREST-CLONE.** (new-scope) Stage 02's
   `preparation/mod.rs` starts with `let mut syntax = syntax.clone()`, copying

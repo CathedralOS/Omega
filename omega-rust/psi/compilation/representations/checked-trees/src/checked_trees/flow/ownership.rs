@@ -4,7 +4,7 @@ use symbols::SymbolHandle;
 /// The permission/resource algebra established by the multiplicity checker.
 /// This records the semantic role of an event and is the sole ownership-event
 /// source for later checked-IR consumers.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct FlowPermissionEventFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
