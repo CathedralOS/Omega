@@ -26,6 +26,28 @@ pub(super) fn prove_atomic(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<Option<ProofNode>> {
+    // A checked closed relation needs no derived order chain. In particular,
+    // evaluating a compound endpoint and then applying literal discreteness
+    // cannot silently replace the requested endpoint with its numeric value.
+    // The existing kernel judgment owns every operation's finite policy.
+    if let Proposition::Equal(left, right)
+    | Proposition::LessOrEqual(left, right)
+    | Proposition::LessThan(left, right) = goal
+        && let ScalarType::Integer(carrier) = left.scalar_type()
+        && !carrier.is_address()
+        && right.scalar_type() == left.scalar_type()
+        && proof_admission::decide_primitive(
+            context,
+            goal,
+            PrimitiveJudgment::ClosedIntegerRelation,
+        )
+        .is_ok()
+    {
+        return Some(Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+        }));
+    }
     match goal {
         Proposition::Equal(left, right) => {
             let ScalarType::Integer(carrier) = left.scalar_type() else {
