@@ -449,11 +449,7 @@ fn symbol_name(program: &typed_trees::TypedTrees, symbol: SymbolHandle) -> Strin
         return machine.name.as_str().to_owned();
     }
 
-    if let Some(state) = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|state| state.symbol == symbol)
+    if let Some(state) = program.state_by_symbol(symbol)
     {
         return state.name.as_str().to_owned();
     }

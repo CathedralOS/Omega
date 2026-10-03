@@ -208,11 +208,7 @@ pub(crate) fn state_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::state::State> {
-    program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|state| state.symbol == symbol)
+    program.state_by_symbol(symbol)
 }
 
 /// Every expression node reachable from an ordinary machine/state contract.

@@ -2663,15 +2663,6 @@ same flow already performed, not the check itself.
   stage 02 entry consumes its input and preparation performs no whole-forest
   clone; full check corpus unchanged.
 
-- **REFERENCE-CUSTODY-STATE-SCANS.** (new-scope)
-  `checking/src/machine_calls/reference_result_custody.rs` finds a call's
-  target state by scanning every state of every machine
-  (`machines().iter().flat_map(|machine| program.machine_states(machine))`,
-  five sites), once per call expression. Resolve the state through its
-  symbol's parent machine or the existing declaration index
-  (`TypedTrees::machine_by_symbol`). Acceptance: no whole-program state scan
-  remains in that file; corpus `--filter borrows,references/` unchanged.
-
 - **CALLABLE-IDENTITY-INTERNED.** (new-scope) `NormalizedNamedCallableIdentity`
   (`typed-trees` `type_system/type_identity/normalized_identities.rs`) holds
   its `path` and `parameters` as rendered `String`s, escaped text such as

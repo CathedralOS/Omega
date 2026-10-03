@@ -1216,11 +1216,7 @@ fn infer_expression_type(
                     .is_valid()
                     .then_some(InferredType::TypeReference(operator.return_type));
             }
-            program
-                .machines()
-                .iter()
-                .flat_map(|machine| program.machine_states(machine))
-                .find(|state| state.symbol == call.target_symbol)
+            program.state_by_symbol(call.target_symbol)
                 .and_then(|state| {
                     state
                         .return_type
