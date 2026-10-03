@@ -188,8 +188,8 @@ These are next actions for the adapter, not executed commands. Runtime
 Preflight input is `{ "assignment":"A", "receipt":{...} }` for the `preflight`
 command, or the same receipt as `result.preflight` in a correlated read.
 The receipt requires `assignment`, actual `thread`, `environment`, `generation`,
-`repository:"CathedralOS/Omega"`, assignment `base`, `source_revision` matching
-that base, `toolchain`, actual `execution_route`, `evidence`, integer
+`repository:"CathedralOS/Omega"`, immutable original assignment `base`, `source_revision` matching
+the active reviewed revision (initially that base), `toolchain`, actual `execution_route`, `evidence`, integer
 `doctor_exit:0`, `identity:{"name":"Jarod Castillo",
 "email":"43973221+Smotto@users.noreply.github.com","scope":"repository-local"}`.
 Adapter evidence must include effective author/committer checks, including
@@ -198,7 +198,9 @@ possible environment overrides. `resources` contains measured positive `cpus`,
 `smoke` contains actual integer `native_exit:0`, `interpreter_exit:0`, `command`,
 normal package `preparation` and `evidence`. `backup` contains
 `status:"confirmed-upload"`, actual `file_id`, `version`, `route`, `sha256` and
-positive `bytes`. A local archive is refused. This receipt is immutable for an
+positive `bytes`. A local archive is refused. This receipt is immutable within a
+reviewed source revision; `review-revision` records an audited integration transition
+without changing the original assignment base. Other scope changes need a new
 assignment/environment generation; replacing the executor needs a new explicit
 assignment and fresh preflight. It is a recorded evidence gate, not a request
 for human approval.
@@ -365,7 +367,8 @@ inventory. Supply a fresh observation/current revision, then:
 python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION accept --input build/swarm/acceptance.json
 ```
 
-Only successful acceptance produces `verified_complete`. Neither cleanup review
+Only successful managed acceptance produces `verified_complete`. Explicitly reviewed
+imported completion produces `verified_import` and cannot promote a staged batch. Neither cleanup review
 nor accept deletes anything. Duplicate identical acceptance is idempotent;
 wrong SHA, blocked checkpoint, unresolved effects, stale observation, missing
 logs, incomplete cleanup or historical-only evidence fail.
@@ -476,8 +479,8 @@ Before the first implementation `follow_up`, record a separate `readiness`
 receipt after actual preflight, fresh exact ownership and any incoming bilateral
 handoffs. Preflight continuations remain available for scouting blocked work.
 Existing journals remain readable; an unfinished unscouted assignment cannot
-start implementation. Final exact-candidate acceptance and 2/5/10 promotion
-are unchanged. Readiness never completes a task or clears a denial latch.
+start implementation. Final oracle/SHA/cleanup guards and staged 2/5/10 sizes remain; managed acceptance
+also requires the saved readiness/dispatch audit trail described below. Readiness never completes a task or clears a denial latch.
 
 ```sh
 python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION readiness --input build/swarm/readiness.json
@@ -495,7 +498,7 @@ reproduction as fresh work. Duplicate identical IDs are idempotent. Preserve
 unscheduled scouting evidence too; omit neither rejected candidates nor time
 spent outside implementation when comparing the trial.
 
-`scope` equals the assignment's `base`, `outcome`, `writes`, `reads`,
+`scope` equals the assignment's immutable `base`, active `source_revision`, `outcome`, `writes`, `reads`,
 `acceptance`, `dependency_review` and all declared incoming/outgoing
 `dependencies`. `known_dependencies` lists those reviewed edge IDs; an extra
 known prerequisite or missing reviewed edge records a dependency blocker.
@@ -557,6 +560,116 @@ Both must independently satisfy unchanged exact-candidate acceptance and cleanup
 with `user_rescue:false` before any 5-session promotion. This canary demonstrates
 correctness and autonomy, not a statistical speedup. This increment launches or
 stops no worker and performs no live canary.
+
+## Reviewed integration revisions
+
+An assignment's `base` remains the original before-program evidence anchor.
+Its active `source_revision` initially equals that base. A changed producer input
+cannot be treated as neutral reuse against the original source. After an actual
+bilateral handoff, record a `review-revision` transition before reproducing on the
+integrated source. This also covers reviewed relevant main changes; it does not
+change ownership, oracle or dependency declarations.
+
+```sh
+python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION review-revision --input build/swarm/revision-review.json
+```
+
+Input has `assignment`, accessible `repository`, recovered `evidence_root` and
+`receipt`. The receipt has `schema:1`, unique `id`, exact `assignment`, correlated
+`thread`/`environment`/`generation`, fresh `observed_utc`, concrete `reason`,
+remaining `assumptions`, full `from_revision`/`to_revision`, current pre-transition
+`scope` from `readiness_contract`, complete reviewed `inputs`, exact
+`changed_paths`, and `dependencies:{"EDGE_ID":"HANDED_OFF_CANDIDATE_SHA"}` for
+all incoming edges. A hashed `artifact` contains the actual diff, input closure,
+semantic/prerequisite review and source/toolchain implications. Source paths and
+Git objects are machine checked; semantic completeness remains reviewed judgment.
+
+The target must be the inspected clean checkout HEAD and descend from the
+current reviewed revision. Every declared incoming candidate must be handed off
+and integrated into that target. Mismatched source, identity, scope, diff, dirty
+inputs, unknown/unacknowledged operations, active processes, stale ownership or
+an approval latch block the transition. The prior preflight is retained in
+`preflight_history`, and original scouting/before records remain intact. The
+transition clears current preflight and invalidates old readiness through the
+new source contract. Obtain a new actual preflight (`base` remains original;
+`source_revision` equals the reviewed target), then reproduce and record new
+readiness there. No prior implementation turn can supply managed credit for a
+new source contract. Final landing must include the reviewed source; the final
+manifest still preserves the actual original-base before failure.
+
+## Completion credit and meaningful failures
+
+`accept` and ordinary `cleanup-review` require correlated applied create/binding
+provenance plus an applied implementation continuation with completed child
+acknowledgment and its saved `readiness_gate`. The gate must match the reviewed
+source/scope, current preflight and handoffs, recorded ready scouting event and
+a meaningful before failure. The receipt was fresh at intent; it need not still
+be fresh after a long legitimate implementation. Readiness is copied into the
+dispatch record before actuation, not retroactively asserted at completion.
+An empty operation history or a final landed label cannot earn managed credit.
+
+For an independently completed outcome outside that managed history, use the
+explicit `import-completion` command with the same full final acceptance input
+and `import_receipt`. The review has `schema:1`, exact `assignment`, exact
+`candidate`, fresh `observed_utc`, actual archival `source`, concrete `reason`
+and hashed `artifact`. Its packet uses the binding format (`normalized` equals
+the review minus `artifact`, with actual recovered evidence in `raw_result`).
+An import requires the same known mapping, preflight, meaningful original
+before failure, oracle, final-SHA/build/test/negative receipts, actual remote
+ancestry, reconciled ownership, stopped processes and verified cleanup. It
+never substitutes for absent session binding provenance. `cleanup-review` may
+carry that explicit `import_receipt` before imported resource cleanup; ordinary
+`accept` cannot silently choose import mode from an extra input field.
+
+```sh
+python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION import-completion --input build/swarm/imported-acceptance.json
+```
+
+Results carry `credit:managed` or `credit:imported`. Imported or unlabeled legacy
+completion can settle old work without promoting a managed batch. Legacy
+unlabeled records report `audit_completion_credit`; review them explicitly,
+never assume missing history was managed. Ordinary stage promotion still needs
+all outcomes verified with managed credit, no user rescue and complete cleanup.
+A successful compile (exit 0) labeled failed is refused. A runtime wrong-output
+failure may have command exit 0, but needs actual program exit/output fields
+contradicting the authored oracle and a hashed observation artifact. Invalid
+source, pending approval and compile-only classifications cannot be a meaningful
+before failure. Correct oracle fields plus extra metadata are not a failure.
+
+## One-session validation and adapter prerequisites
+
+A one-session trial uses an explicit manifest `mode:"non-promoting-pilot"`,
+`size:1`, `previous:null`, one real reviewed assignment, `dependencies:[]` and
+the usual claim/ownership/acceptance/publication fields. Use ordinary `admit`;
+size 1 without that mode is rejected. This pilot creates no permission to launch
+a replacement worker. It must meet the same genuine existing-session binding,
+preflight, readiness, managed implementation and final acceptance contracts.
+Its batch can become `settled:true` but always has `complete:false`; it cannot
+be the predecessor for 5 or 10. A later genuine size-2 staged canary still starts
+with `previous:null`. Alternatively run only one leg of a genuinely reviewed
+size-2 manifest and leave the other unstarted, without claiming batch completion.
+
+The currently inspected root read tool returns recorded thread/turn/items, not
+host incarnation or process guarantees. Root first recovers the genuine original
+create/pool receipt and reads the exact existing thread/task through its exposed
+schema. After the fixed controller is verified, an authorized read-only inspection on the
+same settled thread can collect a child attestation before any controller binding
+or managed dispatch. Use only the root's actual supported follow-up/read schemas:
+correlate its actual root send receipt, returned turn ID and subsequent read
+result; report actual executor/environment/incarnation evidence, source/compiler
+provenance, measured CPU/memory/disk/jobs, actual commands/process handles and
+exit/settlement inventory, child recovery journal and build slot, registry/landing
+ownership, preserved source and confirmed remote backup IDs/version/hash/bytes.
+Include genuine start/progress/observed timestamps and scouting/build/blocked
+intervals; do not turn missing timing into a speedup claim.
+
+That is a child observation via recorded tools, not a provider host guarantee.
+Do not substitute hostname, kernel boot ID, turn ID or environment configuration
+ID for an unavailable controller generation. An ended turn does not prove process
+settlement. A local archive does not prove upload. Original create provenance is
+not reconstructible from IDs. When these facts or supported artifact retrieval
+are missing, report the exact prerequisite; no live binding, dispatch or claimed
+pilot outcome follows. This tooling increment executes no live pilot.
 
 ## Staged trial gates
 

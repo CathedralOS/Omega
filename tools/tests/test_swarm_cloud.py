@@ -283,7 +283,7 @@ class ControllerTests(unittest.TestCase):
             with self.assertRaises(RecoveryError): self.update(lambda r:cloud.admit(r,m,snapshot()))
         # Only verified acceptance normally writes this field; mock the verifier's
         # terminal contract to isolate deterministic admission rules.
-        self.update(lambda r:[row.update(accepted=dict(result='landed',cleanup='completed',user_rescue=False))
+        self.update(lambda r:[row.update(accepted=dict(result='landed',cleanup='completed',user_rescue=False,credit='managed'))
                               for row in r['cloud']['assignments'].values()])
         m = manifest(5,'five','batch-2'); self.update(lambda r:cloud.admit(r,m,snapshot()))
         self.assertEqual(len(self.store.load()['cloud']['assignments']),7)
@@ -608,9 +608,9 @@ class ControllerTests(unittest.TestCase):
         self.update(lambda r:r['cloud']['assignments'].update({prior['assignment']:dict(id=prior['assignment'],
             outcome=prior['outcome'],thread='thread-0',environment='env-0',generation='gen-0',accepted=None)}))
         with self.assertRaisesRegex(RecoveryError,'known prior'):self.bind(value)
-        self.update(lambda r:r['cloud']['assignments'][prior['assignment']].update(accepted=dict(result='landed',cleanup='completed',user_rescue=False)))
+        self.update(lambda r:r['cloud']['assignments'][prior['assignment']].update(accepted=dict(result='landed',cleanup='completed',user_rescue=False,credit='managed')))
         prior['disposition']='accepted';self.binding_packet(value);self.bind(value)
-        self.assertEqual(self.store.load()['cloud']['assignments'][prior['assignment']]['accepted'],dict(result='landed',cleanup='completed',user_rescue=False))
+        self.assertEqual(self.store.load()['cloud']['assignments'][prior['assignment']]['accepted'],dict(result='landed',cleanup='completed',user_rescue=False,credit='managed'))
 
     def test_bound_prior_recovery_exemption_is_preflight_only(self):
         self.bind(self.binding_input())
@@ -672,6 +672,93 @@ class ControllerTests(unittest.TestCase):
         changed=copy.deepcopy(value);changed['receipt']['source']['slot']=30;self.binding_packet(changed)
         with self.assertRaisesRegex(RecoveryError,'conflicting binding'):self.bind(changed)
 
+    def test_applied_create_and_reconciled_create_cannot_duplicate_bound_session(self):
+        self.bind(self.binding_input())
+        self.update(lambda r: cloud.checkpoint(r, '1', checkpoint()))
+        request=self.request('create','create-peer','1')
+        duplicate=self.reply(request,result=dict(thread='thread-0',environment='env-0',generation='gen-0'))
+        with self.assertRaisesRegex(RecoveryError,'duplicate'): self.ingest(duplicate)
+        self.assertIsNone(self.store.load()['cloud']['assignments']['1']['thread'])
+        read=self.request('read','reconcile-peer','1')
+        result=dict(thread='thread-0',environment='env-0',generation='gen-0',runtime='completed',processes_stopped=True,
+            effects={'create-peer':dict(execution_id=request['execution_id'],effect='applied',evidence='host create read',
+                thread='thread-0',environment='env-0',generation='gen-0')})
+        with self.assertRaisesRegex(RecoveryError,'duplicate'):self.ingest(self.reply(read,result=result))
+
+    def test_global_mapping_uniqueness_covers_partial_identity_and_read_updates(self):
+        self.bind(self.binding_input())
+        self.update(lambda r:cloud.checkpoint(r,'1',checkpoint()))
+        request=self.request('create','create-second','1')
+        for result in (dict(thread='thread-0',environment='other',generation='other'),
+                       dict(thread='other',environment='env-0',generation='other'),
+                       dict(thread='other',environment='other',generation='other',executor='actual-host-0')):
+            with self.subTest(result=result), self.assertRaisesRegex(RecoveryError,'duplicate'):
+                self.ingest(self.reply(request,result=result))
+        self.ingest(self.reply(request,result=dict(thread='thread-1',environment='env-1',generation='gen-1')))
+        read=self.request('read','read-second','1')
+        with self.assertRaisesRegex(RecoveryError,'duplicate'):
+            self.ingest(self.reply(read,result=dict(thread='thread-1',environment='env-1',generation='gen-1',
+                executor='actual-host-0',runtime='completed',processes_stopped=True)))
+
+    def test_reviewed_revision_allows_integrated_consumer_reproduction(self):
+        # Bind the consumer, with genuinely separate executor ownership.
+        value=self.binding_input('1',28);self.bind(value)
+        own=snapshot();own['ticket']='ticket-1'
+        own['claims']=[dict(ticket='ticket-1',item='item-1',owner='owner-1',paths=['src/1.py'])]
+        self.update(lambda r:cloud.ownership(r,'1',own))
+        self.update(lambda r:cloud.preflight(r,'1',preflight_receipt('1',self.base,'thread-1','env-1','gen-1')))
+        initial=self.scouting_receipt('1');self.scout(initial,'1')
+        self.update(lambda r:r['cloud']['assignments']['0'].update(claim_ticket='ticket-0'))
+        (self.repo/'src/0.py').write_text('landed producer change')
+        completion.git(self.repo,'commit','-am','tools: producer integration');integrated=completion.git(self.repo,'rev-parse','HEAD')
+        hand=dict(dependency='digest-',producer='0',consumer='1',candidate=integrated,paths=['src/0.py'],
+            verification='recompute after producer integration',producer_receipt='producer landed receipt',
+            consumer_receipt='consumer reviewed candidate',verification_evidence='digest verified',claim_evidence='bilateral claims',
+            ownership='single-writer',producer_ticket='ticket-0',consumer_ticket='ticket-1',observed_utc=cloud.now())
+        self.update(lambda r:cloud.handoff(r,hand))
+        self.update(lambda r:r['cloud']['assignments']['1']['observation']['recovery'].update(assignment='1'))
+        current=self.scouting_receipt('1');current['source_revision']=integrated;current['before']['revision']=integrated
+        self.scout(current,'1');self.assertEqual(cloud.readiness_state(self.store.load(),'1'),'stale')
+        review=dict(schema=1,id='integrate-producer',assignment='1',from_revision=self.base,to_revision=integrated,
+            thread='thread-1',environment='env-1',generation='gen-1',observed_utc=cloud.now(),
+            reason='reviewed actual producer/consumer semantic integration',assumptions='reviewed closure may omit unknown semantics',inputs=['src'],changed_paths=['src/0.py'],
+            dependencies={'digest-':integrated},scope=cloud.readiness_contract(self.store.load(),'1'),
+            artifact=value['receipt']['prior']['artifact'])
+        # Artifact holds concrete diff/input review; its digest is independently checked.
+        for field,changed in [('changed_paths',[]),('dependencies',{}),('generation','wrong'),('scope',{})]:
+            invalid=copy.deepcopy(review);invalid[field]=changed
+            with self.subTest(field=field), self.assertRaises(RecoveryError):
+                self.update(lambda r:cloud.review_revision(r,'1',invalid,self.repo,self.root))
+        self.update(lambda r:cloud.review_revision(r,'1',review,self.repo,self.root))
+        self.assertFalse(cloud.implementation_started(self.store.load(),'1'))
+        old_pref=preflight_receipt('1',self.base,'thread-1','env-1','gen-1')
+        with self.assertRaisesRegex(RecoveryError,'preflight'):
+            self.update(lambda r:cloud.preflight(r,'1',old_pref))
+        refreshed=preflight_receipt('1',self.base,'thread-1','env-1','gen-1');refreshed['source_revision']=integrated
+        self.update(lambda r:cloud.preflight(r,'1',refreshed))
+        current=self.scouting_receipt('1');current['source_revision']=integrated;current['before']['revision']=integrated
+        self.scout(current,'1')
+        row=self.store.load()['cloud']['assignments']['1']
+        self.assertEqual(cloud.readiness_state(self.store.load(),'1'),'ready')
+        self.assertEqual(row['base'],self.base)
+        self.assertEqual(row['scouting'][0]['receipt']['before'],initial['before'])
+        self.assertEqual(row['preflight_history'][0]['source_revision'],self.base)
+        denied=copy.deepcopy(review);denied['id']='denied-transition';denied['from_revision']=integrated
+        self.update(lambda r:r['cloud']['assignments']['1'].update(approval_required=dict(action='denied',error='rejected')))
+        with self.assertRaisesRegex(RecoveryError,'approval'):self.update(lambda r:cloud.review_revision(r,'1',denied,self.repo,self.root))
+
+    def test_single_session_pilot_is_explicit_and_never_promotes(self):
+        record=dict(cloud=dict(batches={},assignments={},handoffs={},operations={}))
+        candidate=manifest();candidate.update(size=1,mode='non-promoting-pilot',dependencies=[])
+        candidate['assignments']=candidate['assignments'][:1]
+        cloud.admit(record,candidate,snapshot())
+        record['cloud']['assignments']['0']['accepted']=dict(result='landed',cleanup='completed',user_rescue=False,credit='managed')
+        self.assertTrue(cloud.batch_settled(record,candidate['id']))
+        self.assertFalse(cloud.batch_complete(record,candidate['id']))
+        with self.assertRaises(RecoveryError):cloud.admit(record,manifest(5,'pilot-five',candidate['id']),snapshot())
+        ordinary=copy.deepcopy(candidate);ordinary.pop('mode');ordinary['id']='accidental-size-one'
+        with self.assertRaisesRegex(RecoveryError,'bounded'):cloud.admit(record,ordinary,snapshot())
+
     def test_controller_cli_emits_request_after_durable_intent(self):
         value = self.root / 'intent.json'; atomic_json(value, dict(assignment='0',operation='cli-create',action='create',parameters=dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight')))
         args = [sys.executable,str(ROOT/'tools/swarm/cloud.py'),'--state',str(self.store.path),'--revision',str(self.store.load()['revision']),'intent','--input',str(value)]
@@ -711,8 +798,42 @@ class AcceptanceTests(unittest.TestCase):
 
 
     def controller_record(self, phase='landed'):
-        row=dict(self.assignment,thread='thread',environment='env',generation='generation',checkpoint=checkpoint(phase),preflight=preflight_receipt('program',self.base,'thread','env','generation'),accepted=None,batch='batch')
-        return dict(revision=7,cloud=dict(assignments={'program':row},operations={},batches={'batch':dict(manifest=dict(dependencies=[]))},handoffs={}))
+        self.git('checkout','--detach',self.base)
+        try:
+            record=dict(revision=7,lanes={})
+            cloud.initialize(record,dict(evidence='fixture adapter schemas',tools=dict(create='fixture.create',read='fixture.read',follow_up='fixture.send'),
+                reporting=dict(mode='bounded-turn-results',max_turn_seconds=900,evidence='fixture reports')))
+            row=dict(self.assignment,thread=None,environment=None,generation=None,checkpoint=checkpoint(),
+                     observation=None,runtime='unknown',attempts={},accepted=None,batch='batch')
+            record['cloud']['assignments']['program']=row
+            record['cloud']['batches']['batch']=dict(manifest=dict(size=2,assignments=[self.assignment],dependencies=[]))
+            create=cloud.intent(record,'program','create','create-program',dict(phase='preflight',model='gpt-6.1-sol',reasoning='medium'))
+            def result(request,payload):
+                cloud.ingest(record,dict(schema=1,operation=request['operation'],execution_id=request['execution_id'],assignment='program',
+                    effect='applied',revision=7,evidence='synthetic adapter fixture',observed_utc=cloud.now(),result=payload))
+            result(create,dict(thread='thread',environment='env',generation='generation'))
+            cloud.preflight(record,'program',preflight_receipt('program',self.base,'thread','env','generation'))
+            own=snapshot();own['ticket']='program-ticket';own['claims']=[dict(ticket='program-ticket',item=row['item'],owner=row['owner'],paths=row['writes'])]
+            cloud.ownership(record,'program',own)
+            def observe(operation):
+                read=cloud.intent(record,'program','read','read-'+operation['operation'],{})
+                result(read,dict(thread='thread',environment='env',generation='generation',runtime='completed',processes_stopped=True,
+                    recovery=dict(assignment='program',environment='env',generation='generation',unknown_operations=[],build_slot_clear=True,evidence='fixture recovery'),
+                    acknowledgments=[dict(operation=operation['operation'],execution_id=operation['execution_id'],status='completed',evidence='fixture completed acknowledgment')]))
+            observe(create)
+            stamp=cloud.now()
+            readiness=dict(schema=1,id='ready-program',assignment='program',source_revision=self.base,current_revision=self.base,
+                environment='env',started_utc=stamp,observed_utc=stamp,cache='warm',complexity='small fixture',assumptions='fixture reviewed source closure',
+                scope=cloud.readiness_contract(record,'program'),inputs=['src'],known_dependencies=[],
+                review_artifact=self.artifact('scope.json',json.dumps(cloud.readiness_contract(record,'program'))),
+                before=dict(self.manifest['before'],environment='env',classification='valid-should-work',expected_result=requirements()[0]['expected_result']))
+            cloud.readiness(record,'program',readiness,self.repo,self.root)
+            implementation=cloud.intent(record,'program','follow_up','implement-program',dict(phase='implementation'))
+            result(implementation,dict(status='queued'));observe(implementation)
+            cloud.checkpoint(record,'program',checkpoint(phase))
+            return record
+        finally:
+            self.git('checkout','--detach',self.candidate)
 
     def final_observation(self):
         return dict(self.observation,revision=7,observed_utc=cloud.now(),thread='thread',environment='env',generation='generation',runtime='completed',recovery=dict(assignment='program',environment='env',generation='generation',unknown_operations=[],build_slot_clear=True,evidence='fresh child recovery journal'))
@@ -750,6 +871,46 @@ class AcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(RecoveryError,'local recovery'):cloud.accept(record,'program',self.manifest,self.final_observation(),self.repo,self.root)
         record['lanes']['lane']['operations']['push']['outcome']='applied';record['build_slot']=dict(lane='lane')
         with self.assertRaisesRegex(RecoveryError,'build slot'):cloud.accept(record,'program',self.manifest,self.final_observation(),self.repo,self.root)
+
+    def test_managed_completion_requires_dispatch_readiness_audit_trail(self):
+        record=self.controller_record();record['cloud']['operations']={}
+        with self.assertRaisesRegex(RecoveryError,'managed'):cloud.accept(record,'program',self.manifest,self.final_observation(),self.repo,self.root)
+
+    def test_before_compile_success_cannot_be_labeled_failed(self):
+        self.manifest['before']['exit']=0
+        with self.assertRaisesRegex(RecoveryError,'failure'):self.validate()
+        self.manifest['before'].update(failure_kind='run',program_result=dict(exit=70,stdout_sha256='0'*64))
+        self.assertEqual(self.validate()['candidate'],self.candidate)
+        self.manifest['before']['program_result']=dict(requirements()[0]['expected_result'],duration_ms=1)
+        with self.assertRaisesRegex(RecoveryError,'failure'):self.validate()
+
+    def test_explicit_import_keeps_final_guards_but_gets_no_managed_credit(self):
+        record=self.controller_record();record['cloud']['operations']={};row=record['cloud']['assignments']['program'];row.pop('scouting')
+        review=dict(schema=1,assignment='program',candidate=self.candidate,observed_utc=cloud.now(),
+                    source='genuine external completion archive',reason='independent exact-candidate review')
+        packet=dict(normalized=review,raw_result=dict(external_completion='synthetic test archive'))
+        review['artifact']=self.artifact('import.json',json.dumps(packet))
+        cloud.accept(record,'program',self.manifest,self.final_observation(),self.repo,self.root,import_receipt=review)
+        self.assertEqual(row['accepted']['credit'],'imported')
+        self.assertFalse(cloud.batch_complete(record,'batch'));self.assertTrue(cloud.batch_settled(record,'batch'))
+        self.manifest['before']['exit']=0
+        with self.assertRaisesRegex(RecoveryError,'failure'):cloud.accept(record,'program',self.manifest,self.final_observation(),self.repo,self.root,import_receipt=review)
+        self.manifest['before']['exit']=1
+        self.manifest['final_evidence'][0]['program_result']=dict(exit=4)
+        with self.assertRaisesRegex(RecoveryError,'oracle'):cloud.accept(record,'program',self.manifest,self.final_observation(),self.repo,self.root,import_receipt=review)
+
+    def test_managed_credit_requires_matching_origin_gate_and_completed_ack(self):
+        for field in ('origin','gate','scouting','ack','before'):
+            record=self.controller_record();operations=record['cloud']['operations'];row=record['cloud']['assignments']['program']
+            if field=='origin':operations.pop('create-program')
+            elif field=='gate':operations['implement-program']['request']['readiness_gate']['contract']='wrong'
+            elif field=='scouting':row['scouting']=[]
+            elif field=='ack':operations['implement-program']['acknowledgment']['status']='started'
+            else:
+                operations['implement-program']['request']['readiness_gate']['receipt']['before']['exit']=0
+                row['scouting'][0]['receipt']['before']['exit']=0
+            with self.subTest(field=field), self.assertRaisesRegex(RecoveryError,'managed'):
+                cloud.accept(record,'program',self.manifest,self.final_observation(),self.repo,self.root)
 
     def test_exact_landed_contract_passes(self): self.assertEqual(self.validate()['candidate'],self.candidate)
 
