@@ -1111,16 +1111,20 @@ the complete product bar; focused successes below do not establish that baseline
   acceptance: the fixture's ordinary `omega run --both` still stops at pending
   package review, without manufactured approval.
 
-  Distinct foreign generic case instances remain a checking dependency:
-  `omega --check tests/omega/pending/generics/foreign_case_instance_identity/main.omg`
-  rejects `Optional<First>` alongside `Optional<Second>` with an exact declaring
-  data-type mismatch and payload-classifier-as-constructor errors. The reduced
-  witness has no payload loan or structural successor; preserve selected generic
-  case-owner identity before `checking/src/proof_contracts/bound_expression_meaning.rs`
-  validates it. Acceptance is both instances checking and evaluating correctly,
-  then the restored application APIs. Boolean-plus-payload or package-local sum
-  replacements do not close that customer. Reproduce the restored application
-  before assigning any further source-signature or structural-argument failure.
+  Distinct foreign generic case membership now retains the borrowed subject's
+  exact application in Stage 02. On macOS ARM64, `python3 tools/corpus_gate.py
+  --both --filter generics/foreign_case_membership_dispatch_exit` executes native
+  and checked-interpreter exit 70 for two payload types and an empty instance.
+  The stronger unchanged `tests/omega/pending/generics/foreign_case_payload_reads_exit`
+  witness returns payload fields: the interpreter returns 70, but native
+  production rejects `case payload observation requires an established case`.
+  Stage 05 `expression_preparation/bindings/structural_fields::resolve_case_payload`
+  and direct scalar-return evaluation lack the selected nested-payload preparation
+  already present on successor edges. Carry that common observation ordering to
+  the return path and graduate the unchanged witness, then restore application
+  APIs. Boolean-plus-payload or package-local sum replacements do not close the
+  customer. Reproduce the restored application before assigning any further
+  source-signature or structural-argument failure.
 
   Current candidate application `248a79e66025` has six unpublished source-lifetime
   repairs; its remote denies writes, so do not advance the application gitlink.

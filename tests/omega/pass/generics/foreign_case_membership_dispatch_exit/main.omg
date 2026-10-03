@@ -1,0 +1,35 @@
+use omega::language::core::option;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data First { value: i32; }
+data Second { padding: u64; value: i32; }
+data Main { console: Binding<Console>; }
+
+machine first(subject: &Optional<First>) -> i32 {
+    transition subject {
+        Optional::Some { value } -> (1)
+        Optional::None -> (0)
+    }
+}
+
+machine second(subject: &Optional<Second>) -> i32 {
+    transition subject {
+        Optional::Some { value } -> (2)
+        Optional::None -> (0)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let left: Optional<First> = Optional::Some { value: First { value: 1 } };
+    let right: Optional<Second> = Optional::Some { value: Second { padding: 41, value: 2 } };
+    let empty: Optional<Second> = Optional::None;
+    let left_result: i32 = first(&left);
+    let right_result: i32 = second(&right);
+    let empty_result: i32 = second(&empty);
+    transition left_result == 1 && right_result == 2 && empty_result == 0 {
+        true -> finish(main, 70)
+        false -> finish(main, 71)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}
