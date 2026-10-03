@@ -1,8 +1,7 @@
-//! One byte of a bounded field's live storage. The byte is addressed in the
-//! field's original inline backing, exactly where an indexed byte store
-//! writes it; the live length is not loaded, since the index's bound is the
-//! read's own accepted obligation against the field's current length
-//! observation.
+//! Address a byte field's original backing and select an indexed observation.
+//! Inline owners and borrowed descriptors use the same payload-address owner
+//! as measured sequence operations. The index's own accepted obligation binds
+//! its current length; finding an address grants no permission to read it.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
@@ -48,50 +47,7 @@ pub(in crate::selection) fn read_byte(
     {
         return Err(invalid());
     }
-    let root = super::runtime_address::projection_base(
-        function,
-        builder,
-        row,
-        source.place,
-        payload_offset,
-    )?
-    .ok_or_else(|| invalid())?;
-    let root =
-        super::runtime_address::scale(builder, row, source.place, payload_offset, root, indices)?;
-    let payload = transport_register(builder, source.place, payload_offset)?;
-    match geometry {
-        crate::selection::field_bytes::FieldBytes::Inline(_) => builder.emit(
-            SelectedInstructionKind::AddressOffset {
-                byte_offset: payload_offset,
-            },
-            builder
-                .constraints
-                .keys
-                .address_offset
-                .ok_or_else(invalid)?,
-            &[root, payload],
-            provenance(row),
-        )?,
-        crate::selection::field_bytes::FieldBytes::Descriptor(_) => {
-            super::runtime_address::footprint(
-                builder,
-                row,
-                source.place,
-                payload_offset,
-                8,
-                indices,
-                super::runtime_address::Written::None,
-            )?;
-            builder.emit(
-                SelectedInstructionKind::Load64 {
-                    byte_offset: payload_offset,
-                },
-                builder.constraints.keys.load64.ok_or_else(invalid)?,
-                &[root, payload],
-                provenance(row),
-            )?
-        }
-    }
+    let payload = payload_pointer(function, builder, row, source.place, geometry, indices)?;
     let output = builder.register(
         definition.value,
         definition.definition_site,
@@ -122,4 +78,56 @@ pub(in crate::selection) fn read_byte(
         },
     )?;
     Ok(output)
+}
+
+/// Address the field's actual byte backing for either an indexed observation
+/// or a measured sequence operation. Loading a descriptor is a separate
+/// recorded read; observing its backing retains the caller's own extent proof.
+pub(super) fn payload_pointer(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: semantic_vocabulary::PlaceId,
+    geometry: crate::selection::field_bytes::FieldBytes,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let offset = geometry.offset();
+    let root = super::runtime_address::projection_base(function, builder, row, place, offset)?
+        .ok_or_else(|| invalid())?;
+    let root = super::runtime_address::scale(builder, row, place, offset, root, indices)?;
+    let payload = transport_register(builder, place, offset)?;
+    match geometry {
+        crate::selection::field_bytes::FieldBytes::Inline(_) => builder.emit(
+            SelectedInstructionKind::AddressOffset {
+                byte_offset: offset,
+            },
+            builder
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| invalid())?,
+            &[root, payload],
+            provenance(row),
+        )?,
+        crate::selection::field_bytes::FieldBytes::Descriptor(_) => {
+            super::runtime_address::footprint(
+                builder,
+                row,
+                place,
+                offset,
+                8,
+                indices,
+                super::runtime_address::Written::None,
+            )?;
+            builder.emit(
+                SelectedInstructionKind::Load64 {
+                    byte_offset: offset,
+                },
+                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
+                &[root, payload],
+                provenance(row),
+            )?;
+        }
+    }
+    Ok(payload)
 }

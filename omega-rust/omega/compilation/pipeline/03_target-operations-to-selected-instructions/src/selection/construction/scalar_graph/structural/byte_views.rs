@@ -430,7 +430,8 @@ pub(in crate::selection) fn byte_predicate(
     if result.scalar_type != ScalarType::Boolean || count_type != integer {
         return Err(invalid());
     }
-    let base = measured_span_reads(function, builder, row, operand)?;
+    let base = byte_concatenation::operand_pointer(function, builder, row, operand)?;
+    measured_span_reads(function, builder, row, operand)?;
     let cursor = byte_field_store::scratch(builder, 2)?;
     let byte = byte_field_store::scratch(builder, 3)?;
     let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
@@ -478,8 +479,12 @@ pub(in crate::selection) fn byte_equal(
     {
         return Err(invalid());
     }
-    let left_base = measured_span_reads(function, builder, row, left)?;
-    let right_base = measured_span_reads(function, builder, row, right)?;
+    let left_base = byte_concatenation::operand_pointer(function, builder, row, left)?;
+    let right_base = byte_concatenation::operand_pointer(function, builder, row, right)?;
+    // Both address computations precede the scan. Attribute both measured
+    // reads to the comparison, not the other operand's descriptor load.
+    measured_span_reads(function, builder, row, left)?;
+    measured_span_reads(function, builder, row, right)?;
     let cursor = byte_field_store::scratch(builder, 4)?;
     let left_byte = byte_field_store::scratch(builder, 5)?;
     let right_byte = byte_field_store::scratch(builder, 6)?;
@@ -511,16 +516,14 @@ pub(in crate::selection) fn byte_equal(
     Ok(output)
 }
 
-/// Emit the measured-span read rows one byte-sequence operand scans: its
-/// readable base pointer and one `ReadMeasuredSpan` role per backing root,
-/// exactly the reads a predicate operand performs.
+/// Record one measured read per backing root at the upcoming scan instruction.
+/// Address preparation must be complete before these rows are attributed.
 fn measured_span_reads(
     function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     operand: &ByteSequenceOperand,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let base = byte_concatenation::operand_pointer(function, builder, row, operand)?;
+) -> Result<(), SelectedInstructionError> {
     let offset = match operand {
         ByteSequenceOperand::Field { .. } => {
             crate::selection::byte_concatenation_input::field_offset(function, operand)
@@ -557,5 +560,5 @@ fn measured_span_reads(
             SelectedMemoryAccessRole::ReadMeasuredSpan { length },
         )?;
     }
-    Ok(base)
+    Ok(())
 }

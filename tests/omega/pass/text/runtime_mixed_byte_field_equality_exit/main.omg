@@ -1,0 +1,34 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+
+// One measured comparison reads inline owner bytes and descriptor-backed bytes.
+// Equal contents occupy distinct backing; neither pointer equality nor treating
+// a descriptor as inline text can produce the authored result.
+data Main {
+    console: Binding<Console>;
+    owned: [u8; 8] in Utf8;
+    viewed: &[u8] in Utf8;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.owned = "omega";
+    main.viewed = "omega";
+    let same: bool = main.owned == main.viewed;
+    transition same { true -> different(main) _ -> bad(main) }
+    state different(main: &mut Main) {
+        main.viewed = "delta";
+        let same: bool = main.owned == main.viewed;
+        transition same { false -> empty(main) _ -> bad(main) }
+    }
+    state empty(main: &mut Main) {
+        main.owned = "";
+        main.viewed = "";
+        let same: bool = main.viewed == main.owned;
+        transition same { true -> good(main) _ -> bad(main) }
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

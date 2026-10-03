@@ -379,6 +379,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ByteSequenceWrite { .. }
                 | AbstractOperation::ByteSequenceRead { .. }
                 | AbstractOperation::ByteSequencePredicate { .. }
+                | AbstractOperation::ByteSequenceEqual { .. }
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
                 AbstractOperation::EstablishElementView { .. }
                 | AbstractOperation::ElementViewLength { .. }
@@ -692,6 +693,19 @@ fn byte_operation_retained(
                     expression:
                         TargetScalarExpression::Boolean(
                             target_operations::TargetBooleanExpression::ByteSequencePredicate {
+                                psi_operation: retained,
+                                ..
+                            },
+                        ),
+                    ..
+                },
+            )
+            | (
+                AbstractOperation::ByteSequenceEqual { psi_operation, .. },
+                TargetUnitOperation::ScalarDefinition {
+                    expression:
+                        TargetScalarExpression::Boolean(
+                            target_operations::TargetBooleanExpression::ByteSequenceEqual {
                                 psi_operation: retained,
                                 ..
                             },

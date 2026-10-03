@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.04, "load1_start": 3.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.33, "load1_start": 3.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2331,6 +2331,7 @@ pass/text/runtime_carrier_indexed_read_exit checked 878ms @4e4bfed13aee+wt
 pass/text/runtime_chained_string_append_exit checked 1690ms @2d8ed253669f
 pass/text/runtime_local_struct_string_field_concat_exit rejected 657ms @5676dbe78a95+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 2)
+pass/text/runtime_mixed_byte_field_equality_exit checked 2124ms @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 763ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit checked 2214ms @2d8ed253669f
@@ -2363,8 +2364,7 @@ pass/traits/boundary_trait_effects_host_call checked 846ms @2d8ed253669f
 pass/traits/dyn_finite_family_dispatch checked 368ms @2d8ed253669f
 pass/traits/equatable_mixed_shape_equality_exit checked 3655ms @ca8c127c90c5
 pass/traits/equatable_record_equality_exit checked 6146ms @2d8ed253669f
-pass/traits/equatable_string_field_equality_exit rejected 1842ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
+pass/traits/equatable_string_field_equality_exit checked 3111ms @11b293f8af86+wt
 pass/traits/generic_reference_forwarding_exit checked 13520ms @f3a79ef091a9
 pass/traits/generic_trait_parent_binds_requirement checked 267ms @474542aa7f86
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms @f3a79ef091a9
