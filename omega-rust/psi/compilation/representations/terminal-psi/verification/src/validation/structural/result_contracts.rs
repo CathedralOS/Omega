@@ -249,7 +249,7 @@ pub(in crate::validation) fn has_plain_owned_shape(
     module: &TerminalModule,
     root: StructuralTypeId,
 ) -> bool {
-    terminal_semantics::descriptor_results::plain_owned_shape(&module.structural_types, root)
+    terminal_semantics::descriptor_results::plain_owned_shape(module.structural_types.iter(), root)
 }
 
 /// Plain storage and explicitly shared byte descriptors form an owned carrier
@@ -293,7 +293,7 @@ pub(in crate::validation) fn owned_descriptor_return_source(
             signature.projected_qualifications,
         )
         && terminal_semantics::descriptor_results::owned_shared_byte_descriptor_shape(
-            &module.structural_types,
+            module.structural_types.iter(),
             signature.structural_type,
         )
         && terminal_semantics::descriptor_results::return_slots_have_external_backing(

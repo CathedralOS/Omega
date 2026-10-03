@@ -7,24 +7,27 @@ use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
-pub fn plain_owned_shape(types: &[StructuralTypeDeclaration], root: StructuralTypeId) -> bool {
+pub fn plain_owned_shape<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+) -> bool {
     owned_shape(types, root, false)
 }
 
-pub fn owned_shared_byte_descriptor_shape(
-    types: &[StructuralTypeDeclaration],
+pub fn owned_shared_byte_descriptor_shape<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> bool {
     owned_shape(types, root, true)
 }
 
-fn owned_shape(
-    types: &[StructuralTypeDeclaration],
+fn owned_shape<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     shared_byte_slots: bool,
 ) -> bool {
-    fn visit(
-        types: &[StructuralTypeDeclaration],
+    fn visit<'a>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,
         active: &mut Vec<StructuralTypeId>,
         complete: &mut BTreeSet<StructuralTypeId>,
@@ -36,7 +39,7 @@ fn owned_shape(
         if active.contains(&root) {
             return false;
         }
-        let mut declarations = types.iter().filter(|declaration| declaration.id == root);
+        let mut declarations = types.clone().filter(|declaration| declaration.id == root);
         let Some(declaration) = declarations.next() else {
             return false;
         };
@@ -56,7 +59,7 @@ fn owned_shape(
         | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::Structural(child) => {
-                    visit(types, *child, active, complete, shared_byte_slots)
+                    visit(types.clone(), *child, active, complete, shared_byte_slots)
                 }
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
@@ -106,7 +109,7 @@ fn owned_shape(
                 .chain(cases.iter().flat_map(|case| &case.fields))
                 .all(&mut field_is_owned),
             StructuralTypeShape::FixedArray { element, .. } => {
-                visit(types, *element, active, complete, shared_byte_slots)
+                visit(types.clone(), *element, active, complete, shared_byte_slots)
             }
         };
         active.pop();

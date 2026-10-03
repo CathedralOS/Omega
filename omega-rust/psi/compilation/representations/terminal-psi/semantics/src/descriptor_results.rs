@@ -375,6 +375,34 @@ fn place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
         })
 }
 
+/// Return custody applies to nested descriptor slots of an owned aggregate,
+/// regardless of which operation constructed it. Direct references and views
+/// retain their separate return contracts. Missing or ambiguous types fail closed.
+pub fn aggregate_descriptor_slots(
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    structural_type: StructuralTypeId,
+) -> Option<Vec<DescriptorLocation>> {
+    let mut matching = types
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let declaration = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    if matches!(
+        declaration.shape,
+        StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. }
+            | StructuralTypeShape::FixedArray { .. }
+    ) {
+        descriptor_slots(types, root, structural_type)
+    } else {
+        Some(Vec::new())
+    }
+}
+
 pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
     module
         .machines

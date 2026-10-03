@@ -507,8 +507,7 @@ fn returned_case_shared_slots_verify_populated_and_inactive_payloads() {
     }
 }
 
-#[test]
-fn returned_case_shared_slots_reject_local_and_unknown_backing() {
+fn local_shared_slot_case_return() -> TerminalModule {
     use terminal_psi::RecordFieldValue;
     let mut module = shared_slot_case_return(2);
     let callee = &mut module.machines[0];
@@ -560,6 +559,12 @@ fn returned_case_shared_slots_reject_local_and_unknown_backing() {
         unreachable!()
     };
     trivial_affine_discards.push(place(1));
+    module
+}
+
+#[test]
+fn returned_case_shared_slots_reject_local_and_unknown_backing() {
+    let module = local_shared_slot_case_return();
     assert!(
         !terminal_semantics::descriptor_results::return_slots_have_external_backing(
             &module,
@@ -682,5 +687,53 @@ fn returned_case_shared_slots_do_not_turn_borrowed_aggregate_into_owned_result()
             Err(ModuleError::NonCanonicalStructuralReturnClaims { .. })
         ),
         "external nested backing does not grant ownership of a borrowed aggregate carrier"
+    );
+}
+
+#[test]
+fn returned_record_shared_slots_reject_local_and_unknown_backing() {
+    fn direct_record(mut module: TerminalModule) -> TerminalModule {
+        let callee = &mut module.machines[0];
+        callee.blocks[0].operations.pop();
+        callee
+            .structural_places
+            .retain(|declaration| declaration.id != place(3));
+        let TerminalMachineResult::Structural(result) = &mut callee.result else {
+            unreachable!()
+        };
+        result.structural_type = structure(2);
+        let Terminator::ReturnStructural { source, .. } = &mut callee.blocks[0].terminator else {
+            unreachable!()
+        };
+        *source = place(2);
+        module
+    }
+    let valid = direct_record(shared_slot_case_return(2));
+    validate_module(&valid).expect("direct records retain their shared external backing");
+    let local = direct_record(local_shared_slot_case_return());
+    assert!(
+        matches!(
+            validate_module(&local),
+            Err(ModuleError::NonCanonicalStructuralReturnClaims { .. })
+        ),
+        "record construction cannot bypass the external backing obligation"
+    );
+    let mut unknown = valid;
+    let OperationKind::EstablishRecord { fields } =
+        &mut unknown.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    fields.clear();
+    assert!(
+        !terminal_semantics::descriptor_results::return_slots_have_external_backing(
+            &unknown,
+            &unknown.machines[0],
+            place(2)
+        )
+    );
+    assert!(
+        validate_module(&unknown).is_err(),
+        "omitted active record slots remain unknown"
     );
 }
