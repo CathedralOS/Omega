@@ -625,16 +625,16 @@ mod byte_input_rejection_tests;
 
 #[cfg(test)]
 mod tests {
-    use crate::interpreter::evaluator::{CheckedTrees, Frame};
+    use crate::interpreter::evaluator::{CheckedTrees, Frame, FrameLocal};
     use crate::interpreter::evaluator::{Evaluator, Halt, Value};
     use crate::value::Cell;
     use std::collections::BTreeMap;
     use typed_trees::statement::{StatementNode, TableCall};
 
-    /// Compile `Helper::take(&mut self.line...)` — an ordinary static call the
+    /// Compile `Helper::take(&mut main.line...)` — an ordinary static call the
     /// single-source harness resolves — then retarget the statement's leaf and
     /// target symbol to the `read_line` boundary requirement. Service-carrier
-    /// dispatch (`self.console.read_line`) is selected by build-time machinery
+    /// dispatch (`main.console.read_line`) is selected by build-time machinery
     /// this harness does not run; the requirement symbol is what
     /// `is_boundary_call` and the arm's contract check actually inspect.
     fn read_line_call(checked: &CheckedTrees, boundary_trait: &str) -> TableCall {
@@ -672,29 +672,56 @@ mod tests {
         }
     }
 
-    /// A `Main` instance with a `line` carrier of 165s (the marker byte whose
-    /// survival proves the destination was not resized or rewritten past the
-    /// bounded prefix).
-    fn main_self(evaluator: &mut Evaluator<'_>, checked: &CheckedTrees, len: usize) -> Cell {
+    /// Bind the declared `Main` parameter to a `line` carrier of 165s. The marker
+    /// byte's survival proves the destination was not resized or rewritten past the
+    /// bounded prefix. Explicit parameter reads use the checked binding symbol,
+    /// so an unbound receiver-only frame would not exercise the destination.
+    fn input_frame(evaluator: &mut Evaluator<'_>, checked: &CheckedTrees, length: usize) -> Frame {
         let machine = checked
             .realized_machine_named("Main::main")
             .expect("Main::main machine");
+        let state = checked
+            .machine_states(machine)
+            .first()
+            .expect("entry state");
+        let [parameter] = checked.state_parameters(state) else {
+            panic!("entry has exactly one explicit Main parameter");
+        };
+        let main_type = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Main")
+            .expect("Main data declaration");
         let line = evaluator
             .allocate_cell(
                 evaluator
-                    .allocate_text(vec![165; len])
+                    .allocate_text(vec![165; length])
                     .unwrap_or_else(|_| panic!("line text")),
             )
             .unwrap_or_else(|_| panic!("line cell"));
         let mut fields = BTreeMap::new();
         fields.insert("line".into(), line);
-        evaluator
+        let main = evaluator
             .allocate_cell(Value::Struct {
-                type_symbol: machine.symbol,
+                type_symbol: main_type.symbol,
                 type_name: "Main".into(),
                 fields,
             })
-            .unwrap_or_else(|_| panic!("self cell"))
+            .unwrap_or_else(|_| panic!("Main cell"));
+        let argument = evaluator
+            .allocate_cell(Value::Ref(main.clone()))
+            .unwrap_or_else(|_| panic!("Main argument"));
+        let mut frame = Frame::bare(main, machine.symbol);
+        frame.state_symbol = state.symbol;
+        frame.return_type = state.return_type;
+        frame.bind(FrameLocal {
+            symbol: parameter.symbol,
+            cell: argument,
+            type_reference: parameter.type_reference,
+            scalar: None,
+            mutable_recast: None,
+        });
+        frame
     }
 
     fn line_bytes(self_cell: &Cell) -> Vec<u8> {
@@ -723,18 +750,14 @@ mod tests {
         }
         pub data Helper {}
         machine Helper::take(out: &mut [u8]) {}
-        machine Main::main(&mut self) {
-            Helper::take(&mut self.line);
+        machine Main::main(main: &mut Main) {
+            Helper::take(&mut main.line);
         }";
 
     #[test]
     fn bounded_read_line_serves_line_read_result_by_signature() {
         let checked = crate::front_end::checked_program(BOUNDED_CONSOLE_SOURCE);
         let call = read_line_call(&checked, "Console");
-        let machine_symbol = checked
-            .realized_machine_named("Main::main")
-            .expect("Main machine")
-            .symbol;
         // (stdin, expected variant, count, destination bytes, consumed)
         for (input, variant, count, bytes, consumed) in [
             (&b"ok\n"[..], "LineComplete", 3, &b"ok\n\xA5"[..], 3),
@@ -749,8 +772,7 @@ mod tests {
             (&b""[..], "EndOfInput", 0, &b"\xA5\xA5\xA5\xA5"[..], 0),
         ] {
             let mut evaluator = Evaluator::new_checked(&checked, input);
-            let self_cell = main_self(&mut evaluator, &checked, 4);
-            let mut frame = Frame::bare(self_cell.clone(), machine_symbol);
+            let mut frame = input_frame(&mut evaluator, &checked, 4);
             let value = evaluator
                 .try_host_call(&call, &mut frame)
                 .unwrap_or_else(|_| panic!("{input:?}: bounded serve"))
@@ -804,18 +826,13 @@ mod tests {
             ("[1..3]", &b"wxyz"[..], "Full", 2, &b"\xA5wx\xA5"[..], 2),
         ] {
             let source = BOUNDED_CONSOLE_SOURCE.replace(
-                "Helper::take(&mut self.line);",
-                &format!("Helper::take(&mut self.line{destination});"),
+                "Helper::take(&mut main.line);",
+                &format!("Helper::take(&mut main.line{destination});"),
             );
             let checked = crate::front_end::checked_program(&source);
             let call = read_line_call(&checked, "Console");
-            let machine_symbol = checked
-                .realized_machine_named("Main::main")
-                .expect("Main machine")
-                .symbol;
             let mut evaluator = Evaluator::new_checked(&checked, input);
-            let self_cell = main_self(&mut evaluator, &checked, 4);
-            let mut frame = Frame::bare(self_cell.clone(), machine_symbol);
+            let mut frame = input_frame(&mut evaluator, &checked, 4);
             let value = evaluator
                 .try_host_call(&call, &mut frame)
                 .unwrap_or_else(|_| panic!("{input:?} {destination}: bounded serve"))
@@ -848,12 +865,12 @@ mod tests {
     #[test]
     fn unit_returning_read_line_keeps_the_legacy_fallback() {
         let checked = crate::front_end::checked_program(
-            "pub domain [u8]::LineUtf8
+            "pub domain [u8]::LineUtf8(bytes)
             requires
-                valid_utf8(self);
-            pub domain [u8; 16]::LineUtf8
+                valid_utf8(bytes);
+            pub domain [u8; 16]::LineUtf8(bytes)
             requires
-                valid_utf8(self);
+                valid_utf8(bytes);
             pub boundary trait Console {
                 machine read_line(out_line: &mut [u8; 16] in LineUtf8);
             }
@@ -862,18 +879,13 @@ mod tests {
             }
             pub data Helper {}
             machine Helper::take(out: &mut [u8; 16] in LineUtf8) {}
-            machine Main::main(&mut self) {
-                Helper::take(&mut self.line);
+            machine Main::main(main: &mut Main) {
+                Helper::take(&mut main.line);
             }",
         );
         let call = read_line_call(&checked, "Console");
-        let machine_symbol = checked
-            .realized_machine_named("Main::main")
-            .expect("Main machine")
-            .symbol;
         let mut evaluator = Evaluator::new_checked(&checked, b"hi\n");
-        let self_cell = main_self(&mut evaluator, &checked, 16);
-        let mut frame = Frame::bare(self_cell.clone(), machine_symbol);
+        let mut frame = input_frame(&mut evaluator, &checked, 16);
         let value = evaluator
             .try_host_call(&call, &mut frame)
             .unwrap_or_else(|_| panic!("legacy serve"))
