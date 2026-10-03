@@ -156,6 +156,10 @@ receipts and old completed-turn statuses are insufficient. Until acknowledged,
 `effects` maps pending operation IDs to `execution_id`, `effect`, `evidence`;
 an applied create also supplies the mapping. Absence from an incomplete list
 proves nothing. No matching authoritative request search means preserve unknown.
+For a reconciled create, validate both the observed mapping and the create
+proof against live assignments. Retain executor identity supplied by either
+source; when both supply it, they must agree. An omitted executor in one source
+does not erase or exempt the identity reported by the other.
 
 A late unknown reply cannot undo an independently reconciled applied effect.
 Only known `not_applied` permits a fresh create intent; `retry_budget:0..3`
