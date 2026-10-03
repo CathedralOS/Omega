@@ -20,7 +20,9 @@ machine ordered(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8, destination: &m
 
 machine Main::main(main: &mut Main) reaches Console {
     let mut labels: Labels;
-    ordered(Main::next_label(main), Main::next_label(main), &mut labels);
+    let first_label: [u8; 8] in Utf8 = Main::next_label(main);
+    let second_label: [u8; 8] in Utf8 = Main::next_label(main);
+    ordered(first_label, second_label, &mut labels);
     main.observed.first = labels.first;
     main.observed.second = labels.second;
     transition main.observed.first == "North" && main.observed.first.len == 5
