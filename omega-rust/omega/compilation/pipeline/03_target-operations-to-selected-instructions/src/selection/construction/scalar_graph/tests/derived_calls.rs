@@ -5,13 +5,12 @@ use super::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedValueDefinition, OperationId,
     PsiProvenance, ScalarType, SelectedFunction, SelectedInstructionKind,
-    SelectedSelectionConstraints, StructuralTypeId, ValueDefinitionSite, ValueId,
-    VirtualRegisterId, build, returned,
+    SelectedSelectionConstraints, ValueDefinitionSite, ValueId, VirtualRegisterId, build, returned,
 };
 use crate::selection::construction::scalar_graph::tests::borrowed_calls;
 use crate::selection::construction::scalar_graph::tests::subslices;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use semantic_vocabulary::PlaceId;
 
 fn derived_call(target: target::NativeTarget, empty: bool) -> LegalizedScalarFunction {
     let mut source = subslices::view_fixture(target, empty);
@@ -46,15 +45,6 @@ fn derived_call(target: target::NativeTarget, empty: bool) -> LegalizedScalarFun
         psi_operation: OperationId::new(3).unwrap(),
     };
     source.blocks[0].instructions[3] = call;
-    source.structural.as_mut().unwrap().structural_places.push(
-        terminal_psi::StructuralPlaceDeclaration {
-            id: PlaceId::new(2).unwrap(),
-            kind: StructuralPlaceKind::OperationResult {
-                producer: OperationId::new(3).unwrap(),
-                structural_type: StructuralTypeId::new(1).unwrap(),
-            },
-        },
-    );
     returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
         value: ValueId::new(4).unwrap(),
         scalar_type: semantic_vocabulary::ScalarType::Integer(

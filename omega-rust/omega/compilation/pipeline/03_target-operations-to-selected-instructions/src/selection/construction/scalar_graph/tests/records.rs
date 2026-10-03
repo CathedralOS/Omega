@@ -675,3 +675,175 @@ fn nested_record_copy_uses_encodable_offsets_after_a_narrow_prefix() {
         }
     }
 }
+
+#[test]
+fn record_capture_replays_narrowed_descriptor_type_and_custody() {
+    use semantic_vocabulary::{PlaceId, StructuralFieldId};
+    use terminal_psi::{
+        BindingRelevance, RecordFieldInitializer, RecordFieldValue, StructuralAccess,
+        StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let mut source = super::subslices::view_fixture(target, true);
+        let element = StructuralTypeId::new(2).unwrap();
+        let record_type = StructuralTypeId::new(3).unwrap();
+        let scalar = source.blocks[0].instructions[0].result.unwrap().scalar_type;
+        let signature = source.structural.as_mut().unwrap();
+        let mut types = signature.structural_types.to_vec();
+        types[0].shape = StructuralTypeShape::ElementView { element };
+        types.push(StructuralTypeDeclaration {
+            id: element,
+            identity: "element".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar),
+        });
+        types.push(StructuralTypeDeclaration {
+            id: record_type,
+            identity: "descriptor_record".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "values".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(StructuralTypeId::new(1).unwrap()),
+                }],
+            },
+        });
+        signature.structural_types = types.into();
+        for row in &mut source.blocks[0].instructions {
+            row.kind = match row.kind.clone() {
+                LegalizedScalarInstructionKind::ByteSequenceLength {
+                    source,
+                    length_byte_offset,
+                } => LegalizedScalarInstructionKind::ElementViewLength {
+                    source,
+                    length_byte_offset,
+                },
+                LegalizedScalarInstructionKind::ByteSequenceSubslice {
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => LegalizedScalarInstructionKind::ElementViewSubslice {
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                    accepted_fact,
+                },
+                kind => kind,
+            };
+        }
+        let mut row = source.blocks[0].instructions[2].clone();
+        let mut result = row.kind.get_structural_result().unwrap().clone();
+        result.place = PlaceId::new(3).unwrap();
+        result.structural_type = record_type;
+        row.operation = OperationId::new(5).unwrap();
+        row.fuel[0].site = PsiProvenance::Operation(row.operation);
+        row.kind = LegalizedScalarInstructionKind::EstablishRecord {
+            result,
+            fields: vec![RecordFieldInitializer {
+                field: StructuralFieldId::new(1).unwrap(),
+                value: RecordFieldValue::Structural(StructuralArgument {
+                    place: PlaceId::new(2).unwrap(),
+                    path: vec![],
+                    access: StructuralAccess::Owned,
+                }),
+            }],
+            shape: ValueShape::integer(16, 8),
+        };
+        source.provenance.operations.push(row.operation);
+        source.structural.as_mut().unwrap().structural_places.push(
+            terminal_psi::StructuralPlaceDeclaration {
+                id: PlaceId::new(3).unwrap(),
+                kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer: row.operation,
+                    structural_type: record_type,
+                },
+            },
+        );
+        source.blocks[0].instructions.push(row);
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: vec![],
+        };
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap_or_else(|error| panic!("narrowed record {target:?}: {error:?}"));
+        let validate = |source: &LegalizedScalarFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                source,
+                &selected,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&source).unwrap();
+        for mutation in 0..3 {
+            let mut changed = source.clone();
+            if mutation == 0 {
+                // Equal descriptor width cannot substitute a different element.
+                let alternative = StructuralTypeId::new(4).unwrap();
+                let signature = changed.structural.as_mut().unwrap();
+                let mut types = signature.structural_types.to_vec();
+                types.push(StructuralTypeDeclaration {
+                    id: alternative,
+                    identity: "other_elements".into(),
+                    shape: StructuralTypeShape::ElementView {
+                        element: record_type,
+                    },
+                });
+                signature.structural_types = types.into();
+                let LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } =
+                    &mut changed.blocks[0].instructions[2].kind
+                else {
+                    panic!("view");
+                };
+                result.structural_type = alternative;
+                assert!(
+                    crate::selection::record_input::fields(
+                        &changed,
+                        &changed.blocks[0].instructions[4]
+                    )
+                    .is_none()
+                );
+            } else {
+                let LegalizedScalarInstructionKind::EstablishRecord { fields, .. } =
+                    &mut changed.blocks[0].instructions[4].kind
+                else {
+                    panic!("record");
+                };
+                let RecordFieldValue::Structural(argument) = &mut fields[0].value else {
+                    panic!("field");
+                };
+                if mutation == 1 {
+                    argument.access = StructuralAccess::MutableBorrow;
+                } else {
+                    argument.place = PlaceId::new(99).unwrap();
+                }
+            }
+            assert!(validate(&changed).is_err());
+        }
+    }
+}

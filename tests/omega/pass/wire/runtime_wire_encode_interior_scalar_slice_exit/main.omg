@@ -1,0 +1,65 @@
+// A borrowed scalar slice carries its runtime element count in the fat
+// descriptor. compact_binary measures the exact packed-varint body, proves
+// the trailing output capacity, then walks the elements again to emit them.
+//
+// A nonzero start skips the sentinel 99 in the backing array.
+// readings = [-1, 64, -65] as zigzag i32:
+//   era 0         00
+//   tag 0         00
+//   body length 5 05
+//   -1            01
+//   64            80 01
+//   -65           81 01
+// Total: 8 bytes.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Telemetry {
+    #0 readings: &[i32];
+}
+
+data TelemetrySample {
+    readings: &[i32];
+}
+
+data Main {
+    console: Binding<Console>;
+    source: [i32; 4];
+    buffer: [u8; 64];
+    written: u64;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.source[0] = 99;
+    main.source[1] = -1;
+    main.source[2] = 64;
+    main.source[3] = -65;
+    let sample: TelemetrySample =
+        TelemetrySample { readings: main.source[1..4] };
+
+    Telemetry::encode(&sample, &mut main.buffer, &mut main.written);
+
+    let ok: bool = main.written == 8
+        && main.buffer[0] == 0
+        && main.buffer[1] == 0
+        && main.buffer[2] == 5
+        && main.buffer[3] == 1
+        && main.buffer[4] == 128
+        && main.buffer[5] == 1
+        && main.buffer[6] == 129
+        && main.buffer[7] == 1;
+
+    transition ok {
+        true -> good(main)
+        false -> bad(main)
+    }
+
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
+    }
+}

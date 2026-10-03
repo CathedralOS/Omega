@@ -187,34 +187,7 @@ pub(super) fn field_shape(
                         .iter()
                         .flat_map(|block| &block.instructions)
                         .filter_map(|row| {
-                            let result = match &row.kind {
-                                LegalizedScalarInstructionKind::EstablishRecord {
-                                    result, ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishElementView {
-                                    result,
-                                    ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishReference {
-                                    result,
-                                    ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishCase {
-                                    result, ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishZeroedStructural {
-                                    result,
-                                    ..
-                                }
-                                | LegalizedScalarInstructionKind::StructuralLeafCopy {
-                                    result,
-                                    ..
-                                } => result,
-                                LegalizedScalarInstructionKind::Call(call) => {
-                                    call.structural_result.as_ref()?
-                                }
-                                _ => return None,
-                            };
+                            let result = row.kind.get_structural_result()?;
                             (result.place == argument.place).then_some((
                                 result.structural_type,
                                 result.multiplicity != StructuralMultiplicity::Linear
@@ -296,34 +269,7 @@ pub(super) fn field_shape(
                         .iter()
                         .flat_map(|block| &block.instructions)
                         .filter_map(|row| {
-                            let result = match &row.kind {
-                                LegalizedScalarInstructionKind::EstablishRecord {
-                                    result, ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishReference {
-                                    result,
-                                    ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishScalarArray {
-                                    result,
-                                    ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishCase {
-                                    result, ..
-                                }
-                                | LegalizedScalarInstructionKind::EstablishZeroedStructural {
-                                    result,
-                                    ..
-                                }
-                                | LegalizedScalarInstructionKind::StructuralLeafCopy {
-                                    result,
-                                    ..
-                                } => result,
-                                LegalizedScalarInstructionKind::Call(call) => {
-                                    call.structural_result.as_ref()?
-                                }
-                                _ => return None,
-                            };
+                            let result = row.kind.get_structural_result()?;
                             (result.place == argument.place).then_some((
                                 result.structural_type,
                                 result.multiplicity != StructuralMultiplicity::Linear
@@ -392,10 +338,6 @@ fn descriptor_family(actual: Option<&StructuralTypeShape>, expected: &Structural
             StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
                 ..
             }),
-        )
-        | (
-            Some(StructuralTypeShape::ElementView { .. }),
-            StructuralTypeShape::ElementView { .. },
         ) => true,
         _ => false,
     }

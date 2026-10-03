@@ -276,12 +276,7 @@ impl DescriptorLoans {
     ) -> Option<DescriptorCompatibilityRequirement> {
         let incoming = loan.incoming.as_ref()?;
         let source = demand.root?;
-        if loan.access != StructuralAccess::SharedBorrow
-            || !self.exclusive_inputs.contains(&source)
-            || !demand.projection.exact
-            || demand.projection.indirect
-            || demand.projection.window.is_some()
-            || demand.projection.captured_at.is_some()
+        if loan.access != StructuralAccess::SharedBorrow || !self.exclusive_inputs.contains(&source)
         {
             return None;
         }
@@ -290,7 +285,9 @@ impl DescriptorLoans {
             loan: incoming.clone(),
             demand: DescriptorCallOrigin::Argument {
                 source,
-                projection: demand.projection.clone(),
+                // Widen only the demand. The caller must prove compatibility
+                // with this entire storage, retaining the loan's captured view.
+                projection: demand.projection.enclosing_storage()?,
             },
         })
     }
