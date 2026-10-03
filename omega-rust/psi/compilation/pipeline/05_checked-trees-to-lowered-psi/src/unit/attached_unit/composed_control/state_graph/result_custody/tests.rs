@@ -1,6 +1,94 @@
 use super::*;
 
 #[test]
+fn boundary_operands_retire_local_owners_with_exact_transfer_receipts() {
+    for producer in ["Host::make(10)", "Packet { value: 10 }", "make(10)"] {
+        let checked = crate::front_end::checked_program(&format!(
+            r#"
+            data Packet {{ value: u32; }}
+            boundary trait Host {{
+                machine make(value: u32) -> Packet;
+                machine consume(value: Packet) -> u32;
+            }}
+            machine make(value: u32) -> Packet {{ Packet {{ value: value }} }}
+            machine main() -> bool reaches Host {{
+                let first: Packet = {producer};
+                let second: Packet = Host::make(20);
+                let first_value: u32 = Host::consume(first);
+                let second_value: u32 = Host::consume(second);
+                transition first_value == 10 && second_value == 20 {{
+                    true -> yes()
+                    false -> no()
+                }}
+                state yes() -> bool {{ true }}
+                state no() -> bool {{ false }}
+            }}
+            "#
+        ));
+        let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
+            .expect("boundary calls consume local owners independently of their producer");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("boundary operand transfer verifies without an exit drop of moved storage");
+
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .expect("main");
+        let state = &checked.machine_states(machine)[0];
+        let StatementNode::LocalData(first) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("first packet declaration");
+        };
+        let transfer = checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .find_map(|(handle, event)| {
+                (event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.root == facts::PlaceRoot::Symbol(first.symbol)
+                    && event.kind == PermissionEventKind::Transfer)
+                    .then_some(handle)
+            })
+            .expect("first packet's owned call transfer");
+        for corruption in ["missing", "duplicate", "occurrence", "provenance"] {
+            let mut forged = checked.clone();
+            let permissions = &mut forged.facts.flow.ownership.permissions;
+            match corruption {
+                "missing" => {
+                    permissions.get_mut(transfer).machine_symbol = Default::default();
+                }
+                "duplicate" => {
+                    let event = permissions.get(transfer).clone();
+                    permissions.insert(event);
+                }
+                "occurrence" => {
+                    permissions.get_mut(transfer).source = PermissionEventSource::StateExit;
+                }
+                "provenance" => {
+                    permissions.get_mut(transfer).provenance =
+                        language_semantics::PermissionProvenance::Unknown;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                crate::lower_machine(&forged, crate::TerminalMachineSelection::Name("main"))
+                    .is_err(),
+                "boundary transfer with {corruption} evidence must not publish"
+            );
+        }
+    }
+}
+
+#[test]
 fn qualified_byte_disposition_replays_constructor_and_call_local_carriers() {
     let checked = crate::front_end::checked_program(
         r#"
