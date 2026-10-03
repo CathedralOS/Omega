@@ -30,23 +30,23 @@ machine Cell::fresh(sum: Sum, len: u64) -> Cell {
     transition { _ -> (Cell { sum: sum, len: len }) }
 }
 
-machine Cell::get_sum(&self) -> Sum {
-    self.sum
+machine Cell::get_sum(cell: &Cell) -> Sum {
+    cell.sum
 }
 
-machine Cell::get_len(&self) -> u64 {
-    self.len
+machine Cell::get_len(cell: &Cell) -> u64 {
+    cell.len
 }
 
-machine Sum::size(&self, unit: u64) -> u64 {
-    transition self {
+machine Sum::size(sum: &Sum, unit: u64) -> u64 {
+    transition sum {
         Sum::First -> (unit)
         Sum::Second { payload } -> (payload)
     }
 }
 
-machine Cell::size_of_sum(&self, unit: u64) -> u64 {
-    transition self.sum {
+machine Cell::size_of_sum(cell: &Cell, unit: u64) -> u64 {
+    transition cell.sum {
         Sum::First -> (unit)
         Sum::Second { payload } -> (payload)
     }
@@ -59,14 +59,14 @@ machine bump(x: u64) -> u64 {
 // API SHAPE 1 (AnonymousValueString::clone): `let mut` local initialized by a
 // structural-result call whose arguments hold nested calls.
 machine clone_cell(source: &Cell) -> Cell {
-    let mut value: Cell = Cell::fresh(source.get_sum(), source.get_len());
+    let mut value: Cell = Cell::fresh(Cell::get_sum(source), Cell::get_len(source));
     transition { _ -> (value) }
 }
 
 // API SHAPE 1b: record-literal field holding a nested call inside a local
 // initializer.
 machine init_field_call(source: &Cell) -> u64 {
-    let cell: Cell = Cell { sum: source.get_sum(), len: source.get_len() };
+    let cell: Cell = Cell { sum: Cell::get_sum(source), len: Cell::get_len(source) };
     transition { _ -> (cell.len) }
 }
 
@@ -74,8 +74,8 @@ machine init_field_call(source: &Cell) -> u64 {
 // scalar calls.
 machine Main::holds(result: Parse, want_len: u64, want_size: u64) -> bool {
     transition result {
-        Parse::Parsed { value } -> (value.get_len() == want_len
-            && value.get_sum().size(1) == want_size)
+        Parse::Parsed { value } -> (Cell::get_len(&value) == want_len
+            && Sum::size(&Cell::get_sum(&value), 1) == want_size)
         Parse::Refused -> (false)
     }
 }
@@ -92,7 +92,7 @@ machine size_of(sum: Sum, unit: u64) -> u64 {
     }
 }
 machine size_via_call(cell: Cell) -> u64 {
-    transition cell.get_sum() {
+    transition Cell::get_sum(&cell) {
         Sum::First -> (1)
         Sum::Second { payload } -> (payload)
     }
@@ -121,8 +121,8 @@ machine scrutinee_call(x: u64) -> u64 {
     }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let cell: Cell = Cell { sum: Sum::Second { payload: 5 }, len: 2 };
     let parsed: Parse = Parse::Parsed { value: cell };
-    self.console.exit_process(0);
+    main.console.exit_process(0);
 }
