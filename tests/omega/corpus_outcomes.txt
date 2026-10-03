@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 25.47, "load1_start": 25.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 13.89, "load1_start": 13.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1319,9 +1319,8 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d9
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
 pass/calls/case_payload_clone_observation_exit checked 938ms @bb878591d2fc+wt
 pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
-pass/calls/case_scrutinee_self_dispatch_exit rejected 461ms @f12f513338f0
-	argument `response` for state `get_result_address` expects the `Response` data type but got `ListResponse` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-	argument `response` for state `get_result_address` expects the `Response` data type but got `QueryResponse` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+pass/calls/case_scrutinee_self_dispatch_exit rejected 618ms @30ec01561a3d+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Response::get_result_address", reason: "scalar callee has no checked executable body", omission: Some("`Response::get_result_address` has no admitted body (local construction stopped at state graph: terminator: guarded jump successors: parameter transfer, state 0, statement 2)") })
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
