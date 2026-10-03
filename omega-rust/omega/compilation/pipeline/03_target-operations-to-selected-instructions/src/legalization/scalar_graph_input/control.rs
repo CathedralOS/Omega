@@ -100,7 +100,10 @@ pub(super) fn validate(
                 || multiplicity != declared.multiplicity
                 || !source_roster_matches
                 || (!declared.qualifications.is_empty()
-                    && !bounded_owned_byte_result(declared.structural_type, structural_types))
+                    && !structural_types.iter().any(|declaration| {
+                        declaration.id == declared.structural_type
+                            && declaration.shape.supports_result_qualifications()
+                    }))
                 || !declared.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
@@ -244,23 +247,6 @@ fn returned_roster_matches(
             .eq(declared.projected_qualifications.iter())
 }
 
-/// Root qualifications are semantic custody on the inline owner and do not
-/// change its aggregate return shape. A borrowed byte descriptor is a separate
-/// ABI family and never satisfies this result judgment.
-fn bounded_owned_byte_result(
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> bool {
-    structural_types.iter().any(|declaration| {
-        declaration.id == structural_type
-            && matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
-    })
-}
 fn terminal_edge(
     node: &OptimizationNode,
     edge: semantic_vocabulary::EdgeId,

@@ -55,7 +55,7 @@ pub use byte_sequence_predicates::{
     byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
     byte_parameter_predicates, byte_parameter_predicates_from_domains,
     byte_parameter_predicates_in, byte_predicate_requirement, byte_qualification_predicates_in,
-    byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
+    byte_sequence_concatenation_predicates, byte_sequence_source_predicates, byte_view_call_result,
     indexed_byte_store_goal, shared_byte_field_copy_predicates,
 };
 pub use call_composition::{

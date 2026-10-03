@@ -684,6 +684,35 @@ pub(super) fn emit(
             let source = evaluation.current_structural_place(source);
             let place = place_id(allocate_dense(&mut next_place)?);
             let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
+            let return_type = checked
+                .typed
+                .machine_states(
+                    checked
+                        .typed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.symbol == plan.machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "structural result has no exact machine",
+                        ))?,
+                )
+                .iter()
+                .find(|state| state.symbol == plan.state)
+                .ok_or(LoweringError::Unsupported(
+                    "structural result has no exact state",
+                ))?
+                .return_type;
+            // A byte view result's inside-borrow domains ride the same peeled
+            // carrier identity the result spells, so the machine publishes them
+            // as its own qualifications.
+            let qualifications =
+                validation::view_result_carrier_qualifications(&checked.typed, return_type)
+                    .map_err(LoweringError::Unsupported)?
+                    .iter()
+                    .map(|domain| {
+                        lookup_domain_id_for_carrier(domain_ids, *domain, structural_type)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
             Ok::<_, LoweringError>((
                 source,
                 terminal_psi::StructuralResultDeclaration {
@@ -698,7 +727,7 @@ pub(super) fn emit(
                             );
                         }
                     },
-                    qualifications: Vec::new(),
+                    qualifications,
                     projected_qualifications: Vec::new(),
                     reference_sources: result
                         .reference_sources

@@ -27,7 +27,7 @@ pub(crate) fn validate(
     let (owner, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
-    let (reference, expression, is_mutable, local) = match statements
+    let (reference, expression, is_mutable, _local) = match statements
         .get(result.statement_index as usize)
     {
         Some(checked_trees::statement::StatementNode::LocalData(local))
@@ -49,12 +49,19 @@ pub(crate) fn validate(
             let expression = crate::expression_preparation::source_custody::guarded_exits::completion_expression(
                 checked, authored, result.statement_index as usize,
             )?;
-            if validation::bounded_byte_buffer_capacity(&checked.typed, authored.return_type)
-                .is_none()
-                || !validation::has_plain_owned_contents_with_represented_constraints(
-                    &checked.typed,
-                    authored.return_type,
-                )
+            // A completion literal is either an owned bounded carrier or a
+            // shared byte view — the view's literal rides image storage just
+            // like a `let s: &[u8] = "ab";` local does.
+            let shared_view =
+                validation::slice_view_shell(&checked.typed, authored.return_type, &[])
+                    .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared);
+            if !shared_view
+                && (validation::bounded_byte_buffer_capacity(&checked.typed, authored.return_type)
+                    .is_none()
+                    || !validation::has_plain_owned_contents_with_represented_constraints(
+                        &checked.typed,
+                        authored.return_type,
+                    ))
             {
                 return unsupported("literal completion is not an owned bounded byte result");
             }
@@ -122,7 +129,7 @@ pub(crate) fn validate(
     let bytes = value.literal_bytes().ok_or(LoweringError::Unsupported(
         "borrowed byte local requires literal storage",
     ))?;
-    if !local || is_mutable {
+    if is_mutable {
         return unsupported("literal view local changed its binding custody");
     }
     let checked_trees::types::TypeReferenceNode::Reference {

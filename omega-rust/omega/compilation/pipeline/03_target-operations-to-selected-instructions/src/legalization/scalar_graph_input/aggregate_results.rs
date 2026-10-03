@@ -304,7 +304,11 @@ pub(super) fn header(
                 .shape()
             } else {
                 if result.multiplicity == StructuralMultiplicity::Linear
-                    || !result.qualifications.is_empty()
+                    || (!result.qualifications.is_empty()
+                        && !plan.structural_types.iter().any(|declaration| {
+                            declaration.id == result.structural_type
+                                && declaration.shape.supports_result_qualifications()
+                        }))
                     || !result.projected_qualifications.is_empty()
                 {
                     return Err(LegalizationError::custody());
@@ -486,11 +490,10 @@ fn borrowed_view_parameter(
             declaration.id == parameter.structural_type
                 && (declaration.shape.is_borrowed_byte_carrier()
                     || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
-        })
-            || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
-                parameter,
-                &plan.structural_types,
-            ))
+        }) || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+            parameter,
+            &plan.structural_types,
+        ))
 }
 
 fn byte_parameter(

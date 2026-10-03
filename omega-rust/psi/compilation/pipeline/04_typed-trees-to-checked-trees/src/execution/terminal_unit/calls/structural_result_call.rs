@@ -335,7 +335,18 @@ pub(super) fn build(
             transfers: CheckedUnitCallTransfers::StructuralCustody(
                 checked_trees::CheckedStructuralCallCustodyPlan {
                     reference_loan,
-                    result_qualifications: if represented_copy_result {
+                    result_qualifications: if validation::shared_slice_view_result(
+                        program,
+                        target_state.return_type,
+                    ) {
+                        // A shared view's declared byte-predicate domains
+                        // ride the same carrier identity its result spells.
+                        validation::view_result_carrier_qualifications(
+                            program,
+                            target_state.return_type,
+                        )
+                        .ok()?
+                    } else if represented_copy_result {
                         validation::structural_result_qualifications(
                             program,
                             target_state.return_type,

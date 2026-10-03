@@ -99,6 +99,23 @@ impl StructuralTypeShape {
             )
         )
     }
+
+    /// Root qualifications travel on a byte carrier — a bounded owner or a
+    /// shared view. The view's access binds on the field, parameter, or
+    /// result that declares it, so the type-registered shape carries none
+    /// and counts the same as an explicitly shared one; the declaring
+    /// member's own access check decides mutability.
+    pub const fn supports_result_qualifications(&self) -> bool {
+        matches!(
+            self,
+            Self::ByteSequence(
+                ByteSequenceCarrier::BoundedOwned { .. }
+                    | ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(crate::StructuralAccess::SharedBorrow),
+                    }
+            )
+        )
+    }
 }
 
 impl ByteSequenceCarrier {

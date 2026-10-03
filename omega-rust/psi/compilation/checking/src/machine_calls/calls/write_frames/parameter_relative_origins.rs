@@ -8,8 +8,8 @@ use crate::machine_calls::calls::write_frames::parameter_aliases::{
     ParameterRelativeFrameOrigin, expression_reborrows_transparent_alias_binding,
 };
 use crate::machine_calls::calls::write_frames::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path, same_place_origin,
-    split_place_root,
+    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, frame_place_path,
+    same_place_origin, split_place_root,
 };
 use crate::machine_calls::calls::write_frames::reference_origins;
 use crate::machine_calls::calls::write_frames::transparent_effects::{
@@ -209,6 +209,17 @@ fn parameter_relative_place_origins_in(
                 admit_carrier_roots,
             )?,
         },
+        // An authored literal names image storage directly: the backing is
+        // caller-independent, so the route needs no parameter root to be
+        // exported the way a parameter-spelled place does.
+        ExpressionNode::String(_) => vec![ParameterRelativeFrameOrigin {
+            place: FramePlaceOrigin {
+                path: String::new(),
+                precision: FramePathPrecision::Exact,
+                source: FrameSourcePlace::image_storage(),
+            },
+            parameter_symbol: SymbolHandle::invalid(),
+        }],
         ExpressionNode::Name(_) => parameter_relative_name_origins(
             program,
             current_machine,

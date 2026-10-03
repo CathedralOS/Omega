@@ -114,6 +114,12 @@ pub(crate) fn transparent_call_result_origins(
     let parameters = program.state_parameters(callee_state);
     let mut origins = Vec::new();
     for result_origin in result_origins {
+        if !result_origin.parameter_symbol.is_valid() {
+            // A parameter-independent route (image storage) names the same
+            // backing for every caller; it crosses the boundary unchanged.
+            push_unique_origin(&mut origins, result_origin.place);
+            continue;
+        }
         let result_parameter = parameters
             .iter()
             .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
@@ -266,25 +272,18 @@ pub(crate) fn transparent_callee_result_origins(
             .statement_table
             .statements(callee_state.statement_nodes);
         let (tail, prefix) = statements.split_last()?;
-        let result = match tail {
-            StatementNode::Expression(result) => *result,
-            // Every fallthrough must reach a result. Earlier guarded value
-            // arms contribute their own origins during the prefix walk.
+        // Every fallthrough must reach a result. A trailing expression
+        // publishes it directly; the tail's ordinary transition publishes one
+        // route per live value-target edge — a guarded arm contributes at
+        // the tail exactly as the earlier guarded arms do in the prefix
+        // walk. Earlier guarded value arms contribute their own origins
+        // during that walk.
+        match tail {
+            StatementNode::Expression(_) => {}
             StatementNode::Transition(transition)
-                if transition.exit == TransitionExit::Ordinary
-                    && !transition.continuation.is_valid()
-                    && transition.target.is_valid()
-                    && matches!(transition.guard, TransitionGuardNode::Always) =>
-            {
-                let TransitionTargetNode::Value(result) =
-                    program.statement_table.transition_target(transition.target)
-                else {
-                    return None;
-                };
-                *result
-            }
+                if transition.exit == TransitionExit::Ordinary => {}
             _ => return None,
-        };
+        }
 
         let parameters = program.state_parameters(callee_state);
         let mut local_aliases = Vec::new();
@@ -538,17 +537,67 @@ pub(crate) fn transparent_callee_result_origins(
                 _ => return None,
             }
         }
-        collect_returned_origins(
-            program,
-            callee_machine,
-            result,
-            parameters,
-            &local_aliases,
-            prefix,
-            symbols,
-            inference,
-            &mut returned_origins,
-        )?;
+        match tail {
+            StatementNode::Expression(result) => {
+                collect_returned_origins(
+                    program,
+                    callee_machine,
+                    *result,
+                    parameters,
+                    &local_aliases,
+                    prefix,
+                    symbols,
+                    inference,
+                    &mut returned_origins,
+                )?;
+            }
+            StatementNode::Transition(transition) => {
+                // A guarded tail's arm condition must preserve the
+                // transparent result, matching the earlier guarded arms.
+                if let TransitionGuardNode::When(guard) = transition.guard
+                    && expression_is_effectful_for_transparent_result(program, guard)
+                    && !value_expression_preserves_transparent_result(
+                        program,
+                        callee_machine,
+                        guard,
+                        None,
+                        symbols,
+                        inference,
+                        parameters,
+                        &local_aliases,
+                    )
+                {
+                    return None;
+                }
+                // Every live edge must produce a value: a named target
+                // leaves production to another body, which this relation
+                // does not model. Under `Always` the continuation cannot
+                // fire; under `When` both edges route possible results.
+                let guarded = matches!(transition.guard, TransitionGuardNode::When(_));
+                for edge in [transition.target, transition.continuation]
+                    .into_iter()
+                    .filter(|edge| edge.is_valid() && (guarded || *edge != transition.continuation))
+                {
+                    let TransitionTargetNode::Value(result) =
+                        program.statement_table.transition_target(edge)
+                    else {
+                        return None;
+                    };
+                    collect_returned_origins(
+                        program,
+                        callee_machine,
+                        *result,
+                        parameters,
+                        &local_aliases,
+                        prefix,
+                        symbols,
+                        inference,
+                        &mut returned_origins,
+                    )?;
+                }
+            }
+            _ => return None,
+        }
         Some(returned_origins)
     })();
     inference.active_states.pop();
@@ -590,6 +639,11 @@ fn collect_returned_origins(
     // primary resolver produced through bound locals and nested calls.
     .filter(|origins| {
         origins.iter().all(|origin| {
+            // An image-storage route names the same backing for every
+            // caller; it needs no parameter root to be exported.
+            if origin.place.source.is_static() {
+                return true;
+            }
             let Some(parameter) = parameters
                 .iter()
                 .find(|parameter| parameter.symbol == origin.parameter_symbol)

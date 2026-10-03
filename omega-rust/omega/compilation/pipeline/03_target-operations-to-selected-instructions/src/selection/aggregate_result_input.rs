@@ -374,7 +374,10 @@ pub(super) fn returned_descriptor<'a>(
     let placement = source.call_plan.result.as_ref()?;
     if identity != declared.structural_type
         || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !declared.qualifications.is_empty()
+        || (!declared.qualifications.is_empty()
+            && !signature.structural_types.iter().any(|row| {
+                row.id == declared.structural_type && row.shape.supports_result_qualifications()
+            }))
         || !declared.projected_qualifications.is_empty()
         || !terminal_semantics::descriptor_results::is_shared_descriptor(
             signature.structural_types.iter(),

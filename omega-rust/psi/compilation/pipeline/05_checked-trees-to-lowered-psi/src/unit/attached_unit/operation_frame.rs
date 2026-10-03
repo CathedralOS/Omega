@@ -2447,10 +2447,13 @@ impl OperationFrame<'_, '_> {
             static_reach_binding: None,
             suspension_crossing: None,
             result: OperationResult::Unit,
+            // A literal view's bytes are image storage: the predicate
+            // obligation belongs to the consuming store, as in
+            // `emit_literal_view`, not to this establishment.
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination,
                 bytes: bytes.to_vec(),
-                qualifications,
+                qualifications: Vec::new(),
             },
         });
         // The literal roster owns its declaration. Dense bindings index that

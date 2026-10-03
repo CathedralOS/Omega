@@ -140,7 +140,9 @@ pub(super) fn prepare_function_signature(
                 if result.multiplicity == StructuralMultiplicity::Linear
                     || !result.projected_qualifications.is_empty()
                     || (!result.qualifications.is_empty()
-                        && !bounded_owned_byte_result(result.structural_type, structural_types))
+                        && !structural_types.get(&result.structural_type).is_some_and(
+                            |declaration| declaration.shape.supports_result_qualifications(),
+                        ))
                 {
                     return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
                 }
@@ -257,23 +259,4 @@ pub(super) fn prepare_function_signature(
         parameters,
         dynamic_parameters,
     })
-}
-
-/// Root qualifications are semantic evidence and do not change a bounded
-/// owner's `{live length, inline capacity}` result shape. Other qualified
-/// structural families remain outside the native call contract.
-fn bounded_owned_byte_result(
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    structural_types: &StructuralTypeLookup<'_>,
-) -> bool {
-    structural_types
-        .get(&structural_type)
-        .is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
-        })
 }

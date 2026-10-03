@@ -3147,10 +3147,10 @@ impl Replay<'_> {
                     || !declared_or_minted_qualifications(declared, expected)
                     || declared.projected_qualifications != expected.projected_qualifications
                     || (!declared.qualifications.is_empty()
-                        && !bounded_owned_byte_result(
-                            declared.structural_type,
-                            self.declarations,
-                        ))
+                        && !self.declarations.iter().any(|declaration| {
+                            declaration.id == declared.structural_type
+                                && declaration.shape.supports_result_qualifications()
+                        }))
                     || !declared.projected_qualifications.is_empty()
                     || !callee.entry_claims.is_empty()
                     // The retained leaf roster must equal the roster the
@@ -3271,24 +3271,6 @@ fn declared_or_minted_qualifications(
         .copied()
         .collect::<BTreeSet<_>>();
     retained.len() == expected.qualifications.len() && retained == roster
-}
-
-/// A bounded owner transports its exact semantic root roster beside the same
-/// aggregate `{live length, inline capacity}` shape. Borrowed views and every
-/// other qualified structural result remain outside this ordinary result ABI.
-fn bounded_owned_byte_result(
-    structural_type: StructuralTypeId,
-    declarations: &[StructuralTypeDeclaration],
-) -> bool {
-    declarations.iter().any(|declaration| {
-        declaration.id == structural_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
-    })
 }
 
 /// A scalar result retains its home at this operation with the declared value,
