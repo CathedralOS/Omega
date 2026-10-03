@@ -16,6 +16,18 @@ impl Checker<'_> {
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
         match view {
+            TargetByteView::Result {
+                psi_operation,
+                place,
+                structural_type,
+            } => {
+                *place == source
+                    && super::super::byte_views::descriptor_result(
+                        self.optimized,
+                        source,
+                        self.types,
+                    ) == Some((*psi_operation, *structural_type))
+            }
             TargetByteView::Owned {
                 psi_operation,
                 place,

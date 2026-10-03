@@ -489,6 +489,10 @@ pub(in crate::selection) fn validate_with_environment(
     if replay.register_cursor != selected.virtual_registers.len() {
         return Err(invalid());
     }
+    crate::selection::returned_view_input::replay_memory_origins(
+        source,
+        &mut replay.transport.memory,
+    )?;
     if replay.transport.calls != selected.calls
         || replay.transport.normalized_foreign_calls != selected.normalized_foreign_calls
         || replay.transport.slots != selected.outgoing_arguments

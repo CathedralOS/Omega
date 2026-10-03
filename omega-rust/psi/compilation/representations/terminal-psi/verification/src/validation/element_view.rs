@@ -8,39 +8,14 @@ pub(crate) mod read;
 pub(crate) mod subslice;
 pub(crate) mod write;
 
-use crate::validation::{
-    StructuralAccess, StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
-};
+use crate::validation::{StructuralAccess, StructuralPlaceKind, TerminalMachine, TerminalModule};
 
 /// The operation result a live view binding occupies, paired with the
 /// access its establishment minted: a shared view lends only shared; a
 /// mutable view supplies every borrow kind. Neither kind lets the place
 /// masquerade as an owned local.
-pub(crate) fn view_loan_result<'a>(
-    caller: &'a TerminalMachine,
-    place: crate::validation::PlaceId,
-) -> Option<(
-    &'a terminal_psi::StructuralOperationResult,
-    StructuralAccess,
-)> {
-    view_loan_result_in_access(None, caller, place)
-}
-
-/// The module-aware view-loan lookup: registers every producer the module's
-/// type declarations can authenticate, including call results.
 pub(crate) fn view_loan_result_in_module<'a>(
     module: &TerminalModule,
-    caller: &'a TerminalMachine,
-    place: crate::validation::PlaceId,
-) -> Option<(
-    &'a terminal_psi::StructuralOperationResult,
-    StructuralAccess,
-)> {
-    view_loan_result_in_access(Some(module), caller, place)
-}
-
-fn view_loan_result_in_access<'a>(
-    module: Option<&TerminalModule>,
     caller: &'a TerminalMachine,
     place: crate::validation::PlaceId,
 ) -> Option<(
@@ -74,7 +49,7 @@ fn view_loan_result_in_access<'a>(
 /// Every step consumes a distinct declaration in a valid chain, so the place
 /// count bounds malformed cycles without using the host stack.
 fn view_access(
-    module: Option<&TerminalModule>,
+    module: &TerminalModule,
     machine: &TerminalMachine,
     mut place: crate::validation::PlaceId,
 ) -> Option<StructuralAccess> {
@@ -148,30 +123,26 @@ fn view_access(
                         place = *source;
                         continue;
                     }
-                    OperationKind::CallStructural { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. } => {
-                        // A view-typed call result is always shared: `&mut`
-                        // and `&write` results mint reference-carrier types and
-                        // never reach a view shape, so this producer needs no
-                        // access evidence beyond the declared view family.
-                        let Some(module) = module else {
-                            return None;
-                        };
-                        if !module.structural_types.iter().any(|declaration| {
-                            declaration.id == structural_type
-                                && matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                            ..
-                                        } | terminal_psi::ByteSequenceCarrier::BoundedView {
-                                            ..
-                                        }
-                                    ) | StructuralTypeShape::ElementView { .. }
-                                )
-                        }) {
+                    OperationKind::StructuralLeafCopy { .. } => {
+                        if result.multiplicity != StructuralMultiplicity::Unrestricted
+                            || !terminal_semantics::descriptor_results::is_shared_descriptor(
+                                module.structural_types.iter(),
+                                structural_type,
+                            )
+                        {
                             return None;
                         }
+                        // Leaf-copy verification checks the exact readable
+                        // source and copyable selected type independently.
+                        StructuralAccess::SharedBorrow
+                    }
+                    OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. } => {
+                        // A signature alone cannot lend backing. Reconstruct
+                        // every normal return and substitute this exact call.
+                        terminal_semantics::descriptor_results::call_origins(
+                            module, machine, operation,
+                        )?;
                         StructuralAccess::SharedBorrow
                     }
                     _ => return None,
@@ -304,7 +275,9 @@ mod tests {
         let mut machine = fixture(StructuralAccess::MutableBorrow);
         let destination = PlaceId::new(3).unwrap();
         assert_eq!(
-            view_loan_result_in_module(&module, &machine, destination).unwrap().1,
+            view_loan_result_in_module(&module, &machine, destination)
+                .unwrap()
+                .1,
             StructuralAccess::MutableBorrow
         );
         machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
@@ -316,7 +289,9 @@ mod tests {
             result.multiplicity = StructuralMultiplicity::Unrestricted;
         }
         assert_eq!(
-            view_loan_result_in_module(&module, &machine, destination).unwrap().1,
+            view_loan_result_in_module(&module, &machine, destination)
+                .unwrap()
+                .1,
             StructuralAccess::SharedBorrow
         );
         let OperationResult::Structural(result) = &mut machine.blocks[0].operations[1].result

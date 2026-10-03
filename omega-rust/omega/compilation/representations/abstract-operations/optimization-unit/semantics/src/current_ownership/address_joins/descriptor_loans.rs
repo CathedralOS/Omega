@@ -81,6 +81,30 @@ impl DescriptorLoans {
                     )),
                     _ => None,
                 };
+                if let Some((_, result)) = node.operation.structural_result() {
+                    if let Some(origins) = borrowed_regions.call_origins(result.place) {
+                        births.extend(origins.iter().filter_map(|origin| match origin {
+                            terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } => Some((position, result.place, *source, projection.clone(), StructuralAccess::SharedBorrow)),
+                            terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. } => None,
+                        }));
+                    } else if matches!(node.operation, O::StructuralLeafCopy { .. })
+                        && terminal_semantics::descriptor_results::is_shared_descriptor(
+                            types.values().copied(),
+                            result.structural_type,
+                        )
+                        && let Some(aliases) = borrowed_regions.direct_aliases(result.place)
+                    {
+                        births.extend(aliases.iter().map(|(source, projection)| {
+                            (
+                                position,
+                                result.place,
+                                *source,
+                                projection.clone(),
+                                StructuralAccess::SharedBorrow,
+                            )
+                        }));
+                    }
+                }
                 if let Some((result, source, projection, access)) = descriptor {
                     births.push((position, result, source, projection, access));
                 }
@@ -89,7 +113,7 @@ impl DescriptorLoans {
         if births.is_empty() {
             return Self::default();
         }
-        let flow = DescriptorFlow::new(function, types);
+        let flow = DescriptorFlow::new(function, types, borrowed_regions);
         let mut loans = Vec::with_capacity(births.len());
         for (birth, descriptor, source, projection, access) in births {
             loans.push(DescriptorLoan {
@@ -456,6 +480,7 @@ fn known_descriptor_use(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     operation: &O,
+    borrowed_regions: &BorrowedRegions,
     closed_storage: &mut BTreeMap<StructuralTypeId, bool>,
 ) -> bool {
     if let O::CallStructural {
@@ -472,28 +497,41 @@ fn known_descriptor_use(
         // unrelated fields of its owner are not writable through this input.
         // Unknown storage, descriptor dispatch and explicit claim transfers
         // still require retained-lineage evidence and remain escapes here.
-        return matches!(
-            result,
+        let result_is_closed = match result {
             abstract_operations::AbstractStructuralCallResult::Unit
-                | abstract_operations::AbstractStructuralCallResult::Scalar(_)
-        ) && structural_arguments.iter().all(|argument| {
-            argument.access == StructuralAccess::SharedBorrow
-                || crate::unit_validation::operation_contracts::structural_source_contract(
-                    function,
-                    argument.place,
-                    false,
-                )
-                .is_some_and(|source| {
-                    argument_storage_is_closed(
-                        types,
-                        source.structural_type,
-                        &argument.path,
-                        argument.access,
-                        closed_storage,
+            | abstract_operations::AbstractStructuralCallResult::Scalar(_) => true,
+            abstract_operations::AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                ..
+            } => {
+                returned_claim_transfers.is_empty()
+                    && borrowed_regions.call_origins(result.place).is_some()
+            }
+        };
+        return result_is_closed
+            && structural_arguments.iter().all(|argument| {
+                argument.access == StructuralAccess::SharedBorrow
+                    || crate::unit_validation::operation_contracts::structural_source_contract(
+                        function,
+                        argument.place,
+                        false,
                     )
-                })
-        }) && dynamic_arguments.is_empty()
+                    .is_some_and(|source| {
+                        argument_storage_is_closed(
+                            types,
+                            source.structural_type,
+                            &argument.path,
+                            argument.access,
+                            closed_storage,
+                        )
+                    })
+            })
+            && dynamic_arguments.is_empty()
             && claim_transfers.is_empty();
+    }
+    if let O::StructuralLeafCopy { result, .. } = operation {
+        return borrowed_regions.direct_aliases(result.place).is_some();
     }
     matches!(
         operation,
@@ -523,6 +561,7 @@ impl DescriptorFlow {
     fn new(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        borrowed_regions: &BorrowedRegions,
     ) -> Self {
         let mut steps = BTreeMap::new();
         let mut closed_storage = BTreeMap::new();
@@ -540,6 +579,19 @@ impl DescriptorFlow {
                     | O::ByteSequenceSubslice { result, source, .. } => {
                         vec![(*source, result.place)]
                     }
+                    O::CallStructural {
+                        result:
+                            abstract_operations::AbstractStructuralCallResult::Structural {
+                                result, ..
+                            },
+                        ..
+                    }
+                    | O::StructuralLeafCopy { result, .. } => borrowed_regions
+                        .direct_aliases(result.place)
+                        .into_iter()
+                        .flatten()
+                        .map(|(source, _)| (*source, result.place))
+                        .collect(),
                     // Observing the record can observe any captured descriptor.
                     // Every field contributes its cohort; copying the carrier
                     // does not copy the storage those descriptors borrow.
@@ -595,6 +647,8 @@ impl DescriptorFlow {
                             O::EstablishElementView { .. }
                                 | O::ElementViewSubslice { .. }
                                 | O::ByteSequenceSubslice { .. }
+                                | O::CallStructural { .. }
+                                | O::StructuralLeafCopy { .. }
                         ) {
                             derivations.clone()
                         } else {
@@ -606,6 +660,7 @@ impl DescriptorFlow {
                             function,
                             types,
                             &node.operation,
+                            borrowed_regions,
                             &mut closed_storage,
                         ),
                         successors,

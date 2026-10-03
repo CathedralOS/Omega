@@ -159,7 +159,8 @@ fn disturbs(
         // the place's storage; a staged slot's address reaches only the
         // staged bytes.
         AddressLocal { slot } => local_slot_is_place_storage(slot, access.place, structural_places),
-        ReadPlace
+        ReadReturnedView { .. }
+        | ReadPlace
         | ReadByteSpan { .. }
         | ReadByteSequence { .. }
         | ReadElementView { .. }

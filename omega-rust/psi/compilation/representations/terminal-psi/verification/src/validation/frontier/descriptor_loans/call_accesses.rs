@@ -56,10 +56,11 @@ impl CallAccesses {
             return;
         };
         if matches.next().is_some()
-            || !matches!(
+            || !(matches!(
                 machine.result,
                 TerminalMachineResult::Unit | TerminalMachineResult::Scalar(_)
-            )
+            ) || terminal_semantics::descriptor_results::result_origins(module, machine)
+                .is_some())
             || !machine.entry_claims.is_empty()
             || machine
                 .structural_parameters
@@ -91,8 +92,7 @@ impl CallAccesses {
                 }
             }
             match &block.terminator {
-                Terminator::ReturnUnitNominalAffine { .. }
-                | Terminator::ReturnStructural { .. } => return,
+                Terminator::ReturnUnitNominalAffine { .. } => return,
                 Terminator::Return {
                     cleanup_actions, ..
                 } if cleanup_actions.iter().any(|action| {
@@ -213,6 +213,25 @@ fn ordinary_call(operation: &Operation) -> Option<(MachineId, &[StructuralArgume
                 operation.result,
                 OperationResult::Unit | OperationResult::Scalar(_)
             ) =>
+        {
+            Some((*callee, structural_arguments))
+        }
+        OperationKind::CallStructural {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            ..
+        } if claim_transfers.is_empty()
+            && returned_claim_transfers.is_empty()
+            && operation.result.structural().is_some() =>
         {
             Some((*callee, structural_arguments))
         }

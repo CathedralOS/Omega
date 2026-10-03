@@ -1,14 +1,12 @@
 //! Case layout correspondence after exact operation and abstract custody replay.
 use super::super::super::scalar_shape;
 use super::super::BlockId;
-use super::{
-    AbstractOperationPlan, PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation,
-};
+use super::{AbstractOperationPlan, PsiOptimizationFunction, TargetControlGraph};
 use crate::legalization::scalar_graph_input::target::control_flow::sources;
 use semantic_vocabulary::PlaceId;
 use target_operations::{
-    TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralCaseSource,
-    TargetStructuralHomeRequirement, TargetStructuralParameter,
+    TargetControlCaseSuccessor, TargetStructuralCaseSource, TargetStructuralHomeRequirement,
+    TargetStructuralParameter,
 };
 
 pub(super) fn home_available(
@@ -27,59 +25,35 @@ pub(super) fn home_available(
     match &source.origin {
         target_operations::TargetStructuralHomeOrigin::OperationResult { .. } => {
             let mut producers = graph.blocks.iter().flat_map(|candidate| {
-                candidate
-                    .operations
-                    .iter()
-                    .filter_map(move |operation| match operation {
-                        TargetUnitOperation::BoundarySettlement {
-                            result: TargetBoundaryResult::Structural(home),
-                            ..
-                        }
-                        | TargetUnitOperation::EstablishCase {
-                            result_home: home, ..
-                        }
-                        | TargetUnitOperation::EstablishRecord {
-                            result_home: home, ..
-                        }
-                        | TargetUnitOperation::EstablishZeroedStructural {
-                            result_home: home,
-                            ..
-                        }
-                        | TargetUnitOperation::EstablishStructuralLocal {
-                            result_home: home, ..
-                        }
-                        | TargetUnitOperation::EstablishScalarArray {
-                            result_home: home, ..
-                        }
-                        | TargetUnitOperation::EstablishReference {
-                            result_home: home, ..
-                        }
-                        | TargetUnitOperation::StructuralLeafCopy {
-                            result_home: home, ..
-                        }
-                        | TargetUnitOperation::Call {
-                            result:
-                                target_operations::TargetCallResult::Structural {
-                                    result_home: Some(home),
-                                    ..
-                                },
-                            ..
-                        } if home.place() == expected_source => {
-                            Some((candidate.block, home.clone()))
-                        }
-                        TargetUnitOperation::EstablishByteSequenceConcatenation {
-                            result, ..
-                        } if result.place == expected_source => Some((
-                            candidate.block,
-                            super::super::super::aggregate_results::result_home(
-                                optimized,
-                                expected_source,
-                                plan,
-                            )
-                            .ok()?,
-                        )),
-                        _ => None,
-                    })
+                candidate.operations.iter().filter_map(move |operation| {
+                    let (producer, result) = operation.structural_result()?;
+                    if result.place != expected_source {
+                        return None;
+                    }
+                    let expected = super::super::super::aggregate_results::result_home(
+                        optimized,
+                        expected_source,
+                        plan,
+                    )
+                    .ok()?;
+                    if !matches!(&expected.origin,
+                        target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            operation, result: declaration,
+                        } if *operation == producer && declaration == result)
+                    {
+                        return None;
+                    }
+                    // An eagerly allocated home must agree too. Descriptor
+                    // producers retain the same exact result without claiming
+                    // that their backing is a fresh allocation.
+                    if operation
+                        .structural_result_home()
+                        .is_some_and(|(identity, home)| identity != producer || home != &expected)
+                    {
+                        return None;
+                    }
+                    Some((candidate.block, expected))
+                })
             });
             let Some((producer_block, home)) = producers.next() else {
                 return false;

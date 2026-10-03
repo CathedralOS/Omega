@@ -90,6 +90,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
     });
     source.blocks[0].instructions[0].kind =
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            descriptor_origins: Vec::new(),
             structural_result: None,
             source: NativeCallOrigin::Authored,
             callee: MachineId::new(2).unwrap(),

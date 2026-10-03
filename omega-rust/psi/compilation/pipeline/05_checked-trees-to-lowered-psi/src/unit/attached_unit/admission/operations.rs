@@ -47,7 +47,7 @@ pub(super) fn validate<'a>(
                 super::super::byte_locals::validate(checked, machine.state, operation)?;
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
-                super::super::view_ranges::binding_local(checked, machine.state, operation)?;
+                super::super::view_ranges::binding_site(checked, machine.state, operation)?;
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 source,

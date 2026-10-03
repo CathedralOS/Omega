@@ -163,6 +163,7 @@ fn disturbs(
 ) -> bool {
     use SelectedMemoryAccessRole::*;
     match access.role {
+        ReadReturnedView { .. } => true,
         ReadPlace | WritePlace => {
             matches!(subject.storage, SubjectStorage::Place)
                 && access.place == subject.place
@@ -969,6 +970,7 @@ fn reconstruct<'source>(
     {
         if byte_span {
             match access.role {
+                SelectedMemoryAccessRole::ReadReturnedView { .. } => {}
                 SelectedMemoryAccessRole::WriteByteSpan { .. } if write.is_none() => {
                     write = Some((index, access));
                 }

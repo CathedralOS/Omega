@@ -160,6 +160,15 @@ pub struct SelectedCallContract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedMemoryAccessRole {
+    /// Read through a completed shared descriptor. `producer` names the exact
+    /// call whose replayed origin roster owns the backing, including literal
+    /// machine namespaces. The row's place is the descriptor result, not an
+    /// independent allocation; offset/count are zero and grant no disjointness.
+    /// Until origin-aware alias analysis supplies a narrower proof, this read
+    /// interferes with every store. Descriptor payload loads remain ReadPlace.
+    ReadReturnedView {
+        producer: OperationId,
+    },
     /// Runtime span at byte_offset. byte_count must be zero; length is the
     /// authoritative extent, not a capacity or a fixed memory footprint.
     ReadByteSpan {

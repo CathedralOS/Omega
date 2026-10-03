@@ -270,7 +270,11 @@ fn land_result(
             {
                 return Err(unsupported());
             }
-            if bounded_owned_byte_result(result.structural_type, types)
+            if (bounded_owned_byte_result(result.structural_type, types)
+                || terminal_semantics::descriptor_results::is_shared_descriptor(
+                    types.values().copied(),
+                    result.structural_type,
+                ))
                 && live
                     .views
                     .insert(result.place, (call.psi_operation, result.structural_type))

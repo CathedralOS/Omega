@@ -12,8 +12,7 @@ use target_operations::{
     TargetOperationPlan, TargetStructuralArgument, TargetStructuralArgumentSource,
 };
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeShape,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
 };
 
 pub(super) fn argument(
@@ -35,15 +34,10 @@ pub(super) fn argument(
             )
         })
         || formal.access != actual.access
-        || !plan.structural_types.iter().any(|declaration| {
-            declaration.id == formal.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    })
-                )
-        })
+        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+            plan.structural_types.iter(),
+            formal.structural_type,
+        )
     {
         return Ok(None);
     }
@@ -151,13 +145,26 @@ pub(super) fn argument(
             Some(result),
         )
     };
-    let Some((offset, _)) = crate::structural_inputs::structural_reference_input::bounded_byte_view(
-        &root,
-        actual,
-        formal.structural_type,
-        &plan.structural_types,
-    ) else {
-        return Ok(None);
+    // Descriptor payload and bounded-owner presentation are distinct physical
+    // carriers. A completed descriptor already has the formal's exact payload;
+    // an owner needs the existing backing/extent presentation adapter.
+    let offset = if actual.path.is_empty()
+        && super::super::byte_views::descriptor_result(caller, actual.place, &plan.structural_types)
+            .is_some_and(|(_, identity)| identity == formal.structural_type)
+    {
+        0
+    } else {
+        let Some((offset, _)) =
+            crate::structural_inputs::structural_reference_input::bounded_byte_view(
+                &root,
+                actual,
+                formal.structural_type,
+                &plan.structural_types,
+            )
+        else {
+            return Ok(None);
+        };
+        offset
     };
     let destination = call.parameters.get(ordinal).ok_or_else(invalid)?;
     if result_custody.is_some_and(|result| {

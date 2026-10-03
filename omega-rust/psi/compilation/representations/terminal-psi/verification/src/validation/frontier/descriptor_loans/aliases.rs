@@ -29,6 +29,16 @@ pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) ->
             let Some(result) = operation.result.structural() else {
                 continue;
             };
+            if let Some(origins) =
+                terminal_semantics::descriptor_results::call_origins(module, machine, operation)
+            {
+                for origin in origins {
+                    if let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } = origin {
+                        aliases.entry(result.place).or_default().push((source, projection.clone()));
+                        births.push((position, result.place, source, projection, StructuralAccess::SharedBorrow));
+                    }
+                }
+            }
             let descriptor = match &operation.kind {
                 OperationKind::EstablishElementView { source, .. }
                 | OperationKind::EstablishMutableElementView { source, .. }
@@ -43,6 +53,17 @@ pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) ->
                         position,
                     ),
                 )),
+                OperationKind::StructuralLeafCopy { source, path }
+                    if terminal_semantics::descriptor_results::is_shared_descriptor(
+                        module.structural_types.iter(),
+                        result.structural_type,
+                    ) =>
+                {
+                    let mut projection =
+                        accesses::projection(module, machine, *source, path, None, position);
+                    projection.indirect |= !path.is_empty();
+                    Some((*source, projection))
+                }
                 OperationKind::ElementViewSubslice {
                     source, start, end, ..
                 }
@@ -63,14 +84,18 @@ pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) ->
                     operation.kind,
                     OperationKind::ElementViewSubslice { .. }
                         | OperationKind::ByteSequenceSubslice { .. }
+                        | OperationKind::StructuralLeafCopy { .. }
                 ) || matches!(&operation.kind, OperationKind::EstablishElementView { source, .. }
                             if source.access == StructuralAccess::SharedBorrow);
-                if is_birth {
-                    if let Some((_, access)) =
-                        crate::validation::element_view::view_loan_result(machine, result.place)
-                    {
-                        births.push((position, result.place, source, projection, access));
-                    }
+                if is_birth
+                    && let Some((_, access)) =
+                        crate::validation::element_view::view_loan_result_in_module(
+                            module,
+                            machine,
+                            result.place,
+                        )
+                {
+                    births.push((position, result.place, source, projection, access));
                 }
             }
         }

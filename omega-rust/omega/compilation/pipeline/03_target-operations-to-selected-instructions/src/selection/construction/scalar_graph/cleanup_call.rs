@@ -150,6 +150,7 @@ mod tests {
                     arguments: Vec::new(),
                     result_placement: None,
                     structural_result: None,
+                    descriptor_origins: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),

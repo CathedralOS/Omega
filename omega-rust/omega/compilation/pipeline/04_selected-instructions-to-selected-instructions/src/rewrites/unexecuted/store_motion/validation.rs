@@ -144,6 +144,7 @@ fn interferes(
     function: &SelectedFunction,
 ) -> bool {
     match access.role {
+        SelectedMemoryAccessRole::ReadReturnedView { .. } => true,
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
             matches!(moved.storage, SubjectStorage::Place)
                 && access.place == moved.place

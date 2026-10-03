@@ -967,7 +967,8 @@ fn interferes(
         SelectedMemoryAccessRole::AddressLocal { slot } => {
             local_slot_is_place_storage(slot, access.place, structural_places)
         }
-        SelectedMemoryAccessRole::ReadPlace
+        SelectedMemoryAccessRole::ReadReturnedView { .. }
+        | SelectedMemoryAccessRole::ReadPlace
         | SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::ReadElementView { .. }

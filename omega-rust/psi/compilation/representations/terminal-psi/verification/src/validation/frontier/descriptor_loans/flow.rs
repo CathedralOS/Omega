@@ -31,6 +31,16 @@ pub(super) fn reconstruct(
                     | OperationKind::EstablishReference { source } => vec![(source.place, result)],
                     OperationKind::ElementViewSubslice { source, .. }
                     | OperationKind::ByteSequenceSubslice { source, .. } => vec![(*source, result)],
+                    OperationKind::StructuralLeafCopy { source, .. }
+                        if operation.result.structural().is_some_and(|result|
+                            terminal_semantics::descriptor_results::is_shared_descriptor(module.structural_types.iter(), result.structural_type)) => vec![(*source, result)],
+                    OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. } =>
+                        terminal_semantics::descriptor_results::call_origins(module, machine, operation)
+                            .into_iter().flatten().filter_map(|origin| match origin {
+                                terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, .. } => Some((source, result)),
+                                terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. } => None,
+                            }).collect(),
                     OperationKind::EstablishRecord { fields }
                     | OperationKind::EstablishStructuralCase { fields, .. } => fields
                         .iter()
@@ -60,6 +70,9 @@ pub(super) fn reconstruct(
                             | OperationKind::EstablishReference { .. }
                             | OperationKind::ElementViewSubslice { .. }
                             | OperationKind::ByteSequenceSubslice { .. }
+                            | OperationKind::StructuralLeafCopy { .. }
+                            | OperationKind::CallStructural { .. }
+                            | OperationKind::CallStructuralWithScalarArguments { .. }
                     ) {
                         derivations.clone()
                     } else {
@@ -266,14 +279,16 @@ fn add_edge(
 /// Only an authenticated affine view result has no-code carrier disposal.
 /// Aggregate, residual and nominal cleanup may observe payload and stay live.
 fn descriptor_disposal(module: &TerminalModule, machine: &TerminalMachine, place: PlaceId) -> bool {
-    crate::validation::element_view::view_loan_result(machine, place).is_some_and(|(result, _)| {
-        result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && module.structural_types.iter().any(|declaration| {
-                declaration.id == result.structural_type
-                    && (matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ElementView { .. }
-                    ) || declaration.shape.is_borrowed_byte_view())
-            })
-    })
+    crate::validation::element_view::view_loan_result_in_module(module, machine, place).is_some_and(
+        |(result, _)| {
+            result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && module.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && (matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ElementView { .. }
+                        ) || declaration.shape.is_borrowed_byte_view())
+                })
+        },
+    )
 }

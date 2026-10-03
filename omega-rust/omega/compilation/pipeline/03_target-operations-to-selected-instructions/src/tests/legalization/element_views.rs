@@ -1191,3 +1191,373 @@ fn owned_arrival_element_view_rejects_unavailable_backing() {
         assert!(admitted.is_err(), "unavailable backing mutation {mutation}");
     }
 }
+
+fn returned_view_source() -> abstract_operations::AbstractOperationPlan {
+    use abstract_operations::AbstractStructuralCallResult;
+    let mut plan = source();
+    let view = StructuralTypeId::new(2).unwrap();
+    let original = PlaceId::new(1).unwrap();
+    let first_result = PlaceId::new(4).unwrap();
+    let second_result = PlaceId::new(5).unwrap();
+    let mut callee = plan.functions[0].clone();
+    callee.machine = semantic_vocabulary::MachineId::new(2).unwrap();
+    callee.parameters.clear();
+    callee.result = AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+        place: PlaceId::new(99).unwrap(),
+        structural_type: view,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    callee.operations = vec![O::ReturnStructural {
+        psi_edge: EdgeId::new(2).unwrap(),
+        source: original,
+        returned_claims: Vec::new(),
+        trivial_affine_locals: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    }];
+    let caller = &mut plan.functions[0];
+    let mut other = caller.structural_parameters[0].clone();
+    other.place = PlaceId::new(9).unwrap();
+    other.position = 1;
+    caller.structural_parameters.push(other);
+    let call = |identity, place, parent| O::CallStructural {
+        psi_operation: OperationId::new(identity).unwrap(),
+        result: AbstractStructuralCallResult::Structural {
+            result: terminal_psi::StructuralOperationResult {
+                place,
+                structural_type: view,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+            returned_claim_transfers: Vec::new(),
+            selected_evidence: Vec::new(),
+        },
+        callee: callee.machine,
+        arguments: Vec::new(),
+        structural_arguments: vec![terminal_psi::StructuralArgument {
+            place: parent,
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        }],
+        dynamic_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let mut operations = vec![
+        call(10, first_result, original),
+        call(11, second_result, first_result),
+    ];
+    for mut operation in std::mem::take(&mut caller.operations) {
+        match &mut operation {
+            O::ElementViewLength { source, .. } | O::ElementViewRead { source, .. } => {
+                *source = second_result
+            }
+            _ => {}
+        }
+        operations.push(operation);
+    }
+    caller.operations = operations;
+    plan.functions.push(callee);
+    plan
+}
+
+#[test]
+fn returned_view_calls_replay_backing_origins_result_homes_and_memory_reads() {
+    use legalized_operations::{
+        LegalizedDescriptorOrigin as Origin, LegalizedScalarInstructionKind as K,
+    };
+    use selected_instructions::{LocalStorageSlotId, SelectedMemoryAccessRole as M};
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let source = returned_view_source();
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .expect("two descriptor calls and a returned element read lower");
+        let unit = super::accept_referenced_obligations(
+            optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap(),
+        );
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+        crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone())
+            .unwrap();
+        let caller = &legalized.plan().scalar_functions[0];
+        let calls = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|row| {
+                if let K::Call(call) = &row.kind {
+                    Some(call)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2);
+        // Each call substitutes its immediate actual. The second origin is
+        // the first descriptor result; its own call row retains the original
+        // input backing. Neither result becomes an independent allocation.
+        for (call, actual) in calls.into_iter().zip([1, 4]) {
+            assert!(
+                matches!(call.descriptor_origins.as_slice(), [Origin::Argument { source, exact: true, indirect: false }]
+                if source.place == PlaceId::new(actual).unwrap() && source.path.is_empty()),
+                "actual origins: {:?}",
+                call.descriptor_origins
+            );
+        }
+        for mutation in 0..6 {
+            let mut changed = legalized.plan().clone();
+            let call = changed.scalar_functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find_map(|row| match &mut row.kind {
+                    K::Call(call) if row.operation == OperationId::new(11).unwrap() => Some(call),
+                    _ => None,
+                })
+                .unwrap();
+            match mutation {
+                0 => {
+                    if let Origin::Argument { source, .. } = &mut call.descriptor_origins[0] {
+                        source.place = PlaceId::new(9).unwrap();
+                    }
+                }
+                1 => {
+                    if let Origin::Argument { source, .. } = &mut call.descriptor_origins[0] {
+                        source.path.push(Segment::Referent);
+                    }
+                }
+                2 => {
+                    if let Origin::Argument { source, .. } = &mut call.descriptor_origins[0] {
+                        source.access = StructuralAccess::MutableBorrow;
+                    }
+                }
+                3 => {
+                    if let Origin::Argument { indirect, .. } = &mut call.descriptor_origins[0] {
+                        *indirect = true;
+                    }
+                }
+                4 => {
+                    call.descriptor_origins[0] = Origin::Literal {
+                        machine: source.functions[1].machine,
+                        place: PlaceId::new(1).unwrap(),
+                    }
+                }
+                _ => call.descriptor_origins.clear(),
+            }
+            assert!(
+                crate::validate_legalized_operations(&targeted, &source, &unit, changed).is_err(),
+                "{native:?} origin mutation {mutation}"
+            );
+        }
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let caller = &selected.plan().functions[0];
+        assert!(caller.memory_accesses.iter().any(|row| matches!(row.role, M::ReadReturnedView { producer } if producer == OperationId::new(11).unwrap())
+            && row.place == PlaceId::new(5).unwrap() && row.byte_offset == 0 && row.byte_count == 0));
+        for mutation in 0..3 {
+            let mut changed = selected.plan().clone();
+            let caller = &mut changed.functions[0];
+            match mutation {
+                0 => {
+                    let access = caller
+                        .memory_accesses
+                        .iter_mut()
+                        .find(|row| matches!(row.role, M::ReadReturnedView { .. }))
+                        .unwrap();
+                    access.role = M::ReadReturnedView {
+                        producer: OperationId::new(10).unwrap(),
+                    };
+                }
+                1 => caller
+                    .memory_accesses
+                    .retain(|row| !matches!(row.role, M::ReadReturnedView { .. })),
+                _ => {
+                    let home = caller.local_storage_slots.iter_mut().find(|slot| matches!(slot.id, LocalStorageSlotId::Structural { place, .. } if place == PlaceId::new(5).unwrap())).unwrap();
+                    home.id = LocalStorageSlotId::Structural {
+                        operation: OperationId::new(10).unwrap(),
+                        place: PlaceId::new(5).unwrap(),
+                    };
+                }
+            }
+            assert!(
+                crate::validate_selected_instructions(
+                    &legalized,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed
+                )
+                .is_err(),
+                "{native:?} result residence mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn returned_subslice_materializes_descriptor_home_and_replays_its_producer() {
+    for bytes in [true, false] {
+        let mut source = source();
+        let view = StructuralTypeId::new(2).unwrap();
+        if bytes {
+            let mut types = source.structural_types.to_vec();
+            types[1].shape = StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                },
+            );
+            source.structural_types = types.into();
+        }
+        let function = &mut source.functions[0];
+        let place = PlaceId::new(1).unwrap();
+        let length = ValueId::new(2).unwrap();
+        let result = terminal_psi::StructuralOperationResult {
+            place: PlaceId::new(4).unwrap(),
+            structural_type: view,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        function.result =
+            AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+                place: PlaceId::new(99).unwrap(),
+                structural_type: view,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            });
+        let measured = AbstractResult {
+            value: length,
+            scalar_type: integer(IntegerSign::Unsigned, 64),
+        };
+        function.operations = vec![
+            if bytes {
+                O::ByteSequenceLength {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: measured,
+                    source: place,
+                }
+            } else {
+                O::ElementViewLength {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: measured,
+                    source: place,
+                }
+            },
+            if bytes {
+                O::ByteSequenceSubslice {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    result: result.clone(),
+                    source: place,
+                    start: ValueId::new(1).unwrap(),
+                    end: length,
+                    length,
+                    obligation: ObligationId::new(1).unwrap(),
+                }
+            } else {
+                O::ElementViewSubslice {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    result: result.clone(),
+                    source: place,
+                    start: ValueId::new(1).unwrap(),
+                    end: length,
+                    length,
+                    obligation: ObligationId::new(1).unwrap(),
+                }
+            },
+            O::ReturnStructural {
+                psi_edge: EdgeId::new(1).unwrap(),
+                source: result.place,
+                returned_claims: Vec::new(),
+                trivial_affine_locals: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            },
+        ];
+        let native = target::NativeTarget::macos_arm64();
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = super::accept_referenced_obligations(
+            optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap(),
+        );
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let mut changed = targeted.clone();
+        let graph = &mut changed.functions[0].graph;
+        let target_operations::TargetControlTerminator::ReturnStructural {
+            source: target_operations::TargetStructuralReturnSource::Home(home),
+            ..
+        } = &mut graph.blocks[0].terminator
+        else {
+            panic!("descriptor home return");
+        };
+        let target_operations::TargetStructuralHomeOrigin::OperationResult { operation, .. } =
+            &mut home.origin
+        else {
+            panic!("operation result home");
+        };
+        *operation = OperationId::new(1).unwrap();
+        assert!(
+            crate::legalize_target_operations(&changed, &source, &unit).is_err(),
+            "bytes={bytes}: substituted producer"
+        );
+    }
+}

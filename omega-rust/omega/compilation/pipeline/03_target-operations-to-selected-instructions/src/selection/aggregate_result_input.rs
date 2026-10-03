@@ -329,6 +329,16 @@ pub(super) fn call_result<'a>(
             result.structural_type,
             &source.structural.as_ref()?.structural_types,
         )?,
+        _ if terminal_semantics::descriptor_results::is_shared_descriptor(
+            source.structural.as_ref()?.structural_types.iter(),
+            result.structural_type,
+        ) && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted =>
+        {
+            crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                &source.structural.as_ref()?.structural_types,
+            )?
+        }
         _ => return None,
     };
     let placement = call.result_placement.as_ref()?;
@@ -360,7 +370,13 @@ pub(super) fn returned_parameter<'a>(
         .iter()
         .find(|parameter| parameter.semantic.place == *place)?;
     let semantic = &parameter.semantic;
-    if semantic.access != terminal_psi::StructuralAccess::Owned
+    let descriptor = semantic.access == terminal_psi::StructuralAccess::SharedBorrow
+        && semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && terminal_semantics::descriptor_results::is_shared_descriptor(
+            signature.structural_types.iter(),
+            semantic.structural_type,
+        );
+    if semantic.access != terminal_psi::StructuralAccess::Owned && !descriptor
         || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || semantic.structural_type != declared.structural_type
         || semantic.multiplicity != declared.multiplicity
@@ -377,11 +393,23 @@ pub(super) fn returned_parameter<'a>(
         semantic,
         &signature.structural_types,
     )?;
+    let payload_shape = if descriptor {
+        calling_conventions::ValueShape::integer(shape.byte_size, shape.alignment)
+    } else {
+        shape
+    };
+    let borrowed_pointer = descriptor
+        && matches!(parameter.target.placement.locations.as_slice(),
+        [calling_conventions::ValueLocation::Indirect {
+            copy_stack_byte_offset: None, byte_size, alignment, ..
+        }] if *byte_size == shape.byte_size && *alignment == shape.alignment);
     if parameter.target.shape != shape
-        || placement.shape != shape
+        || parameter.target.placement.shape != shape
+        || placement.shape != payload_shape
         || !(direct_fragments(placement)
             || indirect_result(placement, source.call_plan.policy).is_some())
-        || !(inline_argument_fragments(&parameter.target.placement)
+        || !(borrowed_pointer
+            || inline_argument_fragments(&parameter.target.placement)
             || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(
                 semantic,
                 &parameter.target.placement,
@@ -541,66 +569,19 @@ pub(super) fn returned<'a>(
             operation,
             result: returned,
         } => {
-            let row = source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
-                .find(|row| row.operation == *operation)?;
-            let (result, shape) = match &row.kind {
-                LegalizedScalarInstructionKind::EstablishRecord { result, shape, .. } => {
-                    super::record_input::fields(source, row)?;
-                    (result, *shape)
-                }
-                LegalizedScalarInstructionKind::EstablishScalarArray { result, shape, .. } => {
-                    super::scalar_array_input::elements(source, row)?;
-                    (result, *shape)
-                }
-                LegalizedScalarInstructionKind::StructuralLeafCopy { result, shape, .. } => {
-                    // A copied subtree returns its own completed storage, not
-                    // the root it observed. Rejoin the exact producer and
-                    // declaration-derived extent before using the return ABI.
-                    if home(source, result.place) != Some((*operation, result))
-                        || crate::structural_inputs::structural_reference_input::shape(
-                            result.structural_type,
-                            &source.structural.as_ref()?.structural_types,
-                        )? != *shape
-                    {
-                        return None;
-                    }
-                    (result, *shape)
-                }
-                LegalizedScalarInstructionKind::EstablishCase { result, layout, .. } => {
-                    (result, layout.shape)
-                }
-                // The completed carrier home stores its selected address,
-                // which uses the ordinary one-word aggregate result ABI.
-                LegalizedScalarInstructionKind::EstablishReference { result, shape, .. } => {
-                    super::reference_input::establishment(source, row)?;
-                    (result, *shape)
-                }
-                LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                    result,
-                    ..
-                } => {
-                    if super::byte_concatenation_input::owned_type(source, result.place)
-                        != Some(result.structural_type)
-                    {
-                        return None;
-                    }
-                    (
-                        result,
-                        crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
-                            result.structural_type,
-                            &source.structural.as_ref()?.structural_types,
-                        )?,
-                    )
-                }
-                LegalizedScalarInstructionKind::Call(call) => (
-                    call.structural_result.as_ref()?,
-                    call.result_placement.as_ref()?.shape,
-                ),
-                _ => return None,
-            };
+            // Return transport observes the exact completed home, regardless
+            // of which operation produced its payload. Each instruction has
+            // already replayed its computation; return custody rejoins the
+            // producer, declaration and payload geometry rather than a second
+            // list of accepted producer spellings.
+            let (producer, result) = home(source, returned.place)?;
+            if producer != *operation {
+                return None;
+            }
+            let shape = crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                &source.structural.as_ref()?.structural_types,
+            )?;
             // Minted qualification rosters are custody evidence carried on
             // the result row; the verbatim `result != returned` check is the
             // honest comparison — ensurances are not part of home shape.
@@ -935,7 +916,9 @@ pub(super) fn home(
             .iter()
             .any(|declaration| {
                 declaration.id == result.structural_type
-                    && matches!(
+                    && (terminal_semantics::descriptor_results::is_shared_descriptor(
+                        std::iter::once(declaration), declaration.id,
+                    ) || matches!(
                         declaration.shape,
                         StructuralTypeShape::Reference { .. }
                             | StructuralTypeShape::Record { .. }
@@ -944,7 +927,7 @@ pub(super) fn home(
                             | StructuralTypeShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                             )
-                    )
+                    ))
             })
     {
         return None;

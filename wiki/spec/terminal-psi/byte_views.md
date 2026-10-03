@@ -69,7 +69,20 @@ membership. Omega repeats this derivation over the current graph after lowering
 and optimization. Bounds, dominance, access, and custody remain independently
 required.
 
-The vocabulary described here does not carry borrowed structural returns.
+A shared byte or element descriptor may be returned through `ReturnStructural`.
+The result copies its backing address and extent; it does not borrow the callee's
+or caller's descriptor home. Verification reconstructs the exact returned
+operation, incoming block bindings and ordinary callee bodies to identify every
+possible original backing. Each origin must be borrowed ingress storage or
+immutable literal backing. Owning an incoming descriptor does not mean owning
+its backing; returning a view of activation-owned storage is invalid.
+
+At an ordinary call, formal origins substitute the actual argument's root and
+projection. Returned descriptors and their descendants keep those backing loans
+live until their last observable use. A source signature alone supplies neither
+an origin nor access. Unknown or cyclic origin reconstruction rejects rather
+than inventing a lifetime; unresolved callee-local range coordinates retain the
+whole enclosing backing conservatively and never become caller scalar IDs.
 
 Measuring an established literal introduces the equality between that length
 result and the exact literal octet count, including zero and non-UTF-8 bytes.
@@ -170,7 +183,9 @@ Snapshot scalar values and descriptors before replacing any
 destination or applying cleanup. Fuel exhaustion commits no bindings. Evaluate
 only the selected conditional arm. Incoming descriptors bind the destination's
 own places; they need not share one static source. Structural-case transfers
-and borrowed returns require additional vocabulary rather than guessed bindings.
+require additional vocabulary rather than guessed bindings. Borrowed descriptor returns use the independently reconstructed backing
+relation above; ordinary call results retain that relation through subsequent
+uses and control transfers.
 
 Repeated slice-ranked execution may rebind a producer's own descriptor while
 other aliases retain their earlier views. Natural ranking is checked through

@@ -17,10 +17,12 @@ use terminal_semantics::borrowed_storage::{AliasSources, resolve};
 pub(in crate::current_ownership) use terminal_semantics::borrowed_storage::{
     Position, Projection, Region,
 };
+use terminal_semantics::descriptor_results::DescriptorCallOrigin;
 
 #[derive(Default)]
 pub(in crate::current_ownership) struct BorrowedRegions {
     aliases: AliasSources,
+    returned: BTreeMap<PlaceId, Vec<DescriptorCallOrigin>>,
     relations: Option<RangeRelations>,
     writes: BTreeMap<Position, Vec<(PlaceId, Vec<Region>)>>,
 }
@@ -32,7 +34,7 @@ impl BorrowedRegions {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Self {
-        let mut result = Self::origins(function);
+        let mut result = Self::origins(function, functions, types);
         let aliases = &result.aliases;
         if aliases.is_empty() {
             return result;
@@ -70,7 +72,58 @@ impl BorrowedRegions {
         result
     }
 
-    pub(in crate::current_ownership) fn origins(function: &PsiOptimizationFunction) -> Self {
+    pub(in crate::current_ownership) fn origins(
+        function: &PsiOptimizationFunction,
+        functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    ) -> Self {
+        // Prepare the current graph once for this receiving function. No source
+        // producer annotation or stale optimization snapshot supplies origins.
+        let calls =
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .filter_map(|node| match &node.operation {
+                    O::CallStructural {
+                        result:
+                            abstract_operations::AbstractStructuralCallResult::Structural {
+                                result, ..
+                            },
+                        ..
+                    } if result.multiplicity
+                        == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && terminal_semantics::descriptor_results::is_shared_descriptor(
+                            types.values().copied(),
+                            result.structural_type,
+                        ) =>
+                    {
+                        Some(result.place)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+        let mut returned = BTreeMap::new();
+        if !calls.is_empty() {
+            let declarations = types.values().copied().cloned().collect::<Vec<_>>();
+            if let Some(graph) = crate::descriptor_results::optimized_catalog_graph(
+                functions.values().copied(),
+                &declarations,
+            ) {
+                for place in calls {
+                    if let Some(origins) =
+                        terminal_semantics::descriptor_results::reconstruct_call_origins(
+                            &declarations,
+                            &graph,
+                            function.machine,
+                            place,
+                        )
+                    {
+                        returned.insert(place, origins);
+                    }
+                }
+            }
+        }
         let mut aliases = AliasSources::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
@@ -99,6 +152,22 @@ impl BorrowedRegions {
                         *source,
                         Projection::window(*start, *end, position),
                     )),
+                    O::StructuralLeafCopy {
+                        result,
+                        source,
+                        path: abstract_operations::StructuralCopyPath::Ordinary(path),
+                        ..
+                    } if result.multiplicity
+                        == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && terminal_semantics::descriptor_results::is_shared_descriptor(
+                            types.values().copied(),
+                            result.structural_type,
+                        ) =>
+                    {
+                        let mut projection = Projection::new(path).at(position);
+                        projection.indirect = !path.is_empty();
+                        Some((result.place, *source, projection))
+                    }
                     _ => None,
                 };
                 if let Some((result, source, projection)) = descriptor {
@@ -106,6 +175,18 @@ impl BorrowedRegions {
                         .entry(result)
                         .or_default()
                         .push((source, projection));
+                }
+                if let Some((_, result)) = node.operation.structural_result()
+                    && let Some(origins) = returned.get(&result.place)
+                {
+                    for origin in origins {
+                        if let DescriptorCallOrigin::Argument { source, projection } = origin {
+                            aliases
+                                .entry(result.place)
+                                .or_default()
+                                .push((*source, projection.clone().at(position)));
+                        }
+                    }
                 }
                 for edge in &node.successors {
                     for binding in &edge.structural_bindings {
@@ -121,9 +202,18 @@ impl BorrowedRegions {
         }
         Self {
             aliases,
+            returned,
             relations: None,
             writes: BTreeMap::new(),
         }
+    }
+
+    pub(super) fn call_origins(&self, result: PlaceId) -> Option<&[DescriptorCallOrigin]> {
+        self.returned.get(&result).map(Vec::as_slice)
+    }
+
+    pub(super) fn direct_aliases(&self, result: PlaceId) -> Option<&[(PlaceId, Projection)]> {
+        self.aliases.get(&result).map(Vec::as_slice)
     }
 
     pub(in crate::current_ownership) fn resolve(

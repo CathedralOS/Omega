@@ -155,7 +155,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
     let encoded = plan.encode();
-    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 41);
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 42);
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
     for encoded in [
         with_stale_version(&plan, 10),
@@ -164,6 +164,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         with_stale_version(&plan, 25),
         with_stale_version(&plan, 39),
         with_stale_version(&plan, 40),
+        with_stale_version(&plan, 41),
     ] {
         let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
         assert_eq!(

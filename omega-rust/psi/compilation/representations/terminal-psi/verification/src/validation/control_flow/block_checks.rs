@@ -4,8 +4,8 @@ use super::definitions::DefinitionSites;
 use crate::validation::operations::{require_defined, validate_operation_operands};
 use crate::validation::{
     BTreeMap, BTreeSet, BlockId, BoundaryMachineDeclaration, ContractClauseKind, MachineId,
-    ModuleError, OperationKind, ScalarType, StructuralAccess, StructuralPlaceKind,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueId, contracts,
+    ModuleError, OperationKind, ScalarType, StructuralAccess, StructuralPlaceKind, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueId, contracts,
 };
 use semantic_vocabulary::PlaceId;
 
@@ -373,12 +373,32 @@ pub(super) fn validate_block(
                     place: *source,
                 });
             }
-            if crate::validation::byte_sequence::subslice::borrowed_result_in_module(module, machine, *source)
-                .is_some()
-                || crate::validation::element_view::subslice::borrowed_result_in_module(module, machine, *source)
-                    .is_some()
-                || block_parameter
-                    .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+            let descriptor_result = machine.result.structural().is_some_and(|result| {
+                module.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ElementView { .. }
+                                | terminal_psi::StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                )
+                        )
+                })
+            });
+            // Literal backing has module residence; every other borrowed
+            // return must reconstruct its original nonlocal storage. Producer
+            // family and descriptor multiplicity cannot supply a lifetime.
+            let literal = machine.structural_places.iter().any(|place| {
+                place.id == *source
+                    && matches!(
+                        place.kind,
+                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+                    )
+            });
+            if descriptor_result
+                && !literal
+                && terminal_semantics::descriptor_results::return_origins(module, machine, *source)
+                    .is_none()
             {
                 return Err(ModuleError::ByteSequenceSubsliceReturnUnsupported {
                     machine: machine.id,

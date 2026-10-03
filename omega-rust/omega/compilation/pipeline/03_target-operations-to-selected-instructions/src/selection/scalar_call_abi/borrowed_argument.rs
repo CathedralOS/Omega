@@ -516,7 +516,14 @@ pub(super) fn validate_borrowed_argument(
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             let (producer, _) = aggregate_home?;
             let home_view = local_loan.is_some() && (byte_view.is_some() || element_view.is_some());
-            if (aggregate.is_none() && !home_view && owner_home.is_none())
+            let descriptor_home = established_view_loan.is_some()
+                && semantic.access == StructuralAccess::SharedBorrow
+                && crate::selection::established_view_input::descriptor_result(
+                    source,
+                    semantic.place,
+                )
+                .is_some_and(|(actual, _)| actual == producer);
+            if (aggregate.is_none() && !home_view && owner_home.is_none() && !descriptor_home)
                 || *psi_operation != producer
                 || producer == operation
             {

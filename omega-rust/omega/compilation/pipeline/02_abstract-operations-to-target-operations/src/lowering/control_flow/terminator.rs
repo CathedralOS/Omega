@@ -322,7 +322,24 @@ pub(super) fn lower_terminator(
                     .result
                     .as_ref()
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if parameter.access != StructuralAccess::Owned
+                // A shared descriptor returns its payload, not the address of
+                // the caller's descriptor. Borrowed ingress and value-result
+                // ABI classes therefore differ while their payload is equal.
+                let descriptor = parameter.access == StructuralAccess::SharedBorrow
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && terminal_semantics::descriptor_results::is_shared_descriptor(
+                        structural_types.values().copied(),
+                        parameter.structural_type,
+                    );
+                let result_shape = if descriptor {
+                    calling_conventions::ValueShape::integer(
+                        actual.shape.byte_size,
+                        actual.shape.alignment,
+                    )
+                } else {
+                    actual.shape
+                };
+                if (parameter.access != StructuralAccess::Owned && !descriptor)
                     || parameter.multiplicity == StructuralMultiplicity::Linear
                     || parameter.is_self
                     || parameter.structural_type != result.structural_type
@@ -333,7 +350,7 @@ pub(super) fn lower_terminator(
                     || !result.projected_qualifications.is_empty()
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()
-                    || actual.shape != placement.shape
+                    || result_shape != placement.shape
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }

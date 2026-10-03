@@ -720,6 +720,7 @@ fn instruction_surface_rows_reject() {
             instruction: EQUIVALENT,
             owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
             call: legalized_operations::LegalizedScalarCall {
+                descriptor_origins: Vec::new(),
                 source: legalized_operations::NativeCallOrigin::Authored,
                 callee: MachineId::new(42).unwrap(),
                 call_plan: calling_conventions::CallPlan {

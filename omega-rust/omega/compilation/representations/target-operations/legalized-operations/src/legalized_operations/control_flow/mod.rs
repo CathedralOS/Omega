@@ -9,12 +9,12 @@ mod trapping;
 pub use trapping::{TrappingForm, TrappingOperation};
 mod scalar_graph;
 pub use scalar_graph::{
-    LegalizedDynamicParameterCall, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,
-    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
-    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
-    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralCaseSource,
-    LegalizedValueDefinition,
+    LegalizedDescriptorOrigin, LegalizedDynamicParameterCall, LegalizedNormalizedForeignCall,
+    LegalizedRuntimeIndexOperand, LegalizedScalarArgument, LegalizedScalarBlock,
+    LegalizedScalarCall, LegalizedScalarComparison, LegalizedScalarFunction,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
+    LegalizedScalarTerminator, LegalizedStructuralCaseSource, LegalizedValueDefinition,
 };
 mod structural_case;
 pub use structural_case::{LegalizedStructuralCasePayload, LegalizedStructuralCaseSuccessor};

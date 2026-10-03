@@ -5,7 +5,7 @@ use calling_conventions::{CallPlan, ValuePlacement};
 use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, ValueDefinitionSite};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, ScalarType, StructuralTypeId, ValueId,
+    OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use target_operations::{
     TargetDynamicDescriptorParameterAbi, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
@@ -935,6 +935,7 @@ mod structural_result_tests {
     fn structural_call_result_lookup_preserves_absence_and_presence() {
         let expected = result();
         let mut call = LegalizedScalarCall {
+            descriptor_origins: Vec::new(),
             source: target_operations::NativeCallOrigin::Authored,
             callee: MachineId::new(1).unwrap(),
             call_plan: evaluate_call_plan(
@@ -1108,8 +1109,27 @@ impl LegalizedScalarTerminator {
     }
 }
 
+/// Borrowed result backing retained after independent current-graph replay.
+/// Descriptor home and backing identity remain distinct. Static path precision
+/// is retained even when a callee's runtime range forces a conservative parent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LegalizedDescriptorOrigin {
+    Argument {
+        source: terminal_psi::StructuralArgument,
+        exact: bool,
+        indirect: bool,
+    },
+    Literal {
+        machine: MachineId,
+        place: PlaceId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {
+    /// Replayed backing for an unrestricted shared descriptor result. Other
+    /// result custody contracts do not use this roster.
+    pub descriptor_origins: Vec<LegalizedDescriptorOrigin>,
     pub source: crate::NativeCallOrigin,
     pub callee: MachineId,
     pub call_plan: CallPlan,

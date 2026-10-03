@@ -1,8 +1,6 @@
-//! `&'a [u8]`/`&'a [T]` whole-view results forward the borrowed parameter's own
-//! storage as the result: no reference is established and nothing owned is
-//! consumed, so the `Parameter` result source passes straight through. Member
-//! projections and authored subslices still mint their own custody and keep
-//! their declines.
+//! Borrowed descriptors retain original backing through direct parameter,
+//! stored-field and narrowed-range returns. Each path reaches independent
+//! Terminal verification; producing a descriptor does not grant a lifetime.
 use crate::{TerminalMachineSelection, lower_machine};
 
 #[test]
@@ -52,10 +50,9 @@ fn member_whole_view_results_lower_and_verify() {
 }
 
 #[test]
-fn subslice_view_results_keep_their_frontier_decline() {
-    // An authored subslice establishes a new borrowed view over the carrier's
-    // storage — its emission still needs the ordered-destination custody that
-    // whole-parameter forwards do not.
+fn borrowed_bounded_storage_supports_subslice_results() {
+    // A new descriptor can escape when its original bounded backing belongs
+    // to the caller. Bounds and backing provenance are separate obligations.
     let checked = crate::front_end::checked_program(
         r#"
             data Views { tag: u64; }
@@ -65,14 +62,12 @@ fn subslice_view_results_keep_their_frontier_decline() {
             }
         "#,
     );
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("Views::head"))
-        .expect_err("authored subslice results keep their ordered-destination decline");
-    assert!(
-        matches!(
-            error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
-        ),
-        "unexpected outcome: {error:?}"
-    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Views::head"))
+        .expect("borrowed bounded storage supports descriptor results");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the returned subslice retains caller backing and proven bounds");
 }

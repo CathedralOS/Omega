@@ -242,9 +242,7 @@ pub(in crate::validation) fn validate_call_structural(
                 structural_type,
             }) if producer == operation.id && structural_type == result.structural_type
         ) {
-            return Err(ModuleError::StructuralCallResultPlaceMismatch(
-                operation.id,
-            ));
+            return Err(ModuleError::StructuralCallResultPlaceMismatch(operation.id));
         }
         validate_structural_arguments(
             module,
@@ -252,8 +250,12 @@ pub(in crate::validation) fn validate_call_structural(
             structural_arguments,
             &callee.structural_parameters,
             operation.id,
-            false,
-            StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults,
+            // Argument storage and projections do not depend on whether the
+            // callee returns a scalar or a non-linear structural value. The
+            // ordinary argument replay retains type, access, bounds and loan
+            // checks; the result contract is validated independently above.
+            true,
+            StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults,
         )?;
         validate_unit_call_contract_places(callee, operation.id)?;
         validate_service_reach(
@@ -275,11 +277,7 @@ pub(in crate::validation) fn validate_call_structural(
                 actual: erased_arguments.len(),
             });
         }
-        crate::validation::validate_erased_argument_terms(
-            machine,
-            operation.id,
-            erased_arguments,
-        )?;
+        crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
         crate::validation::validate_erased_proof_terms(
             machine,
             crate::validation::proof_formals_in_scope(machine, operation.id),

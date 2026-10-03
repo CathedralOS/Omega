@@ -582,6 +582,67 @@ pub struct TargetStructuralRuntimeIndex {
 }
 
 impl TargetUnitOperation {
+    /// Exact produced value, independent of whether its storage was allocated
+    /// eagerly or its descriptor payload is materialized by a later consumer.
+    /// This query carries no backing permission or lifetime authority.
+    pub fn structural_result(&self) -> Option<(OperationId, &StructuralOperationResult)> {
+        match self {
+            Self::ByteSequenceSubslice {
+                result,
+                view:
+                    crate::TargetByteView::Subslice {
+                        psi_operation,
+                        place,
+                        ..
+                    },
+            }
+            | Self::ElementViewSubslice {
+                result,
+                view:
+                    crate::TargetElementView::Subslice {
+                        psi_operation,
+                        place,
+                        ..
+                    },
+            }
+            | Self::EstablishElementView {
+                result,
+                view:
+                    crate::TargetElementView::Established {
+                        psi_operation,
+                        place,
+                        ..
+                    },
+            } if *place == result.place => Some((*psi_operation, result)),
+            Self::EstablishPrimitiveLocal {
+                psi_operation,
+                result,
+                ..
+            }
+            | Self::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
+            }
+            | Self::Call {
+                psi_operation,
+                result: crate::TargetCallResult::Structural { result, .. },
+                ..
+            } => Some((*psi_operation, result)),
+            _ => {
+                let (producer, home) = self.structural_result_home()?;
+                match &home.origin {
+                    crate::TargetStructuralHomeOrigin::OperationResult { operation, result }
+                        if *operation == producer =>
+                    {
+                        Some((producer, result))
+                    }
+                    _ => None,
+                }
+            }
+        }
+    }
+
     /// Required storage for an operation's structural result. The operation
     /// identity is retained beside the home so receiving replay can compare
     /// the home origin with both its producer and the abstract declaration.
@@ -632,6 +693,11 @@ impl TargetUnitOperation {
                         result_home: Some(result_home),
                         ..
                     },
+                ..
+            }
+            | Self::BoundarySettlement {
+                psi_operation,
+                result: TargetBoundaryResult::Structural(result_home),
                 ..
             } => Some((*psi_operation, result_home)),
             _ => None,

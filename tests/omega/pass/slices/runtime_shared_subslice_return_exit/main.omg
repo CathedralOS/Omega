@@ -1,0 +1,47 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    bytes: [u8; 4];
+}
+
+machine whole(bytes: &[u8]) -> &[u8] {
+    bytes[0..bytes.len]
+}
+
+machine middle(bytes: &[u8; 4]) -> &[u8] {
+    bytes[1..3]
+}
+
+machine relay(bytes: &[u8]) -> &[u8] {
+    whole(bytes)
+}
+
+machine first(bytes: &[u8]) -> u8 {
+    transition bytes.len > 0 {
+        true -> read(bytes)
+        _ -> (0)
+    }
+
+    state read(bytes: &[u8]) -> u8 {
+        bytes[0]
+    }
+}
+
+machine require_pair(length: u64, value: u8) -> u8 {
+    transition length == 2 {
+        true -> value
+        _ -> (0)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes[1] = 70;
+    let narrowed: &[u8] = middle(&main.bytes);
+    let view: &[u8] = relay(narrowed);
+    let length: u64 = view.len;
+    let value: u8 = first(view);
+    let checked: u8 = require_pair(length, value);
+    main.console.exit_process(checked as i32);
+}

@@ -259,7 +259,11 @@ pub(super) fn operation(
                 .result
                 .structural()
                 .and_then(|result| {
-                    crate::validation::element_view::view_loan_result(machine, result.place)
+                    crate::validation::element_view::view_loan_result_in_module(
+                        module,
+                        machine,
+                        result.place,
+                    )
                 })
                 .is_none_or(|(_, access)| access != StructuralAccess::SharedBorrow),
         }],
@@ -526,6 +530,28 @@ pub(super) fn may_escape(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> bool {
+    if let OperationKind::CallStructural {
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    }
+    | OperationKind::CallStructuralWithScalarArguments {
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    } = &operation.kind
+    {
+        return !claim_transfers.is_empty()
+            || !returned_claim_transfers.is_empty()
+            || terminal_semantics::descriptor_results::call_origins(module, machine, operation)
+                .is_none()
+            || structural_arguments.iter().any(|argument| {
+                argument.access != StructuralAccess::SharedBorrow
+                    && !super::call_accesses::argument_storage_closed(module, machine, argument)
+            });
+    }
     if let OperationKind::CallUnit {
         structural_arguments,
         claim_transfers,

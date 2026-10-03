@@ -268,8 +268,8 @@ pub(in crate::validation) fn validate_structural_argument(
                                 && argument.path.is_empty()
                                 && matches!(argument.access,
                                     StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)))
-                            && crate::validation::element_view::view_loan_result(
-                                caller,
+                            && crate::validation::element_view::view_loan_result_in_module(
+                                module, caller,
                                 argument.place,
                             )
                             .is_some() =>
@@ -278,8 +278,8 @@ pub(in crate::validation) fn validate_structural_argument(
                         // Recover the producer's actual authority for both: affine
                         // carrier custody alone cannot amplify a shared source.
                         // Availability and loan interference replay remain separate.
-                        let (result, access) = crate::validation::element_view::view_loan_result(
-                            caller,
+                        let (result, access) = crate::validation::element_view::view_loan_result_in_module(
+                            module, caller,
                             argument.place,
                         )
                         .expect("view result checked above");
@@ -745,16 +745,17 @@ pub(in crate::validation) fn validate_structural_argument(
     // same reason a parameter subloan does: nothing moves, the descriptor
     // stays the caller's custody, and each borrow kind stays inside the
     // access the establishing operation minted the view with.
-    let view_loan = crate::validation::element_view::view_loan_result(caller, argument.place)
-        .is_some_and(|(_, source_access)| {
-            argument.access != StructuralAccess::Owned
-                && structural_access_can_supply(source_access, argument.access)
-                && expected.access == argument.access
-                && expected.multiplicity == StructuralMultiplicity::Unrestricted
-                && (argument.path.is_empty()
-                    || super::is_static_borrow_path(&argument.path)
-                    || is_runtime_indexed_borrow_path(&argument.path))
-        });
+    let view_loan =
+        crate::validation::element_view::view_loan_result_in_module(module, caller, argument.place)
+            .is_some_and(|(_, source_access)| {
+                argument.access != StructuralAccess::Owned
+                    && structural_access_can_supply(source_access, argument.access)
+                    && expected.access == argument.access
+                    && expected.multiplicity == StructuralMultiplicity::Unrestricted
+                    && (argument.path.is_empty()
+                        || super::is_static_borrow_path(&argument.path)
+                        || is_runtime_indexed_borrow_path(&argument.path))
+            });
     // A shared view is unrestricted without changing the owning root's
     // affine multiplicity. Construction-local loans remain separate.
     let shared_affine_loan = argument.path.is_empty()

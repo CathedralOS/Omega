@@ -6,6 +6,13 @@ use semantic_vocabulary::{BlockId, ObligationId, OperationId, PlaceId, Structura
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetElementView {
+    /// Payload captured from this exact completed structural call. The home
+    /// contains backing and extent; it is not a fresh owner of the payload.
+    Result {
+        psi_operation: OperationId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     /// Descriptor storage bound at this exact block entry, not a producer
     /// operation. The declaration distinguishes an owned aggregate home from
     /// a view descriptor.

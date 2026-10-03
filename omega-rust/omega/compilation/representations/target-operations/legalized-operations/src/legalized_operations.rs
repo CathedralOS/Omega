@@ -47,13 +47,14 @@ pub use calls::{
 };
 pub mod control_flow;
 pub use control_flow::{
-    LegalizedDynamicParameterCall, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,
-    LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarComparison,
-    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
-    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralCasePayload,
-    LegalizedStructuralCaseSource, LegalizedStructuralCaseSuccessor, LegalizedValueDefinition,
-    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
+    LegalizedDescriptorOrigin, LegalizedDynamicParameterCall, LegalizedNormalizedForeignCall,
+    LegalizedRuntimeIndexOperand, LegalizedScalarArgument, LegalizedScalarBlock,
+    LegalizedScalarCall, LegalizedScalarComparison, LegalizedScalarFunction,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarParameter,
+    LegalizedScalarReturn, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
+    LegalizedScalarTerminator, LegalizedStructuralCasePayload, LegalizedStructuralCaseSource,
+    LegalizedStructuralCaseSuccessor, LegalizedValueDefinition, SaturatingCarrier,
+    SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
 pub mod identity;

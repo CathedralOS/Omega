@@ -233,15 +233,11 @@ pub(crate) fn operation_structural_call_contract_matches(
                 &callee.structural_parameters,
                 types,
                 domains,
-                if plain_scalar_sum_call(operation, callee, types)
-                    || plain_record_call(operation, callee, types)
-                {
-                    StructuralProjectionPolicy::Unit
-                } else {
-                    StructuralProjectionPolicy::EmptyOnly
-                },
-                plain_scalar_sum_call(operation, callee, types)
-                    || plain_record_call(operation, callee, types),
+                // Argument custody does not depend on the callee's result
+                // producer or carrier family. Replay ordinary projections and
+                // literal backing with the same source/access contract.
+                StructuralProjectionPolicy::Projected,
+                true,
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,
@@ -260,6 +256,12 @@ pub(crate) fn operation_structural_call_contract_matches(
                 types,
             ) && structural_call_contract_surface_matches(operation, callee)
                 && payloadless_selected_evidence_surface_matches(operation, callee, types)
+                && (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !terminal_semantics::descriptor_results::is_shared_descriptor(
+                        types.values().copied(),
+                        result.structural_type,
+                    )
+                    || descriptor_call_origins_match(caller, result.place, functions, types))
         }),
         O::BoundaryCall {
             boundary,
@@ -434,4 +436,29 @@ fn reference_call_matches(
     ];
 
     checks.iter().all(|(_, ok)| *ok)
+}
+
+/// Shared result custody retains its callee body's backing, not just the
+/// signature's descriptor type. Reconstruct from current functions so an
+/// optimizer cannot turn local storage into an escaping result or substitute
+/// an actual argument while preserving only the old call result declaration.
+fn descriptor_call_origins_match(
+    caller: &PsiOptimizationFunction,
+    result: semantic_vocabulary::PlaceId,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    let types = types.values().copied().cloned().collect::<Vec<_>>();
+    let Some(graph) =
+        crate::descriptor_results::optimized_catalog_graph(functions.values().copied(), &types)
+    else {
+        return false;
+    };
+    terminal_semantics::descriptor_results::reconstruct_call_origins(
+        &types,
+        &graph,
+        caller.machine,
+        result,
+    )
+    .is_some()
 }

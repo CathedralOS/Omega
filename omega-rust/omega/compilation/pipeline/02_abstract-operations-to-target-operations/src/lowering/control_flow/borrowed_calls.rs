@@ -455,9 +455,25 @@ pub(super) fn byte_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (identity, source) = if let Some((producer, structural_type)) =
-        live.views.get(&argument.place)
+    let (identity, source) = if let Some((producer, result)) =
+        crate::lowering::scalar::byte_views::descriptor_result(function, argument.place, types)
     {
+        if argument.access != StructuralAccess::SharedBorrow
+            || live
+                .structural_homes
+                .get(&argument.place)
+                .and_then(|home| home.operation_result())
+                != Some((producer, result))
+        {
+            return Err(unsupported());
+        }
+        (
+            result.structural_type,
+            TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+        )
+    } else if let Some((producer, structural_type)) = live.views.get(&argument.place) {
         let source = if crate::lowering::scalar::element_views::is_element_view_parameter(
             declaration,
             types,

@@ -40,7 +40,11 @@ impl Checker<'_> {
     ) -> bool {
         use terminal_psi::StructuralAccess as Access;
         let Some(actual) =
-            optimization_unit_semantics::structural_place_access(self.optimized, source)
+            super::super::byte_views::descriptor_result(self.optimized, source, self.types)
+                .map(|_| Access::SharedBorrow)
+                .or_else(|| {
+                    optimization_unit_semantics::structural_place_access(self.optimized, source)
+                })
         else {
             return false;
         };
@@ -55,6 +59,11 @@ impl Checker<'_> {
         }
         let access = |access| access == actual;
         match view {
+            TargetElementView::Result { psi_operation, place, structural_type } => {
+                *place == source
+                    && super::super::byte_views::descriptor_result(self.optimized, source, self.types)
+                        == Some((*psi_operation, *structural_type))
+            }
             TargetElementView::BlockParameter {
                 block,
                 place,

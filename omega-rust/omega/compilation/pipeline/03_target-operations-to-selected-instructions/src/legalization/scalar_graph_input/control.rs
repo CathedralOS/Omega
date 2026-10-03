@@ -37,7 +37,13 @@ pub(super) fn validate(
                     .iter()
                     .find(|parameter| parameter.place == *source)
             {
-                if parameter.access != terminal_psi::StructuralAccess::Owned
+                let descriptor = parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                    && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    && terminal_semantics::descriptor_results::is_shared_descriptor(
+                        structural_types.iter(),
+                        parameter.structural_type,
+                    );
+                if (parameter.access != terminal_psi::StructuralAccess::Owned && !descriptor)
                     || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || parameter.is_self
                     || !parameter.qualifications.is_empty()

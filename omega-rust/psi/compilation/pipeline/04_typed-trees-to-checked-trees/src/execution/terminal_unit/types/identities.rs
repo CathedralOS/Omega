@@ -173,6 +173,7 @@ pub(in crate::execution::terminal_unit) fn base_type_identity_with_substitutions
             } => type_reference = *referee,
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::FixedArray {
                 length: typed_trees::types::FixedArrayLength::Literal(_),
                 ..

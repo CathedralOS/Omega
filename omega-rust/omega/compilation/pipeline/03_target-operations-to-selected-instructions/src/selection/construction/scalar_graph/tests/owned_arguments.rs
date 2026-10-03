@@ -142,6 +142,7 @@ fn owned_call(
         },
     });
     row.kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+        descriptor_origins: Vec::new(),
         source: NativeCallOrigin::Authored,
         callee: MachineId::new(2).unwrap(),
         arguments,

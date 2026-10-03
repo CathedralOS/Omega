@@ -28,6 +28,7 @@ mod parameter_use;
 pub(crate) mod primitive_local_input;
 mod record_input;
 mod reference_input;
+mod returned_view_input;
 mod scalar_array_input;
 mod scalar_call_abi;
 mod structural_local_input;

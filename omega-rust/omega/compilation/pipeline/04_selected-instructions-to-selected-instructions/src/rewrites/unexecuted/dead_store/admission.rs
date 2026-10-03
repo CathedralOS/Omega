@@ -272,6 +272,7 @@ pub(super) fn admit<'source>(
     {
         if byte_span {
             match access.role {
+                SelectedMemoryAccessRole::ReadReturnedView { .. } => {}
                 SelectedMemoryAccessRole::WriteByteSpan { .. } if write.is_none() => {
                     write = Some((index, access));
                 }
@@ -783,6 +784,7 @@ fn interferes(
     function: &SelectedFunction,
 ) -> bool {
     match access.role {
+        SelectedMemoryAccessRole::ReadReturnedView { .. } => true,
         SelectedMemoryAccessRole::ReadPlace | SelectedMemoryAccessRole::WritePlace => {
             matches!(dead.storage, SubjectStorage::Place)
                 && access.place == dead.place

@@ -1200,3 +1200,63 @@ fn collect(
     active.pop();
     Some(())
 }
+
+#[cfg(test)]
+mod descriptor_result_tests {
+    #[test]
+    fn returned_view_calls_retain_their_occurrences() {
+        let checked = crate::tests::front_end::checked_program(
+            r"
+            data Main { bytes: [u8; 4]; }
+            machine whole(bytes: &[u8]) -> &[u8] { bytes[0..bytes.len] }
+            machine first(bytes: &[u8]) -> u8 {
+                transition bytes.len > 0 { true -> read(bytes) _ -> (0) }
+                state read(bytes: &[u8]) -> u8 { bytes[0] }
+            }
+            machine Main::main(main: &mut Main) -> u8 {
+                main.bytes[0] = 70;
+                let view: &[u8] = whole(&main.bytes);
+                let value: u8 = first(view);
+                value
+            }
+        ",
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .unwrap();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .unwrap_or_else(|| {
+                panic!(
+                    "caller omission: {:?}",
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(machine.symbol)
+                )
+            });
+        let whole = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "whole")
+            .unwrap();
+        let calls = plan
+            .operations
+            .iter()
+            .filter_map(|operation| operation.call())
+            .filter(|call| call.target.machine == whole.symbol)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls.len(),
+            1,
+            "loan provenance must not erase the helper invocation"
+        );
+        assert!(calls[0].structural_result().is_some());
+    }
+}

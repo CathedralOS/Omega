@@ -67,6 +67,11 @@ pub(super) fn project_call_structural(
             });
         }
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            descriptor_origins: scalar_graph_input::byte_views::call_descriptor_origins(
+                unit,
+                optimized.machine,
+                result,
+            )?,
             callee: *callee,
             arguments: lowered,
             structural_result: Some(result.clone()),
@@ -231,6 +236,7 @@ pub(super) fn project_call_unit(
             });
         }
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            descriptor_origins: Vec::new(),
             structural_result: None,
             callee: *callee,
             arguments,
@@ -264,6 +270,7 @@ pub(super) fn project_call(
     let kind = {
         let call_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            descriptor_origins: Vec::new(),
             structural_result: None,
             callee: *callee,
             arguments: arguments

@@ -285,27 +285,25 @@ pub(in crate::execution) fn build_call_operation(
                     target_state.return_type,
                 ) =>
             {
-                // A `&[u8]`/`&'a V` result is a shared loan against the
-                // callee's storage: the anonymous result carries its
-                // declared identity with affine custody, exactly as the
-                // reference-record arm above compares it — anonymous and
-                // `let`-bound borrowed-view results share the one affine
-                // mint, so only the identity spelling differs.
-                {
-                    let peeled =
-                        crate::execution::terminal_unit::types::borrowed_view_result_identity(
-                            program,
-                            target_state.return_type,
-                        );
-                    // Anonymous and `let`-bound slice results mint the peeled
-                    // referent identity; a `let`-bound named view keeps its
-                    // `ref(...)` shell — the custody `add_view_type`
-                    // registers — so both spellings name the same family.
-                    let shelled = program.normalized_type_identity(target_state.return_type);
-                    expected.multiplicity != Multiplicity::Affine
-                        || (peeled.as_deref() != Some(expected.type_identity.as_str())
-                            && shelled.as_str() != expected.type_identity)
-                }
+                // A shared slice result transports a copyable descriptor;
+                // a named reference transports affine permission custody.
+                // Neither carrier owns or extends the lifetime of its backing.
+                let multiplicity = if crate::execution::terminal_unit::types::borrowed_slice_view(
+                    program,
+                    target_state.return_type,
+                ) {
+                    Multiplicity::Unrestricted
+                } else {
+                    Multiplicity::Affine
+                };
+                let peeled = crate::execution::terminal_unit::types::borrowed_view_result_identity(
+                    program,
+                    target_state.return_type,
+                );
+                let shelled = program.normalized_type_identity(target_state.return_type);
+                expected.multiplicity != multiplicity
+                    || (peeled.as_deref() != Some(expected.type_identity.as_str())
+                        && shelled.as_str() != expected.type_identity)
             }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {
                 !boundary_value_result_matches(program, target_state.return_type, expected, &[])

@@ -131,6 +131,12 @@ pub(super) fn validate(
                 .ok_or(invalid.clone())?;
             if call.callee != *callee
                 || call.structural_result.as_ref() != Some(result)
+                || call.descriptor_origins
+                    != scalar_graph_input::byte_views::call_descriptor_origins(
+                        unit,
+                        optimized.machine,
+                        result,
+                    )?
                 || call.call_plan != expected
                 || call.result_placement != expected.result
                 || call.source != NativeCallOrigin::Authored
