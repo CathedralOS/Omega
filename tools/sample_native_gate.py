@@ -41,7 +41,7 @@ EXCLUDED = ("samples/apps/squalr",)
 # development host, so scoring it against `Expected exit` would report a
 # platform mismatch as a sample defect. Reported, not scored.
 NOT_HOST_RUNNABLE = ("samples/uefi/",)
-DECISION = re.compile(r"^(decision row [0-9a-f]+) pending$", re.MULTILINE)
+DECISION = re.compile(rb"^(decision row [0-9a-f]+) pending$", re.MULTILINE)
 EXPECT_EXIT = re.compile(r"//\s*Expected exit:\s*(\d+)")
 EXPECT_OUTPUT = re.compile(r"//\s*Expected output contains:\s*(.+)")
 
@@ -96,11 +96,18 @@ def accept_review(cli, sample, target, timeout):
     output = completed.stdout + completed.stderr
     review = os.path.join(sample, "build", "package-manager", f"review-{target}.txt")
     if os.path.exists(review):
-        text = open(review, errors="ignore").read()
+        # Review framing is byte-sensitive and LF-only, including on Windows.
+        # Change only decision tokens; never transcode findings or newlines.
+        with open(review, "rb") as document:
+            text = document.read()
         if DECISION.search(text):
-            open(review, "w").write(DECISION.sub(r"\1 accept", text))
-            if run([cli, "update", "--project", sample, "--resume"], timeout) is None:
+            with open(review, "wb") as document:
+                document.write(DECISION.sub(rb"\1 accept", text))
+            resumed = run([cli, "update", "--project", sample, "--resume"], timeout)
+            if resumed is None:
                 return "resume-timeout", output
+            if resumed.returncode != 0:
+                return "resume-failed", resumed.stdout + resumed.stderr
     return None, output
 
 
@@ -161,7 +168,8 @@ def measure(cli, sample, target, timeout):
     expected_exit, expected_output = oracle(sample)
     reason, review_output = accept_review(cli, sample, target, timeout)
     if reason:
-        return {"sample": sample, "state": "error", "detail": reason}
+        detail = reason + (": " + classify(review_output) if review_output else "")
+        return {"sample": sample, "state": "error", "detail": detail}
     completed = run([cli, "run", os.path.join(sample, "main.omg")], timeout)
     if completed is None:
         return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
