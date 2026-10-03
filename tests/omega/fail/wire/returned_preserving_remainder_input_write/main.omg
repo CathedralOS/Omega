@@ -1,0 +1,85 @@
+// A returned nested remainder still borrows the input used below.
+use omega_language_std::console;
+use omega_language_std::wire;
+use omega::language::core::binding;
+
+data PreservePolicy {
+}
+
+// v1 consumer schema: `value` is the only known member. A later writer's
+// extra members stay opaque relay bytes, not a rejection or silent drop.
+data LocalMessage {
+    value: u8;
+}
+
+machine preserving_decode(
+    bytes: &[u8]
+) -> DecodeResult<Relayed<LocalMessage>>
+satisfies PreservingDecode<PreservePolicy, LocalMessage>::decode_preserving
+{
+    transition bytes.len >= 1 {
+        true -> DecodeResult::Sound {
+            value: Relayed {
+                value: LocalMessage { value: bytes[0] },
+                remainder: OpaqueWireRemainder {
+                    codec_identity: 7,
+                    bytes_and_ordering: bytes[1..bytes.len],
+                },
+            },
+        }
+        false -> DecodeResult::Invalid
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+    buffer: [u8; 3];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.buffer[0] = 41;
+    main.buffer[1] = 171;
+    main.buffer[2] = 205;
+    let decoded: DecodeResult<Relayed<LocalMessage>> =
+        preserving_decode(main.buffer[0..3]);
+    transition decoded {
+        DecodeResult::Sound { value } -> inspect(main, value)
+        DecodeResult::Invalid -> refused(main)
+    }
+    state inspect(main: &mut Main, relayed: Relayed<LocalMessage>) {
+        main.buffer[1] = 0;
+        transition relayed.value.value == 41
+            && relayed.remainder.codec_identity == 7
+            && relayed.remainder.bytes_and_ordering.len == 2 {
+            true -> tail_first(main, relayed.remainder.bytes_and_ordering, 0)
+            false -> disagreement(main)
+        }
+    }
+    state tail_first(main: &mut Main, tail: &[u8], i: u64) {
+        transition i < tail.len {
+            true -> tail_first_byte(main, tail, tail[i])
+            false -> disagreement(main)
+        }
+    }
+    state tail_first_byte(main: &mut Main, tail: &[u8], b: u8) {
+        transition b == 171 {
+            true -> tail_second(main, tail, 1)
+            false -> disagreement(main)
+        }
+    }
+    state tail_second(main: &mut Main, tail: &[u8], i: u64) {
+        transition i < tail.len {
+            true -> tail_second_byte(main, tail[i])
+            false -> disagreement(main)
+        }
+    }
+    state tail_second_byte(main: &mut Main, b: u8) {
+        transition b == 205 {
+            true -> good(main)
+            false -> disagreement(main)
+        }
+    }
+    state good(main: &mut Main)         { main.console.exit_process(70); }
+    state refused(main: &mut Main)      { main.console.exit_process(71); }
+    state disagreement(main: &mut Main) { main.console.exit_process(72); }
+}
