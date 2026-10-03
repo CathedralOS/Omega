@@ -1,0 +1,4 @@
+data QuotientBox { value: i64; }
+machine make(divisor: i64, choose_division: bool) -> QuotientBox {
+    QuotientBox { value: match choose_division { true -> 1 / divisor, _ -> 0 } }
+}

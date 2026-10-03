@@ -1,8 +1,7 @@
+mod scalar_values;
 mod stored_integers;
 
-use crate::proof_contracts::arithmetic_domains::{
-    ValueEnvironment, check_value_narrowing, validate_arithmetic_domains,
-};
+use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
@@ -29,37 +28,6 @@ pub(crate) fn construction_members_are_concrete(
                 typed_trees::data::TypeParameterKind::Value { .. }
             )
         })
-}
-
-fn validate_anonymous_element_landing(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    value: ExpressionHandle,
-    destination: PrimitiveType,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    // Narrowing discards arithmetic diagnostics already emitted by statement
-    // validation. Aggregate children need their own destination for fractional
-    // landing errors; typed operands keep their ordinary arithmetic checks.
-    if crate::value_custody::literals::anonymous_numeric_value(program, value, &mut |expression| {
-        crate::value_custody::literals::has_anonymous_operator_meaning(program, expression)
-    })
-    .is_some()
-    {
-        validate_arithmetic_domains(
-            program,
-            machine,
-            Some(state),
-            value,
-            &ValueEnvironment::new(),
-            Some(destination),
-            numerics::arithmetic::ArithmeticDomain::Exact,
-            owner,
-            diagnostics,
-        );
-    }
 }
 
 /// Enforce a constructed field's value against its declared type: (1) the
@@ -184,52 +152,30 @@ pub(super) fn enforce_construction_field_obligations(
         ) {
             continue;
         }
-        // Narrowing guard (any primitive field): a value that does not fit the
-        // field's TYPE -- `Small { v: self.i64_field }` into an `i8 v` -- is a
-        // silent truncation at construction, the same decision-17 narrowing store
-        // obligation the assignment / call-arg positions carry. The field range
-        // check below only covers `[a..=b]`-refined fields; this covers the plain
-        // scalar width. The scanner supplies only guard facts about immutable
-        // owned inputs; unsupported evaluation effects discard those facts.
-        if let Some(field_primitive) = program.primitive_type_reference(field_type) {
-            let owner = format!(
-                "construction of `{type_name}` field `{}`",
-                field.name.as_str()
-            );
-            validate_anonymous_element_landing(
-                program,
-                machine,
-                state,
-                field.value,
-                field_primitive,
-                &owner,
-                diagnostics,
-            );
-            check_value_narrowing(
-                program,
-                machine,
-                Some(state),
-                field.value,
-                field_primitive,
-                program.arithmetic_domain_for_type_reference(field_type),
-                environment,
-                &owner,
-                diagnostics,
-            );
-        }
-        if let Some(write) = stored_integers::validate_construction(
+        let scalar = scalar_values::validate(
             program,
             machine,
             state,
-            expression,
-            literal,
-            field,
+            field.value,
             field_type,
             environment,
             &slot_context,
             diagnostics,
-            statement_index,
-        ) {
+        );
+        if let Some(scalar) = scalar.as_ref()
+            && let Some(write) = stored_integers::validate_construction(
+                program,
+                machine,
+                state,
+                expression,
+                literal,
+                field,
+                scalar,
+                &slot_context,
+                diagnostics,
+                statement_index,
+            )
+        {
             stored_integer_writes.push(write);
         }
         let Some(range) = crate::proof_contracts::arithmetic_domains::range_constraint_interval(
@@ -257,35 +203,13 @@ pub(super) fn enforce_construction_field_obligations(
                 }
             }
             None => {
-                // Non-literal value: accept when its PROVEN interval is within
-                // the field range (a same-range field copy, a guarded value),
-                // else reject. The value's own arithmetic obligation is reported
-                // by the normal statement walk, so its diagnostics go to a
-                // throwaway buffer here -- we only add the range-violation.
-                let owner = format!(
-                    "construction of `{type_name}` field `{}`",
-                    field.name.as_str()
-                );
-                let mut throwaway = Vec::new();
-                let interval = validate_arithmetic_domains(
-                    program,
-                    machine,
-                    Some(state),
-                    field.value,
-                    environment,
-                    program.primitive_type_reference(field_type),
-                    numerics::arithmetic::ArithmeticDomain::Exact,
-                    &owner,
-                    &mut throwaway,
-                );
-                // The value's standing bounds, including an immutable
-                // parameter's own arrival `requires`, hold wherever it is read.
-                let interval = match crate::proof_contracts::arithmetic_domains::immutable_integer_expression_interval(
-                    program, machine, state, field.value,
-                ) {
-                    Some(standing) => interval.intersect(standing),
-                    None => interval,
+                // Arithmetic and semantic landing were checked once above.
+                // Refined fields and physical encodings consume the same value
+                // observed before later sibling effects.
+                let Some(scalar) = scalar.as_ref() else {
+                    continue;
                 };
+                let interval = scalar.interval;
                 let provably_in_range = range
                     .low()
                     .is_none_or(|low| interval.low().is_some_and(|value_low| value_low >= low))
@@ -438,23 +362,12 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                     )));
                     continue;
                 }
-                // Narrowing check: the element must fit the element type's width.
-                validate_anonymous_element_landing(
+                scalar_values::validate(
                     program,
                     machine,
                     state,
                     *element,
-                    element_primitive,
-                    &owner,
-                    diagnostics,
-                );
-                check_value_narrowing(
-                    program,
-                    machine,
-                    Some(state),
-                    *element,
-                    element_primitive,
-                    program.arithmetic_domain_for_type_reference(element_type),
+                    element_type,
                     &ValueEnvironment::new(),
                     &owner,
                     diagnostics,

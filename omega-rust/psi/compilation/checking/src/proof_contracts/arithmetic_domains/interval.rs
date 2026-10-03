@@ -264,7 +264,7 @@ impl Interval {
     /// Widest interval covering both (`[min(lows), max(highs)]`, an unbounded end
     /// on EITHER side making that side unbounded). Used to union a callee's
     /// multiple return paths when inferring its return range.
-    pub(super) fn union(self, other: Self) -> Self {
+    pub(crate) fn union(self, other: Self) -> Self {
         Self {
             low: match (self.low, other.low) {
                 (Some(a), Some(b)) => Some(a.min(b)),

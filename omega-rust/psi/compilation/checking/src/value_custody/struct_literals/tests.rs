@@ -173,3 +173,86 @@ fn default_domain_cannot_read_a_case_payload_name() {
         "a type-wide fact naming an omitted case payload must not prove vacuously"
     );
 }
+
+#[test]
+fn constructor_typed_arithmetic_requires_defined_operations() {
+    for value in ["1 / input", "input + 1", "input << 64"] {
+        let source = format!(
+            "data QuotientBox {{ value: i64; }} machine make(input: i64) -> QuotientBox {{ QuotientBox {{ value: {value} }} }}"
+        );
+        let diagnostics = construction_diagnostics(&source);
+        assert!(
+            !diagnostics.is_empty(),
+            "constructor discarded arithmetic error: {value}"
+        );
+    }
+}
+
+#[test]
+fn constructor_arithmetic_uses_current_operand_facts() {
+    for prefix in [
+        "let divisor: i64 = 2;",
+        "let mut divisor: i64 = 0; divisor = 2;",
+    ] {
+        let source = format!(
+            "data QuotientBox {{ value: i64; }} machine make() -> QuotientBox {{ {prefix} QuotientBox {{ value: 1 / divisor }} }}"
+        );
+        let diagnostics = construction_diagnostics(&source);
+        assert!(diagnostics.is_empty(), "{prefix}: {diagnostics:?}");
+    }
+}
+
+#[test]
+fn constructor_definedness_does_not_require_a_finite_signed_result_interval() {
+    let source = "data QuotientBox { value: u64; }
+        machine make(value: u64, divisor: u64) -> QuotientBox requires divisor != 0 {
+            QuotientBox { value: value / divisor }
+        }";
+    let diagnostics = construction_diagnostics(source);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert!(!construction_diagnostics(&source.replace(" requires divisor != 0", "")).is_empty());
+}
+
+#[test]
+fn constructor_array_and_match_children_keep_arithmetic_obligations() {
+    for source in [
+        "data BoxedValues { values: [i64; 1]; } machine make(divisor: i64) -> BoxedValues { BoxedValues { values: [1 / divisor] } }",
+        "data BoxedValues { values: [[i64; 1]; 1]; } machine make(divisor: i64) -> BoxedValues { BoxedValues { values: [[1 / divisor]] } }",
+        "data QuotientBox { value: i64; } machine make(divisor: i64, choose: bool) -> QuotientBox { QuotientBox { value: match choose { true -> 1 / divisor, _ -> 0 } } }",
+    ] {
+        let diagnostics = construction_diagnostics(source);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("divisor must be proven nonzero")),
+            "{source}: {diagnostics:?}"
+        );
+        let diagnostics = construction_diagnostics(&source.replace("1 / divisor", "1 / 1i64"));
+        assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
+    }
+}
+
+#[test]
+fn constructor_match_reads_the_selected_boolean_guard() {
+    for (condition, accepted) in [("divisor != 0", true), ("divisor == 0", false)] {
+        let source = format!(
+            "data QuotientBox {{ value: i64; }} machine make(divisor: i64) -> QuotientBox {{ QuotientBox {{ value: match {condition} {{ true -> 1 / divisor, _ -> 0 }} }} }}"
+        );
+        let diagnostics = construction_diagnostics(&source);
+        assert_eq!(
+            diagnostics.is_empty(),
+            accepted,
+            "{condition}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn constructor_array_uses_the_operand_evaluation_environment() {
+    let source = "data BoxedValues { values: [i64; 1]; } machine make() -> BoxedValues {
+        let mut divisor: i64 = 0; divisor = 2; BoxedValues { values: [1 / divisor] }
+    }";
+    let diagnostics = construction_diagnostics(source);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert!(!construction_diagnostics(&source.replace("divisor = 2", "divisor = 0")).is_empty());
+}

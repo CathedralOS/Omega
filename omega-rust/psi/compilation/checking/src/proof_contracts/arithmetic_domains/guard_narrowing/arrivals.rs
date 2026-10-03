@@ -70,6 +70,37 @@ pub fn occurrence_integer_expression_bounds(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
+    let interval = expression_observation(
+        program,
+        machine_symbol,
+        state_symbol,
+        Some(statement_index),
+        expression,
+    )?
+    .interval?;
+    let (low, high) = (interval.low?, interval.high?);
+    (low <= high).then_some((low, high))
+}
+
+/// Facts at an exact source observation, including non-interval premises such
+/// as a nonzero divisor. An unbounded result is not failed arithmetic: callers
+/// validate under this environment rather than requiring finite endpoints.
+pub(crate) fn occurrence_value_environment(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<ValueEnvironment> {
+    expression_observation(program, machine_symbol, state_symbol, None, expression)?.environment
+}
+
+fn expression_observation(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: Option<usize>,
+    expression: ExpressionHandle,
+) -> Option<ExpressionObservation> {
     let machine = program
         .machines()
         .iter()
@@ -79,7 +110,13 @@ pub fn occurrence_integer_expression_bounds(
         .iter()
         .find(|state| state.symbol == state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
-    let statement = statements.get(statement_index)?;
+    let (prefix, observed_statements) = match statement_index {
+        Some(index) => (
+            &statements[..index],
+            std::slice::from_ref(statements.get(index)?),
+        ),
+        None => (&statements[..0], statements),
+    };
     let frames = CallFrameResolver::new(program);
     let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
     let mut walk = ArrivalWalk {
@@ -89,17 +126,16 @@ pub fn occurrence_integer_expression_bounds(
         arrivals: Vec::new(),
         observation: None,
     };
-    if !walk.statements(state, &statements[..statement_index], &mut environment) {
+    if !walk.statements(state, prefix, &mut environment) {
         return None;
     }
     walk.observation = Some(ExpressionObservation {
         expression,
         interval: None,
+        environment: None,
     });
-    walk.statements(state, std::slice::from_ref(statement), &mut environment);
-    let interval = walk.observation?.interval?;
-    let (low, high) = (interval.low?, interval.high?);
-    (low <= high).then_some((low, high))
+    walk.statements(state, observed_statements, &mut environment);
+    walk.observation
 }
 
 pub(super) fn seed_state_requirements(
@@ -454,6 +490,7 @@ pub(super) fn incoming_environments(
 struct ExpressionObservation {
     expression: ExpressionHandle,
     interval: Option<Interval>,
+    environment: Option<ValueEnvironment>,
 }
 
 struct ArrivalWalk<'program, 'frames> {
@@ -891,6 +928,29 @@ impl ArrivalWalk<'_, '_> {
                         }
                     }
                     let mut selected = remaining.clone();
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                        && let ExpressionNode::Boolean(positive) =
+                            self.program.expression_table.expression(pattern)
+                    {
+                        narrow_environment_by_condition(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            &mut selected,
+                            dispatch.subject,
+                            *positive,
+                        );
+                        narrow_environment_by_condition(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            &mut remaining,
+                            dispatch.subject,
+                            !*positive,
+                        );
+                        self.expression_effects(source, dispatch.subject, &mut selected);
+                        self.expression_effects(source, dispatch.subject, &mut remaining);
+                    }
                     self.expression(source, arm.value, &mut selected);
                     joined = Some(
                         joined.map_or_else(|| selected.clone(), |joined| joined.join(&selected)),
@@ -971,6 +1031,10 @@ impl ArrivalWalk<'_, '_> {
             self.expression_effects(source, expression, &mut observed);
             let interval = self.interval(source, expression, &observed);
             let observation = self.observation.as_mut().expect("matched observation");
+            observation.environment = Some(match observation.environment.take() {
+                Some(prior) => prior.join(&observed),
+                None => observed,
+            });
             observation.interval = Some(
                 observation
                     .interval
