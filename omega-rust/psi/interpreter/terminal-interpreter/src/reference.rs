@@ -74,7 +74,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let result = operation.result.structural().ok_or_else(invalid)?;
-        let (referent_type, access) = self.reference_contract(result.structural_type)?;
+        let (_, access) = self.reference_contract(result.structural_type)?;
         // Both local storage and ingress borrows already name their backing.
         // An explicit Referent projection reborrows that backing through a live
         // carrier; it never establishes ownership of the carrier's contents.
@@ -87,7 +87,11 @@ impl TerminalExecution {
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
-            || referent.structural_type != referent_type
+            || !terminal_semantics::reference_source_compatible(
+                self.program.structural_types.values(),
+                referent.structural_type,
+                result.structural_type,
+            )
             || !referent.qualifications.is_empty()
             || self.structural_values.contains_key(&result.place)
             || self
@@ -202,14 +206,22 @@ impl TerminalExecution {
                 if !access_covers(authority, access) {
                     return Err(invalid());
                 }
+                let reference_type = value.structural_type;
                 value = self
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&value))
                     .cloned()
                     .ok_or_else(invalid)?;
-                if value.structural_type != referent_type {
+                if !terminal_semantics::reference_source_compatible(
+                    self.program.structural_types.values(),
+                    value.structural_type,
+                    reference_type,
+                ) {
                     return Err(invalid());
                 }
+                // Only the view carries the observed type. The captured backing
+                // and its scalar payload retain their original declaration.
+                value.structural_type = referent_type;
                 remaining = &remaining[boundary + 1..];
             } else {
                 return Ok(value);
@@ -391,3 +403,6 @@ fn access_covers(available: StructuralAccess, requested: StructuralAccess) -> bo
             )
         )
 }
+
+#[cfg(test)]
+mod tests;
