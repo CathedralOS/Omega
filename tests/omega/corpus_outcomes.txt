@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 5.5, "load1_start": 5.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 5.39, "load1_start": 5.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1276,7 +1276,7 @@ pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms @4e4bfed13aee+wt
-pass/borrows/returned_record_field_read_exit checked 935ms @2067346ef4fa+wt
+pass/borrows/returned_record_field_read_exit checked 935ms @2816825e8941
 pass/borrows/returned_record_method_receiver_exit checked 1304ms @011fd400e8c1+wt
 pass/borrows/returned_record_projected_call_exit checked 1321ms @011fd400e8c1+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 1823ms @ca8c127c90c5
@@ -1291,6 +1291,7 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read checked 1532ms @a3bac00e54bb+wt
+pass/borrows/static_record_reference_return_exit checked 1105ms @2816825e8941
 pass/borrows/transition_shared_borrow_result checked 906ms @2067346ef4fa+wt
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5

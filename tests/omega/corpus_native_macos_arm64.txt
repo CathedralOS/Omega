@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 5.5, "load1_start": 5.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 5.6, "load1_start": 5.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -82,7 +82,7 @@ pass/borrows/qualified_byte_owner_shared_call_exit built 3053ms exit:70 @29448bf
 pass/borrows/qualified_record_view_call_exit built 1048ms exit:70 @30b8774b6d1c+wt
 pass/borrows/returned_record_byte_field_store_exit built 1437ms exit:70 @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit built 1024ms exit:70 @fc625a0e0329+wt
-pass/borrows/returned_record_field_read_exit built 995ms exit:70 @2067346ef4fa+wt
+pass/borrows/returned_record_field_read_exit built 995ms exit:70 @2816825e8941
 pass/borrows/returned_record_method_receiver_exit built 1219ms exit:70 @011fd400e8c1+wt
 pass/borrows/returned_record_projected_call_exit built 1243ms exit:70 @011fd400e8c1+wt
 pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe4df3d+wt
@@ -97,6 +97,7 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70
 pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit built 1098ms exit:70 @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
+pass/borrows/static_record_reference_return_exit built 1143ms exit:0 @2816825e8941
 pass/borrows/transition_shared_borrow_result built 970ms exit:181 @2067346ef4fa+wt
 pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
 pass/borrows/writeonly_record_field_store built 683ms exit:181 @48008365d839
