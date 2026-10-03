@@ -151,12 +151,28 @@ pub(in crate::selection) fn view_access(
         initial.get_or_insert(access);
         copied_whole = false;
         match &row.kind {
-            I::StructuralLeafCopy { source, path, .. } => {
+            I::StructuralLeafCopy {
+                source,
+                path,
+                byte_offset,
+                shape,
+                indices,
+                ..
+            } => {
                 if access != A::SharedBorrow {
                     return None;
                 }
                 if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
                 {
+                    if *byte_offset != 0
+                        || !indices.is_empty()
+                        || crate::structural_inputs::structural_reference_input::shape(
+                            structural_type,
+                            &signature.structural_types,
+                        )? != *shape
+                    {
+                        return None;
+                    }
                     required = A::SharedBorrow;
                     expected_type = Some(structural_type);
                     copied_whole = true;
