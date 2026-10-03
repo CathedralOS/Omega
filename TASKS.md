@@ -3100,13 +3100,14 @@ lands alone with its corpus slice unchanged and no fallback path.
   Today only the `FilesystemSponsor` mirror stops this: it records `x` as a
   symlink, and `prepare_open_with_extent` refuses a non-object entry.
   `RealScoped` without a sponsor (`CheckedCompileRequest::new`'s default) has
-  no such guard. Make the grant layer itself correct, in one commit: an open
-  or create whose leaf is a symlink is refused, using `O_NOFOLLOW` on Unix
-  and an `lstat` leaf check, and the opened file's real path is re-checked
-  through the descriptor before the first write. Acceptance: a `RealScoped`
-  test without a sponsor shows the dangling-link create is refused with
-  `EACCES`, and nothing is created outside the root on Linux or macOS; the
-  build corpus is unchanged.
+  no such guard. The check and the open disagree: the check treats the
+  dangling leaf as a new file, while the open follows it. The open already
+  uses the path the check resolved, so open it with `O_NOFOLLOW`: a
+  symlink leaf then fails with `ELOOP`. That is sufficient because nothing
+  runs between check and open; build scripts run one at a time and cannot
+  spawn processes. Acceptance: a `RealScoped` test without a sponsor shows
+  the dangling-link create fails and nothing is created outside the root
+  on Linux or macOS; the build corpus is unchanged.
 
 - **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) Delete the in-process
   bookkeeping around build evaluation and keep only the real confinement:
