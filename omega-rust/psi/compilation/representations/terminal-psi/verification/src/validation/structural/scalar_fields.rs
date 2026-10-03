@@ -230,18 +230,29 @@ pub(in crate::validation) fn validate_integer_structural_field(
     // Member reads observe, they do not transfer: a locally constructed
     // record carrying borrowed-view members still answers scalar reads.
     if let Some(result) = crate::validation::record::constructed_source(module, machine, source) {
-        if matches!(result_type, ScalarType::Integer(_))
-            && observed_scalar_field(
-                module,
-                result.structural_type,
-                path,
-                field,
-                StructuralAccess::Owned,
-            ) == Some(result_type)
-        {
-            return Ok(());
+        // A reference-shaped result is a loan, not locally owned storage:
+        // the constructible-type gate admits it only because constructed
+        // records may carry reference members. Scalar reads through it are
+        // adjudicated by the borrowed-result path below, which checks the
+        // loan's access and observes the referent's declared record.
+        let is_reference_carrier = module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+        });
+        if !is_reference_carrier {
+            if matches!(result_type, ScalarType::Integer(_))
+                && observed_scalar_field(
+                    module,
+                    result.structural_type,
+                    path,
+                    field,
+                    StructuralAccess::Owned,
+                ) == Some(result_type)
+            {
+                return Ok(());
+            }
+            return Err(invalid());
         }
-        return Err(invalid());
     }
     if let Some(parameter) = terminal_semantics::arrival_parameter(machine, source) {
         if !matches!(
