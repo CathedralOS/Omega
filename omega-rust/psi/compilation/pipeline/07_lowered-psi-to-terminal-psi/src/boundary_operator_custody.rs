@@ -58,9 +58,11 @@ impl CheckedBoundaryOperatorApplicationScope {
 }
 
 /// Which checked descriptor-table roster one source-produced dynamic-call
-/// occurrence rejoins. All lanes are local descriptor-table
-/// materializations; forwarded, direct and joined forms emit different
-/// catalog species and stay unadmitted here.
+/// occurrence rejoins. The rebound and stored lanes are local
+/// descriptor-table materializations; the forwarded lanes rejoin the
+/// register-indirect dispatch a generated helper chain's existential
+/// descriptor parameter performs. Direct plans emit a different catalog
+/// species and stay unadmitted here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedDynamicCallLane {
     /// A rebound scalar binding: a scalar dispatch through a materialized
@@ -74,12 +76,21 @@ pub enum CheckedDynamicCallLane {
     /// then `CallDynamicScalar`). Stored Unit calls are refused at lowering,
     /// so the lane is scalar-only.
     StoredScalar,
+    /// A forwarded scalar binding: a scalar dispatch through an existential
+    /// descriptor parameter (`CallDynamicParameterScalar`) at the end of a
+    /// generated helper chain, whether one root caller or a checked
+    /// two-predecessor join supplies it.
+    ForwardedScalar,
+    /// A forwarded Unit binding: a Unit dispatch through an existential
+    /// descriptor parameter (`CallDynamicParameterUnit`) under the same
+    /// helper-chain custody.
+    ForwardedUnit,
 }
 
 /// Compiler-private join from one retained checked dynamic-call plan to the
 /// exact Terminal operation and descriptor-table row produced for it.
 /// `plan_index` addresses the checked `dynamic_dispatch.calls` roster, whose
-/// row is the rebound or stored binding `lane` names;
+/// row is the rebound, stored or forwarded binding `lane` names;
 /// the machine/operation pair names the emitted `CallDynamic*` occurrence the
 /// native projection must retain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,7 +138,7 @@ impl CheckedDynamicCallOccurrence {
 
     /// Owner-local descriptor ordinal the dispatch consumes: a rebound
     /// descriptor row for the rebound lanes, a stored descriptor row for the
-    /// stored lane.
+    /// stored lane, a dynamic descriptor parameter for the forwarded lanes.
     pub const fn descriptor_ordinal(self) -> u32 {
         self.descriptor_ordinal
     }
