@@ -41,4 +41,5 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 4199ms exit:70 in
 pass/wire/runtime_wire_encode_byte_slice_exit built 2403ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 4316ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
 pass/wire/runtime_wire_utf8_edge_verdicts_exit built 16975ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
+pass/wire/wire_preserving_decode_relay_exit built 1783ms exit:70 interpreter-exit:70 interpreter:agrees @bf6726603463+wt
 pass/write_only/state_forwarded_scalar_store_exit built 1360ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491

@@ -1195,6 +1195,7 @@ fail/wire/layout_domain_on_stored_bytes rejected 304ms expected @2d8ed253669f
 	data `Main` field `buffer` declares `in OmegaLayout<CounterMessage>` on owned stored bytes; a layout domain is a fact about bytes ESTABLISHED by validate/encode, never declared on storage (a zeroed buffer holds no valid encoding). Hold the value (`CounterMessage`) and encode at the edge, or carry the fact on a borrowed view (`&[u8] in OmegaLayout<CounterMessage>`)
 fail/wire/proof_only_wire_field_rejected rejected 306ms expected @2d8ed253669f
 	wire data `Msg` field `n` mentions proof-only `Nat`, which has no wire encoding
+fail/wire/returned_preserving_remainder_input_write rejected 228ms expected @bf6726603463+wt
 fail/wire/unnumbered_field_in_numbered_data rejected 0ms expected @2d8ed253669f
 	tests/omega/fail/wire/unnumbered_field_in_numbered_data/main.omg:8:1: stable identities are all-or-nothing for record fields: number every member with `#N` or number none of them
 fail/wire/wire_codec_schema_identity_buffer_bound rejected 248ms expected @2d8ed253669f
@@ -2391,7 +2392,7 @@ pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 125343ms @011f
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 29239ms @58e4f6f8667
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms @2d8ed253669f
 pass/wire/wire_data_reserved_field checked 842ms @2d8ed253669f
-pass/wire/wire_preserving_decode_relay_exit rejected 1224ms @40866b59e47
+pass/wire/wire_preserving_decode_relay_exit checked 1552ms @bf6726603463+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: claim-free affine result` (state 0, statement 3)
 pass/write_only/state_forwarded_scalar_store_exit checked 999ms @2bde2a770491
 run/borrows/direct_runtime_index_write checked 2883ms @2d8ed253669f
