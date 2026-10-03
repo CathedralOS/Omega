@@ -1,11 +1,23 @@
+// Invocation-specific operator crash routes through execution.
+// `safe` discharges the boundary == Trap route with its own `requires`;
+// `may_crash` propagates the uncovered route and `wrapper` covers it by
+// declaration. `Main::main` calls both with operands that keep every route
+// dormant: the run must exit 0, not trap.
 boundary machine == Comparison::equal(left: i32, right: i32) -> bool
 crashes Trap !(right >= 0);
+
+data Comparison { }
 
 data ComparisonProvider { }
 
 machine ComparisonProvider::equal(left: i32, right: i32) -> bool
     satisfies Comparison::equal
-    via ForeignBinding::CompilerIntrinsic;
+{
+    transition left < right {
+        true -> false
+        _ -> !(right < left)
+    }
+}
 
 pub machine safe(value: i32) -> bool
 requires value >= 0 {
@@ -19,4 +31,23 @@ machine may_crash(left: i32, right: i32) -> bool {
 pub machine wrapper(left: i32, right: i32) -> bool
 crashes Trap {
     may_crash(left, right)
+}
+
+data Main { }
+
+machine Main::main(main: &mut Main) crashes Trap {
+    let discharged: bool = safe(1);
+    let covered: bool = wrapper(2, 2);
+    transition discharged {
+        true -> covered_observed(covered)
+        _ -> bad()
+    }
+    state covered_observed(covered: bool) {
+        transition covered {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
 }

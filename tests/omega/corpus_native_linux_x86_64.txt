@@ -624,7 +624,7 @@ pass/objc/objc_get_class checked 338ms @2d8ed253669f+wt
 pass/objc/objc_msgsend_scalar checked 339ms @2d8ed253669f+wt
 pass/operators/compound_assignment_exit built 786ms exit:70 @2d8ed253669f+wt
 pass/operators/core_operator_spelling_surface built 368ms @2d8ed253669f+wt
-pass/operators/crash_routes checked 287ms @2d8ed253669f+wt
+pass/operators/crash_routes built 589ms exit:0 @18e5a662881c+wt
 pass/operators/division_value_entry_selection built 828ms @2d8ed253669f+wt
 pass/operators/domain_operator_overload_signature_compile checked 281ms @2d8ed253669f+wt
 pass/operators/float_operator_identities built 11289ms @2d8ed253669f+wt
