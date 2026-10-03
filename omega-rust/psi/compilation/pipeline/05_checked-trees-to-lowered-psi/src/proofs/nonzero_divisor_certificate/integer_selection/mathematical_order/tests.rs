@@ -295,3 +295,97 @@ fn correlated_sum_bound_composes_translated_order_with_retained_upper_bound() {
         );
     }
 }
+
+#[test]
+fn correlated_exit_equality_replays_current_updates_and_both_order_directions() {
+    use semantic_vocabulary::IntegerValue;
+
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let context = PropositionContext::from_value_types(
+        (1..=7).map(|raw| (ValueId::new(raw).unwrap(), scalar)),
+    )
+    .unwrap();
+    let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+    let literal = |number| ScalarTerm::integer(integer, IntegerValue::Unsigned(number)).unwrap();
+    let add = |left, right| ScalarTerm::exact_integer_add(integer, left, right).unwrap();
+    let subtract = |left, right| ScalarTerm::exact_integer_subtract(integer, left, right).unwrap();
+    // Header remaining and accumulator are 1 and 2; 3 is their conserved
+    // total. The exit compares the updated remaining (4), then returns the
+    // updated accumulator (5) through a distinct result identity (6).
+    let facts = vec![
+        Proposition::LessOrEqual(literal(1), value(1)),
+        Proposition::Equal(value(3), add(value(1), value(2))),
+        Proposition::Equal(value(7), literal(1)),
+        Proposition::Equal(value(4), subtract(value(1), value(7))),
+        Proposition::LessOrEqual(value(4), literal(0)),
+        Proposition::Equal(value(5), add(value(2), value(7))),
+        Proposition::Equal(value(6), value(5)),
+    ];
+    let goal = Proposition::Equal(value(3), value(6));
+    let produce = |goal: &Proposition, facts: &[Proposition]| {
+        produce_checked_canonical_integer_proof(
+            &context,
+            goal,
+            &[],
+            facts,
+            &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
+        )
+    };
+    for goal in [goal.clone(), Proposition::Equal(value(6), value(3))] {
+        let proof = produce(&goal, &facts)
+            .expect("opposite translated orders prove the conserved exit equality");
+        proof_admission::accept_certificate(&context, &goal, &[], &facts, &proof)
+            .expect("the independent kernel and mathematical core replay both directions");
+    }
+    let proof = produce(&goal, &facts).unwrap();
+    // Each omitted row leaves a genuine unconstrained identity or admits a
+    // different exit value. Keep the lower bound and shared increment: unsigned
+    // exact subtraction supplies nonnegativity, and equal symbolic increments
+    // can preserve conservation without knowing their literal value.
+    for missing in [1, 3, 4, 5, 6] {
+        let mut incomplete = facts.clone();
+        incomplete.remove(missing);
+        assert!(
+            produce(&goal, &incomplete).is_none(),
+            "missing exit fact {missing}"
+        );
+        assert!(
+            proof_admission::accept_certificate(&context, &goal, &[], &incomplete, &proof).is_err()
+        );
+    }
+    for (position, replacement) in [
+        (
+            3,
+            Proposition::Equal(value(4), subtract(value(1), literal(2))),
+        ),
+        (4, Proposition::LessOrEqual(literal(0), value(4))),
+        (5, Proposition::Equal(value(5), add(value(2), literal(2)))),
+        (6, Proposition::Equal(value(6), value(2))),
+    ] {
+        let mut changed = facts.clone();
+        changed[position] = replacement;
+        assert!(
+            produce(&goal, &changed).is_none(),
+            "substituted exit fact {position}"
+        );
+        assert!(
+            proof_admission::accept_certificate(&context, &goal, &[], &changed, &proof).is_err()
+        );
+    }
+    // Changing the result policy must not reuse the exact-ring certificate.
+    // Increment two also makes both policy variants false at remaining=1,
+    // accumulator=0; this does not demand rejection of a valid no-wrap identity.
+    for result in [
+        ScalarTerm::wrapping_integer_add(integer, value(2), literal(2)).unwrap(),
+        ScalarTerm::saturating_integer_add(integer, value(2), literal(2)).unwrap(),
+    ] {
+        let mut changed = facts.clone();
+        changed[5] = Proposition::Equal(value(5), result);
+        assert!(produce(&goal, &changed).is_none());
+        assert!(
+            proof_admission::accept_certificate(&context, &goal, &[], &changed, &proof).is_err()
+        );
+    }
+}
