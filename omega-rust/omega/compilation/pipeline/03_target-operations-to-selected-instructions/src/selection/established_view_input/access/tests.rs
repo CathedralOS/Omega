@@ -393,7 +393,7 @@ fn copied_byte_field() -> LegalizedScalarFunction {
             fields: vec![terminal_psi::StructuralFieldDeclaration {
                 id: semantic_vocabulary::StructuralFieldId::new(304).unwrap(),
                 identity: "bytes".into(),
-                relevance: semantic_vocabulary::BindingRelevance::Relevant,
+                relevance: terminal_psi::BindingRelevance::Relevant,
                 field_type: terminal_psi::StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView {
                         access: Some(A::SharedBorrow),
@@ -505,6 +505,46 @@ fn copied_descriptor_selection_cannot_copy_mutable_whole_authority() {
     assert_eq!(view_access(&function, place(302)), None);
     function.blocks.last_mut().unwrap().structural_parameters[0].access = A::SharedBorrow;
     assert_eq!(view_access(&function, place(302)), Some(A::SharedBorrow));
+    for mutation in 0..3 {
+        let mut changed = function.clone();
+        let I::StructuralLeafCopy {
+            byte_offset,
+            shape,
+            indices,
+            ..
+        } = &mut changed.blocks.last_mut().unwrap().instructions[0].kind
+        else {
+            panic!()
+        };
+        match mutation {
+            0 => *byte_offset = 8,
+            1 => shape.byte_size = 8,
+            2 => indices.push(legalized_operations::LegalizedRuntimeIndexOperand {
+                operand: abstract_operations::AbstractResult {
+                    value: ValueId::new(999).unwrap(),
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .unwrap(),
+                    ),
+                },
+                stride: 16,
+                extent: Some(1),
+                obligation: ObligationId::new(999).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [0; 32],
+                ),
+            }),
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            view_access(&changed, place(302)),
+            None,
+            "whole geometry {mutation}"
+        );
+    }
     let I::StructuralLeafCopy { source, .. } =
         &mut function.blocks.last_mut().unwrap().instructions[0].kind
     else {
