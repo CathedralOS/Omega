@@ -22,14 +22,21 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
             .blocks
             .iter()
             .flat_map(|block| &block.instructions)
-            .any(|row| {
-                matches!(&row.kind, LegalizedScalarInstructionKind::Call(call)
-            if call.arguments.iter().any(|argument|
-                matches!(argument, LegalizedScalarArgument::Structural { semantic, .. }
-                    if semantic.place == place)))
-                    || matches!(&row.kind,
-                        LegalizedScalarInstructionKind::StructuralByteViewFieldStore { source, .. }
-                        if *source == place)
+            .any(|row| match &row.kind {
+                LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument|
+                    matches!(argument, LegalizedScalarArgument::Structural { semantic, .. }
+                        if semantic.place == place)),
+                // Scalar observations can use the retained view coordinates.
+                // Capturing or copying its value needs the address/length
+                // descriptor itself, independent of how the view was formed.
+                LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
+                | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => fields.iter().any(|field|
+                    matches!(&field.value, terminal_psi::RecordFieldValue::Structural(argument)
+                        if argument.place == place)),
+                LegalizedScalarInstructionKind::StructuralByteViewFieldStore { source, .. }
+                | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
+                LegalizedScalarInstructionKind::StoreStructuralField { value, .. } => *value == place,
+                _ => false,
             })
 }
 

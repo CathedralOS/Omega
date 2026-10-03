@@ -632,7 +632,13 @@ pub(super) fn validate_uses(
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let validate = |place| {
-        if loan_source(module, machine, place).is_some() && !available.contains(&place) {
+        // A descriptor can be copyable without owning its backing. Its exact
+        // producer must still have executed on every arrival before a record
+        // captures it, including descriptors formed by narrowing or a call.
+        if (loan_source(module, machine, place).is_some()
+            || super::element_view::view_loan_result_in_module(module, machine, place).is_some())
+            && !available.contains(&place)
+        {
             Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                 operation: operation.id,
                 place,

@@ -1318,8 +1318,7 @@ fn repeated_owner_home_establishment_preserves_stored_view_loans() {
 
 #[test]
 fn current_unit_incoming_slot_compatibility_replays_actual_backing() {
-    let mut unit = crate::tests::indexed_byte_fields::indexed_field_source_unit(
-        r#"
+    let source = r#"
         data Holder { text: &[u8]; }
         machine copy_and_write(destination: &mut Holder, source: &Holder, output: &mut [u8;4]) {
             destination.text = source.text;
@@ -1335,47 +1334,132 @@ fn current_unit_incoming_slot_compatibility_replays_actual_backing() {
             destination.text = "";
             copy_and_write(&mut destination, &source, &mut output);
         }
-        "#,
-    );
-    crate::validate_psi_optimization_unit(&unit)
-        .expect("current caller storage discharges the generic incoming-slot relation");
-    let caller = unit
-        .functions
-        .iter()
-        .position(|function| function.machine == unit.entry)
-        .unwrap();
-    let backing = unit.functions[caller]
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishElementView { source, .. } => Some(source.place),
-            _ => None,
-        })
-        .expect("authored byte view retains its local array backing");
-    let (block, node) = unit.functions[caller].blocks.iter().enumerate()
+        "#;
+    let dynamic = source
+        .replace(
+            "output: &mut [u8;4])",
+            "output: &mut [u8;4], position: u64 [0..=3])",
+        )
+        .replace("output[0]", "output[position]")
+        .replace("&mut output);", "&mut output, 0);");
+    let windowed = dynamic.replace("backing[..]", "backing[1..3]");
+    for (source, folded) in [
+        (source, false),
+        (dynamic.as_str(), false),
+        (windowed.as_str(), false),
+        (dynamic.as_str(), true),
+    ] {
+        let mut unit = crate::tests::indexed_byte_fields::indexed_field_source_unit(source);
+        if folded {
+            let function = unit
+                .functions
+                .iter()
+                .position(|function| function.machine == unit.entry)
+                .unwrap();
+            let (block, node) = unit.functions[function]
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(block, value)| {
+                    value
+                        .nodes
+                        .iter()
+                        .position(|node| matches!(node.operation, O::EstablishElementView { .. }))
+                        .map(|node| (block, node))
+                })
+                .unwrap();
+            let O::EstablishElementView { source, .. } =
+                &mut unit.functions[function].blocks[block].nodes[node].operation
+            else {
+                unreachable!()
+            };
+            source
+                .path
+                .push(terminal_psi::StructuralPathSegment::FixedByteRange { start: 1, end: 3 });
+            crate::tests::support::refresh_node_derivatives(&mut unit, function, block, node);
+        }
+        crate::validate_psi_optimization_unit(&unit)
+            .expect("current caller storage discharges the generic incoming-slot relation");
+        let caller = unit
+            .functions
+            .iter()
+            .position(|function| function.machine == unit.entry)
+            .unwrap();
+        let backing = unit.functions[caller]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .find_map(|node| match &node.operation {
+                O::EstablishElementView { source, .. } => Some(source.place),
+                _ => None,
+            })
+            .expect("authored byte view retains its local array backing");
+        if folded {
+            let function = &unit.functions[caller];
+            let (position, result) =
+                function
+                    .blocks
+                    .iter()
+                    .find_map(|block| {
+                        block.nodes.iter().enumerate().find_map(|(index, node)| {
+                            match &node.operation {
+                                O::EstablishElementView { result, source, .. }
+                                    if source.path.last()
+                                        == Some(
+                                            &terminal_psi::StructuralPathSegment::FixedByteRange {
+                                                start: 1,
+                                                end: 3,
+                                            },
+                                        ) =>
+                                {
+                                    Some(((block.id, index as u32 + 1), result.place))
+                                }
+                                _ => None,
+                            }
+                        })
+                    })
+                    .expect("the native view retains the nonzero fixed window");
+            let graph = crate::descriptor_results::optimized_graph(&unit).unwrap();
+            let origins = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+                &unit.structural_types,
+                &graph,
+            )
+            .source_origins(
+                function.machine,
+                position,
+                &terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(result),
+            )
+            .unwrap();
+            assert!(matches!(origins.as_slice(),
+                [terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection }]
+                if *source == backing && projection.path == [terminal_psi::StructuralPathSegment::FixedByteRange { start: 1, end: 3 }]));
+        }
+        let (block, node) = unit.functions[caller].blocks.iter().enumerate()
         .find_map(|(block, value)| value.nodes.iter().position(|node|
             matches!(&node.operation, O::CallStructural { structural_arguments, .. } if structural_arguments.len() == 3)
         ).map(|node| (block, node))).expect("exact three-input call");
-    let O::CallStructural {
-        structural_arguments,
-        ..
-    } = &mut unit.functions[caller].blocks[block].nodes[node].operation
-    else {
-        unreachable!()
-    };
-    assert_ne!(structural_arguments[2].place, backing);
-    assert!(structural_arguments[2].path.is_empty());
-    structural_arguments[2].place = backing;
-    crate::tests::support::refresh_node_derivatives(&mut unit, caller, block, node);
-    assert!(
-        matches!(
-            crate::validate_psi_optimization_unit(&unit),
-            Err(crate::OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
-        ),
-        "{:?}",
-        crate::validate_psi_optimization_unit(&unit)
-    );
+        let O::CallStructural {
+            structural_arguments,
+            ..
+        } = &mut unit.functions[caller].blocks[block].nodes[node].operation
+        else {
+            unreachable!()
+        };
+        assert_ne!(structural_arguments[2].place, backing);
+        assert!(structural_arguments[2].path.is_empty());
+        structural_arguments[2].place = backing;
+        crate::tests::support::refresh_node_derivatives(&mut unit, caller, block, node);
+        assert!(
+            matches!(
+                crate::validate_psi_optimization_unit(&unit),
+                Err(
+                    crate::OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. }
+                )
+            ),
+            "{:?}",
+            crate::validate_psi_optimization_unit(&unit)
+        );
+    }
 }
 
 #[test]

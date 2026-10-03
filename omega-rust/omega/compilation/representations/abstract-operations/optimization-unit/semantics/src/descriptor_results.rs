@@ -236,31 +236,40 @@ fn adapt(
                 O::EstablishElementView { result, source, .. }
                 | O::EstablishReference { result, source, .. } => {
                     let destination = DescriptorLocation::whole(result.place);
-                    if let Some(source) = location(source.place, &source.path, None) {
-                        if let O::EstablishElementView {
-                            source: argument,
-                            element,
-                            region,
-                            ..
-                        } = operation
-                            && !element_coordinates_preserved(
-                                function,
-                                types.iter(),
-                                argument,
-                                *element,
-                                *region,
-                            )
+                    // A folded byte window selects backing contents, not a
+                    // descriptor slot address. Keep its extent as a projection
+                    // on the derivation; the original operation still supplies
+                    // the independently checked array type and range bounds.
+                    let (path, mut projection) = match source.path.split_last() {
+                        Some((range @ StructuralPathSegment::FixedByteRange { .. }, path))
+                            if matches!(operation, O::EstablishElementView { .. }) =>
                         {
-                            // Location owns the source prefix. Later target-element
-                            // coordinates must not refine differently typed backing.
-                            let mut projection = Projection::new(&[]);
-                            projection.exact = false;
-                            graph.projections.insert(
-                                (position, source.clone(), destination.clone()),
-                                projection,
-                            );
+                            (path, Some(Projection::new(std::slice::from_ref(range))))
                         }
-                        step.derivations.push((source, destination.clone()));
+                        _ => (source.path.as_slice(), None),
+                    };
+                    if let O::EstablishElementView {
+                        element, region, ..
+                    } = operation
+                        && !element_coordinates_preserved(
+                            function,
+                            types.iter(),
+                            source,
+                            *element,
+                            *region,
+                        )
+                    {
+                        // Retyped element coordinates cannot refine source
+                        // geometry, including an already narrowed fixed window.
+                        projection.get_or_insert_with(|| Projection::new(&[])).exact = false;
+                    }
+                    if let Some(source) = location(source.place, path, None) {
+                        step.derivations.push((source.clone(), destination.clone()));
+                        if let Some(projection) = projection {
+                            graph
+                                .projections
+                                .insert((position, source, destination.clone()), projection);
+                        }
                     } else {
                         step.may_escape = true;
                     }
@@ -689,11 +698,27 @@ pub(crate) fn element_coordinates_preserved<'a>(
     ) else {
         return false;
     };
-    let Some(collection) = terminal_semantics::runtime_structural_path_tip(
-        types.clone(),
-        root.structural_type,
-        &source.path,
-    ) else {
+    // A fixed byte window changes extent, not the backing's element type.
+    // Its range stays on the loan projection; only declaration lookup strips
+    // that final presentation. Byte coordinates require an exact u8 element.
+    let path = match source.path.split_last() {
+        Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => {
+            if !types.clone().any(|declaration| {
+                declaration.id == element
+                    && matches!(declaration.shape,
+                        StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
+                            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                                && integer.bits() == 8 && !integer.is_address())
+            }) {
+                return false;
+            }
+            backing
+        }
+        _ => source.path.as_slice(),
+    };
+    let Some(collection) =
+        terminal_semantics::runtime_structural_path_tip(types.clone(), root.structural_type, path)
+    else {
         return false;
     };
     terminal_semantics::collection_view_preserves_coordinates(types, collection.id, element, region)

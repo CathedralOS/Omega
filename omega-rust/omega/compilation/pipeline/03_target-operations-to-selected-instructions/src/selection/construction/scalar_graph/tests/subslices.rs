@@ -179,6 +179,23 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
         scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
     };
     source.provenance.operations = block.instructions.iter().map(|row| row.operation).collect();
+    // Receiving access replay joins each derived descriptor to its exact
+    // declaration and producer; coordinates alone do not establish custody.
+    source
+        .structural
+        .as_mut()
+        .unwrap()
+        .structural_places
+        .extend(block.instructions.iter().filter_map(|row| {
+            let result = row.kind.get_structural_result()?;
+            Some(terminal_psi::StructuralPlaceDeclaration {
+                id: result.place,
+                kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer: row.operation,
+                    structural_type: result.structural_type,
+                },
+            })
+        }));
     source
 }
 

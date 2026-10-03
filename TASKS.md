@@ -2174,35 +2174,10 @@ crash and native exit behavior. Use affected check/native corpus slices under
   in stage 04 `control/statement_sequence/local_data.rs`, which currently
   refuses mutable bindings, and whole-array computation-argument loans.
 
-  Borrowed views are another field producer, not owned array storage.
-  `computations/slice_view.rs` constructs field-site views, and a generated
-  codec machine's `&Sample` parameter keeps the entry's place through its
-  states (`state_graph/entry_aliases.rs`). The unchanged
-  `wire/runtime_wire_encode_byte_slice_exit` currently rejects in Terminal with
-  `BorrowedDescriptorLoanDisturbed` at operation 86, place 3, while the
-  interpreter exits 70. This reproduces on clean `80320b8c1ab` and after the
-  stored-view repair rebased onto `6108c8da0c`; it supersedes the older native
-  success. Repair descriptor-backed access compatibility in
-  `frontier/descriptor_loans` without dropping exact captured geometry or
-  allowing overlapping writes. Acceptance remains native/interpreter exit 70,
-  encoding `[0, 0, 2, 72, 105]` with written count 5.
-  `wire/runtime_wire_encode_borrowed_scalar_slice_exit`
-  also rejects with `BorrowedDescriptorLoanDisturbed` (operation 173, place 3)
-  on macOS ARM64 at `e26283d597` plus the single-prefix encoder repair;
-  interpretation exits 70. Generated packed-scalar encoding now emits only
-  its measured byte-length prefix, not an additional element count, and the
-  fixture's authored exit-70 oracle prevents recording rejection as success.
-  Remaining dependencies are descriptor-backed access compatibility, retention
-  of the authored `source[0..3]` field range in stage 05
-  `structural_values/emission.rs`, and record-field descriptor demand in native
-  selection. The interior-region work owns those producer and consumer paths.
-  Acceptance is the unchanged program encoding exactly eight bytes
-  `[0, 0, 5, 1, 128, 1, 129, 1]` with native/interpreter exit 70. The public
-  command in its README currently stops at ordinary package review (exit 200).
   `wire/runtime_wire_decode_byte_slice_exit` stops at stage 04
   `structural field store: borrowed view field: declared domains`.
-  **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals. Those two wire
-  programs remain required native runs, not successes merely because their
+  **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals. The byte-slice
+  decoder remains a required native run, not a success merely because its
   rejection matches an old golden.
 
   The wire customers construct their records and call the checked codec

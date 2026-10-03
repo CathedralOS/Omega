@@ -90,6 +90,27 @@ impl Projection {
         self
     }
 
+    /// Name the complete direct storage containing this access. A modular
+    /// compatibility demand may require disjointness from this larger region
+    /// without transporting callee-local selectors. This is not the original
+    /// access geometry: never use it to replace a captured loan or bounds check.
+    pub fn enclosing_storage(&self) -> Option<Self> {
+        if self.indirect {
+            return None;
+        }
+        let length = self
+            .path
+            .iter()
+            .take_while(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            .count();
+        Some(Self::new(&self.path[..length]))
+    }
+
     pub fn then(&self, suffix: &Self) -> Self {
         let mut composed = self.clone();
         composed.indirect |= suffix.indirect;
@@ -218,4 +239,42 @@ pub fn resolve(aliases: &AliasSources, root: PlaceId, projection: Projection) ->
         });
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::ObligationId;
+
+    #[test]
+    fn enclosing_storage_discards_relative_suffixes_and_capture_coordinates() {
+        let position = (BlockId::new(1).unwrap(), 2);
+        let index = ValueId::new(1).unwrap();
+        let prefix = vec![
+            StructuralPathSegment::Field("output".into()),
+            StructuralPathSegment::FixedIndex(2),
+        ];
+        let exact = Projection::new(&prefix);
+        assert_eq!(exact.enclosing_storage(), Some(exact.clone()));
+        for selector in [
+            StructuralPathSegment::RuntimeIndex {
+                index,
+                obligation: ObligationId::new(1).unwrap(),
+            },
+            StructuralPathSegment::FixedByteRange { start: 1, end: 3 },
+        ] {
+            let mut selected = exact.clone();
+            selected
+                .path
+                .extend([selector, StructuralPathSegment::Field("sibling".into())]);
+            selected.exact = false;
+            selected.captured_at = Some(position);
+            selected.window = Some((index, index));
+            let retained = selected.clone();
+            assert_eq!(selected.enclosing_storage(), Some(exact.clone()));
+            assert_eq!(selected, retained, "captured geometry remains unchanged");
+            selected.indirect = true;
+            assert_eq!(selected.enclosing_storage(), None);
+        }
+    }
 }

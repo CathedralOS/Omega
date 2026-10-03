@@ -1632,6 +1632,77 @@ impl Emission<'_, '_, '_> {
         loan: LoanAccess,
         multiplicity: StructuralMultiplicity,
     ) -> Result<PlaceId, LoweringError> {
+        // A range source contains an operation, not just an address. Use the
+        // same storage binding and endpoint replay as calls and state edges;
+        // publishing the enclosing collection would silently widen the view.
+        if let Some(range) = super::super::view_ranges::range(source) {
+            use super::super::view_ranges;
+            if !matches!(
+                region,
+                checked_trees::CheckedElementViewRegion::WholeCollection
+            ) {
+                return unsupported("element range cannot replace a representation-byte region");
+            }
+            let storage = view_ranges::storage(
+                self.checked,
+                self.state,
+                self.statement,
+                source,
+                self.structural_types,
+            )?;
+            let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
+                self.values.iter().map(|value| value.scalar_type),
+            )
+            .with_structural_parameters(&self.evaluation.structural_parameters)
+            .with_structural_locals(&self.evaluation.structural_locals);
+            let whole = storage
+                .requires_establishment()
+                .then(|| allocate_dense(self.next_place).map(place_id))
+                .transpose()?;
+            let (bound, establishment) =
+                storage.bind(self.checked, self.state, &bindings, whole)?;
+            if let Some(establishment) = establishment {
+                self.temporary_places
+                    .push(view_ranges::establish(&establishment, self.operations));
+            }
+            let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+                self.checked,
+                self.state,
+            )?;
+            let site = match self
+                .checked
+                .statement_table
+                .statements(authored.statement_nodes)
+                .get(self.statement as usize)
+            {
+                Some(checked_trees::statement::StatementNode::LocalData(local))
+                    if local.initial_value == expression =>
+                {
+                    checked_trees::CheckedSubsliceSite::LocalBinding
+                }
+                _ => checked_trees::CheckedSubsliceSite::Expression { expression },
+            };
+            let place = place_id(allocate_dense(self.next_place)?);
+            self.temporary_places.push(view_ranges::emit(
+                self.checked,
+                view_ranges::ViewRangeSite {
+                    state: self.state,
+                    statement: self.statement,
+                    site,
+                    expression: range.expression,
+                    retained: Some((range.start, range.end)),
+                },
+                bound,
+                &source.path,
+                self.structural_type,
+                place,
+                &bindings,
+                self.values,
+                self.next_value,
+                self.operations,
+            )?);
+            return Ok(place);
+        }
         let element = self
             .structural_types
             .iter()

@@ -373,11 +373,15 @@ fn validate_owned_reads(
                             argument.place,
                         ))
                     || super::scalar::array::plain_return_source(module, machine, argument.place)
-                    // A loan establishment publishes an unrestricted result
-                    // under its own access: a shared or mutable element view,
-                    // or a reference carrier, stays live wherever its backing
-                    // remains live — storing one into a field reads the view,
-                    // it does not move the backing's custody.
+                    // Storing a shared descriptor retains its loan; it does
+                    // not move the backing's custody. Authenticate the exact
+                    // producer chain so narrowing, copying and returning a
+                    // view preserve this rule. record::validate_uses separately
+                    // requires the descriptor to dominate this capture.
+                    || super::element_view::view_loan_result_in_module(
+                        module, machine, argument.place,
+                    ).is_some_and(|(_, access)| access == StructuralAccess::SharedBorrow)
+                    // A reference is a separate carrier, not an element view.
                     || machine
                         .blocks
                         .iter()
@@ -385,9 +389,7 @@ fn validate_owned_reads(
                         .any(|candidate| {
                             matches!(
                                 candidate.kind,
-                                OperationKind::EstablishElementView { .. }
-                                    | OperationKind::EstablishMutableElementView { .. }
-                                    | OperationKind::EstablishReference { .. }
+                                OperationKind::EstablishReference { .. }
                             ) && candidate
                                 .result
                                 .structural()

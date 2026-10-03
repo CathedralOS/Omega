@@ -994,3 +994,164 @@ fn unresolved_incoming_slot_relation_is_not_an_executable_entry_grant() {
         validate_module(&module)
     );
 }
+
+#[test]
+fn incoming_slot_runtime_write_requires_disjoint_enclosing_storage() {
+    use terminal_psi::StructuralPathSegment as Path;
+    let mut module = incoming_slot_call_fixture();
+    let operations = &mut module.machines[1].blocks[0].operations;
+    operations.insert(
+        3,
+        scalar_operation(
+            25,
+            64,
+            OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(0),
+            },
+        ),
+    );
+    let OperationKind::WriteOnlyPrimitiveStore { path, .. } = &mut operations[4].kind else {
+        unreachable!()
+    };
+    *path = vec![Path::RuntimeIndex {
+        index: id(25),
+        obligation: id(25),
+    }];
+    validate_module(&module).expect("a dynamic write into independent storage is compatible");
+    let mut external = module.clone();
+    external.entry = id(2);
+    assert!(matches!(
+        validate_module(&external),
+        Err(ModuleError::BorrowedDescriptorLoanDisturbed { .. })
+    ));
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[4].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[2].place = id(4);
+    assert!(
+        matches!(
+            validate_module(&module),
+            Err(ModuleError::BorrowedDescriptorLoanDisturbed { .. })
+        ),
+        "same backing must fail the enlarged demand: {:?}",
+        validate_module(&module)
+    );
+}
+
+#[test]
+fn record_capture_of_narrowed_element_view_requires_establishment() {
+    let mut module = unit_module();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: id(1),
+            identity: "test::I32".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+            )),
+        },
+        StructuralTypeDeclaration {
+            id: id(2),
+            identity: "test::Readings".into(),
+            shape: StructuralTypeShape::ElementView { element: id(1) },
+        },
+        StructuralTypeDeclaration {
+            id: id(3),
+            identity: "test::Sample".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: id(1),
+                    identity: "readings".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(id(2)),
+                }],
+            },
+        },
+    ];
+    let machine = &mut module.machines[0];
+    machine.structural_parameters = vec![StructuralParameterDeclaration {
+        place: id(1),
+        position: 0,
+        is_self: false,
+        structural_type: id(2),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+    }];
+    let (view, view_value) = view_result(2, 4, 2);
+    let (record, record_value) = view_result(3, 5, 3);
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: id(1),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        view,
+        record,
+    ];
+    machine.blocks[0].operations = vec![
+        scalar_operation(1, 64, OperationKind::ElementViewLength { source: id(1) }),
+        scalar_operation(
+            2,
+            64,
+            OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(1),
+            },
+        ),
+        scalar_operation(
+            3,
+            64,
+            OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(3),
+            },
+        ),
+        Operation {
+            id: id(4),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: view_value,
+            kind: OperationKind::ElementViewSubslice {
+                source: id(1),
+                start: id(2),
+                end: id(3),
+                length: id(1),
+                obligation: id(1),
+            },
+        },
+        Operation {
+            id: id(5),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: record_value,
+            kind: OperationKind::EstablishRecord {
+                fields: vec![terminal_psi::RecordFieldInitializer {
+                    field: id(1),
+                    value: terminal_psi::RecordFieldValue::Structural(
+                        terminal_psi::StructuralArgument {
+                            place: id(2),
+                            path: vec![],
+                            access: StructuralAccess::Owned,
+                        },
+                    ),
+                }],
+            },
+        },
+    ];
+    // This gate checks formation and receiving custody; the range's bounds
+    // remain a separate proof obligation, just as for direct view formation.
+    validate_module(&module).expect("a formed shared subslice can be captured in a record");
+    module.machines[0].blocks[0].operations.swap(3, 4);
+    assert!(
+        matches!(validate_module(&module),
+            Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation { operation, place })
+                if operation == id(5) && place == id(2)),
+        "the same descriptor type and producer cannot authorize a pre-establishment capture: {:?}",
+        validate_module(&module),
+    );
+}
