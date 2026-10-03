@@ -5,8 +5,8 @@ use super::{
     OperationKind, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind,
     StructuralTypeId, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, is_partial_affine_path,
-    partial_affine_residuals, partial_affine_root_type, resolve_structural_path,
+    TerminalMachineResult, TerminalModule, Terminator, partial_affine_residuals,
+    partial_affine_root_type, resolve_structural_path,
 };
 mod continuation;
 
@@ -133,6 +133,9 @@ fn projected_transfers<'a>(
     Some(arguments)
 }
 
+/// Validate transfer contracts and cleanup declarations without approximating
+/// current ownership by a machine-wide union of moves. The frontier replays each
+/// root at each edge and verifies its exact remaining complement independently.
 pub(super) fn validate_partial_affine_cleanup_shape(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -140,527 +143,57 @@ pub(super) fn validate_partial_affine_cleanup_shape(
 ) -> Result<(), ModuleError> {
     for block in &machine.blocks {
         continuation::validate(module, machine, block, machines)?;
-    }
-    let field_calls = machine
-        .blocks
-        .iter()
-        .filter(|block| !matches!(block.terminator, Terminator::Jump { .. }))
-        .flat_map(|block| {
-            block.operations.iter().filter_map(move |operation| {
-                let OperationKind::CallUnit {
-                    callee,
-                    structural_arguments,
-                    claim_transfers,
-                    ..
-                } = &operation.kind
-                else {
-                    return None;
-                };
-                structural_arguments
+        let invalid = || ModuleError::InvalidPartialAffineCleanup {
+            machine: machine.id,
+            block: block.id,
+        };
+        // Repeated or ancestor-overlapping moves within one straight-line block
+        // cannot describe independent transfers. A new producer occurrence starts
+        // a new root; cross-block availability belongs exclusively to the frontier.
+        let mut moved: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>> = BTreeMap::new();
+        for operation in &block.operations {
+            for argument in
+                projected_transfers(module, machine, machines, operation).ok_or_else(invalid)?
+            {
+                let paths = moved.entry(argument.place).or_default();
+                if paths
                     .iter()
-                    .any(|argument| {
-                        argument.access == StructuralAccess::Owned
-                            && partial_affine_root_type(machine, argument.place).is_some_and(
-                                |structural_type| {
-                                    is_partial_affine_path(module, structural_type, &argument.path)
-                                },
-                            )
-                    })
-                    .then_some((
-                        block,
-                        operation,
-                        *callee,
-                        structural_arguments,
-                        claim_transfers,
-                    ))
-            })
-        })
-        .collect::<Vec<_>>();
-    let partial_returns = machine
-        .blocks
-        .iter()
-        .filter(|block| matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. }))
-        .collect::<Vec<_>>();
-    if field_calls.is_empty() && partial_returns.is_empty() {
-        return Ok(());
-    }
-    let invalid = |block: BlockId| ModuleError::InvalidPartialAffineCleanup {
-        machine: machine.id,
-        block,
-    };
-    let partial_block = match partial_returns.as_slice() {
-        [partial_block] => Some(*partial_block),
-        [] => None,
-        [extra, ..] => return Err(invalid(extra.id)),
-    };
-    // A partial terminator names its residual root directly; a parameter
-    // root is a signature place, while a result root keeps the producer
-    // lookup below. Parameter custody is machine-scoped, so the parameter
-    // lane is selected by any projected machine-parameter operand in any
-    // block — including calls whose block ends on a continuation edge.
-    let terminator_root = partial_block.and_then(|partial_block| {
+                    .any(|path| path.starts_with(&argument.path) || argument.path.starts_with(path))
+                {
+                    return Err(invalid());
+                }
+                paths.insert(argument.path.clone());
+            }
+            if let Some(result) = operation.result.structural() {
+                moved.remove(&result.place);
+            }
+        }
         let Terminator::ReturnUnitPartialAffine {
             residual_affine_discards,
-            ..
-        } = &partial_block.terminator
-        else {
-            unreachable!()
-        };
-        residual_affine_discards
-            .first()
-            .map(|residual| residual.place)
-    });
-    let root_is_parameter = terminator_root.is_some_and(|root_place| {
-        machine
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.place == root_place)
-    }) || machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .any(|operation| {
-            let OperationKind::CallUnit {
-                structural_arguments,
-                ..
-            } = &operation.kind
-            else {
-                return false;
-            };
-            structural_arguments.iter().any(|argument| {
-                argument.access == StructuralAccess::Owned
-                    && !argument.path.is_empty()
-                    && partial_affine_root_type(machine, argument.place).is_some()
-                    && machine
-                        .structural_parameters
-                        .iter()
-                        .any(|parameter| parameter.place == argument.place)
-            })
-        });
-    let constructor_projection = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .any(|operation| {
-            matches!(
-                operation.kind,
-                OperationKind::EstablishRecord { .. }
-                    | OperationKind::EstablishStructuralCase { .. }
-            ) && projected_transfers(module, machine, machines, operation)
-                .is_some_and(|arguments| !arguments.is_empty())
-        });
-    if root_is_parameter || constructor_projection {
-        return validate_parameter_partial_affine_shape(
-            module,
-            machine,
-            machines,
-            partial_block,
-            invalid,
-        );
-    }
-    let Some((block, _, _, _, _)) = field_calls.first() else {
-        return Err(invalid(
-            partial_returns
-                .first()
-                .map_or(machine.entry, |block| block.id),
-        ));
-    };
-    let Some((_, _, _, arguments, _)) = field_calls.first() else {
-        unreachable!("field calls checked above")
-    };
-    let [root_argument] = arguments.as_slice() else {
-        return Err(invalid(block.id));
-    };
-    let root_place = root_argument.place;
-    let root_type =
-        partial_affine_root_type(machine, root_place).ok_or_else(|| invalid(block.id))?;
-    let root_parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root_place);
-    let root_is_self = root_parameter.is_some_and(|parameter| parameter.is_self);
-    let root_position = root_parameter.map_or(0, |parameter| parameter.position);
-    let producer = if root_parameter.is_none() {
-        let Some(StructuralPlaceKind::OperationResult { producer, .. }) = machine
-            .structural_places
-            .iter()
-            .find(|place| place.id == root_place)
-            .map(|place| &place.kind)
-        else {
-            return Err(invalid(block.id));
-        };
-        Some(*producer)
-    } else {
-        None
-    };
-    if partial_block.is_some_and(|partial_block| partial_block.id != block.id)
-        || field_calls
-            .iter()
-            .any(|(candidate, ..)| candidate.id != block.id)
-        || !matches!(machine.result, TerminalMachineResult::Unit)
-        || block.operations.len() != field_calls.len() + usize::from(producer.is_some())
-        || if let Some(producer) = producer {
-            machine.blocks.len() != 1
-                || block.id != machine.entry
-                || block
-                    .operations
-                    .first()
-                    .is_none_or(|operation| operation.id != producer)
-                || machine.structural_parameters.len() > 1
-                || machine.structural_places.len() != machine.structural_parameters.len() + 1
-                || machine.structural_parameters.iter().any(|parameter| {
-                    parameter.is_self
-                        || partial_affine_root_type(machine, parameter.place).is_none()
-                })
-        } else {
-            machine.structural_parameters.len() != 1 || machine.structural_places.len() != 1
-        }
-        || !machine.entry_claims.is_empty()
-        || !machine.content_entry_claims.is_empty()
-        || !machine.content_identity_reshuffles.is_empty()
-        || !machine.content_partition_compositions.is_empty()
-    {
-        return Err(invalid(block.id));
-    }
-    let indexed_projection = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == root_type)
-        .is_some_and(|declaration| {
-            matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
-        })
-        || field_calls.iter().any(|(_, _, _, arguments, _)| {
-            arguments.iter().any(|argument| {
-                argument
-                    .path
-                    .iter()
-                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-            })
-        });
-    if root_parameter.is_some_and(|root| {
-        !machine.structural_places.iter().any(|place| {
-            place.id == root_place
-                && place.kind
-                    == StructuralPlaceKind::Parameter {
-                        position: root.position,
-                        is_self: root.is_self,
-                    }
-        })
-    }) {
-        return Err(invalid(block.id));
-    }
-    let mut moved_paths = BTreeSet::new();
-    for (_, _, callee_id, arguments, claim_transfers) in &field_calls {
-        let [argument] = arguments.as_slice() else {
-            return Err(invalid(block.id));
-        };
-        if argument.place != root_place
-            || argument.access != StructuralAccess::Owned
-            || !moved_paths.insert(argument.path.clone())
-        {
-            return Err(invalid(block.id));
-        }
-        let Some(moved_type) = resolve_structural_path(module, root_type, &argument.path) else {
-            return Err(invalid(block.id));
-        };
-        let Some(callee) = machines.get(callee_id).copied() else {
-            return Err(invalid(block.id));
-        };
-        let [callee_parameter] = callee.structural_parameters.as_slice() else {
-            return Err(invalid(block.id));
-        };
-        if !claim_transfers.is_empty()
-            || callee.result != TerminalMachineResult::Unit
-            || !callee.parameters.is_empty()
-            || callee_parameter.structural_type != moved_type
-            || callee_parameter.multiplicity != StructuralMultiplicity::Affine
-            || callee_parameter.position != 0
-            || callee_parameter.is_self
-            || callee_parameter.access != StructuralAccess::Owned
-            || !callee_parameter.qualifications.is_empty()
-            || (indexed_projection && !exact_fixed_array_element_sink(callee, moved_type))
-        {
-            return Err(invalid(block.id));
-        }
-    }
-    // Crashes abandon the current frontier; they never invent a disposal edge.
-    if matches!(block.terminator, Terminator::Crash { .. }) {
-        return Ok(());
-    }
-    if partial_block.is_none() {
-        let Terminator::ReturnUnit {
-            trivial_affine_discards,
             ..
         } = &block.terminator
         else {
-            return Err(invalid(block.id));
+            continue;
         };
-        if machine.blocks.len() != 1
-            || !block.parameters.is_empty()
-            || root_position != 0
-            || root_is_self
-            || partial_affine_residuals(module, root_type, &moved_paths, 0)
-                .is_none_or(|residuals| !residuals.is_empty())
-            || !trivial_affine_discards.is_empty()
-            || (producer.is_none() && !machine.published_service_ceiling.is_empty())
-            || !machine.contract.requires.is_empty()
-            || !machine.contract.ensures.is_empty()
-            || !machine.contract.crash_routes.is_empty()
-        {
-            return Err(invalid(block.id));
-        }
-        return Ok(());
-    }
-    let Some(expected_residuals) = partial_affine_residuals(
-        module,
-        root_type,
-        &moved_paths,
-        match &block.terminator {
-            Terminator::ReturnUnitPartialAffine {
-                residual_affine_discards,
-                ..
-            } => residual_affine_discards.len(),
-            _ => 0,
-        },
-    ) else {
-        return Err(invalid(block.id));
-    };
-    let Terminator::ReturnUnitPartialAffine {
-        trivial_affine_discards,
-        residual_affine_discards,
-        ..
-    } = &block.terminator
-    else {
-        unreachable!()
-    };
-    if (indexed_projection
-        && (machine.blocks.len() != 1
-            || block.id != machine.entry
-            || !block.parameters.is_empty()
-            || !machine.parameters.is_empty()
-            || root_position != 0
-            || root_is_self
-            || (producer.is_none() && !machine.published_service_ceiling.is_empty())
-            || !machine.contract.requires.is_empty()
-            || !machine.contract.ensures.is_empty()
-            || !machine.contract.crash_routes.is_empty()))
-        || expected_residuals.is_empty()
-        || !trivial_affine_discards.is_empty()
-        || residual_affine_discards.len() != expected_residuals.len()
-        || residual_affine_discards.iter().zip(expected_residuals).any(
-            |(residual, (path, structural_type))| {
-                residual.place != root_place
-                    || residual.path != path
-                    || residual.structural_type != structural_type
-            },
-        )
-    {
-        return Err(invalid(block.id));
-    }
-    Ok(())
-}
-
-/// Reconstruct cleanup for operation transfers across an ordinary body.
-/// A call or constructor may take a subtree from a structural owner; the untouched complement then dies as residual rows
-/// on the machine's own return terminator — or the covering moves consume
-/// the root completely and owe no residual at all. Parameter custody is
-/// machine-scoped, so projected operands are collected from every block,
-/// including calls whose block ends on a shared continuation edge. Other
-/// roots keep their own lanes: result temporaries ride the shared call
-/// continuation, and untouched siblings still die whole as trivial
-/// discards the frontier checks by exact reconstruction. A second
-/// partially moved parameter has no terminator vocabulary, so only its
-/// fully consumed complement survives this pass.
-fn validate_parameter_partial_affine_shape(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    machines: &BTreeMap<MachineId, &TerminalMachine>,
-    partial_block: Option<&terminal_psi::Block>,
-    invalid: impl Fn(BlockId) -> ModuleError,
-) -> Result<(), ModuleError> {
-    // Every owned projection onto a partial-affine root contributes its
-    // path to that root's moved set; each operand's call or constructor
-    // contract is checked by the common transfer roster. The machine's own parameter roots
-    // are what the return terminator may close — result roots keep their
-    // shared continuation evidence instead. Moves inside a block whose
-    // terminator crashes are abandoned with that block's frontier, so
-    // they never reach a return edge and are not recorded here.
-    let mut parameter_roots: Vec<PlaceId> = Vec::new();
-    let mut moved_per_root: BTreeMap<
-        PlaceId,
-        (StructuralTypeId, BTreeSet<Vec<StructuralPathSegment>>),
-    > = BTreeMap::new();
-    let mut indexed_projection = false;
-    for block in &machine.blocks {
-        for operation in &block.operations {
-            let arguments = projected_transfers(module, machine, machines, operation)
-                .ok_or_else(|| invalid(block.id))?;
-            for argument in arguments {
-                let root_type = partial_affine_root_type(machine, argument.place)
-                    .ok_or_else(|| invalid(block.id))?;
-                indexed_projection |= argument
-                    .path
-                    .iter()
-                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
-                if matches!(block.terminator, Terminator::Crash { .. }) {
-                    continue;
-                }
-                let (recorded_type, moved_paths) = moved_per_root
-                    .entry(argument.place)
-                    .or_insert_with(|| (root_type, BTreeSet::new()));
-                if *recorded_type != root_type || !moved_paths.insert(argument.path.clone()) {
-                    return Err(invalid(block.id));
-                }
-                if machine
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == argument.place)
-                    && moved_paths.len() == 1
-                {
-                    parameter_roots.push(argument.place);
-                }
-            }
-        }
-    }
-    if !matches!(machine.result, TerminalMachineResult::Unit)
-        || !machine.entry_claims.is_empty()
-        || !machine.content_entry_claims.is_empty()
-        || !machine.content_identity_reshuffles.is_empty()
-        || !machine.content_partition_compositions.is_empty()
-    {
-        return Err(invalid(
-            partial_block.map_or(machine.entry, |block| block.id),
-        ));
-    }
-    // Abandoned moves left nothing to close.
-    if partial_block.is_none() && moved_per_root.is_empty() {
-        return Ok(());
-    }
-    let residual_root = partial_block.and_then(|partial_block| {
-        let Terminator::ReturnUnitPartialAffine {
-            residual_affine_discards,
-            ..
-        } = &partial_block.terminator
-        else {
-            unreachable!()
-        };
-        residual_affine_discards
-            .first()
-            .map(|residual| residual.place)
-    });
-    let indexed_root = residual_root.is_some_and(|place| {
-        partial_affine_root_type(machine, place).is_some_and(|root_type| {
-            module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == root_type)
-                .is_some_and(|declaration| {
-                    matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+        let first = residual_affine_discards.first().ok_or_else(invalid)?;
+        let root_type = partial_affine_root_type(machine, first.place).ok_or_else(invalid)?;
+        let mut paths = BTreeSet::new();
+        for residual in residual_affine_discards {
+            if residual.place != first.place
+                || residual.path.is_empty()
+                || resolve_structural_path(module, root_type, &residual.path)
+                    != Some(residual.structural_type)
+                || paths.iter().any(|path: &Vec<StructuralPathSegment>| {
+                    path.starts_with(&residual.path) || residual.path.starts_with(path)
                 })
-        })
-    });
-    if (indexed_projection || indexed_root)
-        && (!machine.parameters.is_empty()
-            || !machine.published_service_ceiling.is_empty()
-            || !machine.contract.requires.is_empty()
-            || !machine.contract.ensures.is_empty()
-            || !machine.contract.crash_routes.is_empty())
-    {
-        return Err(invalid(
-            partial_block.map_or(machine.entry, |block| block.id),
-        ));
-    }
-    for place in &parameter_roots {
-        if machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *place)
-            .is_none_or(|parameter| parameter.is_self)
-        {
-            return Err(invalid(
-                partial_block.map_or(machine.entry, |block| block.id),
-            ));
-        }
-    }
-    // Reconstruct every moved root's complement. The terminator's root
-    // must publish its exact complement; every other projected parameter
-    // root must be fully consumed — a second partial root has no
-    // return-edge vocabulary. Result roots keep their shared continuation
-    // evidence and are replayed by the frontier.
-    let mut expected_residuals = None;
-    for (place, (root_type, moved)) in &moved_per_root {
-        let is_residual_root = residual_root == Some(*place);
-        let Some(expected) = partial_affine_residuals(
-            module,
-            *root_type,
-            moved,
-            match partial_block {
-                Some(partial_block) if is_residual_root => match &partial_block.terminator {
-                    Terminator::ReturnUnitPartialAffine {
-                        residual_affine_discards,
-                        ..
-                    } => residual_affine_discards.len(),
-                    _ => unreachable!(),
-                },
-                _ => usize::MAX,
-            },
-        ) else {
-            return Err(invalid(
-                partial_block.map_or(machine.entry, |block| block.id),
-            ));
-        };
-        if is_residual_root {
-            expected_residuals = Some(expected);
-        } else if !expected.is_empty()
-            && machine
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == *place)
-        {
-            return Err(invalid(
-                partial_block.map_or(machine.entry, |block| block.id),
-            ));
-        }
-    }
-    match partial_block {
-        Some(partial_block) => {
-            let Terminator::ReturnUnitPartialAffine {
-                residual_affine_discards,
-                ..
-            } = &partial_block.terminator
-            else {
-                unreachable!()
-            };
-            let (Some(residual_place), Some(expected)) = (residual_root, expected_residuals) else {
-                return Err(invalid(partial_block.id));
-            };
-            if expected.is_empty()
-                || residual_affine_discards.len() != expected.len()
-                || residual_affine_discards.iter().zip(&expected).any(
-                    |(residual, (path, structural_type))| {
-                        residual.place != residual_place
-                            || residual.path != *path
-                            || residual.structural_type != *structural_type
-                    },
-                )
             {
-                return Err(invalid(partial_block.id));
+                return Err(invalid());
             }
+            paths.insert(residual.path.clone());
         }
-        None => {
-            // Covering projections leave a parameter root fully consumed;
-            // the machine's unique ordinary return then owes no residual.
-            let mut unit_returns = machine
-                .blocks
-                .iter()
-                .filter(|block| matches!(block.terminator, Terminator::ReturnUnit { .. }));
-            if parameter_roots.is_empty()
-                || unit_returns.next().is_none()
-                || unit_returns.next().is_some()
-            {
-                return Err(invalid(machine.entry));
-            }
-        }
+        // Ordering, missing siblings, already moved children, other live roots,
+        // and whole-root disposal are checked against this return's live frontier
+        // by close_return_unit_partial_affine, not against another block's moves.
     }
     Ok(())
 }
