@@ -567,7 +567,7 @@ pub(crate) fn subject_role_matches(
     actual: &StateParameter,
     required: &StateParameter,
 ) -> bool {
-    if required.is_self {
+    if required_is_subject_position(program, machine.attached_data_symbol, required) {
         program.parameter_declares_attached_data(machine, actual)
     } else {
         !actual.is_self
@@ -617,7 +617,7 @@ fn validate_trait_parameter_match(
     // occurrence instead. The subject's own type needs no comparison here:
     // `data_binding_parameter` admitted it only because it declares this
     // machine's attached data, which is what the `satisfies` edge names.
-    if required.is_self {
+    if required_is_subject_position(program, machine.attached_data_symbol, required) {
         return;
     }
 
@@ -1164,6 +1164,22 @@ pub(crate) fn required_is_self_type(program: &TypedTrees, required: TypeReferenc
         program.type_reference_table.type_reference(required),
         TypeReferenceNode::Named { name, .. } if name.as_str() == "Self"
     )
+}
+
+/// The subject-position test for an edge where one side carries attached
+/// data: a `self` receiver, or under named subjects a `Self`-typed parameter
+/// on an attached signature. The gate symbol is whichever side realizes the
+/// position — the satisfier's own data at `satisfies`, the requirement
+/// machine's data at top-level conformance. A free machine's requirements are
+/// Self-shaped binders (`add(a: Self, b: Self)` binds the carrier from the
+/// satisfier's signature); they have no subject position at all.
+pub(crate) fn required_is_subject_position(
+    program: &TypedTrees,
+    attached_data_symbol: SymbolHandle,
+    required: &typed_trees::signature::StateParameter,
+) -> bool {
+    required.is_self
+        || (attached_data_symbol.is_valid() && required_is_subject_parameter(program, required))
 }
 
 /// A requirement's subject position: a `self` receiver, or under named
