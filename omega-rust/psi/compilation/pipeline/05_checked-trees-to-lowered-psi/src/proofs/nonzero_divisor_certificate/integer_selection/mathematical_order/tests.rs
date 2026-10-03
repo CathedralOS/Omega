@@ -188,3 +188,110 @@ fn correlated_exact_endpoint_order_replays_definitions_and_policy() {
     .unwrap();
     assert!(check_certificate(&wrong_context, &goal, &assumptions, &definitions, &proof).is_err());
 }
+
+#[test]
+fn correlated_sum_bound_composes_translated_order_with_retained_upper_bound() {
+    use semantic_vocabulary::{IntegerMathLiteral, IntegerValue};
+
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let context = PropositionContext::from_value_types(
+        (1..=4).map(|raw| (ValueId::new(raw).unwrap(), scalar)),
+    )
+    .unwrap();
+    let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+    let literal = |number| ScalarTerm::integer(integer, IntegerValue::Unsigned(number)).unwrap();
+    let math_value = |raw| IntegerMathTerm::MathValue {
+        source_type: integer,
+        value: ValueId::new(raw).unwrap(),
+    };
+    let math_literal =
+        |number| IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(false, number).unwrap());
+    let goal = |maximum| {
+        Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::Add(Box::new(math_value(2)), Box::new(math_value(4))),
+            math_literal(maximum),
+        )
+    };
+    // remaining, accumulator, total, and the executed literal one. The
+    // overflow question concerns accumulator + 1; its bound is correlated
+    // with remaining through the CURRENT sum, not the invocation inputs.
+    let facts = vec![
+        Proposition::LessOrEqual(literal(1), value(1)),
+        Proposition::Equal(
+            value(3),
+            ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap(),
+        ),
+        Proposition::LessOrEqual(value(3), literal(100)),
+        Proposition::Equal(value(4), literal(1)),
+    ];
+    let produce = |goal: &Proposition, facts: &[Proposition]| {
+        produce_checked_canonical_integer_proof(
+            &context,
+            goal,
+            &[],
+            facts,
+            &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
+        )
+    };
+    for maximum in [100, 255] {
+        let goal = goal(maximum);
+        let proof =
+            produce(&goal, &facts).expect("translate the lower bound, then compose the sum bound");
+        proof_admission::accept_certificate(&context, &goal, &[], &facts, &proof)
+            .expect("the existing checked rules and mathematical core replay the full chain");
+    }
+    let strong_goal = goal(100);
+    let proof = produce(&strong_goal, &facts).unwrap();
+    for missing in 0..facts.len() {
+        let mut incomplete = facts.clone();
+        incomplete.remove(missing);
+        assert!(
+            produce(&strong_goal, &incomplete).is_none(),
+            "missing premise {missing}"
+        );
+        assert!(
+            proof_admission::accept_certificate(&context, &strong_goal, &[], &incomplete, &proof)
+                .is_err()
+        );
+    }
+    for (position, replacement) in [
+        (0, Proposition::LessOrEqual(value(1), literal(1))),
+        (
+            1,
+            Proposition::Equal(
+                value(3),
+                ScalarTerm::exact_integer_add(integer, value(1), value(1)).unwrap(),
+            ),
+        ),
+        (2, Proposition::LessOrEqual(literal(100), value(3))),
+        (3, Proposition::Equal(value(4), literal(2))),
+    ] {
+        let mut changed = facts.clone();
+        changed[position] = replacement;
+        assert!(
+            produce(&strong_goal, &changed).is_none(),
+            "substituted premise {position}"
+        );
+        assert!(
+            proof_admission::accept_certificate(&context, &strong_goal, &[], &changed, &proof)
+                .is_err()
+        );
+    }
+    // Neither modular nor saturating addition gives an unbounded sum.
+    // At remaining=1, accumulator=255, either policy can satisfy total<=255
+    // while the requested mathematical accumulator+1<=255 is false.
+    for sum in [
+        ScalarTerm::wrapping_integer_add(integer, value(1), value(2)).unwrap(),
+        ScalarTerm::saturating_integer_add(integer, value(1), value(2)).unwrap(),
+    ] {
+        let mut changed = facts.clone();
+        changed[1] = Proposition::Equal(value(3), sum);
+        changed[2] = Proposition::LessOrEqual(value(3), literal(255));
+        assert!(
+            produce(&goal(255), &changed).is_none(),
+            "policy arithmetic cannot acquire exact sum order"
+        );
+    }
+}
