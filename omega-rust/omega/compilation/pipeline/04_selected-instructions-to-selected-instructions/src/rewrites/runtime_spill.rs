@@ -59,14 +59,20 @@
 //! An entry-bound register's definition is the function-entry boundary
 //! itself: a scalar entry parameter, a structural parameter's incoming
 //! pointer, or the hidden aggregate-result destination each arrives live-in,
-//! so its single store opens the entry block and its ABI live-in view keeps
-//! pinning only the entry-to-store window. A structural live-in's provenance
-//! is the contract's parameter row or declared result place rather than a
-//! source site — it restates no `ValueId`, so its reload registers carry a
-//! structural-observation origin and no value binding may name it. That
-//! boundary store stays admitted only while no edge targets the entry block —
-//! re-entry would re-read a register whose interval already ended at the
-//! first store.
+//! so its single store opens the entry block. An edge back to that block
+//! re-executes the store, and the register it reads still holds the boundary
+//! value on every arrival: a consistent plan never rewrites an entry
+//! register — no `Def`/`UseDef` operand may redefine a boundary live-in, and
+//! no edge transport may name one as a destination — while the store's own
+//! read keeps the register live at the boundary, so the transformed liveness
+//! carries its interval across every re-entry path. A parameter-side
+//! transport naming the register on such an edge instead substitutes the
+//! edge's own arrival, which the same store writes. Its ABI live-in view
+//! keeps pinning the register's home wherever that interval reaches. A
+//! structural live-in's provenance is the contract's parameter row or
+//! declared result place rather than a source site — it restates no
+//! `ValueId`, so its reload registers carry a structural-observation origin
+//! and no value binding may name it.
 //! Instruction-defined structural registers follow the result definition
 //! rule: a field observation's load result, a retained transport pointer
 //! copy, or a snapshot chunk word carries a declared place and byte offset

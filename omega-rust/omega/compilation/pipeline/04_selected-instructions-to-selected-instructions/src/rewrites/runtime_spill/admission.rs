@@ -122,8 +122,9 @@ pub(super) fn admit<'source>(
     // recognizes — a scalar or structural parameter, or the hidden
     // aggregate-result destination — has the function-entry boundary as its
     // definition anchor. Its ABI live-in pin is its own boundary constraint:
-    // rewriting shrinks that register's interval to the entry-to-store
-    // window, so the view still pins exactly where the value must arrive. A
+    // the boundary store's own read keeps the register live where it must
+    // arrive — across any edge back to the entry block too — so the view
+    // keeps pinning the register's home wherever that interval reaches. A
     // fixed view on any other origin stays a rejection.
     let entry_boundary = function.is_entry_register(victim);
     let (lineage, definition, block_index) = match victim.origin {
@@ -324,7 +325,7 @@ pub(super) fn admit<'source>(
             register,
         }]
     } else if entry_boundary {
-        entry_definitions(function, block_index, victim)?
+        entry_definitions(block_index, victim)
     } else {
         // Only a block parameter reaches this arm: structural live-ins took
         // the boundary branch, and they carry no source value to check the
@@ -480,8 +481,10 @@ pub(super) fn admit<'source>(
                 };
                 // The parameter side is the destination's incoming definition,
                 // never a use in this block. Only a block-parameter victim's
-                // own incoming edges may carry it; parameter_definitions has
-                // already checked every such arrival.
+                // own incoming edges may carry it — parameter_definitions has
+                // already checked every such arrival — or an entry-bound
+                // victim's edge back to the boundary, where the boundary
+                // store writes whatever the edge delivered.
                 if parameter == register
                     && (definition.is_some() || successor.block != function.blocks[block_index].id)
                 {
@@ -544,8 +547,14 @@ pub(super) fn admit<'source>(
                 // On a block-parameter victim's own incoming edge the edge's
                 // definition store runs inside this same bridge; a snapshot
                 // of the same register there could not be ordered against
-                // that store, so that naming stays rejected.
-                if definition.is_none() && successor.block == function.blocks[block_index].id {
+                // that store, so that naming stays rejected. An entry-bound
+                // victim's store instead opens the destination block itself —
+                // after every bridge — so an edge back to the boundary may
+                // carry the snapshot.
+                if definition.is_none()
+                    && !entry_boundary
+                    && successor.block == function.blocks[block_index].id
+                {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
                 structural_uses.push(StructuralArgumentUse {
@@ -566,10 +575,11 @@ pub(super) fn admit<'source>(
                         } => {
                             // The parameter side is the destination's payload
                             // definition, never a use in this block — the same
-                            // rule the value bindings above keep: only a
-                            // block-parameter victim's own incoming edges may
-                            // carry it, and parameter_definitions has already
-                            // checked every such arrival.
+                            // rule the value bindings above keep: a
+                            // block-parameter victim's incoming edges carry
+                            // it under parameter_definitions' checks, and an
+                            // entry-bound victim's re-entry edge may name it
+                            // the same way.
                             if parameter == register
                                 && (definition.is_some()
                                     || successor.block != function.blocks[block_index].id)
@@ -932,16 +942,6 @@ pub(super) fn admit<'source>(
                     .len()
                     .checked_mul(if bits_conversion.is_some() { 3 } else { 1 })?,
             )
-        })
-        // An entry-bound register's boundary definition scans every block's
-        // successor list once for a re-entry edge — the same per-block shape
-        // the two dominance passes below already pay for.
-        .and_then(|total| {
-            total.checked_add(if entry_boundary {
-                function.blocks.len()
-            } else {
-                0
-            })
         })
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         // The open/close decision replays once over the victim function's own
@@ -1539,31 +1539,21 @@ fn parameter_definitions(
 
 /// An entry-bound register's storage definition is the function-entry
 /// boundary: the value arrives live-in, so its store opens the entry block.
-/// Any edge back to that block — a loop header reuse or a shared
-/// continuation — would re-execute the store reading a register whose
-/// interval already ended at the first store, so re-entry stays rejected
-/// rather than replayed against.
-fn entry_definitions(
-    function: &SelectedFunction,
-    entry: usize,
-    victim: &VirtualRegister,
-) -> Result<Vec<StorageDefinition>, RuntimeSpillError> {
-    let entry_block = function.blocks[entry].id;
-    for block in &function.blocks {
-        if super::control(&block.terminator)
-            .1
-            .into_iter()
-            .flatten()
-            .any(|successor| successor.block == entry_block)
-        {
-            return Err(RuntimeSpillError::UnsupportedControlFlow);
-        }
-    }
-    Ok(vec![StorageDefinition {
+/// An edge back to that block — a loop header reuse or a shared
+/// continuation — re-executes the store, and the register it reads still
+/// holds the boundary value on every arrival: a consistent plan never
+/// rewrites an entry register — no `Def`/`UseDef` operand may redefine a
+/// boundary live-in, and no edge transport may name one as a destination —
+/// while the store's own read keeps the register live at the boundary, so
+/// the transformed liveness carries its interval across every re-entry
+/// path. A parameter-side transport naming the register on such an edge
+/// instead substitutes the edge's own arrival, which the same store writes.
+fn entry_definitions(entry: usize, victim: &VirtualRegister) -> Vec<StorageDefinition> {
+    vec![StorageDefinition {
         block_index: entry,
         position: StoragePosition::BlockStart,
         register: victim.id,
-    }])
+    }]
 }
 
 /// The unique physical instruction defining `argument` anywhere in the
