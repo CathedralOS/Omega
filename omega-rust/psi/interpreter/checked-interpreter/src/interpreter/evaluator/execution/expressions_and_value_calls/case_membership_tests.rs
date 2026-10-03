@@ -113,7 +113,7 @@ fn case_membership_executes_checked_nested_structural_equality_synthesis() {
         ("Data { value: 9, checksum: 3 }", "false", 0),
     ] {
         let source = format!(
-            "trait Equatable {{ machine equals(&self, rhs: &Self) -> bool; }}
+            "trait Equatable {{ machine equals(subject: &Self, rhs: &Self) -> bool; }}
              data Message {{ case Empty; case Data(value: i32, checksum: i32); }}
              MessageEquatable: Message satisfies Equatable;
              data Envelope {{ active: bool; message: Message; }}

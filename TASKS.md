@@ -3174,13 +3174,12 @@ at the landing commit, with the count of deleted tests stated in the commit.
   `suite`).
 
 - **RED-SELF-FIXTURES-PSI.** (split-of:STATIC-MACHINE-MIGRATION) The same
-  migration for 431 tests in the other Psi packages:
+  migration for 427 tests in the other Psi packages:
   - `validation` (`psi/compilation/checking`): 223
   - `build-time-evaluation`: 84
   - `syntax-trees-to-symbol-resolved-trees`: 51
   - `lowered-psi-to-terminal-psi`: 37
   - `symbol-resolved-trees-to-typed-trees`: 31
-  - `checked-interpreter`: 4
   - `layout`: 1
 
 - **RED-SELF-FIXTURES-OMEGA.** (split-of:STATIC-MACHINE-MIGRATION) The same
