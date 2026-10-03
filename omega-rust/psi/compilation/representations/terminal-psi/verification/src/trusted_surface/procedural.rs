@@ -607,10 +607,10 @@ rows! {
     FORM_ACTIVE_CASE_PROJECTION => (
         "formation:active-case-projection",
         SharedFormation,
-        "a validated projected operation and each canonical Case prefix beneath its exact original root, with the current incoming facts before this operation invalidates storage observations",
-        "each selected case is kernel-certified from surviving membership facts, or all other declared cases are refuted by surviving same-place membership observations whose Boolean results are known false; merely resolving a Case and its following field grants no authority, and this admission introduces no membership fact, ownership, or reference permission",
+        "a validated projected operation or successor operand and each canonical Case prefix beneath its exact original root; operations use current facts before their own invalidation, and successor operands use facts after all source-block operations and before target rebinding, augmented only by the selected conditional edge's Boolean truth",
+        "each selected case is kernel-certified from surviving membership facts, or all other declared cases are refuted by surviving same-place membership observations whose Boolean results are known false; merely resolving a Case and its following field grants no authority, and this admission introduces no membership fact, ownership, or reference permission; successor borrowing shares the operation judgment and cannot resurrect facts invalidated by preceding writes",
         &["scope:dominance-order", "fact:semantic-axiom-roster", "fact:structural-case-arm", "conversion:value-equality-denotation", "rule:semantic-axiom", "rule:implication-elimination"],
-        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "verification/reconstruction/operation_facts/case_hops.rs"), tv!( "validation/structural/operations/structural_paths.rs"), ts!( "primitive_place.rs"), ts!( "static_path.rs")]
+        &[tv!( "verification/reconstruction.rs"), tv!( "verification/reconstruction/operation_facts.rs"), tv!( "verification/reconstruction/operation_facts/case_hops.rs"), tv!( "validation/structural/operations/structural_paths.rs"), ts!( "primitive_place.rs"), ts!( "static_path.rs")]
     );
     FORM_REFERENCES => (
         "formation:references",

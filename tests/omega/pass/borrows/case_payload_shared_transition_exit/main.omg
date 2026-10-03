@@ -1,0 +1,38 @@
+use omega::language::core::option;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Leaf { value: i32; }
+data Token { value: i32; leaf: Leaf; }
+data Main { console: Binding<Console>; }
+
+machine inspect(response: &Optional<Token>) -> i32 {
+    transition response {
+        Optional::Some { value } -> observe(&value)
+        Optional::None -> (0)
+    }
+    state observe(token: &Token) -> i32 { token.value }
+}
+
+machine inspect_nested(response: &Optional<Token>) -> i32 {
+    transition response {
+        Optional::Some { value } -> observe(&value.leaf)
+        Optional::None -> (0)
+    }
+    state observe(leaf: &Leaf) -> i32 { leaf.value }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let present: Optional<Token> = Optional::Some {
+        value: Token { value: 70, leaf: Leaf { value: 9 } }
+    };
+    let absent: Optional<Token> = Optional::None;
+    let present_value: i32 = inspect(&present);
+    let absent_value: i32 = inspect(&absent);
+    let nested_value: i32 = inspect_nested(&present);
+    transition present_value == 70 && absent_value == 0 && nested_value == 9 {
+        true -> finish(main, 70)
+        false -> finish(main, 71)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

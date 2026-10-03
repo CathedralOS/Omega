@@ -2432,19 +2432,18 @@ fn successor_bindings(
                                     ordinal as usize,
                                     &place,
                                 )
-                            // A path below the root names projected
-                            // reference custody: the edge mints an
-                            // `EstablishReference` carrier typed by the
-                            // target's reference shape while the rooted
-                            // place stays the loan's source. A
-                            // reference-bearing declared shape still
-                            // declines — the terminal verifier admits the
-                            // projected carrier but not an argument bound
-                            // to reference-bearing storage.
+                            // A projected loan keeps its original storage
+                            // root and exact path across the edge. Case steps
+                            // use this same route, including deeper payload
+                            // fields; receiving verification must prove each
+                            // selected case active before rebinding the loan.
+                            // Reference-bearing storage still needs its own
+                            // carrier custody and is not admitted here.
                             && path.iter().all(|segment| {
                                 matches!(
                                     segment,
                                     CheckedUnitStructuralPathSegment::Field(_)
+                                        | CheckedUnitStructuralPathSegment::Case(_)
                                         | CheckedUnitStructuralPathSegment::FixedIndex(_)
                                 )
                             })
@@ -2528,6 +2527,7 @@ fn successor_bindings(
                                 matches!(
                                     segment,
                                     CheckedUnitStructuralPathSegment::Field(_)
+                                        | CheckedUnitStructuralPathSegment::Case(_)
                                         | CheckedUnitStructuralPathSegment::FixedIndex(_)
                                 )
                             })

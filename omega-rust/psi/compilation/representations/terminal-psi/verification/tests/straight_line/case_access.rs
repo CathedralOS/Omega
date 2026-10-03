@@ -1344,4 +1344,164 @@ fn borrowed_case_payload_membership_expires_after_mutable_call() {
             ModuleError::InvalidStructuralCaseObservation { .. }
         ))
     ));
+    replace_payload_call_with_successor(&mut module);
+    validate_module(&module).expect("the successor loan retains valid geometry and access");
+    assert!(matches!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(terminal_verifier::VerificationError::Module(
+            ModuleError::InvalidStructuralSuccessorArgument { .. }
+        ))
+    ));
+}
+
+fn borrowed_case_payload_successor_module() -> TerminalModule {
+    let mut module = borrowed_case_payload_module(false);
+    replace_payload_call_with_successor(&mut module);
+    module
+}
+
+fn replace_payload_call_with_successor(module: &mut TerminalModule) {
+    let callee = module.machines.remove(1);
+    let machine = &mut module.machines[0];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = machine.blocks[1]
+        .operations
+        .pop()
+        .expect("payload call")
+        .kind
+    else {
+        panic!("payload call");
+    };
+    let mut target = callee.blocks[0].clone();
+    target.structural_parameters = callee.structural_parameters;
+    for parameter in &target.structural_parameters {
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: target.id,
+                position: parameter.position,
+            },
+        });
+    }
+    machine.blocks[1].terminator = Terminator::Jump {
+        edge: EdgeId::new(30).unwrap(),
+        target: target.id,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments,
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    machine.blocks.push(target);
+}
+
+#[test]
+fn borrowed_case_payload_successor_requires_the_selected_case() {
+    let mut module = borrowed_case_payload_successor_module();
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a dominating case dispatch authorizes its payload loan");
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[1].terminator
+    else {
+        panic!("payload successor");
+    };
+    structural_arguments[0].path[0] =
+        terminal_psi::StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap());
+    validate_module(&module).expect("both cases have the identical payload type");
+    assert!(matches!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(terminal_verifier::VerificationError::Module(
+            ModuleError::InvalidStructuralSuccessorArgument { .. }
+        ))
+    ));
+}
+
+#[test]
+fn borrowed_case_payload_conditional_successor_checks_each_edge_truth() {
+    let mut module = borrowed_case_payload_successor_module();
+    let membership = membership_module(StructuralAccess::SharedBorrow)
+        .machines
+        .remove(0)
+        .blocks
+        .remove(0)
+        .operations
+        .remove(0);
+    let machine = &mut module.machines[0];
+    let Terminator::Jump {
+        target,
+        structural_arguments,
+        ..
+    } = machine.blocks.remove(1).terminator
+    else {
+        panic!("payload successor");
+    };
+    machine.blocks.remove(1); // Both arms now borrow their own selected payload.
+    machine.blocks[0].operations.push(membership);
+    let when_true = SuccessorEdge {
+        edge: EdgeId::new(10).unwrap(),
+        target,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments,
+        trivial_affine_discards: Vec::new(),
+    };
+    let mut when_false = when_true.clone();
+    when_false.edge = EdgeId::new(11).unwrap();
+    when_false.structural_arguments[0].path[0] =
+        terminal_psi::StructuralPathSegment::Case(StructuralCaseId::new(2).unwrap());
+    machine.blocks[0].terminator = Terminator::Conditional {
+        condition: ValueId::new(1).unwrap(),
+        when_true,
+        when_false,
+    };
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the true edge proves membership and the false edge exhausts the other case");
+
+    // Keeping the same membership observation but reversing its destinations
+    // cannot authorize the inactive payload on either edge.
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        panic!("membership branch");
+    };
+    std::mem::swap(
+        &mut when_true.structural_arguments,
+        &mut when_false.structural_arguments,
+    );
+    validate_module(&module).expect("the forged operands retain identical types and access");
+    assert!(matches!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(terminal_verifier::VerificationError::Module(
+            ModuleError::InvalidStructuralSuccessorArgument { .. }
+        ))
+    ));
 }

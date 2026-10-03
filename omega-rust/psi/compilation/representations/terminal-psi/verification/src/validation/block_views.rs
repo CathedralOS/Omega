@@ -379,17 +379,21 @@ pub(super) fn validate_successor(
                 || (byte_view_parameter && !argument.path.is_empty())
                 || (!byte_view_parameter
                     && !argument.path.is_empty()
-                    && !super::is_nonempty_exact_projection_path(&argument.path))
-                || shared_loan_root(module, machine, argument, available).and_then(|root| {
-                    super::foundation::resolve_structural_path(module, root, &argument.path)
-                }).is_none_or(|referent| {
-                    // A fixed byte view observes the array's exact backing;
-                    // different carrier IDs do not imply different storage.
-                    // The source check above and frontier retain loan authority.
-                    !terminal_semantics::borrowed_referent_matches(
-                        module.structural_types.iter(), referent, expected.structural_type,
-                    )
-                })
+                    && !super::structural::operations::is_static_borrow_path(&argument.path))
+                || shared_loan_root(module, machine, argument, available)
+                    .and_then(|root| {
+                        super::foundation::resolve_structural_path(module, root, &argument.path)
+                    })
+                    .is_none_or(|referent| {
+                        // A fixed byte view observes the array's exact backing;
+                        // different carrier IDs do not imply different storage.
+                        // The source check above and frontier retain loan authority.
+                        !terminal_semantics::borrowed_referent_matches(
+                            module.structural_types.iter(),
+                            referent,
+                            expected.structural_type,
+                        )
+                    })
             {
                 return Err(ModuleError::InvalidStructuralSuccessorArgument {
                     edge,
@@ -409,7 +413,7 @@ pub(super) fn validate_successor(
                 || !expected.qualifications.is_empty()
                 || !expected.projected_qualifications.is_empty()
                 || argument.access != StructuralAccess::MutableBorrow
-                || !super::is_nonempty_exact_projection_path(&argument.path)
+                || !super::structural::operations::is_static_borrow_path(&argument.path)
                 || mutable_loan_root(module, machine, argument, available).and_then(|root| {
                     super::foundation::resolve_structural_path(module, root, &argument.path)
                 }) != Some(expected.structural_type)

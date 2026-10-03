@@ -607,6 +607,13 @@ fn reconstruct_machine_semantics_with_crash_facts(
             }
         }
         if !crash_facts {
+            operation_facts::validate_successors(
+                module,
+                machine,
+                &context,
+                &axioms,
+                &block.terminator,
+            )?;
             scalar_block_invariants::append_arrival_obligations(
                 module,
                 machine,
