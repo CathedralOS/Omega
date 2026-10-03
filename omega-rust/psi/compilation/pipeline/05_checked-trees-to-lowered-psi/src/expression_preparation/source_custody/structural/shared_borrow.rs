@@ -62,29 +62,11 @@ pub(super) fn validate(
         root,
         &argument.source,
     )?;
-    let root_reference =
-        validation::expression_result_type_reference(&checked.typed, machine, authored, root)
-            .ok_or(LoweringError::Unsupported(
-                "borrowed selection lost its root type",
-            ))?;
-    // The root carrier rule matches the referent rule: a shared borrow moves
-    // nothing, so a `[linear]` root is an admissible place to observe through.
-    // An element-view root (`&cells[i]` over a non-byte slice) is equally
-    // admissible — the borrowed element's custody stays with the view's loan,
-    // provenance pass-through exactly as a copied view element's.
-    let unwrapped_root = validation::unwrapped_type_reference(&checked.typed, root_reference)
-        .unwrap_or(root_reference);
-    let view_rooted = matches!(
-        checked.type_reference_table.type_reference(unwrapped_root),
-        checked_trees::types::TypeReferenceNode::Slice { element_type }
-            if checked.primitive_type_reference(*element_type)
-                != Some(checked_trees::types::PrimitiveType::U8)
-    );
-    if !view_rooted && !validation::has_linear_owned_contents(&checked.typed, unwrapped_root) {
-        return unsupported(
-            "borrowed selection root is not a structural place the pipeline can carry",
-        );
-    }
+    // A shared borrow moves nothing, so every structural place root that
+    // `validate_place_root` establishes — a parameter or a uniquely-established
+    // prior local, whatever it carries — is admissible to observe through.
+    // The selection's custody stays with the root's existing retainer: an
+    // owned home, the root's own borrow loan, or an element view's loan.
     Ok(())
 }
 
