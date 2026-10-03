@@ -507,20 +507,18 @@ fn build_state_plan(
             return false;
         };
         transition.exit == TransitionExit::Ordinary
-            && match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::SelfTarget => true,
-                TransitionTargetNode::Named { path, .. } => {
-                    crate::checks::termination::named_transition_target_state_index(
-                        program,
-                        machine,
-                        path.symbol,
-                    )
-                    .is_some()
-                        || crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)
-                            .is_some()
-                }
-                _ => false,
-            }
+            && matches!(
+                program.statement_table.transition_target(transition.target),
+                TransitionTargetNode::Named { path, .. }
+                    if crate::checks::termination::named_transition_target_state_index(
+                        program, machine, path.symbol,
+                    ).is_some()
+                        || crate::semantic::calls::find_machine_by_entry_state(
+                            program,
+                            path.symbol,
+                        )
+                        .is_some()
+            )
     });
     if !has_structural_control {
         return None;
@@ -543,40 +541,30 @@ fn build_state_plan(
         if transition.exit != TransitionExit::Ordinary {
             continue;
         }
-        let (target, call_target, implicit_arguments) =
-            match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::SelfTarget => (state, state.symbol, true),
-                TransitionTargetNode::Named { path, .. } => {
-                    let target =
-                        match crate::checks::termination::named_transition_target_state_index(
-                            program,
-                            machine,
-                            path.symbol,
-                        ) {
-                            Some(index) => &program.machine_states(machine)[index],
-                            None => match crate::semantic::calls::find_machine_by_entry_state(
-                                program,
-                                path.symbol,
-                            ) {
-                                Some((_, entry)) => entry,
-                                None => continue,
-                            },
-                        };
-                    (target, path.symbol, false)
-                }
-                _ => continue,
-            };
-
-        // An implicit self edge forwards each current parameter to its same
-        // declaration. Those carriers remain owned by the next activation.
-        let mut transferred = if implicit_arguments {
-            discard_parameters
-                .iter()
-                .map(|(_, position)| *position)
-                .collect::<BTreeSet<_>>()
-        } else {
-            BTreeSet::new()
+        let TransitionTargetNode::Named { path, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            continue;
         };
+        // A named target either spells one of this machine's own states or
+        // another machine's entry; the fused Unit graph keeps both inside
+        // the same composed roster, so the edge row names whichever state
+        // the transition actually transfers to. Anything else has no
+        // composed edge and keeps the omitted-edge behavior.
+        let target = match crate::checks::termination::named_transition_target_state_index(
+            program,
+            machine,
+            path.symbol,
+        ) {
+            Some(target_index) => &program.machine_states(machine)[target_index],
+            None => match crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)
+            {
+                Some((_, entry)) => entry,
+                None => continue,
+            },
+        };
+
+        let mut transferred = BTreeSet::new();
         for event in moves.iter().filter(|event| {
             matches!(
                 event.source,
@@ -589,7 +577,7 @@ fn build_state_plan(
                     statement_index: source_index,
                     target_symbol,
                     ..
-                } if source_index == statement_index && target_symbol == call_target
+                } if source_index == statement_index && target_symbol == path.symbol
             )
         }) {
             let facts::PlaceRoot::Symbol(root) = event.root else {

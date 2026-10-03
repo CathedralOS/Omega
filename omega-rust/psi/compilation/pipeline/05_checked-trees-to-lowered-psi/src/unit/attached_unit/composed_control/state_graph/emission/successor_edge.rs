@@ -872,32 +872,10 @@ impl StateGraphEmission<'_, '_> {
                 ))?;
             let expression = match transfer.source {
                 checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
-                    let retained = state.scalar_parameters.get(index as usize).ok_or(
-                        LoweringError::Unsupported("Unit graph successor parameter is missing"),
-                    )?;
-                    let (_, authored_state) =
-                        crate::expression_preparation::source_custody::authored_state(
-                            checked,
-                            state.state,
-                        )?;
-                    let parameter = checked
-                        .state_parameters(authored_state)
-                        .get(retained.source_position as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph successor source parameter is missing",
-                        ))?;
-                    let expression = if parameter.is_mutable {
-                        CheckedScalarExpression::StorageRead {
-                            symbol: parameter.symbol,
-                            primitive_type: transfer.primitive_type,
-                        }
-                    } else {
-                        CheckedScalarExpression::Parameter {
-                            position: index as usize,
-                            primitive_type: transfer.primitive_type,
-                        }
-                    };
-                    bindings.expression(&expression)?
+                    bindings.expression(&CheckedScalarExpression::Parameter {
+                        position: index as usize,
+                        primitive_type: transfer.primitive_type,
+                    })?
                 }
                 checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
                     let value = scalars::successor_value(checked, state, edge, transfer)?;

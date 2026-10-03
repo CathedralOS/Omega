@@ -471,7 +471,7 @@ const MUTABLE_CUSTOMER: &str = include_str!(concat!(
 ));
 
 #[test]
-fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
+fn mutable_ranked_accumulator_replays_current_explicit_arguments_and_executes() {
     use terminal_interpreter::{
         AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue,
         TerminalStructuralInputs,
@@ -479,7 +479,7 @@ fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
     let source = &MUTABLE_CUSTOMER[MUTABLE_CUSTOMER.find("machine accumulate(").unwrap()..];
     let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("accumulate"))
-        .expect("implicit self forwards current mutable scalar values");
+        .expect("explicit state arrival forwards current mutable scalar values");
     let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof_bytes =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -502,7 +502,7 @@ fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
             TerminalStructuralInputs::default(),
             &mut AcceptTerminalEffects,
         )
-        .expect("current self operands execute from the decoded artifact");
+        .expect("current explicit operands execute from the decoded artifact");
         assert_eq!(
             result.value(),
             TerminalExecutionResult::Scalar(unsigned(total))
@@ -516,14 +516,14 @@ fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
         .unwrap();
     let machine = &module.machines[machine_index];
     let Some(TerminalRankedScc::Natural(cycles)) = &machine.ranked_scc else {
-        panic!("mutable scalar self recurrence retains an independently proved rank");
+        panic!("mutable scalar recurrence retains an independently proved rank");
     };
     let cycle = cycles.first().expect("one recurrent component");
     let edge = cycle
         .edges
         .iter()
         .find(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
-        .expect("the current counter decreases on the self edge");
+        .expect("the current counter decreases on the explicit recurrence edge");
     let original_rank = reconstruct_control_cycle_obligations(&module).unwrap();
     for position in [0, 1] {
         let mut wrong = module.clone();
@@ -539,7 +539,7 @@ fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
             ..
         } = &mut source.terminator
         else {
-            panic!("self has one simultaneous argument handoff");
+            panic!("the named recurrence has one simultaneous argument handoff");
         };
         assert_eq!(*actual_edge, edge.edge);
         assert_eq!(arguments.len(), 3);
@@ -562,7 +562,7 @@ fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
         }
         assert!(
             verify_module(&wrong, &proofs, &profile).is_err(),
-            "stale self operand {position} must reject"
+            "stale explicit operand {position} must reject"
         );
         if position == 1 {
             let changed_rank = reconstruct_control_cycle_obligations(&wrong).unwrap();
