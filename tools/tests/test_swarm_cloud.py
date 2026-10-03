@@ -72,7 +72,18 @@ class ControllerTests(unittest.TestCase):
         self.update(lambda r: cloud.initialize(r, dict(evidence='inspected real runtime schemas',
                  tools=dict(create='exposed.create', read='exposed.read', follow_up='exposed.follow_up'),
                  reporting=dict(mode='bounded-turn-results', max_turn_seconds=900, evidence='read exposes recorded task results'))))
-        self.update(lambda r: cloud.admit(r, manifest(), snapshot()))
+        self.repo = self.root / 'repo'; self.repo.mkdir()
+        subprocess.run(['git', 'init', str(self.repo)], check=True, capture_output=True)
+        completion.git(self.repo, 'config', 'user.name', 'Jarod Castillo')
+        completion.git(self.repo, 'config', 'user.email', '43973221+Smotto@users.noreply.github.com')
+        (self.repo / 'src').mkdir()
+        for name in ('0', '1'): (self.repo / ('src/' + name + '.py')).write_text('authored program')
+        completion.git(self.repo, 'add', '.')
+        completion.git(self.repo, 'commit', '-m', 'tools: test fixture')
+        self.base = completion.git(self.repo, 'rev-parse', 'HEAD')
+        initial = manifest()
+        for row in initial['assignments']: row['base'] = self.base
+        self.update(lambda r: cloud.admit(r, initial, snapshot()))
         self.update(lambda r: cloud.checkpoint(r, '0', checkpoint()))
 
     def update(self, change):
@@ -98,7 +109,7 @@ class ControllerTests(unittest.TestCase):
             value = snapshot(); value['ticket'] = 'ticket-0'
             value['claims'] = [dict(ticket='ticket-0',item='item-0',owner='owner-0',paths=['src/0.py'])]
             self.update(lambda r:cloud.ownership(r,'0',value))
-            extra.setdefault('preflight',preflight_receipt())
+            extra.setdefault('preflight',preflight_receipt(base=self.base))
         if acknowledge:
             extra['acknowledgments'] = [dict(operation=name,execution_id=operation['request']['execution_id'],status='completed',evidence='actual child request acknowledgment')
                 for name,operation in self.store.load()['cloud']['operations'].items()
@@ -108,7 +119,32 @@ class ControllerTests(unittest.TestCase):
         reply = self.reply(request, result=dict(thread='thread-0', environment='env-0', generation='gen-0',
                           runtime=runtime, processes_stopped=True, recovery=dict(assignment='0',environment='env-0',generation='gen-0',unknown_operations=[],build_slot_clear=True,evidence='fresh executor recovery read'), effects=effects or {}, **extra))
         self.ingest(reply)
+        if self.state()["thread"] and include_preflight:
+            self.scout()
         return reply
+
+    def scouting_receipt(self, assignment='0'):
+        row = self.store.load()['cloud']['assignments'][assignment]
+        stamp = cloud.now()
+        text = 'reviewed authored validity, producer/consumer inputs and prerequisites'
+        (self.root / 'scope.log').write_text(text)
+        (self.root / 'before.log').write_text('compiler rejects valid authored program')
+        return dict(schema=1, id='scout-' + str(self.store.load()['revision']), assignment=assignment,
+                    source_revision=self.base, current_revision=completion.git(self.repo, 'rev-parse', 'HEAD'),
+                    environment=row['environment'], started_utc=stamp, observed_utc=stamp,
+                    cache='warm', complexity='small fixture', assumptions='reviewed input closure may omit undiscovered semantic dependencies',
+                    scope=cloud.readiness_contract(self.store.load(), assignment), inputs=['src'],
+                    known_dependencies=[d['id'] for d in cloud.readiness_contract(self.store.load(), assignment)['dependencies']],
+                    review_artifact=dict(path='scope.log', sha256=hashlib.sha256(text.encode()).hexdigest()),
+                    before=dict(revision=self.base, environment=row['environment'], kind='native', command='fixture native',
+                                exit=1, classification='valid-should-work', failure_kind='compile',
+                                expected_result=requirements()[0]['expected_result'],
+                                artifact=dict(path='before.log',sha256=hashlib.sha256(b'compiler rejects valid authored program').hexdigest())))
+
+    def scout(self, value=None, assignment='0'):
+        value = value or self.scouting_receipt(assignment)
+        self.update(lambda r: cloud.readiness(r, assignment, value, self.repo, self.root))
+        return value
 
     def state(self):
         return self.store.load()['cloud']['assignments']['0']
@@ -280,7 +316,7 @@ class ControllerTests(unittest.TestCase):
         request=self.request();self.ingest(self.reply(request))
         self.read(include_preflight=False)
         with self.assertRaisesRegex(RecoveryError,'preflight'):self.request('follow_up','unprepared')
-        receipt=preflight_receipt();bad=copy.deepcopy(receipt);bad['smoke']['native_exit']=1
+        receipt=preflight_receipt(base=self.base);bad=copy.deepcopy(receipt);bad['smoke']['native_exit']=1
         with self.assertRaisesRegex(RecoveryError,'smoke'):self.update(lambda r:cloud.preflight(r,'0',bad))
         self.update(lambda r:cloud.preflight(r,'0',receipt))
         with self.assertRaisesRegex(RecoveryError,'claims'):self.request('follow_up','unclaimed')
@@ -311,7 +347,7 @@ class ControllerTests(unittest.TestCase):
 
     def test_preflight_rejects_incomplete_and_wrong_executor_receipts(self):
         request=self.request();self.ingest(self.reply(request))
-        good=preflight_receipt()
+        good=preflight_receipt(base=self.base)
         for field,value in [('base','b'*40),('generation','other'),('doctor_exit',1),('backup',dict(status='local-only')),('identity',dict(name='Wrong'))]:
             bad=copy.deepcopy(good);bad[field]=value
             with self.assertRaises(RecoveryError):self.update(lambda r:cloud.preflight(r,'0',bad))
@@ -334,6 +370,113 @@ class ControllerTests(unittest.TestCase):
         request=self.request();self.ingest(self.reply(request));self.read(include_preflight=False)
         self.update(lambda r:cloud.intent(r,'0','follow_up','retry-preflight',dict(phase='preflight',message='repair bounded preflight only')))
         with self.assertRaisesRegex(RecoveryError,'unknown'):self.request('follow_up','premature-implementation')
+
+    def prepared(self):
+        request = self.request(); self.ingest(self.reply(request)); self.read()
+
+    def test_unscouted_valid_run_failure_and_owned_continuation(self):
+        self.prepared()
+        self.update(lambda r: r['cloud']['assignments']['0'].pop('readiness'))
+        with self.assertRaisesRegex(RecoveryError, 'readiness'): self.request('follow_up', 'unscouted')
+        value = self.scouting_receipt()
+        value['before'].update(failure_kind='run', exit=0, program_result=dict(exit=70, stdout_sha256='0'*64))
+        self.scout(value)
+        request = self.request('follow_up', 'real-run-failure'); self.ingest(self.reply(request))
+        (self.repo / 'src/0.py').write_text('own implementation')
+        completion.git(self.repo, 'commit', '-am', 'tools: own repair')
+        # A dispatched repair can validate its own changed source without scouting for a new failure.
+        self.read(include_preflight=False)
+        self.request('follow_up', 'validate-own-repair')
+
+    def test_actual_live_owner_block_and_scope_changes_require_new_readiness(self):
+        self.prepared()
+        own = copy.deepcopy(self.state()['ownership_receipt'])
+        own['claims'].append(dict(ticket='actual-peer',item='peer-item',owner='peer',paths=['src/0.py']))
+        with self.assertRaisesRegex(RecoveryError, 'live peer'): self.update(lambda r: cloud.ownership(r, '0', own))
+        value = self.scouting_receipt()
+        value['blocker'] = dict(kind='live-owner', reason='actual-peer overlaps src/0.py', evidence='fresh registry result')
+        self.scout(value)
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'blocked')
+        self.scout()
+        self.update(lambda r: r['cloud']['assignments']['0'].update(dependency_review='new semantic prerequisite discovered'))
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'stale')
+        with self.assertRaisesRegex(RecoveryError, 'readiness'): self.request('follow_up', 'changed-scope')
+
+    def test_green_stale_and_non_program_observations_do_not_admit(self):
+        self.prepared()
+        for classification in ('valid-should-work', 'invalid-source', 'pending-approval', 'compile-only'):
+            value = self.scouting_receipt()
+            value['before'].update(classification=classification, exit=0 if classification=='valid-should-work' else 1)
+            self.scout(value)
+            self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'not-reproduced')
+            with self.assertRaisesRegex(RecoveryError, 'readiness'): self.request('follow_up', 'green-' + classification)
+        value = self.scouting_receipt()
+        value['observed_utc'] = value['started_utc'] = (datetime.now(timezone.utc)-timedelta(seconds=121)).isoformat()
+        self.scout(value)
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'stale')
+        self.assertIsNone(self.state()['accepted'])
+
+    def test_known_semantic_dependency_must_be_declared(self):
+        self.prepared(); value = self.scouting_receipt()
+        value['known_dependencies'] = ['missing-semantic-producer']
+        self.scout(value)
+        self.assertEqual(self.state()['readiness']['reason'], 'undeclared-or-unreviewed-dependency')
+        with self.assertRaisesRegex(RecoveryError, 'readiness'): self.request('follow_up', 'missing-dependency')
+
+    def test_named_external_blocks_and_full_scouting_time_are_recorded(self):
+        self.prepared()
+        for kind in ('live-owner', 'product-decision', 'executor-unavailable', 'denied-action'):
+            value = self.scouting_receipt()
+            value['started_utc'] = (datetime.fromisoformat(value['observed_utc'])-timedelta(seconds=11)).isoformat()
+            value['blocker'] = dict(kind=kind, reason='actual prerequisite missing', evidence='peer or executor result')
+            del value['before']
+            self.scout(value); self.scout(value)  # Same result does not count twice.
+            self.assertEqual(self.state()['readiness']['reason'], kind)
+            with self.assertRaisesRegex(RecoveryError, 'readiness'): self.request('follow_up', 'blocked-' + kind)
+        status = cloud.plan(self.store.load())['assignments'][0]
+        self.assertEqual(status['scouting_seconds'], 44)
+        self.assertEqual(status['scouting_attempts'], 5)
+        self.assertEqual(status['action'], 'scout_or_revalidate')
+
+    def test_input_provenance_and_relevant_claim_changes_invalidate_only_affected_work(self):
+        self.prepared()
+        (self.repo / 'unrelated').write_text('unrelated advance')
+        completion.git(self.repo, 'add', '.'); completion.git(self.repo, 'commit', '-m', 'tools: unrelated')
+        self.scout()
+        value = copy.deepcopy(self.state()['ownership_receipt'])
+        value['claims'].append(dict(ticket='peer',item='other',owner='peer',paths=['unrelated']))
+        value['claims'][0]['expires_utc'] = 'renewal'
+        self.update(lambda r: cloud.ownership(r, '0', value))
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'ready')
+        self.update(lambda r: r['cloud']['assignments']['0']['ownership_receipt']['claims'].append(
+            dict(ticket='overlap',owner='peer',item='other',paths=['src/0.py'])))
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'stale')
+        self.assertIsNone(self.state()['accepted'])
+        self.read()
+        (self.repo / 'src/0.py').write_text('changed relevant semantics')
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'stale')
+        completion.git(self.repo, 'commit', '-am', 'tools: changed inputs')
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'stale')
+        with self.assertRaisesRegex(RecoveryError, 'readiness'): self.request('follow_up', 'changed-source')
+        self.scout()
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'stale')
+
+    def test_independent_ready_tasks_and_tampered_evidence(self):
+        self.prepared()
+        self.update(lambda r: r['cloud']['batches']['batch-2']['manifest'].update(dependencies=[]))
+        self.scout()
+        row = self.store.load()['cloud']['assignments']['1']
+        self.update(lambda r: r['cloud']['assignments']['1'].update(
+            thread='thread-1', environment='env-1', generation='gen-1', checkpoint=checkpoint(),
+            preflight=preflight_receipt('1', self.base, 'thread-1', 'env-1', 'gen-1')))
+        own = snapshot(); own['ticket'] = 'ticket-1'
+        own['claims'] = [dict(ticket='ticket-1',item=row['item'],owner=row['owner'],paths=row['writes'])]
+        self.update(lambda r: cloud.ownership(r, '1', own))
+        self.scout(assignment='1')
+        self.assertEqual([cloud.readiness_state(self.store.load(), n) for n in ('0','1')], ['ready','ready'])
+        value = self.scouting_receipt(); value['before']['artifact']['sha256'] = '0'*64
+        with self.assertRaisesRegex(RecoveryError, 'digest'): self.scout(value)
+        self.request('follow_up', 'independent-ready')
 
     def test_controller_cli_emits_request_after_durable_intent(self):
         value = self.root / 'intent.json'; atomic_json(value, dict(assignment='0',operation='cli-create',action='create',parameters=dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight')))
