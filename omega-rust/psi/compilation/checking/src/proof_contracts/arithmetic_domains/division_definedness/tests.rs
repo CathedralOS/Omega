@@ -1,4 +1,4 @@
-use super::{BinaryOperator, ExactDefinednessConditions, exact_definedness_conditions};
+use super::{ArithmeticDomain, BinaryOperator, ExactDefinednessConditions, definedness_conditions};
 
 fn check(source: &str) -> Result<(), String> {
     let program = crate::front_end::typed_program(source);
@@ -140,7 +140,7 @@ fn exact_division_definedness_uses_dispatch_arm_facts_without_leaking_them() {
 #[test]
 fn exact_division_definedness_follows_the_shared_policy_catalog() {
     assert_eq!(
-        exact_definedness_conditions(BinaryOperator::Divide),
+        definedness_conditions(BinaryOperator::Divide, ArithmeticDomain::Exact),
         ExactDefinednessConditions {
             nonzero_divisor: true,
             signed_result_representable: true

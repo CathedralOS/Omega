@@ -1,9 +1,9 @@
-//! Exact division/remainder formation for runtime and specification expressions.
+//! Division/remainder formation under the selected integer policy.
 //!
-//! Both operations require a nonzero divisor. Signed carriers additionally
-//! exclude the one unrepresentable primitive pair, `MIN / -1` (and the same
-//! hardware-definedness pair for remainder). The fact containing the operation
-//! is checked before it can enter the value environment.
+//! Exact, Wrapping and Saturating require a proven nonzero divisor. Exact
+//! signed operations additionally exclude `MIN / -1` and `MIN % -1`. Trapping
+//! retains those conditions as runtime crash predicates. The same live
+//! integer proof supplies the selected policy's formation conditions.
 
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
@@ -62,13 +62,16 @@ struct ExactDefinednessConditions {
     signed_result_representable: bool,
 }
 
-fn exact_definedness_conditions(operator: BinaryOperator) -> ExactDefinednessConditions {
+fn definedness_conditions(
+    operator: BinaryOperator,
+    domain: ArithmeticDomain,
+) -> ExactDefinednessConditions {
     let primitive = match operator {
         BinaryOperator::Divide => IntegerPolicyPrimitive::Divide,
         BinaryOperator::Modulo => IntegerPolicyPrimitive::Remainder,
-        _ => unreachable!("exact definedness is only queried for division and remainder"),
+        _ => unreachable!("definedness is only queried for division and remainder"),
     };
-    let conditions = integer_policy_bridge(primitive, ArithmeticDomain::Exact).formation_conditions;
+    let conditions = integer_policy_bridge(primitive, domain).formation_conditions;
     ExactDefinednessConditions {
         nonzero_divisor: conditions.contains(&IntegerFormationCondition::NonZeroDivisor),
         signed_result_representable: conditions
@@ -99,12 +102,13 @@ impl ProvenDefinedness {
 
 fn report_partial(
     operator: BinaryOperator,
+    domain: ArithmeticDomain,
     proven: ProvenDefinedness,
     owner: &str,
     provably_zero_is_prevalidated: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let conditions = exact_definedness_conditions(operator);
+    let conditions = definedness_conditions(operator, domain);
     let missing_nonzero = conditions.nonzero_divisor
         && !(proven.nonzero_divisor
             || provably_zero_is_prevalidated && proven.provably_zero_divisor);
@@ -127,7 +131,8 @@ fn report_partial(
         missing.push("the signed `MIN / -1` primitive pair must be excluded");
     }
     diagnostics.push(Diagnostic::error(format!(
-        "partial exact {operation} in {owner}: {}; discharge every definedness condition with independently accepted prior facts",
+        "partial {} {operation} in {owner}: {}; discharge every definedness condition with independently accepted prior facts",
+        domain.name().to_ascii_lowercase(),
         missing.join(" and "),
     )));
 }
@@ -143,6 +148,7 @@ pub(super) fn validate_operands(
     state: Option<&State>,
     environment: &ValueEnvironment,
     binary: &TableBinaryExpression,
+    domain: ArithmeticDomain,
     primitive: PrimitiveType,
     left: Interval,
     right: Interval,
@@ -191,7 +197,7 @@ pub(super) fn validate_operands(
                     &[(binary.left, minimum), (binary.right, -1)],
                 )
         });
-    report_partial(binary.operator, proven, owner, true, diagnostics);
+    report_partial(binary.operator, domain, proven, owner, true, diagnostics);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -300,6 +306,7 @@ pub(super) fn validate_concrete(
                     state,
                     environment,
                     binary,
+                    ArithmeticDomain::Exact,
                     primitive,
                     left,
                     right,
@@ -449,6 +456,7 @@ pub(super) fn validate_abstract(
                 };
                 report_partial(
                     binary.operator,
+                    ArithmeticDomain::Exact,
                     ProvenDefinedness::from_intervals(
                         primitive,
                         abstract_specification_interval(
@@ -524,3 +532,6 @@ pub(super) fn validate_abstract(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod policy_tests;

@@ -407,7 +407,7 @@ pub(crate) fn stable_alias_initializer_origins(
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            stable_alias_initializer_origins(
+            let mut origins = stable_alias_initializer_origins(
                 program,
                 current_machine,
                 machine_symbols,
@@ -420,7 +420,11 @@ pub(crate) fn stable_alias_initializer_origins(
                 symbols,
                 allow_isolated_local,
                 stored,
-            )?
+            )?;
+            for origin in &mut origins {
+                origin.source.representation = Some((cast.target_type, Vec::new()));
+            }
+            origins
         }
         _ => stable_alias_expression_origins(
             program,
@@ -504,7 +508,7 @@ fn stable_alias_expression_origins(
             if cast.form.is_recast()
                 && !expression_is_effectful_for_transparent_result(program, cast.value) =>
         {
-            stable_alias_expression_origins(
+            let mut origins = stable_alias_expression_origins(
                 program,
                 cast.value,
                 parameters,
@@ -513,7 +517,11 @@ fn stable_alias_expression_origins(
                 divergent_aliases,
                 symbols,
                 allow_isolated_local,
-            )?
+            )?;
+            for origin in &mut origins {
+                origin.source.representation = Some((cast.target_type, Vec::new()));
+            }
+            origins
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {

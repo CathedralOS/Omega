@@ -1,18 +1,60 @@
 #[test]
 fn observed_integer_ceiling_survives_the_comparison_temporary() {
     for (carrier, ceiling_carrier, comparison, increment, accepted) in [
-        ("u64", "u64", "position < selected.count()", "1", true),
-        ("u32", "u32", "position < selected.count()", "1", true),
-        ("u64", "u64", "selected.count() > position", "1", true),
-        ("u64", "u64", "!(position >= selected.count())", "1", true),
-        ("u64", "u64", "position <= selected.count()", "1", false),
-        ("u64", "u64", "position < selected.count()", "2", false),
-        ("u8", "u64", "position < selected.count()", "1", false),
-        ("u64", "u8", "position < selected.count()", "1", true),
+        (
+            "u64",
+            "u64",
+            "position < Values::count(selected)",
+            "1",
+            true,
+        ),
+        (
+            "u32",
+            "u32",
+            "position < Values::count(selected)",
+            "1",
+            true,
+        ),
+        (
+            "u64",
+            "u64",
+            "Values::count(selected) > position",
+            "1",
+            true,
+        ),
+        (
+            "u64",
+            "u64",
+            "!(position >= Values::count(selected))",
+            "1",
+            true,
+        ),
+        (
+            "u64",
+            "u64",
+            "position <= Values::count(selected)",
+            "1",
+            false,
+        ),
+        (
+            "u64",
+            "u64",
+            "position < Values::count(selected)",
+            "2",
+            false,
+        ),
+        (
+            "u8",
+            "u64",
+            "position < Values::count(selected)",
+            "1",
+            false,
+        ),
+        ("u64", "u8", "position < Values::count(selected)", "1", true),
     ] {
         let source = format!(
             "data Values {{ length: {ceiling_carrier}; }}
-             machine Values::count(&self) -> {ceiling_carrier} {{ self.length }}
+             machine Values::count(values: &Values) -> {ceiling_carrier} {{ values.length }}
              machine visit(selected: &Values, position: {carrier}) -> {carrier} {{
                  transition {comparison} {{
                      true -> advance(position)
@@ -29,17 +71,17 @@ fn observed_integer_ceiling_survives_the_comparison_temporary() {
 #[test]
 fn observed_ceiling_tracks_the_subject_and_branch() {
     for (comparison, argument, preparation) in [
-        ("position >= selected.count()", "position", ""),
-        ("position < selected.count()", "other", ""),
+        ("position >= Values::count(selected)", "position", ""),
+        ("position < Values::count(selected)", "other", ""),
         (
-            "position < selected.count()",
+            "position < Values::count(selected)",
             "position",
             "position = other;",
         ),
     ] {
         let source = format!(
             "data Values {{ length: u64; }}
-             machine Values::count(&self) -> u64 {{ self.length }}
+             machine Values::count(values: &Values) -> u64 {{ values.length }}
              machine visit(selected: &Values, mut position: u64, other: u64) -> u64 {{
                  transition {comparison} {{
                      true -> advance({argument}, other)
@@ -66,11 +108,11 @@ fn observed_ceiling_tracks_the_subject_and_branch() {
 fn observed_ceiling_does_not_outlive_writes_inside_the_guard() {
     for guard in [
         "position < overwrite(&mut position)",
-        "position < selected.count() && overwrite(&mut position) > 0",
+        "position < Values::count(selected) && overwrite(&mut position) > 0",
     ] {
         let source = format!(
             "data Values {{ length: u64; }}
-             machine Values::count(&self) -> u64 {{ self.length }}
+             machine Values::count(values: &Values) -> u64 {{ values.length }}
              machine overwrite(position: &mut u64) -> u64 {{
                  position = 18446744073709551615;
                  18446744073709551615
@@ -95,31 +137,40 @@ fn observed_ceiling_does_not_outlive_writes_inside_the_guard() {
 }
 
 #[test]
-fn receiver_results_require_declared_and_valid_bounds() {
+fn receiver_results_require_established_and_valid_bounds() {
     for (return_type, body, diagnostic) in [
+        ("u64", "1", None),
         (
             "u64",
-            "1",
-            "local `width` stores a value not provably within its declared range",
+            "alignment.width",
+            Some("local `width` stores a value not provably within its declared range"),
         ),
         (
             "u64 [1..=8]",
             "9",
-            "returns a value not provably within its declared range",
+            Some("returns a value not provably within its declared range"),
         ),
     ] {
         let program = crate::front_end::typed_program(&format!(
-            "data Alignment [copy] {{}}
-             machine Alignment::size(&self) -> {return_type} {{ {body} }}
+            "data Alignment [copy] {{ width: u64; }}
+             machine Alignment::size(alignment: &Alignment) -> {return_type} {{ {body} }}
              machine consume(alignment: &Alignment) -> u64 {{
-                 let width: u64 [1..=8] = alignment.size();
+                 let width: u64 [1..=8] = Alignment::size(alignment);
                  width
              }}"
         ));
-        let diagnostics = crate::validate_program(&program).expect_err("unproved range");
-        assert!(
-            format!("{diagnostics:?}").contains(diagnostic),
-            "{diagnostics:?}"
-        );
+        let result = crate::validate_program(&program);
+        if let Some(diagnostic) = diagnostic {
+            let diagnostics = result.expect_err("unproved range");
+            assert!(
+                format!("{diagnostics:?}").contains(diagnostic),
+                "{diagnostics:?}"
+            );
+        } else {
+            assert!(
+                result.is_ok(),
+                "a body-established bound is usable: {result:?}"
+            );
+        }
     }
 }

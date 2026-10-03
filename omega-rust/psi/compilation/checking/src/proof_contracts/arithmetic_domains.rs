@@ -33,8 +33,8 @@ mod cited_element_bounds;
 mod dependent_products;
 mod dependent_relations;
 mod domain_exclusions;
+mod division_definedness;
 pub(crate) mod domain_intervals;
-mod exact_division_definedness;
 mod expression_analysis;
 mod float_arithmetic;
 mod guard_narrowing;
@@ -48,6 +48,7 @@ mod ordered_values;
 mod place_paths;
 mod range_constraints;
 mod return_ranges;
+mod stored_integer_writes;
 #[cfg(test)]
 mod tests;
 mod total_specification;
@@ -97,6 +98,7 @@ pub(crate) use return_ranges::{
     call_return_type, enforce_declared_return_range, enforce_symbolic_range,
     validate_return_value_range,
 };
+pub(crate) use stored_integer_writes::validate_stored_integer_write;
 pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,
     validate_machine_total_specification_arithmetic, validate_total_specification_arithmetic,

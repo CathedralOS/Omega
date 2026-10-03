@@ -3,8 +3,8 @@
 //! checking proves the concrete value fits when the semantic carrier is wider
 //! than storage. Borrowing or recasting the destination does not change that law.
 
-mod stored_integer_writes;
-pub(crate) use stored_integer_writes::validate_stored_integer_write;
+#[cfg(test)]
+mod tests;
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;

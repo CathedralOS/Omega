@@ -308,7 +308,8 @@ fn inferred_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
     let program = walk.program;
     let (callee, state) = resolve_unique_self_call_state(program, walk.machine, call)?;
     let primitive = program.primitive_type_reference(state.return_type);
-    let interval = infer_return_interval(program, callee, state, primitive)?;
+    let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
+    let interval = infer_return_interval(program, callee, state, primitive, &actuals)?;
     Some(Analysis {
         domain: None,
         interval,

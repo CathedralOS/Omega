@@ -118,6 +118,8 @@ pub struct LocalWriteOrigin {
 /// acquire a field or index suffix when a consumer transports a write.
 #[derive(Clone)]
 pub struct LocalWriteSource {
+    /// Logical recast carrier and selectors, separate from the raw backing.
+    pub representation: Option<(super::TypeReferenceHandle, Vec<facts::PlaceSegment>)>,
     pub path: String,
     pub collection_coarse: bool,
     /// Structural selectors retained before string-path coarsening. Consumers
@@ -131,6 +133,7 @@ pub struct LocalWriteSource {
 impl From<FramePlaceOrigin> for LocalWriteSource {
     fn from(origin: FramePlaceOrigin) -> Self {
         Self {
+            representation: origin.source.representation,
             path: origin.path,
             collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
             root: if origin.source.builtin_coordinates {

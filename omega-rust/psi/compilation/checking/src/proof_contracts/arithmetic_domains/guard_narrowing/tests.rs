@@ -62,7 +62,7 @@ fn out_parameter_postconditions_do_not_retarget_value_snapshots() {
 
 #[test]
 fn a_strict_place_ceiling_proves_the_increment_for_narrower_carriers() {
-    // ch12's `Counter::bump` relation: `requires self.count < self.cap`
+    // ch12's `Counter::bump` relation: `requires counter.count < counter.cap`
     // records `cap >= count + 1`, and `cap`'s own declared carrier bounds the
     // result by its representable high -- the composed ceiling discharge the
     // u64 lane admits through literal ceilings extends to every fixed-width
@@ -72,68 +72,68 @@ fn a_strict_place_ceiling_proves_the_increment_for_narrower_carriers() {
     for (source, accepted) in [
         (
             "data Counter { count: u32; cap: u32; }
-             machine Counter::bump(&mut self)
-                 requires self.count < self.cap
-             { self.count += 1; }",
+             machine Counter::bump(counter: &mut Counter)
+                 requires counter.count < counter.cap
+             { counter.count += 1; }",
             true,
         ),
         (
             "data Counter { count: u32; cap: u32 [0..=100]; }
-             machine Counter::bump(&mut self)
-                 requires self.count < self.cap
-             { self.count += 1; }",
+             machine Counter::bump(counter: &mut Counter)
+                 requires counter.count < counter.cap
+             { counter.count += 1; }",
             true,
         ),
         (
             "data Counter { count: u8; cap: u8; }
-             machine Counter::bump(&mut self)
-                 requires self.count < self.cap
-             { self.count += 1; }",
+             machine Counter::bump(counter: &mut Counter)
+                 requires counter.count < counter.cap
+             { counter.count += 1; }",
             true,
         ),
         // `count < cap` is only a gap of 1; `count + 2` could still overflow.
         (
             "data Counter { count: u32; cap: u32; }
-             machine Counter::bump(&mut self)
-                 requires self.count < self.cap
-             { self.count += 2; }",
+             machine Counter::bump(counter: &mut Counter)
+                 requires counter.count < counter.cap
+             { counter.count += 2; }",
             false,
         ),
         // A two-hop chain `count < mid < cap` composes gap 2 through places.
         (
             "data Counter { count: u32; mid: u32; cap: u32; }
-             machine Counter::bump(&mut self)
+             machine Counter::bump(counter: &mut Counter)
                  requires
-                     self.count < self.mid
-                     self.mid < self.cap
-             { self.count += 2; }",
+                     counter.count < counter.mid
+                     counter.mid < counter.cap
+             { counter.count += 2; }",
             true,
         ),
         (
             "data Counter { count: u32; cap: u32; }
-             machine Counter::bump(&mut self)
-                 requires self.count <= self.cap
-             { self.count += 1; }",
+             machine Counter::bump(counter: &mut Counter)
+                 requires counter.count <= counter.cap
+             { counter.count += 1; }",
             false,
         ),
         (
             "data Counter { count: u32; cap: u32; }
-             machine Counter::bump(&mut self)
-                 requires self.cap < self.count
-             { self.count += 1; }",
+             machine Counter::bump(counter: &mut Counter)
+                 requires counter.cap < counter.count
+             { counter.count += 1; }",
             false,
         ),
         (
             "data Counter { count: u32; cap: u32; }
-             machine Counter::bump(&mut self)
-             { self.count += 1; }",
+             machine Counter::bump(counter: &mut Counter)
+             { counter.count += 1; }",
             false,
         ),
         (
             "data Counter { count: u32; cap: u64; }
-             machine Counter::bump(&mut self)
-                 requires self.count < self.cap
-             { self.count += 1; }",
+             machine Counter::bump(counter: &mut Counter)
+                 requires counter.count < counter.cap
+             { counter.count += 1; }",
             false,
         ),
     ] {
@@ -195,8 +195,8 @@ fn cyclic_dependent_arrival_bounds_stay_within_the_declared_range() {
     // A `delivered + 1` delivery in a dependent-bounded cycle seeds the
     // target parameter's environment intersected with its declared range:
     // the transition delivery already proves the argument fits. Without
-    // that clamp the joined arrival widened past `self.max` on every
-    // fixpoint round -- a guard `x + 1 <= self.max` cannot narrow the sum
+    // that clamp the joined arrival widened past `limits.max` on every
+    // fixpoint round -- a guard `x + 1 <= limits.max` cannot narrow the sum
     // against the field bound -- and reads then trusted a value the
     // parameter can never hold (heat_grid's `y * 4 + x` hoist temps were
     // rejected with an environment interval of (0, 23) against their synthesized
@@ -204,12 +204,12 @@ fn cyclic_dependent_arrival_bounds_stay_within_the_declared_range() {
     assert_eq!(
         delivered_bounds(
             "data Limits { max: u32 [0..=4]; }
-    machine Limits::main(&mut self) {
-        transition { _ -> append(0) }
-        state append(&mut self, delivered: u32 [0..=self.max]) {
-            transition delivered + 1 <= self.max { true -> append(delivered + 1) _ -> done() }
+    machine Limits::main(limits: &mut Limits) {
+        transition { _ -> append(limits, 0) }
+        state append(limits: &mut Limits, delivered: u32 [0..=limits.max]) {
+            transition delivered + 1 <= limits.max { true -> append(limits, delivered + 1) _ -> done(limits) }
         }
-        state done(&mut self) { crash Trap; }
+        state done(limits: &mut Limits) { crash Trap; }
     }"
         ),
         Some(Interval {

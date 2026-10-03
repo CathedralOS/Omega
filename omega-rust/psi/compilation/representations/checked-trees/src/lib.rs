@@ -6,8 +6,8 @@
 pub mod checked_trees;
 
 pub use checked_trees::{
-    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, ContextualCleanupFacts,
+    CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
+    ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
 };
 
 pub use checked_trees::{

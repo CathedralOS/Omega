@@ -7,7 +7,7 @@ Checking must reject the assignment itself:
 omega --check tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg
 ```
 
-The expected diagnostic is `cannot prove assigned value fits integer storage`.
+The expected diagnostic is `IntegerAt store`.
 This must not depend on native lowering or a Terminal proof search. The same
 assignment rule applies to an ordinary field and a field reached through a
 recast reference. The positive control is

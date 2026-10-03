@@ -5,7 +5,7 @@ use crate::proof_contracts::arithmetic_domains::assignments::{
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
-    validate_anonymous_integer_range, validate_value_range,
+    primitive_range, validate_anonymous_integer_range, validate_value_range,
 };
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::range_constraints::range_constraint_interval;
@@ -133,23 +133,22 @@ pub(crate) fn resolve_unique_self_call_state<'program>(
     Some(first)
 }
 
-/// ch15 stage 2 -- MODULAR RETURN-RANGE INFERENCE: when a callee declares no
-/// return range, infer one from its body so the caller's arithmetic on the
-/// result can stay Exact without the callee writing `-> i32 [a..=b]`. Sound and
-/// STRICTLY PERMISSIVE: the body is analyzed with an EMPTY environment (params at full
-/// type width -> the widest possible result, so any caller's actual return is
-/// within it). All return paths of the callee state are UNIONed -- a terminal
-/// expression and/or transition VALUE targets (`{ cond -> v1 _ -> v2 }`). SOUND:
-/// every path must be captured, so the state must be a LEAF value state -- if any
-/// transition target is Named (a return could come from a state we are
-/// not analyzing, or a loop), we bail. The interval is trusted only if every
-/// path's analysis is clean and the union is fully bounded. Recursion-guarded to
-/// one level.
+/// Infer a normal-return bound from a fully captured callee body. A declared
+/// return range remains in force; this query can only supply a tighter bound
+/// for the current invocation. Immutable scalar actuals carry copied values,
+/// while uncaptured parameters retain their declared carrier bounds.
+///
+/// Every return path must be captured; named state transitions decline here.
+/// Body effects supply no additional facts: storage other than the immutable
+/// scalar actuals above retains only its declared bounds.
+/// Unioning all captured outcomes remains sound without selecting a branch.
+/// Recursive body inference declines rather than trusting its own conclusion.
 pub(crate) fn infer_return_interval(
     program: &TypedTrees,
     callee_machine: &Machine,
     callee_state: &State,
     target_primitive: Option<PrimitiveType>,
+    actuals: &[(symbols::SymbolHandle, Interval)],
 ) -> Option<Interval> {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
     if INFERRING_RETURN.with(std::cell::Cell::get) {
@@ -189,7 +188,27 @@ pub(crate) fn infer_return_interval(
         return None;
     }
 
-    let environment = ValueEnvironment::new();
+    let mut environment = ValueEnvironment::new();
+    // primitive_type_reference rejects reference shells (including references
+    // beneath constraints). Only immutable scalar values can retain caller
+    // bounds across the body; borrowed or mutable storage is never seeded.
+    for parameter in program.state_parameters(callee_state) {
+        if parameter.is_self || parameter.is_mutable || parameter.is_const {
+            continue;
+        }
+        if let Some(carrier) = program
+            .primitive_type_reference(parameter.type_reference)
+            .and_then(primitive_range)
+            && let Some((_, actual)) = actuals
+                .iter()
+                .find(|(symbol, _)| *symbol == parameter.symbol)
+        {
+            environment.set(
+                parameter.name.as_str().to_owned(),
+                carrier.intersect(*actual),
+            );
+        }
+    }
     INFERRING_RETURN.with(|flag| flag.set(true));
     let mut union: Option<Interval> = None;
     let mut clean = true;

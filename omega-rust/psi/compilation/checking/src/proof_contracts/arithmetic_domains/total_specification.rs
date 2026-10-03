@@ -12,8 +12,8 @@ use super::guard_narrowing::{comparison_bound, narrow_environment_by_condition};
 use super::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
     Machine, PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees, ValueEnvironment, abstract_shift_count,
-    exact_division_definedness, is_arithmetic, literal_i64, place_path, range_constraint_interval,
+    TypeReferenceNode, TypedTrees, ValueEnvironment, abstract_shift_count, division_definedness,
+    is_arithmetic, literal_i64, place_path, range_constraint_interval,
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
@@ -35,7 +35,7 @@ pub(crate) fn validate_total_specification_arithmetic(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    exact_division_definedness::validate_concrete(
+    division_definedness::validate_concrete(
         program,
         machine,
         state,
@@ -864,7 +864,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 environment,
                 diagnostics,
             );
-            exact_division_definedness::validate_abstract(
+            division_definedness::validate_abstract(
                 program,
                 *expression,
                 owner,

@@ -135,7 +135,6 @@ pub(crate) fn build_check_facts(
 ) -> Result<(CheckFacts, validation::PreparedEffectScope), Vec<diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
     let mut values = build_value_facts(program, proof_plan);
-    values.stored_integer_writes = std::mem::take(&mut validation_facts.stored_integer_writes);
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
     let mut proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators)?;
@@ -415,8 +414,11 @@ pub(crate) fn build_check_facts(
         return Err(fact_call_projection_diagnostics);
     }
 
+    let mut stored_integer_writes = arena::Arena::new();
+    stored_integer_writes.insert_many(validation_facts.stored_integer_writes);
     Ok((
         CheckFacts {
+            stored_integer_writes,
             operational,
             contextual_cleanup,
             semantic,

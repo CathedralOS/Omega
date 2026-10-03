@@ -10,6 +10,8 @@ use crate::{CheckedFactCallProjection, CheckedIntrinsicCallFact, CheckedPlacedVi
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
+    /// Completed source assignments proved to fit their physical integer encoding.
+    pub stored_integer_writes: arena::Arena<crate::CheckedStoredIntegerWrite>,
     /// Final source execution dependencies, including selected cleanup edges.
     /// The memo scope accelerates queries; it is not their semantic owner.
     pub operational: flow_effects::OperationalPlan,

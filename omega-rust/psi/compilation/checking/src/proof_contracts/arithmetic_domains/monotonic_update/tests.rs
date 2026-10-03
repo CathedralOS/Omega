@@ -11,7 +11,7 @@ fn bounds(
     let source = format!(
         "{declaration}
         data Counter {{ value: {carrier}; }}
-        machine Counter::update(&mut self) {{ self.value = {update}; }}"
+        machine Counter::update(counter: &mut Counter) {{ counter.value = {update}; }}"
     );
     let mut sources = source::SourceMap::default();
     let source_id = sources
@@ -31,15 +31,27 @@ fn bounds(
             _ => None,
         })
         .expect("the authored field assignment");
-    let target = crate::exact_self_field(&program, machine, assignment.target)
-        .expect("assignment target retains its exact attached field");
+    let target = crate::exact_attached_storage_field(
+        &program,
+        machine,
+        program.state_parameters(state),
+        assignment.target,
+    )
+    .expect("assignment target retains its exact attached field");
     let ExpressionNode::Binary(binary) = program.expression_table.expression(assignment.value)
     else {
         panic!("the authored binary update");
     };
     let counter = [binary.left, binary.right]
         .into_iter()
-        .find_map(|operand| crate::exact_self_field(&program, machine, operand))
+        .find_map(|operand| {
+            crate::exact_attached_storage_field(
+                &program,
+                machine,
+                program.state_parameters(state),
+                operand,
+            )
+        })
         .expect("one operand is the same attached counter");
     assert!(target.symbol.is_valid());
     assert_eq!(target.symbol, counter.symbol);
@@ -55,7 +67,7 @@ fn bounds(
 
 #[test]
 fn signed_wrapping_increment_uses_the_independent_upper_bound_and_carrier_floor() {
-    for update in ["self.value + 1", "1 + self.value"] {
+    for update in ["counter.value + 1", "1 + counter.value"] {
         assert_eq!(
             bounds("", "i32 in Wrapping", update, None, Some(3)),
             Some((Some(i64::from(i32::MIN) + 1), Some(4)))
@@ -69,7 +81,7 @@ fn saturating_updates_clamp_instead_of_intersecting_away_the_result() {
         bounds(
             "",
             "i8 in Saturating",
-            "self.value + 1",
+            "counter.value + 1",
             Some(127),
             Some(127)
         ),
@@ -79,7 +91,7 @@ fn saturating_updates_clamp_instead_of_intersecting_away_the_result() {
         bounds(
             "",
             "i8 in Saturating",
-            "self.value - 1",
+            "counter.value - 1",
             Some(-128),
             Some(-128)
         ),
@@ -93,7 +105,7 @@ fn only_the_actual_builtin_update_has_primitive_monotonicity() {
         bounds(
             "operator + i32::custom(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 in Wrapping;",
             "i32 in Wrapping",
-            "self.value + 1",
+            "counter.value + 1",
             Some(0),
             Some(3)
         ),
@@ -103,7 +115,7 @@ fn only_the_actual_builtin_update_has_primitive_monotonicity() {
         bounds(
             "operator + f64::unrelated(left: f64, right: f64) -> f64;",
             "i32 in Wrapping",
-            "self.value + 1",
+            "counter.value + 1",
             Some(0),
             Some(3)
         ),
@@ -114,7 +126,7 @@ fn only_the_actual_builtin_update_has_primitive_monotonicity() {
 #[test]
 fn contradictory_input_bounds_do_not_authorize_an_update() {
     assert_eq!(
-        bounds("", "i32 in Wrapping", "self.value + 1", Some(4), Some(3)),
+        bounds("", "i32 in Wrapping", "counter.value + 1", Some(4), Some(3)),
         None
     );
 }

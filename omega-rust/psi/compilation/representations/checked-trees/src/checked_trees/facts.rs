@@ -42,6 +42,8 @@ mod carry;
 mod domains;
 mod index_compatibility;
 mod placement;
+mod stored_integer_writes;
+pub use stored_integer_writes::CheckedStoredIntegerWrite;
 
 pub use blocking::{BlockingFacts, MachineBlockingFact};
 pub use calls::{
@@ -61,7 +63,8 @@ pub use content::{
     ContentPartitionResultRewrite, ContentProjectionFacts, RetainedBorrowCustodyFact,
 };
 pub use contextual_cleanup::{
-    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
+    ContextualCleanupEntryRequirements, ContextualCleanupFacts,
 };
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,

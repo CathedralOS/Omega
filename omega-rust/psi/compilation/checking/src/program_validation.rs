@@ -59,9 +59,9 @@ pub use checked_trees::operators::ExactIntegerCastFact;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
+    pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     pub boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
-    pub stored_integer_writes: arena::Arena<checked_trees::values::CheckedStoredIntegerWrite>,
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
@@ -185,7 +185,7 @@ fn validate(
     }
     let mut boundary_operator_applications = Vec::new();
     let mut exact_integer_casts = Vec::new();
-    let mut stored_integer_writes = arena::Arena::new();
+    let mut stored_integer_writes = Vec::new();
     callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
     float_projection_bindings::validate_float_projection_operator_bindings(
         program,
@@ -658,9 +658,9 @@ fn validate(
         operational: conformance_operational,
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
+            stored_integer_writes,
             boundary_operator_applications,
             exact_integer_casts,
-            stored_integer_writes,
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,
             fact_call_projections,

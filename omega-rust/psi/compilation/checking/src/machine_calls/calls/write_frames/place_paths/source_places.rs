@@ -27,6 +27,9 @@ pub(in crate::machine_calls::calls::write_frames) struct FrameSourcePlace {
     pub(in crate::machine_calls::calls::write_frames) kind: FrameSourceKind,
     pub(in crate::machine_calls::calls::write_frames) root: SymbolHandle,
     pub(in crate::machine_calls::calls::write_frames) segments: Vec<PlaceSegment>,
+    /// The logical carrier selected by a recast, independent of raw backing.
+    pub(in crate::machine_calls::calls::write_frames) representation:
+        Option<(typed_trees::types::TypeReferenceHandle, Vec<PlaceSegment>)>,
     /// Permission to interpret candidate selectors as primitive coordinates.
     /// False retains possible-source metadata for the coarse frame consumers.
     pub(in crate::machine_calls::calls::write_frames) builtin_coordinates: bool,
@@ -65,6 +68,7 @@ impl FrameSourcePlace {
             kind: FrameSourceKind::Declaration,
             root,
             segments: segments.to_vec(),
+            representation: None,
             builtin_coordinates,
         }
     }
@@ -80,6 +84,9 @@ impl FrameSourcePlace {
         }
         let mut projected = self.clone();
         projected.segments.extend_from_slice(segments);
+        if let Some((_, path)) = &mut projected.representation {
+            path.extend_from_slice(segments);
+        }
         projected
     }
 
@@ -156,6 +163,30 @@ impl FrameSourcePlace {
                 },
                 _ => *segment,
             }));
+        if let Some((_, path)) = &mut result.representation {
+            path.extend(relative.segments.iter().map(|segment| match segment {
+                PlaceSegment::Index { .. } => PlaceSegment::Index {
+                    expression: ExpressionHandle::invalid(),
+                },
+                _ => *segment,
+            }));
+        }
+        // A view introduced inside the callee selects a new logical carrier
+        // over the same substituted backing. Its path is relative to that
+        // carrier, not to the caller's previous interpretation.
+        if let Some((carrier, path)) = &relative.representation {
+            result.representation = Some((
+                *carrier,
+                path.iter()
+                    .map(|segment| match segment {
+                        PlaceSegment::Index { .. } => PlaceSegment::Index {
+                            expression: ExpressionHandle::invalid(),
+                        },
+                        _ => *segment,
+                    })
+                    .collect(),
+            ));
+        }
         result
     }
 }

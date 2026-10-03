@@ -16,8 +16,8 @@ fn copied_local_bounds_survive_an_unresolved_returned_reference_write() {
              data Room {{ value: u64; }}
              data Level {{ rooms: [Room; 2]; count: u64; }}
              machine bounded() -> u64 ensures result <= 15 {{ 15 }}
-             machine Level::room_mut(&mut self, cell: CellId) -> &mut Room {{
-                 let slots: &mut [Room] = self.rooms.as_mut_slice();
+             machine Level::room_mut(level: &mut Level, cell: CellId) -> &mut Room {{
+                 let slots: &mut [Room] = level.rooms.as_mut_slice();
                  transition cell {{
                      CellId::First -> &mut slots[0]
                      _ -> &mut slots[1]
@@ -25,7 +25,7 @@ fn copied_local_bounds_survive_an_unresolved_returned_reference_write() {
              }}
              machine exercise(level: &mut Level, cell: CellId) {{
                  {initialization}
-                 let room: &mut Room = level.room_mut(cell);
+                 let room: &mut Room = Level::room_mut(level, cell);
                  room.value = 1;
                  level.count = max(level.count, index + 1);
              }}"

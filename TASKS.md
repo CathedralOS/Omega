@@ -3344,15 +3344,41 @@ unchanged, except for intended deletions, which its commit lists.
     certificate (`proofs/nonzero_divisor_certificate`, 19.5k lines).
   - When none is found, `OperationProofUnavailable` fails the compile.
 
-  Move the discharge of every Exact-operation condition into checking: a
-  nonzero divisor, shift counts, Boolean landing, byte index below length,
-  and bounded field stores. Measure first which of these stage 05 currently
-  discharges. Checking proves each condition from the facts it already holds
-  and records it in `CheckFacts`, and an unproven condition is a checking
-  diagnostic. Stage 05 then lowers without proof search. Acceptance: every
-  corpus fail fixture that rejects today with `OperationProofUnavailable`
-  rejects from `omega --check` with a checking diagnostic, and the check
-  corpus is otherwise unchanged.
+  Move the discharge of every operation condition into checking: a nonzero
+  divisor, Exact representability, shift counts, Boolean landing, byte/element
+  indices and ranges, representation-region geometry, capacities and bounded
+  field stores. Preserve policy distinctions: non-Exact division may still owe
+  a nonzero divisor. Checking records successful decisions in `CheckFacts`;
+  stage 05 consumes those decisions without proof search. Keep call contracts,
+  cleanup prerequisites and mathematical proofs distinct from primitive
+  operation conditions during this transition.
+
+  The local candidate now checks runtime division/remainder using the shared
+  policy rules, retaining selected disequalities through writes, joins and
+  named-state transport. Ordinary call-result inference preserves immutable
+  actual bounds through helpers, including clamp then widening. All 57 focused
+  arithmetic tests pass. Exact scalar `IntegerAt` writes retain their successful
+  source decision in `CheckFacts`; public
+  `omega --check tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg`
+  now rejects 128 into signed eight-bit storage with a checking diagnostic.
+  The unchanged positive layout customer's both-engine run remains in progress.
+
+  Remaining: transport encoded geometry through ordinary logical-field aliases
+  and discharge every effective write, including constructors and callee writes.
+  Existing mutation summaries retain destinations, not intermediate written
+  values; a final-value summary cannot justify an earlier out-of-range store.
+  Preserve valid logical-field borrows and reject an unproved write or call,
+  without inventing public caller requirements. Retain the remaining operation
+  decisions and connect stage 05 consumers before deleting any late gate.
+
+  Boolean recast admission already enforces the exact representation set
+  (shared implication, mutable equivalence), and source checking already owns
+  shift counts, most overflow, index/range bounds, recast geometry and domain
+  field writes. Retain their successful occurrence decisions rather than
+  adding duplicate provers. Cover nested expressions and compiler-generated
+  semantic-to-storage casts. Acceptance: every corpus fail fixture that rejects
+  today with `OperationProofUnavailable` rejects from `omega --check` with a
+  checking diagnostic, and the check corpus is otherwise unchanged.
 
   Current frontier: plan-laid `IntegerAt` storage-fit judgments are retained
   in `CheckFacts::values`. Exact division/remainder now reject an unproven

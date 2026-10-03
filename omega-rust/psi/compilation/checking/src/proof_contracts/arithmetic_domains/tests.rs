@@ -18,7 +18,7 @@ fn collection_length_retains_its_count_carrier_and_live_bounds() {
         ("[u8; 32] in Text", iv(0, 32)),
     ] {
         let program = crate::front_end::typed_program(&format!(
-            "domain [u8; 32]::Text requires valid_utf8(self);\n\
+            "domain [u8; 32]::Text(bytes) requires valid_utf8(bytes);\n\
              machine measure(value: {carrier}) {{ let count: u64 = value.len; }}"
         ));
         let machine = program
@@ -58,15 +58,15 @@ fn collection_length_retains_its_count_carrier_and_live_bounds() {
 fn collection_length_store_requires_an_explicit_carrier_conversion() {
     for carrier in ["[u8; 32]", "[u8; 32] in Text"] {
         for (destination, value, accepted) in [
-            ("i32", "self.values.len", false),
-            ("u32", "self.values.len", false),
-            ("u64", "self.values.len", true),
-            ("i32", "self.values.len as i32", true),
+            ("i32", "probe.values.len", false),
+            ("u32", "probe.values.len", false),
+            ("u64", "probe.values.len", true),
+            ("i32", "probe.values.len as i32", true),
         ] {
             let program = crate::front_end::typed_program(&format!(
-                "domain [u8; 32]::Text requires valid_utf8(self);\n\
+                "domain [u8; 32]::Text(bytes) requires valid_utf8(bytes);\n\
                  data Probe {{ values: {carrier}; count: {destination}; }}\n\
-                 machine Probe::run(&mut self) {{ self.count = {value}; }}"
+                 machine Probe::run(probe: &mut Probe) {{ probe.count = {value}; }}"
             ));
             let result = crate::validate_program(&program);
             if accepted {
@@ -87,7 +87,7 @@ fn collection_length_store_requires_an_explicit_carrier_conversion() {
     }
     let nominal = crate::front_end::typed_program(
         "data Record { len: i32; } data Probe { record: Record; count: i32; }\n\
-         machine Probe::run(&mut self) { self.count = self.record.len; }",
+         machine Probe::run(probe: &mut Probe) { probe.count = probe.record.len; }",
     );
     crate::validate_program(&nominal).expect("a nominal len field is not collection metadata");
 }

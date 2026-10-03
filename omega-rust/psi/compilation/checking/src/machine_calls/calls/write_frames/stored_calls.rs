@@ -506,6 +506,7 @@ fn instantiate(
             return None;
         }
         Some(base.append_relative(&FrameSourcePlace {
+            representation: None,
             kind: Default::default(),
             root,
             segments: segments.to_vec(),
@@ -654,6 +655,7 @@ pub(super) fn apply(
                 local_path: path(
                     program,
                     &FrameSourcePlace {
+                        representation: None,
                         kind: Default::default(),
                         root: effect.root,
                         segments: effect.segments.clone(),

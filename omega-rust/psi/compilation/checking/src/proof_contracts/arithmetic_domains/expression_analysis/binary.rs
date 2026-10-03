@@ -122,15 +122,15 @@ pub(super) fn analyze(
         primitive
     };
     let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
-    if effective_domain == ArithmeticDomain::Exact
-        && let Some(primitive) = primitive
+    if let Some(primitive) = primitive
     {
-        crate::proof_contracts::arithmetic_domains::exact_division_definedness::validate_operands(
+        crate::proof_contracts::arithmetic_domains::division_definedness::validate_operands(
             walk.program,
             walk.machine,
             walk.state,
             walk.environment,
             binary,
+            effective_domain,
             primitive,
             operation.left.interval,
             operation.right.interval,
@@ -306,8 +306,9 @@ impl Operation<'_, '_> {
     /// has pinned to exactly 0) always traps -- the interpreter traps on
     /// div/mod-by-zero in every domain, and native `idiv` faults -- so it is
     /// dead-wrong code, rejected here like an out-of-range literal. This is the
-    /// constant case only. Exact formation additionally discharges nonzero and
-    /// signed-pair conditions through the shared definedness owner below.
+    /// constant diagnostic only. The selected policy's general formation
+    /// conditions are checked separately after operand domain selection;
+    /// Trapping owns a runtime crash, while other policies require nonzero.
     fn reject_provably_zero_divisor(&self, diagnostics: &mut Vec<Diagnostic>) {
         let operation = match self.operator() {
             BinaryOperator::Divide => "division",
@@ -603,9 +604,8 @@ impl Operation<'_, '_> {
     /// Left shift separately retains F8's count obligation; proving a legal
     /// count never authorizes value overflow.
     ///
-    /// Division and remainder were checked by the shared definedness owner:
-    /// their signed MIN/-1 pair is not an ordinary result-interval bound.
-    /// The generic interval gate consumes every other representability row.
+    /// Division/remainder use the shared definedness judgment, including the
+    /// signed MIN/-1 pair, rather than this result interval gate.
     fn require_representable_result(
         &self,
         bridge: IntegerPolicyBridge,
