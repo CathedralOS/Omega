@@ -23,17 +23,20 @@ mod tests;
 /// The caller must first establish source no-code signature eligibility through
 /// parameter_storage -> owned::validate, including permissions and exclusion of
 /// nominal cleanup. Terminal multiplicity alone does not establish eligibility.
-/// Pass an empty parameter roster when another emitter owns entry cleanup.
+/// Pass an empty delegated roster when another emitter owns entry cleanup.
+/// `entry_parameters` always retains the complete machine roster for exact
+/// root types and declaration-ordered residual cleanup.
 /// This pass completes the delegated custody through calls and continuations;
 /// the independent verifier checks types, reads, and disposal completeness.
 pub(crate) fn complete(
     parameters: &[StructuralParameterDeclaration],
+    entry_parameters: &[StructuralParameterDeclaration],
     entry: BlockId,
     blocks: &mut [Block],
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
     complete_carriers(parameters, entry, blocks, types)?;
-    projected_transfers::complete(parameters, entry, blocks, types)
+    projected_transfers::complete(entry_parameters, entry, blocks, types)
 }
 
 fn complete_carriers(

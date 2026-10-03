@@ -329,7 +329,7 @@ fn complete(
     entry: super::BlockId,
     blocks: &mut [Block],
 ) -> Result<(), LoweringError> {
-    super::complete(parameters, entry, blocks, &[])
+    super::complete(parameters, parameters, entry, blocks, &[])
 }
 
 fn descriptor_types() -> Vec<terminal_psi::StructuralTypeDeclaration> {
@@ -371,7 +371,14 @@ fn descriptor_completion_disposes_births_before_entry_owners_in_producer_order()
     let parameter = parameter(91, 0);
     let mut blocks = vec![returning(1)];
     blocks[0].operations = vec![descriptor_birth(10), descriptor_birth(20)];
-    super::complete(&[parameter], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+    super::complete(
+        &[parameter.clone()],
+        &[parameter],
+        block_id(1),
+        &mut blocks,
+        &descriptor_types(),
+    )
+    .unwrap();
     assert_eq!(
         cleanup(&blocks[0]),
         &[
@@ -398,7 +405,7 @@ fn descriptor_completion_closes_branch_local_carrier_on_its_selected_edge() {
         returning(4),
     ];
     blocks[1].operations = vec![descriptor_birth(10)];
-    super::complete(&[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+    super::complete(&[], &[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
     let Terminator::Jump {
         trivial_affine_discards,
         ..
@@ -433,7 +440,7 @@ fn descriptor_completion_preserves_existing_carrier_cleanup_without_duplicates()
         panic!("return");
     };
     cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place_id(20)));
-    super::complete(&[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+    super::complete(&[], &[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
     assert_eq!(
         cleanup(&blocks[0]),
         &[
@@ -479,7 +486,7 @@ fn borrowed_descriptor_edges_retain_cleanup_debt_through_unit_completion() {
         received.multiplicity = StructuralMultiplicity::Unrestricted;
         received.structural_type = StructuralTypeId::new(9).unwrap();
         blocks[1].structural_parameters.push(received.clone());
-        super::complete(&[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
+        super::complete(&[], &[], block_id(1), &mut blocks, &descriptor_types()).unwrap();
         let Terminator::ReturnUnit {
             trivial_affine_discards,
             ..
@@ -520,7 +527,7 @@ fn borrowed_descriptor_edges_retain_cleanup_debt_through_unit_completion() {
         branches[1].structural_parameters.push(received.clone());
         received.place = place_id(31);
         branches[2].structural_parameters.push(received);
-        super::complete(&[], block_id(1), &mut branches, &descriptor_types()).unwrap();
+        super::complete(&[], &[], block_id(1), &mut branches, &descriptor_types()).unwrap();
         for branch in &branches[1..] {
             let Terminator::ReturnUnit {
                 trivial_affine_discards,
@@ -549,5 +556,5 @@ fn borrowed_descriptor_edges_retain_cleanup_debt_through_unit_completion() {
         path: Vec::new(),
         access: StructuralAccess::Owned,
     });
-    assert!(super::complete(&[], block_id(1), &mut owned, &descriptor_types()).is_err());
+    assert!(super::complete(&[], &[], block_id(1), &mut owned, &descriptor_types()).is_err());
 }

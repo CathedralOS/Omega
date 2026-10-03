@@ -820,6 +820,7 @@ pub(super) fn emit(
         // using the same custody owner as composed and scalar-graph emission.
         crate::emission::affine_cleanup::complete(
             &[],
+            parameters,
             evaluation.entry,
             &mut evaluation.blocks,
             structural_types,

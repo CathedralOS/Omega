@@ -34,6 +34,7 @@ use crate::terminal_identities::{
 pub(crate) mod affine_cleanup;
 pub(crate) mod atomic_sources;
 pub(crate) mod call_source_custody;
+pub(crate) mod control_flow;
 pub(crate) mod indexed_write;
 pub(crate) mod operation_emission;
 pub(crate) mod primitive_store;

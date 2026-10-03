@@ -415,6 +415,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         loop_header_parameters
             .as_deref()
             .unwrap_or(&structural_parameters),
+        &structural_parameters,
         scalar_source_block(identity_base, 0),
         &mut blocks,
         views.structural_types,

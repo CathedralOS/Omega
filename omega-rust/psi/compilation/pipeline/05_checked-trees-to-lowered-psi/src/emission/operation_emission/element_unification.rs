@@ -131,53 +131,14 @@ fn terminator_successors(terminator: &Terminator) -> Vec<BlockId> {
     }
 }
 
-/// Standard iterative dominator sets over the machine's block graph:
-/// `result[b]` holds the blocks every path from the entry to `b` must pass
-/// through (including `b` itself). Unreachable blocks keep the universal
-/// set, which prevents any sharing into them.
 fn block_dominators(machine: &TerminalMachine, successors: &[Vec<usize>]) -> Vec<BTreeSet<usize>> {
-    let indices: BTreeMap<BlockId, usize> = machine
-        .blocks
-        .iter()
-        .enumerate()
-        .map(|(index, block)| (block.id, index))
-        .collect();
-    let count = machine.blocks.len();
-    let mut predecessors = vec![Vec::new(); count];
-    for (block, outs) in successors.iter().enumerate() {
-        for &successor in outs {
-            predecessors[successor].push(block);
-        }
-    }
-    let universal: BTreeSet<usize> = (0..count).collect();
-    let mut dominators = vec![universal.clone(); count];
-    let Some(&entry) = indices.get(&machine.entry) else {
-        return dominators;
-    };
-    dominators[entry] = BTreeSet::from([entry]);
-    loop {
-        let mut changed = false;
-        for block in 0..count {
-            if block == entry {
-                continue;
-            }
-            let mut next = universal.clone();
-            for &predecessor in &predecessors[block] {
-                next = next
-                    .intersection(&dominators[predecessor])
-                    .copied()
-                    .collect();
-            }
-            next.insert(block);
-            if next != dominators[block] {
-                dominators[block] = next;
-                changed = true;
-            }
-        }
-        if !changed {
-            return dominators;
-        }
-    }
+    crate::emission::control_flow::block_dominators(
+        machine
+            .blocks
+            .iter()
+            .position(|block| block.id == machine.entry),
+        successors,
+    )
 }
 
 /// Blocks that can reach `target` through the successor edges.
