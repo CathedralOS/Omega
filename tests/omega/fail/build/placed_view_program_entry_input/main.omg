@@ -92,13 +92,13 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
 }
 
 machine inspect(view: &mut Placed<RegPlacement, Registers>) -> u32 {
-    view.transmit.write(9);
-    view.status.read()
+    view.transmit.write(&mut view.transmit, 9);
+    view.status.read(&view.status)
 }
 
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self, view: &mut Placed<RegPlacement, Registers>) reaches Console {
+machine Main::main(main: &mut Main, view: &mut Placed<RegPlacement, Registers>) reaches Console {
     let status: u32 = inspect(view);
     let code: i32 = (((status & 127) as u8 in Wrapping) as i32) + 9;
-    self.console.exit_process(code);
+    main.console.exit_process(code);
 }

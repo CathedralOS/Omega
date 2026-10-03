@@ -100,6 +100,33 @@ fn completed_precheck_binds_accessors_after_installing_placed_plans() {
         .state_symbol;
     assert!(expected.is_valid());
     assert_eq!(write_target(&typed), expected);
+
+    let accessors = typed
+        .placed_view_plans
+        .iter()
+        .flat_map(|view| &view.fields)
+        .flat_map(|field| &field.accessor_targets)
+        .collect::<Vec<_>>();
+    assert_eq!(accessors.len(), 2, "the plan admits read and write only");
+    for accessor in accessors {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| {
+                typed
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == accessor.state_symbol)
+            })
+            .expect("the generated accessor's machine");
+        let state = &typed.machine_states(machine)[0];
+        let subject = &typed.state_parameters(state)[0];
+        assert!(!subject.is_self, "derivation must not invent a receiver");
+        assert!(
+            typed.parameter_declares_attached_data(machine, subject),
+            "the explicit subject names the exact derived accessor, not its template"
+        );
+    }
 }
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
