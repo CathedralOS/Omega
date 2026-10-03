@@ -2082,6 +2082,26 @@ fn successor_bindings(
             }
             mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
+            // Forward a whole parameter before planning any new loan. This
+            // preserves its existing custody/entry-place transport; a projected
+            // argument instead names a subtree and establishes a loan below it.
+            // Resolve the source declaration, never the target's ordinal.
+            if let Some((source_index, source_parameter)) = source_position(target.position)
+                .and_then(|position| source_structural.iter().enumerate()
+                    .find(|(_, parameter)| parameter.position as usize == position))
+                && source_parameter.type_identity == target.type_identity
+                && (source_parameter.access == target.access
+                    || (source_parameter.access == CheckedStructuralAccess::MutableBorrow
+                        && target.access == CheckedStructuralAccess::SharedBorrow))
+            {
+                mark(SuccessorGuard::ParameterTransfer);
+                return Some(CheckedStructuralControlTransferPlan {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                        index: u32::try_from(source_index).ok()?,
+                    },
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
+            }
             if let Some(range_expression) = validation::subslice_expression(program, expression)
                 && let ExpressionNode::Indexed(indexed) = program.expression_table.expression(range_expression)
                 && matches!(program.expression_table.expression(indexed.index), ExpressionNode::Range(_))
@@ -2326,34 +2346,29 @@ fn successor_bindings(
                 });
             }
             mark(SuccessorGuard::LoanTransfer);
-            // An authored `&place` / `&mut place` argument loans the named
-            // subtree into the borrowed target parameter: the successor
+            // A reference argument loans its resolved place into the borrowed
+            // target parameter. Declared correspondence covers explicit borrows,
+            // forwarded references and implicit shared field loans alike; an
+            // `&` token is not the authority for the transfer. The successor
             // argument keeps the source's rooted place and walks the
             // projection path below it, so the loan names the same storage
-            // the borrow does rather than a fresh establishment. This arm
-            // must run before the positional parameter transfer: a borrowed
-            // argument that happens to share its target's type and access
-            // would otherwise forward whatever parameter occupies the
-            // matching position instead of the storage the borrow names.
+            // the borrow does rather than a fresh establishment. A projected
+            // argument never forwards a same-typed unrelated parameter.
             if target.multiplicity == Multiplicity::Unrestricted
-                && let ExpressionNode::Borrow(borrow) =
-                    program.expression_table.expression(expression)
+                && matches!(target.access,
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow)
+                && validation::checked_argument_matches_type_reference(
+                    program,
+                    expression,
+                    target_parameters.get(target.position as usize)?.type_reference,
+                )
             {
-                let expected_access = match borrow.access {
-                    language_core::ReferenceAccess::Shared => {
-                        CheckedStructuralAccess::SharedBorrow
-                    }
-                    language_core::ReferenceAccess::Mutable => {
-                        CheckedStructuralAccess::MutableBorrow
-                    }
-                    language_core::ReferenceAccess::WriteOnly => return None,
-                };
-                if target.access == expected_access
-                    && let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                let expected_access = target.access;
+                if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
                         program,
                         source.symbol,
                         ordinal as usize,
-                        borrow.target,
+                        expression,
                     )
                     && let facts::PlaceRoot::Symbol(root_symbol) = place.root
                 {
@@ -2579,26 +2594,7 @@ fn successor_bindings(
                     }
                 }
             }
-            mark(SuccessorGuard::ParameterTransfer);
-            let source_position = source_position(target.position)?;
-            let source_index = source_structural
-                .iter()
-                .position(|parameter| parameter.position as usize == source_position)?;
-            let source = &source_structural[source_index];
-            // A state edge transfers the same loan into its successor. It may
-            // restrict exclusive access to observation, never restore mutation.
-            let access_matches = source.access == target.access
-                || (source.access == CheckedStructuralAccess::MutableBorrow
-                    && target.access == CheckedStructuralAccess::SharedBorrow);
-            if source.type_identity != target.type_identity || !access_matches {
-                return None;
-            }
-            Some(CheckedStructuralControlTransferPlan {
-                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                    index: u32::try_from(source_index).ok()?,
-                },
-                target_parameter_index: u32::try_from(target_index).ok()?,
-            })
+            None
         })
         .collect::<Option<Vec<_>>>()?;
     mark(SuccessorGuard::ScalarArguments);

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 11.01, "load1_start": 6.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 8.21, "load1_start": 8.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1258,6 +1258,7 @@ pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms @011fd400e8c1+wt
+pass/borrows/case_payload_state_loan_exit checked 942ms @b9ead894da43+wt
 pass/borrows/enum_selected_view_reference_exit checked 1343ms @011fd400e8c1+wt
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f7122bb+wt
@@ -1315,7 +1316,7 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d9
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
 pass/calls/case_payload_clone_observation_exit checked 938ms @bb878591d2fc+wt
 pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
-pass/calls/case_scrutinee_self_dispatch_exit checked 1513ms @2d8ed253669f
+pass/calls/case_scrutinee_self_dispatch_exit checked 914ms @b9ead894da43+wt
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
@@ -1359,7 +1360,7 @@ pass/calls/named_target_payload_dispatch checked 1279ms @2d8ed253669f
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 920ms @922ccf420927+wt
-pass/calls/nested_call_tail_roots_exit checked 6210ms @922ccf420927+wt
+pass/calls/nested_call_tail_roots_exit checked 1397ms @b9ead894da43+wt
 pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms @63377f7122bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
