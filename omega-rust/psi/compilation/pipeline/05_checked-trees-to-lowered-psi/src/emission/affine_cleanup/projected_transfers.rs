@@ -80,6 +80,47 @@ pub(super) fn complete(
                 .map(|result| (result.place, operation.id))
         })
         .collect::<Vec<_>>();
+    let successors = blocks
+        .iter()
+        .map(|block| {
+            let targets = match &block.terminator {
+                Terminator::Jump { target, .. } => vec![*target],
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true.target, when_false.target],
+                Terminator::StructuralCase { cases, .. } => {
+                    cases.iter().map(|edge| edge.target).collect()
+                }
+                _ => Vec::new(),
+            };
+            targets
+                .into_iter()
+                .map(|target| block_position(blocks, target))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let dominators = crate::emission::control_flow::block_dominators(
+        Some(block_position(blocks, entry)?),
+        &successors,
+    );
+    let mut parameter_blocks = blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, block)| !block.structural_parameters.is_empty())
+        .collect::<Vec<_>>();
+    parameter_blocks.sort_by_key(|(position, _)| dominators[*position].len());
+    let parameter_order = parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .chain(parameter_blocks.iter().flat_map(|(_, block)| {
+            block
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.place)
+        }))
+        .collect::<Vec<_>>();
     let mut incoming = vec![None; blocks.len()];
     let entry = block_position(blocks, entry)?;
     incoming[entry] = Some(Vec::new());
@@ -227,37 +268,31 @@ pub(super) fn complete(
                 residual_affine_discards,
                 ..
             } => {
-                let original = match &blocks[position].terminator {
-                    Terminator::Jump {
-                        residual_affine_discards,
-                        ..
-                    }
-                    | Terminator::ReturnUnitPartialAffine {
-                        residual_affine_discards,
-                        ..
-                    } => residual_affine_discards.as_slice(),
-                    _ => &[],
-                };
-                let is_parameter =
-                    |place| !producers.iter().any(|(candidate, _)| *candidate == place);
                 if residual_affine_discards.iter().any(|discard| {
-                    is_parameter(discard.place)
-                        && !original.iter().any(|old| old.place == discard.place)
-                }) && original.iter().any(|discard| is_parameter(discard.place))
-                {
+                    !producers.iter().any(|(place, _)| *place == discard.place)
+                        && !parameter_order.contains(&discard.place)
+                }) {
                     return unsupported(
-                        "residual parameter groups require their authorized joint disposal order",
+                        "residual cleanup root is absent from the emitted ownership roster",
                     );
                 }
-                // Stable sorting preserves declaration-directed order inside
-                // each root and the already-authored order of parameter roots.
+                // Operation results precede block and machine parameters.
+                // Simultaneously live block roots have comparable dominating
+                // definitions; reverse dominance/declaration order is exactly
+                // the receiver's disposal order, independent of block IDs.
                 residual_affine_discards.sort_by_key(|discard| {
-                    std::cmp::Reverse(
-                        producers
-                            .iter()
-                            .find(|(place, _)| *place == discard.place)
-                            .map(|(_, operation)| *operation),
-                    )
+                    if let Some((_, producer)) =
+                        producers.iter().find(|(place, _)| *place == discard.place)
+                    {
+                        (0u8, std::cmp::Reverse(u128::from(producer.get())))
+                    } else if let Some(position) = parameter_order
+                        .iter()
+                        .rposition(|place| *place == discard.place)
+                    {
+                        (1, std::cmp::Reverse(position as u128))
+                    } else {
+                        unreachable!("residual root roster validated above")
+                    }
                 });
             }
             _ => {}

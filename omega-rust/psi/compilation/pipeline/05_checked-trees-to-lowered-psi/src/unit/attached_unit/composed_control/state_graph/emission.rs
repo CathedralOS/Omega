@@ -597,6 +597,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // continuations have reached their final emitted graph.
     crate::emission::affine_cleanup::complete(
         &[],
+        &machine.structural_parameters,
         machine.entry,
         &mut machine.blocks,
         &catalogs.structural_types,

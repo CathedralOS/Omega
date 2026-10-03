@@ -235,3 +235,105 @@ fn projected_cleanup_geometry_bounds_large_arrays_before_enumeration() {
         ]
     );
 }
+#[test]
+fn projected_cleanup_orders_mixed_roots_by_birth_and_dominance() {
+    let parameter = |place, position| StructuralParameterDeclaration {
+        place: place_id(place),
+        position,
+        is_self: false,
+        structural_type: identity(1),
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let selected = |number, source| {
+        let mut operand = argument("right");
+        operand.place = place_id(source);
+        construct(
+            number,
+            vec![RecordFieldInitializer {
+                field: StructuralFieldId::new(1).unwrap(),
+                value: RecordFieldValue::Structural(operand),
+            }],
+        )
+    };
+    let born = |number| {
+        let mut operation = construct(number, Vec::new());
+        let OperationResult::Structural(result) = &mut operation.result else {
+            unreachable!()
+        };
+        result.structural_type = identity(1);
+        operation
+    };
+    let mut blocks = vec![jump(1, 30), jump(30, 5), jump(5, 6), jump(6, 7)];
+    blocks[0].operations = vec![born(1), born(8)];
+    if let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut blocks[0].terminator
+    {
+        structural_arguments.push(StructuralArgument {
+            place: place_id(8),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        });
+    }
+    blocks[1].structural_parameters = vec![parameter(10, 0)];
+    blocks[1].operations = vec![born(9)];
+    if let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut blocks[1].terminator
+    {
+        structural_arguments.push(StructuralArgument {
+            place: place_id(9),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        });
+    }
+    blocks[2].structural_parameters = vec![parameter(20, 0)];
+    blocks[2].operations = vec![
+        selected(2, 1),
+        selected(3, 10),
+        selected(4, 20),
+        selected(7, 50),
+    ];
+    if let Terminator::Jump {
+        trivial_affine_discards,
+        residual_affine_discards,
+        ..
+    } = &mut blocks[2].terminator
+    {
+        trivial_affine_discards.extend([place_id(1), place_id(20), place_id(50)]);
+        residual_affine_discards.push(StructuralAffineDiscard {
+            place: place_id(10),
+            path: vec![StructuralPathSegment::Field("left".into())],
+            structural_type: identity(2),
+        });
+    }
+    blocks[3].terminator = Terminator::ReturnUnit {
+        edge: edge_id(6),
+        trivial_affine_discards: Vec::new(),
+    };
+    // Serialization order and block IDs both disagree with the live parameter
+    // establishment order. Only dominance gives the receiving cleanup order.
+    blocks.swap(1, 2);
+    super::complete(&[parameter(50, 0)], block_id(1), &mut blocks, &types()).unwrap();
+    let Terminator::Jump {
+        residual_affine_discards,
+        trivial_affine_discards,
+        ..
+    } = &blocks[1].terminator
+    else {
+        panic!("cleanup edge")
+    };
+    assert!(trivial_affine_discards.is_empty());
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|discard| discard.place)
+            .collect::<Vec<_>>(),
+        [place_id(1), place_id(20), place_id(10), place_id(50)]
+    );
+}

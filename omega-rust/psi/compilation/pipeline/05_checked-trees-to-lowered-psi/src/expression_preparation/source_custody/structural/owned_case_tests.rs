@@ -105,7 +105,11 @@ fn projected_constructor_operand_replays_exact_statement_custody() {
     let source = "data Message { value: u8; }
          data Remainder { identity: u64; bytes: &[u8]; }
          data Relayed<T> { value: T; remainder: Remainder; }
-         machine update(relayed: Relayed<Message>, observed: &mut u64) {
+         machine update(bytes: &[u8], observed: &mut u64) {
+             let relayed: Relayed<Message> = Relayed {
+                 value: Message { value: 41 },
+                 remainder: Remainder { identity: 7, bytes: bytes }
+             };
              let updated: Relayed<Message> = Relayed {
                  value: Message { value: 42 }, remainder: relayed.remainder
              };
@@ -142,7 +146,7 @@ fn projected_constructor_operand_replays_exact_statement_custody() {
         .roots
         .iter()
         .map(|(_, root)| root)
-        .filter(|root| root.machine == machine.symbol && root.statement_ordinal == 0);
+        .filter(|root| root.machine == machine.symbol && root.statement_ordinal == 1);
     let root = roots.next().expect("ordinary generic constructor root");
     assert!(roots.next().is_none());
     let operation = CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -166,7 +170,7 @@ fn projected_constructor_operand_replays_exact_statement_custody() {
             .facts
             .flow
             .ownership
-            .owned_selection_at(root.state, 0)
+            .owned_selection_at(root.state, root.statement_ordinal)
             .is_none(),
         "an ordinary constructor does not invent a match receipt"
     );
@@ -180,7 +184,10 @@ fn projected_constructor_operand_replays_exact_statement_custody() {
             event.machine_symbol == root.machine
                 && event.state_symbol == root.state
                 && event.kind == PermissionEventKind::Transfer
-                && event.source == PermissionEventSource::Statement { statement_index: 0 }
+                && event.source
+                    == PermissionEventSource::Statement {
+                        statement_index: root.statement_ordinal as usize,
+                    }
                 && original
                     .facts
                     .flow
@@ -204,7 +211,7 @@ fn projected_constructor_operand_replays_exact_statement_custody() {
                     .ownership
                     .permissions
                     .get_mut(event)
-                    .source = PermissionEventSource::Statement { statement_index: 1 }
+                    .source = PermissionEventSource::Statement { statement_index: 2 }
             }
             _ => {
                 forged.facts.flow.ownership.permissions.get_mut(event).kind =
