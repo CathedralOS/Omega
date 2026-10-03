@@ -234,16 +234,9 @@ pub(crate) fn structural_call_arguments(
             .iter()
             .find(|(_, root)| *root == place.root)
         {
-            if result.multiplicity == Multiplicity::Unrestricted
-                && target_machine.supply_mode != MachineSupplyMode::CheckedBody
-                && !(target_machine.supply_mode.is_boundary_declaration()
-                    && crate::execution::terminal_unit::types::borrowed_slice_view(
-                        program,
-                        target.type_reference,
-                    ))
-            {
-                return None;
-            }
+            // Result operands retain the same exact source, formal and
+            // custody contract whether this call has a body or a selected
+            // provider. The shared result planner below owns that admission.
             if !target_machine.supply_mode.is_boundary_declaration()
                 && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
                     || (!is_unit(program, target_state.return_type)
@@ -410,10 +403,10 @@ pub(crate) fn structural_call_arguments(
         let target_access = structural_access_for_type_reference(program, target.type_reference);
         let custody = source.custody(target_access);
         // A closed primitive array parameter passes only whole, owned and
-        // unrestricted into an owned closed-array formal of a checked body.
+        // unrestricted into an owned closed-array formal. Provider selection
+        // changes the implementation, never the argument's source custody.
         if validation::is_closed_primitive_array_type(program, source.declaration.type_reference)
-            && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && place.segments.is_empty()
+            && !(place.segments.is_empty()
                 && custody.access == CheckedStructuralAccess::Owned
                 && custody.multiplicity == Multiplicity::Unrestricted
                 && custody.unqualified
