@@ -39,17 +39,17 @@ data FixedVecI32x4 {
 // generic core `clear` only guarantees `length == 0`.
 machine FixedVecI32x4::clear(fixed_vec_i32x4: &mut FixedVecI32x4)
 ensures
-    self.length < self.items.len
+    fixed_vec_i32x4.length < fixed_vec_i32x4.items.len
 {
     fixed_vec_i32x4.length = 0;
 }
 
 machine FixedVecI32x4::push(fixed_vec_i32x4: &mut FixedVecI32x4, value: i32 in Wrapping)
 requires
-    self.length < self.items.len
+    fixed_vec_i32x4.length < fixed_vec_i32x4.items.len
 ensures
-    self.length > 0;
-    self.length - 1 < self.items.len
+    fixed_vec_i32x4.length > 0;
+    fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len
 {
     let slots: &mut [i32] = fixed_vec_i32x4.items.as_mut_slice();
     let index: u64 in Wrapping = fixed_vec_i32x4.length;
@@ -66,8 +66,8 @@ ensures
 // calls/runtime_trailing_local_return_exit.)
 machine FixedVecI32x4::pop(fixed_vec_i32x4: &mut FixedVecI32x4) -> i32
 requires
-    self.length > 0;
-    self.length - 1 < self.items.len
+    fixed_vec_i32x4.length > 0;
+    fixed_vec_i32x4.length - 1 < fixed_vec_i32x4.items.len
 {
     let slots: &[i32] = fixed_vec_i32x4.items.as_slice();
     let index: u64 in Wrapping = fixed_vec_i32x4.length - 1;
@@ -94,11 +94,11 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     FixedVecI32x4::clear(&mut main.vec);
     FixedVecI32x4::push(&mut main.vec, 7);
-    let first: i32 in Wrapping = FixedVecI32x4::get(&main.vec, 0);
-    let popped: i32 in Wrapping = FixedVecI32x4::pop(&mut main.vec);
+    let first: i32 in Wrapping = FixedVecI32x4::get(&main.vec, 0) as i32 in Wrapping;
+    let popped: i32 in Wrapping = FixedVecI32x4::pop(&mut main.vec) as i32 in Wrapping;
     FixedVecI32x4::clear(&mut main.vec);
     FixedVecI32x4::push(&mut main.vec, 9);
-    let second: i32 in Wrapping = FixedVecI32x4::get(&main.vec, 0);
+    let second: i32 in Wrapping = FixedVecI32x4::get(&main.vec, 0) as i32 in Wrapping;
 
     transition first == 7 {
         true -> check_popped(main, popped, second)
