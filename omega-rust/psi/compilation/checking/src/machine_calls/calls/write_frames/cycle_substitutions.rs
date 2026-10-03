@@ -40,12 +40,17 @@ struct Dependency {
 }
 
 #[derive(Default)]
-struct Substitutions {
+pub(super) struct Substitutions {
     roots: Vec<StateRoot>,
     dependencies: Vec<Dependency>,
 }
 
 impl Substitutions {
+    /// Storage-relation solvers use the same root-dependency finiteness law,
+    /// including shared roots whose provenance (rather than writes) is carried.
+    pub(super) fn parameter(&mut self, state: SymbolHandle, parameter: SymbolHandle) -> usize {
+        self.root(state, Root::Parameter(parameter))
+    }
     fn root(&mut self, state: SymbolHandle, root: Root) -> usize {
         if let Some(position) = self
             .roots
@@ -59,7 +64,7 @@ impl Substitutions {
         position
     }
 
-    fn insert(&mut self, source: usize, target: usize, grows: bool) {
+    pub(super) fn insert(&mut self, source: usize, target: usize, grows: bool) {
         self.dependencies.push(Dependency {
             source,
             target,
@@ -67,7 +72,7 @@ impl Substitutions {
         });
     }
 
-    fn is_finite(&self) -> bool {
+    pub(super) fn is_finite(&self) -> bool {
         let mut successors = vec![Vec::new(); self.roots.len()];
         for dependency in &self.dependencies {
             successors[dependency.source].push(dependency.target);

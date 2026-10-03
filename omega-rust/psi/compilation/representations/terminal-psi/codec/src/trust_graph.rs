@@ -125,6 +125,13 @@ const TERMINAL_REPRESENTATION_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
     "/psi-terminal-representation-source-closure.bin"
 ));
+// Descriptor provenance and loan replay live in shared semantics. Bind that
+// entire implementation alongside the verifier so extracting another helper
+// cannot silently leave it outside the artifact's acceptance identity.
+const TERMINAL_SEMANTICS_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/psi-terminal-semantics-source-closure.bin"
+));
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../semantics/src/lib.rs");
 const BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE: &[u8] = include_bytes!(
     "../../verification/src/verification/reconstruction/operation_facts/boolean_polarity.rs"
@@ -556,10 +563,11 @@ mod tests {
         DISCRETE_PATH_FACTS_SOURCE, OperationSemanticCustody, OperationSemanticRow,
         OperationSemanticTag, PATH_FACTS_SOURCE, RECONSTRUCTION_SOURCE,
         TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
-        TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
-        TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
-        VERIFIER_SOURCE, VERIFIER_VALIDATION_SOURCE, current_terminal_trust_graph, dependencies,
-        dependency_digest, validate_terminal_trust_graph,
+        TERMINAL_SEMANTICS_SOURCE, TERMINAL_SEMANTICS_SOURCE_CLOSURE,
+        TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
+        TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_SOURCE,
+        VERIFIER_VALIDATION_SOURCE, current_terminal_trust_graph, dependencies, dependency_digest,
+        validate_terminal_trust_graph,
     };
     use std::path::Path;
 
@@ -614,6 +622,15 @@ mod tests {
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("../src"),
             TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
             b"PSI-TERMINAL-REPRESENTATION-SOURCE-CLOSURE-v1\0",
+        );
+    }
+
+    #[test]
+    fn semantics_source_closure_retains_every_source_exactly() {
+        assert_source_closure_covers_tree(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../semantics/src"),
+            TERMINAL_SEMANTICS_SOURCE_CLOSURE,
+            b"PSI-TERMINAL-SEMANTICS-SOURCE-CLOSURE-v1\0",
         );
     }
 

@@ -193,16 +193,59 @@ fn selector_arithmetic_meaning_gates_runtime_and_foldable_candidates() {
 }
 
 #[test]
+fn subslice_coordinates_authenticate_range_and_bound_meaning() {
+    for selector in ["..", "start..end", "0u64..2u64"] {
+        check_source_coordinates(
+            &format!(
+                "machine inspect(items: &[u8], start: u64, end: u64) {{
+                     let selected: &[u8] = items[{selector}];
+                 }}"
+            ),
+            true,
+        );
+    }
+    for (declaration, expected) in [
+        ("", true),
+        (
+            "boundary operator [..] Collection::window(items: &[u8], start: u64, end: u64) -> &[u8];",
+            false,
+        ),
+        (
+            "boundary operator [..] Collection::window(items: &[i32], start: u64, end: u64) -> &[i32];",
+            true,
+        ),
+        (
+            "operator + u64::custom(left: u64, right: u64) -> u64;",
+            false,
+        ),
+    ] {
+        check_source_coordinates(
+            &format!(
+                "{declaration}
+                 machine inspect(items: &[u8], start: u64, end: u64) {{
+                     let low: u64 = start;
+                     let high: u64 = end;
+                     let selected: &[u8] = items[(low + 0u64)..high];
+                 }}"
+            ),
+            expected,
+        );
+    }
+}
+
+#[test]
 fn source_composition_conjoins_permission_without_changing_candidates() {
     let (_, symbols) = fixture();
     for left in [false, true] {
         for right in [false, true] {
             let parent = FrameSourcePlace {
+                kind: Default::default(),
                 root: symbols[0],
                 segments: vec![PlaceSegment::FixedIndex { index: 1 }],
                 builtin_coordinates: left,
             };
             let suffix = FrameSourcePlace {
+                kind: Default::default(),
                 root: symbols[3],
                 segments: vec![PlaceSegment::Field { symbol: symbols[2] }],
                 builtin_coordinates: right,
@@ -258,6 +301,7 @@ fn helper_result_projection_keeps_metadata_when_index_meaning_is_unknown() {
             ExpressionNode::Call(_)
         ));
         let origin = FrameSourcePlace {
+            kind: Default::default(),
             root: program.state_parameters(state)[0].symbol,
             segments: Vec::new(),
             builtin_coordinates: true,
@@ -335,6 +379,7 @@ fn structural_projection_appends_only_the_normalized_suffix() {
     let index = name(&mut program, "index", symbols[1]);
     let (indexed, whole) = field_after_index(&mut program, collection, index, symbols[2]);
     let source = FrameSourcePlace {
+        kind: Default::default(),
         root: symbols[3],
         segments: vec![PlaceSegment::FixedIndex { index: 5 }],
         builtin_coordinates: true,
@@ -342,6 +387,7 @@ fn structural_projection_appends_only_the_normalized_suffix() {
     assert_eq!(
         source.projected(&program, whole, indexed),
         FrameSourcePlace {
+            kind: Default::default(),
             root: symbols[3],
             builtin_coordinates: true,
             segments: vec![
@@ -370,11 +416,13 @@ fn relative_source_erases_only_callee_runtime_index_handles() {
     let (mut program, symbols) = fixture();
     let index = name(&mut program, "index", symbols[1]);
     let caller = FrameSourcePlace {
+        kind: Default::default(),
         root: symbols[3],
         segments: vec![PlaceSegment::Index { expression: index }],
         builtin_coordinates: true,
     };
     let relative = FrameSourcePlace {
+        kind: Default::default(),
         root: symbols[0],
         builtin_coordinates: true,
         segments: vec![
@@ -386,6 +434,7 @@ fn relative_source_erases_only_callee_runtime_index_handles() {
     assert_eq!(
         caller.append_relative(&relative),
         FrameSourcePlace {
+            kind: Default::default(),
             root: symbols[3],
             builtin_coordinates: true,
             segments: vec![

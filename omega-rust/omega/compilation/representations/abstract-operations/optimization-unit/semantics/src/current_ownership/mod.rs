@@ -26,7 +26,7 @@ mod address_joins;
 mod block_parameters;
 mod call_accesses;
 mod cleanup;
-pub(crate) use call_accesses::CallAccesses;
+pub(crate) use call_accesses::{CallAccesses, argument_storage_is_closed};
 mod continuation;
 mod mutations;
 mod references;
@@ -40,6 +40,7 @@ pub(crate) use block_parameters::parameter_establishment_order;
 pub(crate) use continuation::valid_partial_continuation_complement;
 use continuation::{apply_edge_partial_affine_discards, validate_partial_continuation_roster};
 
+#[cfg(test)]
 pub(super) fn validate_current_ownership_frontier(
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
@@ -52,6 +53,49 @@ pub(super) fn validate_current_ownership_frontier(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &CallAccesses,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let requirements = validate_current_ownership_frontier_collecting(
+        function,
+        blocks,
+        successors,
+        functions,
+        boundary_machines,
+        structural_types,
+        call_accesses,
+    )?;
+    if let Some(row) = requirements.first() {
+        let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+            source, ..
+        } = &row.demand
+        else {
+            unreachable!("derived storage demand");
+        };
+        return Err(
+            OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
+                machine: function.machine,
+                block: row.position.0,
+                node: row.position.1,
+                place: *source,
+            },
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn validate_current_ownership_frontier_collecting(
+    function: &PsiOptimizationFunction,
+    blocks: &BTreeMap<BlockId, &OptimizationBlock>,
+    successors: &BTreeMap<BlockId, Vec<BlockId>>,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<
+        semantic_vocabulary::BoundaryMachineId,
+        &BoundaryMachineDeclaration,
+    >,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    call_accesses: &CallAccesses,
+) -> Result<
+    Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
+    OptimizationUnitValidationError,
+> {
     let entry = reconstruct_entry_ownership(function, structural_types)?;
     replay::validate_current_ownership_cfg(
         function,
@@ -134,3 +178,5 @@ fn reconstruct_entry_ownership(
         live_references: references::entry_references(function, structural_types)?,
     })
 }
+
+pub(crate) use address_joins::validate_compatibility as validate_descriptor_compatibility;

@@ -141,6 +141,33 @@ pub(super) fn append_operation(
         axioms,
         operation_obligations,
     )?;
+    if let OperationKind::StructuralByteViewFieldStore {
+        predicate_obligation: Some(id),
+        ..
+    } = operation.kind
+    {
+        let proposition = crate::validation::structural::byte_view_field_store::predicate_goal(
+            module, machine, operation,
+        )
+        .ok_or(ModuleError::InvalidStructuralByteViewFieldStore(
+            operation.id,
+        ))?;
+        // The overwritten field's declared invariant is not evidence about
+        // the replacement. Capture the exact source's pre-store facts.
+        operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::Operation {
+                machine: machine.id,
+                operation: operation.id,
+            },
+            obligation: Obligation {
+                id,
+                proposition,
+                class: ObligationClass::Derivable,
+            },
+            semantic_axioms: axioms.clone(),
+            canonical_certificate: true,
+        });
+    }
     if let OperationKind::StructuralScalarFieldStore {
         value,
         range_obligation: Some(id),

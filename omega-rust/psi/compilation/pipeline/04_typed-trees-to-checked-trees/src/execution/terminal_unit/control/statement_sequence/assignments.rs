@@ -344,21 +344,20 @@ pub(super) fn plan(
         let mut result = checked_structural_result_type(program, shapes, result_type, binders)?;
         result.statement_index = statement_index;
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
-        if validation::bounded_byte_buffer_capacity(program, result_type).is_some() {
-            let store =
-                super::super::super::structural_scalar_store::build_owned_byte_call_result_store(
-                    program,
-                    facts,
-                    machine,
-                    state,
-                    structural_parameters,
-                    scalar_parameters,
-                    statement_index,
-                    assignment,
-                    result.binding_ordinal,
-                    result_type,
-                    trace,
-                )?;
+        if super::super::super::types::byte_sequence_carrier(program, result_type, &[]).is_some() {
+            let store = super::super::super::structural_scalar_store::build_byte_call_result_store(
+                program,
+                facts,
+                machine,
+                state,
+                structural_parameters,
+                scalar_parameters,
+                statement_index,
+                assignment,
+                result.binding_ordinal,
+                result_type,
+                trace,
+            )?;
             return Some(AssignmentPlan::StructuralCall {
                 result,
                 replacement: FieldReplacement {

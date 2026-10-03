@@ -156,7 +156,7 @@ pub(super) fn mutable_parameter(
 /// Geometry follows the exact current declaration. Producer contracts,
 /// dominance and permissions are independently checked by operation replay;
 /// the shape query must not recognize a second list of source families.
-fn view_type(
+pub(super) fn view_type(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -341,6 +341,9 @@ pub(in crate::legalization) fn call_descriptor_origins(
         .ok_or_else(LegalizationError::custody)?
         .into_iter()
         .map(|origin| match origin {
+            terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => {
+                Ok(legalized_operations::LegalizedDescriptorOrigin::Empty)
+            }
             terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
                 source,
                 projection,

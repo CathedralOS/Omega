@@ -534,10 +534,11 @@ impl OperationKind {
                     }
                 }
             }
-            Self::ByteSequencePredicate { operand, .. } => {
-                if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand {
-                    paths.push(&mut source.path);
-                }
+            Self::ByteSequencePredicate {
+                operand: crate::control_flow::ByteSequenceOperand::Field { source, .. },
+                ..
+            } => {
+                paths.push(&mut source.path);
             }
             Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {
                 paths.push(&mut source.path);
@@ -710,10 +711,10 @@ mod tests {
             ],
         };
         let mut expected = record.clone();
-        if let OperationKind::EstablishRecord { fields } = &mut expected {
-            if let RecordFieldValue::Structural(source) = &mut fields[1].value {
-                source.place = place(12);
-            }
+        if let OperationKind::EstablishRecord { fields } = &mut expected
+            && let RecordFieldValue::Structural(source) = &mut fields[1].value
+        {
+            source.place = place(12);
         }
         record.map_structural_uses(&mut |source| place(source.get() + 10));
         assert_eq!(record, expected);

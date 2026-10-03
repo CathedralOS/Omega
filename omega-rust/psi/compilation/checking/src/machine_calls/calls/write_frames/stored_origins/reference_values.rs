@@ -12,9 +12,46 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Vec<Option<FramePlaceOrigin>> {
+    resolve_origins(program, origin, aliases, stored, None)
+}
+
+pub(in crate::machine_calls::calls::write_frames) fn captured_reference_projection_origins(
+    program: &TypedTrees,
+    captured: &FramePlaceOrigin,
+    projected: &FramePlaceOrigin,
+    stored: &[StoredLocalOrigins],
+) -> Vec<Option<FramePlaceOrigin>> {
+    if captured.source.root != projected.source.root
+        || captured.source.is_static() != projected.source.is_static()
+        || !projected
+            .source
+            .segments
+            .starts_with(&captured.source.segments)
+    {
+        return vec![None];
+    }
+    resolve_origins(
+        program,
+        &Some(projected.clone()),
+        &[],
+        stored,
+        Some(captured.source.segments.len()),
+    )
+}
+
+fn resolve_origins(
+    program: &TypedTrees,
+    origin: &Option<FramePlaceOrigin>,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+    mut crossed: Option<usize>,
+) -> Vec<Option<FramePlaceOrigin>> {
     let Some(origin) = origin else {
         return vec![None];
     };
+    if origin.source.is_static() {
+        return vec![Some(origin.clone())];
+    }
     if !origin.source.root.is_valid() {
         // Existing path-only evidence can still conservatively invalidate
         // storage. It cannot later export an owned-formal reference boundary.
@@ -27,6 +64,7 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
         .iter()
         .find(|(name, _)| program.symbols.name(origin.source.root) == name)
     {
+        crossed = Some(prior.source.segments.len());
         let (_, suffix) = super::split_place_root(&origin.path);
         let source = prior.source.append_source(&origin.source);
         origin = compose_origin(prior, suffix, origin.precision);
@@ -40,7 +78,9 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
     };
     let mut sources = Vec::new();
     for leaf in &local.references {
-        if !source_reaches_leaf(&origin.source.segments, &leaf.local_segments) {
+        if crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
+            || !source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
+        {
             continue;
         }
         let suffix = place_suffix(&leaf.local_path, &origin.path).unwrap_or("");

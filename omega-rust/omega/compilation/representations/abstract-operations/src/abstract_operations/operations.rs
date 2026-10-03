@@ -136,14 +136,15 @@ pub enum AbstractOperation {
         obligation: semantic_vocabulary::ObligationId,
     },
     /// Replace one shared borrowed-view field's two-word descriptor with the
-    /// whole source view's. No byte moves; the verifier admitted only a
-    /// literal source, whose image backing outlives every root.
+    /// whole source view's. No byte moves. Current descriptor provenance
+    /// proves backing lifetime independently of the byte predicate proof.
     StructuralByteViewFieldStore {
         psi_operation: OperationId,
         destination: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
         source: PlaceId,
+        predicate_obligation: Option<semantic_vocabulary::ObligationId>,
     },
     /// Read one live field byte through the exact field's current length
     /// observation and the bounds obligation `index < length`.

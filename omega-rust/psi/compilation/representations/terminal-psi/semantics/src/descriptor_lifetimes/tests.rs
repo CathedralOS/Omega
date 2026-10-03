@@ -3,8 +3,8 @@ use super::*;
 fn position(index: u32) -> DescriptorPosition {
     (BlockId::new(1).unwrap(), index)
 }
-fn place(identity: u64) -> PlaceId {
-    PlaceId::new(identity).unwrap()
+fn place(identity: u64) -> DescriptorLocation {
+    DescriptorLocation::whole(PlaceId::new(identity).unwrap())
 }
 fn edge(target: u32) -> DescriptorFlowEdge {
     DescriptorFlowEdge {
@@ -50,7 +50,7 @@ fn authorization_follows_exact_forwarding_and_transparent_children_only() {
         ),
         (position(3), DescriptorFlowStep::default()),
     ]);
-    let authorized = descriptor_authorized_places(&steps, position(0), place(1));
+    let authorized = descriptor_location_authorized_locations(&steps, position(0), &place(1));
     assert!(authorized[&position(1)].contains(&place(2)));
     assert!(authorized[&position(2)].contains(&place(3)));
     assert!(!authorized[&position(2)].contains(&place(4)));
@@ -91,7 +91,7 @@ fn authorization_rejects_a_forwarded_name_with_a_mixed_origin_arrival() {
         ),
         (position(3), DescriptorFlowStep::default()),
     ]);
-    let authorized = descriptor_authorized_places(&steps, position(0), place(1));
+    let authorized = descriptor_location_authorized_locations(&steps, position(0), &place(1));
     assert!(authorized[&position(3)].contains(&place(1)));
     assert!(!authorized[&position(3)].contains(&place(4)));
 }
@@ -116,5 +116,5 @@ fn authorization_does_not_identify_a_repeated_static_birth_as_one_loan() {
             },
         ),
     ]);
-    assert!(descriptor_authorized_places(&steps, position(0), place(1)).is_empty());
+    assert!(descriptor_location_authorized_locations(&steps, position(0), &place(1)).is_empty());
 }

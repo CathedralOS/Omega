@@ -174,6 +174,9 @@ pub(crate) enum StateWriteQuery<'statement> {
     /// A reusable whole-state frame, never an ancestor-truncated prefix.
     Complete,
     ReferenceResult,
+    /// One state's slot transfer. Named successors belong to the finite
+    /// relation solver, so this walk validates only this state's operations.
+    StoredReferenceTransfer,
     /// Only incoming statement boundaries, not the enclosing state's effects.
     StatementPrefixes {
         include_shared: bool,
@@ -234,6 +237,32 @@ pub(crate) fn walk_state_write_prefix_collected(
             } else {
                 None
             },
+            Some(&mut collection),
+            None,
+        )?;
+        Some((prefix, collection.prefixes))
+    })
+}
+
+pub(super) fn stored_reference_transfer(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<(StateWritePrefix, Vec<Option<CollectedStatementPrefix>>)> {
+    inference.with_local_scope(|inference| {
+        let mut collection = StatementPrefixCollection {
+            requested: &|_| true,
+            prefixes: Vec::new(),
+        };
+        let prefix = walk_state_write_prefix_inner(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            Some(StateWriteQuery::StoredReferenceTransfer),
             Some(&mut collection),
             None,
         )?;
@@ -367,6 +396,7 @@ fn walk_state_write_prefix_inner(
         query,
         Some(
             StateWriteQuery::ReferenceResult
+                | StateWriteQuery::StoredReferenceTransfer
                 | StateWriteQuery::StatementPrefixes {
                     include_shared: true
                 }
@@ -508,7 +538,7 @@ fn walk_state_write_prefix_inner(
                         &local_alias_origins,
                         |aliases| {
                             if include_shared {
-                                return reference_subjects::initializer_origin(
+                                return reference_subjects::backing_origin(
                                     program,
                                     machine,
                                     assignment.value,
@@ -562,6 +592,22 @@ fn walk_state_write_prefix_inner(
         // frozen-binding opacity fence does not apply to it.
         let wire_codec_call = matches!(statement, StatementNode::Call(call)
             if wire_codecs::is_wire_codec_call(program, call));
+        let stored_call_effects = if let StatementNode::Call(call) = statement {
+            super::stored_calls::call_effects(
+                program,
+                machine,
+                call,
+                &CollectedStatementPrefix {
+                    aliases: local_alias_origins.clone(),
+                    divergent: divergent_alias_origins.clone(),
+                    stored: stored.clone(),
+                },
+                symbols,
+                inference,
+            )
+        } else {
+            None
+        };
         if !wire_codec_call && let StatementNode::Call(call) = statement {
             stored_origins::retire_private_call_argument_cases(
                 program,
@@ -573,6 +619,7 @@ fn walk_state_write_prefix_inner(
             );
         }
         if !wire_codec_call
+            && stored_call_effects.as_ref().is_none_or(Vec::is_empty)
             && stored_origins::statement_exposes_frozen_binding(
                 program,
                 machine,
@@ -829,7 +876,7 @@ fn walk_state_write_prefix_inner(
                         &mut local_alias_origins,
                         |aliases| {
                             let origin = if include_shared {
-                                reference_subjects::initializer_origin(
+                                reference_subjects::backing_origin(
                                     program,
                                     machine,
                                     assignment.value,
@@ -1124,8 +1171,17 @@ fn walk_state_write_prefix_inner(
                         .iter()
                         .any(|root| program.symbols.name(local.local_symbol) == root)
                 });
+                if let Some(effects) = &stored_call_effects {
+                    super::stored_calls::apply(program, &mut stored, effects);
+                    for record in &stored {
+                        inference.record_local(record);
+                    }
+                }
             }
             StatementNode::Transition(transition) => {
+                if matches!(query, Some(StateWriteQuery::StoredReferenceTransfer)) {
+                    continue;
+                }
                 for target in [transition.target, transition.continuation] {
                     if (!local_alias_origins.is_empty()
                         || !stored.is_empty()
@@ -1257,7 +1313,11 @@ fn walk_state_write_prefix_inner(
     (query.is_none()
         || matches!(
             query,
-            Some(StateWriteQuery::Complete | StateWriteQuery::ReferenceResult)
+            Some(
+                StateWriteQuery::Complete
+                    | StateWriteQuery::ReferenceResult
+                    | StateWriteQuery::StoredReferenceTransfer
+            )
         ))
     .then_some(StateWritePrefix {
         written,

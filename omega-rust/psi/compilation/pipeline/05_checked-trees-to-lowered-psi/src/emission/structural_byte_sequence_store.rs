@@ -113,19 +113,9 @@ pub(crate) fn validate_assignment(
             ));
         }
     }
-    // A descriptor replacement installs a stored loan: only a literal's
-    // image storage outlives every destination root.
-    if matches!(store.destination, Destination::ViewField { .. })
-        && !matches!(
-            store.value.nodes.get(store.value.root),
-            ByteValue::Literal(_)
-        )
-    {
-        return unsupported("view-field store source is not a literal");
-    }
-    // A record literal decomposes into one store per member: a shared view
-    // member's store writes the authored place's own member field, and its
-    // literal is that member's authored initializer.
+    // A record construction decomposes into the same member operation as an
+    // explicit assignment. Rejoin that exact member expression before checking
+    // its operand; a quoted literal is one descriptor producer among others.
     if let (
         Destination::ViewField { field_identity, .. },
         checked_trees::expression::ExpressionNode::StructLiteral(literal),
@@ -137,10 +127,7 @@ pub(crate) fn validate_assignment(
         member_path.push(CheckedUnitStructuralPathSegment::Field(
             field_identity.clone(),
         ));
-        let ByteValue::Literal(bytes) = store.value.nodes.get(store.value.root) else {
-            return unsupported("record view member store source is not a literal");
-        };
-        let member = checked
+        let mut members = checked
             .expression_table
             .struct_fields(literal.fields)
             .iter()
@@ -151,20 +138,32 @@ pub(crate) fn validate_assignment(
                 )
                 .as_deref()
                     == Some(field_identity.as_str())
-            })
-            .map(|initializer| checked.expression_table.expression(initializer.value))
-            .collect::<Vec<_>>();
-        let [checked_trees::expression::ExpressionNode::String(authored)] = member.as_slice()
-        else {
-            return unsupported("record view member store has no authored literal member");
-        };
-        if source.root != root || member_path != path || authored.as_ref() != bytes.as_slice() {
-            return unsupported("record view member store differs from its authored member");
+            });
+        let member = members.next().ok_or(LoweringError::Unsupported(
+            "record view store lost its member",
+        ))?;
+        if members.next().is_some() || source.root != root || member_path != path {
+            return unsupported("record view store differs from its authored member");
         }
-        return Ok(());
+        return validate_descriptor_source(
+            checked,
+            state_symbol,
+            store.statement_index,
+            member.value,
+            &store.value,
+        );
     }
     if source.root != root || source.path != path {
         return unsupported("byte-field store destination differs from its authored place");
+    }
+    if matches!(store.destination, Destination::ViewField { .. }) {
+        return validate_descriptor_source(
+            checked,
+            state_symbol,
+            store.statement_index,
+            assignment.value,
+            &store.value,
+        );
     }
     validate_value(
         checked,
@@ -177,6 +176,153 @@ pub(crate) fn validate_assignment(
         0,
     )?;
     Ok(())
+}
+
+/// Descriptor operands retain their exact authored expression and current
+/// storage coordinate; the destination's domains cannot authenticate a source.
+fn validate_descriptor_source(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+    authored: checked_trees::expression::ExpressionHandle,
+    value: &CheckedByteSequenceValuePlan,
+) -> Result<(), LoweringError> {
+    let ByteValue::Descriptor { expression, source } = value.nodes.get(value.root) else {
+        return unsupported("view-field store requires a descriptor value");
+    };
+    if *expression != authored
+        || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
+        return unsupported("view-field store changed its source occurrence or access");
+    }
+    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } =
+        &source.source
+    {
+        return match checked.expression_table.expression(authored) {
+            checked_trees::expression::ExpressionNode::String(actual)
+                if actual.as_ref() == bytes.as_slice() && source.path.is_empty() =>
+            {
+                Ok(())
+            }
+            _ => unsupported("view-field descriptor substituted its literal contents"),
+        };
+    }
+    let (machine, owner) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let target =
+        validation::expression_result_type_reference(&checked.typed, machine, owner, authored)
+            .ok_or(LoweringError::Unsupported(
+                "view-field descriptor lost its source type",
+            ))?;
+    if matches!(
+        source.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+    ) {
+        let coordinate = checked_trees::CheckedUnitCallCoordinate {
+            statement_index: statement,
+            call_ordinal: 0,
+        };
+        let occurrence =
+            super::call_source_custody::authored::locate_source(checked, state, coordinate)?;
+        let signature = super::call_source_custody::authored::target_signature(
+            checked,
+            machine.symbol,
+            occurrence.source_target,
+        )?;
+        let referent =
+            crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
+                checked,
+                signature.return_type,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "stored call descriptor has no shared result",
+            ))?;
+        if !source.path.is_empty()
+            || !matches!(
+                checked.expression_table.expression(authored),
+                checked_trees::expression::ExpressionNode::Call(_)
+            )
+            || checked.normalized_type_identity(signature.return_type)
+                != checked.normalized_type_identity(target)
+            || checked.normalized_type_identity(referent).as_str() != source.type_identity
+            || !matches!(
+                validation::byte_sequence_carrier(&checked.typed, signature.return_type, &[]),
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+            )
+        {
+            return unsupported("stored call descriptor changed its declared result custody");
+        }
+        return super::call_source_custody::occurrences::validate(
+            checked,
+            machine.symbol,
+            state,
+            coordinate,
+            authored,
+        );
+    }
+    crate::expression_preparation::source_custody::computation_calls::byte_comparisons::validate_operand_provenance(
+        checked, state, statement, authored, target, source,
+    )
+}
+
+/// The schedule coordinate of a completed call consumer. Descriptor sources
+/// keep the authored expression; owned snapshots retain the occurrence inline.
+pub(crate) fn completed_call_binding(
+    store: &checked_trees::CheckedByteSequenceStorePlan,
+    state: symbols::SymbolHandle,
+) -> Result<Option<u32>, LoweringError> {
+    if let Some(binding) = store.value.completed_call_binding_ordinal() {
+        match store.value.nodes.get(store.value.root) {
+            ByteValue::CallResult {
+                state: source,
+                statement_index,
+                ..
+            } if *source == state && *statement_index == store.statement_index => {}
+            ByteValue::Descriptor { source, .. }
+                if source.path.is_empty()
+                    && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow => {}
+            _ => return unsupported("byte store changed its completed call coordinate"),
+        }
+        Ok(Some(binding))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Rejoin a retained result ordinal to the already emitted authored call.
+/// Carrier shape and the permission to consume it remain the caller's checks.
+pub(crate) fn completed_call_result(
+    operations: &OperationBuffer,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    binding_ordinal: u32,
+) -> Result<&terminal_psi::StructuralOperationResult, LoweringError> {
+    let mut bindings = operations
+        .structural_values
+        .iter()
+        .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+    let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+        "byte call result has no completed binding",
+    ))?;
+    let produced = binding.operation_result()?;
+    let mut occurrences = operations.source_calls.iter().filter(|occurrence| {
+        occurrence.source_state == state
+            && occurrence.statement_index == statement_index as usize
+            && occurrence.call_ordinal == 0
+    });
+    let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
+        "byte call result has no completed authored occurrence",
+    ))?;
+    if bindings.next().is_some()
+        || occurrences.next().is_some()
+        || !operations.operations.iter().any(|operation| {
+            operation.id == occurrence.terminal_operation
+                && operation.result.structural() == Some(produced)
+        })
+    {
+        return unsupported("byte call result substituted its completed occurrence");
+    }
+    Ok(produced)
 }
 
 pub(crate) fn validate_value(
@@ -529,6 +675,13 @@ pub(crate) fn prepare_types(
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
     literal_view_type(types)?;
+    if value
+        .nodes
+        .iter()
+        .any(|(_, node)| matches!(node, ByteValue::Descriptor { .. }))
+    {
+        descriptor_value_type(types)?;
+    }
     for (identity, node) in value.nodes.iter() {
         let capacity = match node {
             ByteValue::Concatenation { capacity, .. } => Some(capacity),
@@ -608,6 +761,68 @@ pub(crate) fn literal_view_type(
         shape,
     });
     Ok(id)
+}
+
+/// Projected byte leaves copy to the canonical standalone descriptor shape.
+/// An inline shared field has no nominal standalone type identity of its own.
+pub(crate) fn descriptor_value_type(
+    types: &mut Vec<StructuralTypeDeclaration>,
+) -> Result<StructuralTypeId, LoweringError> {
+    const IDENTITY: &str = "compiler(shared-byte-descriptor)";
+    // Inline leaves have no nominal standalone identity. Match the first
+    // exact canonical shape, as Terminal's leaf-copy endpoint resolver does;
+    // a second same-shaped compiler declaration would name a different type.
+    if let Some(existing) = descriptor_value_declaration(types) {
+        return Ok(existing.id);
+    }
+    let shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        });
+    if types
+        .iter()
+        .any(|declaration| declaration.identity == IDENTITY)
+    {
+        return unsupported("descriptor carrier identity changed shape");
+    }
+    let id = structural_type_id(
+        types
+            .iter()
+            .map(|declaration| declaration.id.get())
+            .max()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or(LoweringError::Unsupported(
+                "descriptor carrier identity overflow",
+            ))?,
+    );
+    types.push(StructuralTypeDeclaration {
+        id,
+        identity: IDENTITY.into(),
+        shape,
+    });
+    Ok(id)
+}
+
+pub(crate) fn existing_descriptor_value_type(
+    types: &[StructuralTypeDeclaration],
+) -> Result<StructuralTypeId, LoweringError> {
+    descriptor_value_declaration(types)
+        .map(|declaration| declaration.id)
+        .ok_or(LoweringError::Unsupported(
+            "descriptor value type was not prepared",
+        ))
+}
+
+fn descriptor_value_declaration(
+    types: &[StructuralTypeDeclaration],
+) -> Option<&StructuralTypeDeclaration> {
+    types.iter().find(|declaration| {
+        declaration.shape
+            == StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None,
+            })
+    })
 }
 
 pub(crate) fn emit_content_store(
@@ -821,6 +1036,7 @@ pub(crate) struct ViewFieldStore {
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) steps: Vec<crate::emission::runtime_elements::ProjectionStep>,
     field: semantic_vocabulary::StructuralFieldId,
+    requires_predicate_obligation: bool,
 }
 
 pub(crate) fn prepare_view_field_store(
@@ -875,30 +1091,52 @@ pub(crate) fn prepare_view_field_store(
         structural_type,
         steps,
         field: field.id,
+        requires_predicate_obligation: !field.field_type.byte_predicates().is_empty(),
     })
 }
 
-/// Establish the literal only after the destination's selectors complete.
-/// Terminal replays its predicates from the octets; descriptor replacement
-/// neither copies bytes nor substitutes a capacity fact for index bounds.
+/// Commit the already completed source descriptor after destination selectors
+/// and RHS evaluation. Predicate and lifetime evidence remain independent.
 pub(crate) fn emit_view_field_store(
-    store: &checked_trees::CheckedByteSequenceStorePlan,
     destination: ViewFieldStore,
     path: Vec<terminal_psi::StructuralPathSegment>,
-    structural_types: &[StructuralTypeDeclaration],
-    literal_places: &mut Vec<StructuralPlaceDeclaration>,
-    next_place: &mut u64,
+    source: semantic_vocabulary::PlaceId,
+    next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<OperationKind, LoweringError> {
-    let ByteValue::Literal(bytes) = store.value.nodes.get(store.value.root) else {
-        return unsupported("view-field store source is not a literal");
+    let predicate_obligation = if destination.requires_predicate_obligation {
+        Some(obligation_id(allocate_dense(next_obligation)?))
+    } else {
+        None
     };
+    operations.invalidate_field_lengths_under(destination.destination, &path);
+    Ok(OperationKind::StructuralByteViewFieldStore {
+        destination: destination.destination,
+        path,
+        field: destination.field,
+        source,
+        predicate_obligation,
+    })
+}
+
+/// One image-backed descriptor producer shared by content snapshots and
+/// descriptor operands. Literal syntax changes backing residence, not the
+/// consuming store's lifetime or predicate rules.
+pub(crate) fn emit_literal_view(
+    bytes: &[u8],
+    structural_types: &[StructuralTypeDeclaration],
+    places: &mut Vec<StructuralPlaceDeclaration>,
+    next_place: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<semantic_vocabulary::PlaceId, LoweringError> {
+    let structural_type = existing_literal_view_type(structural_types)?;
     let source = place_id(allocate_dense(next_place)?);
-    literal_places.push(StructuralPlaceDeclaration {
+    let declaration_ordinal = super::next_byte_sequence_literal_ordinal(places)?;
+    places.push(StructuralPlaceDeclaration {
         id: source,
         kind: StructuralPlaceKind::ByteSequenceLiteral {
-            declaration_ordinal: super::next_byte_sequence_literal_ordinal(literal_places)?,
-            structural_type: existing_literal_view_type(structural_types)?,
+            declaration_ordinal,
+            structural_type,
         },
     });
     let id = operations.allocate();
@@ -909,17 +1147,11 @@ pub(crate) fn emit_view_field_store(
         result: OperationResult::Unit,
         kind: OperationKind::EstablishByteSequenceLiteral {
             destination: source,
-            bytes: bytes.clone(),
+            bytes: bytes.to_vec(),
             qualifications: Vec::new(),
         },
     });
-    operations.invalidate_field_lengths_under(destination.destination, &path);
-    Ok(OperationKind::StructuralByteViewFieldStore {
-        destination: destination.destination,
-        path,
-        field: destination.field,
-        source,
-    })
+    Ok(source)
 }
 
 /// Establish an owned bounded byte local from its checked initializer.
@@ -1136,28 +1368,13 @@ impl ByteEmission<'_> {
     }
 
     fn literal(&mut self, bytes: &[u8]) -> Result<(ByteSequenceOperand, u64), LoweringError> {
-        let structural_type = existing_literal_view_type(self.structural_types)?;
-        let source = place_id(allocate_dense(self.next_place)?);
-        let declaration_ordinal = super::next_byte_sequence_literal_ordinal(self.places)?;
-        self.places.push(StructuralPlaceDeclaration {
-            id: source,
-            kind: StructuralPlaceKind::ByteSequenceLiteral {
-                declaration_ordinal,
-                structural_type,
-            },
-        });
-        let id = self.operations.allocate();
-        self.operations.push(Operation {
-            id,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Unit,
-            kind: OperationKind::EstablishByteSequenceLiteral {
-                destination: source,
-                bytes: bytes.to_vec(),
-                qualifications: Vec::new(),
-            },
-        });
+        let source = emit_literal_view(
+            bytes,
+            self.structural_types,
+            self.places,
+            self.next_place,
+            self.operations,
+        )?;
         let capacity = u64::try_from(bytes.len())
             .map_err(|_| LoweringError::Unsupported("byte literal length overflow"))?;
         let length = self.length(OperationKind::ByteSequenceLength { source })?;
@@ -1352,46 +1569,22 @@ impl ValueEmitter<'_> {
         }
         match self.plan.nodes.get(node) {
             ByteValue::Literal(bytes) => self.emission.literal(bytes),
+            ByteValue::Descriptor { .. } => {
+                unsupported("descriptor value is not an owned byte-content snapshot")
+            }
             ByteValue::CallResult {
                 state,
                 statement_index,
                 binding_ordinal,
                 capacity,
             } => {
-                // Join the binding to the already-emitted exact source call.
-                // A same-shaped earlier result is not the assigned value.
-                let mut bindings = self
-                    .emission
-                    .operations
-                    .structural_values
-                    .iter()
-                    .filter(|(ordinal, _)| ordinal == binding_ordinal);
-                let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
-                    "byte call result has no completed binding",
-                ))?;
-                if bindings.next().is_some() {
-                    return unsupported("byte call result binding is ambiguous");
-                }
-                let produced = binding.operation_result()?;
-                let mut occurrences =
-                    self.emission
-                        .operations
-                        .source_calls
-                        .iter()
-                        .filter(|occurrence| {
-                            occurrence.source_state == *state
-                                && occurrence.statement_index == *statement_index as usize
-                                && occurrence.call_ordinal == 0
-                        });
-                let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
-                    "byte call result has no completed authored occurrence",
-                ))?;
-                if occurrences.next().is_some()
-                    || !self.emission.operations.operations.iter().any(|operation| {
-                        operation.id == occurrence.terminal_operation
-                            && operation.result.structural() == Some(produced)
-                    })
-                    || produced.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                let produced = completed_call_result(
+                    self.emission.operations,
+                    *state,
+                    *statement_index,
+                    *binding_ordinal,
+                )?;
+                if produced.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                     || !produced.projected_qualifications.is_empty()
                     || !produced.claims.is_empty()
                     || !self.emission.structural_types.iter().any(|declaration| {
@@ -1532,6 +1725,46 @@ impl ValueEmitter<'_> {
 #[cfg(test)]
 mod tests {
     use super::{StructuralTypeShape, existing_literal_view_type, literal_view_type};
+
+    #[test]
+    fn descriptor_leaf_uses_the_existing_canonical_standalone_type() {
+        use super::{descriptor_value_type, existing_descriptor_value_type, structural_type_id};
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeDeclaration};
+        let mut types = vec![
+            StructuralTypeDeclaration {
+                id: structural_type_id(1),
+                identity: "mutable-field".into(),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                }),
+            },
+            StructuralTypeDeclaration {
+                id: structural_type_id(2),
+                identity: "[u8]".into(),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+            },
+        ];
+        let original = types.clone();
+        assert_eq!(
+            descriptor_value_type(&mut types).unwrap(),
+            structural_type_id(2)
+        );
+        assert_eq!(
+            existing_descriptor_value_type(&types).unwrap(),
+            structural_type_id(2)
+        );
+        assert_eq!(
+            types, original,
+            "copy preparation must not duplicate the canonical leaf type"
+        );
+        types.pop();
+        assert!(
+            existing_descriptor_value_type(&types).is_err(),
+            "field-bound mutable permission is not a standalone descriptor identity"
+        );
+    }
 
     #[test]
     fn shared_literal_carrier_requires_exact_prepared_declaration() {

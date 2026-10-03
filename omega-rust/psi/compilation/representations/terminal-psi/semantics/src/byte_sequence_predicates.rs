@@ -8,6 +8,40 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
+/// The current-content proof needed to install a descriptor in a qualified
+/// field. Static predicates may discharge clauses, but never rename the source
+/// to its backing: a window and its owner need not satisfy the same predicate.
+/// Callers independently derive both predicate sets from their current graph.
+pub fn byte_predicate_requirement(
+    required: ByteSequencePredicateSet,
+    established: ByteSequencePredicateSet,
+    root: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+) -> semantic_vocabulary::Proposition {
+    use semantic_vocabulary::{Proposition, ScalarTerm};
+    let mut clauses = Vec::new();
+    for predicate in required.predicates() {
+        let mut singleton = ByteSequencePredicateSet::EMPTY;
+        singleton.insert(predicate);
+        if !established.implies(singleton) {
+            clauses.push(Proposition::Equal(
+                ScalarTerm::ByteSequencePredicate {
+                    predicate,
+                    root,
+                    path: path.to_vec(),
+                },
+                ScalarTerm::Boolean(true),
+            ));
+        }
+    }
+    clauses.sort();
+    match clauses.len() {
+        0 => Proposition::Truth,
+        1 => clauses.pop().expect("one predicate clause"),
+        _ => Proposition::Conjunction(clauses),
+    }
+}
+
 /// Recover plain field-root declaration custody, not current availability or
 /// permission to mutate it. An owned result must rejoin its exact producer;
 /// root qualifications and claims cannot disappear through a field read.
@@ -195,6 +229,38 @@ pub fn byte_owned_result_predicates(
     machine: &TerminalMachine,
     source: PlaceId,
 ) -> Option<ByteSequencePredicateSet> {
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == source)?;
+    let StructuralPlaceKind::OperationResult {
+        structural_type, ..
+    } = declaration.kind
+    else {
+        return None;
+    };
+    if !module.structural_types.iter().any(|declaration| {
+        declaration.id == structural_type
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            )
+    }) {
+        return None;
+    }
+    byte_result_predicates(module, machine, source)
+}
+
+// Result predicates describe the exact completed byte value. Shared descriptor
+// custody is not owned backing authority; write consumers still use the bounded
+// owner query above and independently validate source permission.
+fn byte_result_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> Option<ByteSequencePredicateSet> {
     let place = machine
         .structural_places
         .iter()
@@ -212,12 +278,7 @@ pub fn byte_owned_result_predicates(
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == producer)?;
     let result = operation.result.structural()?;
-    if (matches!(
-        operation.kind,
-        OperationKind::CallStructural { .. }
-            | OperationKind::CallStructuralWithScalarArguments { .. }
-    ) && byte_owned_call_result(module, machine, source).is_none())
-        || result.place != source
+    if result.place != source
         || result.structural_type != structural_type
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.projected_qualifications.is_empty()
@@ -229,17 +290,69 @@ pub fn byte_owned_result_predicates(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: None | Some(StructuralAccess::SharedBorrow)
+                            }
                     )
                 )
         })
     {
         return None;
     }
+    if let OperationKind::CallStructural { callee, .. }
+    | OperationKind::CallStructuralWithScalarArguments { callee, .. } = operation.kind
+    {
+        let signature = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == callee)?
+            .result
+            .structural()?;
+        if signature.structural_type != structural_type
+            || signature.multiplicity != result.multiplicity
+            || signature.qualifications != result.qualifications
+            || !signature.projected_qualifications.is_empty()
+            || !signature.reference_sources.is_empty()
+        {
+            return None;
+        }
+    }
     byte_qualification_predicates_in(
         module.structural_domains.iter(),
         structural_type,
         &result.qualifications,
     )
+}
+
+/// Declared predicates captured by copying a shared descriptor field. This
+/// resolves exact field identity only; the copy's readable source authority and
+/// the copied descriptor's continuing backing loan are receiving obligations.
+/// Replacing the original slot does not change this copied descriptor's bytes.
+pub fn shared_byte_field_copy_predicates<'a>(
+    types: impl Iterator<Item = &'a terminal_psi::StructuralTypeDeclaration> + Clone,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<ByteSequencePredicateSet> {
+    let (terminal_psi::StructuralPathSegment::Field(identity), parent_path) = path.split_last()?
+    else {
+        return None;
+    };
+    let parent = crate::runtime_structural_path_tip(types.clone(), root, parent_path)?;
+    let StructuralTypeShape::Record { fields } = &parent.shape else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    if !matches!(
+        field.field_type.byte_sequence_carrier(),
+        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None | Some(StructuralAccess::SharedBorrow)
+        })
+    ) {
+        return None;
+    }
+    Some(field.field_type.byte_predicates())
 }
 
 /// Predicates at one concatenation's establishment, before subsequent writes
@@ -643,12 +756,39 @@ pub fn byte_sequence_source_predicates(
                         source_predicates(module, machine, backing, fuel, memo)?.subslice(),
                     );
                 }
+                let declared = byte_result_predicates(module, machine, source)?;
+                if let OperationKind::StructuralLeafCopy {
+                    source: backing,
+                    path,
+                } = &operation.kind
+                    && module.structural_types.iter().any(|declaration| {
+                        declaration.id == structural_type
+                            && declaration.shape.is_borrowed_byte_view()
+                    })
+                {
+                    let captured = if path.is_empty() {
+                        source_predicates(module, machine, *backing, fuel, memo)?
+                    } else {
+                        let (root, access) = byte_field_root(machine, *backing)?;
+                        if access == StructuralAccess::WriteOnlyBorrow {
+                            return None;
+                        }
+                        shared_byte_field_copy_predicates(
+                            module.structural_types.iter(),
+                            root,
+                            path,
+                        )?
+                    };
+                    let mut predicates = declared;
+                    for predicate in captured.predicates() {
+                        predicates.insert(predicate);
+                    }
+                    return Some(predicates);
+                }
                 let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } =
                     &operation.kind
                 else {
-                    // Other completed owners contribute declared predicates,
-                    // never incidental facts about their producer's inputs.
-                    return byte_owned_result_predicates(module, machine, source);
+                    return Some(declared);
                 };
                 if machine
                     .blocks

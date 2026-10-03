@@ -354,31 +354,53 @@ pub(crate) fn replay(
                         (None, BorrowAccessKind::Read)
                     }
                     ExpressionNode::Call(call) => {
-                        // A resolved static qualifier names the callee's owner;
-                        // it is not storage observed while evaluating the call.
-                        // Unknown selections keep the receiver on the replay path.
-                        let no_runtime_receiver =
-                            checked.call_has_no_runtime_receiver_for_target(call);
-                        if call.receiver.is_valid() && !no_runtime_receiver {
-                            receiver = Some(call.receiver);
-                        }
-                        let arguments = table.expression_handles(call.arguments);
-                        if arguments.len() != call.arguments.count() as usize {
-                            return unsupported(
-                                "computed shared borrow has stale nested argument observations",
-                            );
-                        }
-                        let signature =
-                            crate::emission::call_source_custody::authored::target_signature(
-                                checked,
-                                machine,
-                                call.target_symbol,
-                            )?;
-                        let parameters =
-                            explicit_parameters(signature.parameters, arguments.len())?;
-                        for (argument, parameter) in arguments.iter().zip(parameters) {
-                            let access = selected_access(*argument, parameter.type_reference);
-                            argument_children.push((*argument, access));
+                        if typed_trees::byte_predicates::byte_predicate_call(
+                            &checked.typed,
+                            expression,
+                        )
+                        .is_some()
+                        {
+                            if !call.carries_only_positional_arguments()
+                                || !call.selects_only_nominal_route()
+                            {
+                                return unsupported(
+                                    "byte observation has no positional operand custody",
+                                );
+                            }
+                            let (_, operand) =
+                                super::super::byte_predicates::operands(checked, expression)?;
+                            // Primitive observations read their operand; they
+                            // have no machine signature or formal capable of
+                            // lending mutable access. Ordinary resolved calls
+                            // below retain their exact formal-directed loans.
+                            children.push(operand);
+                        } else {
+                            // A resolved static qualifier names the callee's owner;
+                            // it is not storage observed while evaluating the call.
+                            // Unknown selections keep the receiver on the replay path.
+                            let no_runtime_receiver =
+                                checked.call_has_no_runtime_receiver_for_target(call);
+                            if call.receiver.is_valid() && !no_runtime_receiver {
+                                receiver = Some(call.receiver);
+                            }
+                            let arguments = table.expression_handles(call.arguments);
+                            if arguments.len() != call.arguments.count() as usize {
+                                return unsupported(
+                                    "computed shared borrow has stale nested argument observations",
+                                );
+                            }
+                            let signature =
+                                crate::emission::call_source_custody::authored::target_signature(
+                                    checked,
+                                    machine,
+                                    call.target_symbol,
+                                )?;
+                            let parameters =
+                                explicit_parameters(signature.parameters, arguments.len())?;
+                            for (argument, parameter) in arguments.iter().zip(parameters) {
+                                let access = selected_access(*argument, parameter.type_reference);
+                                argument_children.push((*argument, access));
+                            }
                         }
                         (None, BorrowAccessKind::Read)
                     }
@@ -628,4 +650,121 @@ fn is_array_value_projection(checked: &CheckedTrees, mut expression: ExpressionH
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn byte_observation_access_replays_exact_subject_and_resolved_permissions() {
+        for (declaration, expected) in [
+            ("", BorrowAccessKind::Read),
+            (
+                "machine valid_utf8(bytes: &mut [u8; 4]) -> bool { bytes[0] = 0; false }",
+                BorrowAccessKind::Mutable,
+            ),
+        ] {
+            let checked = crate::front_end::checked_program(&format!(
+                "{declaration}
+                 boundary trait Output {{ machine flag(value: bool) reaches Output; }}
+                 machine inspect(bytes: &mut [u8; 4], other: &[u8; 4]) reaches Output {{
+                     Output::flag(valid_utf8(bytes));
+                 }}"
+            ));
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "inspect")
+                .expect("inspect");
+            let state = &checked.machine_states(machine)[0];
+            let other = checked
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == "other")
+                .expect("other")
+                .symbol;
+            let borrow_state = checked
+                .facts
+                .borrow
+                .states
+                .iter()
+                .map(|(_, row)| row)
+                .find(|row| row.state_symbol == state.symbol)
+                .expect("borrow state");
+            let call = checked
+                .facts
+                .borrow
+                .calls
+                .span(borrow_state.calls)
+                .expect("calls")
+                .iter()
+                .find(|call| call.call_ordinal == 0)
+                .expect("outer call")
+                .clone();
+            let checked_trees::statement::StatementNode::Call(authored) =
+                &checked.statement_table.statements(state.statement_nodes)[call.statement_index]
+            else {
+                panic!("outer statement")
+            };
+            let arguments = checked
+                .statement_table
+                .expression_handles(authored.arguments)
+                .to_vec();
+            let machine = machine.symbol;
+            let state = state.symbol;
+            replay(
+                &checked,
+                machine,
+                state,
+                call.statement_index as u32,
+                &call,
+                &arguments,
+            )
+            .expect("primitive reads and resolved mutable calls replay independently");
+            let [row] = checked
+                .facts
+                .borrow
+                .argument_accesses
+                .span(call.accesses)
+                .expect("accesses")
+            else {
+                panic!("one byte subject observation")
+            };
+            assert_eq!(row.kind, expected);
+            for change_root in [false, true] {
+                let mut changed = checked.clone();
+                let [row] = changed
+                    .facts
+                    .borrow
+                    .argument_accesses
+                    .span_mut(call.accesses)
+                    .expect("accesses")
+                else {
+                    panic!("one observation")
+                };
+                if change_root {
+                    row.root_symbol = other;
+                } else {
+                    row.kind = if expected == BorrowAccessKind::Read {
+                        BorrowAccessKind::Mutable
+                    } else {
+                        BorrowAccessKind::Read
+                    };
+                }
+                assert!(
+                    replay(
+                        &changed,
+                        machine,
+                        state,
+                        call.statement_index as u32,
+                        &call,
+                        &arguments
+                    )
+                    .is_err(),
+                    "subject and permission are independently authenticated"
+                );
+            }
+        }
+    }
 }

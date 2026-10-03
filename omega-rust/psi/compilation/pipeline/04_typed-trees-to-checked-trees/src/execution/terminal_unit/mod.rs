@@ -176,6 +176,7 @@ use typed_trees::{
 
 mod atomic_operations;
 mod borrowed_windows;
+pub(crate) mod byte_operands;
 pub(crate) mod calls;
 mod candidate_closure;
 mod cleanup;
@@ -780,6 +781,33 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         })
         .collect::<Vec<_>>();
     retained_type_identities.extend(operand_identities.iter().map(String::as_str));
+    let stored_operand_identities = candidates
+        .iter()
+        .flat_map(|plan| {
+            plan.operations
+                .iter()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .map(move |operation| (plan.machine, plan.state, operation))
+        })
+        .chain(composed_machines.iter().flat_map(|plan| {
+            plan.states.iter().flat_map(move |state| {
+                state
+                    .operation_dependencies()
+                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .map(move |operation| (plan.machine, state.state, operation))
+            })
+        }))
+        .flat_map(|(machine, state, operation)| {
+            byte_operands::store_operand_type_identities(
+                program,
+                &mut shapes,
+                machine,
+                state,
+                operation,
+            )
+        })
+        .collect::<Vec<_>>();
+    retained_type_identities.extend(stored_operand_identities.iter().map(String::as_str));
     shapes.retain_transitive(&retained_type_identities);
 
     CheckedUnitEffectPlans {

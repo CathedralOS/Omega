@@ -191,6 +191,85 @@ pub fn operand_call_plans(
 }
 
 impl<'program> CallFrameResolver<'program> {
+    /// Reconstruct every carried slot along this local home's successor path.
+    /// This proves intermediate retention and prevents a repeated establishment
+    /// from overwriting a prior live generation; it is not a return summary.
+    pub fn local_backing_survives_state_jump(
+        &self,
+        machine: &Machine,
+        source: &State,
+        statement_index: usize,
+        target: &State,
+        arguments: &[ExpressionHandle],
+        backing: SymbolHandle,
+    ) -> bool {
+        super::stored_calls::retention::local_backing_survives_jump(
+            self.program,
+            machine,
+            source,
+            statement_index,
+            target,
+            arguments,
+            backing,
+            &self.symbols,
+        )
+        .is_some()
+    }
+
+    /// Body-derived normal-exit slot relation in the selected state's formal
+    /// namespace. This is also required for a stored-output body with no callers.
+    pub fn state_stored_reference_effects(
+        &self,
+        machine: &Machine,
+        state: &State,
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        super::stored_calls::state_effects(
+            self.program,
+            machine,
+            state,
+            &self.symbols,
+            &mut FrameInference::default(),
+        )
+        .map(super::stored_calls::public_effects)
+    }
+
+    /// Complete normal-exit reference-slot relation, reconstructed from the
+    /// selected body and instantiated in this exact caller prefix. Unknown
+    /// evidence is not an empty effect set.
+    pub fn stored_reference_effects(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        let StatementNode::Call(call) = statement else {
+            return Some(Vec::new());
+        };
+        let (state, _, index) = super::caller_aliases::caller_statement_at_site(
+            self.program,
+            machine,
+            &self.symbols,
+            CallerWriteSite::Statement(statement),
+        )?;
+        let prefix = super::state_write_walk::collected_prefix_at(
+            &self.caches.state_write_shared_collections,
+            self.program,
+            machine,
+            state,
+            &self.symbols,
+            index,
+            true,
+        )?;
+        super::stored_calls::call_effects(
+            self.program,
+            machine,
+            call,
+            &prefix,
+            &self.symbols,
+            &mut FrameInference::for_state(state.symbol),
+        )
+        .map(super::stored_calls::public_effects)
+    }
+
     /// A bare reference-local replacement changes its binding, not the storage
     /// reached through that binding. Unknown reference-shaped results are not
     /// evidence of a store to the previous referent.

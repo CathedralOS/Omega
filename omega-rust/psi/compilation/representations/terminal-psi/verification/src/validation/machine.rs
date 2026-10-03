@@ -31,6 +31,9 @@ pub(super) fn validate_machine(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     registry: &mut IdRegistry,
+    requirements: &mut Vec<
+        terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
+    >,
 ) -> Result<(), ModuleError> {
     if machine.blocks.is_empty() {
         return Err(ModuleError::MachineHasNoBlocks(machine.id));
@@ -135,7 +138,14 @@ pub(super) fn validate_machine(
         &blocks,
         &value_types,
     )?;
-    frontier::validate_structural_frontier(module, machine, machines, &blocks, &dominators)?;
+    frontier::validate_structural_frontier(
+        module,
+        machine,
+        machines,
+        &blocks,
+        &dominators,
+        Some(requirements),
+    )?;
     crate::control_cycles::validate_natural_cycles(machine, &dominators)?;
     Ok(())
 }

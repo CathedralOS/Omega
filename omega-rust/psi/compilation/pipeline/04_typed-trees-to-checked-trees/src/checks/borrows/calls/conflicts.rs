@@ -18,6 +18,7 @@ pub(super) fn check_call_access_conflicts<'p>(
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
     target_name: &str,
     stated_premises: &[StatedOrderingPremise],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
     recording: &mut CallCompatibility<'_>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
@@ -180,14 +181,10 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
 
         for (loan_handle, loan) in &active_loans {
-            // Owned carrier storage can transfer its loan to a successor while
-            // retaining the backing home until the loan chain ends. A store
-            // through borrowed storage has no such custody: the destination
-            // survives independently of this activation and cannot retain its
-            // local backing. Replay retains exact owner paths through aliases;
-            // reference leaves are values, while crossing one leaves the
-            // carrier's owned storage. Spatial compatibility alone cannot
-            // establish this lifetime distinction.
+            // An owned carrier retains its backing with the transferred loan.
+            // A caller-owned slot instead needs exact intermediate retention:
+            // follow copies/replacements through successor slots, reject escape
+            // and a later establishment of the still-borrowed local home.
             if super::super::statements::local_jump(program, state_flow, borrow_call).is_some()
                 && access.end_before_access.is_none()
                 && access.root_symbol == loan.owner_symbol
@@ -205,9 +202,36 @@ pub(super) fn check_call_access_conflicts<'p>(
                     loan.owner_symbol,
                     facts.borrow.loan_owner_path(loan),
                 )
+                && !call_frames.is_some_and(|frames| {
+                    let Some(jump) =
+                        super::super::statements::local_jump(program, state_flow, borrow_call)
+                    else {
+                        return false;
+                    };
+                    let Some(machine) =
+                        crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
+                    else {
+                        return false;
+                    };
+                    let Some(source) = program
+                        .machine_states(machine)
+                        .iter()
+                        .find(|state| state.symbol == state_flow.state_symbol)
+                    else {
+                        return false;
+                    };
+                    frames.local_backing_survives_state_jump(
+                        machine,
+                        source,
+                        borrow_call.statement_index,
+                        jump.target,
+                        crate::semantic::calls::call_site_argument_expressions(program, &jump.site),
+                        loan.root_symbol,
+                    )
+                })
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "state `{target_name}` receives a carried loan of local `{}`, whose storage ends at the source state exit",
+                    "state `{target_name}` receives a carried loan of local `{}`, whose storage ends at the source state exit without a complete retained-home relation",
                     symbol_name(program, loan.root_symbol),
                 )));
                 continue;

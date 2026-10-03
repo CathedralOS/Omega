@@ -46,8 +46,10 @@ pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
 pub(super) use projections::{project_stored_origins, projected_storage_type, projected_type};
-pub(super) use reference_values::canonical_reference_origins;
 pub(super) use reference_values::source_reaches_leaf;
+pub(super) use reference_values::{
+    canonical_reference_origins, captured_reference_projection_origins,
+};
 pub(super) use type_origins::declared_origins;
 pub(super) use type_origins::declared_origins_for_query;
 pub(super) use type_origins::demand_is_declared;
@@ -263,17 +265,10 @@ pub(super) fn declaration_origins_for_query(
         symbols,
         inference,
         include_shared,
-        &|expression, reference, implicit_borrow, inference| {
+        &|expression, reference, _implicit_borrow, inference| {
             if include_shared {
-                super::reference_subjects::value_origin(
-                    program,
-                    machine,
-                    expression,
-                    symbols,
-                    inference,
-                    aliases,
-                    stored,
-                    implicit_borrow,
+                super::reference_subjects::backing_origin(
+                    program, machine, expression, symbols, inference, aliases, stored,
                 )
                 .or_else(|| {
                     super::reference_subjects::unknown_readonly_origin(program, reference, "")
@@ -299,7 +294,15 @@ pub(super) fn declaration_origins_for_query(
     )?;
     let mut origins = Vec::new();
     for leaf in leaves.references {
-        for origin in canonical_reference_origins(program, &leaf.origin, aliases, stored) {
+        // Shared-value producers already captured their reference boundary.
+        // Resolving that value through the current slot again would redirect
+        // aliases after replacement.
+        let captured = if include_shared {
+            vec![leaf.origin.clone()]
+        } else {
+            canonical_reference_origins(program, &leaf.origin, aliases, stored)
+        };
+        for origin in captured {
             origins.push(StoredWriteOrigin {
                 local_symbol: local.symbol,
                 local_path: append_place_suffix(local.name.as_str(), &leaf.local_suffix),

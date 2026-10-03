@@ -128,6 +128,7 @@ pub(in crate::validation) fn operation_regions(
             path,
             field,
             source,
+            ..
         } => vec![
             field_region(destination, path, *field),
             (*source, Vec::new()),

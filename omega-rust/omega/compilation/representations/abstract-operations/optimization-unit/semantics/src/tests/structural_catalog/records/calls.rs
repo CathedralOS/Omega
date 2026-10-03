@@ -405,3 +405,54 @@ fn completed_record_loans_observe_the_current_owned_frontier() {
         );
     }
 }
+
+#[test]
+fn memberwise_local_record_lends_stored_view_slots_after_establishment() {
+    for view_type in ["&[u8]", "&[u8] in Utf8"] {
+        let mut unit = crate::tests::indexed_byte_fields::indexed_field_source_unit(
+            &r#"
+            domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+            data Holder { text: VIEW_TYPE; }
+            machine fill(holder: &mut Holder) { holder.text = "look"; }
+            data Record {}
+            machine Record::replace() {
+                let local: Holder;
+                local.text = "";
+                fill(&mut local);
+            }
+            "#
+            .replace("VIEW_TYPE", view_type),
+        );
+        validate_psi_optimization_unit(&unit)
+            .expect("the local owns its carrier while its fields keep independent shared loans");
+        let function_index = unit
+            .functions
+            .iter()
+            .position(|function| function.machine == unit.entry)
+            .unwrap();
+        let block = &mut unit.functions[function_index].blocks[0];
+        let birth = block
+            .nodes
+            .iter()
+            .position(|node| {
+                matches!(
+                    node.operation,
+                    AbstractOperation::EstablishStructuralLocal { .. }
+                )
+            })
+            .unwrap();
+        let call = block
+            .nodes
+            .iter()
+            .position(|node| matches!(node.operation, AbstractOperation::CallStructural { .. }))
+            .unwrap();
+        assert!(birth < call);
+        let operation = block.nodes.remove(call);
+        block.nodes.insert(birth, operation);
+        refresh_function_derivatives(&mut unit, function_index);
+        assert!(
+            validate_psi_optimization_unit(&unit).is_err(),
+            "the same type does not establish a local before its birth"
+        );
+    }
+}

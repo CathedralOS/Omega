@@ -44,6 +44,7 @@ mod reference_subjects;
 mod result_origins;
 mod state_paths;
 mod state_write_walk;
+mod stored_calls;
 mod stored_origins;
 // Terminal machine invocations compose call summaries, not state-graph edges.
 mod terminal_calls;
@@ -68,6 +69,7 @@ pub use caller_aliases::{AssignmentWriteTarget, LocalWriteOrigin, LocalWriteSour
 pub(crate) use demand::CallFrameCaches;
 pub(crate) use demand::statement_value_expression_roots;
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
+pub use stored_calls::StoredReferenceEffect;
 pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;
 
 use super::receiver_member_chain;

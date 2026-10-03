@@ -78,6 +78,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             path,
             field,
             source,
+            predicate_obligation,
         } => {
             bytes.u8(98);
             bytes.id(*psi_operation);
@@ -85,6 +86,13 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.slice(path, encode_structural_path_segment);
             bytes.id(*field);
             bytes.id(*source);
+            match predicate_obligation {
+                Some(obligation) => {
+                    bytes.u8(1);
+                    bytes.id(*obligation);
+                }
+                None => bytes.u8(0),
+            }
         }
         O::ByteSequenceWrite {
             psi_operation,

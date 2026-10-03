@@ -170,19 +170,31 @@ pub(super) fn plan(
                     };
                 }
                 CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                    let checked_trees::CheckedByteSequenceValue::CallResult {
-                        binding_ordinal: source,
-                        state: source_state,
-                        statement_index: source_statement,
-                        ..
-                    } = store.value.nodes.get_mut(store.value.root)
-                    else {
-                        return None;
+                    let source = match store.value.nodes.get_mut(store.value.root) {
+                        checked_trees::CheckedByteSequenceValue::CallResult {
+                            binding_ordinal: source,
+                            state: source_state,
+                            statement_index: source_statement,
+                            ..
+                        } if *source_state == state.symbol
+                            && *source_statement == statement_index =>
+                        {
+                            source
+                        }
+                        checked_trees::CheckedByteSequenceValue::Descriptor { source, .. }
+                            if source.path.is_empty() =>
+                        {
+                            let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal,
+                            } = &mut source.source
+                            else {
+                                return None;
+                            };
+                            binding_ordinal
+                        }
+                        _ => return None,
                     };
-                    if *source != result.binding_ordinal
-                        || *source_state != state.symbol
-                        || *source_statement != statement_index
-                    {
+                    if *source != result.binding_ordinal {
                         return None;
                     }
                     *source = binding_ordinal;

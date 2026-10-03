@@ -1,5 +1,5 @@
 //! Replace one shared view field's two-word descriptor with an established
-//! literal's: its backing pointer, then its extent. The literal's addressable
+//! source's: its backing pointer, then its extent. The source's addressable
 //! descriptor is read word by word and stored at the field's descriptor
 //! offset in the original root; no backing byte is read or copied.
 use super::{
@@ -44,7 +44,14 @@ pub(super) fn replace(
                 | StructuralAccess::WriteOnlyBorrow
         )
         || *source == destination.place
-        || crate::selection::established_view_input::literal_view_type(function, *source).is_none()
+        || !crate::selection::established_view_input::view_type(function, *source).is_some_and(
+            |identity| {
+                signature
+                    .structural_types
+                    .iter()
+                    .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
+            },
+        )
         || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
             indices,
             &geometry.elements,
@@ -54,7 +61,7 @@ pub(super) fn replace(
     }
     let descriptor_offset = geometry.descriptor_offset.ok_or_else(|| invalid())?;
     let extent_offset = descriptor_offset.checked_add(8).ok_or_else(invalid)?;
-    let literal = builder
+    let descriptor = builder
         .transport
         .pointers
         .iter()
@@ -89,7 +96,7 @@ pub(super) fn replace(
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 0 },
         builder.constraints.keys.load64.ok_or_else(invalid)?,
-        &[literal, backing],
+        &[descriptor, backing],
         provenance(row),
     )?;
     let extent = transport_register(builder, *source, 8)?;
@@ -104,7 +111,7 @@ pub(super) fn replace(
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 8 },
         builder.constraints.keys.load64.ok_or_else(invalid)?,
-        &[literal, extent],
+        &[descriptor, extent],
         provenance(row),
     )?;
     super::runtime_address::footprint(

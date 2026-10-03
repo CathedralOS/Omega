@@ -10,21 +10,41 @@ use optimization_unit::PsiOptimizationFunction;
 #[cfg(test)]
 use semantic_vocabulary::{BlockId, ValueId};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
 
 use terminal_semantics::borrowed_storage::{AliasSources, resolve};
 pub(in crate::current_ownership) use terminal_semantics::borrowed_storage::{
     Position, Projection, Region,
 };
-use terminal_semantics::descriptor_results::DescriptorCallOrigin;
+use terminal_semantics::descriptor_lifetimes::{DescriptorFlowStep, DescriptorLocation};
+use terminal_semantics::descriptor_results::{
+    DescriptorAnalysis, DescriptorCallOrigin, DescriptorSourceOrigin, DescriptorStoredCallEffect,
+};
+
+type ObservationKey = (Position, PlaceId, Vec<StructuralPathSegment>);
+
+pub(in crate::current_ownership) struct Access {
+    pub place: PlaceId,
+    pub regions: Vec<Region>,
+    pub location: Option<DescriptorLocation>,
+}
 
 #[derive(Default)]
 pub(in crate::current_ownership) struct BorrowedRegions {
     aliases: AliasSources,
+    // Exact immediate parent edges are distinct from transitive backing. The
+    // address-join suspension judgment must recognize a fresh child of a join.
+    parents: AliasSources,
     returned: BTreeMap<PlaceId, Vec<DescriptorCallOrigin>>,
+    sources: BTreeMap<ObservationKey, Vec<DescriptorCallOrigin>>,
+    descriptor_sources: BTreeSet<ObservationKey>,
+    symbolic_sources: BTreeMap<ObservationKey, Vec<(DescriptorCallOrigin, DescriptorSourceOrigin)>>,
+    locations: BTreeMap<ObservationKey, DescriptorLocation>,
+    effects: BTreeMap<Position, Vec<DescriptorStoredCallEffect>>,
+    flow: Option<BTreeMap<Position, DescriptorFlowStep>>,
     relations: Option<RangeRelations>,
-    writes: BTreeMap<Position, Vec<(PlaceId, Vec<Region>)>>,
+    writes: BTreeMap<Position, Vec<Access>>,
 }
 
 impl BorrowedRegions {
@@ -35,10 +55,6 @@ impl BorrowedRegions {
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Self {
         let mut result = Self::origins(function, functions, types);
-        let aliases = &result.aliases;
-        if aliases.is_empty() {
-            return result;
-        }
         let mut writes = BTreeMap::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
@@ -49,7 +65,13 @@ impl BorrowedRegions {
                         let mut projection =
                             Projection::new(&region.path).at((block.id, index as u32));
                         projection.indirect |= region.indirect;
-                        (place, resolve(aliases, place, projection))
+                        Access {
+                            place,
+                            location: result
+                                .access_location((block.id, index as u32), place, &projection.path)
+                                .cloned(),
+                            regions: result.resolve_at((block.id, index as u32), place, projection),
+                        }
                     })
                     .collect::<Vec<_>>();
                 if !regions.is_empty() {
@@ -63,7 +85,8 @@ impl BorrowedRegions {
                 }
             }
         }
-        result.relations = aliases
+        result.relations = result
+            .aliases
             .values()
             .flatten()
             .any(|(_, projection)| projection.window.is_some())
@@ -77,54 +100,168 @@ impl BorrowedRegions {
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Self {
-        // Prepare the current graph once for this receiving function. No source
-        // producer annotation or stale optimization snapshot supplies origins.
-        let calls =
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .filter_map(|node| match &node.operation {
-                    O::CallStructural {
-                        result:
-                            abstract_operations::AbstractStructuralCallResult::Structural {
-                                result, ..
-                            },
-                        ..
-                    } if result.multiplicity
-                        == terminal_psi::StructuralMultiplicity::Unrestricted
-                        && terminal_semantics::descriptor_results::is_shared_descriptor(
-                            types.values().copied(),
-                            result.structural_type,
-                        ) =>
-                    {
-                        Some(result.place)
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
+        // Origin and cohort queries share one disposable current-body replay.
+        // Cache only locations actually selected or carried by this function.
+        let declarations = types.values().copied().cloned().collect::<Vec<_>>();
+        let mut catalog = functions.values().copied().collect::<Vec<_>>();
+        if !functions.contains_key(&function.machine) {
+            catalog.push(function);
+        }
+        let graph = crate::descriptor_results::optimized_catalog_graph(catalog, &declarations);
         let mut returned = BTreeMap::new();
-        if !calls.is_empty() {
-            let declarations = types.values().copied().cloned().collect::<Vec<_>>();
-            if let Some(graph) = crate::descriptor_results::optimized_catalog_graph(
-                functions.values().copied(),
-                &declarations,
-            ) {
-                for place in calls {
-                    if let Some(origins) =
-                        terminal_semantics::descriptor_results::reconstruct_call_origins(
+        let mut sources = BTreeMap::new();
+        let mut descriptor_sources = BTreeSet::new();
+        let mut symbolic_sources = BTreeMap::new();
+        let mut locations = BTreeMap::new();
+        let mut effects = BTreeMap::new();
+        let mut flow = None;
+        if let Some(graph) = &graph {
+            let mut analysis = DescriptorAnalysis::new(&declarations, graph);
+            flow = analysis.flow(function.machine);
+            if let Some(current) = graph.iter().find(|machine| machine.id == function.machine) {
+                let mut queries: BTreeMap<Position, BTreeSet<DescriptorLocation>> = BTreeMap::new();
+                for (position, step) in &current.flow {
+                    let observed = queries.entry(*position).or_default();
+                    observed.extend(step.inputs.iter().cloned());
+                    observed.extend(step.definitions.iter().cloned());
+                    for (source, destination) in &step.derivations {
+                        observed.insert(source.clone());
+                        observed.insert(destination.clone());
+                    }
+                    for edge in &step.successors {
+                        observed.extend(edge.bindings.iter().map(|(source, _)| source.clone()));
+                    }
+                    // A cohort is born after its defining operation. Unit
+                    // field stores have no structural result place, but their
+                    // destination slot still needs its post-store symbolic
+                    // contents for incoming-slot compatibility replay.
+                    let completed = queries.entry((position.0, position.1 + 1)).or_default();
+                    completed.extend(step.definitions.iter().cloned());
+                    completed.extend(
+                        step.derivations
+                            .iter()
+                            .map(|(_, destination)| destination.clone()),
+                    );
+                }
+                for block in &function.blocks {
+                    for (index, node) in block.nodes.iter().enumerate() {
+                        let position = (block.id, index as u32);
+                        let mut roots =
+                            crate::unit_validation::function_structure::operation_place_inputs(
+                                &node.operation,
+                            );
+                        if let Some((_, result)) = node.operation.structural_result() {
+                            roots.push(result.place);
+                            queries
+                                .entry((position.0, position.1 + 1))
+                                .or_default()
+                                .insert(DescriptorLocation::whole(result.place));
+                        }
+                        let observed = queries.entry(position).or_default();
+                        for root in roots {
+                            observed.insert(DescriptorLocation::whole(root));
+                            if let Some(ty) = current.place_types.get(&root)
+                                && let Some(slots) =
+                                    terminal_semantics::descriptor_results::descriptor_slots(
+                                        &declarations,
+                                        root,
+                                        *ty,
+                                    )
+                            {
+                                observed.extend(slots);
+                            }
+                        }
+                        if let Some(actual_effects) =
+                            analysis.call_stored_effects(function.machine, position)
+                        {
+                            queries
+                                .entry((position.0, position.1 + 1))
+                                .or_default()
+                                .extend(
+                                    actual_effects
+                                        .iter()
+                                        .map(|effect| effect.destination.clone()),
+                                );
+                            effects.insert(position, actual_effects);
+                        }
+                    }
+                }
+                for (position, observed) in queries {
+                    for location in observed {
+                        let Some(ty) = current.place_types.get(&location.root) else {
+                            continue;
+                        };
+                        let Some(path) = terminal_semantics::descriptor_lifetimes::descriptor_path(
                             &declarations,
-                            &graph,
-                            function.machine,
-                            place,
+                            *ty,
+                            &location.path,
+                        ) else {
+                            continue;
+                        };
+                        let key = (position, location.root, path);
+                        if terminal_semantics::descriptor_results::descriptor_slots(
+                            &declarations,
+                            location.root,
+                            *ty,
                         )
-                    {
-                        returned.insert(place, origins);
+                        .is_some_and(|slots| slots.contains(&location))
+                        {
+                            descriptor_sources.insert(key.clone());
+                        }
+                        if let Some(canonical) =
+                            analysis.location(function.machine, position, &location)
+                        {
+                            locations.insert(key.clone(), canonical);
+                        }
+                        if let Some(origins) =
+                            analysis.symbolic_source_origins(function.machine, position, &location)
+                        {
+                            let paired = origins
+                                .into_iter()
+                                .filter_map(|origin| {
+                                    analysis
+                                        .flatten_source_origin(function.machine, &origin)
+                                        .map(|flat| (flat, origin))
+                                })
+                                .collect::<Vec<_>>();
+                            sources.insert(
+                                key.clone(),
+                                paired
+                                    .iter()
+                                    .map(|(flat, _)| flat.clone())
+                                    .collect::<Vec<_>>(),
+                            );
+                            symbolic_sources.insert(key, paired);
+                        }
+                    }
+                }
+                for block in &function.blocks {
+                    for node in &block.nodes {
+                        if let O::CallStructural {
+                            result:
+                                abstract_operations::AbstractStructuralCallResult::Structural {
+                                    result,
+                                    ..
+                                },
+                            ..
+                        } = &node.operation
+                            && result.multiplicity
+                                == terminal_psi::StructuralMultiplicity::Unrestricted
+                            && terminal_semantics::descriptor_results::is_shared_descriptor(
+                                declarations.iter(),
+                                result.structural_type,
+                            )
+                            && let Some(origins) =
+                                analysis.call_origins(function.machine, result.place)
+                        {
+                            returned.insert(result.place, origins);
+                        }
                     }
                 }
             }
         }
         let mut aliases = AliasSources::new();
+        let mut parents = AliasSources::new();
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
                 let position = (block.id, index as u32);
@@ -171,16 +308,39 @@ impl BorrowedRegions {
                     _ => None,
                 };
                 if let Some((result, source, projection)) = descriptor {
-                    aliases
+                    parents
                         .entry(result)
                         .or_default()
-                        .push((source, projection));
+                        .push((source, projection.clone()));
+                    if let Some(origins) =
+                        sources.get(&((position.0, position.1 + 1), result, vec![]))
+                    {
+                        aliases
+                            .entry(result)
+                            .or_default()
+                            .extend(origins.iter().filter_map(|origin| match origin {
+                                DescriptorCallOrigin::Argument { source, projection } => {
+                                    Some((*source, projection.clone()))
+                                }
+                                DescriptorCallOrigin::Literal { .. }
+                                | DescriptorCallOrigin::Empty => None,
+                            }));
+                    } else {
+                        aliases
+                            .entry(result)
+                            .or_default()
+                            .push((source, projection));
+                    }
                 }
                 if let Some((_, result)) = node.operation.structural_result()
                     && let Some(origins) = returned.get(&result.place)
                 {
                     for origin in origins {
                         if let DescriptorCallOrigin::Argument { source, projection } = origin {
+                            parents
+                                .entry(result.place)
+                                .or_default()
+                                .push((*source, projection.clone().at(position)));
                             aliases
                                 .entry(result.place)
                                 .or_default()
@@ -202,10 +362,128 @@ impl BorrowedRegions {
         }
         Self {
             aliases,
+            parents,
             returned,
+            sources,
+            descriptor_sources,
+            symbolic_sources,
+            locations,
+            effects,
+            flow,
             relations: None,
             writes: BTreeMap::new(),
         }
+    }
+
+    pub(super) fn descriptor_flow(&self) -> Option<&BTreeMap<Position, DescriptorFlowStep>> {
+        self.flow.as_ref()
+    }
+
+    pub(super) fn stored_effects(
+        &self,
+        position: Position,
+    ) -> Option<&[DescriptorStoredCallEffect]> {
+        self.effects.get(&position).map(Vec::as_slice)
+    }
+
+    pub(super) fn source_origins_at(
+        &self,
+        position: Position,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<&[DescriptorCallOrigin]> {
+        self.sources
+            .get(&(position, root, path.to_vec()))
+            .map(Vec::as_slice)
+    }
+
+    pub(super) fn incoming_origin_at(
+        &self,
+        position: Position,
+        location: &DescriptorLocation,
+        source: PlaceId,
+        projection: &Projection,
+    ) -> Option<DescriptorSourceOrigin> {
+        self.locations
+            .iter()
+            .filter(|((at, _, _), canonical)| *at == position && *canonical == location)
+            .filter_map(|(key, _)| self.symbolic_sources.get(key))
+            .flatten()
+            .find_map(|(flat, origin)| {
+                (flat
+                    == &DescriptorCallOrigin::Argument {
+                        source,
+                        projection: projection.clone(),
+                    }
+                    && matches!(origin, DescriptorSourceOrigin::IncomingSlot(_)))
+                .then(|| origin.clone())
+            })
+    }
+
+    pub(super) fn location_at(
+        &self,
+        position: Position,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<&DescriptorLocation> {
+        self.locations.get(&(position, root, path.to_vec()))
+    }
+
+    pub(super) fn access_location(
+        &self,
+        position: Position,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<&DescriptorLocation> {
+        (0..=path.len())
+            .rev()
+            .find_map(|length| self.location_at(position, root, &path[..length]))
+    }
+
+    /// Resolve a dereferenced slot's current value, not a global alias for its
+    /// mutable field. Replacing a descriptor itself retains direct slot geometry.
+    pub(in crate::current_ownership) fn resolve_at(
+        &self,
+        position: Position,
+        root: PlaceId,
+        projection: Projection,
+    ) -> Vec<Region> {
+        if projection.indirect {
+            for length in (0..=projection.path.len()).rev() {
+                // An aggregate's storage origin is not the backing of its
+                // embedded descriptors. Unknown aggregate effects stay indirect.
+                if !self.descriptor_sources.contains(&(
+                    position,
+                    root,
+                    projection.path[..length].to_vec(),
+                )) {
+                    continue;
+                }
+                if let Some(origins) =
+                    self.source_origins_at(position, root, &projection.path[..length])
+                {
+                    let mut suffix = Projection::new(&projection.path[length..]).at(position);
+                    suffix.window = projection.window;
+                    if suffix.window.is_some() {
+                        suffix.captured_at = projection.captured_at;
+                        suffix.exact = false;
+                    }
+                    return origins
+                        .iter()
+                        .filter_map(|origin| match origin {
+                            DescriptorCallOrigin::Argument { source, projection } => Some(Region {
+                                root: Some(*source),
+                                projection: projection.then(&suffix),
+                            }),
+                            DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty => {
+                                None
+                            }
+                        })
+                        .collect();
+                }
+            }
+        }
+        self.resolve(root, projection)
     }
 
     pub(super) fn call_origins(&self, result: PlaceId) -> Option<&[DescriptorCallOrigin]> {
@@ -213,7 +491,7 @@ impl BorrowedRegions {
     }
 
     pub(super) fn direct_aliases(&self, result: PlaceId) -> Option<&[(PlaceId, Projection)]> {
-        self.aliases.get(&result).map(Vec::as_slice)
+        self.parents.get(&result).map(Vec::as_slice)
     }
 
     pub(in crate::current_ownership) fn resolve(
@@ -224,10 +502,7 @@ impl BorrowedRegions {
         resolve(&self.aliases, place, projection)
     }
 
-    pub(in crate::current_ownership) fn writes_at(
-        &self,
-        position: Position,
-    ) -> &[(PlaceId, Vec<Region>)] {
+    pub(in crate::current_ownership) fn writes_at(&self, position: Position) -> &[Access] {
         self.writes.get(&position).map(Vec::as_slice).unwrap_or(&[])
     }
 
@@ -272,14 +547,13 @@ impl BorrowedRegions {
             .copied()
             .find(|place| self.overlaps(pinned, *place, &[]))
             .or_else(|| {
-                self.writes_at(position)
-                    .iter()
-                    .find_map(|(place, regions)| {
-                        regions
-                            .iter()
-                            .any(|region| pinned.iter().any(|loan| loan.overlaps(region)))
-                            .then_some(*place)
-                    })
+                self.writes_at(position).iter().find_map(|access| {
+                    access
+                        .regions
+                        .iter()
+                        .any(|region| pinned.iter().any(|loan| loan.overlaps(region)))
+                        .then_some(access.place)
+                })
             })
     }
 }

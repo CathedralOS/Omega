@@ -7,8 +7,9 @@
 //! custody. Calls reborrow the current name; they do not transfer it.
 //! Scalar leaves, records and fixed arrays use the same storage-loan rule:
 //! aggregating plain storage does not change permission, and a loan never copies its
-//! referent. Recursive plain-type validation still excludes nested permission
-//! carriers; the edge and frontier checks retain exact type and live custody.
+//! referent. Shared descriptor members retain separate backing loans, replayed
+//! through exact slot replacement and successor transport. Exclusive nested
+//! permission carriers remain excluded; edge/frontier checks retain custody.
 
 use super::super::borrowed_windows::window_aliases;
 use super::super::{
@@ -33,9 +34,16 @@ pub(crate) fn borrowed_carrier_type(
     module: &TerminalModule,
     root: super::StructuralTypeId,
 ) -> bool {
-    // The referent's recursively checked storage determines eligibility.
-    // Do not impose an additional aggregate-only gate at its root: a scalar
-    // leaf borrows the same way alone as it does inside a record or array.
+    // A direct view parameter lends its payload and has its own transfer
+    // rules. A view stored inside an owned carrier is instead a descriptor
+    // slot; lending the carrier must preserve that separate backing loan.
+    if terminal_semantics::descriptor_results::is_shared_descriptor(
+        module.structural_types.iter(),
+        root,
+    ) {
+        return false;
+    }
+    // Plain scalar storage still lends the same way alone as inside a record.
     let mut pending = vec![root];
     let mut visited = BTreeSet::new();
     while let Some(current) = pending.pop() {
@@ -46,7 +54,17 @@ pub(crate) fn borrowed_carrier_type(
             return false;
         };
         match &declaration.shape {
-            StructuralTypeShape::FusedServiceBinding => {}
+            // ElementView is the immutable descriptor shape. Exclusive stored
+            // element views retain a Reference permission shell, which this
+            // classifier still rejects. Each establishment/copy and use also
+            // independently validates its own requested access and backing.
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::ElementView { .. }
+            | StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: None | Some(StructuralAccess::SharedBorrow),
+                },
+            ) => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if field.relevance.is_erased()
@@ -62,26 +80,27 @@ pub(crate) fn borrowed_carrier_type(
                     }
                     match field.field_type {
                         terminal_psi::StructuralFieldType::Structural(child) => pending.push(child),
-                        // A bounded owned byte field is an ordinary plain leaf:
-                        // `record::plain_type` already classifies it as one, and this
-                        // walk exists to accept plain leaves PLUS service markers, so
-                        // refusing one here made the classifier stricter than the
-                        // predicate it extends. A record whose only unplain member is a
-                        // service binding was loanable while the same record with a
-                        // `[u8; N] in Utf8` field beside it was not. The loan carries
-                        // the owner itself, live length included; its predicates stay
-                        // the field declaration's, and every write through the window
-                        // is checked against them where writes are checked.
-                        //
-                        // A BORROWED view stays out, exactly as it does for
-                        // `plain_type`: that is a relocated descriptor, and lending a
-                        // record must not hand on a loan whose source this
-                        // classification never saw.
+                        // Lending the containing record preserves its carrier
+                        // identity. Descriptor backing is a separate loan: the
+                        // shared current-slot replay tracks copies, replacements,
+                        // calls and backedges before allowing backing mutation.
                         terminal_psi::StructuralFieldType::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                         )
                         | terminal_psi::StructuralFieldType::PredicateByteSequence {
                             carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                            ..
+                        }
+                        | terminal_psi::StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: None | Some(StructuralAccess::SharedBorrow),
+                            },
+                        )
+                        | terminal_psi::StructuralFieldType::PredicateByteSequence {
+                            carrier:
+                                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                    access: None | Some(StructuralAccess::SharedBorrow),
+                                },
                             ..
                         } => {}
                         _ if field.field_type.scalar_type().is_some() => {}

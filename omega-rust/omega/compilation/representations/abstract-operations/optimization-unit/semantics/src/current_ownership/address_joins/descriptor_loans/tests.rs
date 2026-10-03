@@ -8,6 +8,27 @@ fn position(node: u32) -> Position {
     (BlockId::new(1).unwrap(), node)
 }
 
+fn location(value: u64) -> DescriptorLocation {
+    DescriptorLocation::whole(place(value))
+}
+
+struct CohortFixture {
+    steps: BTreeMap<Position, DescriptorFlowStep>,
+}
+impl CohortFixture {
+    fn live_positions(
+        &self,
+        birth: Position,
+        descriptor: DescriptorLocation,
+    ) -> BTreeSet<Position> {
+        terminal_semantics::descriptor_lifetimes::descriptor_location_live_positions(
+            &self.steps,
+            birth,
+            &descriptor,
+        )
+    }
+}
+
 fn place(value: u64) -> PlaceId {
     PlaceId::new(value).unwrap()
 }
@@ -20,10 +41,10 @@ fn edge(node: u32) -> DescriptorFlowEdge {
     }
 }
 
-fn repeated_formation() -> DescriptorFlow {
+fn repeated_formation() -> CohortFixture {
     // write -> form view -> observe view -> backedge. The next write happens
     // before the new formation, after all observations of the previous value.
-    DescriptorFlow {
+    CohortFixture {
         steps: BTreeMap::from([
             (
                 position(0),
@@ -35,7 +56,7 @@ fn repeated_formation() -> DescriptorFlow {
             (
                 position(1),
                 DescriptorFlowStep {
-                    definitions: vec![place(1)],
+                    definitions: vec![location(1)],
                     successors: vec![edge(2)],
                     ..Default::default()
                 },
@@ -43,7 +64,7 @@ fn repeated_formation() -> DescriptorFlow {
             (
                 position(2),
                 DescriptorFlowStep {
-                    inputs: vec![place(1)],
+                    inputs: vec![location(1)],
                     successors: vec![edge(3)],
                     ..Default::default()
                 },
@@ -62,7 +83,7 @@ fn repeated_formation() -> DescriptorFlow {
 #[test]
 fn repeated_formation_retires_the_previous_unforwarded_instance() {
     let flow = repeated_formation();
-    let live = flow.live_positions(position(1), place(1));
+    let live = flow.live_positions(position(1), location(1));
     assert!(live.contains(&position(2)));
     assert!(
         !live.contains(&position(0)),
@@ -79,18 +100,18 @@ fn forwarded_old_alias_survives_reformation_of_the_original_name() {
     let mut flow = repeated_formation();
     // The backedge carries the old descriptor into a distinct parameter;
     // that alias is observed after the original descriptor is reformed.
-    flow.steps.get_mut(&position(3)).unwrap().inputs = vec![place(1)];
+    flow.steps.get_mut(&position(3)).unwrap().inputs = vec![location(1)];
     flow.steps.get_mut(&position(3)).unwrap().successors[0] = DescriptorFlowEdge {
         target: position(0),
-        parameters: vec![place(2)],
-        bindings: vec![(place(1), place(2))],
+        parameters: vec![location(2)],
+        bindings: vec![(location(1), location(2))],
     };
     flow.steps
         .get_mut(&position(2))
         .unwrap()
         .inputs
-        .push(place(2));
-    let live = flow.live_positions(position(1), place(1));
+        .push(location(2));
+    let live = flow.live_positions(position(1), location(1));
     assert!(
         live.contains(&position(0)),
         "old forwarded alias still pins the next write"
@@ -106,16 +127,16 @@ fn simultaneous_arrival_reads_sources_before_overwriting_destinations() {
     let mut flow = repeated_formation();
     flow.steps.get_mut(&position(3)).unwrap().successors[0] = DescriptorFlowEdge {
         target: position(0),
-        parameters: vec![place(1), place(2)],
-        bindings: vec![(place(1), place(2)), (place(2), place(1))],
+        parameters: vec![location(1), location(2)],
+        bindings: vec![(location(1), location(2)), (location(2), location(1))],
     };
     flow.steps
         .get_mut(&position(2))
         .unwrap()
         .inputs
-        .push(place(2));
+        .push(location(2));
     assert!(
-        flow.live_positions(position(1), place(1))
+        flow.live_positions(position(1), location(1))
             .contains(&position(0))
     );
 }
@@ -125,12 +146,12 @@ fn overwritten_arrival_does_not_keep_a_previous_cohort_alive() {
     let mut flow = repeated_formation();
     flow.steps.get_mut(&position(3)).unwrap().successors[0] = DescriptorFlowEdge {
         target: position(0),
-        parameters: vec![place(1)],
-        bindings: vec![(place(9), place(1))],
+        parameters: vec![location(1)],
+        bindings: vec![(location(9), location(1))],
     };
     assert!(
         !flow
-            .live_positions(position(1), place(1))
+            .live_positions(position(1), location(1))
             .contains(&position(0))
     );
 }
@@ -139,7 +160,7 @@ fn overwritten_arrival_does_not_keep_a_previous_cohort_alive() {
 fn unknown_escape_survives_descriptor_reformation() {
     let mut flow = repeated_formation();
     flow.steps.get_mut(&position(2)).unwrap().may_escape = true;
-    let live = flow.live_positions(position(1), place(1));
+    let live = flow.live_positions(position(1), location(1));
     assert!(live.contains(&position(0)));
     assert!(live.contains(&position(1)));
 }
@@ -148,9 +169,9 @@ fn unknown_escape_survives_descriptor_reformation() {
 fn replacement_reads_the_old_source_before_defining_its_result() {
     let mut flow = repeated_formation();
     let birth = flow.steps.get_mut(&position(1)).unwrap();
-    birth.inputs = vec![place(1)];
-    birth.derivations = vec![(place(1), place(1))];
-    let live = flow.live_positions(position(1), place(1));
+    birth.inputs = vec![location(1)];
+    birth.derivations = vec![(location(1), location(1))];
+    let live = flow.live_positions(position(1), location(1));
     assert!(
         live.contains(&position(0)),
         "the next formation reads the preceding instance"
@@ -162,16 +183,16 @@ fn replacement_reads_the_old_source_before_defining_its_result() {
 fn derived_child_keeps_its_parent_cohort_after_the_parent_name_is_replaced() {
     let mut flow = repeated_formation();
     let child = flow.steps.get_mut(&position(3)).unwrap();
-    child.inputs = vec![place(1)];
-    child.definitions = vec![place(2)];
-    child.derivations = vec![(place(1), place(2))];
+    child.inputs = vec![location(1)];
+    child.definitions = vec![location(2)];
+    child.derivations = vec![(location(1), location(2))];
     flow.steps
         .get_mut(&position(2))
         .unwrap()
         .inputs
-        .push(place(2));
+        .push(location(2));
     assert!(
-        flow.live_positions(position(1), place(1))
+        flow.live_positions(position(1), location(1))
             .contains(&position(0))
     );
 }
@@ -312,13 +333,21 @@ fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
                 is_self: false,
             },
         });
+    let view = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: "test::View".into(),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        }),
+    };
+    let types = BTreeMap::from([(view.id, &view)]);
     let regions = BorrowedRegions::new(
         &function,
-        &BTreeMap::new(),
-        &BTreeMap::new(),
+        &BTreeMap::from([(function.machine, &function)]),
+        &types,
         &crate::current_ownership::CallAccesses::default(),
     );
-    let loans = DescriptorLoans::new(&function, &regions, &BTreeMap::new());
+    let loans = DescriptorLoans::new(&function, &regions, &types);
     assert_eq!(loans.loans.len(), 1);
     assert!(loans.loans[0].live.contains(&position(2)));
     assert_eq!(
@@ -331,9 +360,9 @@ fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
         ),
         Some(place(9))
     );
-    let flow = DescriptorFlow::new(&function, &BTreeMap::new(), &regions);
-    assert_eq!(flow.steps[&position(0)].definitions, vec![place(1)]);
-    assert!(flow.steps[&position(1)].definitions.is_empty());
+    let flow = descriptor_flow(&function, &types, &regions);
+    assert_eq!(flow[&position(0)].definitions, vec![location(1)]);
+    assert!(flow[&position(1)].definitions.is_empty());
 }
 
 #[test]
@@ -465,9 +494,32 @@ fn record_observation_keeps_every_contained_descriptor_backing_live() {
             function.declared_places.insert(result);
         }
         function.declared_places.insert(place(10));
+        for (position, backing) in [place(9), place(10)].into_iter().enumerate() {
+            function
+                .structural_parameters
+                .push(terminal_psi::StructuralParameterDeclaration {
+                    place: backing,
+                    position: position as u32,
+                    is_self: false,
+                    structural_type: descriptor_type,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                });
+            function
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: backing,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: position as u32,
+                        is_self: false,
+                    },
+                });
+        }
         let regions = BorrowedRegions::new(
             &function,
-            &BTreeMap::new(),
+            &BTreeMap::from([(function.machine, &function)]),
             &types,
             &crate::current_ownership::CallAccesses::default(),
         );
@@ -532,7 +584,7 @@ fn stored_dynamic_selection_is_an_escape_at_capture_not_at_later_dispatch() {
     let function = receiver_fixture(capture, false);
     let regions = BorrowedRegions::new(
         &function,
-        &BTreeMap::new(),
+        &BTreeMap::from([(function.machine, &function)]),
         &BTreeMap::new(),
         &crate::current_ownership::CallAccesses::default(),
     );
@@ -853,7 +905,7 @@ fn a_non_escaping_call_does_not_retire_later_descriptor_observations() {
         .collect();
     let regions = BorrowedRegions::new(
         &function,
-        &BTreeMap::new(),
+        &BTreeMap::from([(function.machine, &function)]),
         &types,
         &crate::current_ownership::CallAccesses::default(),
     );
@@ -1043,5 +1095,410 @@ fn carried_view_call_observation_respects_mutable_child_lifetime() {
             (call_after_birth && !direct_child).then_some(place(3)),
             "carried view call after birth: {call_after_birth}, direct child: {direct_child}"
         );
+    }
+}
+
+#[test]
+fn repeated_owner_home_establishment_preserves_stored_view_loans() {
+    let ty = |raw| StructuralTypeId::new(raw).unwrap();
+    let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: ty(1),
+            identity: "test::View".into(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+            ),
+        },
+        StructuralTypeDeclaration {
+            id: ty(2),
+            identity: "test::Room".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "label".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::SharedBorrow),
+                        },
+                    ),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: ty(3),
+            identity: "test::Array".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: ty(4),
+                length: 4,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: ty(4),
+            identity: "test::Byte".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            )),
+        },
+    ];
+    let types = declarations.iter().map(|row| (row.id, row)).collect();
+    for replaced in [false, true] {
+        let mut function = receiver_fixture(scalar(2), false);
+        let result = |root, structural_type| terminal_psi::StructuralOperationResult {
+            place: place(root),
+            structural_type: ty(structural_type),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            qualification_establishments: vec![],
+            claims: vec![],
+        };
+        let local = |root, producer, structural_type| terminal_psi::StructuralPlaceDeclaration {
+            id: place(root),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: instruction(producer),
+                structural_type: ty(structural_type),
+            },
+        };
+        function.structural_places = vec![
+            local(1, 1, 1),
+            local(2, 11, 1),
+            local(9, 10, 3),
+            terminal_psi::StructuralPlaceDeclaration {
+                id: place(3),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+        ];
+        function.declared_places = function
+            .structural_places
+            .iter()
+            .map(|row| row.id)
+            .collect();
+        function.structural_parameters = vec![terminal_psi::StructuralParameterDeclaration {
+            place: place(3),
+            position: 0,
+            is_self: false,
+            structural_type: ty(2),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+        }];
+        let mut operations = vec![
+            O::EstablishByteSequenceLiteral {
+                psi_operation: instruction(11),
+                place: local(2, 11, 1),
+                structural_type: declarations[0].clone(),
+                bytes: b"done".to_vec(),
+                qualifications: vec![],
+            },
+            O::EstablishZeroedStructural {
+                psi_operation: instruction(10),
+                result: result(9, 3),
+            },
+            O::StructuralByteSequenceFieldLength {
+                psi_operation: instruction(12),
+                result: abstract_operations::AbstractResult {
+                    value: value(12),
+                    scalar_type: ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .unwrap(),
+                    ),
+                },
+                source: place(3),
+                path: vec![],
+                field,
+            },
+            O::EstablishElementView {
+                psi_operation: instruction(1),
+                result: result(1, 1),
+                destination: place(1),
+                source: terminal_psi::StructuralArgument {
+                    place: place(9),
+                    path: vec![],
+                    access: StructuralAccess::SharedBorrow,
+                },
+                element: ty(4),
+            },
+            O::StructuralByteViewFieldStore {
+                psi_operation: instruction(13),
+                destination: place(3),
+                path: vec![],
+                field,
+                source: place(1),
+                predicate_obligation: None,
+            },
+        ];
+        if replaced {
+            operations.push(O::StructuralByteViewFieldStore {
+                psi_operation: instruction(14),
+                destination: place(3),
+                path: vec![],
+                field,
+                source: place(2),
+                predicate_obligation: None,
+            });
+        }
+        let edge = semantic_vocabulary::EdgeId::new(1).unwrap();
+        operations.push(O::Jump {
+            psi_edge: edge,
+            target: function.entry,
+            bindings: vec![],
+            structural_bindings: vec![],
+            trivial_affine_discards: vec![],
+            residual_affine_discards: vec![],
+        });
+        let template = function.blocks[0].nodes[0].clone();
+        function.blocks[0].nodes = operations
+            .into_iter()
+            .map(|operation| {
+                let mut node = template.clone();
+                node.operation = operation;
+                node
+            })
+            .collect();
+        function.blocks[0].nodes.last_mut().unwrap().successors = vec![OptimizationEdge {
+            psi_edge: edge,
+            target: function.entry,
+            bindings: vec![],
+            structural_bindings: vec![],
+            trivial_affine_discards: vec![],
+            residual_affine_discards: vec![],
+            provenance: vec![],
+            fuel: vec![],
+        }];
+        let functions = BTreeMap::from([(function.machine, &function)]);
+        let regions = BorrowedRegions::new(
+            &function,
+            &functions,
+            &types,
+            &crate::current_ownership::CallAccesses::default(),
+        );
+        assert!(
+            regions.descriptor_flow().is_some(),
+            "the current operation graph must be reconstructed"
+        );
+        let loans = DescriptorLoans::new(&function, &regions, &types);
+        assert_eq!(
+            loans.conflicted_operation(
+                &regions,
+                function.entry,
+                1,
+                &function.blocks[0].nodes[1].operation,
+                &[]
+            ),
+            (!replaced).then_some(place(9)),
+            "stored view replaced before backedge: {replaced}"
+        );
+        assert_eq!(
+            loans.conflicted_operation(
+                &regions,
+                function.entry,
+                3,
+                &function.blocks[0].nodes[3].operation,
+                &[]
+            ),
+            None,
+            "re-establishing a descriptor carrier does not overwrite its backing"
+        );
+    }
+}
+
+#[test]
+fn current_unit_incoming_slot_compatibility_replays_actual_backing() {
+    let mut unit = crate::tests::indexed_byte_fields::indexed_field_source_unit(
+        r#"
+        data Holder { text: &[u8]; }
+        machine copy_and_write(destination: &mut Holder, source: &Holder, output: &mut [u8;4]) {
+            destination.text = source.text;
+            output[0] = 7;
+        }
+        data Record {}
+        machine Record::replace() {
+            let backing: [u8;4] = [1,2,3,4];
+            let mut output: [u8;4] = [0,0,0,0];
+            let source: Holder;
+            source.text = backing[..];
+            let destination: Holder;
+            destination.text = "";
+            copy_and_write(&mut destination, &source, &mut output);
+        }
+        "#,
+    );
+    crate::validate_psi_optimization_unit(&unit)
+        .expect("current caller storage discharges the generic incoming-slot relation");
+    let caller = unit
+        .functions
+        .iter()
+        .position(|function| function.machine == unit.entry)
+        .unwrap();
+    let backing = unit.functions[caller]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::EstablishElementView { source, .. } => Some(source.place),
+            _ => None,
+        })
+        .expect("authored byte view retains its local array backing");
+    let (block, node) = unit.functions[caller].blocks.iter().enumerate()
+        .find_map(|(block, value)| value.nodes.iter().position(|node|
+            matches!(&node.operation, O::CallStructural { structural_arguments, .. } if structural_arguments.len() == 3)
+        ).map(|node| (block, node))).expect("exact three-input call");
+    let O::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut unit.functions[caller].blocks[block].nodes[node].operation
+    else {
+        unreachable!()
+    };
+    assert_ne!(structural_arguments[2].place, backing);
+    assert!(structural_arguments[2].path.is_empty());
+    structural_arguments[2].place = backing;
+    crate::tests::support::refresh_node_derivatives(&mut unit, caller, block, node);
+    assert!(
+        matches!(
+            crate::validate_psi_optimization_unit(&unit),
+            Err(crate::OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "{:?}",
+        crate::validate_psi_optimization_unit(&unit)
+    );
+}
+
+#[test]
+fn byte_operand_observations_preserve_disjoint_fields_and_reject_overlap() {
+    use semantic_vocabulary::StructuralFieldId;
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    use terminal_psi::{ByteSequenceCarrier, StructuralPathSegment};
+    let ty = StructuralTypeId::new(1).unwrap();
+    let declaration = StructuralTypeDeclaration {
+        id: ty,
+        identity: "test::ByteFields".into(),
+        shape: StructuralTypeShape::Record {
+            fields: ["left", "right"]
+                .into_iter()
+                .enumerate()
+                .map(|(index, name)| StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(index as u64 + 1).unwrap(),
+                    identity: name.into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(
+                        ByteSequenceCarrier::BoundedOwned { capacity: 4 },
+                    ),
+                })
+                .collect(),
+        },
+    };
+    let types = BTreeMap::from([(ty, &declaration)]);
+    let operand = ByteSequenceOperand::Field {
+        source: terminal_psi::StructuralArgument {
+            place: place(9),
+            path: vec![],
+            access: StructuralAccess::SharedBorrow,
+        },
+        field: StructuralFieldId::new(2).unwrap(),
+        length: value(1),
+    };
+    let scalar_result = abstract_operations::AbstractResult {
+        value: value(2),
+        scalar_type: ScalarType::Boolean,
+    };
+    let operations = [
+        O::ByteSequenceEqual {
+            psi_operation: instruction(2),
+            result: scalar_result,
+            left: operand.clone(),
+            right: operand.clone(),
+        },
+        O::ByteSequencePredicate {
+            psi_operation: instruction(2),
+            result: scalar_result,
+            operand: operand.clone(),
+            predicate: terminal_psi::ByteSequencePredicate::ValidUtf8,
+        },
+        O::EstablishByteSequenceConcatenation {
+            psi_operation: instruction(2),
+            result: terminal_psi::StructuralOperationResult {
+                place: place(2),
+                structural_type: ty,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: vec![],
+                projected_qualifications: vec![],
+                qualification_establishments: vec![],
+                claims: vec![],
+            },
+            left: operand.clone(),
+            right: operand,
+            capacity_obligation: ObligationId::new(1).unwrap(),
+        },
+    ];
+    for operation in operations {
+        let mut function = receiver_fixture(operation.clone(), false);
+        function.structural_parameters = vec![terminal_psi::StructuralParameterDeclaration {
+            place: place(9),
+            position: 0,
+            is_self: false,
+            structural_type: ty,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+        }];
+        function.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
+            id: place(9),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }];
+        function.blocks[0].nodes = vec![function.blocks[0].nodes[1].clone()];
+        let regions = BorrowedRegions::new(
+            &function,
+            &BTreeMap::from([(function.machine, &function)]),
+            &types,
+            &crate::current_ownership::CallAccesses::default(),
+        );
+        let observations =
+            operation_observations(&function, &types, &regions, position(0), &operation);
+        assert!(!observations.is_empty());
+        for selected in ["left", "right"] {
+            let backing = Region {
+                root: Some(place(9)),
+                projection: Projection::new(&[StructuralPathSegment::Field(selected.into())]),
+            };
+            let loans = DescriptorLoans {
+                loans: vec![DescriptorLoan {
+                    incoming: None,
+                    regions: vec![backing],
+                    live: BTreeSet::from([position(0)]),
+                    access: StructuralAccess::MutableBorrow,
+                    authorized: BTreeMap::new(),
+                }],
+                observations: BTreeMap::from([(
+                    position(0),
+                    operation_observations(&function, &types, &regions, position(0), &operation),
+                )]),
+                ..Default::default()
+            };
+            assert_eq!(
+                loans
+                    .conflicted_operation(&regions, position(0).0, 0, &operation, &[])
+                    .is_some(),
+                selected == "right",
+                "byte operand must observe only its selected field"
+            );
+        }
     }
 }

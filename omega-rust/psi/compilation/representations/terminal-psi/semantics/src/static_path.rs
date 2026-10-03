@@ -195,19 +195,6 @@ pub fn canonical_structural_path_tip<'a>(
     matching.next().is_none().then_some(declaration)
 }
 
-/// Resolve `path` from `root` to its tip declaration over runtime field
-/// identities and declaration-local case IDs. The common projection walk
-/// rejects ambiguous declarations and preserves the declared structural tip;
-/// scalar field endpoints retain their separate carrier policies. This grants
-/// no active-case, access or establishment authority for the root.
-pub fn runtime_structural_path_tip<'a>(
-    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<&'a StructuralTypeDeclaration> {
-    crate::canonical_static_projection(types, root, path).map(|(_, declaration)| declaration)
-}
-
 /// Resolve a case-qualified structural leaf by declaration-local identities.
 /// Each Case enters one sum payload namespace and must be followed by its
 /// field. This checks static type meaning only: it does not establish that

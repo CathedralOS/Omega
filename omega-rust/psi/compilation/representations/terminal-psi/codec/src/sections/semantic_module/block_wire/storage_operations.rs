@@ -537,23 +537,37 @@ pub(super) fn encode_structural_byte_view_field_store(
     path: Vec<StructuralPathSegment>,
     field: StructuralFieldId,
     source: PlaceId,
+    predicate_obligation: Option<ObligationId>,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::STRUCTURAL_BYTE_VIEW_FIELD_STORE);
+    writer.u8(if predicate_obligation.is_some() {
+        operation_tags::PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE
+    } else {
+        operation_tags::STRUCTURAL_BYTE_VIEW_FIELD_STORE
+    });
     writer.id(destination);
     encode_structural_path(writer, "structural byte view field store path", &path)?;
     writer.id(field);
     writer.id(source);
+    if let Some(obligation) = predicate_obligation {
+        writer.id(obligation);
+    }
     Ok(())
 }
 
 pub(super) fn decode_structural_byte_view_field_store(
     reader: &mut Reader<'_>,
+    predicate_checked: bool,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::StructuralByteViewFieldStore {
         destination: reader.id("PlaceId")?,
         path: decode_structural_path(reader)?,
         field: reader.id("StructuralFieldId")?,
         source: reader.id("PlaceId")?,
+        predicate_obligation: if predicate_checked {
+            Some(reader.id("ObligationId")?)
+        } else {
+            None
+        },
     })
 }
 

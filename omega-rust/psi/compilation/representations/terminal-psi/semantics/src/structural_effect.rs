@@ -1739,6 +1739,7 @@ pub fn structural_effect_leaf_observation_in(
                 path,
                 field,
                 source,
+                ..
             },
         ) => StructuralEffectObservation::ByteViewFieldStored {
             destination: *destination,

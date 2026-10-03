@@ -110,6 +110,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     }
     validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
     let call_accesses = crate::current_ownership::CallAccesses::new(&machines, &structural_types);
+    let mut descriptor_requirements = BTreeMap::new();
     for function in &unit.functions {
         validate_function(
             unit,
@@ -121,9 +122,11 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
             &structural_domains,
             cycle_policy,
             &call_accesses,
+            descriptor_requirements.entry(function.machine).or_default(),
         )?;
         validate_structural_field_range_authority(unit, function, &structural_types)?;
     }
+    crate::current_ownership::validate_descriptor_compatibility(unit, &descriptor_requirements)?;
     Ok(UnitIndexes {
         machines,
         boundary_machines,
@@ -345,6 +348,65 @@ fn validate_structural_field_range_authority(
                     .count()
                     != 1
                 {
+                    return Err(invalid);
+                }
+            }
+            O::StructuralByteViewFieldStore {
+                psi_operation,
+                destination,
+                path,
+                field,
+                source,
+                predicate_obligation,
+            } => {
+                // A retained certificate proves this exact source at this
+                // operation. Reconstruct after rewriting: neither a sibling
+                // field's qualification nor an old source's proof transfers.
+                let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                let required = function_structure::byte_field_predicates(
+                    unit,
+                    function,
+                    *destination,
+                    path,
+                    *field,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let established = function_structure::whole_source_predicates(
+                    unit.structural_types.iter(),
+                    unit.structural_domains.iter(),
+                    function,
+                    *source,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                if let Some(obligation) = predicate_obligation {
+                    if required.is_empty() {
+                        return Err(invalid);
+                    }
+                    let goal = terminal_semantics::byte_predicate_requirement(
+                        required,
+                        established,
+                        *source,
+                        &[],
+                    );
+                    let proposition = terminal_codec::canonical_proposition_order_key(&goal)
+                        .map_err(|_| invalid.clone())?;
+                    if unit
+                        .accepted_obligation_facts
+                        .iter()
+                        .filter(|fact| {
+                            fact.machine == function.machine
+                                && fact.operation == *psi_operation
+                                && fact.obligation == *obligation
+                                && fact.proposition == proposition
+                                && fact.psi == unit.psi
+                                && fact.has_canonical_identity()
+                        })
+                        .count()
+                        != 1
+                    {
+                        return Err(invalid);
+                    }
+                } else if !established.implies(required) {
                     return Err(invalid);
                 }
             }

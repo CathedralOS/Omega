@@ -32,6 +32,11 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 psi_operation,
                 range_obligation: Some(obligation),
                 ..
+            }
+            | O::StructuralByteViewFieldStore {
+                psi_operation,
+                predicate_obligation: Some(obligation),
+                ..
             } => expected.push(OptimizationFact::OperationObligationReference {
                 obligation: *obligation,
                 support: *psi_operation,

@@ -27,6 +27,9 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
             if call.arguments.iter().any(|argument|
                 matches!(argument, LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place)))
+                    || matches!(&row.kind,
+                        LegalizedScalarInstructionKind::StructuralByteViewFieldStore { source, .. }
+                        if *source == place)
             })
 }
 
@@ -388,29 +391,6 @@ pub(super) fn accepts_view_loan(
 
 /// Completed owned concatenations are readable byte storage, without granting
 /// the borrowed descriptor ABI or mutable view authority to their owner.
-/// The declared borrowed-view type of an established literal place. A view
-/// field store relocates only this descriptor: its verified source is a
-/// literal, never a parameter view, subslice or owned concatenation.
-pub(super) fn literal_view_type(
-    source: &LegalizedScalarFunction,
-    place: PlaceId,
-) -> Option<semantic_vocabulary::StructuralTypeId> {
-    source
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .find_map(|row| match &row.kind {
-            LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
-                destination,
-                structural_type,
-                ..
-            } if destination.id == place && structural_type.shape.is_borrowed_byte_view() => {
-                Some(structural_type.id)
-            }
-            _ => None,
-        })
-}
-
 pub(super) fn readable_byte_type(
     source: &LegalizedScalarFunction,
     place: PlaceId,

@@ -222,6 +222,7 @@ pub(super) fn lower(
             path,
             field,
             source,
+            predicate_obligation,
         } => {
             if operation.result != terminal_psi::OperationResult::Unit {
                 return Err(LoweringError::InvalidStructuralByteViewFieldStore(
@@ -234,6 +235,7 @@ pub(super) fn lower(
                 path: path.clone(),
                 field: *field,
                 source: *source,
+                predicate_obligation: *predicate_obligation,
             })
         }
         OperationKind::StructuralByteSequenceFieldStore {

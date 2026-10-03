@@ -290,9 +290,39 @@ pub(super) fn authored_occurrences(
                     ))?;
                 None
             }
-            ExpressionNode::Call(call) => {
+            ExpressionNode::Call(call) => 'call: {
+                if !call.carries_only_positional_arguments()
+                    || !call.selects_only_nominal_route()
+                    || calls.contains(&expression)
+                {
+                    return unsupported("nested call has no unique supported authored occurrence");
+                }
+                calls.push(expression);
+                let arguments = table.expression_handles(call.arguments);
+                if arguments.len() != call.arguments.count() as usize {
+                    return unsupported("nested expression call has an invalid argument span");
+                }
+                let ordinal = next_ordinal;
+                next_ordinal = next_ordinal
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested authored call ordinal space is exhausted",
+                    ))?;
+                if typed_trees::byte_predicates::byte_predicate_call(&checked.typed, expression)
+                    .is_some()
+                {
+                    let (_, operand) = crate::expression_preparation::source_custody::computation_calls::byte_predicates::operands(
+                        checked, expression,
+                    )?;
+                    // The selected scalar observation owns this authored
+                    // coordinate, but invokes no machine. Its operand still
+                    // evaluates here and may contain independently checked
+                    // calls with subsequent preorder coordinates.
+                    children.push((operand, true));
+                    break 'call None;
+                }
                 let signature = target_signature(checked, machine.symbol, call.target_symbol)?;
-                let outer = next_ordinal == 0 && expression == outer_expression;
+                let outer = ordinal == 0 && expression == outer_expression;
                 if signature.boundary
                     && !outer
                     && (!direct_argument
@@ -325,7 +355,7 @@ pub(super) fn authored_occurrences(
                         caller_state,
                         checked_trees::CheckedUnitCallCoordinate {
                             statement_index,
-                            call_ordinal: next_ordinal,
+                            call_ordinal: ordinal,
                         },
                         expression,
                     )?;
@@ -412,31 +442,14 @@ pub(super) fn authored_occurrences(
                             caller_state,
                             checked_trees::CheckedUnitCallCoordinate {
                                 statement_index,
-                                call_ordinal: next_ordinal,
+                                call_ordinal: ordinal,
                             },
                             expression,
                         )?;
                         children.push((call.receiver, true));
                     }
                 }
-                if !call.carries_only_positional_arguments()
-                    || !call.selects_only_nominal_route()
-                    || calls.contains(&expression)
-                {
-                    return unsupported("nested call has no unique supported authored occurrence");
-                }
-                calls.push(expression);
-                let arguments = table.expression_handles(call.arguments);
-                if arguments.len() != call.arguments.count() as usize {
-                    return unsupported("nested expression call has an invalid argument span");
-                }
                 children.extend(arguments.iter().map(|argument| (*argument, true)));
-                let ordinal = next_ordinal;
-                next_ordinal = next_ordinal
-                    .checked_add(1)
-                    .ok_or(LoweringError::Unsupported(
-                        "nested authored call ordinal space is exhausted",
-                    ))?;
                 Some(ordinal)
             }
             ExpressionNode::StructLiteral(literal) => {
@@ -625,4 +638,87 @@ fn internal_jump(
             .machine_states(machine)
             .iter()
             .any(|state| state.symbol == target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn byte_observation_reserves_preorder_without_hiding_resolved_calls() {
+        for declaration in ["", "machine valid_utf8(bytes: &[u8]) -> bool { false }"] {
+            let checked = crate::front_end::checked_program(&format!(
+                "{declaration}
+                boundary trait Output {{ machine pair(first: bool, second: bool) reaches Output; }}
+                machine other() -> bool {{ true }}
+                machine inspect(bytes: &[u8]) reaches Output {{
+                    Output::pair(valid_utf8(bytes), other());
+                }}"
+            ));
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "inspect")
+                .expect("inspect");
+            let state = &checked.machine_states(machine)[0];
+            let (statement_index, _) = checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+                .find(|(_, statement)| matches!(statement, StatementNode::Call(_)))
+                .expect("outer statement");
+            let occurrences = authored_occurrences(&checked, state.symbol, statement_index as u32)
+                .expect("authored nested computation order");
+            let expressions = occurrences
+                .iter()
+                .filter_map(|(ordinal, occurrence)| match occurrence {
+                    AuthoredOccurrence::Expression(expression) => Some((*ordinal, *expression)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                expressions.len(),
+                if declaration.is_empty() { 1 } else { 2 }
+            );
+            let flow = checked
+                .facts
+                .flow
+                .control
+                .states
+                .iter()
+                .map(|(_, state)| state)
+                .find(|flow| flow.state_symbol == state.symbol)
+                .expect("flow state");
+            let captured = checked
+                .facts
+                .flow
+                .control
+                .calls
+                .span(flow.calls)
+                .expect("call facts");
+            for (ordinal, expression) in expressions {
+                let call = captured
+                    .iter()
+                    .find(|call| call.authored_expression == expression)
+                    .expect("exact captured expression");
+                assert_eq!(ordinal as usize, call.call_ordinal);
+                let ExpressionNode::Call(authored) =
+                    checked.expression_table.expression(expression)
+                else {
+                    panic!("expression occurrence is a call")
+                };
+                assert!(
+                    authored.target_symbol.is_valid(),
+                    "only real declarations invoke machines"
+                );
+                if authored.target.as_str() == "other" {
+                    assert_eq!(
+                        ordinal, 2,
+                        "primitive and resolved calls both retain their first coordinate"
+                    );
+                }
+            }
+        }
+    }
 }

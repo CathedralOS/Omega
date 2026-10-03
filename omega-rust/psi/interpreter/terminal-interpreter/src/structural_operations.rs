@@ -1246,7 +1246,8 @@ impl TerminalExecution {
     /// place by copying its cells: the source subtree stays fully intact, so
     /// shared loans admit the observation where a move would vacate borrowed
     /// storage. The result's opaque identity is new; later writes to either
-    /// place cannot alias.
+    /// carrier cannot alias. Copied shared descriptors still retain the same
+    /// backing window; only their descriptor storage is independent.
     pub(crate) fn execute_structural_leaf_copy(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -1328,20 +1329,34 @@ impl TerminalExecution {
         {
             return self.copy_whole_scalar_payload(*source, result);
         }
-        let leaf = match &operation.kind {
-            OperationKind::StructuralLeafCopy { source, path } => resolve_structural_arguments(
-                &self.program.structural_types,
-                &self.structural_values,
-                &[StructuralArgument {
-                    place: *source,
-                    path: path.clone(),
-                    access: StructuralAccess::SharedBorrow,
-                }],
-            )?
-            .pop()
-            .ok_or_else(invalid)?,
+        let (leaf, source, endpoint_field) = match &operation.kind {
+            OperationKind::StructuralLeafCopy { source, path } => {
+                let root = self.structural_values.get(source).ok_or_else(invalid)?;
+                let leaf = crate::custody::project_structural_leaf_copy(
+                    &self.program.structural_types,
+                    root,
+                    path,
+                )?;
+                let field = crate::custody::inline_structural_field(
+                    &self.program.structural_types,
+                    root.structural_type,
+                    path,
+                )
+                .map(|field| field.id);
+                (leaf, *source, field)
+            }
             OperationKind::StructuralCaseLeafCopy { source, path } => {
-                self.case_payload_leaf(*source, path)?
+                // Membership and typed endpoint selection remain owned by the
+                // case walker. Its canonical final field identifies the same
+                // runtime cell namespace as an ordinary resolved projection.
+                let leaf = self.case_payload_leaf(*source, path)?;
+                let field = match path.last() {
+                    Some(semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)) => {
+                        Some(*field)
+                    }
+                    _ => None,
+                };
+                (leaf, *source, field)
             }
             _ => return Err(invalid()),
         };
@@ -1358,6 +1373,44 @@ impl TerminalExecution {
             qualifications: Vec::new(),
             path: Vec::new(),
         };
+        if self
+            .program
+            .structural_types
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+            })
+        {
+            let root = self.structural_values.get(&source).ok_or_else(invalid)?;
+            let bytes = if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
+                && root.structural_type == leaf.structural_type
+            {
+                self.byte_sequence_values
+                    .get(&source)
+                    .ok_or_else(invalid)?
+                    .immutable()?
+                    .clone()
+            } else {
+                let mut parent = StructuralRuntimePlace::from(&leaf);
+                parent.path.pop().ok_or_else(invalid)?;
+                let cell = StructuralByteSequenceRuntimeField {
+                    parent,
+                    field: endpoint_field.ok_or_else(invalid)?,
+                };
+                self.structural_byte_sequence_fields
+                    .get(&cell)
+                    .ok_or_else(invalid)?
+                    .clone()
+            };
+            // ByteSequenceView clones its backing handle and exact window.
+            // This copies the descriptor, not octets; replacing the source
+            // slot cannot retarget this completed value's retained backing.
+            if self.byte_sequence_values.contains_key(&result.place) {
+                return Err(invalid());
+            }
+            self.byte_sequence_values
+                .insert(result.place, ByteSequenceBinding::Immutable(bytes));
+        }
         self.clone_subtree(
             &StructuralRuntimePlace::from(&leaf),
             &StructuralRuntimePlace::from(&copied),

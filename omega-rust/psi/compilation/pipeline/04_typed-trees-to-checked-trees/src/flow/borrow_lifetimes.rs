@@ -65,6 +65,49 @@ pub(crate) fn filter_reassigned_borrow_loans(
     statement: &typed_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
+    if matches!(statement, typed_trees::statement::StatementNode::Call(_)) {
+        let machine = program.machines().iter().find(|machine| {
+            program.machine_states(machine).iter().any(|state| {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .get(statement_index)
+                    .is_some_and(|candidate| std::ptr::eq(candidate, statement))
+            })
+        });
+        let mut owned_frames = None;
+        let effects = machine.and_then(|machine| {
+            crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+                .and_then(|frames| frames.stored_reference_effects(machine, statement))
+        });
+        let Some(effects) = effects else {
+            return source;
+        };
+        return reference_spans::filter_constraint_refs(constraint_refs, source, |constraint| {
+            let FlowConstraintKind::BorrowLoan { loan } = constraint.kind else {
+                return true;
+            };
+            let active = borrow.loans.get(loan);
+            let replaced = active.statement_index < statement_index
+                && effects.iter().any(|effect| {
+                    !effect.retains_incoming
+                        && active.owner_symbol == effect.destination.local_symbol
+                        && borrow_owner_path_overlaps_place(
+                            program,
+                            borrow.loan_owner_path(active),
+                            &effect.destination.local_segments,
+                        )
+                });
+            if replaced {
+                borrow_weakenings.append(FlowBorrowWeakeningFact {
+                    source: FlowInvalidationSource::Statement { statement_index },
+                    loan,
+                    reason: FlowBorrowWeakeningReason::LocalReassigned,
+                });
+            }
+            !replaced
+        });
+    }
     let Some(place) = reassigned_place else {
         return source;
     };

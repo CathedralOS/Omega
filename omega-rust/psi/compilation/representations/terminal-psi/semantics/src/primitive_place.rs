@@ -253,6 +253,21 @@ pub fn canonical_static_projection<'a>(
     Some((canonical?, tip))
 }
 
+/// Resolve the declared structural tip of a runtime projection. A dynamic
+/// selector determines an element type without identifying a canonical static
+/// place. Bounds, live backing and access remain the consuming operation's
+/// obligations; this query cannot turn a runtime selector into a field fact.
+pub fn runtime_structural_path_tip<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<&'a StructuralTypeDeclaration> {
+    match walk_primitive_projection(declarations, root, path, |_| {})? {
+        ProjectionTip::Declared(tip) => Some(tip),
+        ProjectionTip::ScalarField(_) | ProjectionTip::ByteElement => None,
+    }
+}
+
 /// The tip of a primitive projection: a declared structural type, or a byte
 /// carrier's element — the u8 scalar that rides no declared identity.
 enum ProjectionTip<'a> {
@@ -372,7 +387,8 @@ fn walk_primitive_projection<'a>(
             }
             (
                 StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::FixedArray { element, .. },
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element },
             ) => {
                 step(None);
                 Position::Declared(*element)
@@ -564,6 +580,53 @@ mod tests {
                 None
             );
         }
+    }
+
+    #[test]
+    fn runtime_structural_tip_does_not_require_or_invent_a_static_place() {
+        let element = StructuralTypeId::new(1).unwrap();
+        let owner = StructuralTypeId::new(2).unwrap();
+        let view = StructuralTypeId::new(3).unwrap();
+        let declarations = [
+            StructuralTypeDeclaration {
+                id: element,
+                identity: "Element".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: owner,
+                identity: "Array".into(),
+                shape: StructuralTypeShape::FixedArray { element, length: 4 },
+            },
+            StructuralTypeDeclaration {
+                id: view,
+                identity: "View".into(),
+                shape: StructuralTypeShape::ElementView { element },
+            },
+        ];
+        let dynamic = [StructuralPathSegment::RuntimeIndex {
+            index: semantic_vocabulary::ValueId::new(1).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        }];
+        for root in [owner, view] {
+            assert_eq!(
+                super::runtime_structural_path_tip(declarations.iter(), root, &dynamic)
+                    .map(|row| row.id),
+                Some(element)
+            );
+            assert!(
+                super::canonical_static_projection(declarations.iter(), root, &dynamic).is_none()
+            );
+        }
+        for (root, path) in [
+            (element, dynamic.to_vec()),
+            (view, vec![StructuralPathSegment::FixedIndex(0)]),
+            (owner, vec![StructuralPathSegment::FixedIndex(4)]),
+        ] {
+            assert!(super::runtime_structural_path_tip(declarations.iter(), root, &path).is_none());
+        }
+        let duplicated = declarations.iter().chain(std::iter::once(&declarations[0]));
+        assert!(super::runtime_structural_path_tip(duplicated, owner, &dynamic).is_none());
     }
 
     /// `cells[i].hp` resolves for a read, never for a store, and only when an

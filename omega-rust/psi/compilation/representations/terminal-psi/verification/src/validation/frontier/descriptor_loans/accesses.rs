@@ -11,6 +11,7 @@ use terminal_psi::{
 };
 use terminal_semantics::borrowed_storage::{Position, Projection};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Access {
     pub place: PlaceId,
     pub projection: Projection,
@@ -176,6 +177,32 @@ fn byte_payload_projection(
             .push(StructuralPathSegment::Field(field.identity.clone()));
     }
     projection
+}
+
+/// Content reads share the operand's exact field/backing geometry regardless
+/// of the Boolean or byte result the consumer produces.
+fn byte_operand(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operand: &terminal_psi::control_flow::ByteSequenceOperand,
+    position: Position,
+) -> Access {
+    match operand {
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+            whole(*source, false)
+        }
+        terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => Access {
+            place: source.place,
+            projection: byte_payload_projection(
+                module,
+                root_type(machine, source.place),
+                &source.path,
+                *field,
+                position,
+            ),
+            exclusive: false,
+        },
+    }
 }
 
 /// Resolve the separate field ID only after the carrier projection is exact.
@@ -378,6 +405,7 @@ pub(super) fn operation(
             path,
             field,
             source,
+            ..
         } => vec![
             projected(*destination, path, Some(*field), true),
             whole(*source, false),
@@ -472,27 +500,14 @@ pub(super) fn operation(
                 terminal_psi::RecordFieldValue::Scalar { .. } => None,
             })
             .collect(),
-        OperationKind::EstablishByteSequenceConcatenation { left, right, .. } => [left, right]
+        OperationKind::EstablishByteSequenceConcatenation { left, right, .. }
+        | OperationKind::ByteSequenceEqual { left, right } => [left, right]
             .into_iter()
-            .map(|operand| match operand {
-                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                    whole(*source, false)
-                }
-                terminal_psi::control_flow::ByteSequenceOperand::Field {
-                    source, field, ..
-                } => Access {
-                    place: source.place,
-                    projection: byte_payload_projection(
-                        module,
-                        root_type(machine, source.place),
-                        &source.path,
-                        *field,
-                        position,
-                    ),
-                    exclusive: false,
-                },
-            })
+            .map(|operand| byte_operand(module, machine, operand, position))
             .collect(),
+        OperationKind::ByteSequencePredicate { operand, .. } => {
+            vec![byte_operand(module, machine, operand, position)]
+        }
         // Catalog-only operations do not expose direct root operands. Until
         // their catalog adapter supplies exact effects, retain indirect access.
         OperationKind::StoreDynamicDescriptor { .. }
@@ -553,28 +568,28 @@ pub(super) fn may_escape(
             });
     }
     if let OperationKind::CallUnit {
-        structural_arguments,
-        claim_transfers,
-        ..
+        claim_transfers, ..
     }
     | OperationKind::CallStructuralScalar {
-        structural_arguments,
-        claim_transfers,
-        ..
+        claim_transfers, ..
     } = &operation.kind
     {
         return !matches!(
             operation.result,
             OperationResult::Unit | OperationResult::Scalar(_)
         ) || !claim_transfers.is_empty()
-            || structural_arguments.iter().any(|argument| {
-                argument.access != StructuralAccess::SharedBorrow
-                    && !super::call_accesses::argument_storage_closed(module, machine, argument)
-            });
+            || terminal_semantics::descriptor_results::call_stored_effects(
+                module, machine, operation,
+            )
+            .is_none();
     }
     !matches!(
         operation.kind,
-        OperationKind::ElementViewLength { .. }
+        OperationKind::StructuralByteViewFieldStore { .. }
+            | OperationKind::StructuralLeafCopy { .. }
+            | OperationKind::StructuralByteSequenceFieldLength { .. }
+            | OperationKind::StructuralByteSequenceFieldRead { .. }
+            | OperationKind::ElementViewLength { .. }
             | OperationKind::ElementViewRead { .. }
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ByteSequenceRead { .. }
@@ -644,6 +659,62 @@ pub(crate) fn observation_projection(
             selected
         }
     }
+}
+
+/// Resolve backing demand through the descriptor value present at this exact
+/// position. Descriptor replacement itself uses direct slot geometry and must
+/// never be mistaken for a write through the displaced descriptor.
+pub(super) fn regions(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    aliases: &terminal_semantics::borrowed_storage::AliasSources,
+    position: Position,
+    access: &Access,
+    analysis: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'_>,
+) -> Vec<terminal_semantics::borrowed_storage::Region> {
+    use terminal_semantics::{
+        borrowed_storage::{self, Region},
+        descriptor_results::DescriptorCallOrigin,
+    };
+    if access.projection.indirect {
+        for length in (0..=access.projection.path.len()).rev() {
+            let Some(location) = super::flow::location(
+                module,
+                machine,
+                access.place,
+                &access.projection.path[..length],
+                None,
+            ) else {
+                continue;
+            };
+            let is_descriptor = root_type(machine, access.place).is_some_and(|ty| {
+                terminal_semantics::descriptor_results::descriptor_slots(
+                    &module.structural_types,
+                    access.place,
+                    ty,
+                )
+                .is_some_and(|slots| slots.contains(&location))
+            });
+            if !is_descriptor {
+                continue;
+            }
+            let Some(origins) = analysis.source_origins(machine.id, position, &location) else {
+                continue;
+            };
+            let suffix = Projection::new(&access.projection.path[length..]).at(position);
+            return origins
+                .into_iter()
+                .filter_map(|origin| match origin {
+                    DescriptorCallOrigin::Argument { source, projection } => Some(Region {
+                        root: Some(source),
+                        projection: projection.then(&suffix),
+                    }),
+                    DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty => None,
+                })
+                .collect();
+        }
+    }
+    borrowed_storage::resolve(aliases, access.place, access.projection.clone())
 }
 
 #[cfg(test)]

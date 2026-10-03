@@ -37,6 +37,7 @@ struct StateTransitionEdge {
 
 pub(super) fn check_persistent_borrow_assignments(
     program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -46,6 +47,7 @@ pub(super) fn check_persistent_borrow_assignments(
     let mut owned_call_frames = None;
     let call_frames =
         crate::flow::shared_call_frames_or(call_frames, program, &mut owned_call_frames);
+    check_stored_output_relations(program, facts, call_frames, diagnostics);
     for machine in program.machines() {
         let persistent = persistent_storage(program, machine);
         if persistent.is_empty() {
@@ -71,6 +73,84 @@ pub(super) fn check_persistent_borrow_assignments(
                 true,
             );
             diagnostics.extend(state_diagnostics);
+        }
+    }
+}
+
+/// Actual installed loans create the effect obligation. Merely accepting a
+/// mutable aggregate parameter does not: scalar writes and unrelated helpers
+/// must not acquire a new slot-summary requirement from their parameter type.
+fn check_stored_output_relations(
+    program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut obligated = Vec::new();
+    for machine in program.machines() {
+        let mut stores = false;
+        for state in program.machine_states(machine) {
+            let Some(borrowing) = facts.borrow.states.iter().map(|(_, row)| row).find(|row| {
+                row.machine_symbol == machine.symbol && row.state_symbol == state.symbol
+            }) else {
+                continue;
+            };
+            for (_, loan) in facts
+                .borrow
+                .loans
+                .iter()
+                .filter(|(handle, _)| facts.borrow.state_owns_loan(borrowing, *handle))
+            {
+                if loan.kind != checked_trees::BorrowAccessKind::Read
+                    || facts.borrow.loan_owner_path(loan).is_empty()
+                    || !program.state_parameters(state).iter().any(|parameter| {
+                        parameter.symbol == loan.owner_symbol
+                            && crate::borrow::reference_borrow_access_kind(
+                                program,
+                                parameter.type_reference,
+                            )
+                            .is_some()
+                    })
+                {
+                    continue;
+                }
+                stores = true;
+            }
+        }
+        if stores {
+            obligated.push(machine.symbol);
+        }
+    }
+    for machine in program.machines() {
+        if obligated.contains(&machine.symbol)
+            && program.machine_states(machine).first().is_none_or(|entry| {
+                frames
+                    .and_then(|frames| frames.state_stored_reference_effects(machine, entry))
+                    .is_none()
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!("machine `{}` stores a borrowed value without a complete normal-exit backing relation", machine.name)));
+        }
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::Call(call) = statement else {
+                    continue;
+                };
+                let requires_relation = program.machines().iter().any(|callee| {
+                    obligated.contains(&callee.symbol)
+                        && program
+                            .machine_states(callee)
+                            .iter()
+                            .any(|state| state.symbol == call.target_symbol)
+                });
+                if requires_relation
+                    && frames
+                        .and_then(|frames| frames.stored_reference_effects(machine, statement))
+                        .is_none()
+                {
+                    diagnostics.push(Diagnostic::error("call stores a borrowed value without a complete destination/backing relation"));
+                }
+            }
         }
     }
 }

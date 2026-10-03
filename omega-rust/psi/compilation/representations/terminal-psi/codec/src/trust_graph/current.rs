@@ -34,11 +34,11 @@ use super::{
     TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE, TERMINAL_FIXED_BYTE_VIEW_SOURCE,
     TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_RECORD_FIELD_SOURCE,
     TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SCALAR_ARRAY_SOURCE,
-    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
-    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
-    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
-    VERIFIER_SOURCE_CLOSURE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
-    validate_terminal_trust_graph,
+    TERMINAL_SEMANTICS_SOURCE, TERMINAL_SEMANTICS_SOURCE_CLOSURE,
+    TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
+    TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
+    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE, VERIFIER_VALIDATION_SOURCE,
+    ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
 };
 use crate::sections::semantic_module::FORMAT_MARKER;
 use terminal_semantics::{
@@ -413,6 +413,10 @@ fn verifier_node() -> TrustDependencyNode {
         &[
             ("terminal-codec/build.rs", SOURCE_CLOSURE_BUILD_SOURCE),
             ("terminal-verifier/source-closure", VERIFIER_SOURCE_CLOSURE),
+            (
+                "terminal-semantics/source-closure",
+                TERMINAL_SEMANTICS_SOURCE_CLOSURE,
+            ),
             ("terminal-verifier/lib.rs", VERIFIER_LIB_SOURCE),
             (
                 "terminal-verifier/validation.rs",
@@ -470,6 +474,10 @@ fn ledger_framework_node() -> TrustDependencyNode {
             ),
             ("terminal-codec/build.rs", SOURCE_CLOSURE_BUILD_SOURCE),
             ("terminal-verifier/source-closure", VERIFIER_SOURCE_CLOSURE),
+            (
+                "terminal-semantics/source-closure",
+                TERMINAL_SEMANTICS_SOURCE_CLOSURE,
+            ),
             (
                 "terminal-verifier/validation.rs",
                 VERIFIER_VALIDATION_SOURCE,

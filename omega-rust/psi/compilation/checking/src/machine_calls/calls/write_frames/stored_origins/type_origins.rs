@@ -194,6 +194,7 @@ fn walk_declared_origins(
                         path,
                         precision,
                         source: super::super::FrameSourcePlace {
+                            kind: Default::default(),
                             root: symbol,
                             segments,
                             builtin_coordinates: symbol.is_valid(),
@@ -295,6 +296,7 @@ fn walk_declared_origins(
             super::super::path_instantiation::aggregate_arguments::AggregateMove {
                 local_segments: Vec::new(),
                 source: super::super::FrameSourcePlace {
+                    kind: Default::default(),
                     root: origins.local_symbol,
                     segments: Vec::new(),
                     builtin_coordinates: origins.local_symbol.is_valid(),

@@ -177,10 +177,12 @@ impl OperationFrame<'_, '_> {
             // A view local this call bound joins the view roster: its lengths
             // and element reads resolve through the place the locals join
             // named, and the produced type names which view family it is.
-            if let Some(carrier) = crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
-                produced.structural_type,
-                self.structural_types.declarations(),
-            ) {
+            if let Some(carrier) =
+                crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
+                    produced.structural_type,
+                    self.structural_types.declarations(),
+                )
+            {
                 let (_, source) = crate::expression_preparation::source_custody::authored_state(
                     self.checked,
                     self.state,

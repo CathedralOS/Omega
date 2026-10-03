@@ -30,12 +30,14 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
     parameter.is_self = false;
     let place = parameter.place;
     let identity = parameter.structural_type;
-    function.block_entries.push(abstract_operations::AbstractBlockEntry {
-        block,
-        structural_parameters: vec![parameter.clone()],
-        parameters: Vec::new(),
-        operation_offset: 0,
-    });
+    function
+        .block_entries
+        .push(abstract_operations::AbstractBlockEntry {
+            block,
+            structural_parameters: vec![parameter.clone()],
+            parameters: Vec::new(),
+            operation_offset: 0,
+        });
     target.graph.parameters.clear();
     target.graph.blocks[0].block = block;
     target.graph.blocks[0].structural_parameters = vec![parameter];
@@ -46,17 +48,31 @@ fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
             capacity: 48,
             access: Some(StructuralAccess::SharedBorrow),
         }),
-    }].into();
+    }]
+    .into();
     let read = |function: &AbstractFunction, target: &TargetFunction| {
         super::read_access(function, target, place, super::AccessPurpose::Field)
     };
-    assert_eq!(read(&function, &target), Some((StructuralAccess::SharedBorrow, identity)));
+    assert_eq!(
+        read(&function, &target),
+        Some((StructuralAccess::SharedBorrow, identity))
+    );
     let mut changed = target.clone();
     changed.graph.blocks[0].structural_parameters[0].position = 1;
-    assert_eq!(read(&function, &changed), None, "the target must retain the exact declaration");
+    assert_eq!(
+        read(&function, &changed),
+        None,
+        "the target must retain the exact declaration"
+    );
     for (access, multiplicity) in [
-        (StructuralAccess::WriteOnlyBorrow, StructuralMultiplicity::Unrestricted),
-        (StructuralAccess::SharedBorrow, StructuralMultiplicity::Linear),
+        (
+            StructuralAccess::WriteOnlyBorrow,
+            StructuralMultiplicity::Unrestricted,
+        ),
+        (
+            StructuralAccess::SharedBorrow,
+            StructuralMultiplicity::Linear,
+        ),
     ] {
         let mut changed_function = function.clone();
         let mut changed_target = target.clone();

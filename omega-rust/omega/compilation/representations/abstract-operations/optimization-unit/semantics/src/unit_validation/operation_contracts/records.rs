@@ -449,12 +449,17 @@ fn record_type(
                 // the loan source instead of owning referent cells.
                 StructuralFieldType::Structural(child)
                     if shared_view_members && shared_view_member(types, child) => {}
-                // A borrowed view is a relocated descriptor, not owned leaf
-                // storage: records carrying one stay plain but may be locally
-                // constructed, where the binding roster checks the loan source.
+                // Predicates constrain the descriptor's current content, not
+                // the containing record's storage-loan permission. Both field
+                // presentations retain their backing through descriptor replay;
+                // field-store validation independently checks the predicates.
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ) if references || shared_view_members => {}
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                    ..
+                } if references || shared_view_members => {}
                 // Primitive arrays retain owned scalar storage as record fields.
                 // Replay the complete element chain, including below zero extents.
                 StructuralFieldType::Structural(child)
@@ -535,9 +540,12 @@ pub(crate) fn constructible(
     true
 }
 
-/// Reconstruct the completed owner, not merely a same-shaped source contract.
-/// Borrowed receivers retain this owner's storage and do not change its disposal debt.
-pub(crate) fn completed_record_source<'a>(
+/// Reconstruct the owned carrier lent to an ordinary call. Memberwise locals
+/// establish the same storage as whole constructors; current initialization,
+/// dominance and ownership replay still check the particular call occurrence.
+/// Stored shared views keep their backing loans independently: lending their
+/// carrier does not lend exclusive access to the referenced bytes.
+fn record_loan_source<'a>(
     function: &'a PsiOptimizationFunction,
     place: PlaceId,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -549,6 +557,7 @@ pub(crate) fn completed_record_source<'a>(
         .filter_map(|node| match &node.operation {
             O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }
+            | O::EstablishStructuralLocal { result, .. }
             | O::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -564,7 +573,7 @@ pub(crate) fn completed_record_source<'a>(
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
-        && plain_record(types, result.structural_type))
+        && record_type(types, result.structural_type, false, true))
     .then_some(result)
 }
 
@@ -577,7 +586,7 @@ pub(crate) fn record_loan(
     argument.access != StructuralAccess::Owned
         && argument.access == parameter.access
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && completed_record_source(function, argument.place, types)
+        && record_loan_source(function, argument.place, types)
             .map(|result| result.structural_type)
             .or_else(|| {
                 // Whole and projected loans borrow the selected block value. This
@@ -599,7 +608,7 @@ pub(crate) fn record_loan(
                             )
                             && source.qualifications.is_empty()
                             && source.projected_qualifications.is_empty()
-                            && plain_record(types, source.structural_type)
+                            && record_type(types, source.structural_type, false, true)
                     })
                     .map(|source| source.structural_type)
             })

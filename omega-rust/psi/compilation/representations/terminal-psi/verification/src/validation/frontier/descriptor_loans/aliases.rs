@@ -1,6 +1,6 @@
 //! Current structural aliases and descriptor births. Both local loan replay and
 //! ordinary-call effects use this same source-chain reconstruction.
-use super::accesses;
+use super::{accesses, flow};
 use semantic_vocabulary::{OperationId, PlaceId};
 use std::collections::BTreeMap;
 use terminal_psi::{
@@ -8,14 +8,32 @@ use terminal_psi::{
     Terminator,
 };
 use terminal_semantics::borrowed_storage::{AliasSources, Position, Projection};
+use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
+use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 pub(super) struct Origins {
     pub aliases: AliasSources,
     pub positions: BTreeMap<OperationId, Position>,
-    pub births: Vec<(Position, PlaceId, PlaceId, Projection, StructuralAccess)>,
+    pub births: Vec<(
+        Position,
+        DescriptorLocation,
+        PlaceId,
+        Projection,
+        StructuralAccess,
+    )>,
 }
 
 pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) -> Origins {
+    let graph = terminal_semantics::descriptor_results::terminal_graph(module);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+    reconstruct_in(module, machine, &mut analysis)
+}
+
+pub(super) fn reconstruct_in(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
+) -> Origins {
     let mut aliases = AliasSources::new();
     let mut positions = BTreeMap::new();
     let mut births = Vec::new();
@@ -26,16 +44,63 @@ pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) ->
                 u32::try_from(index).expect("operation index fits u32"),
             );
             positions.insert(operation.id, position);
+            // A store/call installs a new slot value even when its source is
+            // an incoming descriptor with no local establishment. Capture its
+            // current backing at this position; never alias the whole owner.
+            if let OperationKind::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field,
+                source,
+                ..
+            } = &operation.kind
+                && let Some(destination) =
+                    flow::location(module, machine, *destination, path, Some(*field))
+                        .and_then(|location| analysis.location(machine.id, position, &location))
+            {
+                for origin in analysis
+                    .source_origins(machine.id, position, &DescriptorLocation::whole(*source))
+                    .into_iter()
+                    .flatten()
+                {
+                    if let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } = origin {
+                            births.push((position, destination.clone(), source, projection, StructuralAccess::SharedBorrow));
+                        }
+                }
+            }
+            for effect in analysis
+                .call_stored_effects(machine.id, position)
+                .into_iter()
+                .flatten()
+            {
+                for origin in effect.origins {
+                    if let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } = origin {
+                        births.push((position, effect.destination.clone(), source, projection, StructuralAccess::SharedBorrow));
+                    }
+                }
+            }
             let Some(result) = operation.result.structural() else {
                 continue;
             };
-            if let Some(origins) =
-                terminal_semantics::descriptor_results::call_origins(module, machine, operation)
+            if matches!(
+                operation.kind,
+                OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+            ) && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && terminal_semantics::descriptor_results::is_shared_descriptor(
+                    module.structural_types.iter(),
+                    result.structural_type,
+                )
+                && let Some(origins) = analysis.source_origins(
+                    machine.id,
+                    (position.0, position.1 + 1),
+                    &DescriptorLocation::whole(result.place),
+                )
             {
                 for origin in origins {
                     if let terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } = origin {
                         aliases.entry(result.place).or_default().push((source, projection.clone()));
-                        births.push((position, result.place, source, projection, StructuralAccess::SharedBorrow));
+                        births.push((position, DescriptorLocation::whole(result.place), source, projection, StructuralAccess::SharedBorrow));
                     }
                 }
             }
@@ -73,10 +138,19 @@ pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) ->
                 _ => None,
             };
             if let Some((source, projection)) = descriptor {
+                let current = analysis.source_origins(
+                    machine.id,
+                    (position.0, position.1 + 1),
+                    &DescriptorLocation::whole(result.place),
+                );
+                let sources = current.map(|origins| origins.into_iter().filter_map(|origin| match origin {
+                    terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, projection } => Some((source, projection)),
+                    terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal { .. } | terminal_semantics::descriptor_results::DescriptorCallOrigin::Empty => None,
+                }).collect::<Vec<_>>()).unwrap_or_else(|| vec![(source, projection.clone())]);
                 aliases
                     .entry(result.place)
                     .or_default()
-                    .push((source, projection.clone()));
+                    .extend(sources.clone());
                 // A temporary exclusive whole-array descriptor supplies the
                 // parent capability; its narrowed child owns the live loan.
                 // Shared establishment itself must keep its backing stable.
@@ -95,7 +169,15 @@ pub(super) fn reconstruct(module: &TerminalModule, machine: &TerminalMachine) ->
                             result.place,
                         )
                 {
-                    births.push((position, result.place, source, projection, access));
+                    for (source, projection) in sources {
+                        births.push((
+                            position,
+                            DescriptorLocation::whole(result.place),
+                            source,
+                            projection,
+                            access,
+                        ));
+                    }
                 }
             }
         }

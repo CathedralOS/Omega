@@ -19,7 +19,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 pub(super) enum AssignmentSource {
     /// An authored expression with its own checked value facts.
     Authored,
-    /// The completed owned byte result of this assignment's call.
+    /// The completed structural byte value of this assignment's call.
     StructuralCallResult {
         binding_ordinal: u32,
         result_type: typed_trees::types::TypeReferenceHandle,

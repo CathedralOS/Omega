@@ -1363,10 +1363,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
 fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
     match operation {
         CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
-            if matches!(
-                store.value.nodes.get(store.value.root),
-                checked_trees::CheckedByteSequenceValue::CallResult { .. }
-            ) =>
+            if store.value.completed_call_binding_ordinal().is_some() =>
         {
             Some(store.statement_index)
         }
@@ -1498,10 +1495,7 @@ fn statement_continuations(
                     if matches!(
                         store.destination,
                         checked_trees::CheckedByteSequenceStoreDestination::ViewField { .. }
-                    ) && !matches!(
-                        store.value.nodes.get(store.value.root),
-                        checked_trees::CheckedByteSequenceValue::CallResult { .. }
-                    ))
+                    ) && store.value.completed_call_binding_ordinal().is_none())
                 // A whole-element store into a displaced element is only the
                 // move-out/store window pair: whichever of them leads is the
                 // statement's first effect, not a continuation.
@@ -1622,19 +1616,16 @@ fn validate_displaced_field_replacement(
         CheckedUnitEffectOperationPlan::ByteSequenceStore(store),
     ] = roster
         && let Some(result) = call.structural_result()
-        && let checked_trees::CheckedByteSequenceValue::CallResult {
-            state: producer_state,
-            statement_index,
-            binding_ordinal,
-            ..
-        } = store.value.nodes.get(store.value.root)
-        && *producer_state == state.state
-        && *statement_index as usize == ordinal
-        && store.statement_index == *statement_index
-        && call.coordinate.statement_index == *statement_index
+        && let Some(binding_ordinal) =
+            crate::emission::structural_byte_sequence_store::completed_call_binding(
+                store,
+                state.state,
+            )?
+        && store.statement_index as usize == ordinal
+        && call.coordinate.statement_index == store.statement_index
         && call.coordinate.call_ordinal == 0
-        && result.statement_index == *statement_index
-        && result.binding_ordinal == *binding_ordinal
+        && result.statement_index == store.statement_index
+        && result.binding_ordinal == binding_ordinal
         && result.multiplicity == language_semantics::Multiplicity::Unrestricted
         && call.discard_result_on_return() == Some(false)
     {

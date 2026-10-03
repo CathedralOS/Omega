@@ -869,27 +869,27 @@ pub(crate) fn ordinary_projected_call_is_supported(
     // binding's, each disqualifying the other's rule.
     let retained_result_projection = |argument: &CheckedUnitStructuralArgumentPlan| {
         argument
-                .source_structural_result_binding_ordinal()
-                .is_some()
-                && (argument.path.split_last().is_some_and(|(last, prefix)| {
-                    *last == CheckedUnitStructuralPathSegment::Referent
-                        && prefix.iter().all(|segment| {
-                            matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
-                        })
-                }) || argument.path.split_first().is_some_and(|(first, suffix)| {
-                    // A returned plain-record permission lends a static child
-                    // without moving the carrier or creating an escaping loan.
-                    *first == CheckedUnitStructuralPathSegment::Referent
-                        && !suffix.is_empty()
-                        && suffix.iter().all(|segment| {
-                            matches!(
-                                segment,
-                                CheckedUnitStructuralPathSegment::Field(_)
-                                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                            )
-                        })
-                }))
-                && argument.access == CheckedStructuralAccess::MutableBorrow
+            .source_structural_result_binding_ordinal()
+            .is_some()
+            && (argument.path.split_last().is_some_and(|(last, prefix)| {
+                *last == CheckedUnitStructuralPathSegment::Referent
+                    && prefix.iter().all(|segment| {
+                        matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
+                    })
+            }) || argument.path.split_first().is_some_and(|(first, suffix)| {
+                // A returned plain-record permission lends a static child
+                // without moving the carrier or creating an escaping loan.
+                *first == CheckedUnitStructuralPathSegment::Referent
+                    && !suffix.is_empty()
+                    && suffix.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            CheckedUnitStructuralPathSegment::Field(_)
+                                | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                        )
+                    })
+            }))
+            && argument.access == CheckedStructuralAccess::MutableBorrow
     };
     if arguments
         .iter()

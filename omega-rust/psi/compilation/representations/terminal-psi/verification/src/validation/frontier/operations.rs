@@ -193,13 +193,21 @@ pub(super) fn apply_operation(
     // still enter this transaction even when their carrier is copyable.
     if let OperationResult::Structural(result) = &operation.result
         && (result.multiplicity != StructuralMultiplicity::Unrestricted
-            || super::super::byte_sequence::subslice::borrowed_result_in_module(module, machine, result.place)
-                .is_none())
+            || super::super::byte_sequence::subslice::borrowed_result_in_module(
+                module,
+                machine,
+                result.place,
+            )
+            .is_none())
         && super::super::byte_sequence::concatenation::owned_result(machine, result.place).is_none()
         && terminal_semantics::byte_owned_call_result(module, machine, result.place).is_none()
         && (result.multiplicity != StructuralMultiplicity::Unrestricted
-            || super::super::element_view::subslice::borrowed_result_in_module(module, machine, result.place)
-                .is_none())
+            || super::super::element_view::subslice::borrowed_result_in_module(
+                module,
+                machine,
+                result.place,
+            )
+            .is_none())
         && (result.multiplicity != StructuralMultiplicity::Unrestricted
             || super::super::record::shared_view_member_source(module, machine, result.place)
                 .is_none())

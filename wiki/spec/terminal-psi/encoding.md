@@ -474,6 +474,16 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 91 | TrappingInteger | `u8` primitive (1 add, 2 subtract, 3 multiply, 4 divide, 5 remainder, 6 shift left, 7 shift right, 8 convert; others reject) + its operand value ids: left + right, value + count, or the one conversion operand. No cause, guard, or frontier follows: the operation is its own `Trap` site |
 | 92 | ElementViewRead | source place id + index value id + length value id + obligation id + structural element path; the projected form requires a nonempty static path to a scalar leaf of the element (a record field or literal index; tag 81 spells the pathless read of a scalar element) |
 | 93 | AtomicAccess | place id + structural carrier path + field id + `u8` event (1 load + ordering; 2 store + value id + ordering; 3 read-modify-write + `u8` operation (1 add, 2 subtract, 3 and, 4 or, 5 xor) + operand value id + ordering; 4 swap + value id + ordering; 5 compare-exchange + expected value id + replacement value id + success ordering + failure ordering; others reject). Each ordering is a `u8` (1 NoOrdering, 2 Receive, 3 Publish, 4 ReceivePublish, 5 GlobalOrder; others reject). Ordering legality, the static carrier path, field type, and root authority are verification's judgments |
+| 100 | StructuralByteViewFieldStore | destination place id + structural path + field id + source place id; no predicate obligation |
+| 105 | ByteSequenceEqual | left byte-sequence operand + right byte-sequence operand |
+| 106 | StructuralByteViewFieldStore | destination place id + structural path + field id + source place id + predicate obligation id |
+
+A byte-sequence operand is `u8` 0 + whole source place id + length value id,
+or `u8` 1 + source place id + structural access + structural path + field id
++ length value id. Other operand tags reject. A view-field store without a
+predicate obligation retains tag 100's existing payload; tag 106 carries the
+additional exact-source obligation. Its decoder never infers a proof from an
+unqualified store or interprets equality's tag 105 as a field store.
 
 Tags 51 (retired literal field row) and 67 (retired scalar-only record
 operand) reject; their payloads are not reinterpreted as current forms. Tags

@@ -267,6 +267,7 @@ pub(super) fn validate_structural_byte_view_field_store(
         path,
         field,
         source,
+        ..
     } = &operation.kind
     else {
         unreachable!("dispatched validate_structural_byte_view_field_store")
@@ -293,10 +294,14 @@ pub(super) fn validate_structural_byte_view_field_store(
     if !view_field {
         return malformed("byte view field store does not select a shared view field");
     }
-    if !machine.structural_places.iter().any(|place| {
-        place.id == *source && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+    // Encoding authenticates the descriptor carrier only. The independent
+    // verifier reconstructs availability, readable access and backing lifetime.
+    if !structural_place_type(machine, *source).is_some_and(|source_type| {
+        module.structural_types.iter().any(|declaration| {
+            declaration.id == source_type && declaration.shape.is_borrowed_byte_view()
+        })
     }) {
-        return malformed("byte view field store source is not a literal place");
+        return malformed("byte view field store source has no descriptor carrier");
     }
     Ok(())
 }

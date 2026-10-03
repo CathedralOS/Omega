@@ -20,8 +20,8 @@ use terminal_psi::{
 };
 
 use super::OperationSemanticError;
+use crate::runtime_structural_path_tip;
 use crate::semantic_rows::OperationSemanticTag;
-use crate::static_path::runtime_structural_path_tip;
 
 /// Resolve the inline capacity presented to a boundary's mutable byte parameter.
 /// The operand retains its owning field; this establishes neither type equality

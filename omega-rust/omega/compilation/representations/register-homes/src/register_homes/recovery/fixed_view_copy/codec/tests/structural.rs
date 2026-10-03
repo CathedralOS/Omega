@@ -553,6 +553,7 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
             machine: MachineId::new(67).unwrap(),
             place: PlaceId::new(61).unwrap(),
         },
+        Origin::Empty,
     ];
     let target_operations::CallSiteOwner::Operation(producer) = function.calls[0].owner else {
         unreachable!("fixture call is operation-owned")
@@ -574,7 +575,7 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
     // even when two machines happen to use the same numeric place identity.
     let encoded = original.encode();
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), original);
-    for change in 0..4 {
+    for change in 0..5 {
         let mut changed = original.clone();
         let functions = &mut std::sync::Arc::make_mut(&mut changed.transformed).functions;
         let last = functions.len() - 1;
@@ -601,6 +602,14 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
                     *machine = MachineId::new(79).unwrap();
                 }
             }
+            3 => {
+                // No provenance row is unknown; explicit Empty is a proven
+                // zero descriptor and must survive transport distinctly.
+                assert_eq!(
+                    function.calls[0].call.descriptor_origins.pop(),
+                    Some(Origin::Empty)
+                );
+            }
             _ => {
                 function.memory_accesses.last_mut().unwrap().role =
                     SelectedMemoryAccessRole::ReadReturnedView {
@@ -609,5 +618,9 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
             }
         }
         assert_ne!(changed.encode(), encoded);
+        assert_eq!(
+            FixedViewCopyPlan::decode(&changed.encode()).unwrap(),
+            changed
+        );
     }
 }

@@ -531,42 +531,29 @@ pub(super) fn validate_unit_operation_sequence(
                 call_ordinal: 0,
             },
             CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                let value = store
-                    .value
-                    .nodes
-                    .iter()
-                    .find_map(|(handle, value)| (handle == store.value.root).then_some(value))
-                    .ok_or(LoweringError::Unsupported(
-                        "byte store has no exact value root",
-                    ))?;
-                if let checked_trees::CheckedByteSequenceValue::CallResult {
-                    state,
-                    statement_index: occurrence,
-                    binding_ordinal,
-                    ..
-                } = value
+                if let Some(binding_ordinal) =
+                    crate::emission::structural_byte_sequence_store::completed_call_binding(
+                        store,
+                        machine.state,
+                    )?
                 {
-                    // This consumer finishes the producing assignment rather
-                    // than introducing another source occurrence. Require its
-                    // exact completed call, not merely a repeated coordinate;
-                    // byte-value replay separately checks authored capacity,
-                    // return type and the emitted result's owned custody.
+                    // A byte consumer completes its own call, regardless of
+                    // whether it copies contents or a shared descriptor.
                     let completed = operation_index
                         .checked_sub(1)
                         .and_then(|previous| machine.operations.get(previous))
                         .and_then(CheckedUnitEffectOperationPlan::call)
                         .filter(|call| !call.is_boundary())
                         .is_some_and(|call| {
-                            call.coordinate.statement_index == *occurrence
+                            call.coordinate.statement_index == store.statement_index
                                 && call.coordinate.call_ordinal == 0
                                 && call.structural_result().is_some_and(|result| {
-                                    result.statement_index == *occurrence
-                                        && result.binding_ordinal == *binding_ordinal
+                                    result.statement_index == store.statement_index
+                                        && result.binding_ordinal == binding_ordinal
                                         && result.multiplicity == Multiplicity::Unrestricted
                                 })
                         });
-                    if *state != machine.state || *occurrence != store.statement_index || !completed
-                    {
+                    if !completed {
                         return unsupported(
                             "byte store has no immediately preceding exact completed call",
                         );

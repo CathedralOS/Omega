@@ -295,6 +295,7 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
                 &machines,
                 &blocks,
                 &crate::control_graph::dominators(machine),
+                None,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -959,9 +960,17 @@ fn validate_module_with_policy(
     validate_reborrow_restored_call_uses(module, &machines)?;
     dynamic_dispatch::validate_dynamic_dispatches(module, &machines)?;
     validate_evidence_contract_lanes(module, &machines)?;
+    let mut descriptor_requirements = BTreeMap::new();
     for machine in &module.machines {
-        machine::validate_machine(module, machine, &machines, &mut registry)?;
+        machine::validate_machine(
+            module,
+            machine,
+            &machines,
+            &mut registry,
+            descriptor_requirements.entry(machine.id).or_default(),
+        )?;
     }
+    frontier::validate_compatibility(module, &descriptor_requirements)?;
     crash::validate_operation_crash_contracts(module, &machines)?;
     scalar::qualifications::validate(module)?;
     scalar::block_invariants::validate(module, &machines, &mut registry)?;

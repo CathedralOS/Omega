@@ -414,29 +414,14 @@ the complete product bar; focused successes below do not establish that baseline
   `data Room [copy] { label: &[u8] in Utf8; }`, then `let room: Room;` and
   `room.label = source.label;`.
 
-  On macOS ARM64 at `767b982de12` plus the evaluated-predicate repair,
-  `omega run --both
-  tests/omega/pass/wire/runtime_wire_utf8_edge_verdicts_exit/main.omg`
-  gets through predicate lowering and rejects `LabelMessage::decode` at
-  `structural field store: borrowed view field: declared domains`
-  (state 32, statement 0). Evaluated predicates retain the exact descriptor or
-  byte-field identity through state contracts and independent Terminal replay;
-  overlapping writes and mutable calls invalidate current-content equations.
-  `pass/proofs/runtime_byte_predicate_state_contract_exit` exits 70 in both
-  engines for the euro sign and four malformed UTF-8 cases. This control does
-  not supply the decoder's stored-loan lifetime relation.
-
-  The text customers, and the unqualified wire byte decoder, also stop at
-  `structural field store: borrowed view field: declared domains`:
-  `structural_scalar_store/view_field_store.rs` admits literals only, not
-  another field's view or an input-buffer view. General replacement needs the
-  source's stored-loan provenance and lifetime through source-custody and
-  Terminal reference verification; matching byte predicates alone is not enough.
-  Preserve the literal-only boundary in
-  [structural access](wiki/spec/terminal-psi/structural_access.md) until that
-  relation exists. **DEFERRED-LOCAL-INITIALIZATION** owns partial storage;
-  neither widening its zero-construction eligibility nor copying descriptor
-  bytes supplies the missing reference establishment.
+  The unchanged wire UTF-8 decoder now executes with native/interpreter exit
+  70 on macOS ARM64. Runtime descriptor field establishment retains the exact
+  backing loan and independent predicate obligations through source custody,
+  Terminal verification and native lowering. Partial record storage no longer
+  requires a fabricated zero reference or a literal-only field initializer.
+  Recheck the two text customers and pin the three-line reduction through this
+  shared route; their execution acceptance remains open. Preserve descriptor
+  lifetime, overlapping-write rejection and current-content predicate replay.
   Acceptance: the three fixtures reach their authored native exits, with the
   three-line reduction pinned as its own fixture.
 
@@ -712,9 +697,8 @@ the complete product bar; focused successes below do not establish that baseline
   The next producer dependency is stage 04
   `execution/terminal_unit/structural_scalar_store/mod.rs`:
   `record_literal_stores` still excludes indexed destinations and non-scalar
-  case members of `Exit`. This file is assigned to
-  **DEFERRED-LOCAL-INITIALIZATION**; coordinate the shared operation rather
-  than adding an indexed-record special route. Recheck downstream borrowed
+  case members of `Exit`. Extend the shared operation while preserving
+  completed partial-record and stored-view establishment. Recheck downstream borrowed
   windows and Omega projected arguments after that producer can emit the
   unchanged customer; older failure descriptions predate their shared
   projection work. Acceptance remains the public command's actual output,
@@ -1936,44 +1920,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   obligations. **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed
   caller.
 
-- **DEFERRED-LOCAL-INITIALIZATION.** Complete partial local storage whose
-  fields cannot be established by whole-shape zero construction. Retain the
-  declaration's exact identity through field establishment, subsequent reads,
-  borrowing and cleanup. Whole-local rebinding permission is independent of
-  member writes: preserve the diagnostic for non-`mut` whole-scalar assignment,
-  not a blanket mutable-local requirement on record storage.
-
-  Stage 04 `control/statement_sequence/local_data.rs`,
-  `values/scalar/computations.rs` and the structural store owners must carry
-  partial establishment into stage 05's source-custody and stored-loan replay.
-  Reuse declaration-backed zero construction only for types that qualify;
-  removing its eligibility check cannot supply a missing reference or domain.
-
-  The real customer `pass/wire/runtime_wire_utf8_edge_verdicts_exit` fills
-  `LabelSample { count, label: &[u8] in Utf8 }` before borrowing it for decode.
-  Its reference field cannot be fabricated by zeroing: support partial storage
-  and exact field establishment, including stored-loan custody. Follow
-  [default-domain gating](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
-  and [ownership establishment](wiki/spec/language/ownership.md#establishment-and-erasure);
-  reject premature observation and do not mint linear obligations from zero.
-  Acceptance uses the actual Build entries and ordinary corpus execution:
-  retain `structs/runtime_declared_record_member_fill_exit` exit 70,
-  `structs/uninit_record_member_store` exit 77 and the `let mut total: i32;
-  total = 1;` control `locals/runtime_deferred_scalar_initialization_exit`
-  exit 1, each with native/interpreter agreement on macOS ARM64. Those three
-  controls execute with their expected exits. At `767b982de12` plus the
-  evaluated-predicate repair, `omega run --both
-  tests/omega/pass/wire/runtime_wire_utf8_edge_verdicts_exit/main.omg` passes
-  predicate lowering but still stops in `LabelMessage::decode` at
-  `structural field store: borrowed view field: declared domains`
-  (state 32, statement 0). Next: reconstruct exact stored-view origins and
-  normal-return field writeback through source loans and independent Terminal
-  verification before admitting nonliteral descriptor replacement in
-  `structural_scalar_store/view_field_store.rs`. The wire customer's required
-  interpreter/native exit remains 70.
-  Euro must decode successfully; overlong, surrogate, out-of-range and truncated
-  UTF-8 must fail. Clearing an omission phase alone does not close the task.
-
 - **TRANSITION-TAIL-CALL-TO-MACHINE.** Finish the customers of terminal machine
   calls in attached Unit transition arms.
   [State contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
@@ -2025,9 +1971,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   evidence rejects. Its byte-view control
   `termination/runtime_receiver_byte_slice_recursion_exit` still exits **70**.
   `wire/runtime_wire_decode_byte_slice_exit` stays with
-  **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**;
-  `wire/runtime_wire_utf8_edge_verdicts_exit` stays with
-  **DEFERRED-LOCAL-INITIALIZATION**.
+  **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**.
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
@@ -2142,16 +2086,15 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Borrowed views are another field producer, not owned array storage.
   `computations/slice_view.rs` constructs field-site views, and a generated
   codec machine's `&Sample` parameter keeps the entry's place through its
-  states (`state_graph/entry_aliases.rs`). On macOS ARM64 at `d5edf66da5`
-  plus the byte-loan access repair, `python3 tools/corpus_gate.py --both
-  --filter wire/runtime_wire_encode_byte_slice_exit` executes the unchanged
-  program with native/interpreter exit 70: exactly `[0, 0, 2, 72, 105]` and
-  written count 5. Terminal's `frontier/descriptor_loans/accesses.rs`
-  distinguishes unrestricted by-value copies from exclusive backing access and
-  retains fixed byte-range geometry under the original field. Aggregate capture
-  still extends the backing loan; overlapping writes and owner consumption
-  reject. The public `omega run --both` command reaches pending ordinary package
-  review (exit 200), not native execution; see the fixture README.
+  states (`state_graph/entry_aliases.rs`). The unchanged
+  `wire/runtime_wire_encode_byte_slice_exit` currently rejects in Terminal with
+  `BorrowedDescriptorLoanDisturbed` at operation 86, place 3, while the
+  interpreter exits 70. This reproduces on clean `80320b8c1ab` and after the
+  stored-view repair rebased onto `6108c8da0c`; it supersedes the older native
+  success. Repair descriptor-backed access compatibility in
+  `frontier/descriptor_loans` without dropping exact captured geometry or
+  allowing overlapping writes. Acceptance remains native/interpreter exit 70,
+  encoding `[0, 0, 2, 72, 105]` with written count 5.
   `wire/runtime_wire_encode_borrowed_scalar_slice_exit`
   still executes incorrectly: native 71 versus interpreter 70, reproduced
   with unchanged `d5edf66da5` compiler sources. Preserve the authored range and

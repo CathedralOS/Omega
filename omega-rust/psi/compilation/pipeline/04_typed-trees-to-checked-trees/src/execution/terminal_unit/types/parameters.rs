@@ -165,3 +165,31 @@ pub(crate) fn structural_parameter_candidate(
         .primitive_type_reference(parameter.type_reference)
         .is_none()
 }
+
+/// Resolve the authored slot before the final structural roster is available.
+/// Borrowed self is retained by a later receiver-observation decision; a
+/// following parameter cannot acquire a definite dense index until then.
+/// Callers with a completed roster must use that roster instead.
+pub(crate) fn dense_structural_parameter_index(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    authored_position: usize,
+) -> Option<u32> {
+    let subject = parameters.get(authored_position)?;
+    if !subject.is_self
+        && parameters
+            .iter()
+            .take(authored_position)
+            .any(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
+    {
+        return None;
+    }
+    u32::try_from(
+        parameters
+            .iter()
+            .take(authored_position)
+            .filter(|parameter| structural_parameter_candidate(program, parameter))
+            .count(),
+    )
+    .ok()
+}

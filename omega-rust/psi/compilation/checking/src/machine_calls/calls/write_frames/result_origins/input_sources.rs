@@ -117,6 +117,7 @@ pub(super) fn instantiate_source(
         }
         let suffix = place_suffix(&boundary.local_path, &relative.path).unwrap_or("");
         let remaining = FrameSourcePlace {
+            kind: Default::default(),
             root: relative.source.root,
             segments: relative.source.segments[leaf.local_segments.len()..].to_vec(),
             builtin_coordinates: relative.source.builtin_coordinates,

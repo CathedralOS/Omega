@@ -9,6 +9,7 @@ mod receiver_argument_reads;
 mod receiver_jump_loans;
 mod receiver_live_loan_reads;
 mod self_operand_loans;
+mod stored_call_loans;
 mod view_returns;
 
 use crate::borrow::build_borrow_facts;

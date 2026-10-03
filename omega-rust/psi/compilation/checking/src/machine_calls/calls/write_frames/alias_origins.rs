@@ -65,7 +65,7 @@ pub(crate) fn stable_local_reference_alias_origin(
         return None;
     }
     if include_shared {
-        return reference_subjects::initializer_origin(
+        return reference_subjects::backing_origin(
             program,
             current_machine,
             local.initial_value,
@@ -197,6 +197,11 @@ pub(crate) fn stable_alias_initializer_origins(
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<FramePlaceOrigin>> {
     let origins = match program.expression_table.expression(expression) {
+        ExpressionNode::String(_) => vec![FramePlaceOrigin {
+            path: String::new(),
+            precision: FramePathPrecision::Exact,
+            source: super::place_paths::FrameSourcePlace::image_storage(),
+        }],
         ExpressionNode::Borrow(inner) => stable_alias_initializer_origins(
             program,
             current_machine,

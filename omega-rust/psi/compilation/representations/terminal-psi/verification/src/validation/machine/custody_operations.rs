@@ -264,7 +264,11 @@ pub(super) fn register_custody_operation(
             return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
         }
         validate_unit_operation_static(module, machine, machines, operation)?;
-        if let OperationKind::ByteSequenceStore { obligation, .. }
+        if let OperationKind::StructuralByteViewFieldStore {
+            predicate_obligation: Some(obligation),
+            ..
+        }
+        | OperationKind::ByteSequenceStore { obligation, .. }
         | OperationKind::StructuralByteSequenceFieldStore { obligation, .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { obligation, .. }
         | OperationKind::ByteSequenceWrite { obligation, .. }

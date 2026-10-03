@@ -210,7 +210,7 @@ impl CallAccesses {
     }
 }
 
-pub(super) fn argument_storage_is_closed(
+pub(crate) fn argument_storage_is_closed(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     source: StructuralTypeId,
     path: &[StructuralPathSegment],

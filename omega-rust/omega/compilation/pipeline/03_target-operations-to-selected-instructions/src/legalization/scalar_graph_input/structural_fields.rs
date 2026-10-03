@@ -198,8 +198,8 @@ pub(in crate::legalization) fn replacement(
 
 /// The exclusive root a shared view field's descriptor replacement writes,
 /// rejoined like a bounded field replacement. The descriptor geometry must
-/// resolve, and the source must be an established literal: the verifier
-/// admitted no other view as outliving the destination root.
+/// resolve, and the source must be an established two-word descriptor. Current
+/// graph ownership replay separately proves its backing survives the stored view.
 pub(in crate::legalization) fn view_replacement(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
@@ -244,7 +244,11 @@ pub(in crate::legalization) fn view_replacement(
         (root, access, path.clone())
     };
     if source == destination
-        || super::literals::declaration_producer(function, *source).is_none()
+        || !super::byte_views::view_type(function, *source, types).is_some_and(|identity| {
+            types
+                .iter()
+                .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
+        })
         || function
             .entry_claim_declarations
             .iter()
