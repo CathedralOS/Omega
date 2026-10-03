@@ -617,8 +617,10 @@ fn internal_jump(
     machine: &checked_trees::machine::Machine,
     target: SymbolHandle,
 ) -> bool {
-    target != machine.symbol
-        && checked
+    // The authored machine head denotes its entry-state edge here. Keep its
+    // reserved target ordinal while replaying only actual calls in operands.
+    target == machine.symbol
+        || checked
             .typed
             .machine_states(machine)
             .iter()
