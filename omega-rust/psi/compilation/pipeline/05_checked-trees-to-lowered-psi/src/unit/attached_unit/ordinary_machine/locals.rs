@@ -3,7 +3,7 @@
 //! structural values (whose member operands are calls) emit through the shared
 //! `operation_frame`.
 
-use super::super::{parameters, scalar_arrays, structural_values};
+use super::super::{scalar_arrays, structural_values};
 use super::MachineEmission;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, OperationKind,
