@@ -30,6 +30,8 @@ pass/float/runtime_total_order_satisfiers_exit built 19626ms exit:70 interpreter
 pass/locals/runtime_deferred_scalar_initialization_exit built 1212ms exit:1 interpreter-exit:1 interpreter:agrees @25d3c2dff582+wt
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 interpreter-exit:70 interpreter:agrees @767b982de12c+wt
+pass/providers/checked_boundary_requirement_dispatch_exit built 2255ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
+pass/providers/direct_boundary_array_snapshot_exit built 2032ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit:70 interpreter-exit:70 interpreter:agrees @9765a474ac87+wt
 pass/recast/runtime_bool_representation_recast_exit built 1700ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/recast/runtime_float_range_representation_recast_exit built 3039ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
