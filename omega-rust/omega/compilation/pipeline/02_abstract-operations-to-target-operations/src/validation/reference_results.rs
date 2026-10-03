@@ -349,6 +349,7 @@ fn constructible_record(
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)
                     if referent(declarations, child).is_some() => {}

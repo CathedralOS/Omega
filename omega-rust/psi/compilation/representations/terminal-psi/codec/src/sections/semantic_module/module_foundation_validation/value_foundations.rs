@@ -91,10 +91,8 @@ pub(super) fn validate_establish_scalar_case(
         if declaration.id != field.field
             || declaration.relevance.is_erased()
             || declaration.field_type.scalar_type().is_none()
-            || matches!(
-                declaration.field_type,
-                StructuralFieldType::BoundedInteger(_)
-            ) != field.range_obligation.is_some()
+            || terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+                != field.range_obligation.is_some()
         {
             return malformed("scalar case establishment has an invalid field binding");
         }
@@ -182,7 +180,7 @@ pub(super) fn validate_establish_structural_case(
                 field_type,
             ) if field_type.scalar_type().is_some() => {
                 if range_obligation.is_some()
-                    != matches!(field_type, StructuralFieldType::BoundedInteger(_))
+                    != terminal_semantics::scalar_field_requires_evidence(field_type)
                 {
                     return malformed("structural case establishment has an invalid field binding");
                 }
@@ -389,7 +387,7 @@ pub(super) fn validate_establish_record(
                 field_type,
             ) if field_type.scalar_type().is_some() => {
                 if range_obligation.is_some()
-                    != matches!(field_type, StructuralFieldType::BoundedInteger(_))
+                    != terminal_semantics::scalar_field_requires_evidence(field_type)
                 {
                     return malformed("record range obligation differs");
                 }

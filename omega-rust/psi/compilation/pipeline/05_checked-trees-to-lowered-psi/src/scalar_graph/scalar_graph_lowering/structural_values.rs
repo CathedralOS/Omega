@@ -359,9 +359,8 @@ impl Preparation<'_> {
                     Field::Scalar {
                         position: value_position,
                         scalar_type: result_type.scalar_type,
-                        bounded: matches!(
-                            target.field_type,
-                            StructuralFieldType::BoundedInteger(_)
+                        bounded: terminal_semantics::scalar_field_requires_evidence(
+                            &target.field_type,
                         ),
                     }
                 }

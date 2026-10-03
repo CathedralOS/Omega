@@ -62,6 +62,7 @@ pub(super) fn validate_type_shape(
                     StructuralFieldType::Scalar(_)
                     | StructuralFieldType::Atomic(_)
                     | StructuralFieldType::BoundedInteger(_)
+                    | StructuralFieldType::RefinedScalar(_)
                     | StructuralFieldType::IeeeFloat(_)
                     | StructuralFieldType::Structural(_)
                         if field.relevance.is_erased() =>
@@ -123,6 +124,7 @@ pub(super) fn validate_type_shape(
                         StructuralFieldType::Scalar(_)
                         | StructuralFieldType::Atomic(_)
                         | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::IeeeFloat(_)
                         | StructuralFieldType::Structural(_)
                             if field.relevance.is_erased() =>
@@ -181,6 +183,7 @@ pub(super) fn validate_type_shape(
                     StructuralFieldType::Scalar(_)
                     | StructuralFieldType::Atomic(_)
                     | StructuralFieldType::BoundedInteger(_)
+                    | StructuralFieldType::RefinedScalar(_)
                     | StructuralFieldType::IeeeFloat(_)
                     | StructuralFieldType::Structural(_)
                         if field.relevance.is_erased() =>

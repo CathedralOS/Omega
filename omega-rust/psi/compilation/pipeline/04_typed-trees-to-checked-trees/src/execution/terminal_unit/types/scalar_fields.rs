@@ -1,6 +1,8 @@
-//! Closed numeric field restrictions retained independently of the raw carrier.
+//! Complete scalar field restrictions retained independently of the raw carrier.
 //! Intersect exact proof-integer endpoints before converting to the field's
 //! signed or unsigned carrier; an authored endpoint can exceed that carrier.
+//! General domain predicates use the shared declaration-owned projection and
+//! remain conjoined with every retained interval shell.
 use super::{
     CheckedUnitStructuralFieldType, PrimitiveType, SymbolHandle, TypeReferenceHandle,
     TypeReferenceNode, TypedTrees,
@@ -8,7 +10,7 @@ use super::{
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
 
-pub(super) fn retain_scalar_field(
+pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
@@ -25,6 +27,7 @@ pub(super) fn retain_scalar_field(
         )
     });
     let mut has_non_exact_domain = false;
+    let mut predicate = None;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained {
@@ -42,18 +45,33 @@ pub(super) fn retain_scalar_field(
                     // restricts the field as a bracketed range did: the place
                     // establishes it at every write and every read may assume
                     // it. An unstated side is the carrier's own extreme.
-                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
-                        && let Some((lower, upper)) =
-                            validation::exact_declared_domain_interval(program, domain)
-                    {
-                        let lower = lower.unwrap_or_else(|| BigInt::from_i128(i128::MIN));
-                        let upper = upper.unwrap_or_else(|| BigInt::from_u128(u128::MAX));
+                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint {
+                        let Some((lower, upper)) =
+                            validation::exact_declared_domain_carrier_interval(
+                                program, primitive, domain,
+                            )
+                        else {
+                            let next = validation::scalar_field_domain_predicate(
+                                program, domain, primitive,
+                            )?;
+                            predicate = Some(match predicate {
+                                None => next,
+                                Some(previous) => checked_trees::CheckedBooleanExpression::And {
+                                    left: Box::new(previous),
+                                    right: Box::new(next),
+                                },
+                            });
+                            continue;
+                        };
                         declared_bounds = Some(match declared_bounds {
                             Some((previous_lower, previous_upper)) => {
                                 (previous_lower.max(lower), previous_upper.min(upper))
                             }
                             None => (lower, upper),
                         });
+                    }
+                    if matches!(constraint, typed_trees::types::TypeConstraintNode::Named(_)) {
+                        return None;
                     }
                     if let typed_trees::types::TypeConstraintNode::Range {
                         minimum,
@@ -103,16 +121,15 @@ pub(super) fn retain_scalar_field(
     if atomic {
         // Atomic events have no restricted-resident establishment proof. Do
         // not silently erase a declared interval while retaining the cell.
-        return declared_bounds
-            .is_none()
+        return (declared_bounds.is_none() && predicate.is_none())
             .then_some(CheckedUnitStructuralFieldType::Atomic(primitive));
     }
-    let Some((minimum, maximum)) = declared_bounds else {
-        return Some(CheckedUnitStructuralFieldType::Scalar(primitive));
-    };
-    if has_non_exact_domain {
+    if has_non_exact_domain && (declared_bounds.is_some() || predicate.is_some()) {
         return None;
     }
+    let Some((minimum, maximum)) = declared_bounds else {
+        return validation::scalar_field_restriction(primitive, None, predicate);
+    };
     let (sign, bits) = match primitive {
         PrimitiveType::I8 => (IntegerSign::Signed, 8),
         PrimitiveType::I16 => (IntegerSign::Signed, 16),
@@ -146,9 +163,11 @@ pub(super) fn retain_scalar_field(
         ),
         _ => return None,
     };
-    Some(CheckedUnitStructuralFieldType::BoundedInteger(
-        BoundedIntegerType::new(integer_type, minimum, maximum).ok()?,
-    ))
+    validation::scalar_field_restriction(
+        primitive,
+        Some(BoundedIntegerType::new(integer_type, minimum, maximum).ok()?),
+        predicate,
+    )
 }
 
 #[cfg(test)]
@@ -173,6 +192,107 @@ mod tests {
         };
         let reference = field.type_reference;
         (program, reference)
+    }
+
+    #[test]
+    fn scalar_field_predicates_keep_named_subjects_and_complete_boolean_restrictions() {
+        for predicate in ["value != 0", "value < 0 || 10 <= value", "!(value == 0)"] {
+            let (program, reference) = field_type(&format!(
+                "domain i32::Restricted(value) requires {predicate};
+                 data Carrier {{ value: i32 in Restricted; }}"
+            ));
+            assert!(
+                matches!(
+                    retain_scalar_field(&program, reference, &[], PrimitiveType::I32, None),
+                    Some(CheckedUnitStructuralFieldType::RefinedScalar {
+                        primitive: PrimitiveType::I32,
+                        ..
+                    })
+                ),
+                "{predicate}"
+            );
+            assert!(matches!(
+                retain_scalar_field(
+                    &program,
+                    reference,
+                    &[],
+                    PrimitiveType::I32,
+                    Some((Some(-10), Some(20)))
+                ),
+                Some(CheckedUnitStructuralFieldType::RefinedScalar {
+                    predicate: checked_trees::CheckedBooleanExpression::And { .. },
+                    ..
+                })
+            ));
+        }
+        let (program, reference) = field_type(
+            "domain bool::Enabled(flag) requires flag;
+             data Carrier { value: bool in Enabled; }",
+        );
+        assert!(matches!(
+            retain_scalar_field(&program, reference, &[], PrimitiveType::Bool, None),
+            Some(CheckedUnitStructuralFieldType::RefinedScalar {
+                primitive: PrimitiveType::Bool,
+                predicate: checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
+            })
+        ));
+    }
+
+    #[test]
+    fn scalar_fields_do_not_drop_unsupported_predicates_or_domain_identity() {
+        let (program, reference) = field_type(
+            "domain i32::Even(value) requires value % 2 == 0;
+             data Carrier { value: i32 in Even; }",
+        );
+        assert!(retain_scalar_field(&program, reference, &[], PrimitiveType::I32, None).is_none());
+        let (mut program, reference) = field_type(
+            "domain i32::Restricted(value) requires value != 0;
+             data Carrier { value: i32 in Restricted; }",
+        );
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            *program.type_reference_table.type_reference(reference)
+        else {
+            panic!("constrained field");
+        };
+        let mut rows = program
+            .type_reference_table
+            .constraints(constraints)
+            .to_vec();
+        let typed_trees::types::TypeConstraintNode::Domain(domain) = &mut rows[0] else {
+            panic!("domain constraint");
+        };
+        domain.semantic_id = language_semantics::SemanticDomainId::NULL;
+        let constraints = program.type_reference_table.insert_constraints(rows);
+        let TypeReferenceNode::Constrained { base_type, .. } =
+            *program.type_reference_table.type_reference(reference)
+        else {
+            panic!("constrained field");
+        };
+        program.type_reference_table.substitute_node(
+            reference,
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            },
+        );
+        assert!(retain_scalar_field(&program, reference, &[], PrimitiveType::I32, None).is_none());
+    }
+
+    #[test]
+    fn scalar_field_predicates_reject_routed_domains_and_authored_closed_operators() {
+        for source in [
+            "domain i32::Restricted(value) requires value != 0 established by Issuer::issue;
+             trait Issuer { machine issue() -> i32 ensures result in i32::Restricted; }
+             data Carrier { value: i32 in Restricted; }",
+            "operator + i32::custom(left: i32, right: i32) -> i32;
+             domain i32::Restricted(value) requires value != 1 + 1;
+             data Carrier { value: i32 in Restricted; }",
+        ] {
+            let (program, reference) = field_type(source);
+            assert!(
+                retain_scalar_field(&program, reference, &[], PrimitiveType::I32, None).is_none()
+            );
+        }
     }
 
     #[test]

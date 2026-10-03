@@ -3,7 +3,7 @@
 //! ordinary single-state completion: the binding its final expression's
 //! operation produced, or its value-only exit roster (`validate_scalar`).
 use super::super::super::super::{
-    CheckedComposedUnitControlTerminatorPlan, StructuralFieldType, StructuralResultDeclaration,
+    CheckedComposedUnitControlTerminatorPlan, StructuralResultDeclaration,
 };
 use super::super::super::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, Operation,
@@ -822,16 +822,14 @@ pub(super) fn emit_case(
                 .collect::<Vec<_>>(),
         )?;
         let value = emit_direct_expression(&expression, values, next_value, operations);
-        let range_obligation = if matches!(
-            declaration.field_type,
-            StructuralFieldType::BoundedInteger(_)
-        ) {
-            Some(obligation_id(allocate_dense(
-                &mut catalogs.scalar_calls.next_call_obligation,
-            )?))
-        } else {
-            None
-        };
+        let range_obligation =
+            if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type) {
+                Some(obligation_id(allocate_dense(
+                    &mut catalogs.scalar_calls.next_call_obligation,
+                )?))
+            } else {
+                None
+            };
         evaluated.push(terminal_psi::ScalarCaseField {
             field: declaration.id,
             value,

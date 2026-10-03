@@ -51,7 +51,10 @@ pub use graph::{
     OptimizationNode, OwnershipEvent, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
     ValueDefinitionSite, ValueUse, encode_value_definition_site_identity,
 };
-pub use identity::{recompute_psi_optimization_unit_identity, structural_domain_catalog_identity};
+pub use identity::{
+    recompute_psi_optimization_unit_identity, scalar_refinement_identity_bytes,
+    structural_domain_catalog_identity,
+};
 pub use ledger::{
     InvalidPsiTransformationLedger, PrunedMachineCustody, PsiTransformationLedger,
     PsiTransformationLedgerDecodeError, PsiTransformationRecord,

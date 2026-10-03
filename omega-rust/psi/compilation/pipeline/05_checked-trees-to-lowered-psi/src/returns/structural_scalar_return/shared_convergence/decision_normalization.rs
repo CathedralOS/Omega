@@ -47,7 +47,8 @@ pub(crate) fn resolve_shared_boolean_member_fields(
                 .find(|field| field.identity == *field_name)
                 .filter(|field| {
                     !field.relevance.is_erased()
-                        && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                        && !matches!(field.field_type, StructuralFieldType::Atomic(_))
+                        && field.field_type.scalar_type() == Some(ScalarType::Boolean)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "shared Boolean member is absent, erased, or non-Boolean",

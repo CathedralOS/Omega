@@ -195,6 +195,7 @@ pub(crate) fn reserve(
             StructuralFieldType::Scalar(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_)
+                | StructuralFieldType::RefinedScalar(_)
         ) || declaration.field_type.scalar_type() != Some(scalar_type)
             || declaration.relevance != language_core::BindingRelevance::Relevant
         {
@@ -204,10 +205,7 @@ pub(crate) fn reserve(
             symbol: field.0,
             field: declaration.id,
             scalar_type,
-            bounded: matches!(
-                declaration.field_type,
-                StructuralFieldType::BoundedInteger(_)
-            ),
+            bounded: terminal_semantics::scalar_field_requires_evidence(&declaration.field_type),
         });
     }
     let multiplicity = match checked.type_multiplicity(source.type_reference) {

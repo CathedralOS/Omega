@@ -698,6 +698,7 @@ fn is_material_write_only_type(
                         StructuralFieldType::Structural(child) => pending.push(child),
                         StructuralFieldType::ByteSequence(_)
                         | StructuralFieldType::PredicateByteSequence { .. }
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::Erased { .. } => return false,
                     }

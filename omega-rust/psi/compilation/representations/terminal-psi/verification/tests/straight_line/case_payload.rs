@@ -133,6 +133,56 @@ fn bounded_payload_module() -> TerminalModule {
     module
 }
 
+fn nonzero_payload_predicate(value: u64) -> Proposition {
+    let zero = ScalarTerm::integer(integer(), IntegerValue::Signed(0)).unwrap();
+    Proposition::Disjunction(vec![
+        Proposition::LessThan(term(value), zero.clone()),
+        Proposition::LessThan(zero, term(value)),
+    ])
+}
+
+#[test]
+fn selected_predicate_payload_is_bound_to_the_exact_field_and_does_not_leak_at_joins() {
+    let mut module = payload_module();
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum");
+    };
+    cases[0].fields[1].field_type = StructuralFieldType::RefinedScalar(
+        semantic_vocabulary::ScalarRefinement::new(
+            ScalarType::Integer(integer()),
+            nonzero_payload_predicate(1),
+        )
+        .unwrap(),
+    );
+    let reconstructed = reconstruct_terminal_obligations(&module).unwrap();
+    let axioms = &reconstructed.obligations()[0].semantic_axioms;
+    assert!(axioms.contains(&nonzero_payload_predicate(10)));
+    assert!(!axioms.contains(&nonzero_payload_predicate(11)));
+
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum");
+    };
+    let mut unrestricted = cases[0].clone();
+    unrestricted.id = StructuralCaseId::new(2).unwrap();
+    unrestricted.identity = "Unrestricted".into();
+    unrestricted.fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Integer(integer()));
+    cases.push(unrestricted);
+    let Terminator::StructuralCase { cases, .. } = &mut module.machines[0].blocks[0].terminator
+    else {
+        panic!("dispatch");
+    };
+    let mut other = cases[0].clone();
+    other.case = StructuralCaseId::new(2).unwrap();
+    other.edge = EdgeId::new(11).unwrap();
+    cases.push(other);
+    let reconstructed = reconstruct_terminal_obligations(&module).unwrap();
+    assert!(
+        !reconstructed.obligations()[0]
+            .semantic_axioms
+            .contains(&nonzero_payload_predicate(10))
+    );
+}
+
 fn payload_bounds(value: u64) -> Vec<Proposition> {
     vec![
         Proposition::LessOrEqual(

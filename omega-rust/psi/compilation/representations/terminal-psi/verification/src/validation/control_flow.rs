@@ -106,10 +106,13 @@ fn validate_structural_case_successors(
                 });
             };
             if field.relevance.is_erased()
-                || !match field.field_type {
-                    StructuralFieldType::Scalar(actual) => actual == parameter.scalar_type,
+                || !match &field.field_type {
+                    StructuralFieldType::Scalar(actual) => *actual == parameter.scalar_type,
                     StructuralFieldType::BoundedInteger(bounded) => {
                         ScalarType::Integer(bounded.integer_type()) == parameter.scalar_type
+                    }
+                    StructuralFieldType::RefinedScalar(refinement) => {
+                        refinement.carrier() == parameter.scalar_type
                     }
                     _ => false,
                 }

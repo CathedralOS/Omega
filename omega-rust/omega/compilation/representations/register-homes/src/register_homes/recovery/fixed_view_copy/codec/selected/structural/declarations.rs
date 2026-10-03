@@ -44,7 +44,10 @@ pub(super) fn decode_parameter(
     })
 }
 
-pub(super) fn encode_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
+pub(super) fn encode_type(
+    bytes: &mut Vec<u8>,
+    declaration: &StructuralTypeDeclaration,
+) -> Result<(), terminal_codec::CodecError> {
     bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
@@ -68,7 +71,7 @@ pub(super) fn encode_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDecla
         }
         StructuralTypeShape::Record { fields } => {
             bytes.push(2);
-            encode_fields(bytes, fields);
+            encode_fields(bytes, fields)?;
         }
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
@@ -77,14 +80,15 @@ pub(super) fn encode_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDecla
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.push(4);
-            encode_cases(bytes, cases);
+            encode_cases(bytes, cases)?;
         }
         StructuralTypeShape::Mixed { fields, cases } => {
             bytes.push(5);
-            encode_fields(bytes, fields);
-            encode_cases(bytes, cases);
+            encode_fields(bytes, fields)?;
+            encode_cases(bytes, cases)?;
         }
     }
+    Ok(())
 }
 
 pub(super) fn decode_type(
@@ -123,13 +127,17 @@ pub(super) fn decode_type(
     })
 }
 
-fn encode_cases(bytes: &mut Vec<u8>, cases: &[StructuralCaseDeclaration]) {
+fn encode_cases(
+    bytes: &mut Vec<u8>,
+    cases: &[StructuralCaseDeclaration],
+) -> Result<(), terminal_codec::CodecError> {
     length(bytes, cases.len());
     for case in cases {
         bytes.extend_from_slice(&case.id.get().to_le_bytes());
         encode_string(bytes, &case.identity);
-        encode_fields(bytes, &case.fields);
+        encode_fields(bytes, &case.fields)?;
     }
+    Ok(())
 }
 
 fn decode_cases(
@@ -147,7 +155,10 @@ fn decode_cases(
     Ok(cases)
 }
 
-fn encode_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
+fn encode_fields(
+    bytes: &mut Vec<u8>,
+    fields: &[StructuralFieldDeclaration],
+) -> Result<(), terminal_codec::CodecError> {
     length(bytes, fields.len());
     for field in fields {
         bytes.extend_from_slice(&field.id.get().to_le_bytes());
@@ -157,6 +168,14 @@ fn encode_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
             BindingRelevance::Erased => 2,
         });
         match &field.field_type {
+            StructuralFieldType::RefinedScalar(refinement) => {
+                bytes.push(9);
+                encode_scalar(bytes, refinement.carrier());
+                let predicate =
+                    terminal_codec::canonical_proposition_order_key(refinement.predicate())?;
+                length(bytes, predicate.len());
+                bytes.extend_from_slice(&predicate);
+            }
             StructuralFieldType::Atomic(scalar) => {
                 bytes.push(8);
                 encode_scalar(bytes, *scalar);
@@ -198,6 +217,7 @@ fn encode_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
             }
         }
     }
+    Ok(())
 }
 
 fn decode_fields(
@@ -214,6 +234,16 @@ fn decode_fields(
             tag => return Err(FixedViewCopyDecodeError::UnknownBindingRelevance(tag)),
         };
         let field_type = match cursor.byte()? {
+            9 => {
+                let carrier = decode_scalar(cursor)?;
+                let length = cursor.length()?;
+                let predicate = terminal_codec::decode_canonical_proposition(cursor.take(length)?)
+                    .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?;
+                StructuralFieldType::RefinedScalar(
+                    semantic_vocabulary::ScalarRefinement::new(carrier, predicate)
+                        .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?,
+                )
+            }
             8 => {
                 let field = StructuralFieldType::Atomic(decode_scalar(cursor)?);
                 field

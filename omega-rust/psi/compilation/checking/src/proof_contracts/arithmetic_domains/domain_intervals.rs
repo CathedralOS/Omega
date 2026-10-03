@@ -71,6 +71,12 @@ pub fn exact_declared_domain_carrier_interval(
     domain: &typed_trees::types::DomainConstraint,
 ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
     let (minimum, maximum) = exact_declared_domain_interval(program, domain)?;
+    let definition = typed_trees::domain::domain_by_symbol(program, domain.symbol)?;
+    if crate::value_custody::recasts::exact_primitive_type(program, definition.target_type)?
+        != carrier
+    {
+        return None;
+    }
     let (carrier_minimum, carrier_maximum) =
         crate::proof_contracts::proof_embeddings::primitive_range(carrier)?;
     Some((
@@ -117,8 +123,12 @@ fn predicate_interval(
             interval.exact = false;
             continue;
         };
-        interval.exact &=
-            self_predicate_bounds(program, *expression, &indices, &mut |minimum, maximum| {
+        interval.exact &= self_predicate_bounds(
+            program,
+            definition,
+            *expression,
+            &indices,
+            &mut |minimum, maximum| {
                 if let Some(minimum) = minimum {
                     interval.minimum = Some(match interval.minimum.take() {
                         Some(prior) => minimum.max(prior),
@@ -131,7 +141,8 @@ fn predicate_interval(
                         None => maximum,
                     });
                 }
-            });
+            },
+        );
     }
     Some(interval)
 }
@@ -141,12 +152,16 @@ fn predicate_interval(
 /// both sides; any other shape contributes nothing and is not read.
 fn self_predicate_bounds(
     program: &typed_trees::TypedTrees,
+    definition: &typed_trees::domain::DomainDefinition,
     expression: typed_trees::expression::ExpressionHandle,
     indices: &[(symbols::SymbolHandle, numerics::bignum::BigInt)],
     bound: &mut impl FnMut(Option<numerics::bignum::BigInt>, Option<numerics::bignum::BigInt>),
 ) -> bool {
     use numerics::bignum::BigInt;
     use typed_trees::expression::BinaryOperator;
+    if !crate::has_builtin_domain_decomposed_guard_meaning(program, definition, expression) {
+        return false;
+    }
     let Some(binary) = (match program.expression_table.expression(expression) {
         typed_trees::expression::ExpressionNode::Binary(binary) => Some(binary),
         _ => None,
@@ -154,12 +169,12 @@ fn self_predicate_bounds(
         return false;
     };
     if binary.operator == BinaryOperator::And {
-        let left = self_predicate_bounds(program, binary.left, indices, bound);
-        let right = self_predicate_bounds(program, binary.right, indices, bound);
+        let left = self_predicate_bounds(program, definition, binary.left, indices, bound);
+        let right = self_predicate_bounds(program, definition, binary.right, indices, bound);
         return left && right;
     }
-    let left_is_self = expression_is_bare_self(program, binary.left);
-    let right_is_self = expression_is_bare_self(program, binary.right);
+    let left_is_self = crate::exact_domain_self_type(program, definition, binary.left).is_some();
+    let right_is_self = crate::exact_domain_self_type(program, definition, binary.right).is_some();
     // Exactly one side is the subject; `self <= self` states nothing this
     // reader can turn into a literal interval.
     let (literal, subject_on_left) = match (left_is_self, right_is_self) {
@@ -227,9 +242,6 @@ fn closed_index_bindings(
     {
         return None;
     }
-    if parameters.is_empty() {
-        return Some(Vec::new());
-    }
     // The declaration's head must name its index binders in telescope order.
     // A computed or reordered head is not permission to solve an equation for
     // a binder or substitute one index's value into another index's predicate.
@@ -296,21 +308,3 @@ fn closed_index_bindings(
 
 #[cfg(test)]
 mod tests;
-
-/// The bare `self` subject of a domain predicate: a name with no receiver and
-/// no field path. `self.field` is a different value and states nothing about
-/// the place the domain qualifies.
-fn expression_is_bare_self(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
-    matches!(
-        program.expression_table.expression(expression),
-        typed_trees::expression::ExpressionNode::Name(path)
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .last()
-                .is_some_and(|name| name.as_str() == "self")
-    )
-}

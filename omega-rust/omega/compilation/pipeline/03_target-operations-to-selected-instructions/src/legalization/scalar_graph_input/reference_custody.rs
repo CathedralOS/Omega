@@ -1719,16 +1719,12 @@ pub(in crate::legalization) fn block_entry_states(
             // dominator reaches this block through an intermediate block —
             // a merge point — no binding happens on its terminator and the
             // entry state stays its exit state unchanged.
-            if let Some(edge) = blocks[dominator]
-                .nodes
-                .last()
-                .and_then(|terminator| {
-                    terminator
-                        .successors
-                        .iter()
-                        .find(|edge| edge.target == blocks[position].id)
-                })
-            {
+            if let Some(edge) = blocks[dominator].nodes.last().and_then(|terminator| {
+                terminator
+                    .successors
+                    .iter()
+                    .find(|edge| edge.target == blocks[position].id)
+            }) {
                 re_home_bound_leaves(
                     &mut custody,
                     &edge.structural_bindings,
@@ -1852,6 +1848,7 @@ fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) ->
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)
                     if referent(types, child).is_some()

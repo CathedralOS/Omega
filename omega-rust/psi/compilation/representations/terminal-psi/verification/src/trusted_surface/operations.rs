@@ -30,6 +30,7 @@ const TS_CALLS: &str =
 const TS_CALLS_VIEW: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/call_composition/fixed_byte_view.rs";
 const TS_RECORD: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/record_field.rs";
+const TS_FIELD_REQUIREMENTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_field_requirements.rs";
 const TS_SCALAR_ARRAY: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_array.rs";
 const TS_ZEROED_STRUCTURAL: &str =
@@ -349,6 +350,7 @@ static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_STRUCTURAL_OPS,
+        TS_FIELD_REQUIREMENTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/scalar_fields.rs",
     ],
 );
@@ -526,6 +528,7 @@ static OP_ESTABLISH_SCALAR_CASE: TrustedSurfaceEntry = entry(
         TS_SE,
         OP_FACTS,
         OP_FACTS_SCALAR_CASE,
+        TS_FIELD_REQUIREMENTS,
         VAL_OPS,
         VAL_SCALAR_CASE,
     ],
@@ -544,6 +547,7 @@ static OP_ESTABLISH_STRUCTURAL_CASE: TrustedSurfaceEntry = entry(
         TS_SE,
         OP_FACTS,
         OP_FACTS_STRUCTURAL_CASE,
+        TS_FIELD_REQUIREMENTS,
         VAL_OPS,
         VAL_STRUCTURAL_CASE,
     ],
@@ -849,6 +853,7 @@ static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
         TS_SE,
         OP_FACTS,
         OP_FACTS_RECORD,
+        TS_FIELD_REQUIREMENTS,
         VAL_OPS,
         VAL_RECORD,
         TS_RECORD,
@@ -857,9 +862,10 @@ static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
 static OP_BOOLEAN_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:boolean-structural-field",
     "a validated Boolean structural field read whose canonical carrier composes exact record fields and in-bounds fixed-array indices to reach a record field, or one payload field of the case a final Case step names; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false",
-    "the read observation's field-path equation for the result",
+    "the read observation's field-path equation and the declared scalar predicate on its snapshot",
     &[
         "fact:structural-effect-observation",
+        "fact:scalar-structural-field-read-refinement",
         "formation:operation-validation",
         "operation:structural-case-membership",
         "fact:structural-case-arm",
@@ -884,7 +890,7 @@ static OP_INTEGER_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "the field-path equation plus the declared interval bounds on the read value",
     &[
         "fact:structural-effect-observation",
-        "fact:integer-structural-field-read-range",
+        "fact:scalar-structural-field-read-refinement",
         "formation:operation-validation",
         "operation:structural-case-membership",
         "fact:structural-case-arm",

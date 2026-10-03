@@ -485,7 +485,8 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                     .find(|field| field.identity == requirement.field_identity)
                     .filter(|field| {
                         !field.relevance.is_erased()
-                            && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                            && !matches!(field.field_type, StructuralFieldType::Atomic(_))
+                            && field.field_type.scalar_type() == Some(ScalarType::Boolean)
                     })
                     .map(|field| field.id),
                 StructuralTypeShape::Reference { .. }

@@ -303,6 +303,7 @@ impl emission::Emission<'_, '_, '_> {
                                 StructuralFieldType::Scalar(_)
                                     | StructuralFieldType::IeeeFloat(_)
                                     | StructuralFieldType::BoundedInteger(_)
+                                    | StructuralFieldType::RefinedScalar(_)
                             ) || target.field_type.scalar_type() != Some(evaluated.scalar_type)
                             {
                                 return unsupported(
@@ -312,9 +313,8 @@ impl emission::Emission<'_, '_, '_> {
                             stores.push(LeafStore::Field {
                                 path: path.clone(),
                                 field: target.id,
-                                bounded: matches!(
-                                    target.field_type,
-                                    StructuralFieldType::BoundedInteger(_)
+                                bounded: terminal_semantics::scalar_field_requires_evidence(
+                                    &target.field_type,
                                 ),
                                 position: self.values.len(),
                             });

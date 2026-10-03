@@ -287,7 +287,7 @@ pub(crate) fn field_initializers_match(
                             .any(|definition| {
                                 definition.value == *value && definition.scalar_type == scalar_type
                             })
-                    }) && matches!(field_type, StructuralFieldType::BoundedInteger(_))
+                    }) && terminal_semantics::scalar_field_requires_evidence(field_type)
                         == range_obligation.is_some()
                 }
                 _ => false,
@@ -423,6 +423,7 @@ fn record_type(
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)
                     if references
@@ -511,6 +512,7 @@ pub(crate) fn constructible(
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)
                     if crate::unit_validation::references::referent(types, child).is_some() => {}

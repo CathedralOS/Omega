@@ -145,6 +145,7 @@ pub(in crate::execution::terminal_unit) fn signature(
                     field.field_type,
                     CheckedUnitStructuralFieldType::Scalar(_)
                         | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                        | CheckedUnitStructuralFieldType::RefinedScalar { .. }
                         | CheckedUnitStructuralFieldType::Structural { .. }
                         | CheckedUnitStructuralFieldType::ByteSequence(
                             CheckedByteSequenceCarrier::BoundedOwned { .. }

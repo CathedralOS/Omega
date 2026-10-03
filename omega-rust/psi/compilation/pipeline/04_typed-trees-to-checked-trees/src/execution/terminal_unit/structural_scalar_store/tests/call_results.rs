@@ -34,14 +34,13 @@ const HOST: &str = r#"
 "#;
 
 #[test]
-fn a_call_result_field_store_rejects_a_domain_constrained_field() {
-    // A call result carries no evidence for the destination's declared domain,
-    // and the store vocabulary admits only an unconstrained scalar carrier.
-    // The body therefore stays unadmitted rather than granting `Degrees` to a
-    // value the boundary never proved.
+fn a_call_result_field_store_rejects_missing_routed_membership() {
+    // A scalar predicate cannot grant the independent provenance required by
+    // the destination's routed domain.
     let plan = plan(&format!(
         r#"
-        domain i32::Degrees;
+        domain i32::Degrees established by AngleSource::degrees;
+        trait AngleSource {{ machine degrees() -> i32 ensures result in i32::Degrees; }}
         {HOST}
         data Main {{ fs: Binding<Host>; fd_in: i32; rc: i32 in Degrees; }}
         machine Main::main(&mut self) reaches Host {{

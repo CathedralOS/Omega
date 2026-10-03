@@ -55,10 +55,8 @@ pub(super) fn validate(
                                 value: operand,
                                 range_obligation,
                             } => {
-                                matches!(
-                                    declaration.field_type,
-                                    terminal_psi::StructuralFieldType::BoundedInteger(_)
-                                ) != range_obligation.is_some()
+                                terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+                                    != range_obligation.is_some()
                                     || !sources.iter().any(|(value, source)| {
                                         *value == *operand
                                             && declaration.field_type.scalar_type()
@@ -244,7 +242,7 @@ pub(super) fn validate(
                     terminal_psi::RecordFieldValue::Scalar { value, range_obligation } => {
                         if !sources.iter().any(|(source_value, source)| *source_value == *value
                             && declared.field_type.scalar_type() == Some(source.scalar_type()))
-                            || matches!(declared.field_type, terminal_psi::StructuralFieldType::BoundedInteger(_)) != range_obligation.is_some()
+                            || terminal_semantics::scalar_field_requires_evidence(&declared.field_type) != range_obligation.is_some()
                             || range_obligation.is_some_and(|obligation|
                                 !unit.accepted_obligation_facts.iter().any(|fact| fact.machine == optimized.machine
                                     && fact.operation == *psi_operation && fact.obligation == obligation)

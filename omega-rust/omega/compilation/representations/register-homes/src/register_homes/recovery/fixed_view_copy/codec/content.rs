@@ -44,14 +44,17 @@ fn encode_prefix(
     bytes.extend_from_slice(&transformed.bytes());
 }
 
-pub(super) fn encode_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+pub(super) fn encode_v7(
+    bytes: &mut Vec<u8>,
+    plan: &FixedViewCopyPlan,
+) -> Result<(), terminal_codec::CodecError> {
     encode_prefix(
         bytes,
         plan,
         selected_instructions::selected_instruction_plan_identity(&plan.transformed),
     );
     super::evidence::encode(bytes, plan.source_evidence);
-    encode_selected_plan(bytes, &plan.transformed);
+    encode_selected_plan(bytes, &plan.transformed)
 }
 
 struct DecodedPrefix {

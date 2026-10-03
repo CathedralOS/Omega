@@ -260,6 +260,21 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         }
     }
     for declaration in &module.structural_types {
+        let (fields, cases) = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => (fields.as_slice(), &[][..]),
+            StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
+            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
+            _ => (&[][..], &[][..]),
+        };
+        for field in fields
+            .iter()
+            .chain(cases.iter().flat_map(|case| &case.fields))
+        {
+            if let terminal_psi::StructuralFieldType::RefinedScalar(refinement) = &field.field_type
+            {
+                validate_canonical_proposition(refinement.predicate(), 0)?;
+            }
+        }
         match &declaration.shape {
             StructuralTypeShape::Record { fields }
                 if !strictly_increasing(fields.iter().map(|field| field.id)) =>

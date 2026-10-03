@@ -731,6 +731,9 @@ fn zero_valid_fields(
                     integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
                 }
+                StructuralFieldType::RefinedScalar(_) => {
+                    terminal_semantics::scalar_field_accepts_zero(&field.field_type)
+                }
                 StructuralFieldType::Structural(child) => {
                     let reference = field_reference(field);
                     zero_valid_node(

@@ -153,6 +153,7 @@ impl emission::Emission<'_, '_, '_> {
                         StructuralFieldType::Scalar(_)
                             | StructuralFieldType::IeeeFloat(_)
                             | StructuralFieldType::BoundedInteger(_)
+                            | StructuralFieldType::RefinedScalar(_)
                     ) || target.field_type.scalar_type() != Some(evaluated.scalar_type)
                     {
                         return unsupported(
@@ -165,7 +166,7 @@ impl emission::Emission<'_, '_, '_> {
                     // final SSA initializer. This identity requests that proof;
                     // it is not an assertion that construction is valid.
                     let range_obligation =
-                        if matches!(target.field_type, StructuralFieldType::BoundedInteger(_)) {
+                        if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
                             Some(obligation_id(allocate_dense(
                                 &mut self.calls.next_obligation_identity,
                             )?))
@@ -257,16 +258,14 @@ impl emission::Emission<'_, '_, '_> {
                 self.next_value,
                 self.operations,
             );
-            let range_obligation = if matches!(
-                declaration.field_type,
-                StructuralFieldType::BoundedInteger(_)
-            ) {
-                Some(obligation_id(allocate_dense(
-                    &mut self.calls.next_obligation_identity,
-                )?))
-            } else {
-                None
-            };
+            let range_obligation =
+                if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type) {
+                    Some(obligation_id(allocate_dense(
+                        &mut self.calls.next_obligation_identity,
+                    )?))
+                } else {
+                    None
+                };
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {

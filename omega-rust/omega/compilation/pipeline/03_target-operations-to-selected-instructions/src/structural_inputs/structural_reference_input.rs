@@ -604,6 +604,9 @@ fn plain_field(
             StructuralFieldType::BoundedInteger(bounds) => {
                 scalar_shape(ScalarType::Integer(bounds.integer_type())).is_some()
             }
+            StructuralFieldType::RefinedScalar(ref refinement) => {
+                scalar_shape(refinement.carrier()).is_some()
+            }
             StructuralFieldType::IeeeFloat(format) => {
                 scalar_shape(ScalarType::IeeeFloat(format)).is_some()
             }
@@ -1222,6 +1225,7 @@ pub(crate) fn field_shape(
         StructuralFieldType::BoundedInteger(bounds) => {
             scalar_shape(ScalarType::Integer(bounds.integer_type()))
         }
+        StructuralFieldType::RefinedScalar(refinement) => scalar_shape(refinement.carrier()),
         StructuralFieldType::IeeeFloat(format) => scalar_shape(ScalarType::IeeeFloat(*format)),
         StructuralFieldType::ByteSequence(carrier)
         | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
@@ -1659,7 +1663,7 @@ pub(crate) fn store(
     {
         return Some((carrier_offset.checked_add(offset)?, bytes, elements));
     }
-    // Current-IR validation binds every bounded write to its accepted range
+    // Current-IR validation binds every refined write to its accepted predicate
     // proposition. This helper checks physical geometry, not proof authority.
     scalar_field_geometry(root, path, field, scalar, declarations, false)
 }
@@ -1695,7 +1699,7 @@ pub(crate) fn element_leaf_geometry(
 }
 
 /// Reads and proven writes share carrier geometry. Neither this layout nor a
-/// constructor/entry range proof supplies the separate authority for a write.
+/// constructor/entry predicate proof supplies the separate authority for a write.
 fn scalar_field_geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -1789,6 +1793,9 @@ fn scalar_field_geometry(
                 }
                 StructuralFieldType::BoundedInteger(bounds) => {
                     !observes_byte_length && ScalarType::Integer(bounds.integer_type()) == scalar
+                }
+                StructuralFieldType::RefinedScalar(ref refinement) => {
+                    !observes_byte_length && refinement.carrier() == scalar
                 }
                 _ => false,
             };

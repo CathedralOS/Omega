@@ -302,6 +302,9 @@ impl Evaluation {
                 terminal_psi::StructuralFieldType::BoundedInteger(integer) => {
                     ScalarType::Integer(integer.integer_type())
                 }
+                terminal_psi::StructuralFieldType::RefinedScalar(ref refinement) => {
+                    refinement.carrier()
+                }
                 _ => continue,
             };
             if field.relevance.is_erased() {

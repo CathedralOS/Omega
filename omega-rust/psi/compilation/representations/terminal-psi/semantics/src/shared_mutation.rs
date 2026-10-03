@@ -132,6 +132,7 @@ fn field_mutation<'types>(
         | StructuralFieldType::PredicateByteSequence { carrier, .. } => byte_mutation(*carrier),
         StructuralFieldType::Scalar(_)
         | StructuralFieldType::BoundedInteger(_)
+        | StructuralFieldType::RefinedScalar(_)
         | StructuralFieldType::IeeeFloat(_)
         | StructuralFieldType::Erased { .. } => SharedMutation::None,
     }

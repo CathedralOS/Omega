@@ -353,7 +353,8 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 })
                 .filter(|field| {
                     !field.relevance.is_erased()
-                        && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
+                        && !matches!(field.field_type, StructuralFieldType::Atomic(_))
+                        && field.field_type.scalar_type() == Some(ScalarType::Boolean)
                 })
                 .map(|field| field.id)
                 .ok_or(LoweringError::Unsupported(

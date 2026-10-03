@@ -11,7 +11,10 @@ use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
     Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
 };
 
-pub(super) fn encode_function(bytes: &mut Vec<u8>, function: &SelectedFunction) {
+pub(super) fn encode_function(
+    bytes: &mut Vec<u8>,
+    function: &SelectedFunction,
+) -> Result<(), terminal_codec::CodecError> {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_u64(bytes, function.attachment.map(|value| value.get()));
     encode_ids(
@@ -35,7 +38,7 @@ pub(super) fn encode_function(bytes: &mut Vec<u8>, function: &SelectedFunction) 
     for block in &function.blocks {
         encode_block(bytes, block);
     }
-    super::structural::encode_contracts(bytes, function);
+    super::structural::encode_contracts(bytes, function)
 }
 
 pub(super) fn decode_function(

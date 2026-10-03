@@ -13,7 +13,7 @@ fn direct_relevant_scalar_field(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
-    permit_bounded_read: bool,
+    permit_refined_read: bool,
 ) -> Option<ScalarType> {
     let declaration = module
         .structural_types
@@ -26,23 +26,26 @@ fn direct_relevant_scalar_field(
     };
     fields.iter().find_map(|candidate| {
         (candidate.id == field && !candidate.relevance.is_erased())
-            .then(|| scalar_field_type(&candidate.field_type, permit_bounded_read))
+            .then(|| scalar_field_type(&candidate.field_type, permit_refined_read))
             .flatten()
     })
 }
 
 fn scalar_field_type(
     field_type: &StructuralFieldType,
-    permit_bounded_read: bool,
+    permit_refined_read: bool,
 ) -> Option<ScalarType> {
     match field_type {
         StructuralFieldType::Scalar(scalar_type) | StructuralFieldType::Atomic(scalar_type) => {
             Some(*scalar_type)
         }
-        StructuralFieldType::BoundedInteger(bounded) if permit_bounded_read => {
+        StructuralFieldType::BoundedInteger(bounded) if permit_refined_read => {
             Some(ScalarType::Integer(bounded.integer_type()))
         }
-        StructuralFieldType::BoundedInteger(_) => None,
+        StructuralFieldType::RefinedScalar(refinement) if permit_refined_read => {
+            Some(refinement.carrier())
+        }
+        StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => None,
         StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
         StructuralFieldType::ByteSequence(_)
         | StructuralFieldType::PredicateByteSequence { .. }
@@ -106,23 +109,28 @@ pub(in crate::validation) fn has_empty_structural_custody(
 }
 
 /// Recover the invariant of the exact field observed by a validated read.
-/// Construction proves it, entry checks it, and raw bounded-field stores reject.
-pub(crate) fn integer_structural_field_read_range(
-    module: &TerminalModule,
+/// Construction proves it, entry checks it, and raw restricted-field stores reject.
+pub(crate) fn scalar_structural_field_read_refinement<'module>(
+    module: &'module TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
-) -> Option<semantic_vocabulary::BoundedIntegerType> {
-    let OperationKind::IntegerStructuralField {
-        source,
-        ref path,
-        field,
-    } = operation.kind
-    else {
-        return None;
+) -> Option<&'module StructuralFieldType> {
+    let (source, path, field) = match &operation.kind {
+        OperationKind::IntegerStructuralField {
+            source,
+            path,
+            field,
+        }
+        | OperationKind::BooleanStructuralField {
+            source,
+            path,
+            field,
+        } => (*source, path, *field),
+        _ => return None,
     };
     let signature =
         crate::validation::structural::result_contracts::source_signature(machine, source)?;
-    // A bounded payload field keeps its declared range: construction proves
+    // A predicate-bearing payload keeps its invariant: construction proves
     // it for the active case exactly as for a record field.
     let declaration = terminal_semantics::observed_field_declaration(
         module.structural_types.iter(),
@@ -130,11 +138,9 @@ pub(crate) fn integer_structural_field_read_range(
         path,
         field,
     )?;
-    let StructuralFieldType::BoundedInteger(bounds) = declaration.field_type else {
-        return None;
-    };
-    (operation.result.scalar_ref()?.scalar_type == ScalarType::Integer(bounds.integer_type()))
-        .then_some(bounds)
+    (terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+        && Some(operation.result.scalar_ref()?.scalar_type) == declaration.field_type.scalar_type())
+    .then_some(&declaration.field_type)
 }
 
 fn has_readable_structural_access(access: StructuralAccess) -> bool {
@@ -163,12 +169,13 @@ pub(in crate::validation) fn structural_scalar_field_store_type(
     direct_relevant_scalar_field(module, parent_type, field, true).ok_or_else(invalid)
 }
 
-/// Resolve the declaration's invariant independently of the stored SSA value.
-pub(crate) fn structural_scalar_field_store_range(
-    module: &TerminalModule,
+/// Recover the restricted declaration independently of the replacement. The
+/// previous contents of the destination supply no evidence about its new value.
+pub(crate) fn structural_scalar_field_store_refinement<'module>(
+    module: &'module TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
-) -> Option<semantic_vocabulary::BoundedIntegerType> {
+) -> Option<&'module StructuralFieldType> {
     let OperationKind::StructuralScalarFieldStore {
         destination,
         ref path,
@@ -202,10 +209,8 @@ pub(crate) fn structural_scalar_field_store_range(
     let declaration = fields
         .iter()
         .find(|declaration| declaration.id == field && !declaration.relevance.is_erased())?;
-    match declaration.field_type {
-        StructuralFieldType::BoundedInteger(bounds) => Some(bounds),
-        _ => None,
-    }
+    terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+        .then_some(&declaration.field_type)
 }
 
 pub(in crate::validation) fn validate_integer_structural_field(

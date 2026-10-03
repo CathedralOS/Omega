@@ -335,6 +335,7 @@ pub(crate) fn resolve_typed(
                 StructuralFieldType::BoundedInteger(integer) => {
                     ScalarType::Integer(integer.integer_type())
                 }
+                StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
                 _ => return unsupported("runtime field observation requires a scalar leaf"),
             };
             carrier_path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
@@ -373,6 +374,7 @@ pub(crate) fn resolve_typed(
                 StructuralFieldType::BoundedInteger(integer) => {
                     ScalarType::Integer(integer.integer_type())
                 }
+                StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
                 _ => return unsupported("runtime field observation requires a scalar leaf"),
             };
             return Ok((binding.source, carrier_path, field.id, declared));
@@ -452,6 +454,7 @@ pub(crate) fn resolve_case_payload(
                 StructuralFieldType::BoundedInteger(integer) => {
                     ScalarType::Integer(integer.integer_type())
                 }
+                StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
                 _ => return unsupported("case payload observation requires a scalar payload"),
             };
             if declared != scalar_type {

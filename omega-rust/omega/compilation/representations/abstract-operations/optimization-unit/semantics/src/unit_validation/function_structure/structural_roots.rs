@@ -1006,7 +1006,7 @@ fn direct_relevant_scalar_field(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
     field: semantic_vocabulary::StructuralFieldId,
-    allow_bounded_integer: bool,
+    allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
     let (terminal_psi::StructuralTypeShape::Record { fields }
@@ -1014,7 +1014,7 @@ fn direct_relevant_scalar_field(
     else {
         return None;
     };
-    relevant_scalar_field(fields, field, allow_bounded_integer)
+    relevant_scalar_field(fields, field, allow_refined_scalar)
 }
 
 #[test]
@@ -1120,7 +1120,7 @@ fn atomic_field_snapshots_require_exclusive_storage() {
 fn relevant_scalar_field(
     fields: &[terminal_psi::StructuralFieldDeclaration],
     field: semantic_vocabulary::StructuralFieldId,
-    allow_bounded_integer: bool,
+    allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     fields.iter().find_map(|candidate| {
         (candidate.id == field && !candidate.relevance.is_erased())
@@ -1134,9 +1134,14 @@ fn relevant_scalar_field(
                 // Construction obligations remain checked separately. A scalar
                 // observation can use this carrier, but an unproved store cannot.
                 terminal_psi::StructuralFieldType::BoundedInteger(bounds)
-                    if allow_bounded_integer =>
+                    if allow_refined_scalar =>
                 {
                     Some(ScalarType::Integer(bounds.integer_type()))
+                }
+                terminal_psi::StructuralFieldType::RefinedScalar(refinement)
+                    if allow_refined_scalar =>
+                {
+                    Some(refinement.carrier())
                 }
                 _ => None,
             })

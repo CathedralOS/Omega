@@ -43,6 +43,7 @@ pub(crate) fn plain_type(
                         // No-observation eligibility grants no mutation authority.
                         StructuralFieldType::Scalar(_)
                         | StructuralFieldType::Atomic(_)
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(nested)
@@ -84,6 +85,7 @@ pub(crate) fn plain_type(
                     match field.field_type {
                         StructuralFieldType::Scalar(_)
                         | StructuralFieldType::Atomic(_)
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(nested) => pending.push(nested),
@@ -100,6 +102,7 @@ pub(crate) fn plain_type(
                     match field.field_type {
                         StructuralFieldType::Scalar(_)
                         | StructuralFieldType::Atomic(_)
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(nested) => pending.push(nested),

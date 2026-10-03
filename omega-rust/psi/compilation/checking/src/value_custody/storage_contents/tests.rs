@@ -61,7 +61,7 @@ fn owned_snapshots_do_not_admit_loans_cleanup_or_unrepresented_predicates() {
 }
 
 #[test]
-fn structural_construction_shares_interval_members_without_erasing_other_obligations() {
+fn structural_construction_shares_scalar_predicates_without_erasing_loan_obligations() {
     let program = crate::front_end::typed_program(
         "domain i32::Ten(value) requires 0 <= value && value <= 10;
          domain i32::NonZero(value) requires value != 0;
@@ -79,7 +79,7 @@ fn structural_construction_shares_interval_members_without_erasing_other_obligat
         .find(|machine| machine.name.as_str() == "inspect")
         .unwrap();
     let parameters = program.state_parameters(&program.machine_states(machine)[0]);
-    for parameter in &parameters[..3] {
+    for parameter in &parameters[..4] {
         assert!(super::has_structural_construction_contents(
             &program,
             parameter.type_reference
@@ -91,7 +91,7 @@ fn structural_construction_shares_interval_members_without_erasing_other_obligat
             parameter.type_reference
         ));
     }
-    for parameter in &parameters[3..] {
+    for parameter in &parameters[4..] {
         assert!(!super::has_structural_construction_contents(
             &program,
             parameter.type_reference
@@ -526,12 +526,16 @@ fn closed_const_instances_preserve_template_cleanup_and_properties() {
 fn borrowed_storage_composes_views_constraints_and_provider_members() {
     let declarations = "
         domain [u8; 16]::Text(bytes) requires valid_utf8(bytes);
+        domain i32::NonZero(value) requires value != 0;
+        domain bool::Enabled(value) requires value;
         boundary trait Port { machine send(value: u32) reaches Port; }
         data Packet {
             readings: &[i32];
             label: &[u8];
             text: [u8; 16] in Text;
             count: u32 [0..=10];
+            divisor: i32 in NonZero;
+            enabled: bool in Enabled;
             port: &mut Port;
         }
         data Wrapper<T> { value: T; }
@@ -570,11 +574,11 @@ fn borrowed_storage_does_not_erase_exclusive_access_or_opaque_members() {
         "data Packet { readings [erased]: &[i32]; }",
         "data Packet [linear] { readings: &[i32]; }",
         "data Packet { count: AtomicU64; }",
-        "data Packet { value: i32 in NonZero; }",
+        "data Packet { value: i32 in Even; }",
         "data Packet { value: Packet; }",
     ] {
         let program = crate::front_end::typed_program(&format!(
-            "domain i32::NonZero(value) requires value != 0;
+            "domain i32::Even(value) requires value % 2 == 0;
              {declaration} machine inspect(value: Packet) {{}}"
         ));
         assert!(

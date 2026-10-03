@@ -1,5 +1,8 @@
 mod runtime_predicates;
-pub use runtime_predicates::{scalar_membership_carrier, scalar_membership_predicates};
+pub use runtime_predicates::{
+    scalar_field_domain_predicate, scalar_field_restriction, scalar_membership_carrier,
+    scalar_membership_predicates,
+};
 mod scalar_tags;
 #[cfg(test)]
 mod tests;

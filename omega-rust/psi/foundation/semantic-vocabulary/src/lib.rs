@@ -12,7 +12,9 @@
 //! scalar types, terms and propositions built over them. `structural_places.rs`
 //! owns machine-place root kinds and affine construction coordinates; `content.rs`
 //! owns content projections over those places. `bounded_integer_type.rs`
-//! restricts a fixed integer carrier to one interval. `qualified_scalar_type.rs`
+//! restricts a fixed integer carrier to one interval. `scalar_refinement.rs`
+//! binds an ordinary proposition to one isolated scalar formal without
+//! admitting ambient proof assumptions. `qualified_scalar_type.rs`
 //! pairs a scalar type with its qualification set, and
 //! `ieee_float_comparison_operation.rs` names the executable float relations.
 
@@ -25,10 +27,12 @@ mod identity;
 mod ieee_float_comparison_operation;
 mod proposition;
 mod qualified_scalar_type;
+mod scalar_refinement;
 mod structural_places;
 
 pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
 pub use qualified_scalar_type::QualifiedScalarType;
+pub use scalar_refinement::{ScalarRefinement, ScalarRefinementError};
 
 pub use bounded_integer_type::BoundedIntegerType;
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};

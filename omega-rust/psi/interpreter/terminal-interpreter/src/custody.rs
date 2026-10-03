@@ -645,20 +645,7 @@ pub(crate) fn direct_scalar_field_type(
     fields.iter().find_map(|candidate| {
         (candidate.id == field && !candidate.relevance.is_erased())
             .then_some(&candidate.field_type)
-            .and_then(|field_type| match field_type {
-                terminal_psi::StructuralFieldType::Scalar(scalar_type)
-                | terminal_psi::StructuralFieldType::Atomic(scalar_type) => Some(*scalar_type),
-                terminal_psi::StructuralFieldType::BoundedInteger(bounded) => {
-                    Some(ScalarType::Integer(bounded.integer_type()))
-                }
-                terminal_psi::StructuralFieldType::IeeeFloat(format) => {
-                    Some(ScalarType::IeeeFloat(*format))
-                }
-                terminal_psi::StructuralFieldType::ByteSequence(_)
-                | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
-                | terminal_psi::StructuralFieldType::Structural(_)
-                | terminal_psi::StructuralFieldType::Erased { .. } => None,
-            })
+            .and_then(terminal_psi::StructuralFieldType::scalar_type)
     })
 }
 

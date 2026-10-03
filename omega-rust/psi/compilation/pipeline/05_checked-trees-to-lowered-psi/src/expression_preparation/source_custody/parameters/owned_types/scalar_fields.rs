@@ -1,9 +1,11 @@
 //! Reconstruct scalar restrictions without consulting producer field catalogs.
 //!
-//! Type substitution can introduce another range or exact interval-domain shell.
+//! Type substitution can introduce another range or predicate-domain shell.
 //! Intersect every restriction and the fixed carrier, retaining a bounded field even if its range
 //! spans that carrier. Unsupported bounds or policies must not become raw scalars.
 //! Endpoint intersection precedes conversion to the signed or unsigned carrier.
+//! General predicates are independently projected from their exact declarations;
+//! no retained producer predicate is authority for the receiving field catalog.
 
 use checked_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -22,6 +24,7 @@ pub(super) fn reconstruct(
 ) -> Option<CheckedUnitStructuralFieldType> {
     let mut bounds: Option<(BigInt, BigInt)> = None;
     let mut non_exact = false;
+    let mut predicate = None;
     let mut visited = Vec::new();
     loop {
         if !checked
@@ -60,11 +63,31 @@ pub(super) fn reconstruct(
                             )?,
                         ),
                         TypeConstraintNode::Domain(domain) => {
-                            validation::exact_declared_domain_carrier_interval(
-                                &checked.typed,
-                                primitive,
-                                domain,
-                            )?
+                            if let Some(interval) =
+                                validation::exact_declared_domain_carrier_interval(
+                                    &checked.typed,
+                                    primitive,
+                                    domain,
+                                )
+                            {
+                                interval
+                            } else {
+                                let next = validation::scalar_field_domain_predicate(
+                                    &checked.typed,
+                                    domain,
+                                    primitive,
+                                )?;
+                                predicate = Some(match predicate {
+                                    None => next,
+                                    Some(previous) => {
+                                        checked_trees::CheckedBooleanExpression::And {
+                                            left: Box::new(previous),
+                                            right: Box::new(next),
+                                        }
+                                    }
+                                });
+                                continue;
+                            }
                         }
                         _ => return None,
                     };
@@ -93,12 +116,12 @@ pub(super) fn reconstruct(
     if checked.primitive_type_reference(reference) != Some(primitive) {
         return None;
     }
-    let Some((minimum, maximum)) = bounds else {
-        return Some(CheckedUnitStructuralFieldType::Scalar(primitive));
-    };
-    if non_exact {
+    if non_exact && (bounds.is_some() || predicate.is_some()) {
         return None;
     }
+    let Some((minimum, maximum)) = bounds else {
+        return validation::scalar_field_restriction(primitive, None, predicate);
+    };
     let ScalarType::Integer(integer) =
         crate::emission::scalar_types::integer_scalar_type(primitive).ok()?
     else {
@@ -123,7 +146,9 @@ pub(super) fn reconstruct(
         ),
         _ => return None,
     };
-    Some(CheckedUnitStructuralFieldType::BoundedInteger(
-        BoundedIntegerType::new(integer, minimum, maximum).ok()?,
-    ))
+    validation::scalar_field_restriction(
+        primitive,
+        Some(BoundedIntegerType::new(integer, minimum, maximum).ok()?),
+        predicate,
+    )
 }

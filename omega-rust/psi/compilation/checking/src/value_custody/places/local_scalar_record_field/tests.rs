@@ -151,7 +151,11 @@ fn local_field_does_not_use_open_or_invalid_ranges_as_plain_carriers() {
 
 fn typed_source(source: &str) -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {
     let program = crate::front_end::typed_program(source);
-    let machine = &program.machines()[0];
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .expect("authored observation machine");
     let state = &program.machine_states(machine)[0];
     let StatementNode::Expression(expression) =
         program.statement_table.statements(state.statement_nodes)[1]
@@ -283,7 +287,7 @@ fn local_field_retains_policy_without_excluding_plain_siblings() {
 }
 
 #[test]
-fn named_interval_local_field_reads_preserve_declared_identity() {
+fn scalar_predicate_local_field_reads_preserve_declared_identity() {
     for (primitive, predicate, expected) in [
         ("u32", "value <= 100", super::PrimitiveType::U32),
         (
@@ -291,6 +295,9 @@ fn named_interval_local_field_reads_preserve_declared_identity() {
             "0 - 10 <= value && value <= 10",
             super::PrimitiveType::I32,
         ),
+        ("u32", "value != 50", super::PrimitiveType::U32),
+        ("bool", "value", super::PrimitiveType::Bool),
+        ("i32", "value < 0 || value >= 10", super::PrimitiveType::I32),
     ] {
         let (program, machine, state, expression) = typed_source(&format!(
             "domain {primitive}::Limited(value) requires {predicate};
@@ -302,7 +309,7 @@ fn named_interval_local_field_reads_preserve_declared_identity() {
              }}"
         ));
         let field = local_scalar_record_field(&program, machine, state, 1, expression)
-            .expect("an established interval-domain field has scalar storage");
+            .expect("an established predicate-domain field has scalar storage");
         assert_eq!(field.primitive_type, expected);
         assert_eq!(
             field.path,
@@ -323,13 +330,17 @@ fn named_interval_local_field_reads_preserve_declared_identity() {
 }
 
 #[test]
-fn named_interval_local_field_rejects_unrepresented_domains() {
+fn scalar_predicate_local_field_rejects_unrepresented_domains() {
     for (definition, field_type) in [
         (
-            "domain u32::Limited(value) requires value != 50;",
+            "domain u32::Limited(value) requires value % 2 == 0;",
             "u32 in Limited",
         ),
-        ("domain u32::Limited;", "u32 in Limited"),
+        (
+            "domain u32::Limited established by Authority::limited;
+             trait Authority { machine limited() -> u32 ensures result in u32::Limited; }",
+            "u32 in Limited",
+        ),
         (
             "domain u32::Limited(value) requires value <= 100;",
             "u32 in Limited & Wrapping",

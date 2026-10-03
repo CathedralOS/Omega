@@ -74,6 +74,7 @@ pub(crate) fn validate_structural_fields(
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
                 | terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::RefinedScalar(_)
                 | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::Structural(_),
@@ -82,6 +83,7 @@ pub(crate) fn validate_structural_fields(
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
                 | terminal_psi::StructuralFieldType::Atomic(_)
+                | terminal_psi::StructuralFieldType::RefinedScalar(_)
                 | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::ByteSequence(_)

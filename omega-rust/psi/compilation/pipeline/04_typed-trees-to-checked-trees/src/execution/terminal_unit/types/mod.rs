@@ -17,6 +17,7 @@ use checked_trees::{
 use typed_trees::type_identity::TypeIdentityRequest;
 
 mod scalar_fields;
+pub(super) use scalar_fields::retain_scalar_field;
 
 #[cfg(test)]
 mod partial_affine_ownership_tests;

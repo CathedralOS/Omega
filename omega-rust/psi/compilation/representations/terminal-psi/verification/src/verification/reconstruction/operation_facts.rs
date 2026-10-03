@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use proof_admission::{Obligation, ObligationClass, ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{
-    BoundedIntegerType, MachineId, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    MachineId, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_psi::{Operation, OperationKind, TerminalMachine, TerminalModule};
 use terminal_semantics::{
@@ -173,20 +173,12 @@ pub(super) fn append_operation(
         range_obligation: Some(id),
         ..
     } = operation.kind
-        && let Some(bounds) =
-            crate::validation::structural_scalar_field_store_range(module, machine, operation)
+        && let Some(proposition) =
+            crate::validation::structural_scalar_field_store_refinement(module, machine, operation)
+                .and_then(|field_type| {
+                    terminal_semantics::scalar_field_requirement(field_type, value)
+                })
     {
-        let integer_type = bounds.integer_type();
-        let value = ScalarTerm::value(value, ScalarType::Integer(integer_type));
-        let endpoint = |value| ScalarTerm::Integer {
-            scalar_type: integer_type,
-            value,
-        };
-        let mut clauses = vec![
-            Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()),
-            Proposition::LessOrEqual(value, endpoint(bounds.maximum())),
-        ];
-        clauses.sort();
         // The written field's new equality cannot justify its own invariant.
         // Preserve the pre-write facts before invalidation and replacement.
         operation_obligations.push(ReconstructedOperationObligation {
@@ -196,7 +188,7 @@ pub(super) fn append_operation(
             },
             obligation: Obligation {
                 id,
-                proposition: Proposition::Conjunction(clauses),
+                proposition,
                 class: ObligationClass::Derivable,
             },
             semantic_axioms: axioms.clone(),
@@ -813,17 +805,18 @@ pub(super) fn append_operation(
             // interval even when it preserves length and the ASCII predicate.
             axioms.extend(bounds);
         }
-        if let Some(bounds) =
-            crate::validation::integer_structural_field_read_range(module, machine, operation)
+        if let Some(field_type) =
+            crate::validation::scalar_structural_field_read_refinement(module, machine, operation)
             && let Some(result) = operation.result.scalar_ref()
         {
-            // A valid referent retains its declared interval. Capture that
+            // A valid referent retains its declared predicate. Capture that
             // invariant on this read's SSA value, which survives later writes
             // without asserting that the mutable field keeps its old value.
             // The emission is certificate-gated: only a bound whose fixed-shape
             // elimination certificate re-decides joins under this row.
-            let value = ScalarTerm::value(result.id, result.scalar_type);
-            for fact in declared_carrier_bounds(context.proposition_context(), bounds, value) {
+            for fact in
+                declared_scalar_field_facts(context.proposition_context(), field_type, result.id)
+            {
                 if fact.certified {
                     axioms.push(fact.proposition);
                 }
@@ -1014,80 +1007,73 @@ pub(super) fn append_operation(
     }
 }
 
-/// One declared-interval bound plus its generation-time certificate verdict.
-///
-/// `certified` is `true` when the fixed-shape `ConjunctionElimination`
-/// certificate — the value's declared interval invariant cited as assumption
-/// zero and the bound eliminated at its conjunct index — was re-decided by
-/// proof-admission's certificate checker. `false` marks a licensed premise
-/// introduction retained under the calling row's trusted surface (for
-/// example `fact:integer-structural-field-read-range` or
-/// `fact:structural-case-arm`).
-///
-/// The generation-time check runs in production regardless; only the test
-/// module reads the classification back.
-#[allow(dead_code)]
-pub(super) struct CarrierBoundFact {
-    /// The bound proposition appended to the roster.
+/// One declared field fact plus its generation-time certificate verdict.
+/// The trusted premise is storage validity, established by constructors,
+/// checked replacements and entry admission. The certificate checks only the
+/// transport from that exact instantiated declaration, not storage validity.
+pub(super) struct DeclaredScalarFact {
+    /// The predicate appended to the roster.
     pub proposition: Proposition,
     /// Whether the certificate checker re-decided the emission.
     pub certified: bool,
 }
 
-/// Emit the declared interval's two bounds on `value`. Each emission is
-/// discharged, not trusted: the certificate for each bound re-decides that
-/// it is an exact conjunct of the declared interval invariant, itself cited
-/// as assumption zero.
-pub(super) fn declared_carrier_bounds(
+/// Instantiate the exact declaration at a fresh scalar snapshot. Conjunctions
+/// expose their members through elimination; other predicates retain their
+/// complete Boolean structure. No source spelling or ambient field value
+/// participates in deriving the invariant.
+pub(super) fn declared_scalar_field_facts(
     proposition_context: &PropositionContext,
-    bounds: BoundedIntegerType,
-    value: ScalarTerm,
-) -> [CarrierBoundFact; 2] {
-    let integer_type = bounds.integer_type();
-    let endpoint = |value| ScalarTerm::Integer {
-        scalar_type: integer_type,
-        value,
+    field_type: &terminal_psi::StructuralFieldType,
+    value: ValueId,
+) -> Vec<DeclaredScalarFact> {
+    let Some(declared) = terminal_semantics::scalar_field_requirement(field_type, value) else {
+        return Vec::new();
     };
-    let lower = Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone());
-    let upper = Proposition::LessOrEqual(value, endpoint(bounds.maximum()));
-    let mut members = vec![lower.clone(), upper.clone()];
-    members.sort();
-    let declared = Proposition::Conjunction(members);
-    [lower, upper].map(|bound| CarrierBoundFact {
-        certified: declared_bound_certified(proposition_context, &declared, &bound),
-        proposition: bound,
-    })
+    let members = match &declared {
+        Proposition::Conjunction(members) => members.as_slice(),
+        _ => std::slice::from_ref(&declared),
+    };
+    members
+        .iter()
+        .map(|member| DeclaredScalarFact {
+            certified: declared_fact_certified(proposition_context, &declared, member),
+            proposition: member.clone(),
+        })
+        .collect()
 }
 
-/// Re-decide the fixed-shape elimination certificate for one declared bound
-/// before it is classified. The declared interval invariant is assumption
-/// zero; the bound is eliminated at its exact conjunct index so the checker
-/// re-decides that the emission is a conjunct of the declaration rather
-/// than a fabricated literal.
-fn declared_bound_certified(
+/// Check transport from the exact declared invariant, either unchanged or at
+/// its exact conjunct index. Storage validity is the caller's independent
+/// premise; this certificate cannot establish it from the declaration alone.
+fn declared_fact_certified(
     proposition_context: &PropositionContext,
     declared: &Proposition,
-    bound: &Proposition,
+    fact: &Proposition,
 ) -> bool {
-    let Proposition::Conjunction(conjuncts) = declared else {
-        return false;
-    };
-    let Some(conjunct) = conjuncts.iter().position(|member| member == bound) else {
-        return false;
-    };
-    let certificate = ProofNode {
-        conclusion: bound.clone(),
-        rule: ProofRule::ConjunctionElimination {
+    let rule = if declared == fact {
+        ProofRule::Assumption { index: 0 }
+    } else if let Proposition::Conjunction(conjuncts) = declared {
+        let Some(conjunct) = conjuncts.iter().position(|member| member == fact) else {
+            return false;
+        };
+        ProofRule::ConjunctionElimination {
             conjunction: Box::new(ProofNode {
                 conclusion: declared.clone(),
                 rule: ProofRule::Assumption { index: 0 },
             }),
             conjunct,
-        },
+        }
+    } else {
+        return false;
+    };
+    let certificate = ProofNode {
+        conclusion: fact.clone(),
+        rule,
     };
     check_certificate(
         proposition_context,
-        bound,
+        fact,
         std::slice::from_ref(declared),
         &[],
         &certificate,

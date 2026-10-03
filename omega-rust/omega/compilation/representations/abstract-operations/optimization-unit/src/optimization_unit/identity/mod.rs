@@ -48,6 +48,17 @@ mod unit_encoding;
 
 use unit_encoding::CanonicalBytes;
 
+/// Exact identity payload for a scalar carrier and its declaration-local predicate.
+/// This uses the optimization identity grammar, independently of wire admission limits.
+pub fn scalar_refinement_identity_bytes(
+    refinement: &semantic_vocabulary::ScalarRefinement,
+) -> Vec<u8> {
+    let mut bytes = CanonicalBytes::collect();
+    carrier_encoding::encode_scalar_type(&mut bytes, refinement.carrier());
+    proposition_encoding::encode_proposition(&mut bytes, refinement.predicate());
+    bytes.finish()
+}
+
 pub use unit_encoding::{
     recompute_psi_optimization_unit_identity, structural_domain_catalog_identity,
 };

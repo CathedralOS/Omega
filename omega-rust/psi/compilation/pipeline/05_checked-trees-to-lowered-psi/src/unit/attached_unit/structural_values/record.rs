@@ -128,6 +128,7 @@ impl emission::Emission<'_, '_, '_> {
                         StructuralFieldType::Scalar(_)
                             | StructuralFieldType::IeeeFloat(_)
                             | StructuralFieldType::BoundedInteger(_)
+                            | StructuralFieldType::RefinedScalar(_)
                     ) || target.field_type.scalar_type() != Some(evaluated.scalar_type)
                     {
                         return unsupported(
@@ -140,7 +141,7 @@ impl emission::Emission<'_, '_, '_> {
                     // final SSA initializer. This identity requests that proof;
                     // it is not an assertion that construction is valid.
                     let range_obligation =
-                        if matches!(target.field_type, StructuralFieldType::BoundedInteger(_)) {
+                        if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
                             Some(obligation_id(allocate_dense(
                                 &mut self.calls.next_obligation_identity,
                             )?))
@@ -181,9 +182,8 @@ impl emission::Emission<'_, '_, '_> {
                             id: zero,
                             scalar_type,
                         });
-                        let range_obligation = if matches!(
-                            target.field_type,
-                            StructuralFieldType::BoundedInteger(_)
+                        let range_obligation = if terminal_semantics::scalar_field_requires_evidence(
+                            &target.field_type,
                         ) {
                             Some(obligation_id(allocate_dense(
                                 &mut self.calls.next_obligation_identity,

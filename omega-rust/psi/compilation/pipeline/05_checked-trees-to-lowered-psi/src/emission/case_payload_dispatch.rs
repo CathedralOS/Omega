@@ -169,6 +169,7 @@ fn plan_decision<'a>(
                     StructuralFieldType::BoundedInteger(integer) => {
                         semantic_vocabulary::ScalarType::Integer(integer.integer_type())
                     }
+                    StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
                     _ => continue,
                 };
                 if field.relevance.is_erased() {

@@ -1,0 +1,7 @@
+// Construction must prove the selected payload predicate before storage exists.
+domain i32::NonZero(value) requires value != 0;
+data Divisor { case Unset; case By(amount: i32 in NonZero); }
+data Main { divisor: Divisor; }
+machine Main::main(main: &mut Main) {
+    main.divisor = Divisor::By { amount: 0 };
+}

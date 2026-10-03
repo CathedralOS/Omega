@@ -7,7 +7,7 @@ use typed_trees::{
 
 fn fields(predicate: &str) -> (TypedTrees, Vec<DomainConstraint>) {
     let program = crate::front_end::typed_program(&format!(
-        "domain<const Bound: u64> u64::AtMost<Bound> requires {predicate};
+        "domain<const Bound: u64> u64::AtMost<Bound>(value) requires {predicate};
          data Holder {{ first: u64 in AtMost<256>; second: u64 in AtMost<512>; }}"
     ));
     let holder = program
@@ -47,7 +47,7 @@ fn fields(predicate: &str) -> (TypedTrees, Vec<DomainConstraint>) {
 
 #[test]
 fn closed_indices_supply_their_own_bounds_without_equating_instances() {
-    let (program, domains) = fields("self <= Bound");
+    let (program, domains) = fields("value <= Bound");
     assert_ne!(domains[0].semantic_id, domains[1].semantic_id);
     assert_eq!(
         exact_declared_domain_interval(&program, &domains[0]),
@@ -61,7 +61,7 @@ fn closed_indices_supply_their_own_bounds_without_equating_instances() {
 
 #[test]
 fn changing_an_index_without_its_normalized_identity_declines() {
-    let (program, domains) = fields("self <= Bound");
+    let (program, domains) = fields("value <= Bound");
     let mut substituted = domains[0].clone();
     substituted.arguments = domains[1].arguments.clone();
     assert!(exact_declared_domain_interval(&program, &substituted).is_none());
@@ -69,7 +69,7 @@ fn changing_an_index_without_its_normalized_identity_declines() {
 
 #[test]
 fn an_indexed_bound_does_not_erase_an_additional_predicate() {
-    let (program, domains) = fields("self <= Bound && self % 2 == 0");
+    let (program, domains) = fields("value <= Bound && value % 2 == 0");
     assert_eq!(
         declared_domain_predicate_bounds(&program, &domains[0]).map(|(_, maximum)| maximum),
         Some(BigInt::from_u64(256))
@@ -80,7 +80,7 @@ fn an_indexed_bound_does_not_erase_an_additional_predicate() {
 #[test]
 fn an_open_index_does_not_acquire_a_static_value() {
     let program = crate::front_end::typed_program(
-        "domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+        "domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
          machine open<const Limit: u64>(value: u64 in AtMost<Limit>) {}",
     );
     let machine = program

@@ -10,6 +10,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::view_subslice;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect;
+use crate::terminal_identities::{allocate_dense, obligation_id};
 
 pub(crate) fn emit(
     effects: &[LoweredScalarEffect],
@@ -52,6 +53,7 @@ pub(crate) fn emit(
                 field,
                 value_position,
                 scalar_type,
+                requires_evidence,
             } => {
                 let value = values
                     .get(*value_position)
@@ -70,7 +72,13 @@ pub(crate) fn emit(
                         path: path.clone(),
                         field: *field,
                         value: value.id,
-                        range_obligation: None,
+                        range_obligation: if *requires_evidence {
+                            Some(obligation_id(allocate_dense(
+                                &mut calls.next_obligation_identity,
+                            )?))
+                        } else {
+                            None
+                        },
                     },
                 });
             }

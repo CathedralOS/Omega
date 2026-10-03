@@ -4,13 +4,6 @@
 // membership through lowering, and the dispatched payload must carry it into
 // the division, whose divisor obligation it discharges. Exit 70 = the payload
 // read back 7 and divided 490; 71 = wrong case.
-//
-// Today construction stops at `structural field store: case field type`: the
-// case constructor admits a plain domain only when it means exactly an
-// interval (`pass/structs/case_field_type_store_shapes` pins that route).
-// Terminal Psi has no field type or establishment evidence that carries a
-// general predicate membership, so admitting this member would drop the
-// evidence the division needs.
 use omega_language_std::console;
 use omega::language::core::binding;
 

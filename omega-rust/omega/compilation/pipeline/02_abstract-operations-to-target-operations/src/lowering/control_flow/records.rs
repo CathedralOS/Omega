@@ -90,10 +90,8 @@ pub(super) fn establish(
             } => {
                 let source = super::scalar_sources::source(*value, function, live)?;
                 if declaration.field_type.scalar_type() != Some(source.scalar_type())
-                    || matches!(
-                        declaration.field_type,
-                        StructuralFieldType::BoundedInteger(_)
-                    ) != range_obligation.is_some()
+                    || terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+                        != range_obligation.is_some()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }

@@ -1141,9 +1141,8 @@ fn validate_receiver_fields(
                 )
                 | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_) => {}
-                StructuralFieldType::BoundedInteger(integer)
-                    if integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
-                        || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0)) => {}
+                StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_)
+                    if terminal_semantics::scalar_field_accepts_zero(&field.field_type) => {}
                 // Zero-filled owned storage has live length zero for every
                 // capacity. Source receipts separately establish its domains;
                 // fragment replay already checked the complete native footprint.
@@ -1287,7 +1286,7 @@ fn zero_valid_field(
     field: &terminal_psi::StructuralFieldDeclaration,
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
 ) -> bool {
-    use semantic_vocabulary::{IntegerValue, ScalarType};
+    use semantic_vocabulary::ScalarType;
     use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
     !field.relevance.is_erased()
         && match field.field_type {
@@ -1296,9 +1295,8 @@ fn zero_valid_field(
             )
             | StructuralFieldType::Atomic(_)
             | StructuralFieldType::IeeeFloat(_) => true,
-            StructuralFieldType::BoundedInteger(integer) => {
-                integer.contains(IntegerValue::Signed(0))
-                    || integer.contains(IntegerValue::Unsigned(0))
+            StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
+                terminal_semantics::scalar_field_accepts_zero(&field.field_type)
             }
             // Zero-filled owned storage has live length zero for every
             // capacity. Source receipts separately establish its domains.

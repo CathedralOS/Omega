@@ -1055,12 +1055,12 @@ pub(super) fn validate_structural_scalar_field_store(
                             {
                                 Some(*scalar_type)
                             }
-                            StructuralFieldType::BoundedInteger(bounds)
-                                if range_obligation.is_some() =>
+                            field_type
+                                if terminal_semantics::scalar_field_requires_evidence(
+                                    field_type,
+                                ) && range_obligation.is_some() =>
                             {
-                                Some(semantic_vocabulary::ScalarType::Integer(
-                                    bounds.integer_type(),
-                                ))
+                                field_type.scalar_type()
                             }
                             StructuralFieldType::IeeeFloat(format)
                                 if range_obligation.is_none() =>
@@ -1427,10 +1427,10 @@ pub(super) fn validate_integer_structural_field(
         path,
         *field,
     )
-    .filter(|candidate| match candidate.field_type {
-        StructuralFieldType::Scalar(scalar_type) => scalar_type == result.scalar_type,
+    .filter(|candidate| match &candidate.field_type {
+        StructuralFieldType::Scalar(scalar_type) => *scalar_type == result.scalar_type,
         StructuralFieldType::Atomic(scalar_type) => {
-            scalar_type == result.scalar_type
+            *scalar_type == result.scalar_type
                 && scalar_observation_authorized(
                     module,
                     parameter.structural_type,
@@ -1441,6 +1441,9 @@ pub(super) fn validate_integer_structural_field(
         }
         StructuralFieldType::BoundedInteger(bounded) => {
             ScalarType::Integer(bounded.integer_type()) == result.scalar_type
+        }
+        StructuralFieldType::RefinedScalar(refinement) => {
+            refinement.carrier() == result.scalar_type
         }
         _ => false,
     });

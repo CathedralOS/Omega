@@ -633,6 +633,7 @@ fn checked_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType
         field_type,
         CheckedUnitStructuralFieldType::Structural { .. }
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
+            | CheckedUnitStructuralFieldType::RefinedScalar { .. }
             | CheckedUnitStructuralFieldType::ByteSequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )

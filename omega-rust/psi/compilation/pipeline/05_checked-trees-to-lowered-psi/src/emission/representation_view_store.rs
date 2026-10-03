@@ -473,7 +473,7 @@ pub(crate) fn emit(
             let casted = view_leaf_image(operand, view_scalar, leaf_scalar)?;
             let value = emit_direct_expression(&casted, values, next_value, operations);
             let range_obligation =
-                if matches!(field.field_type, StructuralFieldType::BoundedInteger(_)) {
+                if terminal_semantics::scalar_field_requires_evidence(&field.field_type) {
                     Some(obligation_id(allocate_dense(
                         &mut calls.next_obligation_identity,
                     )?))
@@ -1031,6 +1031,7 @@ fn leaf_scalar_type(field_type: &StructuralFieldType) -> Result<ScalarType, Lowe
         StructuralFieldType::BoundedInteger(bounded) => {
             Ok(ScalarType::Integer(bounded.integer_type()))
         }
+        StructuralFieldType::RefinedScalar(refinement) => Ok(refinement.carrier()),
         _ => unsupported("representation view store leaf is not an integer scalar"),
     }
 }

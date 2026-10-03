@@ -175,6 +175,28 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
         root,
         &mut Vec::new()
     ));
+    for required in [false, true] {
+        let mut refined = declarations.clone();
+        refined[1].shape = StructuralTypeShape::Record {
+            fields: vec![field(StructuralFieldType::RefinedScalar(
+                semantic_vocabulary::ScalarRefinement::new(
+                    ScalarType::Boolean,
+                    semantic_vocabulary::Proposition::Equal(
+                        semantic_vocabulary::ScalarTerm::value(
+                            semantic_vocabulary::ScalarRefinement::SUBJECT,
+                            ScalarType::Boolean,
+                        ),
+                        semantic_vocabulary::ScalarTerm::boolean(required),
+                    ),
+                )
+                .unwrap(),
+            ))],
+        };
+        assert_eq!(
+            zero_valid_record_storage(&refined, root, &mut Vec::new()),
+            !required
+        );
+    }
     assert!(!zero_valid_record_storage(
         &declarations[..1],
         root,

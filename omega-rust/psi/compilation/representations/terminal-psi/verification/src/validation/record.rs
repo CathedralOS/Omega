@@ -427,7 +427,7 @@ pub(crate) fn fields<'a>(
                     range_obligation, ..
                 },
             ) if field_type.scalar_type().is_some() => {
-                if matches!(field_type, StructuralFieldType::BoundedInteger(_))
+                if terminal_semantics::scalar_field_requires_evidence(field_type)
                     != range_obligation.is_some()
                 {
                     return Err(failure());

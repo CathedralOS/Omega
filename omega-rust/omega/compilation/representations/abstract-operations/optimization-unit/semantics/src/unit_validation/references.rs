@@ -276,6 +276,7 @@ fn plain_referent_storage(
             match &field.field_type {
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::Atomic(_)
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_)
                 | StructuralFieldType::IeeeFloat(_) => {}
                 StructuralFieldType::Structural(child) => pending.push((*child, false)),

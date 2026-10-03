@@ -240,9 +240,8 @@ fn validate_receiver_fields(
                 )
                 | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_) => true,
-                StructuralFieldType::BoundedInteger(integer) => {
-                    integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
-                        || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
+                StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
+                    terminal_semantics::scalar_field_accepts_zero(&field.field_type)
                 }
                 StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
                 StructuralFieldType::Structural(child) => {
@@ -396,9 +395,8 @@ fn zero_valid_field(
             )
             | StructuralFieldType::Atomic(_)
             | StructuralFieldType::IeeeFloat(_) => true,
-            StructuralFieldType::BoundedInteger(integer) => {
-                integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
-                    || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
+            StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
+                terminal_semantics::scalar_field_accepts_zero(&field.field_type)
             }
             StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
             StructuralFieldType::Structural(child) => {

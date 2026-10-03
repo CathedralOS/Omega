@@ -126,7 +126,10 @@ fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_ro
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(structural_function());
-    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
+        plan
+    );
 }
 
 #[test]
@@ -174,7 +177,10 @@ fn activation_local_roster_and_memory_roles_round_trip() {
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(function);
-    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
+        plan
+    );
 }
 
 #[test]
@@ -213,7 +219,7 @@ fn outgoing_slot_roles_bind_rosters_memory_and_authenticated_round_trips() {
     std::sync::Arc::make_mut(&mut source.transformed)
         .functions
         .push(function);
-    let encoded = source.encode();
+    let encoded = source.encode().unwrap();
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
     let baseline = selected_instruction_plan_identity(&source.transformed);
     for mutation in 0..3 {
@@ -307,7 +313,10 @@ fn block_descriptor_slots_and_non_operation_memory_origins_round_trip() {
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(function);
-    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
+        plan
+    );
     let mut identities = Vec::new();
     for origin in [
         SelectedMemoryAccessOrigin::Block(block),
@@ -341,7 +350,7 @@ fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(structural_function());
-    let encoded = plan.encode();
+    let encoded = plan.encode().unwrap();
     let digest_offset = selected_payload_offset(&encoded);
 
     let mut digest_tamper = encoded.clone();
@@ -373,12 +382,13 @@ fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
     let clobber_marker = [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0x10, 0, 0x67, 0x45, 1];
     let matches = plan
         .encode()
+        .unwrap()
         .windows(clobber_marker.len())
         .enumerate()
         .filter_map(|(offset, bytes)| (bytes == clobber_marker).then_some(offset))
         .collect::<Vec<_>>();
     assert_eq!(matches.len(), 1, "call clobber marker must be unique");
-    let mut noncanonical = plan.encode();
+    let mut noncanonical = plan.encode().unwrap();
     noncanonical[matches[0] + 8..matches[0] + 12].copy_from_slice(&[1, 0, 0, 0]);
     let payload_digest = <[u8; 32]>::from(Sha256::digest(&noncanonical[payload_offset..]));
     noncanonical[digest_offset..digest_offset + 32].copy_from_slice(&payload_digest);
@@ -409,7 +419,10 @@ fn compiler_spill_origin_and_local_slot_round_trip_without_source_authority() {
         register: VirtualRegisterId(0),
     };
     function.virtual_registers[0].definition_site = None;
-    assert_eq!(FixedViewCopyPlan::decode(&source.encode()).unwrap(), source);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&source.encode().unwrap()).unwrap(),
+        source
+    );
 }
 
 #[test]
@@ -425,7 +438,7 @@ fn owned_entry_slot_round_trip_binds_parameter_place_and_origin() {
             byte_size: 16,
             alignment: 8,
         });
-    let encoded = source.encode();
+    let encoded = source.encode().unwrap();
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
     let mut stale = encoded.clone();
     stale[8..12].copy_from_slice(&32_u32.to_le_bytes());
@@ -450,7 +463,7 @@ fn owned_entry_slot_round_trip_binds_parameter_place_and_origin() {
         let mut changed = source.clone();
         std::sync::Arc::make_mut(&mut changed.transformed).functions[0].local_storage_slots[0].id =
             changed_slot;
-        assert_ne!(changed.encode(), encoded);
+        assert_ne!(changed.encode().unwrap(), encoded);
         assert_ne!(
             selected_instructions::selected_instruction_plan_identity(&changed.transformed),
             identity
@@ -467,7 +480,7 @@ fn scalar_abi_address_codec_binds_origin_instruction_and_payload_identity() {
             instruction: SelectedInstructionId(3),
             source_value: value,
         };
-    let encoded = source.encode();
+    let encoded = source.encode().unwrap();
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), source);
     let identity = selected_instructions::selected_instruction_plan_identity(&source.transformed);
     for origin in [
@@ -487,7 +500,7 @@ fn scalar_abi_address_codec_binds_origin_instruction_and_payload_identity() {
         let mut changed = source.clone();
         std::sync::Arc::make_mut(&mut changed.transformed).functions[0].virtual_registers[0]
             .origin = origin;
-        assert_ne!(changed.encode(), encoded);
+        assert_ne!(changed.encode().unwrap(), encoded);
         assert_ne!(
             selected_instructions::selected_instruction_plan_identity(&changed.transformed),
             identity
@@ -506,7 +519,7 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
     };
     // Plain wire custody; this fixture grants no executable cleanup authority.
     assert_eq!(
-        FixedViewCopyPlan::decode(&original.encode()).unwrap(),
+        FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap(),
         original
     );
     let identity = selected_instructions::selected_instruction_plan_identity(&original.transformed);
@@ -528,7 +541,7 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
             identity
         );
         assert_eq!(
-            FixedViewCopyPlan::decode(&changed.encode()).unwrap(),
+            FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap(),
             changed
         );
     }
@@ -573,7 +586,7 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
         .push(function);
     // Codec content is not semantic admission: retain exact origin namespaces
     // even when two machines happen to use the same numeric place identity.
-    let encoded = original.encode();
+    let encoded = original.encode().unwrap();
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), original);
     for change in 0..5 {
         let mut changed = original.clone();
@@ -617,9 +630,9 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
                     }
             }
         }
-        assert_ne!(changed.encode(), encoded);
+        assert_ne!(changed.encode().unwrap(), encoded);
         assert_eq!(
-            FixedViewCopyPlan::decode(&changed.encode()).unwrap(),
+            FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap(),
             changed
         );
     }

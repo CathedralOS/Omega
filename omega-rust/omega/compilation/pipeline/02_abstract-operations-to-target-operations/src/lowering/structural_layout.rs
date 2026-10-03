@@ -376,6 +376,13 @@ fn structural_field_shape(
         return Err(LoweringError::UnknownStructuralType(owner));
     }
     match field {
+        StructuralFieldType::RefinedScalar(refinement) => structural_field_shape(
+            &StructuralFieldType::Scalar(refinement.carrier()),
+            owner,
+            declarations,
+            cache,
+            active,
+        ),
         StructuralFieldType::Scalar(ScalarType::Boolean)
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))
@@ -456,43 +463,16 @@ fn field_path(
         let mut local_offset = 0_u32;
         let mut selected = None;
         for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-            if matches!(field.field_type, StructuralFieldType::Atomic(_))
-                && field.field_type.atomic_scalar_type().is_none()
-            {
-                return Err(LoweringError::UnknownStructuralType(structural_type));
+            if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
+                continue;
             }
-            let field_shape = match field.field_type {
-                StructuralFieldType::Scalar(ScalarType::Boolean)
-                | StructuralFieldType::Atomic(ScalarType::Boolean) => ValueShape::integer(1, 1),
-                StructuralFieldType::Scalar(ScalarType::Integer(integer))
-                | StructuralFieldType::Atomic(ScalarType::Integer(integer)) => {
-                    let size = integer.bits().div_ceil(8);
-                    ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
-                }
-                StructuralFieldType::BoundedInteger(bounds) => {
-                    let integer = bounds.integer_type();
-                    let size = integer.bits().div_ceil(8);
-                    ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
-                }
-                StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
-                | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
-                    ValueShape::float(4)
-                }
-                StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
-                | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => {
-                    ValueShape::float(8)
-                }
-                StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
-                StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
-                StructuralFieldType::ByteSequence(carrier)
-                | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
-                    byte_sequence_shape(carrier, structural_type)?
-                }
-                StructuralFieldType::Structural(nested) => {
-                    structural_shape(nested, declarations, cache, active)?
-                }
-                StructuralFieldType::Erased { .. } => continue,
-            };
+            let field_shape = structural_field_shape(
+                &field.field_type,
+                structural_type,
+                declarations,
+                cache,
+                active,
+            )?;
             local_offset = checked_align_up_u32(local_offset, u32::from(field_shape.alignment))
                 .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
             if field.identity == *identity {

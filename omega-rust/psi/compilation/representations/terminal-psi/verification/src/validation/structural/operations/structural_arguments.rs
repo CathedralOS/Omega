@@ -408,6 +408,7 @@ fn is_material_write_only_type(module: &TerminalModule, structural_type: Structu
                         StructuralFieldType::Scalar(_)
                         | StructuralFieldType::Atomic(_)
                         | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(next) => pending.push(next),
                         StructuralFieldType::ByteSequence(_)

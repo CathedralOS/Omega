@@ -134,6 +134,7 @@ fn fields_cannot_retain_loan(
     fields.iter().all(|field| match &field.field_type {
         StructuralFieldType::Scalar(_)
         | StructuralFieldType::Atomic(_)
+        | StructuralFieldType::RefinedScalar(_)
         | StructuralFieldType::BoundedInteger(_)
         | StructuralFieldType::IeeeFloat(_) => true,
         StructuralFieldType::ByteSequence(carrier)

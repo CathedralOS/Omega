@@ -3,6 +3,8 @@
 use super::{IntegerMathTerm, Proposition, ScalarTerm};
 use crate::ValueId;
 
+mod remap;
+
 enum Pending<'a> {
     Proposition(&'a Proposition),
     Propositions(std::slice::Iter<'a, Proposition>),

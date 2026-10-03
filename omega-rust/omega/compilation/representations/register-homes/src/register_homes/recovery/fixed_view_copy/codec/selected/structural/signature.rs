@@ -10,10 +10,13 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
 };
 use legalized_operations::LegalizedStructuralContract;
 use semantic_vocabulary::{PlaceId, ServiceId, StructuralDomainId, StructuralTypeId};
-pub(super) fn encode_signature(bytes: &mut Vec<u8>, value: &LegalizedStructuralContract) {
+pub(super) fn encode_signature(
+    bytes: &mut Vec<u8>,
+    value: &LegalizedStructuralContract,
+) -> Result<(), terminal_codec::CodecError> {
     length(bytes, value.structural_types.len());
     for row in &value.structural_types {
-        encode_type(bytes, row);
+        encode_type(bytes, row)?;
     }
     length(bytes, value.parameters.len());
     for row in &value.parameters {
@@ -57,6 +60,7 @@ pub(super) fn encode_signature(bytes: &mut Vec<u8>, value: &LegalizedStructuralC
         bytes,
         value.published_service_ceiling.iter().map(|id| id.get()),
     );
+    Ok(())
 }
 pub(super) fn decode_signature(
     cursor: &mut Cursor<'_>,
@@ -154,7 +158,7 @@ mod tests {
             published_service_ceiling: Vec::new(),
         };
         let mut bytes = Vec::new();
-        encode_signature(&mut bytes, &signature);
+        encode_signature(&mut bytes, &signature).unwrap();
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_signature(&mut cursor).unwrap(), signature);
         assert_eq!(cursor.remaining(), 0);
@@ -163,13 +167,13 @@ mod tests {
             .sources
             .swap(0, 1);
         let mut changed = Vec::new();
-        encode_signature(&mut changed, &reordered);
+        encode_signature(&mut changed, &reordered).unwrap();
         assert_ne!(bytes, changed);
         reordered.result.as_mut().unwrap().reference_sources[0]
             .sources
             .pop();
         changed.clear();
-        encode_signature(&mut changed, &reordered);
+        encode_signature(&mut changed, &reordered).unwrap();
         assert_ne!(bytes, changed);
     }
 }
