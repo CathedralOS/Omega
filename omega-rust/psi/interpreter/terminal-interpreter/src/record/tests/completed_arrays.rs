@@ -568,4 +568,11 @@ fn completed_structural_array_unrestricted_reentry_replaces_only_the_result_home
         );
     }
     assert!(execution.live_affine_frontier.is_empty());
+    meter.replenish(1).unwrap();
+    assert!(matches!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    ));
 }
