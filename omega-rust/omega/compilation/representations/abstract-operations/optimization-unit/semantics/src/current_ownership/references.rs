@@ -489,6 +489,27 @@ fn check_observation_access(
 /// A `.., Referent` source names a suspended child of the located carrier
 /// leaf; an empty path names a referent root directly. An exact static
 /// projection of an entry loan retains that complete projected origin.
+// A shared cohort freezes mutation until every member ends; each member
+// retains its own formation identity and immediate parent.
+fn shared_source_compatible(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    reference: &LiveReference,
+    access: StructuralAccess,
+) -> bool {
+    access == StructuralAccess::SharedBorrow
+        && structural_source_contract(function, reference.carrier, false)
+            .and_then(|contract| {
+                leaf_type(
+                    structural_types,
+                    contract.structural_type,
+                    &reference.carrier_path,
+                )
+            })
+            .and_then(|leaf| reference_access(structural_types, leaf))
+            == Some(StructuralAccess::SharedBorrow)
+}
+
 fn normalized_source(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -505,7 +526,8 @@ fn normalized_source(
         }) {
             if live
                 .iter()
-                .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
+                .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity)
+                    && !shared_source_compatible(function, structural_types, reference, source.access))
             {
                 return Err(invalid(
                     function,
@@ -555,10 +577,10 @@ fn normalized_source(
             place: source.place,
             path: carrier_path.to_vec(),
         });
-        if live
-            .iter()
-            .any(|reference| origins_overlap(&reference.root, &root))
-        {
+        if live.iter().any(|reference| {
+            origins_overlap(&reference.root, &root)
+                && !shared_source_compatible(function, structural_types, reference, source.access)
+        }) {
             return Err(invalid(
                 function,
                 block,
@@ -568,10 +590,10 @@ fn normalized_source(
         }
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else if source.path.is_empty() {
-        if live
-            .iter()
-            .any(|reference| origin_place(&reference.root) == source.place)
-        {
+        if live.iter().any(|reference| {
+            origin_place(&reference.root) == source.place
+                && !shared_source_compatible(function, structural_types, reference, source.access)
+        }) {
             return Err(invalid(
                 function,
                 block,
@@ -594,10 +616,10 @@ fn normalized_source(
             place: source.place,
             path: source.path.clone(),
         });
-        if live
-            .iter()
-            .any(|reference| origins_overlap(&reference.root, &root))
-        {
+        if live.iter().any(|reference| {
+            origins_overlap(&reference.root, &root)
+                && !shared_source_compatible(function, structural_types, reference, source.access)
+        }) {
             return Err(invalid(
                 function,
                 block,

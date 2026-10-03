@@ -130,7 +130,7 @@ pub(super) fn validate_establish_reference(
     let Some(result) = operation.result.structural() else {
         return malformed("reference establishment requires a structural result");
     };
-    let Some(StructuralTypeShape::Reference { referent, access }) = module
+    let Some(StructuralTypeShape::Reference { access, .. }) = module
         .structural_types
         .iter()
         .find(|row| row.id == result.structural_type)
@@ -147,7 +147,11 @@ pub(super) fn validate_establish_reference(
         || !result.claims.is_empty()
         || *access != source.access
         || source.access == terminal_psi::StructuralAccess::Owned
-        || validate_structural_path(module, source_type, &source.path)? != *referent
+        || !terminal_semantics::reference_source_compatible(
+            module.structural_types.iter(),
+            validate_structural_path(module, source_type, &source.path)?,
+            result.structural_type,
+        )
     {
         return malformed("reference establishment has inconsistent custody");
     }
