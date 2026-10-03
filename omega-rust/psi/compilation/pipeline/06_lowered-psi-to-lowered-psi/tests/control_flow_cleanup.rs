@@ -1,7 +1,8 @@
 //! Stage-level coverage for the exact `ControlFlowCleanup` rule through the
 //! public `run_psi_optimization` entrance: literal-resolved conditional folds,
-//! unreachable-block removal under the performed folds, evidence retention,
-//! and the independent verifier's rewrite relation.
+//! unreachable-block removal under the performed folds, the empty stranded
+//! region at the fold's admission edge, evidence retention, and the
+//! independent verifier's rewrite relation.
 
 use crate::common;
 
@@ -73,6 +74,156 @@ fn fold_keeps_the_false_arm_when_the_condition_is_false() {
         &optimized.lowered().semantic_module,
     )
     .expect("the independent check accepts the executed rewrite");
+}
+
+#[test]
+fn a_fold_that_strands_no_block_still_rewrites_the_terminator() {
+    // Boundary: the fold fires on a literal conditional even when the untaken
+    // edge leaves no block unreachable — the rewrite is exactly one
+    // terminator, with an empty removal set. Two carriers pin the two ways
+    // the stranded region comes back empty.
+    //
+    // Both conditional arms already agree on the target:
+    //
+    // ```text
+    // b1 (entry): v10 = true; cond v10 ──e2:t──▶ b2 ──e3:f──▶ b2
+    // b2: return
+    // ```
+    let agreeing = common::lowered(vec![common::machine(
+        1,
+        Vec::new(),
+        terminal_psi::TerminalMachineResult::Unit,
+        common::block_id(1),
+        vec![
+            common::block(
+                1,
+                Vec::new(),
+                vec![common::operation(
+                    10,
+                    common::boolean(10),
+                    terminal_psi::OperationKind::BooleanConstant { value: true },
+                )],
+                common::conditional(
+                    value(10),
+                    common::successor(2, common::block_id(2), vec![]),
+                    common::successor(3, common::block_id(2), vec![]),
+                ),
+            ),
+            common::block(
+                2,
+                Vec::new(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: common::edge(4),
+                    trivial_affine_discards: Vec::new(),
+                },
+            ),
+        ],
+    )]);
+    let optimized = run_psi_optimization(agreeing.clone(), selections())
+        .expect("the agreeing conditional folds");
+    let machine = &optimized.lowered().semantic_module.machines[0];
+    let Terminator::Jump { edge, target, .. } = &machine.blocks[0].terminator else {
+        panic!("an empty stranded region still folds to the taken edge")
+    };
+    assert_eq!(*edge, common::edge(2));
+    assert_eq!(*target, common::block_id(2));
+    assert_eq!(
+        machine
+            .blocks
+            .iter()
+            .map(|block| block.id)
+            .collect::<Vec<_>>(),
+        vec![common::block_id(1), common::block_id(2)],
+        "the untaken edge named the same block: nothing strands"
+    );
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the terminator rewrite is a semantic change, not a recorded identity"
+    );
+    terminal_verifier::validate_control_flow_cleanup(
+        &agreeing.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the empty-stranded fold");
+
+    // The untaken arm's target stays reachable through the taken arm's own
+    // continuation:
+    //
+    // ```text
+    // b1 (entry): v10 = true; cond v10 ──e2:t──▶ b2 ──e3:f──▶ b3
+    // b2: ──e4──▶ b3
+    // b3: return
+    // ```
+    let reachable = common::lowered(vec![common::machine(
+        1,
+        Vec::new(),
+        terminal_psi::TerminalMachineResult::Unit,
+        common::block_id(1),
+        vec![
+            common::block(
+                1,
+                Vec::new(),
+                vec![common::operation(
+                    10,
+                    common::boolean(10),
+                    terminal_psi::OperationKind::BooleanConstant { value: true },
+                )],
+                common::conditional(
+                    value(10),
+                    common::successor(2, common::block_id(2), vec![]),
+                    common::successor(3, common::block_id(3), vec![]),
+                ),
+            ),
+            common::block(
+                2,
+                Vec::new(),
+                Vec::new(),
+                common::jump(4, common::block_id(3), vec![]),
+            ),
+            common::block(
+                3,
+                Vec::new(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: common::edge(5),
+                    trivial_affine_discards: Vec::new(),
+                },
+            ),
+        ],
+    )]);
+    let optimized = run_psi_optimization(reachable.clone(), selections())
+        .expect("the conditional folds while its untaken target survives");
+    let machine = &optimized.lowered().semantic_module.machines[0];
+    let Terminator::Jump { edge, target, .. } = &machine.blocks[0].terminator else {
+        panic!("a still-reachable untaken target does not refuse the fold")
+    };
+    assert_eq!(*edge, common::edge(2));
+    assert_eq!(*target, common::block_id(2));
+    assert_eq!(
+        machine
+            .blocks
+            .iter()
+            .map(|block| block.id)
+            .collect::<Vec<_>>(),
+        vec![
+            common::block_id(1),
+            common::block_id(2),
+            common::block_id(3)
+        ],
+        "b3 stays reachable through b2: the fold removes the edge, not the block"
+    );
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the terminator rewrite is a semantic change, not a recorded identity"
+    );
+    terminal_verifier::validate_control_flow_cleanup(
+        &reachable.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the surviving-target fold");
 }
 
 #[test]
