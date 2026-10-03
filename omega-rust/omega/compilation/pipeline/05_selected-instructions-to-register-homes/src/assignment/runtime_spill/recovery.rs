@@ -482,9 +482,9 @@ pub(crate) fn recover_after_pre_allocation(
     recover_over(RuntimeSpillSource::PreAllocation(run))
 }
 
-/// Both exit points publish the manifest over the same independently
-/// replayed base, so producer and retained replay bind identical prefix
-/// custody.
+/// Both exit points declare the manifest over the same retained prefix.
+/// Allocation admission independently reconstructs that prefix and the complete
+/// recovery before publishing any current facts.
 fn project_recovery_manifest(
     base: &RuntimeSpillManifestBase,
     steps: &[RuntimeSpillStep],
@@ -507,7 +507,7 @@ fn project_recovery_manifest(
 fn recover_over(
     source: RuntimeSpillSource,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    let base = source.upstream_manifest()?;
+    let base = source.declared_manifest();
     let environment = source.register_environment();
     let mut failure = match assign(environment, source.ranges(), source.legality()) {
         Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => error,

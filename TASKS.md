@@ -1460,11 +1460,17 @@ the complete product bar; focused successes below do not establish that baseline
   instead of its backing storage. Case tags, scalar/byte fields and projected
   copies now resolve that storage through one address owner, with independent
   replay; `control_flow/element_view_enum_equality_exit` executes 70 for ordinary
-  and derived views. Older unchanged full-game runs remain in allocation
-  recovery. The latest help/exit run (macOS ARM64, `5745c7562b65` compiler,
-  unchanged source checkout `356d43c6d6`) remains in compilation; its latest
-  OS sample is in Terminal obligation reconstruction during
-  `scalar_block_invariants::retain_provable_bounded`. It clears an upstream
+  and derived views. The latest help/exit run (macOS ARM64, `98f2f5f3ac` compiler,
+  unchanged source checkout `356d43c6d6`) remains in compilation. The preceding
+  compiler's OS sample is in spill recovery's allocation-legality analysis and
+  identity hashing; its earlier sample located repeated source-custody reconstruction
+  inside spill production's upstream replay. Legalization now retains the
+  block-entry custody reconstructed by its input match for that invocation's
+  construction or replay; independent replay never consumes producer snapshots.
+  Spill production projects its unadmitted manifest from retained receipts;
+  final allocation admission independently reconstructs and compares the entire
+  prefix before replaying recovery. These remove duplicate work, not checks.
+  The full run clears an upstream
   borrowed-argument rejection: a validated Fused-service receipt is compatible
   with ordinary loan geometry, while receipt authentication and exact carrier
   checks remain separate. `providers/borrowed_service_field_forward_exit`
@@ -1475,7 +1481,9 @@ the complete product bar; focused successes below do not establish that baseline
   arrivals directly, retaining distinct parallel edges, entry/backedges,
   attenuation, and independent validation. This removes the repeated graph
   scanning witnessed in the older full run; an end-to-end speedup has not yet
-  been measured. Both full-game commands still need completed output and exit
+  been measured. Four superseded compiler runs were cancelled, not accepted;
+  the latest and immediately preceding runs remain live. Both full-game commands
+  still need completed output and exit
   evidence. Re-profile the live run if it remains slow and follow its actual
   next dependency; do not restart merely because an observation times out.
   Do not substitute the

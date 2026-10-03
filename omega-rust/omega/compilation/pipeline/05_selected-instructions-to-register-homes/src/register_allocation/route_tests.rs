@@ -179,6 +179,13 @@ fn pre_allocation_route_composes_residual_pressure_into_runtime_spill() {
 #[test]
 fn completed_run_recovery_replays_the_run_custody_as_its_prefix() {
     let source = include_str!("../assignment/runtime_spill/mod.rs");
+    let projection = source
+        .split("fn declared_manifest")
+        .nth(1)
+        .expect("the declared prefix projection")
+        .split("fn upstream_manifest")
+        .next()
+        .unwrap();
     let manifest = source
         .split("fn upstream_manifest")
         .nth(1)
@@ -189,7 +196,7 @@ fn completed_run_recovery_replays_the_run_custody_as_its_prefix() {
     let lowering_replay = manifest
         .find("validate_selected_lowering_optimization_custody")
         .expect("the replayed lowering custody");
-    let lowering_completion = manifest
+    let lowering_completion = projection
         .find("selected_lowering_completion: Some(upstream.identity())")
         .expect("the bound suite completion");
     let pre_allocation_arm = manifest
@@ -198,17 +205,19 @@ fn completed_run_recovery_replays_the_run_custody_as_its_prefix() {
     let pre_allocation_replay = manifest
         .find("validate_pre_allocation_optimization_custody")
         .expect("the replayed pre-allocation custody");
-    let pre_allocation_completion = manifest
+    let pre_allocation_completion = projection
         .find("pre_allocation_completion: Some(upstream.identity())")
         .expect("the bound suite completion");
-    // Each completed-suite arm re-proves the run's custody and binds its
-    // completion identity before the prefix is trusted.
-    assert!(lowering_arm < lowering_replay && lowering_replay < lowering_completion);
-    assert!(lowering_completion < pre_allocation_arm);
+    // Each completed-suite arm re-proves the entire receipt before the
+    // common projection may bind its completion identity and ordered ledger.
+    assert!(lowering_arm < lowering_replay && lowering_replay < pre_allocation_arm);
+    assert!(pre_allocation_arm < pre_allocation_replay);
+    assert_eq!(manifest.matches("&upstream == run.custody()").count(), 2);
+    assert!(lowering_completion < pre_allocation_completion);
     assert!(
-        pre_allocation_arm < pre_allocation_replay
-            && pre_allocation_replay < pre_allocation_completion
+        projection.contains("PostAllocationSelectedTransformation::LiteralFold(iteration.fold())")
     );
+    assert!(projection.contains("iteration.transformation().into()"));
 }
 
 #[test]
