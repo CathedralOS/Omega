@@ -17,17 +17,20 @@ machine Main::bump(main: &mut Main, value: u64 in Wrapping) -> u64 in Wrapping {
 }
 
 machine Main::returned(main: &mut Main) -> u64 in Wrapping {
-    Main::bump(main, Main::bump(main, 3))
+    let inner: u64 in Wrapping = Main::bump(main, 3);
+    Main::bump(main, inner)
 }
 
 machine Main::initialized(main: &mut Main) -> u64 in Wrapping {
-    let value: u64 in Wrapping = Main::bump(main, Main::bump(main, 5));
+    let inner: u64 in Wrapping = Main::bump(main, 5);
+    let value: u64 in Wrapping = Main::bump(main, inner);
     value
 }
 
 machine Main::assigned(main: &mut Main) -> u64 in Wrapping {
     let mut value: u64 in Wrapping = 0;
-    value = Main::bump(main, Main::bump(main, 7));
+    let inner: u64 in Wrapping = Main::bump(main, 7);
+    value = Main::bump(main, inner);
     value
 }
 
@@ -60,7 +63,8 @@ machine Main::main(main: &mut Main) reaches Console {
     state field_store(main: &mut Main) {
         main.hits = 0;
         main.trace = 0;
-        main.saved = Main::bump(main, Main::bump(main, 9));
+        let inner: u64 in Wrapping = Main::bump(main, 9);
+        main.saved = Main::bump(main, inner);
         transition main.saved == 11 && main.hits == 2 && main.trace == 100 {
             true -> good(main)
             false -> bad(main, 74)
