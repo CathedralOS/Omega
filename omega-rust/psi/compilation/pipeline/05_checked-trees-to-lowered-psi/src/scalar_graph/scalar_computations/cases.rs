@@ -332,11 +332,6 @@ impl Expansion<'_> {
                         self.checked,
                         site.state,
                     )?;
-                let parameter_argument = site.bindings.case_parameter_argument(
-                    argument,
-                    machine,
-                    self.checked.state_parameters(state),
-                )?;
                 if argument.path.iter().any(|segment| {
                     matches!(
                         segment,
@@ -346,6 +341,11 @@ impl Expansion<'_> {
                     // A runtime-selected element observes "some element": its
                     // selector is read before the tag and the observation owns
                     // the element's bound.
+                    let parameter_argument = site.bindings.case_parameter_argument(
+                        argument,
+                        machine,
+                        self.checked.state_parameters(state),
+                    )?;
                     let identity = structural_case_identity(self.checked, observed_case)?;
                     let expression = site.bindings.parameter_element_case_observation(
                         parameter_argument
@@ -365,19 +365,22 @@ impl Expansion<'_> {
                         }),
                     ));
                 }
-                let (place, path, case) = match parameter_argument {
-                    Some(parameter_argument) => {
-                        let identity = structural_case_identity(self.checked, observed_case)?;
-                        site.bindings
-                            .parameter_case_observation(&parameter_argument, &identity)?
-                    }
-                    None => {
-                        let (place, case) = site
-                            .bindings
-                            .structural_local_observation(argument, observed_case)?;
-                        (place, Vec::new(), case)
-                    }
-                };
+                let source = site.bindings.shared_structural_place(
+                    argument,
+                    machine,
+                    self.checked.state_parameters(state),
+                )?;
+                let structural_type = site.bindings.structural_place_type(source).ok_or(
+                    LoweringError::Unsupported("case observation lost its established carrier"),
+                )?;
+                let identity = structural_case_identity(self.checked, observed_case)?;
+                let (path, case) =
+                    crate::expression_preparation::bindings::structural_cases::resolve_at(
+                        self.structural_types,
+                        structural_type,
+                        &argument.path,
+                        &identity,
+                    )?;
                 return Ok(self.binding(
                     input_types,
                     input_types.len(),
@@ -385,7 +388,7 @@ impl Expansion<'_> {
                     LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean {
                         expression: Box::new(
                             LoweredBooleanReturnExpression::StructuralCaseMembership {
-                                source: place,
+                                source,
                                 path,
                                 case,
                             },

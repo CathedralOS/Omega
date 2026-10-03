@@ -1210,7 +1210,6 @@ impl MachineEmission<'_> {
                     .with_structural_parameters(&self.evaluation.structural_parameters)
                     .with_structural_observations(self.structural_types)
                     .with_primitive_storage(&self.evaluation.primitive_storage)
-                    .with_local_cases(&self.evaluation.local_cases)
                     .with_structural_locals(&self.evaluation.structural_locals)
                     .with_view_locals(&self.evaluation.view_locals)
                     .with_element_views(&self.evaluation.element_views);

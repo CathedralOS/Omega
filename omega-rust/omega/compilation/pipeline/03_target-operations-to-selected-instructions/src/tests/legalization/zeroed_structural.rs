@@ -132,6 +132,19 @@ fn zeroed_mixed_arrays_keep_common_and_selected_case_cells_distinct() {
                         claims: Vec::new(),
                     },
                 },
+                AbstractOperation::StructuralCaseMembership {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    result: AbstractResult {
+                        value: ValueId::new(1).unwrap(),
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    source: place,
+                    path: vec![
+                        terminal_psi::StructuralPathSegment::Field("items".into()),
+                        terminal_psi::StructuralPathSegment::FixedIndex(1),
+                    ],
+                    case: StructuralCaseId::new(7).unwrap(),
+                },
                 AbstractOperation::ReturnUnit {
                     psi_edge: EdgeId::new(1).unwrap(),
                     cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
@@ -167,6 +180,31 @@ fn zeroed_mixed_arrays_keep_common_and_selected_case_cells_distinct() {
                 selected.plan().clone(),
             )
             .expect("mixed zero stores independently replay");
+            let mut changed = selected.plan().clone();
+            let tag_read = changed.functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find_map(|instruction| match &mut instruction.kind {
+                    selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => {
+                        Some(byte_offset)
+                    }
+                    _ => None,
+                })
+                .expect("the zeroed local's projected tag remains readable");
+            assert_eq!(*tag_read, if has_default_payload { 40 } else { 32 });
+            *tag_read += 1;
+            assert!(
+                validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed,
+                )
+                .is_err(),
+                "a projected tag cannot read neighboring storage"
+            );
             let mut stores = selected.plan().functions[0]
                 .blocks
                 .iter()

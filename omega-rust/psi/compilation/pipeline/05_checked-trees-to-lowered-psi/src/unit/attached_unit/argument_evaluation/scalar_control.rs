@@ -490,7 +490,6 @@ impl Evaluation {
                 )
             })
             .with_primitive_storage(&self.primitive_storage)
-            .with_local_cases(&self.local_cases)
             .with_structural_locals(&self.structural_locals)
             .with_view_locals(&self.view_locals)
             .with_element_views(&self.element_views)

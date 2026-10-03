@@ -62,8 +62,6 @@ pub(crate) struct Evaluation {
     /// element operations.
     pub(crate) element_views:
         std::collections::BTreeMap<semantic_vocabulary::StructuralTypeId, Option<ScalarType>>,
-    pub(crate) local_cases:
-        Vec<crate::expression_preparation::bindings::structural_cases::LocalCaseBinding>,
     pub(crate) subslices: Vec<crate::scalar_graph::scalar_computations::subslices::Slot>,
     pub(crate) arrays: Vec<crate::scalar_graph::scalar_computations::arrays::Slot>,
     pub(crate) literals: Vec<crate::scalar_graph::scalar_computations::literals::Slot>,
@@ -135,7 +133,6 @@ impl Evaluation {
             structural_locals: self.structural_locals.clone(),
             view_locals: self.view_locals.clone(),
             element_views: self.element_views.clone(),
-            local_cases: self.local_cases.clone(),
             arrays: self.arrays.clone(),
             literals: self.literals.clone(),
             copies: self.copies.clone(),
@@ -400,17 +397,6 @@ impl Evaluation {
                 return unsupported("structural value repeats or substitutes its local binding");
             }
             local_symbol = local.symbol;
-            if matches!(declaration.shape, StructuralTypeShape::Sum { .. }) {
-                self.local_cases.push(
-                    crate::expression_preparation::bindings::structural_cases::LocalCaseBinding::new(
-                        checked,
-                        local.symbol,
-                        local.type_reference,
-                        produced.place(),
-                        structural_types,
-                    )?,
-                );
-            }
             self.structural_fields.register_local(
                 local.symbol,
                 produced.place(),
@@ -759,7 +745,6 @@ impl Evaluation {
             structural_locals: Vec::new(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
-            local_cases: Vec::new(),
             arrays: Vec::new(),
             literals: Vec::new(),
             copies: Vec::new(),
@@ -906,7 +891,6 @@ impl Evaluation {
             .with_byte_record_loans(&self.byte_record_loans);
         let source_bindings = source_bindings
             .with_primitive_storage(&self.primitive_storage)
-            .with_local_cases(&self.local_cases)
             .with_structural_locals(&self.structural_locals)
             .with_view_locals(&self.view_locals)
             .with_element_views(&self.element_views);

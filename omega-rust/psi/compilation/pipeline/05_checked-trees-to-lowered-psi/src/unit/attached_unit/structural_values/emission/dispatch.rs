@@ -243,7 +243,6 @@ impl Emission<'_, '_, '_> {
                         argument.place = *target;
                     }
                 }
-                self.rebind_local_cases()?;
             }
         }
         Ok(continuation.place)

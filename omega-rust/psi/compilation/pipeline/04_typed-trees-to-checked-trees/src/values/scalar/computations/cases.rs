@@ -34,10 +34,9 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
-        // A transition arm (`Color::Red -> red()`) spells its case as a
-        // payload-free constructor; an authored test spells it as a name.
-        // Only a runtime-selected subject admits the constructor spelling
-        // here: static subjects keep their pure observation.
+        // Dispatch aliases and authored observations resolve to the same place.
+        // A transition arm spells its case as a payload-free constructor;
+        // an authored test spells it as a name.
         let observed =
             crate::execution::terminal_unit::control::case_observation_alias::observed_place(
                 self.program,
@@ -45,7 +44,7 @@ impl Builder<'_, '_> {
                 binary.left,
             )
             .unwrap_or((binary.left, self.statement_index));
-        if let Some(subject) = self.runtime_element_case_subject(observed.0, observed.1) {
+        if let Some((_, subject)) = self.readable_case_subject(observed.0, observed.1) {
             let case = match self.program.expression_table.expression(binary.right) {
                 ExpressionNode::Name(selected) => selected.symbol,
                 ExpressionNode::StructLiteral(literal)
@@ -73,51 +72,6 @@ impl Builder<'_, '_> {
             return None;
         };
         let case = selected.symbol;
-        if let ExpressionNode::Name(name) = self.program.expression_table.expression(binary.left)
-            && let Some((_, local)) = self
-                .program
-                .state_local_declaration(state, name.symbol)
-                .filter(|&(ordinal, _)| ordinal < self.statement_index)
-        {
-            // The observation reads the case tag through a shared borrow;
-            // what the local's contents carry — plain fields or shared
-            // views whose loans keep their lineage — selects nothing here.
-            // A local that is itself a borrow names no storage of its own,
-            // so only owned carriers classify.
-            if local.is_mutable
-                || name.head_symbol != name.symbol
-                || self
-                    .program
-                    .expression_table
-                    .name_path_members(name.members)
-                    .len()
-                    != 1
-                || !(validation::has_plain_owned_contents_with_numeric_constraints(
-                    self.program,
-                    local.type_reference,
-                ) || (validation::has_owned_or_shared_view_contents(
-                    self.program,
-                    local.type_reference,
-                ) && !matches!(
-                    self.program
-                        .type_reference_table
-                        .type_reference(local.type_reference),
-                    typed_trees::types::TypeReferenceNode::Reference { .. }
-                )))
-            {
-                return None;
-            }
-            return Some(self.insert(PrimitiveType::Bool, CheckedScalarComputationKind::CaseMembership {
-                source_expression: expression,
-                subject: CheckedScalarComputationStructuralArgument::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local.symbol },
-                    path: Vec::new(),
-                    type_identity: self.program.normalized_type_identity(local.type_reference).as_str().to_owned(),
-                    access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-                }),
-                case,
-            }));
-        }
         let constructor = self.case_construction(binary.left)?;
         Some(self.insert(
             PrimitiveType::Bool,
@@ -129,58 +83,10 @@ impl Builder<'_, '_> {
         ))
     }
 
-    /// The subject of a membership that selects an array element at run time
-    /// (`self.items[self.w] is Color::Red`), directly or through the erased
-    /// dispatch subject symbol resolution hoists it into
-    /// (`control::case_observation_alias`). A static subject keeps the pure
-    /// `StructuralCaseMembership` observation its canonical path keys; only a
-    /// path through a runtime element takes this name-spelled place, the
-    /// route e19d9775393 gave `self.cells[self.i].hp`. Its `RuntimeIndex`
-    /// segment names the checked selector and carries no bound: Terminal
-    /// re-proves `index < extent` against the array. The observation reads
-    /// "some element", so it keys no case fact on a canonical place, while
-    /// the dispatch it guards still selects exactly one arm by the observed
-    /// tag.
-    fn runtime_element_case_subject(
-        &self,
-        subject: ExpressionHandle,
-        statement_index: usize,
-    ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-        let place = crate::flow::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            statement_index,
-            subject,
-        )?;
-        // Admission follows the authored selector even when an immutable
-        // selector later folds to a fixed index in the observation path.
-        if !place
-            .segments
-            .iter()
-            .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
-        {
-            return None;
-        }
-        let (_, mut argument) = self.parameter_case_subject(subject, statement_index)?;
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
-            argument.source
-        else {
-            return None;
-        };
-        let position = self
-            .authored_parameters
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)?;
-        argument.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: self.dense_structural_parameter_index(position)?,
-        };
-        Some(argument)
-    }
-
-    /// Resolve the same readable parameter place for membership and intrinsic
+    /// Resolve the same readable place for membership and intrinsic
     /// enum equality. This route contains only place reads: calls and computed
     /// selectors must already have ordinary captured results before observation.
-    pub(super) fn parameter_case_subject(
+    pub(super) fn readable_case_subject(
         &self,
         subject: ExpressionHandle,
         statement_index: usize,
@@ -199,13 +105,38 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        let authored_position = self.authored_parameters.iter().position(|parameter| {
-            (parameter.is_self && root == self.machine)
-                || crate::flow::normalized_event_place_root(
+        let parameter = self.authored_parameters.iter().find(|parameter| {
+            crate::flow::normalized_event_place_root(
+                self.program,
+                facts::PlaceRoot::Symbol(parameter.symbol),
+            ) == facts::PlaceRoot::Symbol(root)
+        });
+        let symbol = if let Some(parameter) = parameter {
+            parameter.symbol
+        } else {
+            let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+            let state = self
+                .program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == self.state)?;
+            let (_, local) = self
+                .program
+                .state_local_declaration(state, root)
+                .filter(|(ordinal, _)| *ordinal < statement_index)?;
+            if validation::reference_shell(self.program, local.type_reference).is_some()
+                || !(validation::has_plain_owned_contents_with_numeric_constraints(
                     self.program,
-                    facts::PlaceRoot::Symbol(parameter.symbol),
-                ) == facts::PlaceRoot::Symbol(root)
-        })?;
+                    local.type_reference,
+                ) || validation::has_owned_or_shared_view_contents(
+                    self.program,
+                    local.type_reference,
+                ))
+            {
+                return None;
+            }
+            local.symbol
+        };
         let (projected, path) = crate::execution::terminal_unit::calls::projected_observed_path(
             self.program,
             self.machine,
@@ -217,10 +148,9 @@ impl Builder<'_, '_> {
         Some((
             projected,
             checked_trees::CheckedUnitStructuralArgumentPlan {
-                // Formal symbols survive until the receiving stage has the
-                // actual retained structural roster, including its receiver.
+                // Keep storage identity until the receiver resolves its roster.
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol: self.authored_parameters[authored_position].symbol,
+                    symbol,
                 },
                 path,
                 type_identity: self

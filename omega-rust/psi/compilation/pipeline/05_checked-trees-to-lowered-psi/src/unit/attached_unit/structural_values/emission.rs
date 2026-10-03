@@ -1425,7 +1425,6 @@ impl Emission<'_, '_, '_> {
                     pass_through: continuation.pass_through,
                     next_operation: self.operations.next_identity,
                 });
-            self.rebind_local_cases()?;
         }
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;
@@ -2416,7 +2415,6 @@ impl Emission<'_, '_, '_> {
                         argument.place = *target;
                     }
                 }
-                self.rebind_local_cases()?;
             }
         }
         Ok(continuation.place)
@@ -2598,41 +2596,6 @@ impl Emission<'_, '_, '_> {
         };
         self.complete_value(place, None, continuation)?;
         Ok(continuation.place)
-    }
-
-    fn rebind_local_cases(&mut self) -> Result<(), LoweringError> {
-        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
-            self.checked,
-            self.state,
-        )?;
-        let mut cases = Vec::new();
-        for crate::expression_preparation::bindings::StructuralLocalBinding {
-            symbol,
-            argument,
-            ..
-        } in &self.evaluation.structural_locals
-        {
-            let Some((_, local)) = self.checked.state_local_declaration(authored, *symbol) else {
-                continue;
-            };
-            let identity = self.checked.normalized_type_identity(local.type_reference);
-            if self.structural_types.iter().any(|declaration| {
-                declaration.identity == identity.as_str()
-                    && matches!(declaration.shape, StructuralTypeShape::Sum { .. })
-            }) {
-                cases.push(
-                    crate::expression_preparation::bindings::structural_cases::LocalCaseBinding::new(
-                        self.checked,
-                        *symbol,
-                        local.type_reference,
-                        argument.place,
-                        self.structural_types,
-                    )?,
-                );
-            }
-        }
-        self.evaluation.local_cases = cases;
-        Ok(())
     }
 
     pub(super) fn scalar(

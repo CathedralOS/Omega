@@ -4,68 +4,9 @@
 
 use super::super::{StructuralFieldType, StructuralTypeId, StructuralTypeShape};
 use super::{
-    CheckedTrees, LoweringError, PlaceId, StructuralAccess, StructuralParameterDeclaration,
+    LoweringError, PlaceId, StructuralAccess, StructuralParameterDeclaration,
     StructuralTypeDeclaration, unsupported,
 };
-/// A local's observed cases belong to its declared type, not to whichever
-/// constructor happened to supply a selected arm.
-#[derive(Clone)]
-pub(crate) struct LocalCaseBinding {
-    pub(super) symbol: symbols::SymbolHandle,
-    pub(super) source: PlaceId,
-    pub(super) type_identity: String,
-    pub(super) cases: Vec<(symbols::SymbolHandle, semantic_vocabulary::StructuralCaseId)>,
-}
-
-impl LocalCaseBinding {
-    pub(crate) fn new(
-        checked: &CheckedTrees,
-        symbol: symbols::SymbolHandle,
-        reference: checked_trees::types::TypeReferenceHandle,
-        source: PlaceId,
-        types: &[StructuralTypeDeclaration],
-    ) -> Result<Self, LoweringError> {
-        let type_identity = checked.normalized_type_identity(reference).into_string();
-        let checked_trees::types::TypeReferenceNode::Named { symbol: owner, .. } =
-            checked.type_reference_table.type_reference(reference)
-        else {
-            return unsupported("observed local requires an exact nominal sum");
-        };
-        let data = checked
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *owner)
-            .ok_or(LoweringError::Unsupported(
-                "observed local lost its nominal owner",
-            ))?;
-        let declaration = types
-            .iter()
-            .find(|declaration| declaration.identity == type_identity)
-            .ok_or(LoweringError::Unsupported(
-                "observed local lost its structural type",
-            ))?;
-        let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-            return unsupported("observed local requires a plain sum");
-        };
-        let mut bindings = Vec::new();
-        for member in checked.data_members(data) {
-            let checked_trees::data::DataMember::Variant(variant) = member else {
-                continue;
-            };
-            let identity = variant.path_identity();
-            let case = cases.iter().find(|case| case.identity == identity).ok_or(
-                LoweringError::Unsupported("observed local has a missing declared case"),
-            )?;
-            bindings.push((variant.symbol, case.id));
-        }
-        Ok(Self {
-            symbol,
-            source,
-            type_identity,
-            cases: bindings,
-        })
-    }
-}
 
 #[derive(Clone)]
 pub(crate) struct StructuralCaseBinding {
@@ -97,6 +38,37 @@ impl StructuralCaseBinding {
     }
 }
 
+/// Resolve static case observation from any established readable place.
+/// The source binding owns custody; this walk owns declared field, extent and
+/// case identity. Locals do not need a separately reconstructed case catalog.
+pub(crate) fn resolve_at(
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    steps: &[checked_trees::CheckedUnitStructuralPathSegment],
+    identity: &str,
+) -> Result<
+    (
+        Vec<terminal_psi::StructuralPathSegment>,
+        semantic_vocabulary::StructuralCaseId,
+    ),
+    LoweringError,
+> {
+    let steps = steps
+        .iter()
+        .map(|step| match step {
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Ok(
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
+            ),
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                Ok(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
+            }
+            _ => unsupported("static case observation requires record fields and fixed indices"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (sum, path) = walk(declarations, structural_type, &steps)?;
+    Ok((path, selected_case(declarations, sum, identity)?))
+}
+
 pub(crate) fn resolve(
     bindings: &[StructuralCaseBinding],
     subject: &checked_trees::CheckedStructuralParameterField,
@@ -118,12 +90,20 @@ pub(crate) fn resolve(
     if matching.next().is_some() {
         return unsupported("case observation has ambiguous source bindings");
     }
-    let (sum, path) = walk(binding, binding.structural_type, &subject.path)?;
-    Ok((binding.source, path, selected_case(binding, sum, identity)?))
+    let (sum, path) = walk(
+        &binding.declarations,
+        binding.structural_type,
+        &subject.path,
+    )?;
+    Ok((
+        binding.source,
+        path,
+        selected_case(&binding.declarations, sum, identity)?,
+    ))
 }
 
 /// Resolve a case observation through one runtime-selected element
-/// (`self.items[self.w] is Color::Red`): `prefix` walks from the bound
+/// (`context.items[position] in Color::Red`): `prefix` walks from the bound
 /// parameter to a fixed array or whole element view, and `element_path` walks
 /// the selected element to the sum. Returns the source, the two lowered halves
 /// surrounding `RuntimeIndex`, the selected case, and whether the exact carrier
@@ -157,16 +137,18 @@ pub(crate) fn resolve_runtime_element(
     if matching.next().is_some() {
         return unsupported("case observation has ambiguous source bindings");
     }
-    let (array, prefix) = walk(binding, binding.structural_type, prefix)?;
-    let (element, observes_element_view_length) = match &declaration(binding, array)?.shape {
+    let (array, prefix) = walk(&binding.declarations, binding.structural_type, prefix)?;
+    let (element, observes_element_view_length) = match &declaration(&binding.declarations, array)?
+        .shape
+    {
         StructuralTypeShape::FixedArray { element, .. } => (*element, false),
         StructuralTypeShape::ElementView { element } if prefix.is_empty() => (*element, true),
         _ => {
             return unsupported("runtime case observation requires an array or whole element view");
         }
     };
-    let (sum, element_path) = walk(binding, element, element_path)?;
-    let case = selected_case(binding, sum, identity)?;
+    let (sum, element_path) = walk(&binding.declarations, element, element_path)?;
+    let case = selected_case(&binding.declarations, sum, identity)?;
     Ok((
         binding.source,
         prefix,
@@ -177,11 +159,10 @@ pub(crate) fn resolve_runtime_element(
 }
 
 fn declaration(
-    binding: &StructuralCaseBinding,
+    declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
 ) -> Result<&StructuralTypeDeclaration, LoweringError> {
-    let mut declarations = binding
-        .declarations
+    let mut declarations = declarations
         .iter()
         .filter(|declaration| declaration.id == structural_type);
     let selected = declarations.next().ok_or(LoweringError::Unsupported(
@@ -196,13 +177,13 @@ fn declaration(
 /// Walk relevant structural record fields and in-range literal indexes from
 /// `structural_type`, lowering each step.
 fn walk(
-    binding: &StructuralCaseBinding,
+    declarations: &[StructuralTypeDeclaration],
     mut structural_type: StructuralTypeId,
     steps: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<(StructuralTypeId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
     let mut path = Vec::with_capacity(steps.len());
     for segment in steps {
-        match (segment, &declaration(binding, structural_type)?.shape) {
+        match (segment, &declaration(declarations, structural_type)?.shape) {
             (
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
                 StructuralTypeShape::Record { fields },
@@ -242,11 +223,11 @@ fn walk(
 }
 
 fn selected_case(
-    binding: &StructuralCaseBinding,
+    declarations: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     identity: &str,
 ) -> Result<semantic_vocabulary::StructuralCaseId, LoweringError> {
-    let cases = match &declaration(binding, structural_type)?.shape {
+    let cases = match &declaration(declarations, structural_type)?.shape {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return unsupported("case observation requires an exact selected sum"),
     };

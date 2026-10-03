@@ -264,9 +264,9 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
                 type_parameters,
                 &mut bindings,
                 &mut const_bindings,
-            ) || indexed_receiver_self_match(
+            ) || indexed_collection_borrow_matches(
                 program,
-                indexed_collection && position == 0 && expected.is_self,
+                indexed_collection && position == 0,
                 actual,
                 expected.type_reference,
                 type_parameters,
@@ -307,12 +307,11 @@ fn scalar_operand_read_type(
     }
 }
 
-/// The `[]`/`[..]` receiver loan behind the ordinary match: position zero as
-/// a machine's `self` parameter borrows the collection exactly as a named
-/// `collection.at(index)` does. A failed direct attempt can leave speculative
+/// The `[]`/`[..]` collection loan behind the ordinary match follows the
+/// explicit first parameter's borrow contract. A failed direct attempt can leave speculative
 /// type-parameter bindings behind, so the loan retries on copies that replace
 /// the working sets only when the retry succeeds.
-fn indexed_receiver_self_match(
+fn indexed_collection_borrow_matches(
     program: &TypedTrees,
     applies: bool,
     actual: TypeReferenceHandle,
@@ -326,7 +325,7 @@ fn indexed_receiver_self_match(
     }
     let mut retry_bindings = bindings.clone();
     let mut retry_const_bindings = const_bindings.clone();
-    let matched = indexing::receiver_self_match(
+    let matched = indexing::borrowed_collection_match(
         program,
         actual,
         expected,

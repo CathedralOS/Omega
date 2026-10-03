@@ -83,23 +83,10 @@ pub(super) fn shared_collection_elements(
     }
 }
 
-/// The implicit receiver loan of a `[]`/`[..]` use: when operand zero is an
-/// attached machine's `self` parameter, the collection place supplies the
-/// receiver and borrows exactly as `collection.at(index)` does — an authored
-/// `&self` admits the collection by shared reference. `Self` in the signature
-/// resolves to the machine's own symbol, so the comparison below substitutes
-/// the machine's attached data identity; an owned `self` receiver (no
-/// reference shell) stays owned and compares the same way. The collection
-/// operand may itself arrive behind a borrow: `items[index]` on
-/// `items: &Buffer` supplies the receiver by reborrow exactly as
-/// `items.at(index)` does, so a reference operand peels to its referent when
-/// the receiver asked for a reference. An owned `self` parameter cannot move
-/// out of borrowed storage, so the operand shell stays then. The ordinary
-/// ownership checker still validates whether the operand's access suffices
-/// for the receiver's. Only `self` parameters reach this adaptation — the
-/// caller gates on `is_self` — so a first ordinary parameter spelled
-/// `items: &Buffer` keeps the ordinary argument rules and is not a receiver.
-pub(super) fn receiver_self_match(
+/// Indexed syntax borrows the collection according to its first parameter.
+/// Match referents here; the ownership checker validates the actual place's
+/// access and availability. Owned parameters retain ordinary operand matching.
+pub(super) fn borrowed_collection_match(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
@@ -110,64 +97,48 @@ pub(super) fn receiver_self_match(
     let Some(expected) = unconstrained(program, expected) else {
         return false;
     };
-    let (referee, borrowed_receiver) = match program.type_reference_table.type_reference(expected) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            let Some(referee) = unconstrained(program, *referee) else {
-                return false;
-            };
-            (referee, true)
-        }
-        _ => (expected, false),
-    };
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(referee)
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(expected)
     else {
         return false;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == *symbol)
-    else {
+    if !matches!(
+        access,
+        language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+    ) {
         return false;
-    };
+    }
+    let expected = *referee;
     let Some(actual) = unconstrained(program, actual) else {
         return false;
     };
-    let actual = if borrowed_receiver {
-        match program.type_reference_table.type_reference(actual) {
-            TypeReferenceNode::Reference { referee, .. } => {
-                let Some(referee) = unconstrained(program, *referee) else {
-                    return false;
-                };
-                referee
-            }
-            _ => actual,
-        }
-    } else {
-        actual
-    };
-    if machine.attached_data_application.is_valid() {
-        // A generic attachment spells `Self` as the machine's own binder
-        // application, so `Table<T>::at` binds `T` from the collection
-        // operand exactly like a named receiver call.
-        return type_reference_matches(
-            program,
-            actual,
-            machine.attached_data_application,
-            None,
-            type_parameters,
-            bindings,
-            const_bindings,
-        );
-    }
-    matches!(
-        program.type_reference_table.type_reference(actual),
-        TypeReferenceNode::Named { symbol, .. }
-        | TypeReferenceNode::Generic {
-            base_symbol: symbol,
+    let actual = match program.type_reference_table.type_reference(actual) {
+        TypeReferenceNode::Reference {
+            referee,
+            access: actual_access,
             ..
-        } if *symbol == machine.attached_data_symbol
+        } => {
+            if *actual_access != *access
+                && *actual_access != language_core::ReferenceAccess::Mutable
+            {
+                return false;
+            }
+            let Some(referee) = unconstrained(program, *referee) else {
+                return false;
+            };
+            referee
+        }
+        _ => actual,
+    };
+    type_reference_matches(
+        program,
+        actual,
+        expected,
+        None,
+        type_parameters,
+        bindings,
+        const_bindings,
     )
 }
 

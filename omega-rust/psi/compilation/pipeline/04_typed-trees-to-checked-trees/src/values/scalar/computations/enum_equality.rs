@@ -4,8 +4,9 @@
 //! roster is a Boolean encoding of the tag. Apply evaluates every left
 //! observation before every right observation, then compares the captured
 //! Booleans. Short-circuiting the final conjunction cannot skip an operand's
-//! bounds check. Only established parameter places are admitted here; a call
-//! or effectful selector cannot be replayed once for every declared case.
+//! bounds check. A payloadless constructor contributes known tag bits, not a
+//! temporary owner per observation. Calls and effectful selectors cannot be
+//! replayed once for every declared case.
 
 use super::{
     Builder, CheckedBooleanExpression, CheckedScalarComputationHandle,
@@ -33,14 +34,16 @@ impl Builder<'_, '_> {
             return None;
         }
         let unequal = binary.operator == BinaryOperator::NotEqual;
-        let (left_type, left) = self.parameter_case_subject(binary.left, self.statement_index)?;
-        let (right_type, right) =
-            self.parameter_case_subject(binary.right, self.statement_index)?;
+        let (left_type, left) = self.enum_operand(binary.left)?;
+        let (right_type, right) = self.enum_operand(binary.right)?;
         let left_owner =
             crate::values::scalar::structural_fields::structural_data(self.program, left_type)?;
         let right_owner =
             crate::values::scalar::structural_fields::structural_data(self.program, right_type)?;
-        if left_owner.symbol != right_owner.symbol || left.type_identity != right.type_identity {
+        if left_owner.symbol != right_owner.symbol
+            || self.program.normalized_type_identity(left_type)
+                != self.program.normalized_type_identity(right_type)
+        {
             return None;
         }
         let members = self.program.data_members(left_owner);
@@ -65,14 +68,19 @@ impl Builder<'_, '_> {
         let mut observations = Vec::with_capacity(cases.len().checked_mul(2)?);
         for subject in [left, right] {
             for case in &cases {
-                observations.push(self.insert(
-                    PrimitiveType::Bool,
-                    CheckedScalarComputationKind::CaseMembership {
-                        source_expression: expression,
-                        subject: CheckedScalarComputationStructuralArgument::Place(subject.clone()),
-                        case: *case,
-                    },
-                ));
+                observations.push(match &subject {
+                    CheckedScalarComputationStructuralArgument::Case(constructor) => {
+                        self.boolean(constructor.case == *case)
+                    }
+                    _ => self.insert(
+                        PrimitiveType::Bool,
+                        CheckedScalarComputationKind::CaseMembership {
+                            source_expression: expression,
+                            subject: subject.clone(),
+                            case: *case,
+                        },
+                    ),
+                });
             }
         }
         let comparisons = (0..cases.len()).map(|position| CheckedBooleanExpression::Equal {
@@ -96,6 +104,33 @@ impl Builder<'_, '_> {
                 expression: CheckedScalarExpression::Boolean(Box::new(template)),
                 operands,
             },
+        ))
+    }
+
+    fn enum_operand(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<(
+        typed_trees::types::TypeReferenceHandle,
+        CheckedScalarComputationStructuralArgument,
+    )> {
+        if let Some((reference, place)) =
+            self.readable_case_subject(expression, self.statement_index)
+        {
+            return Some((
+                reference,
+                CheckedScalarComputationStructuralArgument::Place(place),
+            ));
+        }
+        let constructor = self.case_construction(expression)?;
+        // A payloadless constructor supplies a constant tag without evaluating
+        // payloads. Calls and constructor payload evaluations are not tag constants.
+        if !constructor.fields.is_empty() {
+            return None;
+        }
+        Some((
+            constructor.type_reference,
+            CheckedScalarComputationStructuralArgument::Case(constructor),
         ))
     }
 }
