@@ -215,9 +215,19 @@ pub(super) fn validate_scalar_cleanup_actions(
         {
             continue;
         }
-        if remaining.partial_custody_paths.contains_key(&place)
-            || actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place))
-        {
+        if remaining.partial_custody_paths.contains_key(&place) {
+            validate_scalar_residual_cleanup(
+                function,
+                structural_types,
+                block,
+                &mut remaining,
+                place,
+                &mut actions,
+            )?;
+            remaining.owned_places.remove(&place);
+            continue;
+        }
+        if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
             return Err(mismatch());
         }
         super::references::discard_owned(
@@ -267,28 +277,18 @@ pub(super) fn validate_scalar_cleanup_actions(
         {
             return Err(mismatch());
         }
-        if let Some(moved) = remaining.partial_custody_paths.remove(&parameter.place) {
-            let residuals = partial_affine_residuals(
+        if remaining
+            .partial_custody_paths
+            .contains_key(&parameter.place)
+        {
+            validate_scalar_residual_cleanup(
+                function,
                 structural_types,
-                parameter.structural_type,
-                &moved,
-                actions.len(),
-            )
-            .ok_or_else(mismatch)?;
-            if moved.is_empty() || residuals.is_empty() {
-                return Err(mismatch());
-            }
-            for (path, structural_type) in residuals {
-                let expected =
-                    TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
-                        place: parameter.place,
-                        path,
-                        structural_type,
-                    });
-                if actions.next() != Some(&expected) {
-                    return Err(mismatch());
-                }
-            }
+                block,
+                &mut remaining,
+                parameter.place,
+                &mut actions,
+            )?;
         } else {
             let Some(action) = actions.next() else {
                 return Err(mismatch());
@@ -319,6 +319,48 @@ pub(super) fn validate_scalar_cleanup_actions(
         || !remaining.live_references.is_empty()
     {
         return Err(mismatch());
+    }
+    Ok(())
+}
+
+/// Replay each partially moved owner's exact complement in the same lifetime
+/// order as whole disposal; result producers do not define a cleanup category.
+fn validate_scalar_residual_cleanup(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    remaining: &mut CurrentOwnership,
+    place: semantic_vocabulary::PlaceId,
+    actions: &mut std::slice::Iter<'_, TerminalAffineCleanupAction>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
+        machine: function.machine,
+        block,
+    };
+    let root_type = partial_affine_root_type(function, place).ok_or_else(mismatch)?;
+    let moved = remaining
+        .partial_custody_paths
+        .remove(&place)
+        .ok_or_else(mismatch)?;
+    let residuals =
+        partial_affine_residuals(types, root_type, &moved, actions.len()).ok_or_else(mismatch)?;
+    if residuals.is_empty()
+        || remaining
+            .live_references
+            .iter()
+            .any(|reference| reference.carrier == place)
+    {
+        return Err(mismatch());
+    }
+    for (path, structural_type) in residuals {
+        let expected = TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+            place,
+            path,
+            structural_type,
+        });
+        if actions.next() != Some(&expected) {
+            return Err(mismatch());
+        }
     }
     Ok(())
 }

@@ -101,36 +101,71 @@ pub(crate) fn validate(
         return unsupported("owned value operand substituted its declared carrier");
     }
     if checked.type_multiplicity(source) == language_semantics::Multiplicity::Affine {
-        let ownership = &checked.facts.flow.ownership;
-        let mut transfers = ownership
-            .permissions
-            .iter()
-            .map(|(_, event)| event)
-            .filter(|event| {
-                event.machine_symbol == machine
-                    && event.state_symbol == state
-                    && event.root == facts::PlaceRoot::Symbol(name.symbol)
-                    && event.kind == language_semantics::PermissionEventKind::Transfer
-                    && event.source
-                        == language_semantics::PermissionEventSource::Statement {
-                            statement_index: statement as usize,
-                        }
-            });
-        let transfer = transfers.next().ok_or(LoweringError::Unsupported(
-            "owned value operand lost its statement transfer",
-        ))?;
-        if transfers.next().is_some()
-            || transfer.access != language_semantics::PermissionAccess::Owned
-            || transfer.multiplicity != language_semantics::Multiplicity::Affine
-            || transfer.obligation_live
-            || transfer.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
-            || ownership
+        validate_transfer(
+            checked,
+            machine,
+            state,
+            name.symbol,
+            source,
+            language_semantics::PermissionEventSource::Statement {
+                statement_index: statement as usize,
+            },
+            &argument.path,
+        )?;
+    }
+    Ok(())
+}
+
+/// Match one consumed owned subtree, including a whole root, to its exact
+/// occurrence and declaration-resolved path. Other disjoint operands at that
+/// occurrence retain their own transfers; equal field spelling is not identity.
+pub(crate) fn validate_transfer(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    root: SymbolHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
+    occurrence: language_semantics::PermissionEventSource,
+    expected_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Result<(), LoweringError> {
+    use language_semantics::{
+        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    };
+    let ownership = &checked.facts.flow.ownership;
+    let mut matched = false;
+    for (_, event) in ownership.permissions.iter().filter(|(_, event)| {
+        event.machine_symbol == machine
+            && event.state_symbol == state
+            && event.root == facts::PlaceRoot::Symbol(root)
+            && event.source == occurrence
+            && event.kind == PermissionEventKind::Transfer
+    }) {
+        let segments =
+            ownership
                 .segments
-                .span(transfer.segments)
-                .is_none_or(|path| !path.is_empty())
-        {
-            return unsupported("owned value operand changed its whole affine transfer");
+                .span(event.segments)
+                .ok_or(LoweringError::Unsupported(
+                    "owned operand transfer has a stale path",
+                ))?;
+        let (path, selected) =
+            validation::structural_owned_path(&checked.typed, reference, segments)
+                .map_err(LoweringError::Unsupported)?;
+        if path != expected_path {
+            continue;
         }
+        if matched
+            || event.access != PermissionAccess::Owned
+            || event.multiplicity != Multiplicity::Affine
+            || checked.type_multiplicity(selected) != Multiplicity::Affine
+            || event.obligation_live
+            || event.claim_identity != PermissionClaimIdentity::Unknown
+        {
+            return unsupported("owned operand changed its exact affine transfer");
+        }
+        matched = true;
+    }
+    if !matched {
+        return unsupported("owned operand lost its exact affine transfer");
     }
     Ok(())
 }

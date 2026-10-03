@@ -7,11 +7,11 @@ use super::*;
 /// moved owned parameter on the ordinary Unit return edge. A projected owned
 /// actual transfers only the selected subtree into the callee, so the
 /// parameter's untouched remainder still dies on this return and must
-/// publish residual rows rather than disappear from cleanup. Anonymous
-/// temporaries settle on their consuming call's continuation instead; a
-/// projection sourced from a named result or any other root has no residual
-/// lane on this edge and declines the return rather than emit cleanup the
-/// verifier cannot reconstruct.
+/// publish residual rows rather than disappear from cleanup. Result/local
+/// lifetimes are scheduled by their establishment and consuming continuation.
+/// Stage 05 completes their scheduled disposal from the emitted transfer
+/// frontier; this parameter roster must not reject those projections based on
+/// whether their producer was a call, construction, named local or temporary.
 pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -23,35 +23,14 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     admitted_local_symbols: &[SymbolHandle],
     structural_types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
 ) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
-    let mut structural_result_statements = BTreeMap::new();
-    let mut constructed_result_types = BTreeMap::new();
-    for operation in operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-    {
-        let Some(result) = operation.structural_result_binding() else {
-            continue;
-        };
-        structural_result_statements.insert(result.binding_ordinal, result.statement_index);
-        if matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-        ) {
-            constructed_result_types.insert(result.binding_ordinal, result.type_identity.clone());
-        }
-    }
     let mut transferred_parameters = BTreeSet::new();
     let mut moved_parameter_paths =
-        BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, String)>>::new();
-    let mut named_result_projection = false;
-    let mut moved_result_paths =
         BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, String)>>::new();
     for operation in operations
         .iter()
         .flat_map(|operation| operation.with_value_calls())
     {
         if let Some(call) = operation.call() {
-            let coordinate = call.coordinate;
             for argument in &call.structural_arguments {
                 if argument.access != CheckedStructuralAccess::Owned {
                     continue;
@@ -64,38 +43,6 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                             .entry(parameter_index)
                             .or_default()
                             .push((argument.path.clone(), argument.type_identity.clone()));
-                    }
-                    continue;
-                }
-                if argument.path.is_empty() {
-                    continue;
-                }
-                // An owned projection sourced from a same-statement result
-                // binding is an anonymous temporary whose custody the
-                // consuming call's continuation already owns; any other
-                // projected root cannot publish residual evidence here.
-                let anonymous_temporary = argument
-                    .source_structural_result_binding_ordinal()
-                    .is_some_and(|binding_ordinal| {
-                        structural_result_statements
-                            .get(&binding_ordinal)
-                            .is_some_and(|established| *established == coordinate.statement_index)
-                    });
-                if !anonymous_temporary {
-                    // A named local construction moves its projected
-                    // subtree out; the complement check below decides
-                    // whether anything remains that this return edge
-                    // would owe. A named call result's projections belong
-                    // to the partial-result cleanup carrier instead.
-                    match argument
-                        .source_structural_result_binding_ordinal()
-                        .filter(|ordinal| constructed_result_types.contains_key(ordinal))
-                    {
-                        Some(binding_ordinal) => moved_result_paths
-                            .entry(binding_ordinal)
-                            .or_default()
-                            .push((argument.path.clone(), argument.type_identity.clone())),
-                        None => named_result_projection = true,
                     }
                 }
             }
@@ -111,25 +58,6 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             {
                 transferred_parameters.insert(parameter_index);
             }
-        }
-    }
-    if named_result_projection {
-        return None;
-    }
-    // Projections that cover a named construction's whole type consume it;
-    // a remaining complement would need a residual discard this return edge
-    // cannot express, so that body stays outside the ordinary lane.
-    for (binding_ordinal, moved_paths) in &moved_result_paths {
-        let rows = crate::execution::terminal_unit::cleanup::partial_affine_residuals(
-            structural_types,
-            &CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: *binding_ordinal,
-            },
-            constructed_result_types.get(binding_ordinal)?,
-            moved_paths,
-        )?;
-        if !rows.is_empty() {
-            return None;
         }
     }
     let mut residual_roots = BTreeSet::new();

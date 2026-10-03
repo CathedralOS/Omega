@@ -13,6 +13,7 @@ use terminal_production::{
 use terminal_psi::{OperationKind, Terminator};
 
 mod local_construction;
+mod projected_custody;
 mod stored_carriers;
 
 #[test]

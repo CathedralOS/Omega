@@ -743,9 +743,26 @@ fn retained_claim_segments(
 /// spelling alone never selects a field from another declaration.
 pub fn structural_claim_path(
     program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> Result<Vec<CheckedUnitStructuralPathSegment>, &'static str> {
+    let (path, reference) = structural_owned_path(program, reference, segments)?;
+    if program.primitive_type_reference(reference).is_some()
+        || program.type_multiplicity(reference) != Multiplicity::Linear
+    {
+        return Err("structural claim path does not select linear structural custody");
+    }
+    Ok(path)
+}
+
+/// Reconstruct an owned subtree's path and exact selected type. Resolving a
+/// path grants no transfer or claim: callers separately replay those events.
+/// References cannot be crossed to manufacture ownership of their referents.
+pub fn structural_owned_path(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Result<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle), &'static str> {
     let mut path = Vec::with_capacity(segments.len());
     for segment in segments {
         structural_result_qualifications(program, reference)?;
@@ -800,12 +817,7 @@ pub fn structural_claim_path(
         }
     }
     structural_result_qualifications(program, reference)?;
-    if program.primitive_type_reference(reference).is_some()
-        || program.type_multiplicity(reference) != Multiplicity::Linear
-    {
-        return Err("structural claim path does not select linear structural custody");
-    }
-    Ok(path)
+    Ok((path, reference))
 }
 
 /// Shared slice descriptors borrow contents without inheriting owned claims.

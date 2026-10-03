@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 5.23, "load1_start": 5.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.89, "load1_start": 7.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1290,6 +1290,8 @@ pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
+pass/borrows/projected_reference_record_argument_exit checked 1049ms @d09ea69bfa27+wt
+pass/borrows/projected_reference_record_residual_exit checked 1064ms @d09ea69bfa27+wt
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms @4e4bfed13aee+wt
