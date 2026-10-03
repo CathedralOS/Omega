@@ -498,7 +498,7 @@ impl TypedTrees {
     /// A data binding is spelled `&mut Main`, `&Main` or `Main`; the
     /// ownership mode decides borrow access, not which record the binding
     /// names, so every mode answers this the same way.
-    fn type_reference_names_attached_data(
+    pub(crate) fn type_reference_names_attached_data(
         &self,
         type_reference: crate::types::TypeReferenceHandle,
         attached_data_symbol: symbols::SymbolHandle,

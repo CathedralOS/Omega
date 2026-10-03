@@ -1,5 +1,5 @@
 //! R1 in-callee ordering facts: a dependent-ranged state parameter
-//! (`i: u32 [0..=self.count]`) mints `i <= self.count` into the DBM at
+//! (`i: u32 [0..=main.count]`) mints `i <= main.count` into the DBM at
 //! state entry -- the caller proved it at every transition/call (the
 //! proof-plan atom), so inside the state it composes with everything the
 //! guard-seeded orderings already serve (via_ordering index bounds,
@@ -104,7 +104,7 @@ fn dependent_maximum_of_type_reference(
                         ..
                     } => {
                         let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                            &program.expression_table,
+                            program,
                             *maximum,
                             *end_inclusive,
                         )?;
@@ -151,7 +151,7 @@ fn sibling_len_of_type_reference(
                         end_inclusive,
                         ..
                     } => typed_trees::dependent_ranges::sibling_range_maximum(
-                        &program.expression_table,
+                        program,
                         *maximum,
                         *end_inclusive,
                     ),

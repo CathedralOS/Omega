@@ -37,21 +37,18 @@ pub(super) fn refine_dependent_product(
         return naive;
     }
     let (a_expr, fb_expr) = {
-        let left_is_field = typed_trees::dependent_ranges::symbolic_max_bound(
-            &program.expression_table,
-            product.left,
-        )
-        .is_some_and(|bound| bound.offset == 0);
+        let left_is_field =
+            typed_trees::dependent_ranges::symbolic_max_bound(program, product.left)
+                .is_some_and(|bound| bound.offset == 0);
         if left_is_field {
             (product.right, product.left)
         } else {
             (product.left, product.right)
         }
     };
-    let Some(fb) =
-        typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, fb_expr)
-            .filter(|bound| bound.offset == 0)
-            .map(|bound| bound.field)
+    let Some(fb) = typed_trees::dependent_ranges::symbolic_max_bound(program, fb_expr)
+        .filter(|bound| bound.offset == 0)
+        .map(|bound| bound.field)
     else {
         return naive;
     };
@@ -253,19 +250,17 @@ pub(super) fn refine_dependent_product_factor(
         return naive;
     };
     let (a_expr, fb_expr) = {
-        let left_is_field =
-            typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, left)
-                .is_some_and(|bound| bound.offset == 0);
+        let left_is_field = typed_trees::dependent_ranges::symbolic_max_bound(program, left)
+            .is_some_and(|bound| bound.offset == 0);
         if left_is_field {
             (right, left)
         } else {
             (left, right)
         }
     };
-    let Some(fb) =
-        typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, fb_expr)
-            .filter(|bound| bound.offset == 0)
-            .map(|bound| bound.field)
+    let Some(fb) = typed_trees::dependent_ranges::symbolic_max_bound(program, fb_expr)
+        .filter(|bound| bound.offset == 0)
+        .map(|bound| bound.field)
     else {
         return naive;
     };
