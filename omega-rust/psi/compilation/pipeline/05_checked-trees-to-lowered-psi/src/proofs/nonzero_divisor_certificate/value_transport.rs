@@ -44,18 +44,39 @@ pub(super) fn prove(
     })
 }
 
+/// Literal or field refinements can simplify a goal, but must not replace the
+/// defining relation everywhere. For example, proving `remaining = 0` at an
+/// exit does not make its equation `remaining = previous - 1` dispensable:
+/// expanding the exit bound through that equation constrains `previous`.
+/// Both closures contain proved equations from the same bounded dependency
+/// walk; they are alternative checked views, never additional premises.
+struct RetainedEqualities {
+    refined: Vec<ProofNode>,
+    defining: Vec<ProofNode>,
+}
+
+impl RetainedEqualities {
+    fn forms(self) -> impl Iterator<Item = Vec<ProofNode>> {
+        let defining = (self.refined != self.defining).then_some(self.defining);
+        std::iter::once(self.refined).chain(defining)
+    }
+}
+
 fn retained_equalities(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     rejoin_stores: bool,
-) -> Option<Vec<ProofNode>> {
+) -> Option<RetainedEqualities> {
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut pending = Vec::new();
     goal.visit_value_ids(|value| pending.push(value));
     let mut visited = BTreeSet::new();
-    let mut equalities = Vec::new();
+    let mut equalities = RetainedEqualities {
+        refined: Vec::new(),
+        defining: Vec::new(),
+    };
     let mut remaining = 4096usize;
     while let Some(value) = pending.pop() {
         remaining = remaining.checked_sub(1)?;
@@ -118,12 +139,17 @@ fn retained_equalities(
             })
         })
         .unwrap_or_else(|| fact.proof());
-        equality.conclusion.visit_value_ids(|dependency| {
+        let mut retain_dependency = |dependency| {
             if dependency != value && !visited.contains(&dependency) {
                 pending.push(dependency);
             }
-        });
-        equalities.push(equality);
+        };
+        equality.conclusion.visit_value_ids(&mut retain_dependency);
+        if &equality.conclusion != fact.proposition {
+            fact.proposition.visit_value_ids(retain_dependency);
+        }
+        equalities.refined.push(equality);
+        equalities.defining.push(fact.proof());
     }
     Some(equalities)
 }
@@ -137,27 +163,34 @@ pub(super) fn citation_forms(
     semantic_axioms: &[Proposition],
 ) -> Vec<ProofNode> {
     let mut forms = Vec::new();
-    if let Some(equalities) = retained_equalities(
+    if let Some(retained) = retained_equalities(
         context,
         &citation.conclusion,
         assumptions,
         semantic_axioms,
         false,
-    ) && !equalities.is_empty()
-        && let Ok(transported) = check_value_equality_denotation(
-            context,
-            &citation.conclusion,
-            equalities.iter().map(|equality| &equality.conclusion),
-        )
-        && transported != citation.conclusion
-    {
-        forms.push(ProofNode {
-            conclusion: transported,
-            rule: ProofRule::ValueEqualityTransport {
-                premise: Box::new(citation.clone()),
-                equalities,
-            },
-        });
+    ) {
+        for equalities in retained.forms() {
+            if !equalities.is_empty()
+                && let Ok(transported) = check_value_equality_denotation(
+                    context,
+                    &citation.conclusion,
+                    equalities.iter().map(|equality| &equality.conclusion),
+                )
+                && transported != citation.conclusion
+                && !forms
+                    .iter()
+                    .any(|proof: &ProofNode| proof.conclusion == transported)
+            {
+                forms.push(ProofNode {
+                    conclusion: transported,
+                    rule: ProofRule::ValueEqualityTransport {
+                        premise: Box::new(citation.clone()),
+                        equalities,
+                    },
+                });
+            }
+        }
     }
     forms.push(citation);
     forms
@@ -171,33 +204,34 @@ fn transport(
     machine_parameters: &BTreeSet<ValueId>,
     rejoin_stores: bool,
 ) -> Option<ProofNode> {
-    let equalities =
-        retained_equalities(context, goal, assumptions, semantic_axioms, rejoin_stores)?;
-    if equalities.is_empty() {
-        return None;
-    }
-    let transported = check_value_equality_denotation(
-        context,
-        goal,
-        equalities.iter().map(|equality| &equality.conclusion),
-    )
-    .ok()?;
-    if &transported == goal {
-        return None;
-    }
-    let premise = super::integer_selection::build_with_machine_parameters(
-        context,
-        &transported,
-        assumptions,
-        semantic_axioms,
-        machine_parameters,
-    )?;
-    Some(ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::ValueEqualityTransport {
-            premise: Box::new(premise),
-            equalities,
-        },
+    let retained = retained_equalities(context, goal, assumptions, semantic_axioms, rejoin_stores)?;
+    retained.forms().find_map(|equalities| {
+        if equalities.is_empty() {
+            return None;
+        }
+        let transported = check_value_equality_denotation(
+            context,
+            goal,
+            equalities.iter().map(|equality| &equality.conclusion),
+        )
+        .ok()?;
+        if &transported == goal {
+            return None;
+        }
+        let premise = super::integer_selection::build_with_machine_parameters(
+            context,
+            &transported,
+            assumptions,
+            semantic_axioms,
+            machine_parameters,
+        )?;
+        Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(premise),
+                equalities,
+            },
+        })
     })
 }
 
