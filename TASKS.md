@@ -60,7 +60,7 @@ execution and native exit/output. A moved refusal is still unfinished work.
 - **STATIC-CALL-ARGUMENT-LENT-ROOT.** (split-of:STATIC-MACHINE-MIGRATION)
   The receiver population is 1637 declarations in 259 files, down from 3154.
   137 of those are trait requirements and their satisfiers, blocked on
-  OWNER_QUESTIONS Q4 `trait-requirement-subject-binding` rather than on any
+  OWNER_QUESTIONS Q3 `trait-requirement-subject-binding` rather than on any
   compiler gap; 1448 are ordinary declarations.
   `source/library`'s remaining 271 are attributed: 221 belong to the
   `Filesystem` wrapper and its five target implementations, which no gate on
@@ -2800,40 +2800,15 @@ same flow already performed, not the check itself.
   producer assertion") has been applied at every internal seam, so stages
   re-check their own fresh output in the same process with the same code.
   Amend AGENTS.md and `omega-rust/pipeline.md` to say:
-  - verification runs at trust boundaries: a Terminal artifact admitted from
-    outside the producing process, and foreign package or retained artifacts;
+  - verification runs at trust boundaries: new or changed foreign packages
+    at review time, and untrusted build scripts at execution (PCC is
+    removed; see **PCC removal**);
   - a stage does not re-validate, replay or rebuild output that the same
     compile just produced;
   - the verifiers stay exercised by the corpus runner and tests, not on the
     default compile path.
 
   Acceptance: the amended text is on main and the items below link to it.
-
-- **TERMINAL-SELF-VERIFICATION-DELETED.** (new-scope) A Terminal module
-  produced and consumed inside one compile goes through the full verifier at
-  least four times:
-  - `checked-trees-to-lowered-psi` `machine_lowering.rs` runs
-    `terminal_verifier::validate_module` (or `validate_module_for_interpretation`)
-    on the module it just lowered;
-  - stage 06's `psi_optimization.rs` runs `validate_carrier` on its input and
-    again on its output;
-  - Omega stage 00's `native_admission.rs::admit_native_realization` replays
-    the whole artifact with `artifact.validate()`.
-  - Omega stage 00 `provider_installation/admission.rs` decodes, verifies
-    (`verify_module`) and re-lowers the whole module to compare with the plan
-    `VerifiedNativeArtifactInput::prepare` just lowered;
-    `artifact_admission/native.rs` `lower_decoded_native_module` and the
-    driver's `terminal_artifact.rs` `verify_terminal_artifact_proof` also
-    reach `verify_module`. Delete the re-lowering comparison with them.
-
-  Delete the stage 05 and stage 06 calls. Keep stage 00's replay only for
-  artifacts that did not come from the same compile: retained or loaded bytes
-  enter through a constructor that verifies, and the in-process handoff does
-  not. Make `corpus_runner` verify each produced artifact once, so the
-  verifier stays tested. This replaces **PSI-OPTIMIZATION-VALIDATE-ONCE**.
-  Acceptance: a default native compile calls the Terminal verifier zero times
-  for its own artifact, retained-artifact admission still verifies, and check
-  plus native corpus are unchanged.
 
 - **SELECTION-CUSTODY-CHAIN-DELETED.** (new-scope) Stage 03's
   `optimized.rs::stage_optimized_instruction_selection` calls
@@ -2908,7 +2883,7 @@ These boundaries stay:
 - `build.omg` confinement in the checked interpreter: `FsGrants`
   authorization before each host call, fuel and cell limits, rejecting
   runtime boundary services, and output alias and size checks;
-- verifying foreign component artifacts, and receiver admission (owned by
+- receiver admission of authority (owned by
   **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**);
 - Psi's checking of capability and effect reach, and of authored behavior
   exclusions.
@@ -3324,6 +3299,196 @@ at the landing commit, with the count of deleted tests stated in the commit.
   in **RC-REPOSITORY-CLOSURE** and the macOS release item. Red tests are owned
   by the items above, and corpus outcomes by `tests/omega/corpus_outcomes.txt`.
   Acceptance: no file links the ledger.
+
+## PCC removal
+
+Owner ruling 2026-10-03: proof-carrying code is a failed experiment and is
+removed. PCC means independently re-verifying a Terminal artifact and a
+shipped proof bundle at a receiver that does not trust the compiler. The
+intended replacement for provenance is build attestation, a signed statement
+that a blessed compiler built the source; it is not designed yet. Until the
+items below land, do no PCC work inside any other item: skip its proof-bundle,
+certificate-transport, independent-replay or receiver-verification clauses.
+
+These stay:
+- the mathematics world: authored theorems, proof terms, the inductive
+  profile, quotients, and the `proof-admission` kernel that checks user
+  mathematics (`mathematical_core/`, `proof/`, `integer_rules/`,
+  `predicate_denotation`);
+- contract and refinement reasoning in Psi checking (`checking/src/proof_contracts`,
+  stage 04 `proof/`, the `proof` crate);
+- `bootstrap/proofs/`;
+- the Omega optimizer's use of proven facts, re-sourced as below.
+
+Sites were read at `66aaa8e5bc`. Each item lands alone with its corpus slice
+unchanged, except for intended deletions, which its commit lists.
+
+- **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS.** (new-scope) This lands first:
+  today PCC machinery is the compile-time soundness gate.
+  - The checker rejects only a provably zero divisor
+    (`checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs`,
+    "a divisor that MIGHT be zero stays a runtime concern").
+  - Stage 05 then reconstructs each Exact operation's obligation through the
+    verifier (`proofs/operation_proofs.rs`, `validate_module` +
+    `reconstruct_execution_terminal_obligations`) and searches for a
+    certificate (`proofs/nonzero_divisor_certificate`, 19.5k lines).
+  - When none is found, `OperationProofUnavailable` fails the compile.
+
+  Move the discharge of every Exact-operation condition into checking: a
+  nonzero divisor, shift counts, Boolean landing, byte index below length,
+  and bounded field stores. Measure first which of these stage 05 currently
+  discharges. Checking proves each condition from the facts it already holds
+  and records it in `CheckFacts`, and an unproven condition is a checking
+  diagnostic. Stage 05 then lowers without proof search. Acceptance: every
+  corpus fail fixture that rejects today with `OperationProofUnavailable`
+  rejects from `omega --check` with a checking diagnostic, and the check
+  corpus is otherwise unchanged.
+
+- **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
+  **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate
+  production and transport in one commit:
+  - stage 05 `proofs/`: `nonzero_divisor_certificate`, `operation_proofs`,
+    `scalar_block_invariants`, `scalar_result_guarantees`,
+    `entry_requirement_certificates`, `proof_recursion`,
+    `control_cycle_proofs`, `retained_evidence`, `quotient_correspondence`,
+    `float_meaning_projection` and `mathematical_declarations`, plus the
+    certificate half of `evidence_lowering`;
+  - `proof-admission` `certificate_search`;
+  - `ProofBundle` on `lowered-psi`;
+  - stage 06's `reconstruct_optimizable_terminal_obligations` and
+    `transport_*` evidence calls.
+
+  Keep the IR lowering in `crash_routes`, `contract_predicates`,
+  `integer_predicates`, `content_conservation` and `retention/`. Delete
+  `retention/operation_crash_contracts.rs` if a search finds no backend
+  reader. Stage 06 rewrites keep their own validity checks.
+  Acceptance: no `ProofBundle` is produced, and the check and native corpus
+  are unchanged.
+
+- **OMEGA-READS-TERMINAL-UNVERIFIED.** (new-scope) Depends on
+  **PCC-CERTIFICATES-DELETED**. Stop every consumer from verifying Terminal:
+  - the driver's `verify_terminal_artifact_proof`
+    (`terminal/terminal_artifact.rs`, `native_proposal/mod.rs`);
+  - stage 00 `artifact_admission/native.rs` `verify_module`: decode only;
+  - `provider_installation/admission.rs`;
+  - the terminal interpreter (`terminal_interpreter.rs`, `program.rs`);
+  - `component-description`;
+  - `fuel/certification`, which computes fixed-fuel bounds from
+    `TerminalModule`;
+  - codec `semantic_module.rs` `validate_module_representation` on encode
+    and decode.
+
+  Re-source the optimizer's facts:
+  - `AcceptedObligationFact` and `rules/proof_check_elision/*` read
+    "an Exact operation's canonical goal holds", which
+    **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** makes true;
+  - move `substitute_crash_routes` into `terminal-psi`;
+  - move `control_cycle_members`/`identity` and `control_graph` into
+    `terminal-psi` semantics;
+  - move the structural ownership frontier reconstruction
+    (`validation/frontier*`, about 5.8k lines) into an Omega analysis owned
+    by stage 01;
+  - move `validate_boundary_crash_outcome` into the interpreter.
+
+  This replaces the former TERMINAL-SELF-VERIFICATION-DELETED item. The
+  `text/runtime_local_struct_string_field_concat_exit` (exit 188) and
+  `text/runtime_string_stored_suffix_exit` (exit 193) fixtures were blocked
+  only on Terminal re-deriving stored-view lifetimes, which the checker
+  already enforces; re-measure them here. Acceptance:
+  `terminal-verifier` has no dependent outside its own tests, and the check
+  corpus, native corpus and interpreter tests are unchanged.
+
+- **TERMINAL-VERIFIER-DELETED.** (new-scope) Depends on
+  **OMEGA-READS-TERMINAL-UNVERIFIED**. Delete the
+  `terminal-psi/verification` crate (72k lines) and its tests. Acceptance:
+  workspace `cargo build --lib --tests` succeeds and the corpus is
+  unchanged.
+
+- **PCC-WIRE-DELETED.** (new-scope) Depends on
+  **PCC-CERTIFICATES-DELETED**. Delete the proof transport in one commit and
+  bump the codec version:
+  - codec `proof_bundle/` (including `signature_codec`), `proof_sidecar`,
+    `artifact_admission`, `trust_graph`, `obligation_ledger`,
+    `terminal_trace_v1_profile`, `publication`, `bin/psi-terminal-publish`,
+    the proof section of `canonical_artifact`/`artifact_manifest`, the
+    `ProofBundle` in `optimization_execution`, `quotient_correspondence_wire`
+    and `mathematical_certificate_wire`;
+  - `terminal-psi` `artifacts/proof_bundle`. Move `nodes.rs` and
+    `witnesses.rs`, with the certificate envelope, into `proof-admission`;
+    delete crash and recursion evidence;
+  - the PCC-only `terminal_module/proof` parts: `quotient.rs`,
+    `recursion.rs`, `scalar_block_invariants.rs`, and the
+    declarations/outputs/values sections;
+  - `proof-admission` `admission/recursion.rs`, `admission/normalization.rs`
+    and the PCC half of `admission/denotation.rs`;
+  - the stage 07 `encode_mathematical_signature` transport;
+  - `observation/` TraceV1, after checking the interpreter's
+    `semantic_value_comparison.rs` use.
+
+  Acceptance: the kernel's math tests and the check and native corpus are
+  unchanged; no codec section carries proof evidence.
+
+- **PCC-PRODUCTS-DELETED.** (new-scope) Depends on
+  **TERMINAL-VERIFIER-DELETED**. Delete the requestable PCC products and
+  receiver policy:
+  - the `Pcc*` products in `products`;
+  - `native-artifact` `proof.rs`;
+  - object-file `decode_proof_section_for`;
+  - CLI `inspection/evidence.rs`;
+  - the `builder.pcc.psi` / `builder.pcc.native` build surface;
+  - `AdmissionProfile`, threaded through about 20 crates (driver, products,
+    package-manager, interpreter, stage 00). Keep `verify_obligation`,
+    `Obligation` and `ObligationClass` in `proof-admission`.
+
+  Acceptance: `rg -i "pcc|AdmissionProfile"` finds nothing in `omega-rust`
+  outside history notes; the CLI, package and native corpus are unchanged.
+
+- **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
+  specification and board text in one commit:
+  - AGENTS.md: reword the opening "proof-carrying systems language", and
+    the hard rule's "and independent verification" link.
+  - `omega-rust/pipeline.md`: delete compositional lowering's "Independent
+    verification must reconstruct..." rule and the Terminal verification
+    package and admission rows.
+  - Delete `wiki/spec/proofs/publication.md` after moving "## Outcomes" to
+    `wiki/spec/build/compiler_request.md` and the bootstrap/foreign-producer
+    paragraphs to the proofs foundation.
+  - Reduce `wiki/spec/terminal-psi/verification.md` to the fact-validity
+    rules the checker and optimizer use ("Premise availability", "Entry
+    facts and crash coverage") under a new name, and delete the rest.
+  - Delete encoding.md "Proof bundle", "Obligation ledger" and "PCC proof
+    sidecar", and the canonical artifact proof section.
+  - Delete chapter 10 "Shipping independently checkable proofs",
+    configuration.md "Proof-carrying output", and chapter 15's
+    `builder.pcc.*` lines.
+  - Trim the PCC sentences in `product.md`, `contracts.md`, `foundation.md`
+    (migration bullets), `quotients.md` ("Published quotient
+    correspondence"), `permissions.md`, `executable_installation.md`,
+    `macos_application.md`, `component_publication.md`,
+    `compiler_request.md`, `optimizations.md`, chapter 19 and
+    `packages.md`. Reframe "independent verification" wording in the other
+    terminal-psi docs.
+  - Board trims:
+    - PROOF-KERNEL-CORE, C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT,
+      PROOF-CONTRACT-MIGRATION, PROOF-RELEVANCE-MIGRATION,
+      QUOTIENT-THEOREM-LIFT: keep the math, drop serialization, independent
+      checking and receiver policy.
+    - BORROW-PROOF-CONVERGENCE, PROOF-CERTIFICATION-BRIDGE, PSIIR: reduce to
+      their source-checker or compiler-internal work, or delete if none
+      remains.
+    - COMPILE-REPORT-PRODUCTS, ONE-DRIVER-PER-STAGE,
+      MACOS-APPLICATION-PUBLICATION, TWO-AXIS-TERMINAL-AUTHORITY-REVIEW,
+      TERMINAL-SLICE-VIEW-VOCABULARY, RC-RELEASE-RECORD-AND-CLOSURE, the
+      "Automatic service reach" section and TASKS_OPTIMIZER's
+      PER-RULE-COVERAGE, JOIN-INVARIANT-REWRITE-TRANSPORT and GENERAL-LICM:
+      drop the PCC clauses.
+    - Rename "P3 - Terminal Psi, PCC, and observation".
+    - Delete the matrix row in
+      `wiki/drafts/reference/rust_compiler_completion.md`.
+
+  Acceptance: `rg -i "pcc|proof-carrying|proof bundle|independent(ly)?
+  verif"` over `AGENTS.md`, `wiki/`, `omega-rust/pipeline.md` and the boards
+  returns only history notes and the attestation pointer.
 
 ## Automatic service reach
 
@@ -4500,43 +4665,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   corpus pair, `ranked_value_guarantees` and
   `terminal-psi/verification/tests/ranked_scc/scalar_block_invariants.rs` controls.
 
-- **PCC-CANONICAL-SEMANTIC-LEDGER.** Define and justify the total generator
-  from canonical Terminal bytes to the semantic ledger under the
-  [verification contract](wiki/spec/terminal-psi/verification.md#canonical-semantic-ledger).
-  Owner: `terminal-verifier`, `terminal-codec`, `proof-admission`.
-  Codec currently reconstructs from a validated `TerminalModule`; its
-  `framework:canonical-semantic-ledger-v1` remains explicitly trusted.
-
-  Crash certificates already come from untrusted `certificate_search` and
-  supplied `ProofBundle::crash_obligations`; preserve independent obligation
-  reconstruction and certificate replay without search. Remaining work:
-
-  - Discharge `ExplicitlyTrusted` reconstruction, normalization, scope,
-    invalidation and call/cycle composition with checked evidence and exact
-    dependencies. Preserve `trusted_surface.rs`
-    dispatch/fact/source-closure checks, `PROVED_ENTRIES` and rejection of
-    unfinished dependencies. Labels, checker-token presence and source digests
-    do not prove soundness; revalidate justifications before updating digests.
-  - Close the cleanup entry-claim gap in `validation/affine_cleanup.rs` and
-    scalar cleanup in `validation/frontier.rs`, coordinated with **CML4**.
-    A borrowed-`self` Unit hook with structural or content entry claims validates
-    and verifies without caller transfer; the equivalent ordinary call rejects
-    with `UnitCallClaimPresenceMismatch` or `UnitCallContentClaimMismatch`.
-    Reconstruct the edge's claim discharge and exact receiver substitution;
-    retain honest cleanup and wrong-claim controls. This raw Terminal probe
-    establishes missing validation, not a source-level exploit.
-  - Establish the canonical-byte generator's definition and soundness, rather
-    than assuming a producer-decoded AST. The common kernel and selected
-    inductive profile's soundness/encoding remain dependencies.
-
-  Acceptance: a theorem-dependent program verifies without source or producer
-  state under accepting/rejecting assumption policies. Wrong goals, profiles,
-  scopes, premises, missing obligations and omitted transitive assumptions
-  reject, including after normalization and erasure. Combine the connected
-  certificate case with `terminal-psi/verification/tests/trusted_surface.rs` and codec
-  trust-graph controls. Native refinement is separate; bootstrap proof discharge
-  remains with GAMMA-DERIVATION-CHECKER in `TASKS_BOOTSTRAP.md`.
-
 - **PROOF-RELEVANCE-MIGRATION.** Complete carrier-independent erased arguments
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
   Owners: stage 04 call plans, stage 05 contract/proof-term lowering, Terminal
@@ -4797,49 +4925,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   [closed encoding](wiki/spec/terminal-psi/encoding.md) with operation changes;
   codec fixture drift belongs to repository closure. **PCC-PRODUCT-PUBLICATION**
   owns command publication and the remaining optional-proof envelope migration.
-
-- **PCC-PRODUCT-PUBLICATION.** Deliver requested Psi and standalone native
-  evidence under [optional proof products](wiki/spec/proofs/publication.md),
-  after the immediate executable customers. Keep both requests off by default,
-  root-owned and independent of receiver policy or ordinary compiler checking.
-
-  - Expose retained Terminal publication through `omega/src/compilation/`:
-    `ProjectProduct` has only Check/NativeArtifact, and `publish_compilation`
-    rejects Terminal reports. Connect `CompileReport::publish_retained_terminal_artifact`
-    to an authored project/CLI customer publishing `.psi` and optional
-    `.psi.proof` without native emission. Preserve check-only PCC rejection
-    and Terminal-stop rejection of native PCC. Migrate `terminal-codec`'s
-    `canonical_artifact.rs`, which still requires an embedded proof section,
-    to the specified optional sidecar distribution without weakening ordinary
-    consumption or silently changing existing format markers.
-  - Complete native behavioral evidence in
-    [native-artifact's proof owner](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/proof.rs).
-    Placed image/data inventories, entry/load-map custody and import-thunk
-    replay exist; even valid evidence returns `Incomplete(UnsupportedEvidence)`.
-    Decode instructions against closed target semantics, reconstruct all
-    control-flow/entry obligations, and establish premise availability and
-    Terminal-to-native correspondence or direct native proofs. Publication's
-    `validate_native_pair` accepts the bounded incomplete sidecar; a publication
-    receipt must not be presented as completed behavioral verification.
-  - Exercise actual artifact/companion request-on/off replacement and retry
-    through `platform-custody/src/file_publication.rs`. Its tests already cover
-    staging failure preserving prior destinations. Installation is sequential:
-    later failure removes the installed prefix without restoring overwritten
-    files. Preserve truthful failure, cleanup-error reporting and stale-sidecar
-    removal; never report a partially installed pair as successful. Connect
-    these controls to proof-product publication.
-
-  Acceptance: verify from artifact/companion bytes and independently pinned
-  receiver dependencies after deleting source and producer state. Native
-  verification must also work without separate Psi. Arbitrary native bytes plus
-  valid Psi/recomputed producer hashes, tampering, relabeled profiles and stale
-  sidecars reject. Bind final bytes
-  after byte-changing finalization and check permitted loading/relocation
-  correspondence. Preserve exact dependency identities and receiver-owned
-  guarantees, premises and admission. Unsupported legs remain `Incomplete`;
-  broader guarantees depend on **PROOF-KERNEL-CORE** and
-  **PROOF-CERTIFICATION-BRIDGE**, not a policy DSL or reporting-layer checker.
-  **MACOS-APPLICATION-PUBLICATION** owns actual bundle execution.
 
 ## P5 - Cathedral over general Omega primitives
 
@@ -6542,65 +6627,6 @@ but report the missing runtime leg explicitly; it does not close that host row.
   **TERMINATION-RANKING-CHECKS** respectively; optimizer integration stays on
   `TASKS_OPTIMIZER.md`. Their deleted test targets are leads to recover
   behavior, not extra package commands or passing evidence.
-
-- **RC-PCC-REPLAY.** Close the [release gate](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-  valid artifact/`.proof` pairs round-trip without source or producer state;
-  hostile/substituted evidence rejects before PCC-required interpretation or
-  lowering; ordinary non-PCC output remains independently checked. Run complete
-  nextest and doctest selections for `checked-trees-to-lowered-psi`,
-  `terminal-codec`, `terminal-verifier`, `terminal-interpreter` and
-  `terminal-psi-to-abstract-operations` at the release commit.
-
-  Rebaseline the byte-buffer argument paths, bounded-byte reads/stores/equality
-  and interpreter length admission failures observed at `1ed469454e5`.
-  Reconcile retained carriers and test expectations with
-  [byte views](wiki/spec/terminal-psi/byte_views.md) and
-  [structural access](wiki/spec/terminal-psi/structural_access.md):
-  `byte_sequence_length::parameter_length_requires_whole_readable_borrowed_view_and_real_contents`
-  still rejects bounded-owner length metadata that the contract permits.
-  Preserve payload-access restrictions, separate indexed-write bounds from UTF-8
-  preservation, and retain sidecar substitution, sealed-subject and pre-execution
-  admission controls.
-
-  The full package run terminates; its failures replace the old killed-test
-  diagnosis. **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT** still owns bounded search;
-  killing or filtering a test cannot satisfy this gate. Native behavioral
-  correspondence remains with **PCC-PRODUCT-PUBLICATION** and
-  **PCC-CANONICAL-SEMANTIC-LEDGER**; placed-image digests do not establish it.
-
-The four required native-host rows share the
-[completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix)
-and [recording procedure](tools/release/README.md#recording-a-runner-row).
-At one clean release commit, run unfiltered, unsharded:
-
-- RC-SOURCE-SEMANTICS: `python3 tools/corpus_gate.py`.
-- RC-NATIVE-MATRIX: `python3 tools/corpus_gate.py --native`.
-- RC-REPRESENTATIVE-PROGRAMS: `mbx run -p omega -- refresh-samples`,
-  plus every documented deterministic sample exit/output oracle.
-
-Retain live compiler integration coverage with
-`mbx nextest run -p compiler --all-targets --no-fail-fast`; bounded linking
-batches may cover it during repair, but release coverage must be complete.
-
-Inspect the outcomes, not just command exits. Corpus goldens may retain rejected
-positive programs; `built` can mean cross-emission without execution and
-unbound fixtures only check. `expected_native_exit.txt` enforces an authored
-exit/trap independently of the golden; verify required stdout too. Sample refresh
-only builds. `tools/sample_native_gate.py` exercises documented oracles on the
-matching host but leaves no-oracle samples unscored; **SAMPLE-CORPUS** owns its
-coverage. Missing runtime coverage stays open.
-
-Preserve the deleted integration tests' obligations in maintained harnesses:
-no-selection bytes/metadata and repeatability across targets; constructor-domain
-membership with disproved versus unproved outcomes; cross-package mutable
-qualification rejection using valid initializers; finite rational/float comparison
-with undefined/landed operands rejected; and matching unsigned-right-shift
-results across macOS/Linux. Deleted test names are not runnable release commands.
-
-Record exact commands, selected coverage, toolchain, host, observations and
-justified skips; **RC-RELEASE-RECORD-AND-CLOSURE** joins the same-commit evidence.
-These are independent host runs of shared gates; capability repairs retain
-their existing owners.
 
 - **ELF-LOADER-CONFIGURATION.** Build-owned [loader selection](wiki/spec/build/configuration.md#elf-executable-loader-selection)
   is wired end to end: `builder.elf_interpreter.<target>` rows override the

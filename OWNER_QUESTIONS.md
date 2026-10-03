@@ -178,62 +178,7 @@ constant failure/end-of-enumeration rows to select a partial provider. The
 existing partial toolchain syscall fallback is not evidence that an ordinary
 partial checked provider satisfies the complete service contract.
 
-### Q3 - What Terminal evidence admits a non-literal view stored into a record field?
-
-Named decision: `stored-view-lifetime-authority`.
-
-**Customers:** `text/runtime_local_struct_string_field_concat_exit` (exit 188)
-and `text/runtime_string_stored_suffix_exit` (exit 193) copy a view field
-between records: `room.label = source.label`, where `room` is a state-local
-`Room` and `source` an owned `[copy]` block parameter. The check-only
-`domains/utf8_field_write_from_param` stores a parameter view into a local
-record's field. The source checker accepts all three.
-
-**Contracts checked:**
-- [Lifetimes](wiki/spec/language/lifetimes.md): a lifetime "relates a borrowed
-  result or stored view to storage that remains valid for its use"; assignment
-  "installs the replacement's exact loans"; transitions transport references
-  "only while their storage outlives the target path".
-- [Ownership](wiki/spec/language/ownership.md): copying a `[copy]` record
-  "preserves their exact backing, qualification, provenance, and lifetime
-  obligations" and grants no longer lifetime.
-- [Quoted bytes](wiki/spec/language/data_and_literals.md#quoted-bytes): a
-  literal view refers to immutable image storage. `StructuralByteViewFieldStore`
-  ([structural access](wiki/spec/terminal-psi/structural_access.md#store-vocabulary))
-  admits exactly this source.
-- [Loan resources](wiki/spec/terminal-psi/loans.md) retain a captured place
-  and parent lifetime, but no Terminal record names the lifetime of a loan
-  carried inside a field, nor an outlives relation between a source loan and a
-  destination root.
-- [Complete record construction](wiki/spec/terminal-psi/structural_access.md#complete-record-construction):
-  verification admits a whole shared view into a locally constructed record
-  without a lifetime relation, relying on such records being neither plain
-  call payloads nor structural returns.
-
-**Problem:** the language rule is settled, and the checker enforces it, but
-Terminal must reconstruct the relation independently. It has no region
-vocabulary for a view carried in a field, so a field-to-field copy or a
-parameter view store has no verifiable lifetime authority today.
-
-**Decision needed:** which evidence Terminal accepts for a non-literal source:
-(A) the destination root is activation-local owned storage that cannot leave
-the activation, and the source view is live for that activation, which extends
-the existing local-construction rule to field replacement; (B) Terminal retains
-declared view-field lifetimes (`data Main<'a>`) and checks an outlives relation
-at each store; or (C) stores stay literal-only in Terminal.
-
-**Recommendation:** (A) now, for records established in the storing activation
-whose view-carrying values never escape it by return, owned transfer out of the
-activation or whole-value store into a longer-lived root; it covers both
-customers. Adopt (B) when a persistent root needs a non-literal view.
-
-Native realization no longer limits literal stores: Omega places a literal's
-octets in the image's read-only literal pool and addresses them PC-relatively,
-so a stored literal view outlives every activation. A `[copy]` Room now crosses
-the state edge as a whole copy whose view keeps its source loan; both customers
-stop at `room.label = source.label`, the store this decision governs.
-
-### Q4 - How does a trait requirement name its subject without a receiver?
+### Q3 - How does a trait requirement name its subject without a receiver?
 
 Named decision: `trait-requirement-subject-binding`.
 
