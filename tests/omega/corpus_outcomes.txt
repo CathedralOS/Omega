@@ -156,6 +156,8 @@ fail/borrows/duplicate_retained_subject_arguments rejected 117ms expected @cb6b0
 	state `take` receives `main` as mutable more than once
 fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 1575ms expected @f3a79ef091a9
 	argument `subject` for state `entry` is declared `&mut` (`&mut T`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/borrows/local_array_borrow_operand_read rejected 191ms expected @a0af6064e4c8+wt
+	state `stamp` receives `samples` as both mutable and read-only
 fail/borrows/local_projected_field_mut_and_shared_argument rejected 898ms expected @2d8ed253669f
 	state `copy` receives `screen.banner` as both mutable and read-only
 fail/borrows/local_record_duplicate_mut_argument rejected 811ms expected @2d8ed253669f
@@ -2197,6 +2199,7 @@ pass/structs/runtime_array_member_snapshot_exit checked 927ms @a951f37ea156+wt
 pass/structs/runtime_case_array_payload_exit checked 916ms @605c339eaa84
 pass/structs/runtime_composed_case_payload_reads_exit checked 28214ms @773e546aed6e+wt
 pass/structs/runtime_declared_record_member_fill_exit checked 1370ms @2d8ed253669f
+pass/structs/runtime_local_array_snapshot_exit checked 1138ms @a0af6064e4c8+wt
 pass/structs/runtime_local_record_policy_exit checked 1712ms @2d8ed253669f
 pass/structs/runtime_named_array_record_member_exit checked 811ms @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit checked 1391ms @2d8ed253669f

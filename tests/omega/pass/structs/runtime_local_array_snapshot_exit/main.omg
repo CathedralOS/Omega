@@ -1,0 +1,24 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Packet { samples: [i32; 2]; stamp: i32; }
+data Main { console: Binding<Console>; packet: Packet; }
+
+machine stamp(samples: &mut [i32; 2]) -> i32 {
+    samples[0] = 90;
+    7
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    let mut samples: [i32; 2] = [30, 40];
+    // Capture the owned array before the later operand changes its source.
+    context.packet = Packet { samples: samples, stamp: stamp(&mut samples) };
+    transition context.packet.samples[0] == 30 && context.packet.samples[1] == 40
+        && context.packet.stamp == 7 && samples[0] == 90 && samples[1] == 40 {
+        true -> finish(context, 70)
+        false -> finish(context, 1)
+    }
+    state finish(context: &mut Main, code: i32) {
+        context.console.exit_process(code);
+    }
+}
