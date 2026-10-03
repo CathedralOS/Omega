@@ -224,7 +224,7 @@ fn parameter_edges(
 /// each state parameter can carry, solved to a fixed point over the
 /// machine's named parameter edges. The solution does not depend on which
 /// state asks, so one solve serves every state of the machine.
-pub(super) struct MachineParameterOrigins(Vec<Vec<ParameterOrigins>>);
+pub(crate) struct MachineParameterOrigins(Vec<Vec<ParameterOrigins>>);
 
 impl MachineParameterOrigins {
     /// Whether this solve covers every state `machine` currently stores; a
@@ -238,7 +238,7 @@ impl MachineParameterOrigins {
     }
 }
 
-pub(super) fn machine_parameter_origins(
+pub(crate) fn machine_parameter_origins(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> MachineParameterOrigins {
@@ -308,7 +308,7 @@ pub(super) fn machine_parameter_origins(
 
 /// The entry-parameter identities `state`'s stable parameters carry on every
 /// incoming path, read from its machine's solved origins.
-pub(super) fn state_origins(
+pub(crate) fn state_origins(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

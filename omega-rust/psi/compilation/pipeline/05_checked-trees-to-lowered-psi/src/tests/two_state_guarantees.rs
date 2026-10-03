@@ -328,3 +328,72 @@ fn current_facts_in_original_citation_order(
     );
     replay
 }
+
+#[test]
+fn sequential_ranked_components_survive_serialization_and_execution() {
+    use terminal_interpreter::{
+        AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue,
+        TerminalStructuralInputs,
+    };
+    let customer = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/proofs/runtime_sequential_ranked_components_exit/main.omg"
+    ));
+    // Keep the maintained machine unchanged; the corpus owns package loading
+    // and the Console wrapper, while this test selects its artifact entry.
+    let machine_start = customer.find("machine descend(").unwrap();
+    let checked = crate::front_end::checked_program(&customer[machine_start..]);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("descend"))
+        .expect("the later component retains the established invocation-relative bound");
+    let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    let module = terminal_codec::decode_module(&semantic_bytes).unwrap();
+    let proofs = terminal_codec::decode_proof_section_for(&module, &proof_bytes).unwrap();
+    let profile = AdmissionProfile::default();
+    verify_module(&module, &proofs, &profile)
+        .expect("source-free sequential-component proof replay");
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let Some(TerminalRankedScc::Natural(cycles)) = &machine.ranked_scc else {
+        panic!("the authored natural rankings must be retained");
+    };
+    assert_eq!(
+        cycles.len(),
+        2,
+        "each distinct SCC retains its own rank witness"
+    );
+    assert_eq!(
+        reconstruct_control_cycle_obligations(&module)
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(proofs.control_cycles.len(), 2);
+    let carrier = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let unsigned = |value| TerminalScalarValue::Integer {
+        scalar_type: carrier,
+        value: IntegerValue::Unsigned(value),
+    };
+    // Entry's cycle preserves previous. Its zero-rank exit enters the later
+    // component, which returns that value. No n <= previous premise exists.
+    for (rank, previous, expected) in [(0, 9, 9), (3, 9, 9), (3, 0, 0)] {
+        let result = terminal_interpreter::interpret_terminal_artifact_measured(
+            &semantic_bytes,
+            &proof_bytes,
+            &profile,
+            &[unsigned(rank), unsigned(previous)],
+            TerminalStructuralInputs::default(),
+            &mut AcceptTerminalEffects,
+        )
+        .expect("decoded sequential components execute without checked trees");
+        assert_eq!(
+            result.value(),
+            TerminalExecutionResult::Scalar(unsigned(expected))
+        );
+    }
+}
