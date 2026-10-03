@@ -336,6 +336,7 @@ fn append(
         parameter_position: row.parameter_position,
         path,
         expected: row.expected,
+        antecedent: checked_trees::CheckedBooleanExpression::Constant(true),
         hook_machine: row.hook_machine,
         hook_clause: row.hook_clause,
         template_machine: row.template_machine,

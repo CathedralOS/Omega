@@ -6,7 +6,8 @@
 pub mod checked_trees;
 
 pub use checked_trees::{
-    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
+    ContextualCleanupEntryRequirements, ContextualCleanupFacts,
 };
 
 pub use checked_trees::{
@@ -183,8 +184,8 @@ pub use checked_trees::{
     FlowInvalidationFact, FlowInvalidationFacts, FlowInvalidationSource, FlowOperandReferent,
     FlowOperatorInvocationFact, FlowOperatorOperandFact, FlowOwnedSelectionClaim,
     FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
-    FlowOwnershipFacts, FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact,
-    FlowStatementFact, IndexCompatibilityDischarge, IndexCompatibilityFact,
+    FlowOwnershipFacts, FlowPermissionEvaluation, FlowPermissionEventFact, FlowSemanticContextRef,
+    FlowStateFact, FlowStatementFact, IndexCompatibilityDischarge, IndexCompatibilityFact,
     IndexCompatibilityFacts, InheritedContractScope, LemmaFacts, MachineActivationCarryFact,
     MachineBlockingFact, MachineBuildBoundProgressDemands, MachineCarryTopologyFact,
     MachineContractCommitment, MachineContractIdentity, MachineContractPlan, MachineContractPlans,

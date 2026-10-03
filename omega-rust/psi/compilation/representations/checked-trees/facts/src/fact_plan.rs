@@ -32,6 +32,8 @@ pub struct FactPlan {
     pub place_segments: Arena<PlaceSegment>,
     pub facts: Arena<Fact>,
     pub scalar_values: Arena<crate::ScalarValue>,
+    pub boolean_predicates: Arena<crate::BooleanPredicate>,
+    pub boolean_predicate_bindings: Arena<crate::BooleanPredicateBinding>,
     pub integer_ranges: Arena<crate::IntegerRange>,
     pub qualification_correspondences: Arena<QualificationCorrespondence>,
     pub domain_definition_facts: Arena<DomainDefinitionFactRecord>,
@@ -49,6 +51,8 @@ impl Clone for FactPlan {
             place_segments: self.place_segments.clone(),
             facts: self.facts.clone(),
             scalar_values: self.scalar_values.clone(),
+            boolean_predicates: self.boolean_predicates.clone(),
+            boolean_predicate_bindings: self.boolean_predicate_bindings.clone(),
             integer_ranges: self.integer_ranges.clone(),
             qualification_correspondences: self.qualification_correspondences.clone(),
             domain_definition_facts: self.domain_definition_facts.clone(),
@@ -68,6 +72,10 @@ impl Clone for FactPlan {
         self.place_segments.clone_from(&source.place_segments);
         self.facts.clone_from(&source.facts);
         self.scalar_values.clone_from(&source.scalar_values);
+        self.boolean_predicates
+            .clone_from(&source.boolean_predicates);
+        self.boolean_predicate_bindings
+            .clone_from(&source.boolean_predicate_bindings);
         self.integer_ranges.clone_from(&source.integer_ranges);
         self.qualification_correspondences
             .clone_from(&source.qualification_correspondences);
@@ -90,6 +98,8 @@ impl FactPlan {
             place_segments: Arena::with_capacity(fact_capacity),
             facts: Arena::with_capacity(fact_capacity),
             scalar_values: Arena::with_capacity(fact_capacity),
+            boolean_predicates: Arena::with_capacity(fact_capacity),
+            boolean_predicate_bindings: Arena::with_capacity(fact_capacity),
             integer_ranges: Arena::with_capacity(fact_capacity),
             qualification_correspondences: Arena::with_capacity(fact_capacity),
             domain_definition_facts: Arena::with_capacity(fact_capacity),

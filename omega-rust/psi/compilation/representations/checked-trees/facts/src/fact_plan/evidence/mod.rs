@@ -177,6 +177,11 @@ pub enum ProofObligationKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactPayload {
+    /// A true relational predicate whose formal observations have exact live
+    /// place bindings. Its grouped dependencies retire the entire assertion.
+    BooleanPredicate {
+        predicate: Handle<crate::BooleanPredicate>,
+    },
     /// The nominal tag installed at this place by a completed construction.
     /// Payload expressions are not retained or reevaluated. Ordinary storage
     /// invalidation retires the observation when the sum is replaced.
@@ -390,7 +395,8 @@ impl QualificationPayloadIdentity {
                 Some(Self::CarryPermission { permission })
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
-            FactPayload::AssignedCase { .. }
+            FactPayload::BooleanPredicate { .. }
+            | FactPayload::AssignedCase { .. }
             | FactPayload::AssignedValue { .. }
             | FactPayload::AssignedIntegerBounds { .. }
             | FactPayload::FloatPredicate { .. }

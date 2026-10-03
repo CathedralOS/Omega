@@ -1,6 +1,18 @@
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
+/// Exact evaluation lane within a source statement. Guards precede the
+/// custody fork; target operands execute only on their selected edge.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowPermissionEvaluation {
+    #[default]
+    Statement,
+    TransitionGuard,
+    TransitionTarget(typed_trees::statement::TransitionTargetHandle),
+    /// A malformed source occurrence cannot acquire unconditional custody.
+    Unknown,
+}
+
 /// The permission/resource algebra established by the multiplicity checker.
 /// This records the semantic role of an event and is the sole ownership-event
 /// source for later checked-IR consumers.
@@ -9,6 +21,7 @@ pub struct FlowPermissionEventFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub source: language_semantics::PermissionEventSource,
+    pub evaluation: FlowPermissionEvaluation,
     pub kind: language_semantics::PermissionEventKind,
     pub multiplicity: language_semantics::Multiplicity,
     pub access: language_semantics::PermissionAccess,

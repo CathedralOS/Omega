@@ -96,6 +96,7 @@ pub(super) fn append_transfer(
         return;
     }
     permissions.push(FlowPermissionEventFact {
+        evaluation: checked_trees::FlowPermissionEvaluation::Statement,
         machine_symbol: machine,
         state_symbol: state,
         source: permission_source(event.source),
@@ -238,6 +239,7 @@ pub(super) fn append_replacement(
     let segments = facts.flow.ownership.segments.insert_many(place.segments);
     if !already_absent {
         permissions.push(FlowPermissionEventFact {
+            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol: machine,
             state_symbol: state,
             source,
@@ -252,6 +254,7 @@ pub(super) fn append_replacement(
         });
     }
     permissions.push(FlowPermissionEventFact {
+        evaluation: checked_trees::FlowPermissionEvaluation::Statement,
         machine_symbol: machine,
         state_symbol: state,
         source,

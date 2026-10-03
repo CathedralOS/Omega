@@ -59,7 +59,21 @@ pub(super) fn validate_permission_source_replay(
                 })
         })
     });
-    if !has_claim_result_call {
+    let has_transition = program.machines().iter().any(|machine| {
+        program.machine_states(machine).iter().any(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    matches!(
+                        statement,
+                        typed_trees::statement::StatementNode::Transition(_)
+                    )
+                })
+        })
+    });
+    if !has_claim_result_call && !has_transition {
         return Ok(());
     }
     let mut reconstructed = CheckFacts {
@@ -136,6 +150,7 @@ pub(crate) fn apply_recorded_state_entry_events(
 
 pub(crate) fn apply_recorded_statement_events(
     statement_index: usize,
+    evaluation: checked_trees::FlowPermissionEvaluation,
     events: &[&FlowPermissionEventFact],
     segments: &arena::Arena<facts::PlaceSegment>,
     places: &mut [LinearPlace],
@@ -143,6 +158,7 @@ pub(crate) fn apply_recorded_statement_events(
 ) {
     for event in events.iter().copied().filter(|event| {
         permission_event_statement_index(event.source) == Some(statement_index)
+            && event.evaluation == evaluation
             && event.kind != PermissionEventKind::AffineDrop
     }) {
         let facts::PlaceRoot::Symbol(symbol) = event.root else {
@@ -219,6 +235,7 @@ pub(crate) fn permission_event_statement_index(source: PermissionEventSource) ->
 }
 
 pub(crate) fn append_borrow_permission_events(
+    program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
@@ -256,6 +273,7 @@ pub(crate) fn append_borrow_permission_events(
             );
             loan_claim_identities.push((activation.loan, claim_identity));
             append_borrow_permission_event(
+                program,
                 facts,
                 permission_events,
                 machine_symbol,
@@ -285,6 +303,7 @@ pub(crate) fn append_borrow_permission_events(
                 .find_map(|(loan, identity)| (*loan == weakening.loan).then_some(*identity))
                 .unwrap_or(PermissionClaimIdentity::Unknown);
             append_borrow_permission_event(
+                program,
                 facts,
                 permission_events,
                 machine_symbol,
@@ -299,6 +318,7 @@ pub(crate) fn append_borrow_permission_events(
 }
 
 fn append_borrow_permission_event(
+    program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     permission_events: &mut Vec<FlowPermissionEventFact>,
     machine_symbol: SymbolHandle,
@@ -328,7 +348,27 @@ fn append_borrow_permission_event(
             (Multiplicity::Affine, PermissionAccess::Exclusive)
         }
     };
+    let evaluation = match source {
+        PermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            ..
+        } => crate::lookup::machine_by_symbol(program, machine_symbol)
+            .zip(crate::semantic::calls::find_state(program, state_symbol))
+            .map(|(machine, state)| {
+                crate::flow::call_permission_evaluation(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                )
+            })
+            .unwrap_or(checked_trees::FlowPermissionEvaluation::Unknown),
+        _ => checked_trees::FlowPermissionEvaluation::Statement,
+    };
     permission_events.push(FlowPermissionEventFact {
+        evaluation,
         machine_symbol,
         state_symbol,
         source,

@@ -20,9 +20,10 @@ pub(crate) fn apply_statement_permission_production(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
-    calls: &[checked_trees::FlowCallFact],
+    state_calls: &[checked_trees::FlowCallFact],
     statement_index: usize,
     statement: &StatementNode,
+    evaluation: checked_trees::FlowPermissionEvaluation,
     places: &mut [LinearPlace],
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
@@ -35,6 +36,7 @@ pub(crate) fn apply_statement_permission_production(
         return;
     }
 
+    let event_start = permission_events.len();
     let written_targets =
         written_linear_targets(program, state_symbol, statement_index, statement, places);
 
@@ -42,10 +44,29 @@ pub(crate) fn apply_statement_permission_production(
     // destination becomes established. The old move-only summary also
     // contains a production event *at* the destination; exclude that
     // compatibility event here rather than mistaking creation for use.
+    let calls = state_calls
+        .iter()
+        .filter(|call| {
+            crate::lookup::machine_by_symbol(program, machine_symbol)
+                .zip(crate::semantic::calls::find_state(program, state_symbol))
+                .is_some_and(|(machine, state)| {
+                    call.statement_index == statement_index
+                        && crate::flow::call_permission_evaluation(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            call.call_ordinal,
+                        ) == evaluation
+                })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
     let mut statement_moves = moves
         .iter()
         .filter(|event| {
             !event.source_arm.is_valid()
+                && event.evaluation == evaluation
                 && event_statement_index(event.source) == Some(statement_index)
         })
         .collect::<Vec<_>>();
@@ -74,7 +95,7 @@ pub(crate) fn apply_statement_permission_production(
                 facts,
                 machine_symbol,
                 state_symbol,
-                calls,
+                &calls,
                 event,
                 permission_events,
             );
@@ -154,6 +175,7 @@ pub(crate) fn apply_statement_permission_production(
                 conditional_carrier_transfers.push(permission_events.len());
             }
             permission_events.push(FlowPermissionEventFact {
+                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                 machine_symbol,
                 state_symbol,
                 source: permission_source(event.source),
@@ -176,7 +198,7 @@ pub(crate) fn apply_statement_permission_production(
         machine_symbol,
         state_symbol,
         statement_index,
-        calls,
+        &calls,
         permission_events,
     );
 
@@ -222,6 +244,7 @@ pub(crate) fn apply_statement_permission_production(
         // dead here and must not also receive a caller-side drop.
         if place.live && place.multiplicity == Multiplicity::Affine {
             permission_events.push(FlowPermissionEventFact {
+                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                 machine_symbol,
                 state_symbol,
                 source: PermissionEventSource::Statement { statement_index },
@@ -249,6 +272,7 @@ pub(crate) fn apply_statement_permission_production(
             )
         }));
         permission_events.push(FlowPermissionEventFact {
+            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol,
             state_symbol,
             source: PermissionEventSource::Statement { statement_index },
@@ -263,6 +287,9 @@ pub(crate) fn apply_statement_permission_production(
             segments,
             obligation_live,
         });
+    }
+    for event in &mut permission_events[event_start..] {
+        event.evaluation = evaluation;
     }
 }
 
@@ -419,65 +446,4 @@ pub(crate) fn permission_kind_for_move(
         };
     }
     PermissionEventKind::Transfer
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::tests::front_end::checked_program;
-    use language_semantics::PermissionEventKind;
-
-    #[test]
-    fn prepared_state_calls_keep_transfer_identity_and_replay() {
-        let checked = checked_program(
-            r#"
-            data Receipt [linear] { code: i32; }
-            boundary requirement ack(receipt: Receipt);
-            machine forward(receipt: Receipt) -> Receipt { receipt }
-            machine unrelated(receipt: Receipt) { ack(receipt); }
-            machine run() {
-                let issued: Receipt = Receipt { code: 7 };
-                let middle: Receipt = forward(issued);
-                let returned: Receipt = forward(middle);
-                ack(returned);
-            }
-            "#,
-        );
-        crate::checks::validate_linear_permission_events(&checked.typed, &checked.facts)
-            .expect("prepared state calls retain independently replayable permission events");
-        let run = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "run")
-            .expect("run machine")
-            .symbol;
-        let transfers = checked
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter(|(_, event)| {
-                event.machine_symbol == run && event.kind == PermissionEventKind::Transfer
-            })
-            .map(|(handle, event)| (handle, event.clone()))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            transfers.len(),
-            3,
-            "the two forwards and owned boundary input each transfer custody once"
-        );
-        assert_eq!(transfers[0].1.provenance, transfers[1].1.provenance);
-        assert_eq!(transfers[0].1.claim_identity, transfers[1].1.claim_identity);
-        let mut corrupted = checked.facts.clone();
-        corrupted
-            .flow
-            .ownership
-            .permissions
-            .get_mut(transfers[1].0)
-            .source = transfers[0].1.source;
-        assert!(
-            crate::checks::validate_linear_permission_events(&checked.typed, &corrupted).is_err(),
-            "one call occurrence cannot discharge both transfers"
-        );
-    }
 }

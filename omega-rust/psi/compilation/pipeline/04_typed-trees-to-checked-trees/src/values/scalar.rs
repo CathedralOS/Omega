@@ -50,8 +50,9 @@ pub(crate) use call_arguments::{
 pub(crate) use computations::build_checked_scalar_computation_plans;
 pub(crate) use computations::build_checked_value_computation_plans;
 pub(crate) use contract_entry::{
-    lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
-    lower_operator_crash_contract_expression, lower_signature_crash_contract_expression,
+    lower_entry_predicate_with_subjects, lower_machine_entry_boolean_expression,
+    lower_machine_entry_crash_contract_expression, lower_operator_crash_contract_expression,
+    lower_signature_crash_contract_expression,
 };
 pub(crate) use expression_facts::{
     occupies_scalar_position, operator_is_builtin, parameter_position, scalar_expression_type,

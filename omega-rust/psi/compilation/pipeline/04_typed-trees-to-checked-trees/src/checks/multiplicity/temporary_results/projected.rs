@@ -113,6 +113,7 @@ pub(super) fn append(
         source,
     };
     let base = FlowPermissionEventFact {
+        evaluation: event.evaluation,
         machine_symbol: machine,
         state_symbol: state,
         source,

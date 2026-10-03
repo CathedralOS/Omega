@@ -139,7 +139,26 @@ fn events(
         call_ordinal: consumer.call_ordinal,
         target_symbol: consumer.target_symbol,
     };
+    let evaluation = crate::flow::call_permission_evaluation(
+        program,
+        machine,
+        state,
+        consumer.statement_index,
+        consumer.call_ordinal,
+    );
+    if evaluation == checked_trees::FlowPermissionEvaluation::Unknown
+        || crate::flow::call_permission_evaluation(
+            program,
+            machine,
+            state,
+            producer.statement_index,
+            producer.call_ordinal,
+        ) != evaluation
+    {
+        return None;
+    }
     let establishment = FlowPermissionEventFact {
+        evaluation,
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
         source: producer_source,

@@ -50,7 +50,8 @@ pub use borrow::{
     ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::{
-    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
+    ContextualCleanupEntryRequirements, ContextualCleanupFacts,
 };
 
 pub use facts::{
@@ -172,8 +173,8 @@ pub use flow::{
     FlowInvalidationFact, FlowInvalidationFacts, FlowInvalidationSource, FlowOperandReferent,
     FlowOperatorInvocationFact, FlowOperatorOperandFact, FlowOwnedSelectionClaim,
     FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
-    FlowOwnershipFacts, FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact,
-    FlowStatementFact, RetiredFlowCall, is_borrowed_view,
+    FlowOwnershipFacts, FlowPermissionEvaluation, FlowPermissionEventFact, FlowSemanticContextRef,
+    FlowStateFact, FlowStatementFact, RetiredFlowCall, is_borrowed_view,
 };
 pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,

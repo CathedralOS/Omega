@@ -10,9 +10,11 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
 
 mod crash_entry;
-pub(crate) use crash_entry::lower_machine_entry_crash_contract_expression;
 pub(crate) use crash_entry::lower_operator_crash_contract_expression;
 pub(crate) use crash_entry::lower_signature_crash_contract_expression;
+pub(crate) use crash_entry::{
+    lower_entry_predicate_with_subjects, lower_machine_entry_crash_contract_expression,
+};
 
 /// The structural crash reader additionally needs a closed signature. This is
 /// execution eligibility, not the identity of a concrete scalar contract leaf

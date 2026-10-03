@@ -60,15 +60,55 @@ pub struct ContextualCleanupEntryRequirements {
     pub paths: Arena<crate::CheckedStructuralPredicatePathSegment>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextualCleanupEntryRequirement {
     pub machine: SymbolHandle,
     pub parameter_position: u32,
     pub path: HandleSpan<crate::CheckedStructuralPredicatePathSegment>,
     pub expected: bool,
+    /// Invocation-entry condition selecting this cleanup obligation.
+    pub antecedent: crate::CheckedBooleanExpression,
     /// Authored hook clause supplying this proposition and diagnostic origin.
     pub hook_machine: SymbolHandle,
     pub hook_clause: typed_trees::expression::ExpressionHandle,
     /// Generic source body whose symbolic death first introduced the row.
     pub template_machine: SymbolHandle,
+}
+
+
+impl Default for ContextualCleanupEntryRequirement {
+    fn default() -> Self {
+        Self {
+            machine: SymbolHandle::invalid(),
+            parameter_position: 0,
+            path: HandleSpan::default(),
+            expected: false,
+            antecedent: crate::CheckedBooleanExpression::Constant(true),
+            hook_machine: SymbolHandle::invalid(),
+            hook_clause: Default::default(),
+            template_machine: SymbolHandle::invalid(),
+        }
+    }
+}
+
+impl ContextualCleanupEntryRequirement {
+    pub fn predicate(
+        &self,
+        paths: &Arena<crate::CheckedStructuralPredicatePathSegment>,
+    ) -> crate::CheckedBooleanExpression {
+        use crate::CheckedBooleanExpression;
+        let field = CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: self.parameter_position,
+            path: paths.span_or_empty(self.path).to_vec(),
+        };
+        let consequence = if self.expected { field } else { CheckedBooleanExpression::Not(Box::new(field)) };
+        if self.antecedent == CheckedBooleanExpression::Constant(true) {
+            consequence
+        } else {
+            CheckedBooleanExpression::Or {
+                left: Box::new(CheckedBooleanExpression::Not(Box::new(self.antecedent.clone()))),
+                right: Box::new(consequence),
+            }
+        }
+    }
 }

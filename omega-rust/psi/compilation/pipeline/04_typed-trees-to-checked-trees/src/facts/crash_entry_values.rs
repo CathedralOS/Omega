@@ -55,6 +55,43 @@ const MAX_ENTRY_PROVENANCE_DEPTH: u32 = 64;
 #[cfg(test)]
 mod tests;
 
+/// Lower a body's current Boolean observation in the invocation namespace.
+/// The predicate reader owns the algebra; this owner only rejoins each exact
+/// place to the entry operand whose storage still survives at this point.
+pub(crate) fn entry_boolean_predicate(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    expression: ExpressionHandle,
+) -> Option<checked_trees::CheckedBooleanExpression> {
+    let (machine, state) =
+        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
+    crate::values::lower_entry_predicate_with_subjects(
+        program,
+        operators,
+        machine,
+        state,
+        expression,
+        &|leaf| {
+            let place = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                before_statement,
+                leaf,
+            )?;
+            entry_parameter_place(
+                program,
+                machine_symbol,
+                state_symbol,
+                before_statement,
+                &place,
+            )
+        },
+    )
+}
+
 pub(super) fn entry_operand(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,

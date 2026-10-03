@@ -15,6 +15,34 @@ pub(crate) fn boolean_value_at_place(
     contexts: &[facts::FactContextHandle],
     actual: &CanonicalPlace,
 ) -> Option<bool> {
+    if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
+        return Some(value);
+    }
+    let predicates = crate::facts::boolean_predicates::retained(program, semantic, contexts);
+    crate::facts::boolean_predicates::inferred_booleans(&predicates, |place| {
+        ordinary_boolean_value_at_place(program, semantic, contexts, place)
+            .map(ScalarValue::Boolean)
+            .or_else(|| {
+                crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    contexts
+                        .iter()
+                        .map(|context| semantic.contexts.get(*context)),
+                    place,
+                )
+            })
+    })
+    .into_iter()
+    .find_map(|(place, value)| (place == *actual).then_some(value))
+}
+
+fn ordinary_boolean_value_at_place(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[facts::FactContextHandle],
+    actual: &CanonicalPlace,
+) -> Option<bool> {
     let mut retained = match super::scalar_value_at_place(
         program,
         semantic,

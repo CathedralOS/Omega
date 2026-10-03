@@ -334,6 +334,7 @@ fn structural_entry_expression_and_type_walks_are_bounded() {
         owner: machine.symbol,
         parameters,
         remaining: 1,
+        subjects: None,
     };
     assert!(reader.charge(64).is_none());
     assert!(reader.charge(0).is_none());
@@ -952,4 +953,124 @@ fn integer_entry_fields_reject_partial_syntax_and_read_mixed_carriers_exactly() 
         // with each carrier retained, not incompatible landings.
         assert!(read(&program).is_some(), "{predicate}");
     }
+}
+
+fn body_entry_predicate(
+    source: &str,
+    state_name: Option<&str>,
+) -> Option<CheckedBooleanExpression> {
+    let program = typed_program(source);
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .unwrap();
+    let states = program.machine_states(machine);
+    let state = state_name.map_or(&states[0], |name| {
+        states
+            .iter()
+            .find(|state| state.name.as_str() == name)
+            .unwrap()
+    });
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let (statement_index, expression) = statements
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(ordinal, statement)| {
+            let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+                return None;
+            };
+            Some((ordinal, *expression))
+        })
+        .expect("body predicate");
+    crate::facts::entry_boolean_predicate(
+        &program,
+        &CheckedOperatorFacts::default(),
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        expression,
+    )
+}
+
+#[test]
+fn body_guard_transport_preserves_renamed_arrivals_and_distinct_parameter_namespaces() {
+    let source = "data Token { ready: bool; other: bool; }
+        machine inspect(token: Token, flag: bool) -> bool {
+            let held: Token = token;
+            transition true { true -> next(held, flag) false -> false }
+            state next(mut owner: Token, renamed: bool) -> bool {
+                owner.other = false;
+                let selected: bool = renamed;
+                selected && owner.ready
+            }
+        }";
+    let expected = CheckedBooleanExpression::And {
+        left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
+        right: Box::new(CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![CheckedStructuralPredicatePathSegment::Field(
+                "ready".to_owned(),
+            )],
+        }),
+    };
+    assert_eq!(body_entry_predicate(source, Some("next")), Some(expected));
+    assert_eq!(
+        body_entry_predicate(
+            &source.replace("owner.other =", "owner.ready ="),
+            Some("next")
+        ),
+        None
+    );
+}
+
+#[test]
+fn body_guard_transport_reads_a_saved_field_alias_without_rereading_later_storage() {
+    let source = "data Token { ready: bool; other: bool; }
+        machine inspect(mut token: Token) -> bool {
+            let selected: bool = token.ready;
+            token.ready = false;
+            selected
+        }";
+    assert_eq!(
+        body_entry_predicate(source, None),
+        Some(CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![CheckedStructuralPredicatePathSegment::Field(
+                "ready".to_owned()
+            )],
+        })
+    );
+    let stale = source
+        .replace(
+            "let selected: bool = token.ready;",
+            "let mut selected: bool = token.ready;",
+        )
+        .replace("token.ready = false;", "selected = false;");
+    assert_eq!(body_entry_predicate(&stale, None), None);
+}
+
+#[test]
+fn body_guard_transport_retains_total_integer_comparison_over_a_saved_scalar() {
+    let source = "data Token { ready: bool; }
+        machine inspect(token: Token, count: i32) -> bool {
+            let saved: i32 = count;
+            saved < 4
+        }";
+    let Some(CheckedBooleanExpression::IntegerComparison { left, .. }) =
+        body_entry_predicate(source, None)
+    else {
+        panic!("entry-relative integer comparison");
+    };
+    assert!(matches!(
+        *left,
+        checked_trees::CheckedScalarExpression::Parameter { position: 0, .. }
+    ));
+}
+
+#[test]
+fn computed_boolean_alias_requires_retained_expression_origin_before_guard_transport() {
+    let source = "machine inspect(flag: bool) -> bool { let selected: bool = !flag; selected }";
+    assert_eq!(body_entry_predicate(source, None), None);
 }

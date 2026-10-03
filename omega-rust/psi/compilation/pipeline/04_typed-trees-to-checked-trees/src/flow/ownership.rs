@@ -20,7 +20,8 @@ use calls::append_call_ownership_events;
 pub(crate) use calls::{owned_call_operand_places, owned_method_receiver_place};
 use events::{DirectMoveEventSink, append_move_event_for_place};
 pub(crate) use events::{
-    DiscoveredMoveEvent, FlowOwnershipEventSource, normalized_event_place_root,
+    DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,
+    normalized_event_place_root,
 };
 use moves::{
     append_move_events_for_expression, append_move_events_for_operator_statement_call,
@@ -139,10 +140,22 @@ pub(super) fn append_statement_ownership_events(
         // call-flow pass / produce no transfer.
         StatementNode::Transition(transition) => {
             let source = FlowOwnershipEventSource::Statement { statement_index };
+            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                sink.evaluation = checked_trees::FlowPermissionEvaluation::TransitionGuard;
+                append_move_events_for_expression(
+                    program,
+                    sink,
+                    state_symbol,
+                    statement_index,
+                    guard,
+                    source,
+                );
+            }
             for handle in [transition.target, transition.continuation] {
                 if !handle.is_valid() {
                     continue;
                 }
+                sink.evaluation = checked_trees::FlowPermissionEvaluation::TransitionTarget(handle);
                 if let typed_trees::statement::TransitionTargetNode::Value(value) =
                     program.statement_table.transition_target(handle)
                 {
@@ -209,6 +222,7 @@ pub(crate) fn discover_state_move_events(
         .iter()
         .enumerate()
     {
+        sink.evaluation = checked_trees::FlowPermissionEvaluation::Statement;
         append_statement_ownership_events(
             program,
             &mut sink,
@@ -221,6 +235,13 @@ pub(crate) fn discover_state_move_events(
                 break;
             }
             call_index += 1;
+            sink.evaluation = call_permission_evaluation(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                call.call_ordinal,
+            );
             append_call_ownership_events(program, &mut sink, machine, state, call);
         }
     }

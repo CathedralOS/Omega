@@ -25,10 +25,6 @@ pub(crate) use recorded_events::{
 };
 
 use crate::checks::multiplicity::owned_selection;
-use crate::checks::multiplicity::permission_events::{
-    case_transition_run_is_exhaustive, collect_positive_case_tests, exact_positive_case_test,
-    exclude_case_alternative, select_case_alternative_from_guard,
-};
 use crate::checks::multiplicity::type_multiplicity::type_carries_linear_obligation;
 use checked_trees::{CheckFacts, FlowClaimOutcomeSource, FlowFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
@@ -123,138 +119,72 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
             &mut diagnostics,
         );
 
-        let first_transition = statements
-            .iter()
-            .position(|statement| matches!(statement, StatementNode::Transition(_)));
-        let prefix_end = first_transition.unwrap_or(statements.len());
-        for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
-            match owned_selection::record_statement(
-                program,
-                &mut selected_replay,
-                machine,
-                state,
-                statement_index,
-                statement,
-                &mut places,
-            ) {
-                Ok(true) => continue,
-                Ok(false) => {}
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            }
-            apply_recorded_statement_events(
-                statement_index,
-                &events,
-                &facts.flow.ownership.segments,
-                &mut places,
-                &mut diagnostics,
-            );
-        }
-
-        let mut mixed_places = Vec::new();
-        let mut has_ordinary_exit = first_transition.is_none();
-        if let Some(first_transition) = first_transition {
-            let entry = places.clone();
-            let arm_indices = (first_transition..statements.len())
-                .filter(|index| matches!(statements[*index], StatementNode::Transition(_)))
-                .collect::<Vec<_>>();
-            let mut outcomes = Vec::new();
-            let mut excluded_case_tests = Vec::new();
-            for statement_index in arm_indices.iter().copied() {
-                let mut outcome = entry.clone();
-                if let Err(diagnostic) = owned_selection::record_statement(
-                    program,
-                    &mut selected_replay,
-                    machine,
-                    state,
-                    statement_index,
-                    &statements[statement_index],
-                    &mut outcome,
-                ) {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-                for &(subject, variant) in &excluded_case_tests {
-                    exclude_case_alternative(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        subject,
-                        variant,
-                        &mut outcome,
+        let mut outcomes = Vec::new();
+        super::permission_schedule::walk(program, state, places.clone(), |step, places| {
+            super::permission_schedule::select_cases(program, state, step, places);
+            match step {
+                super::permission_schedule::PermissionStep::Evaluate {
+                    statement,
+                    evaluation,
+                } => {
+                    if !matches!(
+                        evaluation,
+                        checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
+                    ) {
+                        match owned_selection::record_statement(
+                            program,
+                            &mut selected_replay,
+                            machine,
+                            state,
+                            statement,
+                            &statements[statement],
+                            places,
+                        ) {
+                            Ok(true) => return,
+                            Ok(false) => {}
+                            Err(diagnostic) => {
+                                diagnostics.push(diagnostic);
+                                return;
+                            }
+                        }
+                    }
+                    apply_recorded_statement_events(
+                        statement,
+                        evaluation,
+                        &events,
+                        &facts.flow.ownership.segments,
+                        places,
+                        &mut diagnostics,
                     );
                 }
-                let StatementNode::Transition(transition) = &statements[statement_index] else {
-                    unreachable!("transition indices contain only transitions")
-                };
-                if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                    let mut selected = Vec::new();
-                    collect_positive_case_tests(program, guard, &mut selected);
-                    for (subject, variant) in selected {
-                        select_case_alternative_from_guard(
-                            program,
-                            state.symbol,
-                            statement_index,
-                            subject,
-                            variant,
-                            &mut outcome,
-                        );
-                    }
+                super::permission_schedule::PermissionStep::Exit { crash: false, .. } => {
+                    outcomes.push(places.clone())
                 }
-                apply_recorded_statement_events(
-                    statement_index,
-                    &events,
-                    &facts.flow.ownership.segments,
-                    &mut outcome,
-                    &mut diagnostics,
-                );
-                if transition.exit == typed_trees::statement::TransitionExit::Ordinary {
-                    outcomes.push(outcome);
-                }
-                if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard
-                    && let Some(case_test) = exact_positive_case_test(program, guard)
+                _ => {}
+            }
+        });
+        let mut mixed_places = Vec::new();
+        let has_ordinary_exit = !outcomes.is_empty();
+        if let Some(first) = outcomes.first() {
+            for place_index in 0..places.len() {
+                let live = first[place_index].live;
+                if places[place_index].multiplicity == Multiplicity::Linear
+                    && outcomes
+                        .iter()
+                        .skip(1)
+                        .any(|outcome| outcome[place_index].live != live)
                 {
-                    excluded_case_tests.push(case_test);
-                }
-            }
-            let exhaustive =
-                arm_indices.last().is_some_and(|index| {
-                    matches!(
-                        statements[*index],
-                        StatementNode::Transition(typed_trees::statement::TableTransition {
-                            guard: typed_trees::statement::TransitionGuardNode::Always,
-                            ..
-                        })
-                    )
-                }) || case_transition_run_is_exhaustive(program, statements, &arm_indices);
-            if !exhaustive {
-                outcomes.push(entry);
-            }
-            has_ordinary_exit = !outcomes.is_empty();
-
-            if let Some(first) = outcomes.first() {
-                for place_index in 0..places.len() {
-                    let live = first[place_index].live;
-                    if places[place_index].multiplicity == Multiplicity::Linear
-                        && outcomes
-                            .iter()
-                            .skip(1)
-                            .any(|outcome| outcome[place_index].live != live)
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
+                    diagnostics.push(Diagnostic::error(format!(
                             "linear value `{}` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation",
                             places[place_index].name
                         )));
-                        mixed_places
-                            .push((places[place_index].symbol, places[place_index].path.clone()));
-                    } else {
-                        places[place_index].live = live;
-                        places[place_index].ever_established = outcomes
-                            .iter()
-                            .any(|outcome| outcome[place_index].ever_established);
-                    }
+                    mixed_places
+                        .push((places[place_index].symbol, places[place_index].path.clone()));
+                } else {
+                    places[place_index].live = live;
+                    places[place_index].ever_established = outcomes
+                        .iter()
+                        .any(|outcome| outcome[place_index].ever_established);
                 }
             }
         }

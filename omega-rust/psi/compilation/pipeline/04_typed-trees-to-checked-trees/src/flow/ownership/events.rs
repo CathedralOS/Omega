@@ -17,6 +17,7 @@ pub(crate) enum FlowOwnershipEventSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DiscoveredMoveEvent {
     pub(crate) source: FlowOwnershipEventSource,
+    pub(crate) evaluation: checked_trees::FlowPermissionEvaluation,
     /// Exact evaluated operand that detaches this value. Statement receivers
     /// and production destinations have no expression; their source names the
     /// statement/call instead. Equal places at different occurrences are not
@@ -34,6 +35,7 @@ pub(crate) struct DirectMoveEventSink<'segments> {
     pub(super) state: &'segments typed_trees::state::State,
     events: Vec<DiscoveredMoveEvent>,
     proof_only: Option<std::sync::Arc<typed_trees::proof_only::ProofOnlyClassification>>,
+    pub(super) evaluation: checked_trees::FlowPermissionEvaluation,
     pub(super) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
 }
 
@@ -51,6 +53,7 @@ impl<'segments> DirectMoveEventSink<'segments> {
             state,
             events: Vec::new(),
             proof_only: None,
+            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             source_arm: arena::Handle::invalid(),
         }
     }
@@ -78,6 +81,7 @@ impl DirectMoveEventSink<'_> {
     ) {
         self.events.push(DiscoveredMoveEvent {
             source,
+            evaluation: self.evaluation,
             expression,
             source_arm: self.source_arm,
             root: normalized_event_place_root(program, place.root),
@@ -94,6 +98,39 @@ pub(in crate::flow::ownership) fn append_move_event_for_place(
     expression: typed_trees::expression::ExpressionHandle,
 ) {
     sink.append_move_event(program, place, source, expression);
+}
+
+/// Join a retained call ordinal to its existing authored transition lane.
+/// A failed join stays unknown; it must not become a guard or ordinary event.
+pub(crate) fn call_permission_evaluation(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> checked_trees::FlowPermissionEvaluation {
+    use checked_trees::FlowPermissionEvaluation as Evaluation;
+    match program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+    {
+        Some(typed_trees::statement::StatementNode::Transition(_)) => {
+            match crate::semantic::calls::transition_call_target(
+                program,
+                machine,
+                state,
+                statement_index,
+                call_ordinal,
+            ) {
+                Some(target) if target.is_valid() => Evaluation::TransitionTarget(target),
+                Some(_) => Evaluation::TransitionGuard,
+                None => Evaluation::Unknown,
+            }
+        }
+        Some(_) => Evaluation::Statement,
+        None => Evaluation::Unknown,
+    }
 }
 
 /// Re-root a `self`/`self.field` event place at its machine symbol.

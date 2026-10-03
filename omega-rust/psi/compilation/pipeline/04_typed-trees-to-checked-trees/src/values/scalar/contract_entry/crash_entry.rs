@@ -32,6 +32,7 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
         owner: machine.symbol,
         parameters,
         remaining: 4096,
+        subjects: None,
     }
     .boolean(expression, 0)?;
     // All operands were checked in the exact entry namespace. This separate
@@ -45,6 +46,34 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     .then_some(predicate)
 }
 
+type EntrySubjectResolver<'program> = dyn Fn(ExpressionHandle) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>
+    + 'program;
+
+/// Read the same predicate algebra while the caller supplies authenticated
+/// invocation-entry subjects for observations made in a body state.
+pub(crate) fn lower_entry_predicate_with_subjects(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    subjects: &EntrySubjectResolver<'_>,
+) -> Option<CheckedBooleanExpression> {
+    let parameters = super::authored_entry_parameters(program, machine)?;
+    let predicate = Reader {
+        program,
+        operators,
+        machine: Some(machine),
+        owner: machine.symbol,
+        parameters,
+        remaining: 4096,
+        subjects: Some(subjects),
+    }
+    .boolean(expression, 0)?;
+    validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
+        .then_some(predicate)
+}
+
 struct Reader<'program> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
@@ -52,6 +81,7 @@ struct Reader<'program> {
     owner: symbols::SymbolHandle,
     parameters: &'program [StateParameter],
     remaining: usize,
+    subjects: Option<&'program EntrySubjectResolver<'program>>,
 }
 
 /// Bodyless requirements have an exact signature namespace, not a synthetic
@@ -86,6 +116,7 @@ pub(crate) fn lower_signature_crash_contract_expression(
         owner: signature.symbol,
         parameters,
         remaining: 4096,
+        subjects: None,
     }
     .boolean(expression, 0)
 }
@@ -126,6 +157,7 @@ pub(crate) fn lower_operator_crash_contract_expression(
         owner: operator.symbol,
         parameters,
         remaining: 4096,
+        subjects: None,
     }
     .boolean(expression, 0)
 }
@@ -161,39 +193,23 @@ impl<'program> Reader<'program> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
-            ExpressionNode::Name(_) => {
-                let position = self.parameter(expression, false)?;
-                if self.primitive(self.parameters[position].type_reference, depth + 1)?
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                let subject = self.subject(expression, depth + 1)?;
+                if self.primitive(subject.type_reference, depth + 1)?
                     != Some((PrimitiveType::Bool, BuiltinTypeAtom::Bool))
                 {
                     return None;
                 }
-                let mut scalar_position = 0;
-                for parameter in &self.parameters[..position] {
-                    // This is the established dense scalar namespace; structural
-                    // field roots below retain their full authored ordinal.
-                    if self
-                        .primitive(parameter.type_reference, depth + 1)?
-                        .is_some()
-                    {
-                        scalar_position += 1;
-                    }
+                if subject.path.is_empty() {
+                    Some(CheckedBooleanExpression::Parameter {
+                        position: self.scalar_position(subject.parameter_position, depth + 1)?,
+                    })
+                } else {
+                    Some(CheckedBooleanExpression::StructuralParameterField {
+                        parameter_position: u32::try_from(subject.parameter_position).ok()?,
+                        path: subject.path,
+                    })
                 }
-                Some(CheckedBooleanExpression::Parameter {
-                    position: scalar_position,
-                })
-            }
-            ExpressionNode::Member(_) => {
-                let field = self.field_path(expression, depth + 1)?;
-                if self.primitive(field.type_reference, depth + 1)?
-                    != Some((PrimitiveType::Bool, BuiltinTypeAtom::Bool))
-                {
-                    return None;
-                }
-                Some(CheckedBooleanExpression::StructuralParameterField {
-                    parameter_position: u32::try_from(field.parameter_position).ok()?,
-                    path: field.path,
-                })
             }
             ExpressionNode::Unary(unary)
                 if unary.operator == UnaryOperator::LogicalNot
@@ -293,19 +309,12 @@ impl<'program> Reader<'program> {
             }
             match self.program.expression_table.expression(operand) {
                 ExpressionNode::Integer(_) => return Some(true),
-                ExpressionNode::Name(_) => {
-                    let position = self.parameter(operand, false)?;
+                ExpressionNode::Name(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Indexed(_) => {
+                    let subject = self.subject(operand, depth + 1)?;
                     if self
-                        .primitive(self.parameters[position].type_reference, depth + 1)?
-                        .is_some_and(|(_, atom)| fixed_integer_atom(atom))
-                    {
-                        return Some(true);
-                    }
-                }
-                ExpressionNode::Member(_) => {
-                    let field = self.field_path(operand, depth + 1)?;
-                    if self
-                        .primitive(field.type_reference, depth + 1)?
+                        .primitive(subject.type_reference, depth + 1)?
                         .is_some_and(|(_, atom)| fixed_integer_atom(atom))
                     {
                         return Some(true);
@@ -341,45 +350,29 @@ impl<'program> Reader<'program> {
                 return None;
             }
             match self.program.expression_table.expression(operand) {
-                ExpressionNode::Name(_) => {
-                    let parameter_position = self.parameter(operand, false)?;
-                    let type_reference = self.parameters[parameter_position].type_reference;
-                    let (primitive_type, atom) = self.primitive(type_reference, depth + 1)??;
-                    if !fixed_integer_atom(atom) {
-                        return None;
-                    }
-                    let mut scalar_position = 0;
-                    for parameter in &self.parameters[..parameter_position] {
-                        if self
-                            .primitive(parameter.type_reference, depth + 1)?
-                            .is_some()
-                        {
-                            scalar_position += 1;
-                        }
-                    }
-                    subjects[position] = Some((
-                        CheckedScalarExpression::Parameter {
-                            position: scalar_position,
-                            primitive_type,
-                        },
-                        type_reference,
-                    ));
-                }
-                ExpressionNode::Member(_) => {
-                    let field = self.field_path(operand, depth + 1)?;
+                ExpressionNode::Name(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Indexed(_) => {
+                    let subject = self.subject(operand, depth + 1)?;
                     let (primitive_type, atom) =
-                        self.primitive(field.type_reference, depth + 1)??;
+                        self.primitive(subject.type_reference, depth + 1)??;
                     if !fixed_integer_atom(atom) {
                         return None;
                     }
-                    subjects[position] = Some((
-                        CheckedScalarExpression::StructuralParameterField {
-                            parameter_position: u32::try_from(field.parameter_position).ok()?,
-                            path: field.path,
+                    let value = if subject.path.is_empty() {
+                        CheckedScalarExpression::Parameter {
+                            position: self
+                                .scalar_position(subject.parameter_position, depth + 1)?,
                             primitive_type,
-                        },
-                        field.type_reference,
-                    ));
+                        }
+                    } else {
+                        CheckedScalarExpression::StructuralParameterField {
+                            parameter_position: u32::try_from(subject.parameter_position).ok()?,
+                            path: subject.path,
+                            primitive_type,
+                        }
+                    };
+                    subjects[position] = Some((value, subject.type_reference));
                 }
                 ExpressionNode::Integer(_) => {}
                 // This slice establishes no totality for arithmetic, calls,
@@ -451,8 +444,12 @@ impl<'program> Reader<'program> {
             let ExpressionNode::Name(_) = self.program.expression_table.expression(operand) else {
                 return None;
             };
-            let parameter_position = self.parameter(operand, false)?;
-            let type_reference = self.parameters[parameter_position].type_reference;
+            let subject = self.subject(operand, depth + 1)?;
+            if !subject.path.is_empty() {
+                return None;
+            }
+            let parameter_position = subject.parameter_position;
+            let type_reference = subject.type_reference;
             let (primitive_type, atom) = self.primitive(type_reference, depth + 1)??;
             if !ieee_float_atom(atom) {
                 return None;
@@ -542,9 +539,9 @@ impl<'program> Reader<'program> {
                 return Some(true);
             }
             if let ExpressionNode::Name(_) = self.program.expression_table.expression(operand) {
-                let position = self.parameter(operand, false)?;
+                let subject = self.subject(operand, depth + 1)?;
                 if self
-                    .primitive(self.parameters[position].type_reference, depth + 1)?
+                    .primitive(subject.type_reference, depth + 1)?
                     .is_some_and(|(_, atom)| ieee_float_atom(atom))
                 {
                     return Some(true);
@@ -552,6 +549,53 @@ impl<'program> Reader<'program> {
             }
         }
         Some(false)
+    }
+
+    fn scalar_position(&mut self, position: usize, depth: usize) -> Option<usize> {
+        let mut scalar_position = 0;
+        for parameter in &self.parameters[..position] {
+            if self
+                .primitive(parameter.type_reference, depth + 1)?
+                .is_some()
+            {
+                scalar_position += 1;
+            }
+        }
+        Some(scalar_position)
+    }
+
+    fn subject(&mut self, expression: ExpressionHandle, depth: usize) -> Option<FieldPath> {
+        if let Some(resolve) = self.subjects {
+            let (position, path) = resolve(expression)?;
+            let parameter = self.parameters.get(usize::try_from(position).ok()?)?;
+            if parameter.is_const {
+                return None;
+            }
+            let (_, _, type_reference, _) = crate::values::resolve_structural_parameter_path(
+                self.program,
+                self.parameters,
+                position,
+                &path,
+            )?;
+            return Some(FieldPath {
+                parameter_position: usize::try_from(position).ok()?,
+                path,
+                type_reference,
+            });
+        }
+        if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        ) {
+            let position = self.parameter(expression, false)?;
+            Some(FieldPath {
+                parameter_position: position,
+                path: Vec::new(),
+                type_reference: self.parameters[position].type_reference,
+            })
+        } else {
+            self.field_path(expression, depth)
+        }
     }
 
     fn parameter(&self, expression: ExpressionHandle, allow_self: bool) -> Option<usize> {

@@ -38,6 +38,7 @@ pub(crate) fn append_affine_cleanup_permission_events(
             return;
         }
         permission_events.push(FlowPermissionEventFact {
+            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol,
             state_symbol: state.symbol,
             source: PermissionEventSource::StateExit,

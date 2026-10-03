@@ -13,6 +13,7 @@ use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;
 mod parameter_bounds;
+mod predicates;
 use parameter_bounds::ParameterBounds;
 pub(super) mod fields;
 pub(in crate::flow) mod qualifications;
@@ -35,6 +36,7 @@ pub(super) struct StateValues {
     bounds: Vec<ParameterBounds>,
     fields: Vec<fields::FieldValue>,
     qualifications: Vec<qualifications::QualifiedInput>,
+    predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
 }
 
 /// The greatest predicate set this state's incoming edges have ever jointly
@@ -107,6 +109,7 @@ fn join(
             thresholds.as_slice(),
         );
         changed |= qualifications::meet(&mut previous.qualifications, &incoming.qualifications);
+        changed |= predicates::meet(&mut previous.predicates, &incoming.predicates);
         for (parameter, value) in &mut previous.values {
             let next = incoming
                 .values
@@ -130,6 +133,7 @@ fn join(
     } else {
         changed = true;
         build.new_state_field_input_height += fields::height(&incoming.fields, thresholds.len());
+        build.new_state_field_input_height += incoming.predicates.len();
         build.new_state_field_input_height = build
             .new_state_field_input_height
             .saturating_add(qualifications::height(program, &incoming.qualifications));
@@ -169,6 +173,7 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
                     state: state.symbol,
                     fields: Vec::new(),
                     qualifications: Vec::new(),
+                    predicates: Vec::new(),
                     values: program
                         .state_parameters(state)
                         .iter()
@@ -287,6 +292,17 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
+    let predicates = predicates::capture(
+        program,
+        semantic,
+        build,
+        machine,
+        state,
+        destination,
+        statement_index,
+        arguments,
+        contexts,
+    );
     let mut qualifications = argument_qualifications;
     qualifications.extend(qualifications::capture_receiver(
         program,
@@ -308,6 +324,7 @@ pub(super) fn record_transition(
             bounds,
             fields,
             qualifications,
+            predicates,
         },
     );
 }
@@ -365,6 +382,7 @@ pub(super) fn record_invocation<'plans>(
             state: destination.symbol,
             fields: Vec::new(),
             qualifications: Vec::new(),
+            predicates: Vec::new(),
             bounds: Vec::new(),
             values: program
                 .state_parameters(destination)
@@ -396,6 +414,7 @@ pub(super) fn append_entry_context(
     };
     fields::append(program, semantic, &input.fields, machine, state, point);
     qualifications::append(semantic, &input.qualifications, point);
+    predicates::append(semantic, &input.predicates, point);
     for (parameter, value) in &input.values {
         if *value == ScalarValue::Unknown {
             continue;

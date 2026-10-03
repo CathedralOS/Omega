@@ -71,7 +71,7 @@ pub(crate) fn prepare_permission_events(
             continue;
         };
         let statements = program.statement_table.statements(state.statement_nodes);
-        let mut remaining = RemainingCustody::default();
+        let remaining = RemainingCustody::default();
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
 
@@ -91,6 +91,7 @@ pub(crate) fn prepare_permission_events(
                 .segments
                 .insert_many(place.path.iter().copied());
             permission_events.push(FlowPermissionEventFact {
+                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state.symbol,
                 source: PermissionEventSource::StateEntry,
@@ -113,170 +114,120 @@ pub(crate) fn prepare_permission_events(
             state,
             &mut facts.flow.ownership.segments,
         );
-        // Control discovery already attached the ordered calls to this state.
-        // Snapshot once while permission production mutates the separate
-        // ownership arenas; rescanning all states and cloning these calls for
-        // every statement makes ordinary package checking quadratic in states.
+        // Snapshot the state's ordered calls once while permission production
+        // mutates ownership arenas. Each evaluation selects from this snapshot.
         let calls = facts
             .flow
             .control
             .calls
             .span_or_empty(state_flow.calls)
             .to_vec();
-        let first_transition = statements
+        if moves
             .iter()
-            .position(|statement| matches!(statement, StatementNode::Transition(_)));
-        let prefix_end = first_transition.unwrap_or(statements.len());
-        for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
-            let event_start = permission_events.len();
-            match owned_selection::record_statement(
-                program,
-                facts,
-                machine,
-                state,
-                statement_index,
-                statement,
-                &mut places,
-            ) {
-                Ok(true) => continue,
-                Ok(false) => {}
-                Err(diagnostic) => {
-                    selection_diagnostics.push(diagnostic);
-                    continue;
-                }
-            }
-            apply_statement_permission_production(
-                program,
-                facts,
-                state_flow.machine_symbol,
-                state.symbol,
-                &moves,
-                &calls,
-                statement_index,
-                statement,
-                &mut places,
-                &mut permission_events,
-                &mut claim_identities,
-                &mut conditional_carrier_transfers,
-            );
-            remaining.observe(
-                &permission_events[event_start..],
-                &facts.flow.ownership.segments,
-                &mut cleanup_dispositions,
-                FlowClaimJoinExit::default(),
-            );
+            .any(|event| event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown)
+        {
+            selection_diagnostics.push(Diagnostic::error(
+                "ownership occurrence has no exact source evaluation region",
+            ));
+            continue;
         }
-
-        if let Some(first_transition) = first_transition {
-            let entry = places.clone();
-            let arm_indices = (first_transition..statements.len())
-                .filter(|index| matches!(statements[*index], StatementNode::Transition(_)))
-                .collect::<Vec<_>>();
-            for statement_index in arm_indices.iter().copied() {
-                let mut outcome = entry.clone();
-                let mut remaining_outcome = remaining.clone();
-                let event_start = permission_events.len();
-                if let Err(diagnostic) = owned_selection::record_statement(
-                    program,
-                    facts,
-                    machine,
-                    state,
-                    statement_index,
-                    &statements[statement_index],
-                    &mut outcome,
-                ) {
-                    selection_diagnostics.push(diagnostic);
-                    continue;
+        super::permission_schedule::walk(program, state, (places, remaining), |step, custody| {
+            let (places, remaining) = custody;
+            super::permission_schedule::select_cases(program, state, step, places);
+            match step {
+                super::permission_schedule::PermissionStep::Evaluate {
+                    statement: statement_index,
+                    evaluation,
+                } => {
+                    if !matches!(
+                        evaluation,
+                        checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
+                    ) {
+                        match owned_selection::record_statement(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            statement_index,
+                            &statements[statement_index],
+                            places,
+                        ) {
+                            Ok(true) => return,
+                            Ok(false) => {}
+                            Err(diagnostic) => {
+                                selection_diagnostics.push(diagnostic);
+                                return;
+                            }
+                        }
+                    }
+                    let event_start = permission_events.len();
+                    apply_statement_permission_production(
+                        program,
+                        facts,
+                        state_flow.machine_symbol,
+                        state.symbol,
+                        &moves,
+                        &calls,
+                        statement_index,
+                        &statements[statement_index],
+                        evaluation,
+                        places,
+                        &mut permission_events,
+                        &mut claim_identities,
+                        &mut conditional_carrier_transfers,
+                    );
+                    remaining.observe(
+                        &permission_events[event_start..],
+                        &facts.flow.ownership.segments,
+                        &mut cleanup_dispositions,
+                        FlowClaimJoinExit::default(),
+                    );
                 }
-                apply_statement_permission_production(
-                    program,
-                    facts,
-                    state_flow.machine_symbol,
-                    state.symbol,
-                    &moves,
-                    &calls,
-                    statement_index,
-                    &statements[statement_index],
-                    &mut outcome,
-                    &mut permission_events,
-                    &mut claim_identities,
-                    &mut conditional_carrier_transfers,
-                );
-                remaining_outcome.observe(
-                    &permission_events[event_start..],
-                    &facts.flow.ownership.segments,
-                    &mut cleanup_dispositions,
-                    FlowClaimJoinExit::default(),
-                );
-                let StatementNode::Transition(transition) = &statements[statement_index] else {
-                    unreachable!("transition indices contain only transitions")
-                };
-                if !matches!(
-                    transition.exit,
-                    typed_trees::statement::TransitionExit::Crash(_)
-                ) {
-                    let mut outgoing = Vec::new();
+                super::permission_schedule::PermissionStep::Exit {
+                    coordinate,
+                    crash: false,
+                } => {
+                    let event_start = permission_events.len();
                     append_affine_cleanup_permission_events(
                         program,
                         state,
                         state_flow.machine_symbol,
-                        &outcome,
-                        &mut outgoing,
+                        places,
+                        &mut permission_events,
                     );
-                    remaining_outcome.observe(
-                        &outgoing,
+                    let evaluation = match coordinate.kind {
+                        FlowClaimJoinExitKind::TransitionTarget
+                        | FlowClaimJoinExitKind::TransitionContinuation => {
+                            let StatementNode::Transition(transition) =
+                                &statements[coordinate.statement_index]
+                            else {
+                                unreachable!()
+                            };
+                            checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                                if coordinate.kind == FlowClaimJoinExitKind::TransitionTarget {
+                                    transition.target
+                                } else {
+                                    transition.continuation
+                                },
+                            )
+                        }
+                        _ => checked_trees::FlowPermissionEvaluation::Statement,
+                    };
+                    for event in &mut permission_events[event_start..] {
+                        event.evaluation = evaluation;
+                    }
+                    remaining.observe(
+                        &permission_events[event_start..],
                         &facts.flow.ownership.segments,
                         &mut cleanup_dispositions,
-                        if transition.target.is_valid() && !transition.continuation.is_valid() {
-                            FlowClaimJoinExit {
-                                state_symbol: state.symbol,
-                                statement_index,
-                                kind: FlowClaimJoinExitKind::TransitionTarget,
-                            }
-                        } else {
-                            // The current statement custody fold combines both
-                            // targets. Until it retains separate transfers, no
-                            // branch may claim an exact exit observation.
-                            FlowClaimJoinExit::default()
-                        },
+                        coordinate,
                     );
                 }
+                super::permission_schedule::PermissionStep::Exit { crash: true, .. }
+                | super::permission_schedule::PermissionStep::MissedGuard { .. } => {}
             }
-        } else {
-            let mut outgoing = Vec::new();
-            append_affine_cleanup_permission_events(
-                program,
-                state,
-                state_flow.machine_symbol,
-                &places,
-                &mut outgoing,
-            );
-            remaining.observe(
-                &outgoing,
-                &facts.flow.ownership.segments,
-                &mut cleanup_dispositions,
-                FlowClaimJoinExit {
-                    state_symbol: state.symbol,
-                    statement_index: if matches!(
-                        statements.last(),
-                        Some(StatementNode::Expression(_))
-                    ) {
-                        statements.len() - 1
-                    } else {
-                        statements.len()
-                    },
-                    kind: FlowClaimJoinExitKind::FinalExpression,
-                },
-            );
-        }
+        });
 
-        append_affine_cleanup_permission_events(
-            program,
-            state,
-            state_flow.machine_symbol,
-            &places,
-            &mut permission_events,
-        );
         let temporary_start = permission_events.len();
         temporary_results::append_shared_borrow(
             program,
@@ -295,7 +246,12 @@ pub(crate) fn prepare_permission_events(
         );
     }
 
-    append_borrow_permission_events(facts, &mut permission_events, &mut claim_identities);
+    append_borrow_permission_events(
+        program,
+        facts,
+        &mut permission_events,
+        &mut claim_identities,
+    );
     let claim_outcome_maps =
         reconcile_state_call_result_origins(program, &facts.flow.ownership, &mut permission_events);
 
@@ -396,78 +352,64 @@ fn record_crash_frontier_lower_bounds(
         let proven_conditional_claims =
             proven_conditional_entry_claims(program, state, incoming, &places);
 
-        let first_transition = statements
-            .iter()
-            .position(|statement| matches!(statement, StatementNode::Transition(_)));
-        let prefix_end = first_transition.unwrap_or(statements.len());
         let mut ignored_diagnostics = Vec::new();
-        for statement_index in 0..prefix_end {
-            if let Some((_, receipt)) = facts
-                .flow
-                .ownership
-                .owned_selection_at(state.symbol, statement_index as u32)
-            {
-                owned_selection::apply_availability(
-                    program,
-                    &facts.flow.ownership,
-                    receipt,
-                    &mut places,
-                );
-                continue;
+        super::permission_schedule::walk(program, state, places, |step, places| {
+            super::permission_schedule::select_cases(program, state, step, places);
+            match step {
+                super::permission_schedule::PermissionStep::Evaluate {
+                    statement,
+                    evaluation,
+                } => {
+                    if evaluation == checked_trees::FlowPermissionEvaluation::Statement
+                        && let Some((_, receipt)) = facts
+                            .flow
+                            .ownership
+                            .owned_selection_at(state.symbol, statement as u32)
+                    {
+                        owned_selection::apply_availability(
+                            program,
+                            &facts.flow.ownership,
+                            receipt,
+                            places,
+                        );
+                        return;
+                    }
+                    apply_recorded_statement_events(
+                        statement,
+                        evaluation,
+                        &events,
+                        &facts.flow.ownership.segments,
+                        places,
+                        &mut ignored_diagnostics,
+                    );
+                }
+                super::permission_schedule::PermissionStep::Exit {
+                    coordinate,
+                    crash: true,
+                } => {
+                    let claims = places
+                        .iter()
+                        .filter_map(|place| {
+                            (place.live
+                                && (!place.conditional
+                                    || place.claim_identity.is_some_and(|identity| {
+                                        proven_conditional_claims.contains(&identity)
+                                    })))
+                            .then_some(place.claim_identity?)
+                            .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
+                        })
+                        .collect();
+                    derived.push(DerivedCrashFrontier {
+                        machine_symbol: state_flow.machine_symbol,
+                        state_symbol: state.symbol,
+                        statement_ordinal: u32::try_from(coordinate.statement_index)
+                            .expect("state-local statement ordinal exceeds checked identity range"),
+                        claims,
+                    });
+                }
+                _ => {}
             }
-            apply_recorded_statement_events(
-                statement_index,
-                &events,
-                &facts.flow.ownership.segments,
-                &mut places,
-                &mut ignored_diagnostics,
-            );
-        }
-
-        let Some(first_transition) = first_transition else {
-            continue;
-        };
-        let entry = places;
-        for statement_index in (first_transition..statements.len())
-            .filter(|index| matches!(statements[*index], StatementNode::Transition(_)))
-        {
-            let StatementNode::Transition(transition) = &statements[statement_index] else {
-                unreachable!("transition indices contain only transitions")
-            };
-            if !matches!(
-                transition.exit,
-                typed_trees::statement::TransitionExit::Crash(_)
-            ) {
-                continue;
-            }
-            let mut outcome = entry.clone();
-            apply_recorded_statement_events(
-                statement_index,
-                &events,
-                &facts.flow.ownership.segments,
-                &mut outcome,
-                &mut ignored_diagnostics,
-            );
-            let claims = outcome
-                .iter()
-                .filter_map(|place| {
-                    (place.live
-                        && (!place.conditional
-                            || place.claim_identity.is_some_and(|identity| {
-                                proven_conditional_claims.contains(&identity)
-                            })))
-                    .then_some(place.claim_identity?)
-                    .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
-                })
-                .collect();
-            derived.push(DerivedCrashFrontier {
-                machine_symbol: state_flow.machine_symbol,
-                state_symbol: state.symbol,
-                statement_ordinal: u32::try_from(statement_index)
-                    .expect("state-local statement ordinal exceeds checked identity range"),
-                claims,
-            });
-        }
+        });
     }
 
     for contract in &mut facts.contract_plans.machines {

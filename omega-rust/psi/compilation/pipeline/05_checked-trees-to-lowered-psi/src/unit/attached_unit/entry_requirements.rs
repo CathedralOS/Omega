@@ -3,7 +3,7 @@
 //! bound generic cleanup prerequisites retain their distinct checked origin.
 use crate::lowering_error::LoweringError;
 use crate::unit::runtime_requirements::lower_structural_runtime_requirement;
-use checked_trees::{CheckedBooleanExpression, CheckedTrees};
+use checked_trees::CheckedTrees;
 use semantic_vocabulary::Proposition;
 use symbols::SymbolHandle;
 use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration, ValueDeclaration};
@@ -60,15 +60,7 @@ pub(crate) fn lower(
         if requirement.machine != source {
             continue;
         }
-        let expression = CheckedBooleanExpression::StructuralParameterField {
-            parameter_position: requirement.parameter_position,
-            path: contextual.paths.span_or_empty(requirement.path).to_vec(),
-        };
-        let expression = if requirement.expected {
-            expression
-        } else {
-            CheckedBooleanExpression::Not(Box::new(expression))
-        };
+        let expression = requirement.predicate(&contextual.paths);
         runtime_requirements.push(lower_structural_runtime_requirement(
             &expression,
             scalar_parameters,

@@ -7,6 +7,9 @@
 use crate::IntegerRange as CheckedIntegerRange;
 use symbols::SymbolHandle;
 
+mod bindings;
+pub use bindings::{BooleanPredicate, BooleanPredicateBinding};
+
 mod byte_comparison;
 mod integer_math;
 pub use integer_math::{CheckedIntegerMathExpression, CheckedIntegerMathTerm};

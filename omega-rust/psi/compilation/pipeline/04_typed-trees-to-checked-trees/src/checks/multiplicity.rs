@@ -16,6 +16,7 @@ mod linear_obligations;
 mod linear_validation;
 mod owned_selection;
 mod permission_events;
+mod permission_schedule;
 pub(crate) use permission_events::prepare_permission_events;
 mod projected_affine;
 mod temporary_results;

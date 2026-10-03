@@ -320,17 +320,23 @@ fn boolean(
             Some(boolean(left, resolve_binding)? == boolean(right, resolve_binding)?)
         }
         CheckedBooleanExpression::And { left, right } => {
-            if boolean(left, resolve_binding)? {
-                boolean(right, resolve_binding)
-            } else {
-                Some(false)
+            match (
+                boolean(left, resolve_binding),
+                boolean(right, resolve_binding),
+            ) {
+                (Some(false), _) | (_, Some(false)) => Some(false),
+                (Some(true), Some(true)) => Some(true),
+                _ => None,
             }
         }
         CheckedBooleanExpression::Or { left, right } => {
-            if boolean(left, resolve_binding)? {
-                Some(true)
-            } else {
-                boolean(right, resolve_binding)
+            match (
+                boolean(left, resolve_binding),
+                boolean(right, resolve_binding),
+            ) {
+                (Some(true), _) | (_, Some(true)) => Some(true),
+                (Some(false), Some(false)) => Some(false),
+                _ => None,
             }
         }
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {

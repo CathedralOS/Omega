@@ -78,6 +78,7 @@ pub(super) fn append_whole_affine_transfer(
         });
     if affine_result {
         permission_events.push(FlowPermissionEventFact {
+            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol,
             state_symbol,
             source: permission_source(event.source),
@@ -173,6 +174,7 @@ pub(super) fn append_constructed_argument_transfers(
                 continue;
             }
             permission_events.push(FlowPermissionEventFact {
+                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
                 machine_symbol,
                 state_symbol,
                 source,
