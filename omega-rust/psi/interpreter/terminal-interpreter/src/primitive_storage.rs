@@ -95,13 +95,15 @@ impl TerminalExecution {
     }
 
     /// `path` is static here: the execution loop already replaced each
-    /// runtime-selected element with the fixed index its value names.
+    /// runtime-selected element with the fixed index its value names. The final
+    /// flag retains shared observation authority from the current formal; only
+    /// that authority permits a stored primitive to expose a different carrier.
     fn primitive_access(
         &self,
         place: PlaceId,
         writing: bool,
         path: &[StructuralPathSegment],
-    ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
         self.primitive_home_access(self.capture_primitive_home(place)?, writing, path)
     }
 
@@ -122,7 +124,7 @@ impl TerminalExecution {
         home: PrimitiveStorageHome,
         writing: bool,
         path: &[StructuralPathSegment],
-    ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let place = home.place;
         let (machine_id, structural_values, scalar_array_values, byte_sequence_values) =
@@ -146,7 +148,8 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let machine = self.program.machines.get(&machine_id).ok_or_else(invalid)?;
-        let structural_type = local_type(machine, place)
+        let (structural_type, shared_view) = local_type(machine, place)
+            .map(|structural_type| (structural_type, false))
             .or_else(|| {
                 machine
                     .structural_parameters
@@ -179,7 +182,12 @@ impl TerminalExecution {
                             && parameter.qualifications.is_empty()
                             && parameter.projected_qualifications.is_empty()
                     })
-                    .map(|parameter| parameter.structural_type)
+                    .map(|parameter| {
+                        (
+                            parameter.structural_type,
+                            parameter.access == StructuralAccess::SharedBorrow,
+                        )
+                    })
             })
             .or_else(|| {
                 if path.is_empty() {
@@ -196,7 +204,7 @@ impl TerminalExecution {
                             && result.qualifications.is_empty()
                             && result.projected_qualifications.is_empty()
                     })
-                    .map(|result| result.structural_type)
+                    .map(|result| (result.structural_type, false))
             })
             .ok_or_else(invalid)?;
         if structural_type != home.structural_type {
@@ -246,6 +254,7 @@ impl TerminalExecution {
                     index,
                 },
                 scalar_type,
+                shared_view,
             ));
         }
         let path = terminal_semantics::canonical_primitive_path(
@@ -318,6 +327,7 @@ impl TerminalExecution {
             return Ok((
                 PrimitiveStorage::OwnedArrayElement { home, index },
                 scalar_type,
+                shared_view,
             ));
         }
         let view = structural_values.get(&place).ok_or(
@@ -357,6 +367,7 @@ impl TerminalExecution {
                                 field.id,
                             )),
                             scalar_type,
+                            shared_view,
                         ));
                     }
                     let terminal_psi::StructuralFieldType::Structural(child) = field.field_type
@@ -411,6 +422,7 @@ impl TerminalExecution {
                         index,
                     },
                     scalar_type,
+                    shared_view,
                 ));
             }
         }
@@ -426,12 +438,18 @@ impl TerminalExecution {
         // field's declared identity — not in primitive root storage.
         if let Some((StructuralPathSegment::Field(identity), parent_path)) = view.path.split_last()
         {
-            let field = self.scalar_leaf_field(view, identity, parent_path, scalar_type)?;
-            return Ok((PrimitiveStorage::ScalarField(field), scalar_type));
+            let field =
+                self.scalar_leaf_field(view, identity, parent_path, scalar_type, shared_view)?;
+            return Ok((
+                PrimitiveStorage::ScalarField(field),
+                scalar_type,
+                shared_view,
+            ));
         }
         Ok((
             PrimitiveStorage::Scalar(StructuralRuntimePlace::from(view)),
             scalar_type,
+            shared_view,
         ))
     }
 
@@ -446,6 +464,7 @@ impl TerminalExecution {
         identity: &str,
         parent_path: &[StructuralPathSegment],
         scalar_type: ScalarType,
+        shared_view: bool,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let root = self
@@ -477,10 +496,14 @@ impl TerminalExecution {
             .iter()
             .find(|field| field.identity == *identity && !field.relevance.is_erased())
             .ok_or_else(invalid)?;
-        if field.field_type.canonical_leaf_shape()
-            != Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                scalar_type,
-            ))
+        let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(stored_type)) =
+            field.field_type.canonical_leaf_shape()
+        else {
+            return Err(invalid());
+        };
+        if stored_type != scalar_type
+            && !(shared_view
+                && terminal_semantics::scalar_reference_view_is_total(stored_type, scalar_type))
         {
             return Err(invalid());
         }
@@ -629,8 +652,8 @@ impl TerminalExecution {
             }
             return Ok(value);
         }
-        let (storage, scalar_type) = self.primitive_access(source, false, path)?;
-        self.read_primitive_storage(source, storage, scalar_type, expected)
+        let (storage, scalar_type, shared_view) = self.primitive_access(source, false, path)?;
+        self.read_primitive_storage(source, storage, scalar_type, expected, shared_view)
     }
 
     pub(crate) fn read_primitive_home(
@@ -639,8 +662,8 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         expected: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        let (storage, scalar_type) = self.primitive_home_access(home, false, path)?;
-        self.read_primitive_storage(home.place, storage, scalar_type, expected)
+        let (storage, scalar_type, shared_view) = self.primitive_home_access(home, false, path)?;
+        self.read_primitive_storage(home.place, storage, scalar_type, expected, shared_view)
     }
 
     fn read_primitive_storage(
@@ -649,6 +672,7 @@ impl TerminalExecution {
         storage: PrimitiveStorage,
         scalar_type: ScalarType,
         expected: ScalarType,
+        shared_view: bool,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
         let scalar = match storage {
             PrimitiveStorage::OwnedArrayElement { home, index } => {
@@ -697,13 +721,18 @@ impl TerminalExecution {
                 })
             }
         }?;
-        if expected != scalar_type
-            || scalar.scalar_type() != scalar_type
-            || !terminal_scalar_belongs_to_type(scalar)
-        {
+        if expected != scalar_type || !terminal_scalar_belongs_to_type(scalar) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        Ok(scalar)
+        if scalar.scalar_type() == scalar_type {
+            return Ok(scalar);
+        }
+        if !shared_view {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        // Observation re-views the original cell; the stored scalar is never
+        // converted or replaced, so subsequent observations share its lifetime.
+        scalar_reference_observation(scalar, scalar_type)
     }
 
     pub(crate) fn execute_primitive_store(
@@ -730,7 +759,7 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         scalar: TerminalScalarValue,
     ) -> Result<(), TerminalInterpretError> {
-        let (storage, scalar_type) = self.primitive_access(destination, true, path)?;
+        let (storage, scalar_type, _) = self.primitive_access(destination, true, path)?;
         self.store_primitive_storage(destination, storage, scalar_type, scalar)
     }
 
@@ -740,7 +769,7 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         scalar: TerminalScalarValue,
     ) -> Result<(), TerminalInterpretError> {
-        let (storage, scalar_type) = self.primitive_home_access(home, true, path)?;
+        let (storage, scalar_type, _) = self.primitive_home_access(home, true, path)?;
         self.store_primitive_storage(home.place, storage, scalar_type, scalar)
     }
 
@@ -772,12 +801,18 @@ impl TerminalExecution {
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         destination,
                     ))?;
+                if stored.scalar_type() != scalar_type {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
                 *stored = scalar;
             }
             PrimitiveStorage::Scalar(storage) => {
                 let stored = self.structural_primitive_storage.get_mut(&storage).ok_or(
                     TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
                 )?;
+                if stored.scalar_type() != scalar_type {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
                 *stored = scalar;
             }
             PrimitiveStorage::ScalarField(field) => {
@@ -787,6 +822,9 @@ impl TerminalExecution {
                         field: field.field,
                     },
                 )?;
+                if stored.scalar_type() != scalar_type {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
                 *stored = scalar;
             }
             PrimitiveStorage::ArrayElement { array, index } => {
@@ -831,5 +869,32 @@ impl TerminalExecution {
             }
         }
         self.retire_unrestricted_aggregates();
+    }
+}
+
+fn scalar_reference_observation(
+    stored: TerminalScalarValue,
+    target: ScalarType,
+) -> Result<TerminalScalarValue, TerminalInterpretError> {
+    use terminal_semantics::ScalarViewValue;
+    let input = match stored {
+        TerminalScalarValue::Boolean(value) => ScalarViewValue::Boolean(value),
+        TerminalScalarValue::Integer { value, .. } => ScalarViewValue::Integer(value),
+        TerminalScalarValue::IeeeFloat(value) => ScalarViewValue::IeeeFloat(value),
+    };
+    let observed =
+        terminal_semantics::scalar_reference_view_value(stored.scalar_type(), target, input)
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+    match (observed, target) {
+        (ScalarViewValue::Boolean(value), ScalarType::Boolean) => {
+            Ok(TerminalScalarValue::Boolean(value))
+        }
+        (ScalarViewValue::Integer(value), ScalarType::Integer(scalar_type)) => {
+            Ok(TerminalScalarValue::Integer { scalar_type, value })
+        }
+        (ScalarViewValue::IeeeFloat(value), ScalarType::IeeeFloat(_)) => {
+            Ok(TerminalScalarValue::IeeeFloat(value))
+        }
+        _ => Err(TerminalInterpretError::VerifiedOperationMalformed),
     }
 }
