@@ -548,7 +548,18 @@ fn mutable_ranked_accumulator_replays_current_self_arguments_and_executes() {
             "current value differs from invocation value"
         );
         arguments[position] = stale;
-        validate_module(&wrong).expect("a stale scalar still has the same valid carrier and scope");
+        if position == 0 {
+            // Ranked-SCC metadata records the exact successor argument, not
+            // merely its carrier. Replacing that argument already invalidates
+            // its correspondence before any arithmetic certificate is replayed.
+            assert!(matches!(
+                validate_module(&wrong),
+                Err(terminal_verifier::ModuleError::InvalidRankedScc(id)) if id == machine.id
+            ));
+        } else {
+            validate_module(&wrong)
+                .expect("stale accumulator retains scalar scope and the exact counter rank");
+        }
         assert!(
             verify_module(&wrong, &proofs, &profile).is_err(),
             "stale self operand {position} must reject"
