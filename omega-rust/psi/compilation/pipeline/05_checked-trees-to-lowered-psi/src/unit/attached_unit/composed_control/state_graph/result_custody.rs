@@ -456,34 +456,15 @@ fn retired_in_body(
     Ok(retired)
 }
 
-/// A `&[T]` local: shared reference (through constraint shells) to a slice —
-/// the borrowed-view carrier the checked disposition roster spells peeled.
-fn is_borrowed_view_local(
-    checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
-) -> bool {
-    let mut borrowed = false;
-    loop {
-        match checked.typed.type_reference_table.type_reference(reference) {
-            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type;
-            }
-            checked_trees::types::TypeReferenceNode::Reference {
-                access: language_semantics::ReferenceAccess::Shared,
-                referee,
-                ..
-            } if !borrowed => {
-                borrowed = true;
-                reference = *referee;
-            }
-            checked_trees::types::TypeReferenceNode::Slice { .. } => return borrowed,
-            _ => return false,
-        }
-    }
-}
-
-/// Validate the complete roster, not a requirement to transfer on every branch.
-pub(super) fn validate(
+/// Validate the complete disposal roster, not the producer's representation.
+///
+/// Construction replay and call-source replay independently check result type,
+/// multiplicity and exact source before publication. Repeating that judgment
+/// from the local's syntax confuses a shared alias of existing storage with a
+/// materialized reference result: both spell `&T`, but only the latter creates
+/// a carrier to retire. This layer checks the resulting ownership receipts;
+/// the loan ledger separately owns reference lifetimes and restored access.
+pub(super) fn validate_disposition(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     source: &checked_trees::state::State,
@@ -491,85 +472,6 @@ pub(super) fn validate(
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    // A borrowed view's result binding carries the viewed `[T]` carrier
-    // identity with the reference and constraint shells peeled, exactly as the
-    // checked-side disposition roster spells it.
-    let mutable_borrowed = validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        local.type_reference,
-    );
-    // A shared record loan is the read-side member of the same family: the
-    // `&T` descriptor copies like `&u8`, but its named referent's custody is
-    // the loan ledger's, so the binding stamps Affine exactly as a `&mut`
-    // view does. Primitive shared referees keep their Unrestricted disposal.
-    let shared_borrowed = validation::reference_result_custody::shared_borrowed_parts(
-        &checked.typed,
-        local.type_reference,
-    )
-    .filter(|(referee, _)| checked.primitive_type_reference(*referee).is_none());
-    // The `&mut` descriptor itself is copyable; the binding's exclusivity is
-    // what the checked result stamps Affine.
-    let expected_multiplicity = if mutable_borrowed.is_some() || shared_borrowed.is_some() {
-        Multiplicity::Affine
-    } else {
-        checked.type_multiplicity(local.type_reference)
-    };
-    // A `&mut`-referee binding joins the same carrier `add_view_type`
-    // recorded — view/named referees peel to the view or record carrier.
-    let expected_identity =
-        if validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference).is_some()
-        {
-            // The byte constructor and ordinary result signature retain the
-            // carrier separately from its predicates. Reconstruct that same
-            // identity from the authored declaration; source validation still
-            // checks the establishment's complete qualification roster.
-            let carrier = crate::unit::attached_unit::parameters::structural_carrier_type(
-                checked,
-                local.type_reference,
-            )?;
-            checked.normalized_type_identity(carrier).into_string()
-        } else if let Some(carrier) =
-            crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-                checked,
-                local.type_reference,
-            )
-        {
-            checked.normalized_type_identity(carrier).into_string()
-        } else if is_borrowed_view_local(checked, local.type_reference) {
-            validation::unwrapped_type_reference(&checked.typed, local.type_reference)
-                .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
-                .unwrap_or_else(|| {
-                    checked
-                        .normalized_type_identity(local.type_reference)
-                        .into_string()
-                })
-        } else if let Some((referee, _)) =
-            validation::reference_result_custody::shared_place_borrowed_parts(
-                checked,
-                local.type_reference,
-            )
-            && !(matches!(
-                checked.expression_table.expression(local.initial_value),
-                ExpressionNode::Call(_)
-            ) && matches!(
-                checked.type_reference_table.type_reference(referee),
-                checked_trees::types::TypeReferenceNode::Named { .. }
-            ))
-        {
-            // A shared-loaned local publishes its referent identity — the same
-            // peel the checker-side roster applies. A call result returning a
-            // record `&T` keeps the reference shell: its binding stamps the
-            // callee's `&T` return type identity, not the peeled referee's.
-            // View and primitive referees still peel to their own carrier.
-            checked.normalized_type_identity(referee).into_string()
-        } else {
-            checked
-                .normalized_type_identity(local.type_reference)
-                .into_string()
-        };
-    if expected_multiplicity != result.multiplicity || expected_identity != result.type_identity {
-        return unsupported("Unit graph local disposition type drifted");
-    }
     let events = || {
         checked
             .facts
@@ -601,7 +503,7 @@ pub(super) fn validate(
     // transfer and weakening are the reference custody ops, not ownership
     // events, so the ownership roster is exactly empty. A shared record loan
     // carries the same accounting read-side.
-    if mutable_borrowed.is_some() || shared_borrowed.is_some() {
+    if validation::reference_shell(&checked.typed, local.type_reference).is_some() {
         return if events().next().is_none() {
             Ok(())
         } else {
@@ -798,7 +700,7 @@ pub(super) fn local_discards(
             if edge.is_some_and(|edge| result.statement_index >= edge.statement_ordinal) {
                 return unsupported("Unit graph edge precedes local establishment");
             }
-            validate(checked, machine, source, local, result)?;
+            validate_disposition(checked, machine, source, local, result)?;
             if selection_role(
                 checked,
                 machine,
@@ -986,7 +888,7 @@ pub(super) fn selection_edge_discards(
             local.symbol,
             result.statement_index,
         );
-        validate(checked, machine, source, local, result)?;
+        validate_disposition(checked, machine, source, local, result)?;
         let transferred = operand_moves(checked, machine, source, Some(local), result, edge)?
             + edge
                 .transfers

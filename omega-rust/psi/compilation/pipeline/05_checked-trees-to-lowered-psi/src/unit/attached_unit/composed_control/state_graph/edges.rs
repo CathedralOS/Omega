@@ -363,7 +363,7 @@ pub(super) fn validate_bindings(
                     target.access,
                 )?;
             } else {
-                result_custody::validate(
+                result_custody::validate_disposition(
                     checked,
                     super::owner(checked, state.state)?,
                     source,
@@ -838,7 +838,13 @@ pub(super) fn validate_bindings(
                     if local.is_mutable {
                         return unsupported("Unit graph case-payload result local is mutable");
                     }
-                    result_custody::validate(checked, plan.machine, source, local, result)?;
+                    result_custody::validate_disposition(
+                        checked,
+                        plan.machine,
+                        source,
+                        local,
+                        result,
+                    )?;
                     (
                         local.symbol,
                         local.type_reference,
@@ -1776,7 +1782,7 @@ fn validate_projected_loan_source(
             else {
                 return unsupported("Unit graph projected loan source local missing");
             };
-            result_custody::validate(checked, machine.symbol, source, local, result)?;
+            result_custody::validate_disposition(checked, machine.symbol, source, local, result)?;
             (
                 local.symbol,
                 None,
