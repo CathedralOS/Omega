@@ -853,9 +853,10 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
 
 /// A separately scheduled invocation owns its scalar operand calls through
 /// the same computation roots as an invocation in the statement sequence.
-/// Every remaining occurrence at that statement must belong to those roots;
-/// a guard call or an unrelated occurrence cannot acquire operand custody.
-pub(in crate::execution::terminal_unit) fn call_owns_statement_operands(
+/// A transition guard retains its own earlier computation. The two schedules
+/// share an occurrence ledger so neither can claim a call the other executes.
+/// Every remaining occurrence at that statement must belong to those roots.
+pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -863,8 +864,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_operands(
     call: &checked_trees::FlowCallFact,
     calls: &[checked_trees::FlowCallFact],
 ) -> Option<()> {
-    if call.call_ordinal != 0
-        || facts.flow.control.is_retired(state, call)
+    if facts.flow.control.is_retired(state, call)
         || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
     {
         return None;
@@ -878,6 +878,60 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_operands(
     )?;
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let mut consumed = Vec::new();
+    let owner = crate::lookup::machine_by_symbol(program, machine)?;
+    let source_state = program
+        .machine_states(owner)
+        .iter()
+        .find(|source| source.symbol == state)?;
+    if let Some(StatementNode::Transition(transition)) = program
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(call.statement_index)
+        && let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard
+    {
+        let plans = &facts.values.scalar_computations;
+        let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
+            root.state == state
+                && root.statement_ordinal as usize == call.statement_index
+                && root.role == CheckedScalarExpressionRole::Guard
+        });
+        if let Some(root) = roots.next() {
+            if roots.next().is_some()
+                || root.machine != machine
+                || !plans.nodes.is_valid(root.root)
+                || plans.nodes.get(root.root).authored_root != expression
+                || plans.nodes.get(root.root).primitive_type
+                    != typed_trees::types::PrimitiveType::Bool
+            {
+                return None;
+            }
+            collect(
+                program,
+                facts,
+                state,
+                call.statement_index,
+                root.root,
+                calls,
+                0,
+                &mut Vec::new(),
+                &mut consumed,
+            )?;
+            if consumed.iter().any(|handle| {
+                let guard_call = facts.flow.control.calls.get(*handle);
+                guard_call.call_ordinal >= call.call_ordinal
+                    || crate::semantic::calls::transition_call_target(
+                        program,
+                        owner,
+                        source_state,
+                        call.statement_index,
+                        guard_call.call_ordinal,
+                    )
+                    .is_none_or(|target| target.is_valid())
+            }) {
+                return None;
+            }
+        }
+    }
     collect_argument_calls(
         program,
         facts,
@@ -977,7 +1031,7 @@ fn collect_argument_calls(
             call.statement_index,
             root.root,
             calls,
-            1,
+            u32::try_from(call.call_ordinal.checked_add(1)?).ok()?,
             &mut Vec::new(),
             consumed,
         )?;

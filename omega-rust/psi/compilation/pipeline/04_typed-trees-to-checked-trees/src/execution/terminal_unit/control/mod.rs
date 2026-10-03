@@ -22,7 +22,7 @@ mod structural_unit_machine;
 pub(super) use crate::semantic::calls::terminal_callable_target;
 pub(crate) use boundary_machine::{build_boundary_machine, build_static_boundary_requirements};
 pub(super) use call_occurrences::{
-    call_owns_statement_operands, outer_calls, outer_calls_before_traced, tail_call,
+    call_owns_statement_computations, outer_calls, outer_calls_before_traced, tail_call,
     terminal_named_call,
 };
 pub(crate) use call_results::{

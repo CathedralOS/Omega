@@ -1,0 +1,31 @@
+machine observe(count: &mut u64, take: bool) -> bool {
+    count = ((count as u64 in Wrapping) + 10) as u64;
+    take
+}
+machine stamp(count: &mut u64) -> u64 {
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    count
+}
+machine accept(first: u64, second: u64) -> u64 {
+    transition first == 21 && second == 22 {
+        true -> 70
+        _ -> 74
+    }
+}
+machine choose(count: &mut u64, take: bool) -> u64 {
+    transition observe(count, take) {
+        true -> accept(stamp(count), stamp(count))
+        _ -> accept(9, 9)
+    }
+}
+machine main() crashes Trap {
+    let mut count: u64 = 0;
+    let skipped: u64 = choose(&mut count, false);
+    let chosen: u64 = choose(&mut count, true);
+    transition skipped == 74 && chosen == 70 && count == 22 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
