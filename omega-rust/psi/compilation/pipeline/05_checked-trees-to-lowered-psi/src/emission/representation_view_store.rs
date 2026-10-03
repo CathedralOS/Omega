@@ -494,6 +494,7 @@ pub(crate) fn emit(
                 destination,
                 parameter.structural_type,
                 &write.path,
+                None,
                 checked,
                 machine,
                 state,
@@ -743,6 +744,7 @@ pub(crate) fn prepare_byte_destination(
     destination: semantic_vocabulary::PlaceId,
     root_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
+    captured_index: Option<ValueId>,
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -765,7 +767,9 @@ pub(crate) fn prepare_byte_destination(
     let fixed_index = match leaf {
         CheckedUnitStructuralPathSegment::FixedIndex(index) => *index,
         CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
-            steps.push(runtime_elements::selector_step(selector));
+            if captured_index.is_none() {
+                steps.push(runtime_elements::selector_step(selector));
+            }
             0
         }
         _ => return unsupported("byte representation store has no element coordinate"),
@@ -785,7 +789,14 @@ pub(crate) fn prepare_byte_destination(
         operations,
         calls,
     )?;
-    let runtime_index = if matches!(leaf, CheckedUnitStructuralPathSegment::RuntimeIndex(_)) {
+    if captured_index.is_some()
+        && !matches!(leaf, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
+    {
+        return unsupported("byte store snapshot replaced a fixed coordinate");
+    }
+    let runtime_index = if let Some(index) = captured_index {
+        Some(index)
+    } else if matches!(leaf, CheckedUnitStructuralPathSegment::RuntimeIndex(_)) {
         steps.pop();
         Some(indexes.pop().ok_or(LoweringError::Unsupported(
             "byte store lost its evaluated coordinate",
