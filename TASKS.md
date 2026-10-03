@@ -183,6 +183,41 @@ execution and native exit/output. A moved refusal is still unfinished work.
   projections is not a repair either -- it removes the whole-`&mut` subject the
   footprint check exists to judge, so the fixture would pin nothing.
 
+- **STATIC-DEPENDENT-BOUND-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
+  The R1a dependent-maximum recognizer is keyed to the literal `self`
+  spelling, so no dependent bound can be written statically and the diagnostic
+  says so itself: "A dependent maximum (`[0..=self.<field>]`) is supported on
+  machine STATE PARAMETERS whose named field carries an enforced literal
+  integer range". Rewriting `state read(main: &mut Main, i: u32 [0..=main.count])`
+  is refused with "declares a range whose bound is not a constant integer
+  expression", which is a worse outcome than the receiver form, so the two
+  customers stay receiver-spelled for now.
+
+  The site is `omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/evidence/dependent_ranges.rs:207`
+  (`self_field_name`), whose last line is `only.is_self_receiver().then(..)`.
+  It is a syntax-only recognizer holding just an `ExpressionTable`, so it
+  cannot know the subject's name; `DependentBoundClass::ScopedName` does not
+  catch `main.count` either, because that is a Member rather than a bare name,
+  and `SiblingLen` requires `.len`. Generalizing therefore means threading the
+  state's data binding into the recognizer. The caller already computes it:
+  `checks/ranges/dependent_params.rs:60` calls `program.state_data_binding(machine, state)`
+  to spell the proof atom, so the fact side is migrated and only the
+  recognizer is not.
+
+  Scope is 6 call sites of `symbolic_range_maximum` across 4 crates --
+  `checks/ranges/types.rs:252`, `checks/ranges/dependent_params.rs:106`,
+  `proof/src/obligations/plan.rs:252`,
+  `checking/src/proof_contracts/arithmetic_domains/dependent_relations.rs:97`,
+  `.../range_constraints.rs:164` and
+  `checking/src/value_custody/type_references/constraint_validation.rs:548` --
+  and each needs a machine/state context it may not currently hold, which is
+  why this is split out rather than attempted alongside fixture work. Update
+  the diagnostic text in the same change; it currently teaches the retired
+  spelling. Customers:
+  `tests/omega/fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`,
+  whose expectation `satisfies dependent parameter` stops being satisfied the
+  moment they are respelled, so neither may be migrated before this lands.
+
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Three migrated pass fixtures now clear CHECKING and are then omitted in
   lowering, which makes stage 05 the migration's remaining frontier for call
