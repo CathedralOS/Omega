@@ -2,7 +2,7 @@
 //
 // `x` and `y` each declare the range constraint `[0..=100]`, so the prover
 // knows each is in [0, 100]. Their sum is therefore in [0, 200], which fits i32 --
-// so `self.x + self.y` is proven NON-overflowing and stays EXACT (no `Wrapping`
+// so `main.x + main.y` is proven NON-overflowing and stays EXACT (no `Wrapping`
 // domain, no `as` widening needed). This is the ergonomic payoff of exact-by-
 // default: declare the bound, keep clean arithmetic. Without S4 narrowing the
 // operands would be the full i32 range and the add would be rejected.

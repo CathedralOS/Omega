@@ -1,4 +1,4 @@
-// Comparing two DIFFERENT data types with `==` (`self.p == self.q` for `p: P`,
+// Comparing two DIFFERENT data types with `==` (`main.p == main.q` for `p: P`,
 // `q: Q`) silently expanded to a POSITIONAL field compare (`p.x == q.x && ..`),
 // reading Q's bytes as if they were a P, and ran to a garbage bool. Structural
 // equality is synthesized from ONE resolved type name, so the mismatch is caught

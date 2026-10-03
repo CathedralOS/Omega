@@ -1,5 +1,5 @@
 // FAIL canary: the mirror of the copyable case. `[Entry; 2]` derives affine
-// multiplicity from its record element type, so `consume(self.entries)` moves
+// multiplicity from its record element type, so `consume(main.entries)` moves
 // the owner place out of borrowed `self` storage while the shared view `view`
 // is still live. Moving a borrowed owner under a live view must reject, both
 // at the call (owned argument vs live borrow) and at the place (non-copy value

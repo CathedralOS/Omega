@@ -1,4 +1,4 @@
-// FAIL canary: NOMINAL type confusion at a call argument -- `take_foo(&self.bar)`
+// FAIL canary: NOMINAL type confusion at a call argument -- `take_foo(&main.bar)`
 // where `take_foo` expects `&Foo` but is passed a `&Bar` -- is rejected at
 // type-check. This was a SILENT MISCOMPILE: the argument shape gate
 // (argument_matches_type_reference_handle) blanket-accepts a place/name value

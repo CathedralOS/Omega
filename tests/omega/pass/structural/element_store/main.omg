@@ -1,5 +1,5 @@
-// Regression for the structural element store: `self.items[i] = node` and
-// `self.fmts[1] = Fmt::Octal` — the store's destination path ends in an
+// Regression for the structural element store: `main.items[i] = node` and
+// `main.fmts[1] = Fmt::Octal` — the store's destination path ends in an
 // element selection on a fixed-array field rather than a field segment.
 // Lowering writes the consumed value through the root's window move/store
 // pair at the element offset, scaling each runtime selector by its stride.

@@ -2,7 +2,7 @@
 // explicit u64 counts after the retirement of the pointer-sized integer aliases.
 // RUN CANARY (exit 70) -- the fence-exemption ACCEPTANCE TEST, promoted
 // 2026-07-09f: a value call to an EFFECTFUL re-entrant machine (per-entry
-// `self.hits` bump, SelfTarget re-entry) ROUTES TO DISPATCH and delivers both
+// `main.hits` bump, SelfTarget re-entry) ROUTES TO DISPATCH and delivers both
 // the looped RESULT (total == 5) and the per-entry EFFECT COUNT (hits == 5).
 // This exact program was the COUNTEREXAMPLE that retracted the first
 // exemption attempt (2026-07-08n: the field-read terminal misdelivered);

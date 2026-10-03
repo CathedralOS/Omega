@@ -45,7 +45,7 @@ machine Loader::run(
 // The acyclic forwarding edge into the target's authored cycle. `run` is the
 // cyclic machine and may only be reached through the bare `self` receiver
 // from a cyclic caller; this plain body presents the projected
-// `self.cycle` receiver where it is legal.
+// `loader.cycle` receiver where it is legal.
 machine Loader::drive(loader: &mut Loader)
     reaches UefiBootServices + UefiOsHandoffTermination
     invokes UefiBootServices;

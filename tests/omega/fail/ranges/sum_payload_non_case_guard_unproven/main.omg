@@ -1,10 +1,10 @@
 // SOUNDNESS PIN for the sum-payload narrowing (landed 2026-07-08, migrated
 // off the revoked `[0..=50]`/`[0..=1000]` suffixes). The narrowing requires a
-// guard that proves `self.p`'s CASE -- not just any guard. Here `self.p.v` is
+// guard that proves `main.p`'s CASE -- not just any guard. Here `main.p.v` is
 // passed as a transition argument under a guard on a DIFFERENT place
-// (`self.flag`), which says nothing about `self.p`'s case (`p = Two{w:900}`,
-// so `self.p.v` reads `One`'s field on a `Two`-active value -- a checked
-// partial op). The payload must NOT be admitted: no `Equal(self.p, P::Case)`
+// (`main.flag`), which says nothing about `main.p`'s case (`p = Two{w:900}`,
+// so `main.p.v` reads `One`'s field on a `Two`-active value -- a checked
+// partial op). The payload must NOT be admitted: no `Equal(main.p, P::Case)`
 // conjunct exists, so the argument's domain membership stays unestablished.
 // MUST reject with the expected fragment.
 use omega::language::std::console;

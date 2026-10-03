@@ -1,9 +1,9 @@
 // RUN CANARY (exit 70) + interpreter differential. DEEP-NESTING WRITE
 // paths, each leg asserting the write LANDS and does NOT BLEED into ZII
-// neighbors: (1) a struct-in-struct field write (`self.nested.second.b`)
+// neighbors: (1) a struct-in-struct field write (`main.nested.second.b`)
 // with the adjacent `a` still 0; (2) a SUM constructed into a struct field
-// (`self.holder.msg = Msg::Pong { .. }`) destructured back through the
-// nested path; (3) an array-of-struct ELEMENT field write (`self.pair[1].a`
+// (`main.holder.msg = Msg::Pong { .. }`) destructured back through the
+// nested path; (3) an array-of-struct ELEMENT field write (`main.pair[1].a`
 // -- indexed + member combined) with the sibling element and sibling field
 // both still 0. The offset math for these shapes (member-path accumulation,
 // case_variant tagging at depth, element scaling + field offset) is where a

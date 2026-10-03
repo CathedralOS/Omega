@@ -1,5 +1,5 @@
 // An array literal of cases stored into one row of a nested array: the row's
-// fixed (`self.rows[0] = [..]`) or runtime (`self.rows[self.i] = [..]`) index
+// fixed (`main.rows[0] = [..]`) or runtime (`main.rows[main.i] = [..]`) index
 // prefixes each element's window, exactly as a whole-field store appends the
 // element's own index, and the runtime row re-proves its bound from `i <= 1`.
 // Both rows stay distinct: exit 3.

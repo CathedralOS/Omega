@@ -3,7 +3,7 @@
 // the non-guard executor-of-record residue in TASKS.md). Each true arm
 // tail-calls with the items[1..] window (the guard fact proves the [0] read
 // and the subslice) and threads the head element's value, folded into machine
-// state on entry. 10+20+15+25 = 70 in self.total drives exit 70 only when
+// state on entry. 10+20+15+25 = 70 in main.total drives exit 70 only when
 // every shrinking window executed its descriptor update and element read.
 //
 // Regression shape: a self-recursive machine shares ONE call context, so the

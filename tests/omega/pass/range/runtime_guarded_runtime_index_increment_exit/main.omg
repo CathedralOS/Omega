@@ -1,9 +1,9 @@
-// The RUNTIME-index guarded element increment: `tallies[self.k]` is hoisted to
+// The RUNTIME-index guarded element increment: `tallies[main.k]` is hoisted to
 // the local `t`, the guard `t < 16` admits it to `bump`'s bounded contract,
 // and `tallies[ki] = v + 1` is exact under `v < 16`. The revoked element
 // suffix `[i32 [0..=16]; 4]` and index suffix `k: u64 [0..=3]` moved to plain
 // carriers plus `bump`'s requires: `v < 16` is the increment bound, `ki < 4`
-// is the index bound (`self.k`'s literal 2 discharges it at the edge).
+// is the index bound (`main.k`'s literal 2 discharges it at the edge).
 // Requires admission matches the guard on the hoisted LOCAL rather than the
 // indexed path, so the operand-hoist rename no longer participates.
 // ZII tallies[2]=0 -> +1 -> exit 1.

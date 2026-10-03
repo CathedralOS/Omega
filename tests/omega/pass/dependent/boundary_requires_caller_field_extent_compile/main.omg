@@ -1,8 +1,8 @@
 use omega::language::core::binding;
 // A boundary machine's byte-extent requirement (`count <= buffer.len`)
-// discharges against the CALLER's sized storage: `&mut self.control`
+// discharges against the CALLER's sized storage: `&mut main.control`
 // supplies `control`'s declared extent at the call site. The instantiated
-// `self.control.len` resolves through the caller's attached data, not the
+// `main.control.len` resolves through the caller's attached data, not the
 // boundary target's (a trait machine has none). The forwarded `buffer`
 // parameter then re-proves the same term inside `pump`, whose incoming
 // `requires` carries the length across the second boundary. `pump` takes the

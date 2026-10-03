@@ -1,6 +1,6 @@
 // A loan into a vec's backing must not survive growth: `grow8to16` needs
-// exclusive `&mut` access to `self.b8` (the resident store), but the `slots`
-// borrow of `self.b8.e` is still live (it is used after the call), so the
+// exclusive `&mut` access to `main.b8` (the resident store), but the `slots`
+// borrow of `main.b8.e` is still live (it is used after the call), so the
 // growth call is rejected while the loan is active.
 
 use alloc::vec;

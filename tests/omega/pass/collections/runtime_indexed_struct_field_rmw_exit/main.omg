@@ -1,5 +1,5 @@
 // Machine-collection element-field RMW at a RUNTIME index:
-// `self.cells[self.k].v = self.cells[self.k].v + 1` under a dominating
+// `main.cells[main.k].v = main.cells[main.k].v + 1` under a dominating
 // `cells[k].v < 9` guard. The member-over-indexed hoist materializes the READ
 // into a field-typed temp ([0..=9] intact), the guard bounds it, and the
 // machine-indexed write stores `__hoist + 1` back through the element's field

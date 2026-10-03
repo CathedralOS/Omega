@@ -1,6 +1,6 @@
 // A borrowed `&[u8]` bound to a literal-bounded fixed-array subslice
-// (`self.source[0..2]`) has a `.len` equal to the window width (`b - a`). When
-// the local is used only for `.len`, it is inlined to `(self.source[0..2]).len`
+// (`main.source[0..2]`) has a `.len` equal to the window width (`b - a`). When
+// the local is used only for `.len`, it is inlined to `(main.source[0..2]).len`
 // and never materialized, so the length must FOLD to the literal `b - a`
 // (2) -- not fall through to a place read with no descriptor slot. Exits 70
 // when `s.len == 2`.

@@ -1,7 +1,7 @@
-// FAIL canary: a direct `self.<field>` write to a field that does not exist (a typo
-// -- `self.cont` for `self.count`) is rejected at type-check with a clear "data X has
+// FAIL canary: a direct `main.<field>` write to a field that does not exist (a typo
+// -- `main.cont` for `main.count`) is rejected at type-check with a clear "data X has
 // no field Y" error, NOT the misleading "not mutable" message and NOT an opaque
-// backend "needs mutation lowering". The check is scoped to direct `self.<field>`
+// backend "needs mutation lowering". The check is scoped to direct `main.<field>`
 // targets against the machine's top-level data fields; nested / local / versioned
 // targets are left to the writable-roots and version-access diagnostics.
 

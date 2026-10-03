@@ -1,6 +1,6 @@
 // Negative pin — REFERENCE-LOCAL-BINDING-ROUTES sibling (verified rejecting
-// on 233d30cb1ce): an UNBOUNDED runtime index `&mut self.buf[self.off]`
-// fails the static index proof — `self.off` carries no declared range,
+// on 233d30cb1ce): an UNBOUNDED runtime index `&mut main.buf[main.off]`
+// fails the static index proof — `main.off` carries no declared range,
 // where-fact, guard, or tracked value, and indexing has no runtime bound
 // check to fall back to. The bounded sibling
 // (run/borrows/runtime_index_bounded_borrow) declares `off: u32 [0..=47]`

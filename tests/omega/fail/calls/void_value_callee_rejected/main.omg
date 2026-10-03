@@ -1,4 +1,4 @@
-// V1: VOID callee in VALUE position -- `let r: i32 = self.act()`.
+// V1: VOID callee in VALUE position -- `let r: i32 = main.act()`.
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main {

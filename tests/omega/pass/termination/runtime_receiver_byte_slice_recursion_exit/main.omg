@@ -2,7 +2,7 @@
 // The self edge `walk(bytes[1..])` names its view after the implicit `&mut
 // self` formal, so the authored argument list holds the subslice one slot
 // before its parameter position; the edge must rejoin the argument at that
-// authored slot. Each entry adds 10 to `self.count`: seven bytes and the
+// authored slot. Each entry adds 10 to `main.count`: seven bytes and the
 // final empty window make 80 and exit 70; any other count exits 71.
 //
 // The byte-view control for `termination/runtime_shrinking_slice_recursion_exit`,

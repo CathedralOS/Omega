@@ -1,11 +1,11 @@
-// Borrowed-receiver scalar return: `count(&self.buf)` calls a
+// Borrowed-receiver scalar return: `count(&main.buf)` calls a
 // `&self` machine carrying one `&[u8]` structural parameter and returning
 // u64. The callee leaves its receiver ambient on the attachment carrier, so
 // the call's structural arguments carry one slot the forwarded roster
 // rejoins around — admission, qualifier replay, source custody, and transfer
 // shape all compare around the ambient position.
 //
-// Mirrors Squalr's `self.reader.read_bytes(&self.info, 0, &mut self.buf)`
+// Mirrors Squalr's `main.reader.read_bytes(&main.info, 0, &mut main.buf)`
 // field-receiver scalar calls carrying byte-view arguments.
 
 use omega_language_std::console;

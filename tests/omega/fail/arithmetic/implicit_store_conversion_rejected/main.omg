@@ -1,7 +1,7 @@
 // A typed value keeps its own carrier across a store: storing the `u32`
 // state into the `i32` output is an implicit conversion even though both
 // are Exact integers, because the typed value does not take the
-// destination's type. Decision 17 rejects it; spelling `self.state as i32`
+// destination's type. Decision 17 rejects it; spelling `main.state as i32`
 // is the escape.
 use omega::language::std::console;
 use omega::language::core::binding;

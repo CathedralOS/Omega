@@ -6,19 +6,19 @@
 // Measured in a two-state machine (entry + a `done` state reached by a
 // transition), each row differing from its neighbour by one token:
 //
-//   let d: &mut u32      = &mut self.size;          checks
-//   let d: &mut u32      = &mut self.inner.a;       checks   (nested field)
-//   let d: &mut [u8; 48] = &mut self.buf;           checks   (whole array)
-//   let d: &mut u8       = &mut self.buf[0];        checks   (literal index)
-//   let d: u32           = self.size;               checks   (a copy)
+//   let d: &mut u32      = &mut main.size;          checks
+//   let d: &mut u32      = &mut main.inner.a;       checks   (nested field)
+//   let d: &mut [u8; 48] = &mut main.buf;           checks   (whole array)
+//   let d: &mut u8       = &mut main.buf[0];        checks   (literal index)
+//   let d: u32           = main.size;               checks   (a copy)
 //
-//   let d: &u32          = &self.size;              OMITTED
-//   let d: &u32          = &self.inner.a;           OMITTED
-//   let d: &[u8; 48]     = &self.buf;               OMITTED
-//   let d: &u8           = &self.buf[0];            OMITTED
-//   let d: &mut u8       = &mut self.buf[off];      OMITTED  (RUNTIME index)
-//   let d: &mut Desc     = &mut self.buf[0] as &mut Desc;    OMITTED (recast)
-//   let d: &mut u32      = &mut self.buf[0] as &mut u32;     OMITTED (recast
+//   let d: &u32          = &main.size;              OMITTED
+//   let d: &u32          = &main.inner.a;           OMITTED
+//   let d: &[u8; 48]     = &main.buf;               OMITTED
+//   let d: &u8           = &main.buf[0];            OMITTED
+//   let d: &mut u8       = &mut main.buf[off];      OMITTED  (RUNTIME index)
+//   let d: &mut Desc     = &mut main.buf[0] as &mut Desc;    OMITTED (recast)
+//   let d: &mut u32      = &mut main.buf[0] as &mut u32;     OMITTED (recast
 //                                                            to a non-record)
 //   let v: u32 = 7; let d: &mut u32 = &mut v;       OMITTED  (borrow a LOCAL)
 //   let v: u32 = 7; let d: &u32     = &v;           OMITTED, at a DIFFERENT
@@ -30,7 +30,7 @@
 // by a literal if indexed, and not recast.
 //
 // THE SAMPLE IS OVER-DETERMINED. `descriptor_walk`'s one line,
-// `let d: &Desc = &self.buf[off] as &Desc;`, packs THREE independently
+// `let d: &Desc = &main.buf[off] as &Desc;`, packs THREE independently
 // sufficient triggers -- the shared borrow, the runtime index, and the recast
 // -- each of which omits on its own against its own checking control. The
 // board previously attributed the sample to the recast. That is not wrong, but

@@ -1,5 +1,5 @@
 // A computed row-major index as a case-dispatch subject
-// (`transition self.grid[self.r * 3 + self.c] { .. }`, the
+// (`transition main.grid[main.r * 3 + main.c] { .. }`, the
 // `samples/cli/rendering/dungeon_render` shape). Symbol resolution hoists the
 // computed index into an immutable scalar local before the subject borrow, so
 // each arm's case observation selects its element with that local; the one

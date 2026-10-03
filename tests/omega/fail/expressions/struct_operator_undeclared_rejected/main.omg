@@ -1,4 +1,4 @@
-// Arithmetic/ordering on a struct with NO declared operator (`self.a + self.b`
+// Arithmetic/ordering on a struct with NO declared operator (`main.a + main.b`
 // for a plain `data P`) used to compile silently to a garbage byte op. Only
 // `==`/`!=` (Equatable) or a declared `domain P::... { operator ... }` meaning
 // operates on a data type. Rejected via the `resolve_spelling` authority (empty

@@ -3,24 +3,24 @@
 // OPERATOR-BOUNDARY-CALLS, which already records that compiler-known float
 // realizations are absent. This is the reproduction, not a second claim on it.
 //
-//   self.d = self.e;                 (copy)         checks
-//   self.flag = self.n > 5;          (integer cmp)  checks
-//   self.d = self.d + self.e;        (float arith)  OMITTED
-//   self.flag = self.d > 211.5;      (float cmp)    OMITTED
-//   self.flag = self.d == self.e;    (float cmp)    OMITTED (this fixture)
+//   main.d = main.e;                 (copy)         checks
+//   main.flag = main.n > 5;          (integer cmp)  checks
+//   main.d = main.d + main.e;        (float arith)  OMITTED
+//   main.flag = main.d > 211.5;      (float cmp)    OMITTED
+//   main.flag = main.d == main.e;    (float cmp)    OMITTED (this fixture)
 //
 // It is not about guards, which is what the cluster's shared phase suggests.
 // Every position fails and each reports a different phase, none naming a
 // float:
 //
-//   transition self.d > 211.5 { true -> .. _ -> .. }
+//   transition main.d > 211.5 { true -> .. _ -> .. }
 //                          `state graph: terminator: conditional successors:
 //                           guard expression`
-//   transition { self.d > 211.5 -> .. _ -> .. }      the same
-//   let b: bool = self.d > 211.5;
+//   transition { main.d > 211.5 -> .. _ -> .. }      the same
+//   let b: bool = main.d > 211.5;
 //                          `statement sequence: local data: scalar local:
 //                           pure initializer`
-//   self.flag = self.d > 211.5;
+//   main.flag = main.d > 211.5;
 //                          `structural field store: pure source: scalar
 //                           expression row`
 //
@@ -37,7 +37,7 @@
 // guard expression` are TWO causes, three each:
 //   float comparison guards -- cli/{arithmetic/dual_float,
 //     basics/unit_converter, simulation/particle_sim}  -> this gap
-//   `self.i < self.text.len` with `i: i32` against a u64 length --
+//   `main.i < main.text.len` with `i: i32` against a u64 length --
 //     cli/text/{parse_int,roman_numeral,string_hash}   -> already pinned at
 //     tests/omega/pending/expressions/mixed_integer_guard_comparison
 use omega_language_std::console;

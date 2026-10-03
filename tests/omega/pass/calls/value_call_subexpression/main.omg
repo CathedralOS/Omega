@@ -8,7 +8,7 @@
 //   74  `twelve() == 12` as a Boolean local (a comparison parent)
 //   75  `0 - twelve()` and `1 + twelve()`   (call as either operand)
 //   76  `Main::add(main, twelve(), twelve())`      (calls as call arguments)
-//   77  `self.total = twelve() * 2`         (a field store)
+//   77  `main.total = twelve() * 2`         (a field store)
 //   78  `transition twelve() + 1 == 13`     (a guard subject)
 //   79  `Main::tick(main) * 10 + Main::tick(main)`    (ordered, single invocation: 12)
 //   80  `false && Main::tick(main) == 3`         (the right operand never runs)

@@ -1,6 +1,6 @@
 // Storing a SCALAR into a struct/enum-typed slot (or a struct into a scalar slot)
-// silently wrote/read the wrong shape: `self.inner = 5` clobbered the struct's
-// leading bytes, `let n: i32 = self.inner` read a ZII 0 -- both built and ran
+// silently wrote/read the wrong shape: `main.inner = 5` clobbered the struct's
+// leading bytes, `let n: i32 = main.inner` read a ZII 0 -- both built and ran
 // (exit 0) with no diagnostic. This cross-shape case fell between the scalar-CLASS
 // gate (needs a primitive target) and the nominal gate (needs both sides to be
 // data names). Rejected at check now. Same-type struct stores stay valid.

@@ -1,6 +1,6 @@
 // A plain-data arm may match a field value while binding its other fields.
 // The field comparison is a real equality guard, so the ordinary flow/proof
-// machinery knows `self.header.ok == 0` inside the first arm.
+// machinery knows `main.header.ok == 0` inside the first arm.
 
 use omega_language_std::console;
 use omega::language::core::binding;

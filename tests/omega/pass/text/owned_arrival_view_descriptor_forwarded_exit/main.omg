@@ -1,5 +1,5 @@
 // RUN (exit 70). A `[copy]` record holding a shared text view and a scalar
-// crosses three state edges by value. `inspect(self.badge)` copies the record
+// crosses three state edges by value. `inspect(main.badge)` copies the record
 // out of the receiver into the successor's owned parameter; `confirm(badge)`
 // and `last_byte(badge)` then forward that owned arrival whole into the next
 // state. The view field travels as its two-word descriptor beside the scalar:

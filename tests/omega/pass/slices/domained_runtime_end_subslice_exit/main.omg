@@ -1,7 +1,7 @@
 // The exact create_dir_all path-scan shape, minus the fs call -- both slice fixes
 // combined. A `&[u8] in Path` DOMAIN-constrained slice param; a storage-vs-storage
-// guard `self.k < path.len` (field vs domained-slice `.len`, needs the
-// `is_slice_descriptor` Constrained peel); a RUNTIME-END subslice `path[0..self.k]`
+// guard `main.k < path.len` (field vs domained-slice `.len`, needs the
+// `is_slice_descriptor` Constrained peel); a RUNTIME-END subslice `path[0..main.k]`
 // whose end is a machine field (needs the `resolve_subslice_bound` Machine-region-END
 // relaxation); the subslice-domain grant (`path[0..k] in Path`, no_nul is
 // subslice-preserving); and the subslice descriptor passed onward as a `&[u8] in Path`

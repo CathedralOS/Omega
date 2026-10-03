@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70, differential): a host-call RESULT bound to a LOCAL
-// (`let fd = self.host.open(..)`) in a DISPATCHING state now gets a frame
+// (`let fd = main.host.open(..)`) in a DISPATCHING state now gets a frame
 // slot. Before the fix the dispatch-body storage builder had no HostCall arm,
 // so the result local was never allocated a slot and the call hard-errored
 // ("no encodable call sequence: a host-call argument must be a simple value")

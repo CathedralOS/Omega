@@ -1,5 +1,5 @@
-// Shared `&` borrows of parameter-rooted places: `&self.size`,
-// `&self.buf` `&self.buf[0]` literal index. These were the
+// Shared `&` borrows of parameter-rooted places: `&main.size`,
+// `&main.buf` `&main.buf[0]` literal index. These were the
 // narrow routing family the shared arm already admitted on paper, but a
 // `&` local registers a structural value root and died at the
 // structural-value block's root-identity gate before reaching the loan

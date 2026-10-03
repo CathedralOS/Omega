@@ -1,9 +1,9 @@
 // RUN CANARY (exit 70). A Unit machine may promise domain membership of its
-// post-state (`ensures self.name in Utf8`). The checker proves the clause on
+// post-state (`ensures main.name in Utf8`). The checker proves the clause on
 // every normal exit and the caller imports it as checked domain evidence.
 // Terminal Psi's Unit contract states scalar propositions only, so the
 // post-state publication passes over the membership clause and still
-// publishes the scalar guarantee beside it: `set_label`'s `self.count < 4`
+// publishes the scalar guarantee beside it: `set_label`'s `main.count < 4`
 // is what discharges `accept`'s requirement at the call.
 //
 // Exit 71 = wrong name, 72 = wrong label, 73 = wrong count.

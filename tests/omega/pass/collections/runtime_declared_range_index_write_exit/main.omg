@@ -1,4 +1,4 @@
-// The WRITE face of the declared-range index proof: `self.arr[self.i] = 30`
+// The WRITE face of the declared-range index proof: `main.arr[main.i] = 30`
 // with `i: u64 [0..=4]` and no dominating guard. The ZII i=0 writes arr[0];
 // the read-back confirms -> exit 30.
 use omega_language_std::console;

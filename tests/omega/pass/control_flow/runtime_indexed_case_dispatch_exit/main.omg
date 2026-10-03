@@ -1,7 +1,7 @@
 // A case dispatch whose subject is a RUNTIME-selected element:
-// `transition self.items[self.w] { Color::Red -> .. }` over a payload-free
+// `transition main.items[main.w] { Color::Red -> .. }` over a payload-free
 // `[Color; 3]`. Symbol resolution hoists the subject into one shared
-// `let __hoist = &self.items[self.w];` so the arms stay one exhaustive
+// `let __hoist = &main.items[main.w];` so the arms stay one exhaustive
 // dispatch; the Unit plan erases that borrow and each arm observes the
 // element itself, one Terminal `StructuralCaseMembership` whose path selects
 // it with a `RuntimeIndex` segment. The verifier bounds the selector against

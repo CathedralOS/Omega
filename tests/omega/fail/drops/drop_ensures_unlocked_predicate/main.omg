@@ -1,4 +1,4 @@
-// FAIL canary: Chapter 17 spells a drop guarantee as `ensures self.mutex
+// FAIL canary: Chapter 17 spells a drop guarantee as `ensures mutex_guard.mutex
 // unlocked`: a named state predicate after a place. A drop `ensures` is a
 // proved exit contract like any other machine's, and the executable cleanup
 // slice admits only empty bodies (or exact-empty helper calls) — nothing here

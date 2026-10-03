@@ -1,7 +1,7 @@
 // FAIL CANARY. Exact i32 multiplication must reject when its result cannot be
 // proved representable, including when it is nested inside another operand.
 //
-// `(self.a * self.b) % 7` with a = b = 100000, so a*b = 10_000_000_000, which
+// `(main.a * main.b) % 7` with a = b = 100000, so a*b = 10_000_000_000, which
 // overflows i32 (max ~2.1e9). The multiply is a NESTED value operand feeding
 // the `%`, never stored to an i32 slot in between, so the two backends treat
 // the intermediate width differently:

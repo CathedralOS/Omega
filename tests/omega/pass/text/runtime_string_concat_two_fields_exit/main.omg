@@ -1,5 +1,5 @@
 // Regression: concatenating two runtime bounded text carriers with no
-// string-literal anchor (`self.line = self.prefix + self.suffix`) was rejected by
+// string-literal anchor (`main.line = main.prefix + main.suffix`) was rejected by
 // the runtime-text planner ("needs runtime value lowering") because the
 // text-vs-numeric heuristic keyed on a literal segment. Two places already
 // established as text are recognized as a text concat without relying on

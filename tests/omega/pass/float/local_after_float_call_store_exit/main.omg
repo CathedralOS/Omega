@@ -1,7 +1,7 @@
 // A local declared after a float call-result field store reads its own value
 // (exit 70).
 //
-// `self.sum = a + b` applies the selected float addition and binds
+// `main.sum = a + b` applies the selected float addition and binds
 // its result before storing it, so that result takes a dense binding slot
 // although no source name reads it. `doubled` is declared after it and must
 // still read itself: with a = 1 and b = 4 it is 8, while the stored sum is 5.

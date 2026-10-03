@@ -1,5 +1,5 @@
 // FAIL canary: a borrowed-storage hole must be repaired on every exit edge.
-// Moving `self.inventory` out opens a restoration window; the `Drop` arm
+// Moving `main.inventory` out opens a restoration window; the `Drop` arm
 // exits with the field still absent, so the unrepaired hole rejects.
 data Inventory { slots: i32; }
 data Choice {

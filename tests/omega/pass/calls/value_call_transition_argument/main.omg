@@ -1,7 +1,7 @@
 // Value calls as internal transition arguments, observed through the
 // delivered values and through an effect that depends on call order.
 // Reduced from `samples/cli/systems/vending_machine`, whose spelling is
-// `transition self.a == 35 { true -> report(self.make_change(100, 55), 17) }`.
+// `transition main.a == 35 { true -> report(main.make_change(100, 55), 17) }`.
 //
 // `amount()` is a free machine whose own state graph returns 1 (its range
 // contract admits the `+ 1` below): the direct
@@ -11,7 +11,7 @@
 // calls in one argument list deliver 1 and 2 to their own parameters and
 // leave `trace` at 12 only when they run left to right; right to left would
 // leave 21. A later argument's effect must not reach an earlier argument
-// that already read the same storage: `snapshot(self.trace, self.record(3))`
+// that already read the same storage: `snapshot(main.trace, main.record(3))`
 // delivers 12 then 3 and leaves `trace` at 123. Exit 70 means every value
 // arrived in order.
 use omega_language_std::console;

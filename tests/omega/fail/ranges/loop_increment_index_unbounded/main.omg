@@ -1,6 +1,6 @@
 // SOUNDNESS (G1): an INCREMENTING counter has no decreasing-counter invariant.
-// `self.i` starts at 0 and the body does `self.i = self.i + 1` (an INCREMENT,
-// not a decrement), guarded by `self.i != 7` -- so `i` reaches 4, 5, 6 while
+// `main.i` starts at 0 and the body does `main.i = main.i + 1` (an INCREMENT,
+// not a decrement), guarded by `main.i != 7` -- so `i` reaches 4, 5, 6 while
 // indexing `[i32; 4]`, which is out of bounds. The loop-invariant fact must NOT
 // seed for an increment, so the index obligation stays UNPROVEN and the program
 // is rejected.

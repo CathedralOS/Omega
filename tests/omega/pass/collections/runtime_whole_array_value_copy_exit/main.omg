@@ -1,4 +1,4 @@
-// Whole-array VALUE copy: assigning one owned array field to another (`self.b = self.a`)
+// Whole-array VALUE copy: assigning one owned array field to another (`main.b = main.a`)
 // copies the contents, so mutating an element of the destination must NOT touch the source.
 // The check discriminates both ways: the source array keeps its originals (5, 6, 7) AND the
 // destination holds the mutated first element with the rest copied (99, 6, 7). Exits 70.

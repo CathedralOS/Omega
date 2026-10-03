@@ -1,5 +1,5 @@
 // Unary minus: negative integer literals (`-5`, folded to a constant so they
-// work in guards) and negation of a non-literal (`-self.v`, lowered to `0 - v`).
+// work in guards) and negation of a non-literal (`-main.v`, lowered to `0 - v`).
 
 use omega_language_std::console;
 use omega::language::core::binding;

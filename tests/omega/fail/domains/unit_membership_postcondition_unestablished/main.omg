@@ -1,6 +1,6 @@
 // A Unit machine's membership postcondition is an obligation, not evidence.
 // `spoil` stores caller bytes that nothing proves valid UTF-8, so its
-// `ensures self.raw in Utf8` cannot be established at the exit and the
+// `ensures main.raw in Utf8` cannot be established at the exit and the
 // program rejects. Post-state publication passing over membership clauses
 // relies on this checker judgment.
 domain [u8; 5]::Utf8(bytes)

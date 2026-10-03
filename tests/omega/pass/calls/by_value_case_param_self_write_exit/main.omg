@@ -1,6 +1,6 @@
 // A `&mut self` machine that takes a BY-VALUE CASE-BEARING parameter must
-// persist writes to `self.<field>` made in a dispatched substate: after
-// `self.apply(Event::Insert { cents: 50 })`, `self.register.balance` must
+// persist writes to `main.<field>` made in a dispatched substate: after
+// `main.apply(Event::Insert { cents: 50 })`, `main.register.balance` must
 // equal 50.  Exits 70 on success.
 //
 // Regression canary for the 2026-06 fix: InlineBranching argument

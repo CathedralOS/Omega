@@ -1,5 +1,5 @@
 // RUN CANARY (exit 7) + interpreter differential. A RUNTIME value written
-// through a hoisted computed index -- `self.cells[y * 4 + x] = next` with
+// through a hoisted computed index -- `main.cells[y * 4 + x] = next` with
 // dependent params and a computed local RHS -- lowers via the value
 // local's FRAME SLOT + the storage-to-indexed copy. PROMOTED from a
 // pending CurrentlyRejects pin (found by the heat_grid sample): the

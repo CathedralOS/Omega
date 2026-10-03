@@ -1,5 +1,5 @@
 // Whole-element store through an indexed admitted loan.
-// `borrowed` captures `self.buf[self.off]` — the canonical place ends in a
+// `borrowed` captures `main.buf[main.off]` — the canonical place ends in a
 // stored-field runtime index, and the store's primitive projection must
 // evaluate the field selector and bound it against the array's extent.
 use omega_language_std::console;

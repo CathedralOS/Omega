@@ -1,5 +1,5 @@
 // Run-tier witness — exclusive `&mut`-record loan member access.
-// `let m: &mut Desc = &mut self.desc` then `m.tag = v` writes and `m.tag`
+// `let m: &mut Desc = &mut main.desc` then `m.tag = v` writes and `m.tag`
 // reads resolve through the captured established place plus the referee's
 // structural declaration, the mutable sibling of the shared-loan arm.
 use omega_language_std::console;

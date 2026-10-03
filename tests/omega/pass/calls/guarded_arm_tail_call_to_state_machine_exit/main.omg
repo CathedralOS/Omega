@@ -1,7 +1,7 @@
 // A guarded arm's terminal machine call invokes a multi-state machine that
 // keeps its borrowed receiver, passing a field read as an ordinary argument
 // (wiki/spec/language/state_contracts.md, "Terminal calls in transition
-// arms"). `check` tail-calls `verify(self.k)` only on its true arm; `verify`
+// arms"). `check` tail-calls `verify(main.k)` only on its true arm; `verify`
 // exits 70 when it received 5. The false arm and a wrong value exit 71.
 //
 // The receiver-and-argument shape of `slices/domained_runtime_end_subslice_exit`

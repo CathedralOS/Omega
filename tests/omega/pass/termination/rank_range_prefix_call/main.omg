@@ -1,6 +1,6 @@
 // PASS CANARY. `walk` issues `Main::audit(main, remaining)` before its recursive
 // edge. The checked-body callee's complete write frame covers only
-// `self.audits`, disjoint from every premise carrier (`remaining` and the
+// `main.audits`, disjoint from every premise carrier (`remaining` and the
 // pinned `ceiling`), so the entry-relative rank still describes the
 // transition actuals.
 data Main { audits: u64 }

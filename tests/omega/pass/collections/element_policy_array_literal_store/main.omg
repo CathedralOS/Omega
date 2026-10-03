@@ -12,7 +12,7 @@
 //   [i32 in Saturating; 3] <- [1, 2, 3]   checks
 //
 // An array whose element is a RECORD or a CASE is not a primitive carrier:
-// `self.grid = [Cell { v: 1 }, Cell { v: 2 }]` into `[Cell; 2]` establishes
+// `main.grid = [Cell { v: 1 }, Cell { v: 2 }]` into `[Cell; 2]` establishes
 // each element and replaces its own element window instead
 // (`record_array_literal_field_store_exit`,
 // `case_array_literal_field_store_exit`; the `grid: [Cell; 24]` of
@@ -20,8 +20,8 @@
 // predicate-domain element (`[i32 in Ten; 3]`) stays declined: the domain's
 // membership evidence is a separate contract, not a storage fact.
 //
-// Storing ONE element (`self.grid[0][0] = 1`) checks. Storing one ROW
-// (`self.grid[0] = [1, 2, 3]`) is now admitted the same way: the literal's
+// Storing ONE element (`main.grid[0][0] = 1`) checks. Storing one ROW
+// (`main.grid[0] = [1, 2, 3]`) is now admitted the same way: the literal's
 // leaf roster composes through the destination's fixed or runtime index
 // segment instead of requiring a whole-field destination.
 //
