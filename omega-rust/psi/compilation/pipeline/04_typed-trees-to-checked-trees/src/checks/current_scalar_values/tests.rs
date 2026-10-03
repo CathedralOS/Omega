@@ -11,15 +11,15 @@ ensures result == total
     remaining = remaining - 1;
     accumulator = accumulator + 1;
     transition remaining > 0 {
-        true -> self
+        true -> accumulate(remaining, accumulator, total)
         false -> accumulator
     }
 }
 "#;
 
 #[test]
-fn current_scalar_assignment_transport_proves_self_and_named_arrivals() {
-    for source in [SOURCE.to_owned(), SOURCE.replace("true -> self", "true -> accumulate(remaining, accumulator, total)"),
+fn current_scalar_assignment_transport_proves_named_arrivals() {
+    for source in [SOURCE.to_owned(),
         SOURCE.replace("remaining = remaining - 1;\n    accumulator = accumulator + 1;",
             "let next_remaining: u64 = remaining - 1;\n    let next_accumulator: u64 = accumulator + 1;\n    remaining = next_remaining;\n    accumulator = next_accumulator;"),
         SOURCE.replace("remaining = remaining - 1;\n    accumulator = accumulator + 1;",
@@ -104,7 +104,7 @@ fn current_scalar_assignment_transport_does_not_identify_reentered_total_with_in
             "requires total >= 2\nrequires remaining + accumulator == total",
         )
         .replace(
-            "true -> self",
+            "true -> accumulate(remaining, accumulator, total)",
             "true -> accumulate(remaining, accumulator - 1, total - 1)",
         );
     let diagnostics =
@@ -129,7 +129,7 @@ terminates by remaining -> Nat::Descending;
 {
     remaining = remaining - 1;
     transition restore(&mut remaining) {
-        true -> self
+        true -> walk(remaining)
         false -> remaining
     }
 }

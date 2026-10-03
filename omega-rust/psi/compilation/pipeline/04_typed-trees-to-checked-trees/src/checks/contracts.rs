@@ -214,7 +214,6 @@ pub(super) fn check_flow_call_contracts(
             program,
             facts,
             state_flow,
-            call_frames,
             &mut diagnostics,
         );
         // #66 write-enforcement: every assignment into a domain-refined field must
