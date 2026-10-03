@@ -2,7 +2,7 @@
 
 use checked_trees::{
     BorrowAccessKind, BorrowCallFact, CheckedStructuralAccess, CheckedTrees,
-    CheckedUnitCallCoordinate, CheckedUnitEffectMachinePlan,
+    CheckedUnitCallCoordinate,
 };
 use symbols::SymbolHandle;
 
@@ -10,7 +10,8 @@ use crate::lowering_error::LoweringError;
 
 pub(crate) fn validate(
     checked: &CheckedTrees,
-    plan: &CheckedUnitEffectMachinePlan,
+    machine: SymbolHandle,
+    state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
     source_target: SymbolHandle,
     symbol: SymbolHandle,
@@ -26,7 +27,7 @@ pub(crate) fn validate(
             ));
         }
     };
-    let call = call(checked, plan.machine, plan.state, coordinate, source_target)?;
+    let call = call(checked, machine, state, coordinate, source_target)?;
     validate_argument(checked, call, symbol, expected_kind)?;
     Ok(())
 }

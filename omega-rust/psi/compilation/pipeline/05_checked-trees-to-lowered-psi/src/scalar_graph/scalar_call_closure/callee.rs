@@ -5,6 +5,8 @@ use super::super::{
     StructuralTypeDeclaration, terminal_scalar_type,
 };
 use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::scalar_graph::scalar_graph_lowering::ScalarContractMode;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::PreparedScalarMachine;
 
 pub(crate) enum CheckedScalarCallee<'checked> {
@@ -295,6 +297,8 @@ impl<'checked> CheckedScalarCallee<'checked> {
     pub(crate) fn prepare(
         self,
         checked: &CheckedTrees,
+        qualifications: &PreparedScalarQualifications,
+        contract_mode: ScalarContractMode,
         source: symbols::SymbolHandle,
         structural_parameters: &[StructuralParameterDeclaration],
         primitive_locals: &[crate::scalar_graph::scalar_graph_lowering::primitive_locals::PrimitiveLocal],
@@ -312,17 +316,20 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 let prepared =
                     crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_in_namespace(
                         checked,
+                        qualifications,
                         graph,
+                        contract_mode,
                         structural_parameters,
                         primitive_locals,
                         structural_types,
                         next_place,
                     )?;
-                if !prepared.identity_reshuffles.structural_places.is_empty()
-                    || !prepared.identity_reshuffles.entry_claims.is_empty()
-                    || !prepared.identity_reshuffles.reshuffles.is_empty()
-                    || !prepared.partition_compositions.structural_places.is_empty()
-                    || !prepared.partition_compositions.compositions.is_empty()
+                if contract_mode != ScalarContractMode::RootDirectResult
+                    && (!prepared.identity_reshuffles.structural_places.is_empty()
+                        || !prepared.identity_reshuffles.entry_claims.is_empty()
+                        || !prepared.identity_reshuffles.reshuffles.is_empty()
+                        || !prepared.partition_compositions.structural_places.is_empty()
+                        || !prepared.partition_compositions.compositions.is_empty())
                 {
                     return unsupported(
                         "embedded scalar call structural/content effects require a dedicated terminal slice",

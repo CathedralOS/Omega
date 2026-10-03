@@ -59,11 +59,6 @@ pub(in crate::unit::attached_unit) struct CallerView<'a> {
     /// An ordinary body's empty-record affine locals; a state declares none.
     pub(in crate::unit::attached_unit) trivial_affine_locals:
         &'a [CheckedTrivialAffineStructuralLocalPlan],
-    /// The ordinary body itself. Only an ordinary body establishes primitive
-    /// referents (`EstablishPrimitiveLocal`) a call may borrow; a composed
-    /// state keeps scalar storage in its binding namespace, and its operation
-    /// frame carries no primitive referent, so a state's call cannot name one.
-    pub(in crate::unit::attached_unit) ordinary_body: Option<&'a CheckedUnitEffectMachinePlan>,
 }
 
 impl<'a> CallerView<'a> {
@@ -76,7 +71,6 @@ impl<'a> CallerView<'a> {
             entry_claims: &plan.entry_claims,
             structural_result: plan.structural_result.as_ref(),
             trivial_affine_locals: &plan.trivial_affine_locals,
-            ordinary_body: Some(plan),
         }
     }
 
@@ -97,7 +91,6 @@ impl<'a> CallerView<'a> {
                 _ => None,
             },
             trivial_affine_locals: &[],
-            ordinary_body: None,
         }
     }
 }

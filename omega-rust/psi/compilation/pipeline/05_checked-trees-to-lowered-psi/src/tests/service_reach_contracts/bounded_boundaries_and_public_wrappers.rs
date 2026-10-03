@@ -434,10 +434,7 @@ fn standalone_scalar_helpers_reject_reachful_or_missing_contracts() {
         .is_err(),
         "absence is not an empty checked service contract"
     );
-    assert!(
-        crate::scalar_graph::scalar_call_closure::requires_shared_catalog(&checked, selected)
-            .is_err()
-    );
+    assert!(crate::unit::attached_unit::lower_scalar_effect_closure(&checked, selected).is_err());
 }
 
 #[test]

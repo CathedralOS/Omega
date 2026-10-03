@@ -259,15 +259,15 @@ pub(super) fn validate_argument_source(
     else {
         return Ok(false);
     };
-    let Some(plan) = caller.ordinary_body else {
-        return unsupported("composed state establishes no primitive referent to borrow");
-    };
-    let local = source(checked, plan, symbol, coordinate.statement_index)?;
+    // Ordinary bodies and composed states establish the same primitive home.
+    // Rejoin its authored state and borrow occurrence, not the body's family.
+    let local = declaration(checked, caller.state, symbol, coordinate.statement_index)?;
     let (machine, _) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let (root, path, access) =
         parameters::source_path(checked, machine, None, local.type_reference, expression)?;
-    if root != symbol
+    if machine.symbol != caller.machine
+        || root != symbol
         || !path.is_empty()
         || !argument.path.is_empty()
         || access != Some(argument.access)
@@ -285,7 +285,8 @@ pub(super) fn validate_argument_source(
     }
     crate::expression_preparation::source_custody::borrow_occurrences::validate(
         checked,
-        plan,
+        caller.machine,
+        caller.state,
         coordinate,
         source_target,
         symbol,

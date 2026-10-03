@@ -26,7 +26,6 @@ pub(crate) enum DebugPublication {
 
 pub(crate) enum SourceMapping {
     EntryOnly,
-    ScalarClosureOrder,
     ExactCatalog(Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>),
 }
 
@@ -36,7 +35,7 @@ impl SourceMapping {
     ) -> Option<&[(symbols::SymbolHandle, semantic_vocabulary::MachineId)]> {
         match self {
             Self::ExactCatalog(owners) => Some(owners),
-            Self::EntryOnly | Self::ScalarClosureOrder => None,
+            Self::EntryOnly => None,
         }
     }
 
@@ -44,28 +43,9 @@ impl SourceMapping {
         self,
         lowered: &LoweredPsi,
         entry: symbols::SymbolHandle,
-        source_machines: &[symbols::SymbolHandle],
     ) -> Result<Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>, LoweringError> {
         match self {
             Self::ExactCatalog(owners) => Ok(owners),
-            Self::ScalarClosureOrder => {
-                if source_machines.len() != lowered.semantic_module.machines.len() {
-                    return unsupported(
-                        "scalar call closure source and Terminal machine tables must correspond exactly",
-                    );
-                }
-                Ok(source_machines
-                    .iter()
-                    .copied()
-                    .zip(
-                        lowered
-                            .semantic_module
-                            .machines
-                            .iter()
-                            .map(|machine| machine.id),
-                    )
-                    .collect())
-            }
             Self::EntryOnly => Ok(vec![(entry, lowered.semantic_module.entry)]),
         }
     }

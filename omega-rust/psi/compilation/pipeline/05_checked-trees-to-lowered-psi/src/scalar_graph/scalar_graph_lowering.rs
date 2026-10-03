@@ -35,7 +35,7 @@ use crate::emission::scalar_types::terminal_scalar_type;
 pub(crate) use call_lowering::lower_scalar_call;
 
 pub(crate) use graph_preparation::{
-    prepare_scalar_graph_in_namespace, prepare_scalar_graph_machine, prepare_scalar_graph_root,
+    ScalarContractMode, prepare_scalar_graph_in_namespace, prepare_scalar_graph_machine,
 };
 pub(crate) use graph_validation::staged_short_circuit_bindings_terminator;
 pub(crate) use known_evaluation::KnownDirectScalar;
@@ -53,10 +53,3 @@ use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
-
-pub(crate) fn checked_scalar_computation_call_targets(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
-    crate::expression_preparation::computation_graph::call_targets(checked, machine)
-}
