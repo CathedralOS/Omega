@@ -530,8 +530,8 @@ fn authored_mixed_foreign_call_survives_canonical_artifact_and_target_replay() {
             machine leaf(left: i64, point: &Point, right: i32) -> i32;
         }
         data Main { point: Point; }
-        machine Main::run(&self) reaches Foreign {
-            let observed: i32 = Foreign::leaf(11i64, &self.point, 12i32);
+        machine Main::run(main: &Main) reaches Foreign {
+            let observed: i32 = Foreign::leaf(11i64, &main.point, 12i32);
         }
     "#,
     );
@@ -637,7 +637,7 @@ fn replay_rejects_substituted_scalar_row_coordinates() {
             provider_execution,
             binding,
             scalar_arguments,
-            result_home,
+            result: result_home,
             ..
         } = normalized_foreign_mut(&mut changed, 7)
         else {
@@ -660,14 +660,16 @@ fn replay_rejects_substituted_scalar_row_coordinates() {
             }
             6 => scalar_arguments[0].placement.shape = ValueShape::integer(8, 8),
             _ => {
-                *result_home = Some(target_operations::TargetUnitScalarHomeRequirement {
-                    defining_operation: OperationId::new(7).unwrap(),
-                    source_value: ValueId::new(9).unwrap(),
-                    scalar_type: ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                    ),
-                    shape,
-                })
+                *result_home = target_operations::TargetBoundaryResult::Scalar(
+                    target_operations::TargetUnitScalarHomeRequirement {
+                        defining_operation: OperationId::new(7).unwrap(),
+                        source_value: ValueId::new(9).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                        ),
+                        shape,
+                    },
+                )
             }
         }
         assert!(
@@ -725,7 +727,7 @@ fn replay_rejects_projected_argument_identity_substitutions() {
         let mut changed = target.clone();
         let TargetUnitOperation::NormalizedForeignCall {
             structural_arguments,
-            result_home,
+            result: target_operations::TargetBoundaryResult::Scalar(result_home),
             ..
         } = normalized_foreign_mut(&mut changed, 7)
         else {
@@ -758,8 +760,8 @@ fn replay_rejects_projected_argument_identity_substitutions() {
                         },
                     )
             }
-            7 => result_home.as_mut().unwrap().source_value = ValueId::new(9).unwrap(),
-            8 => result_home.as_mut().unwrap().shape = ValueShape::integer(8, 8),
+            7 => result_home.source_value = ValueId::new(9).unwrap(),
+            8 => result_home.shape = ValueShape::integer(8, 8),
             9 => structural_arguments[0].place = PlaceId::new(9).unwrap(),
             10 => structural_arguments[0].shape = ValueShape::integer(4, 4),
             _ => {
@@ -1298,7 +1300,7 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
 
         let TargetUnitOperation::NormalizedForeignCall {
             scalar_arguments,
-            result_home,
+            result: target_operations::TargetBoundaryResult::Scalar(result_home),
             binding: row_binding,
             ..
         } = normalized_foreign_ref(&target, 9)
@@ -1338,7 +1340,7 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
         {
             assert_eq!(argument.placement, *destination);
         }
-        let home = result_home.expect("scalar result home");
+        let home = result_home;
         assert_eq!(home.scalar_type, f64_type);
         assert_eq!(home.shape, ValueShape::float(8));
         assert_eq!(home.source_value, produced);
@@ -1347,7 +1349,7 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
             let mut changed = target.clone();
             let TargetUnitOperation::NormalizedForeignCall {
                 scalar_arguments,
-                result_home,
+                result: target_operations::TargetBoundaryResult::Scalar(result_home),
                 ..
             } = normalized_foreign_mut(&mut changed, 9)
             else {
@@ -1377,7 +1379,7 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
                     };
                     home.defining_operation = OperationId::new(6).unwrap();
                 }
-                _ => result_home.as_mut().unwrap().scalar_type = f32_type,
+                _ => result_home.scalar_type = f32_type,
             }
             assert!(
                 crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),

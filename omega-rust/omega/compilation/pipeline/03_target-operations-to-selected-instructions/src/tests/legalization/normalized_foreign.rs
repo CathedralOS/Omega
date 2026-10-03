@@ -590,6 +590,186 @@ fn normalized_foreign_instruction(
 }
 
 #[test]
+fn foreign_record_results_preserve_storage_classification_and_capture_custody() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for floating in [false, true] {
+            let (mut source, execution) = flat_record_fixture();
+            let structural_type = StructuralTypeId::new(2).unwrap();
+            if floating {
+                let declaration = source
+                    .structural_types
+                    .make_mut()
+                    .iter_mut()
+                    .find(|declaration| declaration.id == structural_type)
+                    .unwrap();
+                let terminal_psi::StructuralTypeShape::Record { fields } = &mut declaration.shape
+                else {
+                    panic!("record")
+                };
+                fields.truncate(1);
+                fields[0].field_type = terminal_psi::StructuralFieldType::Scalar(
+                    ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+                );
+            }
+            let result = terminal_psi::StructuralOperationResult {
+                place: PlaceId::new(10).unwrap(),
+                structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            };
+            source.boundary_machines[0].result = terminal_psi::BoundaryMachineResult::Structural(
+                terminal_psi::BoundaryStructuralResultDeclaration {
+                    structural_type,
+                    multiplicity: result.multiplicity,
+                    qualifications: Vec::new(),
+                },
+            );
+            let AbstractOperation::BoundaryCall {
+                result: produced, ..
+            } = &mut source.functions[0].operations[0]
+            else {
+                panic!("boundary")
+            };
+            *produced = AbstractBoundaryResult::Structural(result.clone());
+            let AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } = source.functions[0].operations.last_mut().unwrap()
+            else {
+                panic!("return")
+            };
+            cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                result.place,
+            ));
+            let shape = abstract_operations_to_target_operations::classified_boundary_shape(
+                structural_type,
+                &source.structural_types,
+                calling_conventions::CallingPolicy::native_for_target(native),
+            )
+            .unwrap();
+            let binding = binding(
+                native,
+                calling_conventions::CallSignature {
+                    parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+                    result: Some(shape),
+                },
+            );
+            let target = lower(&source, native, &execution, binding);
+            let unit = seed(&source);
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legal, &environment);
+            let selected = crate::select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            assert!(
+                selected.plan().functions[0]
+                    .local_storage_slots
+                    .iter()
+                    .any(|slot| slot.id
+                        == selected_instructions::LocalStorageSlotId::Structural {
+                            operation: OperationId::new(7).unwrap(),
+                            place: result.place,
+                        }
+                        && slot.byte_size == shape.byte_size
+                        && slot.alignment == shape.alignment)
+            );
+            for mutation in 0..3 {
+                let mut changed = legal.plan().clone();
+                let call = normalized_foreign_call_mut(&mut changed);
+                if mutation == 2 {
+                    call.binding
+                        .boundary_entry_plan
+                        .call
+                        .result
+                        .as_mut()
+                        .unwrap()
+                        .shape
+                        .class = calling_conventions::ValueClass::BorrowedReference;
+                } else {
+                    let target_operations::TargetBoundaryResult::Structural(home) =
+                        &mut call.result
+                    else {
+                        panic!("structural result")
+                    };
+                    if mutation == 0 {
+                        let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            result,
+                            ..
+                        } = &mut home.origin
+                        else {
+                            panic!("operation result")
+                        };
+                        result.place = PlaceId::new(11).unwrap();
+                    } else {
+                        home.layout = target_operations::TargetStructuralHomeLayout::Aggregate(
+                            calling_conventions::ValueShape::integer(16, 8),
+                        );
+                    }
+                }
+                assert!(
+                    validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                    "substituted foreign result {mutation}"
+                );
+            }
+            for mutation in 0..3 {
+                let mut changed = selected.plan().clone();
+                let function = &mut changed.functions[0];
+                let access = function
+                    .memory_accesses
+                    .iter_mut()
+                    .find(|access| {
+                        access.place == result.place
+                            && access.role
+                                == selected_instructions::SelectedMemoryAccessRole::WritePlace
+                    })
+                    .unwrap();
+                let store_id = access.instruction;
+                if mutation == 0 {
+                    access.byte_offset += 1;
+                } else {
+                    let instructions = &mut function.blocks[0].instructions;
+                    let position = instructions
+                        .iter()
+                        .position(|instruction| instruction.id == store_id)
+                        .unwrap();
+                    if mutation == 1 {
+                        instructions[position].operands[1] =
+                            instructions[position].operands[0].clone();
+                    } else {
+                        instructions.remove(position);
+                    }
+                }
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed
+                    )
+                    .is_err(),
+                    "substituted foreign capture {mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
     for native in [
         NativeTarget::linux_x64(),
@@ -951,8 +1131,12 @@ fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
                                 call.scalar_arguments[1].placement.clone()
                         }
                         _ => {
-                            call.result_home.as_mut().unwrap().scalar_type =
-                                types[(result_index + 1) % 3]
+                            let target_operations::TargetBoundaryResult::Scalar(home) =
+                                &mut call.result
+                            else {
+                                panic!("scalar result home");
+                            };
+                            home.scalar_type = types[(result_index + 1) % 3]
                         }
                     }
                     assert!(
@@ -1235,15 +1419,17 @@ fn replay_rejects_substituted_binding_execution_arguments_and_home() {
                     }
             }
             5 => {
-                normalized_foreign_call_mut(&mut changed).result_home =
-                    Some(target_operations::TargetUnitScalarHomeRequirement {
-                        defining_operation: OperationId::new(7).unwrap(),
-                        source_value: ValueId::new(9).unwrap(),
-                        scalar_type: ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                        ),
-                        shape,
-                    })
+                normalized_foreign_call_mut(&mut changed).result =
+                    target_operations::TargetBoundaryResult::Scalar(
+                        target_operations::TargetUnitScalarHomeRequirement {
+                            defining_operation: OperationId::new(7).unwrap(),
+                            source_value: ValueId::new(9).unwrap(),
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                            ),
+                            shape,
+                        },
+                    )
             }
             6 => {
                 changed.scalar_functions[0].blocks[0]
@@ -1528,7 +1714,7 @@ fn free_caller_foreign_result_reaches_a_dominated_block() {
         let [relay, leaf] = calls.as_slice() else {
             panic!("two normalized foreign calls")
         };
-        let home = relay.result_home.expect("relay result home");
+        let home = *relay.result.scalar_home().expect("relay result home");
         assert_eq!(home.source_value, ValueId::new(8).unwrap());
         assert_eq!(
             leaf.scalar_arguments[0].source,
@@ -1590,7 +1776,7 @@ fn foreign_result_does_not_reach_a_sibling_block() {
             assert!(matches!(
                 relay,
                 TargetUnitOperation::NormalizedForeignCall {
-                    result_home: Some(_),
+                    result: target_operations::TargetBoundaryResult::Scalar(_),
                     ..
                 }
             ));
