@@ -282,6 +282,9 @@ impl TerminalExecution {
         Ok(payload)
     }
 
+    /// A debt-free unrestricted result needs no affine cleanup, regardless of
+    /// which verified operation produced it. Retire only its frame binding;
+    /// shared descriptor backing remains owned by its original home.
     pub(crate) fn retire_unrestricted_aggregates(&mut self) {
         let Some(machine) = self.program.machines.get(&self.current_machine) else {
             return;
@@ -290,20 +293,6 @@ impl TerminalExecution {
             .blocks
             .values()
             .flat_map(|block| &block.operations)
-            .filter(|operation| {
-                matches!(
-                    operation.kind,
-                    OperationKind::EstablishRecord { .. }
-                        | OperationKind::EstablishStructuralCase { .. }
-                        | OperationKind::EstablishZeroedStructural { .. }
-                        | OperationKind::EstablishStructuralLocal { .. }
-                        | OperationKind::MoveStructuralField { .. }
-                        | OperationKind::CallStructural { .. }
-                        | OperationKind::CallStructuralWithScalarArguments { .. }
-                        | OperationKind::StructuralLeafCopy { .. }
-                        | OperationKind::StructuralCaseLeafCopy { .. }
-                )
-            })
             .filter_map(|operation| {
                 let result = operation.result.structural()?;
                 // A zeroed structural covers record members that are
@@ -319,12 +308,18 @@ impl TerminalExecution {
                     _ => {
                         self.plain_record_type(result.structural_type)
                             || self.plain_case_type(result.structural_type)
+                            || terminal_semantics::descriptor_results::owned_shared_byte_descriptor_shape(
+                                self.program.structural_types.values(),
+                                result.structural_type,
+                            )
                     }
                 };
                 (result.multiplicity == StructuralMultiplicity::Unrestricted
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
+                    && !self.live_affine_frontier.iter().any(|entry| entry.place == result.place)
+                    && !self.live_claims.values().any(|claim| claim.place == Some(result.place))
                     && plain)
                     .then_some(result.place)
             })
