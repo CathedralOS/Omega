@@ -1,9 +1,9 @@
-// A `&dyn` descriptor call carries `self` arity only: a requirement whose
+// A `&dyn` descriptor call carries subject arity only: a requirement whose
 // signature declares an `[erased]` formal can never receive its proof-only
 // actual through the descriptor lane, so the call is refused at check time
 // by name rather than surfacing as an unadmitted dispatch plan.
 trait Measure {
-    machine measure(&self, proof [erased]: i32) -> bool;
+    machine measure(item: &Self, proof [erased]: i32) -> bool;
 }
 
 data Item [copy] {
@@ -11,8 +11,8 @@ data Item [copy] {
 }
 
 Primary: Item satisfies Measure {
-    machine measure(&self, proof [erased]: i32) -> bool {
-        transition { _ -> self.value }
+    machine measure(item: &Item, proof [erased]: i32) -> bool {
+        transition { _ -> item.value }
     }
 }
 
