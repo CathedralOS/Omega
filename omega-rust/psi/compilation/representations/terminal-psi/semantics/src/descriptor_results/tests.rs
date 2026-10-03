@@ -1102,3 +1102,193 @@ fn bounded_byte_reference_demand_replays_actual_array_backing() {
         })
     );
 }
+
+fn aggregate_returner() -> DescriptorMachine {
+    let mut graph = new_graph(1);
+    graph.places.push(DescriptorPlace {
+        place: place(3),
+        definition: DescriptorDefinition::Local,
+    });
+    graph.place_types.insert(place(3), ty(2));
+    graph.flow.insert(
+        pos(0),
+        DescriptorFlowStep {
+            definitions: vec![whole(3)],
+            derivations: vec![(whole(1), slot(3, 1)), (slot(2, 2), slot(3, 2))],
+            successors: vec![edge(1)],
+            ..Default::default()
+        },
+    );
+    graph.originations.insert(
+        pos(0),
+        vec![(
+            whole(3),
+            DescriptorCallOrigin::Argument {
+                source: place(3),
+                projection: Projection::new(&[]),
+            },
+        )],
+    );
+    graph.flow.insert(pos(1), DescriptorFlowStep::default());
+    graph.normal_exits.push(pos(1));
+    graph.returns = Some(vec![(pos(1), whole(3))]);
+    graph
+}
+
+fn aggregate_caller() -> DescriptorMachine {
+    let mut graph = new_graph(2);
+    for (identity, structural_type) in [(3, ty(2)), (4, ty(1)), (5, ty(1))] {
+        graph.places.push(DescriptorPlace {
+            place: place(identity),
+            definition: DescriptorDefinition::Local,
+        });
+        graph.place_types.insert(place(identity), structural_type);
+    }
+    graph.flow.insert(
+        pos(0),
+        DescriptorFlowStep {
+            successors: vec![edge(1)],
+            ..Default::default()
+        },
+    );
+    graph.flow.insert(
+        pos(1),
+        DescriptorFlowStep {
+            definitions: vec![whole(3)],
+            successors: vec![edge(2)],
+            ..Default::default()
+        },
+    );
+    graph.originations.insert(
+        pos(1),
+        vec![(
+            whole(3),
+            DescriptorCallOrigin::Argument {
+                source: place(3),
+                projection: Projection::new(&[]),
+            },
+        )],
+    );
+    graph.calls.insert(
+        pos(1),
+        DescriptorInvocation {
+            callee: machine(1),
+            arguments: vec![Some(whole(1)), Some(whole(2))],
+            result: Some(whole(3)),
+        },
+    );
+    graph.flow.insert(pos(2), transfer(slot(3, 1), whole(4), 3));
+    graph.flow.insert(
+        pos(3),
+        DescriptorFlowStep {
+            successors: vec![DescriptorFlowEdge {
+                target: pos(4),
+                parameters: vec![whole(5)],
+                bindings: vec![(whole(4), whole(5))],
+            }],
+            ..Default::default()
+        },
+    );
+    graph.flow.insert(
+        pos(4),
+        DescriptorFlowStep {
+            inputs: vec![whole(5)],
+            ..Default::default()
+        },
+    );
+    graph.normal_exits.push(pos(4));
+    graph
+}
+
+#[test]
+fn returned_aggregate_slots_preserve_backing_and_distinct_carrier_storage() {
+    use crate::descriptor_lifetimes::descriptor_location_live_positions;
+    let catalog = types();
+    let graphs = [aggregate_returner(), aggregate_caller()];
+    let mut analysis = DescriptorAnalysis::new(&catalog, &graphs);
+    assert_eq!(
+        analysis.source_origins(machine(2), pos(4), &whole(5)),
+        Some(vec![DescriptorCallOrigin::Argument {
+            source: place(1),
+            projection: Projection::new(&[])
+        }])
+    );
+    assert_eq!(
+        analysis.source_origins(machine(2), pos(2), &whole(3)),
+        Some(vec![DescriptorCallOrigin::Argument {
+            source: place(3),
+            projection: Projection::new(&[])
+        }])
+    );
+    assert_eq!(
+        analysis.symbolic_source_origins(machine(2), pos(2), &slot(3, 2)),
+        Some(vec![DescriptorSourceOrigin::IncomingSlot(slot(2, 2))])
+    );
+    // An aggregate result is not itself the borrowed backing. Its field's
+    // lineage nevertheless extends the original loan through the successor.
+    assert!(analysis.call_origins(machine(2), place(3)).is_none());
+    let flow = analysis.flow(machine(2)).unwrap();
+    assert!(flow[&pos(1)].derivations.contains(&(whole(1), slot(3, 1))));
+    assert!(!flow[&pos(1)].derivations.contains(&(whole(1), whole(3))));
+    assert!(descriptor_location_live_positions(&flow, pos(0), &whole(1)).contains(&pos(4)));
+}
+
+#[test]
+fn returned_aggregate_slots_reject_unknown_contents_and_local_backing() {
+    let catalog = types();
+    for replace_with_local in [false, true] {
+        let mut callee = aggregate_returner();
+        if replace_with_local {
+            callee.places.push(DescriptorPlace {
+                place: place(4),
+                definition: DescriptorDefinition::Local,
+            });
+            callee.place_types.insert(place(4), ty(1));
+            callee.entry = pos(2);
+            callee.flow.insert(
+                pos(2),
+                DescriptorFlowStep {
+                    definitions: vec![whole(4)],
+                    successors: vec![edge(0)],
+                    ..Default::default()
+                },
+            );
+            callee.originations.insert(
+                pos(2),
+                vec![(
+                    whole(4),
+                    DescriptorCallOrigin::Argument {
+                        source: place(4),
+                        projection: Projection::new(&[]),
+                    },
+                )],
+            );
+            callee.flow.get_mut(&pos(0)).unwrap().derivations[0].0 = whole(4);
+        } else {
+            callee.flow.get_mut(&pos(0)).unwrap().derivations.remove(0);
+        }
+        let graphs = [callee, aggregate_caller()];
+        let mut analysis = DescriptorAnalysis::new(&catalog, &graphs);
+        assert!(
+            analysis
+                .source_origins(machine(2), pos(4), &whole(5))
+                .is_none()
+        );
+        assert!(analysis.flow(machine(2)).is_none());
+    }
+}
+
+#[test]
+fn returned_aggregate_slots_do_not_exchange_sibling_backing() {
+    let catalog = types();
+    let mut callee = aggregate_returner();
+    let fields = &mut callee.flow.get_mut(&pos(0)).unwrap().derivations;
+    fields[0].1 = slot(3, 2);
+    fields[1].1 = slot(3, 1);
+    let graphs = [callee, aggregate_caller()];
+    let mut analysis = DescriptorAnalysis::new(&catalog, &graphs);
+    assert_eq!(
+        analysis.symbolic_source_origins(machine(2), pos(4), &whole(5)),
+        Some(vec![DescriptorSourceOrigin::IncomingSlot(slot(2, 2))])
+    );
+}
