@@ -13,20 +13,18 @@ What it is trying to prove:
 - user input drives explicit `transition` dispatch
 - invalid input can loop back without hidden branches
 
-Runtime acceptance:
+## Runtime acceptance
 
-This is a language pressure test, not a working-native-support claim.
-[build.omg](build.omg) declares four hosted entry bindings; those declarations
-do not establish that the current compiler can produce or execute this sample
-on any of them. Checking and a zero exit status do not establish correct
-native output; see [native realization](../../../../omega-rust/omega/compilation/driver/README.md#native-realization)
+The closed-stdin and help/exit routes have verified native execution on macOS
+ARM64. [build.omg](build.omg) declares four hosted entry bindings; the other
+hosts still need their own execution evidence. Checking and a zero exit status
+alone do not establish correct native output; see
+[native realization](../../../../omega-rust/omega/compilation/driver/README.md#native-realization)
 and the [compiler completion plan](../../../../wiki/drafts/reference/rust_compiler_completion.md).
 
 The intended interactive path accepts commands at a live terminal. The closed-
 stdin acceptance case instead reaches EOF at the first prompt and should exit
-with status 0. Neither expectation is a report of a current successful run.
-Record the actual compilation diagnostic before attempting execution, and never
-run a stale image after a failed build.
+with status 0. Never run a stale image after a failed build.
 
 Run the actual product command from the repository root (POSIX shell):
 
@@ -36,8 +34,17 @@ printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/main.o
 ```
 
 Both cases should exit 0 after the initial room and goodbye output; the second
-also prints command help. These are acceptance commands, not passing receipts.
-`TASKS.md` records the current compiler failure.
+also prints command help.
+
+Verified on 2026-10-02 with compiler `66b7a242b3` and unchanged program/library
+inputs from `356d43c6d6`: both commands printed
+`A bottomless dark room near the dungeon heart.`, paths, command help and the
+goodbye message, then exited 0. The input route also repeated help in response
+to the authored command. This establishes those two routes, not every gameplay
+path or another host. Compilation plus execution took 1,571.83 seconds for
+closed stdin and 1,569.55 seconds for help/exit. The compiler was built with
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`; these are not default unoptimized dev timings
+or a controlled speedup comparison.
 
 The existing sample gate reads the standalone `Expected exit` and
 `Expected output contains` lines in [main.omg](main.omg). Its closed-stdin
