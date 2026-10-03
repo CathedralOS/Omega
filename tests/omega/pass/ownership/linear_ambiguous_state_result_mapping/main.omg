@@ -27,11 +27,10 @@ machine issue() -> Pair {
     transition { _ -> Main::pack(false, left, right) }
 }
 
-machine Main::main() -> i32 {
+machine Main::main() {
     let returned: Pair = issue();
     let left: Receipt = returned.left;
     let right: Receipt = returned.right;
     Receipt::ack(left);
     Receipt::ack(right);
-    0
 }
