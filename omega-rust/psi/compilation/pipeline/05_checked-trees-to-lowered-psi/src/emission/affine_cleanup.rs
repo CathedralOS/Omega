@@ -15,6 +15,8 @@ use terminal_psi::{
     TerminalAffineCleanupAction, Terminator,
 };
 
+mod projected_transfers;
+
 #[cfg(test)]
 mod tests;
 
@@ -25,6 +27,16 @@ mod tests;
 /// This pass completes the delegated custody through calls and continuations;
 /// the independent verifier checks types, reads, and disposal completeness.
 pub(crate) fn complete(
+    parameters: &[StructuralParameterDeclaration],
+    entry: BlockId,
+    blocks: &mut [Block],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
+    complete_carriers(parameters, entry, blocks, types)?;
+    projected_transfers::complete(parameters, entry, blocks, types)
+}
+
+fn complete_carriers(
     parameters: &[StructuralParameterDeclaration],
     entry: BlockId,
     blocks: &mut [Block],

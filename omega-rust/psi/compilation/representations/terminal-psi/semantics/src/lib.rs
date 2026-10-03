@@ -24,6 +24,7 @@ mod byte_sequence_predicates;
 mod call_composition;
 mod collection_backing;
 pub mod descriptor_results;
+mod partial_affine;
 mod placed_view_referent;
 mod primitive_place;
 mod proof_bearing_scalar;
@@ -73,6 +74,7 @@ pub use call_composition::{
 pub use collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, collection_backing,
 };
+pub use partial_affine::partial_affine_residuals;
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
 pub use primitive_place::{
     byte_carrier_field_declaration, canonical_primitive_path, canonical_static_projection,

@@ -102,8 +102,7 @@ fn affine_case_operand_replay_requires_its_exact_statement_transfer() {
 
 #[test]
 fn projected_constructor_operand_replays_exact_statement_custody() {
-    let original = crate::front_end::checked_program(
-        "data Message { value: u8; }
+    let source = "data Message { value: u8; }
          data Remainder { identity: u64; bytes: &[u8]; }
          data Relayed<T> { value: T; remainder: Remainder; }
          machine update(relayed: Relayed<Message>, observed: &mut u64) {
@@ -111,8 +110,26 @@ fn projected_constructor_operand_replays_exact_statement_custody() {
                  value: Message { value: 42 }, remainder: relayed.remainder
              };
              observed = updated.remainder.bytes.len;
-         }",
+         }";
+    // Package compilation normalizes closed generic data before resolution.
+    // Preserve that real stage so the receiver sees the same nominal carrier
+    // as the encoder, rather than an unspecialized test-only declaration.
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add(
+            std::path::PathBuf::from("tests/projected_constructor.omg"),
+            source.to_owned(),
+        )
+        .source_id;
+    let typed = crate::front_end::typed_program_from_source_map_with_generic_data(
+        sources,
+        &[(source_id, source)],
     );
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("normalized generic constructor checks");
     let machine = original
         .machines()
         .iter()

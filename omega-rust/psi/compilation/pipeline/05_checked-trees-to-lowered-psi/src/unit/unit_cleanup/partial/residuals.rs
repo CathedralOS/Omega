@@ -66,6 +66,7 @@ fn visit(
     emit: bool,
 ) -> Option<usize> {
     if moved_paths.is_empty() {
+        validate_type(types, current_type, &mut Vec::new(), &mut Vec::new())?;
         if emit {
             residuals.push(CheckedUnitPartialAffineDiscardPlan {
                 source: source.clone(),
@@ -84,6 +85,16 @@ fn visit(
     let mut count = 0_usize;
     match &declaration.shape {
         CheckedUnitStructuralTypeShape::Record { fields } => {
+            if fields.iter().enumerate().any(|(index, field)| {
+                field.identity.is_empty()
+                    || field.relevance.is_erased()
+                    || !checked_partial_affine_field_type(&field.field_type)
+                    || fields[..index]
+                        .iter()
+                        .any(|earlier| earlier.identity == field.identity)
+            }) {
+                return None;
+            }
             let mut matched = 0_usize;
             for field in fields.iter().rev() {
                 let matching = moved_paths.iter().filter_map(|(path, moved_type)| {
@@ -120,7 +131,7 @@ fn visit(
         CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
             length,
-        } => {
+        } if *length > 0 => {
             let mut touched = Vec::new();
             for (path, _) in moved_paths {
                 let CheckedUnitStructuralPathSegment::FixedIndex(index) = path[0] else {
@@ -181,9 +192,6 @@ pub(super) fn reconstruct(
     {
         return unsupported("partial affine Unit field path or type identity drifted");
     }
-    validate_type(types, root_type, &mut Vec::new(), &mut Vec::new()).ok_or(
-        LoweringError::Unsupported("partial affine Unit field path or type identity drifted"),
-    )?;
     let mut residuals = Vec::new();
     let count = visit(
         types,
