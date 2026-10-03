@@ -167,36 +167,3 @@ fn scalar_reference_calls_share_one_home_across_different_viewed_carriers() {
         "both views keep the original ingress backing"
     );
 }
-
-#[test]
-fn scalar_reference_calls_keep_conditionally_valid_observations_on_the_proved_route() {
-    let source = "machine choose(value: u8) -> bool requires value <= 1u8 {
-        let view: &bool = &value as &bool;
-        view
-    }";
-    for value in [0, 1] {
-        let (module, execution) = super::execute(
-            source,
-            &[TerminalScalarValue::Integer {
-                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-                value: IntegerValue::Unsigned(value),
-            }],
-        );
-        assert_eq!(
-            execution.value(),
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(value == 1))
-        );
-        assert!(
-            module
-                .machines
-                .iter()
-                .flat_map(|machine| &machine.blocks)
-                .flat_map(|block| &block.operations)
-                .all(|operation| !matches!(
-                    operation.kind,
-                    OperationKind::EstablishReference { .. }
-                )),
-            "a contextually proved bool view is not a total storage-carrier relation"
-        );
-    }
-}

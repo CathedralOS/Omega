@@ -7,7 +7,6 @@ use crate::emission::operation_emission::calls::{
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
-use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
@@ -16,8 +15,8 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph;
 use crate::scalar_graph::scalar_graph_lowering::structural_values;
 use crate::scalar_graph::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
-    QualifiedScalarType, StructuralAccess, StructuralArgument, StructuralTypeDeclaration,
-    allocate_dense, place_id, scalar_carriers, unsupported,
+    QualifiedScalarType, StructuralArgument, StructuralTypeDeclaration, allocate_dense, place_id,
+    scalar_carriers, unsupported,
 };
 use checked_trees::CheckedErasedProofParameterPlan;
 
@@ -113,27 +112,11 @@ pub(crate) fn lower_scalar_call(
     };
     // Field selectors must already have been captured in the authored operand
     // stream. Emission only resolves those carried values; it never reads fields.
+    // Structural operands arrive from source custody and catalog projection
+    // preparation. Reclassifying their path spelling here would discard valid
+    // reference crossings after their geometry and access were already checked.
     if target.structural_parameters().len() != structural_arguments.len()
         || !target.entry_claims().is_empty()
-        || structural_arguments.iter().any(|argument| {
-            !argument.path.is_empty()
-                && (!matches!(
-                    argument.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) || argument.path.iter().any(|segment| {
-                    !matches!(
-                        segment,
-                        PreparedStructuralPathSegment::Static(
-                            terminal_psi::StructuralPathSegment::Field(_)
-                                | terminal_psi::StructuralPathSegment::Case(_)
-                                | terminal_psi::StructuralPathSegment::FixedIndex(_)
-                        ) | PreparedStructuralPathSegment::RuntimeIndex(
-                            checked_trees::CheckedRuntimeIndex::Parameter { .. }
-                                | checked_trees::CheckedRuntimeIndex::StructuralField(_)
-                        )
-                    )
-                }))
-        })
     {
         return unsupported("computed scalar call requires exact structural custody");
     }
