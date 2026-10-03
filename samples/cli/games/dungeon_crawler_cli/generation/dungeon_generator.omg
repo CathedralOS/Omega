@@ -6,9 +6,9 @@ data DungeonGenerator {
 }
 
 machine DungeonGenerator::generate(
-    &mut self,
+    dungeon_generator: &mut DungeonGenerator,
     seed: u64 in Wrapping,
     out_level: &mut Level
 ) {
-    self.maze.build(seed, out_level);
+    MazeBuilder::build(&mut dungeon_generator.maze, seed, out_level);
 }

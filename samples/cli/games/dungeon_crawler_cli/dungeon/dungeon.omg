@@ -33,152 +33,140 @@ data Dungeon {
     enemy_defeated: bool;
 }
 
-machine Dungeon::enter_room(
-    &mut self,
-    cell: CellId
-) {
+machine Dungeon::enter_room(cell: CellId) {
     // Discovery is currently presentation-only for the generated sample. Avoid
     // dynamic room lookup here until slice-returned mutable references are solid.
 }
 
 machine Dungeon::use_event(
-    &mut self,
+    dungeon: &mut Dungeon,
     cell: CellId,
     line: &mut [u8; 128] in Utf8
 )
 ensures line in Utf8
 {
     transition cell {
-        CellId::R02 -> try_take_treasure(line)
-        CellId::R04 -> try_use_fountain(line)
-        CellId::R05 -> try_take_gold(line)
+        CellId::R02 -> try_take_treasure(dungeon, line)
+        CellId::R04 -> try_use_fountain(dungeon, line)
+        CellId::R05 -> try_take_gold(dungeon, line)
         _ -> no_usable_event(line)
     }
 
     state try_take_treasure(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        transition self.treasure_taken {
-            false -> take_treasure(line)
+        transition dungeon.treasure_taken {
+            false -> take_treasure(dungeon, line)
             true -> no_usable_event(line)
         }
     }
 
     state take_treasure(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        self.player.inventory.gold = self.player.inventory.gold + 24;
-        self.treasure_taken = true;
+        dungeon.player.inventory.gold = dungeon.player.inventory.gold + 24;
+        dungeon.treasure_taken = true;
         line = "You take the treasure.";
     }
 
     state try_use_fountain(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        transition self.fountain_used {
-            false -> use_fountain(line)
+        transition dungeon.fountain_used {
+            false -> use_fountain(dungeon, line)
             true -> no_usable_event(line)
         }
     }
 
     state use_fountain(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        self.player.health = min(self.player.max_health, self.player.health + 12);
-        self.fountain_used = true;
+        dungeon.player.health = min(dungeon.player.max_health, dungeon.player.health + 12);
+        dungeon.fountain_used = true;
         line = "The fountain heals your wounds.";
     }
 
     state try_take_gold(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        transition self.gold_taken {
-            false -> take_gold(line)
+        transition dungeon.gold_taken {
+            false -> take_gold(dungeon, line)
             true -> no_usable_event(line)
         }
     }
 
     state take_gold(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        self.player.inventory.gold = self.player.inventory.gold + 6;
-        self.gold_taken = true;
+        dungeon.player.inventory.gold = dungeon.player.inventory.gold + 6;
+        dungeon.gold_taken = true;
         line = "You collect the loose gold.";
     }
 
-    state no_usable_event(
-        &mut self,
-        line: &mut [u8; 128] in Utf8
-    ) {
+    state no_usable_event(line: &mut [u8; 128] in Utf8) {
         line = "There is nothing here to use.";
     }
 }
 
 machine Dungeon::fight(
-    &mut self,
+    dungeon: &mut Dungeon,
     cell: CellId,
     line: &mut [u8; 128] in Utf8
 )
 ensures line in Utf8
 {
     transition cell {
-        CellId::R03 -> try_defeat_enemy(line)
+        CellId::R03 -> try_defeat_enemy(dungeon, line)
         _ -> no_enemy(line)
     }
 
     state try_defeat_enemy(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        transition self.enemy_defeated {
-            false -> defeat_enemy(line)
+        transition dungeon.enemy_defeated {
+            false -> defeat_enemy(dungeon, line)
             true -> no_enemy(line)
         }
     }
 
     state defeat_enemy(
-        &mut self,
+        dungeon: &mut Dungeon,
         line: &mut [u8; 128] in Utf8
     ) {
-        self.player.inventory.gold = self.player.inventory.gold + 6;
-        self.player.xp = self.player.xp + 5;
-        self.enemy_defeated = true;
+        dungeon.player.inventory.gold = dungeon.player.inventory.gold + 6;
+        dungeon.player.xp = dungeon.player.xp + 5;
+        dungeon.enemy_defeated = true;
         line = "The enemy collapses. You find a little gold.";
     }
 
-    state no_enemy(
-        &mut self,
-        line: &mut [u8; 128] in Utf8
-    ) {
+    state no_enemy(line: &mut [u8; 128] in Utf8) {
         line = "There is no enemy here.";
     }
 }
 
-machine Dungeon::move(&mut self) {
-    self.current_cell = self.navigation.destination;
+machine Dungeon::move(dungeon: &mut Dungeon) {
+    dungeon.current_cell = dungeon.navigation.destination;
 }
 
 machine Dungeon::move_to(
-    &mut self,
+    dungeon: &mut Dungeon,
     destination: CellId
 ) {
-    self.current_cell = destination;
+    dungeon.current_cell = destination;
 }
 
-machine Dungeon::current_room_index(&mut self) -> u64 {
-    self.room_index(self.current_cell)
+machine Dungeon::current_room_index(dungeon: &mut Dungeon) -> u64 {
+    Dungeon::room_index(dungeon.current_cell)
 }
 
-machine Dungeon::can_travel_to(
-    &mut self,
-    destination: CellId
-    ) -> bool {
+machine Dungeon::can_travel_to(destination: CellId) -> bool {
     transition {
         destination == CellId::Empty -> false
         _ -> true
@@ -186,49 +174,43 @@ machine Dungeon::can_travel_to(
 }
 
 machine Dungeon::evaluate_travel_block(
-    &mut self,
+    dungeon: &mut Dungeon,
     current_room: Room,
     destination_room: Room
 ) -> bool {
     transition {
-        current_room.event.kind == RoomEventKind::Enemy && current_room.event.consumed == false -> self.gated_enemy_travel(current_room, destination_room)
+        current_room.event.kind == RoomEventKind::Enemy && current_room.event.consumed == false -> Dungeon::gated_enemy_travel(current_room, destination_room)
         _ -> true
     }
 }
 
-machine Dungeon::gated_enemy_travel(
-    &mut self,
-    current_room: Room,
-    destination_room: Room
-) -> bool {
+machine Dungeon::gated_enemy_travel(current_room: Room,
+    destination_room: Room) -> bool {
     transition {
         _ -> (destination_room.depth <= current_room.depth)
     }
 }
 
-machine Dungeon::game_over(&mut self) {
-    self.mode = GameMode::GameOver;
+machine Dungeon::game_over(dungeon: &mut Dungeon) {
+    dungeon.mode = GameMode::GameOver;
 }
 
 machine Dungeon::initialize(
-    &mut self,
+    dungeon: &mut Dungeon,
     seed: u64 in Wrapping
 ) {
-    self.player_system.create("Wanderer", &mut self.player);
-    self.rng.seed(seed, &mut self.random);
-    self.generator.generate(seed, &mut self.level);
-    self.current_cell = self.level.start_cell;
-    self.mode = GameMode::Exploring;
-    self.treasure_taken = false;
-    self.gold_taken = false;
-    self.fountain_used = false;
-    self.enemy_defeated = false;
+    PlayerSystem::create(&mut dungeon.player_system, "Wanderer", &mut dungeon.player);
+    Random::seed(seed, &mut dungeon.random);
+    DungeonGenerator::generate(&mut dungeon.generator, seed, &mut dungeon.level);
+    dungeon.current_cell = dungeon.level.start_cell;
+    dungeon.mode = GameMode::Exploring;
+    dungeon.treasure_taken = false;
+    dungeon.gold_taken = false;
+    dungeon.fountain_used = false;
+    dungeon.enemy_defeated = false;
 }
 
-machine Dungeon::room_index(
-    &mut self,
-    cell: CellId
-    ) -> u64 {
+machine Dungeon::room_index(cell: CellId) -> u64 {
     transition {
         cell == CellId::R00 -> 0
         cell == CellId::R01 -> 1

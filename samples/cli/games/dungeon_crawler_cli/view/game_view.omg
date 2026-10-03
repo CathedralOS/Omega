@@ -9,10 +9,7 @@ data GameView {
     formatter: RoomFormatter;
 }
 
-machine GameView::render_title(
-    &mut self,
-    console: &mut Binding<Console>
-) reaches Console {
+machine GameView::render_title(console: &mut Binding<Console>) reaches Console {
     console.write_line("###########################");
     console.write_line("#     Dungeon Crawler     #");
     console.write_line("###########################");
@@ -22,15 +19,12 @@ machine GameView::render_title(
     console.write_line("");
 }
 
-machine GameView::render_commands(
-    &mut self,
-    console: &mut Binding<Console>
-) reaches Console {
+machine GameView::render_commands(console: &mut Binding<Console>) reaches Console {
     console.write_line("[Commands] look | help | inv | char | use | fight | exit");
 }
 
 machine GameView::render_room(
-    &mut self,
+    game_view: &mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
@@ -43,18 +37,18 @@ machine GameView::render_room(
 reaches Console
 ensures line in Utf8
 {
-    self.formatter.write_current_cell(level, cell, line);
+    RoomFormatter::write_current_cell(level, cell, line);
     console.write_line(line);
-    self.formatter.write_room_info(level, cell, line);
+    RoomFormatter::write_room_info(&mut game_view.formatter, level, cell, line);
     console.write_line(line);
-    self.write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
+    GameView::write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
     console.write_line(line);
-    self.write_cell_paths(cell, line);
+    GameView::write_cell_paths(cell, line);
     console.write_line(line);
 }
 
 machine GameView::render_look(
-    &mut self,
+    game_view: &mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
@@ -67,14 +61,14 @@ machine GameView::render_look(
 reaches Console
 ensures line in Utf8
 {
-    self.formatter.write_room_info(level, cell, line);
+    RoomFormatter::write_room_info(&mut game_view.formatter, level, cell, line);
     console.write_line(line);
-    self.write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
+    GameView::write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
     console.write_line(line);
 }
 
 machine GameView::render_exits(
-    &mut self,
+    game_view: &mut GameView,
     level: Level,
     cell: CellId,
     console: &mut Binding<Console>,
@@ -83,21 +77,18 @@ machine GameView::render_exits(
 reaches Console
 ensures line in Utf8
 {
-    self.write_cell_paths(cell, line);
+    GameView::write_cell_paths(cell, line);
     console.write_line(line);
 }
 
 // Output writers retain the caller's Utf8 invariant while replacing the
 // whole buffer.
-machine GameView::write_cell_event(
-    &mut self,
-    cell: CellId,
+machine GameView::write_cell_event(cell: CellId,
     treasure_taken: bool,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    out_line: &mut [u8; 128] in Utf8
-)
+    out_line: &mut [u8; 128] in Utf8)
 ensures out_line in Utf8
 {
     transition cell {
@@ -108,91 +99,61 @@ ensures out_line in Utf8
         _ -> quiet_event(out_line)
     }
 
-    state maybe_treasure_event(
-        &mut self,
-        treasure_taken: bool,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state maybe_treasure_event(treasure_taken: bool,
+        out_line: &mut [u8; 128] in Utf8) {
         transition treasure_taken {
             false -> treasure_event(out_line)
             true -> quiet_event(out_line)
         }
     }
 
-    state maybe_enemy_event(
-        &mut self,
-        enemy_defeated: bool,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state maybe_enemy_event(enemy_defeated: bool,
+        out_line: &mut [u8; 128] in Utf8) {
         transition enemy_defeated {
             false -> enemy_event(out_line)
             true -> quiet_event(out_line)
         }
     }
 
-    state maybe_fountain_event(
-        &mut self,
-        fountain_used: bool,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state maybe_fountain_event(fountain_used: bool,
+        out_line: &mut [u8; 128] in Utf8) {
         transition fountain_used {
             false -> fountain_event(out_line)
             true -> quiet_event(out_line)
         }
     }
 
-    state maybe_gold_event(
-        &mut self,
-        gold_taken: bool,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state maybe_gold_event(gold_taken: bool,
+        out_line: &mut [u8; 128] in Utf8) {
         transition gold_taken {
             false -> gold_event(out_line)
             true -> quiet_event(out_line)
         }
     }
 
-    state treasure_event(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state treasure_event(out_line: &mut [u8; 128] in Utf8) {
         out_line = "A treasure cache rests against the wall. Type use to claim it.";
     }
 
-    state enemy_event(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state enemy_event(out_line: &mut [u8; 128] in Utf8) {
         out_line = "A dungeon bat blocks the way. Type fight.";
     }
 
-    state fountain_event(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state fountain_event(out_line: &mut [u8; 128] in Utf8) {
         out_line = "A fountain of life glows here. Type use to drink.";
     }
 
-    state gold_event(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state gold_event(out_line: &mut [u8; 128] in Utf8) {
         out_line = "Loose gold glitters in the dust. Type use to collect it.";
     }
 
-    state quiet_event(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state quiet_event(out_line: &mut [u8; 128] in Utf8) {
         out_line = "The room is quiet.";
     }
 }
 
-machine GameView::write_cell_paths(
-    &mut self,
-    cell: CellId,
-    out_line: &mut [u8; 128] in Utf8
-)
+machine GameView::write_cell_paths(cell: CellId,
+    out_line: &mut [u8; 128] in Utf8)
 ensures out_line in Utf8
 {
     transition cell {
@@ -207,65 +168,41 @@ ensures out_line in Utf8
         _ -> no_paths(out_line)
     }
 
-    state gate_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state gate_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] north";
     }
 
-    state room_one_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state room_one_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] south | north | east";
     }
 
-    state room_two_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state room_two_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] south | north | west";
     }
 
-    state room_three_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state room_three_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] south | north | east";
     }
 
-    state room_four_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state room_four_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] south";
     }
 
-    state side_west_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state side_west_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] west";
     }
 
-    state side_east_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state side_east_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] east";
     }
 
-    state no_paths(
-        &mut self,
-        out_line: &mut [u8; 128] in Utf8
-    ) {
+    state no_paths(out_line: &mut [u8; 128] in Utf8) {
         out_line = "[Paths] none";
     }
 }
 
 machine GameView::render_inventory(
-    &mut self,
+    game_view: &mut GameView,
     player: Player,
     console: &mut Binding<Console>,
     line: &mut [u8; 128] in Utf8
@@ -273,12 +210,12 @@ machine GameView::render_inventory(
 reaches Console
 ensures line in Utf8
 {
-    self.formatter.write_inventory(player, line);
+    RoomFormatter::write_inventory(player, line);
     console.write_line(line);
 }
 
 machine GameView::render_character(
-    &mut self,
+    game_view: &mut GameView,
     player: Player,
     console: &mut Binding<Console>,
     line: &mut [u8; 128] in Utf8
@@ -286,42 +223,27 @@ machine GameView::render_character(
 reaches Console
 ensures line in Utf8
 {
-    self.formatter.write_character(player, line);
+    RoomFormatter::write_character(player, line);
     console.write_line(line);
 }
 
-machine GameView::render_prompt(
-    &mut self,
-    console: &mut Binding<Console>
-) reaches Console {
+machine GameView::render_prompt(console: &mut Binding<Console>) reaches Console {
     console.write("> ");
 }
 
-machine GameView::render_line(
-    &mut self,
-    line: [u8; 128] in Utf8,
-    console: &mut Binding<Console>
-) reaches Console {
+machine GameView::render_line(line: [u8; 128] in Utf8,
+    console: &mut Binding<Console>) reaches Console {
     console.write_line(line);
 }
 
-machine GameView::render_invalid_command(
-    &mut self,
-    console: &mut Binding<Console>
-) reaches Console {
+machine GameView::render_invalid_command(console: &mut Binding<Console>) reaches Console {
     console.write_line("[Input] That action is not available right now.");
 }
 
-machine GameView::render_game_over(
-    &mut self,
-    console: &mut Binding<Console>
-) reaches Console {
+machine GameView::render_game_over(console: &mut Binding<Console>) reaches Console {
     console.write_line("Game over.");
 }
 
-machine GameView::render_goodbye(
-    &mut self,
-    console: &mut Binding<Console>
-) reaches Console {
+machine GameView::render_goodbye(console: &mut Binding<Console>) reaches Console {
     console.write_line("Goodbye.");
 }

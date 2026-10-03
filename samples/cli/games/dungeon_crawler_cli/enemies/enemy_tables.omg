@@ -7,19 +7,16 @@ data EnemyTables {
 }
 
 machine EnemyTables::roll_enemy(
-    &mut self,
+    enemy_tables: &mut EnemyTables,
     depth: u32 in Wrapping,
     random: &mut RandomState,
     enemy: &mut Enemy
 ) {
-    self.roll_enemy_kind(depth, random, enemy);
+    EnemyTables::roll_enemy_kind(enemy_tables, depth, random, enemy);
 
 }
 
-machine EnemyTables::tier_for_depth(
-    &mut self,
-    depth: u32 in Wrapping
-    ) -> EnemyTier {
+machine EnemyTables::tier_for_depth(depth: u32 in Wrapping) -> EnemyTier {
     let is_bat_depth: bool = depth <= 1;
     let is_spider_depth: bool = depth <= 2;
     let is_skeleton_depth: bool = depth <= 4;
@@ -37,30 +34,30 @@ machine EnemyTables::tier_for_depth(
 }
 
 machine EnemyTables::roll_enemy_kind(
-    &mut self,
+    enemy_tables: &mut EnemyTables,
     depth: u32 in Wrapping,
     random: &mut RandomState,
     enemy: &mut Enemy
 ) {
-    transition self.tier_for_depth(depth) {
-        EnemyTier::Bat -> bat(random, enemy)
-        EnemyTier::Spider -> spider(random, enemy)
-        EnemyTier::Skeleton -> skeleton(random, enemy)
-        EnemyTier::Cultist -> cultist(random, enemy)
-        EnemyTier::Hellhound -> hellhound(random, enemy)
-        EnemyTier::PitFiend -> pit_fiend(random, enemy)
+    transition EnemyTables::tier_for_depth(depth) {
+        EnemyTier::Bat -> bat(enemy_tables, random, enemy)
+        EnemyTier::Spider -> spider(enemy_tables, random, enemy)
+        EnemyTier::Skeleton -> skeleton(enemy_tables, random, enemy)
+        EnemyTier::Cultist -> cultist(enemy_tables, random, enemy)
+        EnemyTier::Hellhound -> hellhound(enemy_tables, random, enemy)
+        EnemyTier::PitFiend -> pit_fiend(enemy_tables, random, enemy)
     }
 
 
     state bat(
-        &mut self,
+        enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Bat;
         enemy.name = "Cave Bat";
         enemy.depth = 0;
-        enemy.max_health = 6 + ((self.rng.range(random, 3) as i32) as i32 in Wrapping);
+        enemy.max_health = 6 + ((Random::range(&mut enemy_tables.rng, random, 3) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
         enemy.attack = 2;
         enemy.defense = 0;
@@ -68,14 +65,14 @@ machine EnemyTables::roll_enemy_kind(
     }
 
     state spider(
-        &mut self,
+        enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Spider;
         enemy.name = "Gloom Spider";
         enemy.depth = 2;
-        enemy.max_health = 10 + ((self.rng.range(random, 5) as i32) as i32 in Wrapping);
+        enemy.max_health = 10 + ((Random::range(&mut enemy_tables.rng, random, 5) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
         enemy.attack = 4;
         enemy.defense = 1;
@@ -83,14 +80,14 @@ machine EnemyTables::roll_enemy_kind(
     }
 
     state skeleton(
-        &mut self,
+        enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Skeleton;
         enemy.name = "Restless Skeleton";
         enemy.depth = 4;
-        enemy.max_health = 18 + ((self.rng.range(random, 8) as i32) as i32 in Wrapping);
+        enemy.max_health = 18 + ((Random::range(&mut enemy_tables.rng, random, 8) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
         enemy.attack = 6;
         enemy.defense = 2;
@@ -98,14 +95,14 @@ machine EnemyTables::roll_enemy_kind(
     }
 
     state cultist(
-        &mut self,
+        enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Cultist;
         enemy.name = "Ashen Cultist";
         enemy.depth = 6;
-        enemy.max_health = 26 + ((self.rng.range(random, 12) as i32) as i32 in Wrapping);
+        enemy.max_health = 26 + ((Random::range(&mut enemy_tables.rng, random, 12) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
         enemy.attack = 9;
         enemy.defense = 3;
@@ -113,14 +110,14 @@ machine EnemyTables::roll_enemy_kind(
     }
 
     state hellhound(
-        &mut self,
+        enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::Hellhound;
         enemy.name = "Hellhound";
         enemy.depth = 8;
-        enemy.max_health = 42 + ((self.rng.range(random, 20) as i32) as i32 in Wrapping);
+        enemy.max_health = 42 + ((Random::range(&mut enemy_tables.rng, random, 20) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
         enemy.attack = 14;
         enemy.defense = 5;
@@ -128,14 +125,14 @@ machine EnemyTables::roll_enemy_kind(
     }
 
     state pit_fiend(
-        &mut self,
+        enemy_tables: &mut EnemyTables,
         random: &mut RandomState,
         enemy: &mut Enemy
     ) {
         enemy.kind = EnemyKind::PitFiend;
         enemy.name = "Pit Fiend";
         enemy.depth = 10;
-        enemy.max_health = 80 + ((self.rng.range(random, 40) as i32) as i32 in Wrapping);
+        enemy.max_health = 80 + ((Random::range(&mut enemy_tables.rng, random, 40) as i32) as i32 in Wrapping);
         enemy.health = enemy.max_health;
         enemy.attack = 24;
         enemy.defense = 8;

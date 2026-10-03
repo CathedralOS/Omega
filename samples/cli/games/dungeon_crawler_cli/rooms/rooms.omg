@@ -30,65 +30,65 @@ data Level [copy] {
 // MazeBuilder is what lets a caller hold `&mut Room` and still append: a
 // builder-owned appender would need the builder receiver at the same time.
 machine Room::append_exit(
-    &mut self,
+    room: &mut Room,
     command: [u8; 8] in Utf8,
     direction: Direction,
     destination: CellId
 ) {
-    transition self.exit_count {
-        0 -> append_exit_slot_0(command, direction, destination)
-        1 -> append_exit_slot_1(command, direction, destination)
-        2 -> append_exit_slot_2(command, direction, destination)
-        3 -> append_exit_slot_3(command, direction, destination)
+    transition room.exit_count {
+        0 -> append_exit_slot_0(room, command, direction, destination)
+        1 -> append_exit_slot_1(room, command, direction, destination)
+        2 -> append_exit_slot_2(room, command, direction, destination)
+        3 -> append_exit_slot_3(room, command, direction, destination)
         _ -> {}
     }
 
     state append_exit_slot_0(
-        &mut self,
+        room: &mut Room,
         command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
-        self.exits[0] = Exit { command: command, direction: direction, destination: destination };
-        self.exit_count = 1;
+        room.exits[0] = Exit { command: command, direction: direction, destination: destination };
+        room.exit_count = 1;
     }
 
     state append_exit_slot_1(
-        &mut self,
+        room: &mut Room,
         command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
-        self.exits[1] = Exit { command: command, direction: direction, destination: destination };
-        self.exit_count = 2;
+        room.exits[1] = Exit { command: command, direction: direction, destination: destination };
+        room.exit_count = 2;
     }
 
     state append_exit_slot_2(
-        &mut self,
+        room: &mut Room,
         command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
-        self.exits[2] = Exit { command: command, direction: direction, destination: destination };
-        self.exit_count = 3;
+        room.exits[2] = Exit { command: command, direction: direction, destination: destination };
+        room.exit_count = 3;
     }
 
     state append_exit_slot_3(
-        &mut self,
+        room: &mut Room,
         command: [u8; 8] in Utf8,
         direction: Direction,
         destination: CellId
     ) {
-        self.exits[3] = Exit { command: command, direction: direction, destination: destination };
-        self.exit_count = 4;
+        room.exits[3] = Exit { command: command, direction: direction, destination: destination };
+        room.exit_count = 4;
     }
 }
 
 // The level owns its rooms, so it hands out the borrow. A builder-owned
 // lookup would tie every `&mut Room` to the builder receiver and block the
 // builder calls the caller still needs while that room is live.
-machine Level::room_mut(&mut self, cell: CellId) -> &mut Room {
-    let slots: &mut [Room] = self.rooms.as_mut_slice();
+machine Level::room_mut(level: &mut Level, cell: CellId) -> &mut Room {
+    let slots: &mut [Room] = level.rooms.as_mut_slice();
 
     transition cell {
         CellId::R00 -> &mut slots[0]

@@ -7,7 +7,7 @@ data PlayerSystem {
 }
 
 machine PlayerSystem::create(
-    &mut self,
+    player_system: &mut PlayerSystem,
     name: [u8; 16] in Utf8,
     player: &mut Player
 ) {
@@ -18,69 +18,60 @@ machine PlayerSystem::create(
     player.health = player.max_health;
     player.attack = 4;
     player.defense = 1;
-    self.inventory.clear(&mut player.inventory);
+    InventorySystem::clear(&mut player.inventory);
 }
 
-machine PlayerSystem::heal(
-    &mut self,
-    player: &mut Player,
-    amount: i32 in Wrapping
-) {
+machine PlayerSystem::heal(player: &mut Player,
+    amount: i32 in Wrapping) {
     player.health = min(player.max_health, player.health + amount);
 }
 
-machine PlayerSystem::take_damage(
-    &mut self,
-    player: &mut Player,
-    amount: i32 in Wrapping
-) {
+machine PlayerSystem::take_damage(player: &mut Player,
+    amount: i32 in Wrapping) {
     let prevented: i32 in Wrapping = min(amount, player.defense);
     let actual: i32 in Wrapping = amount - prevented;
     player.health = max(0, player.health - actual);
 }
 
 machine PlayerSystem::grant_reward(
-    &mut self,
+    player_system: &mut PlayerSystem,
     player: &mut Player,
     reward: Reward
 ) {
-    self.inventory.add_reward(&mut player.inventory, reward);
+    InventorySystem::add_reward(&mut player_system.inventory, &mut player.inventory, reward);
 }
 
 machine PlayerSystem::grant_xp(
-    &mut self,
+    player_system: &mut PlayerSystem,
     player: &mut Player,
     amount: u32 in Wrapping
 ) {
     player.xp = player.xp + amount;
 
-    transition player.xp >= self.xp_required(player.level) {
-        true -> level_up(player)
+    transition player.xp >= PlayerSystem::xp_required(player.level) {
+        true -> level_up(player_system, player)
         false -> {}
     }
 
 
     state level_up(
-        &mut self,
+        player_system: &mut PlayerSystem,
         player: &mut Player
     ) {
-        player.xp = max(0, player.xp - self.xp_required(player.level));
+        player.xp = max(0, player.xp - (PlayerSystem::xp_required(player.level) as u32 in Wrapping));
         player.level = player.level + 1;
         player.max_health = player.max_health + 5;
         player.attack = player.attack + 1;
         player.health = player.max_health;
 
-        transition player.xp >= self.xp_required(player.level) {
-            true -> level_up(player)
+        transition player.xp >= PlayerSystem::xp_required(player.level) {
+            true -> level_up(player_system, player)
             false -> {}
         }
     }
 }
 
-machine PlayerSystem::xp_required(
-    &mut self,
-    level: u32 in Wrapping
-    ) -> u32 {
+machine PlayerSystem::xp_required(level: u32 in Wrapping) -> u32 {
     transition {
         _ -> ((10 + level * 5) as u32)
     }

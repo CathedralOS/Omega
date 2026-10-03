@@ -14,33 +14,33 @@ data CombatSystem {
 }
 
 machine CombatSystem::fight(
-    &mut self,
+    combat_system: &mut CombatSystem,
     player: &mut Player,
     event: &mut RoomEvent,
     random: &mut RandomState,
     round: &mut CombatRound
 ) {
-    round.player_damage = max(0, player.attack - event.enemy.defense + ((self.rng.range(random, 3) as i32) as i32 in Wrapping));
+    round.player_damage = max(0, player.attack - event.enemy.defense + ((Random::range(&mut combat_system.rng, random, 3) as i32) as i32 in Wrapping));
     event.enemy.health = max(0, event.enemy.health - round.player_damage);
     round.enemy_defeated = event.enemy.health == 0;
 
     transition round.enemy_defeated {
-        true -> defeated_enemy(player, event, random, round)
-        false -> enemy_retaliates(player, event, random, round)
+        true -> defeated_enemy(combat_system, player, event, random, round)
+        false -> enemy_retaliates(combat_system, player, event, random, round)
     }
 
 
     state defeated_enemy(
-        &mut self,
+        combat_system: &mut CombatSystem,
         player: &mut Player,
         event: &mut RoomEvent,
         random: &mut RandomState,
         round: &mut CombatRound
     ) {
         let reward: Reward;
-        self.rewards.roll_enemy_reward(event.enemy, random, &mut reward);
-        self.player_system.grant_reward(player, reward);
-        self.player_system.grant_xp(player, event.enemy.xp_reward);
+        RewardTables::roll_enemy_reward(&mut combat_system.rewards, event.enemy, random, &mut reward);
+        PlayerSystem::grant_reward(&mut combat_system.player_system, player, reward);
+        PlayerSystem::grant_xp(&mut combat_system.player_system, player, event.enemy.xp_reward);
 
         event.reward = reward;
         event.consumed = true;
@@ -49,14 +49,14 @@ machine CombatSystem::fight(
     }
 
     state enemy_retaliates(
-        &mut self,
+        combat_system: &mut CombatSystem,
         player: &mut Player,
         event: &mut RoomEvent,
         random: &mut RandomState,
         round: &mut CombatRound
     ) {
-        round.enemy_damage = max(0, event.enemy.attack - player.defense + ((self.rng.range(random, 3) as i32) as i32 in Wrapping));
-        self.player_system.take_damage(player, round.enemy_damage);
+        round.enemy_damage = max(0, event.enemy.attack - player.defense + ((Random::range(&mut combat_system.rng, random, 3) as i32) as i32 in Wrapping));
+        PlayerSystem::take_damage(player, round.enemy_damage);
         round.player_defeated = player.health == 0;
     }
 }
