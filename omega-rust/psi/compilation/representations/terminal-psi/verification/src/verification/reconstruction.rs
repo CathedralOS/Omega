@@ -456,7 +456,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
 ) -> Result<ReconstructedMachineSemantics, ModuleError> {
     let context = machine_context::MachineReconstructionContext::new(module, machine, crash_facts);
     let mut primitive_snapshots =
-        primitive_snapshots::PrimitiveSnapshots::new(machine, &context.blocks);
+        primitive_snapshots::PrimitiveSnapshots::new(module, machine, &context.blocks);
     let outcome_exit_guards =
         if let Some(clause) = machine.contract.outcome_specific_ensures.first() {
             exact_payloadless_case_return_exits(machine).ok_or(

@@ -5,7 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use semantic_vocabulary::{
     BlockId, EdgeId, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
-use terminal_psi::{Block, Operation, OperationKind, StructuralAccess, TerminalMachine};
+use terminal_psi::{
+    Block, Operation, OperationKind, StructuralAccess, TerminalMachine, TerminalModule,
+};
 use terminal_semantics::{StructuralEffectAction, structural_effect_semantic_row};
 
 use crate::ModuleError;
@@ -16,6 +18,7 @@ const MAXIMUM_QUERY_WORK: usize = 1_000_000;
 /// Queries stop at exact definitions; they never evaluate source expressions or
 /// use the requested contract to choose an equality.
 pub(super) struct PrimitiveSnapshots<'a> {
+    module: &'a TerminalModule,
     machine: &'a TerminalMachine,
     blocks: &'a BTreeMap<BlockId, &'a Block>,
     predecessors: BTreeMap<BlockId, Vec<(EdgeId, BlockId)>>,
@@ -27,6 +30,7 @@ pub(super) struct PrimitiveSnapshots<'a> {
 
 impl<'a> PrimitiveSnapshots<'a> {
     pub(super) fn new(
+        module: &'a TerminalModule,
         machine: &'a TerminalMachine,
         blocks: &'a BTreeMap<BlockId, &'a Block>,
     ) -> Self {
@@ -47,6 +51,7 @@ impl<'a> PrimitiveSnapshots<'a> {
             }
         }
         Self {
+            module,
             machine,
             blocks,
             predecessors,
@@ -219,6 +224,43 @@ impl<'a> PrimitiveSnapshots<'a> {
                     && !terminal_semantics::structural_paths_may_overlap(written, path))
                     || self.distinct_local_roots(source, destination)
                 {
+                    ReachingEffect::Preserve
+                } else {
+                    ReachingEffect::Unknown
+                },
+            );
+        }
+        if let OperationKind::StructuralScalarFieldStore {
+            destination,
+            ref path,
+            ..
+        } = operation.kind
+        {
+            // An inline field of an original parameter cannot alias a fresh
+            // primitive allocation. Merely different descriptor identities do
+            // not establish this: the canonical projection must stay within
+            // the parameter's inline storage, without a referent/view hop.
+            let inline = self
+                .machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == destination)
+                .and_then(|parameter| {
+                    terminal_semantics::canonical_static_projection(
+                        self.module.structural_types.iter(),
+                        parameter.structural_type,
+                        path,
+                    )
+                })
+                .is_some_and(|(_, declaration)| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Record { .. }
+                            | terminal_psi::StructuralTypeShape::Mixed { .. }
+                    )
+                });
+            return Ok(
+                if inline && self.distinct_local_roots(source, destination) {
                     ReachingEffect::Preserve
                 } else {
                     ReachingEffect::Unknown

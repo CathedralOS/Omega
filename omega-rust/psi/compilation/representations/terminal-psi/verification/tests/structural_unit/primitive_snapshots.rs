@@ -566,3 +566,108 @@ fn primitive_snapshot_fresh_locals_are_disjoint_and_initialization_stays_require
     );
     assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
 }
+
+fn snapshot_with_inline_parameter_write() -> TerminalModule {
+    let mut module = snapshot_module();
+    let field = semantic_vocabulary::StructuralFieldId::new(80).unwrap();
+    let record = structural_type_id(80);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: record,
+        identity: "SnapshotNeighbor".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "counter".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(signed_i8()),
+            }],
+        },
+    });
+    let machine = &mut module.machines[0];
+    let mut neighbor = machine.structural_parameters[0].clone();
+    neighbor.place = place_id(2);
+    neighbor.structural_type = record;
+    machine.structural_parameters = vec![neighbor];
+    machine.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer: operation_id(1),
+        structural_type: structural_type_id(1),
+    };
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(2),
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    });
+    machine.blocks[0].operations[0] = Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(1),
+        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place: place_id(1),
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishPrimitiveLocal { value: value_id(1) },
+    };
+    // The write is between initialization and observation, not after a
+    // previously reconstructed immutable read equality.
+    machine.blocks[0].operations.pop();
+    machine.blocks[0].operations.insert(
+        1,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(3),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: place_id(2),
+                path: Vec::new(),
+                field,
+                value: value_id(2),
+                range_obligation: None,
+            },
+        },
+    );
+    module
+}
+
+#[test]
+fn primitive_snapshot_survives_disjoint_inline_parameter_field_write() {
+    let module = snapshot_with_inline_parameter_write();
+    let bundle = snapshot_bundle(&module);
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("fresh snapshot allocation is disjoint from inline parameter storage");
+
+    let mut changed_initializer = module;
+    changed_initializer.machines[0].blocks[0].operations[0].kind =
+        OperationKind::EstablishPrimitiveLocal { value: value_id(2) };
+    assert!(!has_snapshot(&changed_initializer));
+    assert!(verify_module(&changed_initializer, &bundle, &AdmissionProfile::default()).is_err());
+}
+
+#[test]
+fn primitive_snapshot_inline_write_keeps_possible_parameter_aliases_unknown() {
+    let mut module = snapshot_with_inline_parameter_write();
+    let bundle = snapshot_bundle(&module);
+    let machine = &mut module.machines[0];
+    let mut borrowed = machine.structural_parameters[0].clone();
+    borrowed.place = place_id(1);
+    borrowed.position = 1;
+    borrowed.structural_type = structural_type_id(1);
+    machine.structural_parameters.push(borrowed);
+    machine.structural_places[0].kind = StructuralPlaceKind::Parameter {
+        position: 1,
+        is_self: false,
+    };
+    machine.blocks[0].operations[0] = store(1, 1);
+    assert!(
+        !has_snapshot(&module),
+        "two incoming roots may share backing"
+    );
+    assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+}
