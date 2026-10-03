@@ -233,7 +233,8 @@ pub(crate) fn validate(
     // A `&T` establishment keeps the authored reference type on its root but
     // joins the referent's structural carrier: the planned identity names the
     // record or the borrowed view's slice, not the borrow shell.
-    let view_carrier = borrowed_element_view_referent(checked, reference);
+    let view_carrier = shared_slice_view_referent(checked, reference)
+        .or_else(|| mutable_view_carrier(checked, reference));
     let carrier = shared_borrow_record_referent(checked, reference)
         .or(view_carrier)
         .unwrap_or(reference);
@@ -2288,25 +2289,6 @@ pub(crate) fn shared_borrow_record_referent(
         return None;
     }
     Some(*referee)
-}
-
-/// A non-byte slice uses the ElementView carrier. Byte slices keep their
-/// distinct ByteSequence representation and must not enter this producer lane.
-/// The shell's access is reported, not required.
-fn element_view_shell(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<validation::SliceViewShell> {
-    validation::slice_view_shell(&checked.typed, reference, &[])
-        .filter(|view| checked.primitive_type_reference(view.element) != Some(PrimitiveType::U8))
-}
-
-/// The ElementView carrier a borrowed non-byte slice lends, under any access.
-pub(crate) fn borrowed_element_view_referent(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    element_view_shell(checked, reference).map(|view| view.slice)
 }
 
 /// The carrier a mutable slice binding joins. Both ByteSequence and ElementView

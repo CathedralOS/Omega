@@ -1573,6 +1573,15 @@ fn returned_subslice_materializes_descriptor_home_and_replays_its_producer() {
 
 #[test]
 fn representation_byte_region_replays_endpoints_layout_and_proof_custody() {
+    representation_byte_region_replay(false);
+}
+
+#[test]
+fn representation_byte_region_record_replays_inline_scalar_fields() {
+    representation_byte_region_replay(true);
+}
+
+fn representation_byte_region_replay(record: bool) {
     use super::owned_block_store::id;
     use legalized_operations::LegalizedScalarInstructionKind as K;
     use target_operations::{TargetElementView, TargetElementViewRegion, TargetUnitOperation};
@@ -1589,7 +1598,22 @@ fn representation_byte_region_replays_endpoints_layout_and_proof_custody() {
     declarations.push(StructuralTypeDeclaration {
         id: id(5),
         identity: "Word".into(),
-        shape: StructuralTypeShape::PrimitiveScalar(integer(IntegerSign::Unsigned, 16)),
+        shape: if record {
+            StructuralTypeShape::Record {
+                fields: ["low", "high"]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, identity)| StructuralFieldDeclaration {
+                        id: id(u64::try_from(index + 1).unwrap()),
+                        identity: identity.into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(integer(IntegerSign::Unsigned, 16)),
+                    })
+                    .collect(),
+            }
+        } else {
+            StructuralTypeShape::PrimitiveScalar(integer(IntegerSign::Unsigned, 16))
+        },
     });
     source.structural_types = declarations.into();
     let O::EstablishElementView {
@@ -1604,11 +1628,14 @@ fn representation_byte_region_replays_endpoints_layout_and_proof_custody() {
         end: id(4),
         obligation: id(77),
     };
-    // An odd byte origin is valid: only the six-byte suffix must tile u16.
-    // Descriptor construction must not assert alignment of its backing.
+    // An odd byte origin is valid for scalar and record elements alike.
+    // Independent layout replay must resolve direct scalar fields without
+    // requiring synthetic primitive declarations or asserting base alignment.
+    let stride = if record { 4 } else { 2 };
+    let end = if record { 5 } else { 7 };
     source.functions[0].operations.splice(
         2..2,
-        [(4, 3, 1), (5, 4, 7)].map(|(operation, value, literal)| O::IntegerConstant {
+        [(4, 3, 1), (5, 4, end)].map(|(operation, value, literal)| O::IntegerConstant {
             psi_operation: id(operation),
             result: id(value),
             scalar_type: integer(IntegerSign::Unsigned, 64),
@@ -1620,7 +1647,7 @@ fn representation_byte_region_replays_endpoints_layout_and_proof_custody() {
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    let goal = terminal_semantics::representation_region_goal(id(3), id(4), 8, 2).unwrap();
+    let goal = terminal_semantics::representation_region_goal(id(3), id(4), 8, stride).unwrap();
     let fact = optimization_unit::AcceptedObligationFact::new(
         seed.psi,
         [4; 32],

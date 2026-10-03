@@ -1175,3 +1175,91 @@ fn representation_view_region_replays_exact_offset_occurrence_and_extent() {
         "only the authored recast owns this operand role"
     );
 }
+
+#[test]
+fn mutable_byte_region_establishment_replays_carrier_and_affine_custody() {
+    let checked = crate::front_end::checked_program(
+        "data Storage where offset <= 4 { bytes: [u8; 8]; offset: u32; }
+         machine run(storage: &mut Storage) {
+             let view: &mut [u8] = &mut storage.bytes[storage.offset] as &mut [u8];
+             transition view.len > 0 {
+                 true -> finish(view)
+                 _ -> empty()
+             }
+             state finish(view: &mut [u8]) {}
+             state empty() {}
+         }",
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .unwrap();
+    let state = checked.machine_states(machine)[0].symbol;
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let graph = plans
+        .composed_for_machine(machine.symbol)
+        .expect("retained view forwarding graph");
+    let operation = graph
+        .states
+        .iter()
+        .find(|row| row.state == state)
+        .unwrap()
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            )
+        })
+        .expect("ordinary descriptor establishment");
+    validate(&checked, machine.symbol, state, operation)
+        .expect("mutable byte descriptor retains its slice carrier");
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation else {
+        unreachable!()
+    };
+    let root = checked
+        .facts
+        .values
+        .structural_values
+        .roots
+        .iter()
+        .find(|(_, root)| root.root == *value)
+        .map(|(_, root)| root)
+        .unwrap();
+    for mutation in 0..2 {
+        let mut forged = operation.clone();
+        let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } = &mut forged
+        else {
+            unreachable!()
+        };
+        if mutation == 0 {
+            result.type_identity = checked
+                .normalized_type_identity(root.type_reference)
+                .into_string();
+        } else {
+            result.multiplicity = language_semantics::Multiplicity::Unrestricted;
+        }
+        assert!(
+            validate(&checked, machine.symbol, state, &forged).is_err(),
+            "the authored reference shell cannot replace descriptor storage or erase affine custody"
+        );
+    }
+    let mut forged = checked.clone();
+    let CheckedStructuralValueKind::MutableSliceView { source, .. } = &mut forged
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get_mut(*value)
+        .kind
+    else {
+        panic!("mutable region")
+    };
+    source.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+    assert!(
+        validate(&forged, machine.symbol, state, operation).is_err(),
+        "the captured source access remains exact"
+    );
+}

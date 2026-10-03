@@ -3545,41 +3545,47 @@ completion syntax or other terminal service is a prerequisite.
   judgment and supported positions are documented in
   [checking/recasts.md](omega-rust/psi/compilation/checking/recasts.md).
 
-  On macOS ARM64, with this change on base `921839635adb`,
-  `omega run --both tests/omega/pass/recast/runtime_aggregate_slice_representation_recast_exit/main.omg`
-  exits **70** in both engines after ordinary package review. Whole typed-array
-  views retain distinct source/target field identities, bounded integer and
-  Boolean validity, padded element stride and the original mutable cells.
-  `ElementViewWrite` carries the projected path and independently proves the
-  target leaf's range as well as its index bound. Runtime-offset byte regions
-  retain their separate total-validity and exact-tiling contract. Keep
-  `runtime_interior_slice_congruent_offset_exit` as the captured-region control.
+  On macOS ARM64, with this change on base `e2c0e9d0e62`, ordinary package
+  preparation followed by `omega run --both` executes
+  `runtime_interior_slice_view_mutable_write_exit` with native/interpreter exit
+  **70**. A runtime-offset byte descriptor survives state forwarding; projected
+  record writes update the original byte backing. Each loan ends before the
+  receiver checks its backing. Whole typed-array recasts retain their distinct
+  field identities, bounded/Boolean validity and padded stride in
+  `runtime_aggregate_slice_representation_recast_exit`, also **70** in both
+  engines. `runtime_interior_slice_congruent_offset_exit` remains the
+  multi-byte captured-region control.
 
-  `python3 tools/corpus_gate.py --both --filter recast/` measures 18 pass-tier
-  fixtures: 15 execute with native/interpreter exit **70**, one Linux-only
-  fixture builds, one remains compile-only, and the remaining executable
-  customer `runtime_interior_slice_view_mutable_write_exit` rejects its direct
-  receiver reads of backing still held by mutable `tail` and `pairs` formals.
-  Move those observations across the state edge that drops each loan, as the
-  existing interior control does, then carry its runtime byte-family slice and
-  byte-backed record field writes through the same descriptor path. Do not
-  weaken the loan rule: `interior_slice_exclusive_backing_read` pins it.
-  Formation is owned by stage 04 `values/scalar/computations/slice_view.rs`,
-  source replay by stage 05 `expression_preparation/source_custody/structural`,
-  and independent geometry/validity by Terminal `semantics` and `verification`.
+  The recast differential gate now has 16 executable fixtures returning **70**
+  in both engines, one Linux-only fixture that builds, and one intentionally
+  compile-only fixture. Keep the independent extent, tiling, access and backing
+  loan checks; `interior_slice_exclusive_backing_read` must still reject.
+
+  Remaining first frontier: the inline state-argument equivalent of the
+  interior byte fixture, passing
+  `&mut main.tail_bytes[main.k] as &mut [u8]` directly to `write_tail`, rejects
+  with `argument tail for state write_tail expects &mut [u8], got cast
+  expression`. Argument correspondence must use the recast's exact declared
+  target, including generic substitutions, while retaining the independent
+  recast and borrow judgments. Stage 04 then needs the same view construction
+  under its exact transition operand rather than only a `LocalData` owner.
+  Reuse `EstablishedValue { operands, establishment }` after edge selection;
+  preserve an affine descriptor producer separately from its borrowed formal.
+  Stage 05 must replay that same source occurrence and custody. No new
+  representation or special pipeline entry is needed.
 
   `runtime_recast_record_view_indexed_write_exit` binds only Linux x86-64;
   retain its native exit-70 acceptance on that host. `nested_operand_view_compile`
   intentionally has no executable entry. Shared and mutable typed views must
-  continue to preserve source qualifications; an unrelated domain cannot be
-  retained across mutation merely because leaf layouts match.
+  preserve source qualifications; equal leaf layouts alone cannot preserve an
+  arbitrary relational domain across mutation.
 
-  Acceptance: the remaining interior byte/record customer and let-bound/inline
-  equivalents execute with writes visible through the original backing.
-  Run the recast native gate on matching hosts and require authored results.
-  Incompatible geometry/validity, access escalation and conflicting backing
-  access reject at their source locations. Keep proof-only and placed-storage
-  recasts fenced, with precise symbolic and boundary-witness refusals.
+  Acceptance: let-bound and inline equivalents execute with writes visible
+  through the original backing. Run the recast native gate on matching hosts
+  and require authored results. Incompatible geometry/validity, access
+  escalation and conflicting backing access reject at their source locations.
+  Keep proof-only and placed-storage recasts fenced, with precise symbolic and
+  boundary-witness refusals.
 
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
   preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),

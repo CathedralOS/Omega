@@ -187,7 +187,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             && structural_values::is_shared_borrow_value(
                                 program, expression, expected,
                             ))
-                        // A `&[T]` view local lends an existing collection the
+                        // A shared or mutable slice local lends a collection the
                         // same way `&place` lends a record: its value is the
                         // lent place under the loan checked borrow admission
                         // already recorded, so it belongs to the same
@@ -195,15 +195,6 @@ pub(crate) fn build_checked_value_computation_plans(
                         // of its own.
                         || (matches!(statement, StatementNode::LocalData(_))
                             && structural_values::is_borrowed_slice_view_value(program, expected))
-                        // A `&[u8]` byte view lends the same contiguous
-                        // storage a `&[T]` element view does; the byte
-                        // carrier's structural shape is `ByteSequence`, so it
-                        // misses the element shell and names itself through
-                        // `borrowed_slice_view` instead.
-                        || (matches!(statement, StatementNode::LocalData(_))
-                            && crate::execution::terminal_unit::types::borrowed_slice_view(
-                                program, expected,
-                            ))
                         // A `[copy]` element of a view copies through element
                         // reads; its value node owns the selection.
                         || (matches!(statement, StatementNode::LocalData(_))

@@ -830,16 +830,9 @@ fn established_source(
         if layout.size != u64::from(element_stride)
             || layout.alignment != u64::from(element_shape.alignment)
             || layout.leaves.iter().any(|leaf| {
-                crate::lowering::structural_layout::primitive_leaf_projection(
-                    element,
-                    &leaf.path,
-                    structural_types,
-                )
-                .is_none_or(|(scalar, offset, indices)| {
-                    scalar != leaf.scalar_type
-                        || u64::from(offset) != leaf.offset
-                        || !indices.is_empty()
-                })
+                scalar_leaf_offset(structural_types, element, &leaf.path, leaf.scalar_type)
+                    .map(u64::from)
+                    != Some(leaf.offset)
             })
         {
             return Err(invalid());

@@ -1255,3 +1255,189 @@ fn representation_element_view_reads_exact_normalized_record_leaf() {
 }
 
 mod typed;
+
+fn representation_byte_descriptor() -> (TerminalExecution, Operation) {
+    let (mut execution, mut operation, _) = representation_byte_collection();
+    let OperationKind::EstablishMutableElementView { element, .. } = &mut operation.kind else {
+        unreachable!()
+    };
+    *element = StructuralTypeId::new(1).unwrap();
+    let program = Arc::get_mut(&mut execution.program).unwrap();
+    program
+        .structural_types
+        .get_mut(&StructuralTypeId::new(2).unwrap())
+        .unwrap()
+        .shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::MutableBorrow),
+        });
+    program
+        .machines
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .blocks
+        .get_mut(&execution.current)
+        .unwrap()
+        .operations[0] = operation.clone();
+    for (number, value) in [(1, 3), (2, 8), (3, 5), (4, 4)] {
+        execution.values.insert(
+            ValueId::new(number).unwrap(),
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                value: IntegerValue::Unsigned(value),
+            },
+        );
+    }
+    (execution, operation)
+}
+
+#[test]
+fn representation_byte_view_captures_window_and_writes_original_backing() {
+    use crate::byte_sequences::binding::ByteSequenceBinding;
+    let (mut execution, operation) = representation_byte_descriptor();
+    execution
+        .execute_establish_element_view(&operation)
+        .unwrap();
+    let destination = PlaceId::new(2).unwrap();
+    assert_eq!(execution.byte_sequence_length(destination).unwrap(), 5);
+    assert!(matches!(
+        execution.byte_sequence_values[&destination],
+        ByteSequenceBinding::MutableArray {
+            offset: 3,
+            length: 5,
+            ..
+        }
+    ));
+    assert!(!execution.element_view_values.contains_key(&destination));
+    assert!(
+        execution
+            .live_affine_frontier
+            .iter()
+            .any(|row| row.place == destination)
+    );
+    // Changing the formation operand cannot move the already captured window.
+    execution.values.insert(
+        ValueId::new(1).unwrap(),
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            value: IntegerValue::Unsigned(0),
+        },
+    );
+    execution.values.insert(
+        ValueId::new(6).unwrap(),
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            value: IntegerValue::Unsigned(9),
+        },
+    );
+    execution
+        .execute_byte_sequence_write(&Operation {
+            id: semantic_vocabulary::OperationId::new(20).unwrap(),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Unit,
+            kind: OperationKind::ByteSequenceWrite {
+                destination,
+                index: ValueId::new(4).unwrap(),
+                value: ValueId::new(6).unwrap(),
+                length: ValueId::new(3).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(20).unwrap(),
+            },
+        })
+        .unwrap();
+    assert_eq!(
+        execution.structural_byte_array(100, &[]).unwrap(),
+        &[0, 1, 2, 3, 4, 5, 6, 9]
+    );
+    let binding = &execution.byte_sequence_values[&destination];
+    let referent = &execution.structural_values[&destination];
+    let (nested_referent, nested) = execution
+        .narrow_byte_sequence_binding(
+            binding,
+            referent,
+            1..3,
+            StructuralAccess::MutableBorrow,
+            referent.clone(),
+        )
+        .unwrap();
+    assert!(matches!(
+        nested,
+        ByteSequenceBinding::MutableArray {
+            offset: 4,
+            length: 2,
+            ..
+        }
+    ));
+    nested
+        .validate_mutable_referent(&execution.program.structural_types, &nested_referent)
+        .unwrap();
+    let mut shared_referent = referent.clone();
+    shared_referent.path.clear();
+    let (shared_referent, shared) = execution
+        .narrow_byte_sequence_binding(
+            binding,
+            referent,
+            1..3,
+            StructuralAccess::SharedBorrow,
+            shared_referent,
+        )
+        .unwrap();
+    assert_eq!(shared.immutable().unwrap().bytes(), &[4, 5]);
+    assert!(
+        execution
+            .narrow_byte_sequence_binding(
+                &shared,
+                &shared_referent,
+                0..1,
+                StructuralAccess::MutableBorrow,
+                shared_referent.clone(),
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn representation_byte_view_rejects_bounds_and_access_before_publication() {
+    for mutation in ["end", "reversed", "access"] {
+        let (mut execution, mut operation) = representation_byte_descriptor();
+        match mutation {
+            "end" | "reversed" => {
+                execution.values.insert(
+                    ValueId::new(2).unwrap(),
+                    TerminalScalarValue::Integer {
+                        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        value: IntegerValue::Unsigned(if mutation == "end" { 9 } else { 2 }),
+                    },
+                );
+            }
+            "access" => {
+                let OperationKind::EstablishMutableElementView { source, .. } = &mut operation.kind
+                else {
+                    unreachable!()
+                };
+                source.access = StructuralAccess::SharedBorrow;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            execution
+                .execute_establish_element_view(&operation)
+                .is_err(),
+            "{mutation}"
+        );
+        let destination = PlaceId::new(2).unwrap();
+        assert!(
+            !execution.structural_values.contains_key(&destination),
+            "{mutation}"
+        );
+        assert!(
+            !execution.byte_sequence_values.contains_key(&destination),
+            "{mutation}"
+        );
+        assert!(execution.live_affine_frontier.is_empty(), "{mutation}");
+        assert_eq!(
+            execution.structural_byte_array(100, &[]).unwrap(),
+            &[0, 1, 2, 3, 4, 5, 6, 7]
+        );
+    }
+}
