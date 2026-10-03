@@ -22,3 +22,6 @@ language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
+
+[dev-dependencies]
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }

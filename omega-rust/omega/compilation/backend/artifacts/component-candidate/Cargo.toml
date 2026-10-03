@@ -15,3 +15,6 @@ native-artifact = { path = "../native-artifact" }
 target = { path = "../../target" }
 image-emission = { path = "../../images/image-emission" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+
+[dev-dependencies]
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
