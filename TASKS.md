@@ -177,6 +177,10 @@ execution and native exit/output. A moved refusal is still unfinished work.
     now rejects instead of keeping compatibility alive while customers migrate;
     a fixture stopped by that diagnostic is unfinished migration, not evidence
     that its underlying ownership or execution behavior was checked.
+    Build declarations obey the same cut: use `Build::package(builder, name)`
+    and `Build::depend(builder, source)`, not receiver-style calls. Migrate the
+    remaining build files and package-manager fixtures; do not restore implicit
+    builder insertion in their projector or generated prelude.
     `STATIC-DERIVED-ACCESSOR-SUBJECT` owns generated placed-accessor parameter
     substitution and the remaining accessor call sites.
   - Replace special receiver signatures, lookup, argument insertion, state carry

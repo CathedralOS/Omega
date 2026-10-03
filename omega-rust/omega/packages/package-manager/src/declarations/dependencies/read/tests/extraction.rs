@@ -12,9 +12,9 @@ fn projects_path_and_git_requests_in_authored_order() {
     let fixture = PackageFixture::with_source(
         r#"
         machine build(builder: &mut Build) {
-            builder.application("dependency_projection_probe");
-            builder.depend(Source::Path { location: "../local" });
-            builder.depend_as("arithmetic_kernels", Source::Git {
+            Build::application(builder, "dependency_projection_probe");
+            Build::depend(builder, Source::Path { location: "../local" });
+            Build::depend_as(builder, "arithmetic_kernels", Source::Git {
                 revision: "0123456789abcdef",
                 repository: "ssh://git@github.com/CathedralOS/example.git"
             });
@@ -49,11 +49,11 @@ fn projects_product_and_build_requests_in_scoped_authored_order() {
     let fixture = PackageFixture::with_source(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("dual_scope");
-            builder.depend(Source::Path { location: "../product-a" });
-            builder.build_depend(Source::Path { location: "../host-a" });
-            builder.depend_as("product_b", Source::Path { location: "../product-b" });
-            builder.build_depend_as("host_b", Source::Path { location: "../host-b" });
+            Build::package(builder, "dual_scope");
+            Build::depend(builder, Source::Path { location: "../product-a" });
+            Build::build_depend(builder, Source::Path { location: "../host-a" });
+            Build::depend_as(builder, "product_b", Source::Path { location: "../product-b" });
+            Build::build_depend_as(builder, "host_b", Source::Path { location: "../host-b" });
         }
         "#,
     );
