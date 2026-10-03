@@ -34,19 +34,34 @@ pub fn call_type_arguments(
     for selected in selected {
         let actual = if selected.type_reference.is_valid() {
             Some(selected.type_reference)
-        } else if selected.symbol.is_valid()
-            && matches!(
-                program.symbols.get(selected.symbol).kind,
-                symbols::SymbolKind::BuiltinType
-                    | symbols::SymbolKind::Data
-                    | symbols::SymbolKind::TypeParameter
-            )
-        {
-            Some(
-                program
-                    .type_reference_table
-                    .find_named_type_reference(selected.symbol)?,
-            )
+        } else if selected.symbol.is_valid() {
+            let is_type = match program.symbols.get(selected.symbol).kind {
+                symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data => true,
+                symbols::SymbolKind::TypeParameter => {
+                    // Type, const and runtime-value binders share a symbol kind.
+                    // Only a declared type binder consumes a type ordinal. Read
+                    // the retained declaration arena: specialization may already
+                    // have removed the binder from the caller's live span.
+                    let parameter =
+                        program
+                            .data_type_parameters
+                            .iter()
+                            .find_map(|(_, parameter)| {
+                                (parameter.symbol == selected.symbol).then_some(parameter)
+                            })?;
+                    matches!(parameter.kind, TypeParameterKind::Type)
+                }
+                _ => false,
+            };
+            if is_type {
+                Some(
+                    program
+                        .type_reference_table
+                        .find_named_type_reference(selected.symbol)?,
+                )
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -142,4 +157,72 @@ pub(super) fn validate_resolved_call_arguments(
         },
         diagnostics,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forwarded_value_and_const_binders_do_not_consume_type_ordinals() {
+        let program = crate::front_end::typed_program(
+            "machine caller<Element, Count: u32, const Limit: u32>(value: Element) -> u32 { Count }
+             machine callee<Count: u32, Value, const Limit: u32>(value: Value) -> u32 { Count }",
+        );
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .expect("caller");
+        let callee = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "callee")
+            .expect("callee");
+        let parameters = program.machine_type_parameters(caller);
+        let selection = |symbol| StaticMachineArgument {
+            type_reference: TypeReferenceHandle::invalid(),
+            path: Box::new([]),
+            application: None,
+            const_literal: None,
+            evidence_projection: None,
+            symbol,
+        };
+        let selected = [
+            selection(parameters[1].symbol),
+            selection(parameters[0].symbol),
+            selection(parameters[2].symbol),
+        ];
+        let entry = &program.machine_states(callee)[0];
+        let bindings =
+            call_type_arguments(&program, caller, None, callee, entry, &selected, &[], false)
+                .expect("only Element binds the callee's Value type parameter");
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(
+            bindings[0].0,
+            program.machine_type_parameters(callee)[1].symbol
+        );
+        assert_eq!(
+            program.type_reference_symbol(bindings[0].1),
+            parameters[0].symbol,
+        );
+        let duplicate_type = [
+            selection(parameters[0].symbol),
+            selection(parameters[0].symbol),
+        ];
+        assert!(
+            call_type_arguments(
+                &program,
+                caller,
+                None,
+                callee,
+                entry,
+                &duplicate_type,
+                &[],
+                false,
+            )
+            .is_none(),
+            "an extra actual type still rejects instead of being ignored",
+        );
+    }
 }

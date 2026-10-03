@@ -1,0 +1,24 @@
+// Forward the captured runtime value under the generic caller's own bound.
+// The value binder must not become a static type argument at the nested call.
+machine bounded<Count: u32>(base: u32) -> u32
+requires Count <= 10;
+{
+    Count
+}
+
+machine forward<K: u32>(base: u32) -> u32
+requires K <= 10;
+{
+    bounded<K>(base)
+}
+
+machine main() crashes Trap {
+    let count: u32 = 3;
+    let result: u32 = forward<count>(7);
+    transition result == 3 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -4527,7 +4527,15 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `tests/runtime_value_generics.rs` and
   `tests/omega/pass/generics/runtime_value_generic_subject_exit/`: these cover
   narrower scalar calls, indexed access and generic checking, not full data-index
-  execution. The corpus canary binds four hosted targets; verify each host's
+  execution. `runtime_forwarded_value_contract_exit` now forwards a runtime
+  binder through a nested required call and checks the returned 3; native and
+  checked interpretation both exit 0 on macOS ARM64 with `omega run --both
+  tests/omega/pass/generics/runtime_forwarded_value_contract_exit/main.omg`.
+  Checking distinguishes type selections from forwarded value/const binders by
+  declared kind. Mixed type/value scalar calls retain their separate bindings;
+  forwarding a generic result type still exposes an unsubstituted callee type
+  in the caller's inferred hoist, so result transport remains unfinished.
+  The corpus canaries bind four hosted targets; verify each host's
   native outcome separately. No hidden boxing, maximum-range stack reservation,
   runtime per-value code generation or specialization inferred from integer
   finiteness.

@@ -70,3 +70,44 @@ fn forwarded_requires_subject_replays_through_the_nested_callee() {
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 3);
 }
+
+#[test]
+fn forwarded_mixed_type_and_value_binders_preserve_their_separate_bindings() {
+    let outcome = execute(
+        "machine bounded<Count: u32, Element [copy]>(value: Element) -> u32
+         requires Count <= 10;
+         { Count }
+         machine forward<Value [copy], K: u32>(value: Value) -> u32
+         requires K <= 10;
+         { bounded<K, Value>(value) }
+         machine main() -> i64 {
+             let count: u32 = 3;
+             forward<i64, count>(17) as i64
+         }",
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 3);
+}
+
+#[test]
+fn forwarding_a_value_binder_does_not_discharge_its_missing_requirement() {
+    let diagnostics = crate::front_end::checked_program_result(
+        "machine bounded<Count: u32>(base: u32) -> u32
+         requires Count <= 10;
+         { Count }
+         machine forward<K: u32>(base: u32) -> u32 { bounded<K>(base) }
+         machine main() -> i64 { let count: u32 = 3; forward<count>(7) as i64 }",
+    )
+    .expect_err("the generic body cannot borrow the concrete caller's bound");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "expected an undischarged requires obligation: {diagnostics:#?}",
+    );
+    assert!(diagnostics.iter().all(|diagnostic| {
+        !diagnostic
+            .message
+            .contains("invalid static type argument correspondence")
+    }));
+}
