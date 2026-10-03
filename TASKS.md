@@ -139,8 +139,7 @@ execution and native exit/output. A moved refusal is still unfinished work.
 - **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
   `samples/cli/games/dungeon_crawler_cli` holds 253 of the 458 receiver
   declarations left in the tree -- 55% of the migration -- and its rewrite is
-  finished and sound. It is blocked on a MEASUREMENT, not on a compiler
-  refusal.
+  finished and sound. It is blocked on BUILD COST.
   The rewrite checks. `omega --check` on the migrated 18-file app completes in
   about 62 seconds with no diagnostics, which it could not do before
   fbbbc0253983 (projected arguments compose per argument). Three earlier walls
@@ -152,22 +151,21 @@ execution and native exit/output. A moved refusal is still unfinished work.
   boundary-trait requirement was touched, and the three signatures that lost
   their subject (`MazeBuilder::{blank_exit,empty_enemy,empty_reward}`) have
   bodies that never read the data and call sites that pass none.
-  What is unknown: whether its full NATIVE build terminates. It exceeds 1500
-  seconds. That cannot be settled in this environment -- a foreground command
-  is capped at 600 seconds, a larger `--timeout` is silently clamped, and both
-  `run_in_background` and a `nohup`-disowned launch are killed when the
-  spawning call ends, leaving a zero-byte log that looks like a crash. Its
-  baseline is a FAST failure (`lowering unsupported: borrowed argument changed
-  its checked access or target custody`), so an unbounded build is not
-  obviously an improvement and the sample rule -- a migration may not make a
-  sample fail earlier -- cannot be applied either way.
-  Next step for whoever has the budget: run
-  `tools/sample_native_gate.py --filter games/dungeon_crawler_cli --timeout 5400`
-  to completion on the saved rewrite and compare against the documented exit.
-  If it terminates and meets its oracle, the migration lands as-is. If the
-  build itself is the defect, the cost of planning an app this size is the
-  finding, and `--check` at 62 seconds says the cost is in lowering or
-  codegen, not in checking.
+  The cost is measured, not unknown. `tools/sample_native_gate.py --filter
+  games/dungeon_crawler_cli --timeout 3000` TIMED OUT: the migrated app's
+  native build exceeds 3000 seconds. Checking takes 62 of those seconds, so
+  the remaining time is in lowering, optimization or codegen, not in Psi.
+  That is why the migration is not landed. The app's baseline is a FAST
+  failure (`lowering unsupported: borrowed argument changed its checked access
+  or target custody`), and trading a prompt diagnostic for a fifty-minute
+  build that may never terminate is not an improvement the sample rule -- a
+  migration may not make a sample fail earlier -- can bless.
+  Next step, and it is a PERFORMANCE question rather than a migration one:
+  profile where the native build spends its time on this app. An 18-file
+  application whose checking costs 62 seconds and whose lowering costs more
+  than 3000 is a compiler cost defect that the migration exposes rather than
+  causes; the receiver spelling never reached lowering here, so it never paid
+  it. The rewrite itself is ready to land the moment that build terminates.
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
