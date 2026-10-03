@@ -1,0 +1,31 @@
+// State-arrival contract carrying a byte predicate: the transition guard's
+// `valid_utf8(view)` mints the predicate fact on the canonical place, and
+// the target state's `requires` discharges it as a block invariant on that
+// arriving edge. Sibling of state_arrival_contract_guarded_compile for the
+// byte-predicate atom; the unguarded shape refuses under
+// fail/dependent/state_arrival_byte_predicate_unproven_rejected.
+domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+data Main {
+    buffer: [u8; 8];
+    result: u64;
+}
+
+machine Main::main(main: &mut Main) {
+    main.buffer[0] = 65;
+    main.result = 0;
+    let view: &[u8] = main.buffer[0..1];
+    transition valid_utf8(view) {
+        true -> checked(main, view)
+        false -> bad()
+    }
+    state checked(main: &mut Main, view: &[u8])
+    requires
+        valid_utf8(view)
+    {
+        main.result = view.len;
+    }
+    state bad() { }
+}
