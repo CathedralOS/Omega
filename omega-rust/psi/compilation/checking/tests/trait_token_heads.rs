@@ -35,7 +35,7 @@ fn typed_spellings(head: &str) -> Vec<Option<String>> {
     );
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     validation::validate_program(&typed).expect("validate");
     let ranked = typed

@@ -55,7 +55,7 @@ fn typed_fixture(source: &str) -> TypedTrees {
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse provider fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve provider fixture");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -76,7 +76,7 @@ fn typed_fixture_with_source(file_name: &str, source: &str) -> TypedTrees {
         .expect("parse provider fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(std::sync::Arc::new(sources)),
             top_level_bindings: Vec::new(),
         },
@@ -236,7 +236,7 @@ fn selected_operator_binding_fixture() -> (checked_trees::CheckedTrees, Provider
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse selected-operator binding fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve selected-operator binding fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

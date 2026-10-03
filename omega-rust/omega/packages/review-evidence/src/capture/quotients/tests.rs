@@ -181,7 +181,7 @@ fn try_quotient_program(sources: &[([u8; 32], &str, String)]) -> Result<TypedTre
         tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens).expect("parse fixture");
     }
     let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(source_map)),
         top_level_bindings: Vec::new(),
     })

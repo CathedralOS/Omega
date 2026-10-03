@@ -111,7 +111,7 @@ fn evaluate_application_group(
     if !applications.is_empty() {
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
+                syntax: syntax.clone(),
                 sources: sources.clone(),
                 top_level_bindings: source_scoped_top_level_bindings.to_vec(),
             },
@@ -147,19 +147,15 @@ fn evaluate_application_group(
     if !applications.is_empty() {
         let mut const_arguments =
             syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                    syntax: &syntax,
-                    sources: sources.clone(),
-                    top_level_bindings: source_scoped_top_level_bindings.to_vec(),
-                },
+                &syntax,
+                sources.clone(),
+                source_scoped_top_level_bindings.to_vec(),
             )?;
         const_arguments.extend(
             syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                    syntax: &syntax,
-                    sources: sources.clone(),
-                    top_level_bindings: source_scoped_top_level_bindings.to_vec(),
-                },
+                &syntax,
+                sources.clone(),
+                source_scoped_top_level_bindings.to_vec(),
             )?,
         );
         for (type_reference, expression) in &applications {
@@ -218,8 +214,7 @@ fn evaluate_application_group(
         source_scoped_top_level_bindings,
         None,
     )?;
-    let resolved =
-        crate::syntax_probes::resolve(&probe, sources, source_scoped_top_level_bindings)?;
+    let resolved = crate::syntax_probes::resolve(probe, sources, source_scoped_top_level_bindings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     // This pre-resolution probe has no Omega provider plan. Keep authored

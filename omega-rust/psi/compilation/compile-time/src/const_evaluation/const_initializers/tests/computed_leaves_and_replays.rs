@@ -48,7 +48,7 @@ fn computed_record_leaves_preserve_payloadless_case_siblings() {
         )
     );
     syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&evaluated),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(evaluated),
     )
     .expect("case identity survives evaluation and receipt replay");
 }

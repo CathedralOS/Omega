@@ -204,7 +204,7 @@ mod tests {
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
             .expect("parse layout-query fixture");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
         )
         .expect("resolve layout-query fixture");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -450,7 +450,7 @@ mod tests {
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
             .expect("parse machine-operand fixture");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
         )
         .expect("resolve machine-operand fixture");
         let diagnostic =

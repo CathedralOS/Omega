@@ -23,7 +23,7 @@ fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagn
         tokens_to_syntax_trees::parse(&mut syntax, source, &tokens).expect("parse case selection");
     }
     crate::resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })

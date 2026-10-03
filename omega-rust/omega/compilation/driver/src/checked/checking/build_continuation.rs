@@ -177,7 +177,7 @@ pub(super) fn lower_typed_frontier(
         || {
             syntax_trees_to_symbol_resolved_trees::resolve(
                 syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                    syntax: &syntax.syntax_trees,
+                    syntax: syntax.syntax_trees,
                     sources: Some(syntax.sources),
                     top_level_bindings: syntax.source_scoped_top_level_bindings,
                 },
@@ -255,7 +255,7 @@ fn continue_generated_sources(
             syntax_trees_to_symbol_resolved_trees::resolve_extension(
                 syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
                     base: resolved_base,
-                    syntax: &extension_syntax,
+                    syntax: extension_syntax,
                     sources,
                     top_level_bindings: Vec::new(),
                 },

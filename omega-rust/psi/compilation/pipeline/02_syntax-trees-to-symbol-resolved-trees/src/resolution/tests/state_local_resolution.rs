@@ -24,7 +24,7 @@ fn state_contract_value_arguments_share_the_explicit_frontier() {
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize"))
         .expect("parse projected contract values");
     let program =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve projected contract values");
+        resolve(ResolutionRequest::new(syntax)).expect("resolve projected contract values");
     let machine = &program.machines[0];
     let state = program.machine_state(program.machine_state_handles(machine.states)[1]);
     let parameters = program.state_parameters(state.parameters);
@@ -94,7 +94,7 @@ fn computed_receiver_does_not_select_a_same_spelling_free_machine() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let program = resolve(ResolutionRequest::new(syntax)).expect("resolve");
         let machine = program
             .machines
             .iter()
@@ -205,7 +205,7 @@ fn local_call_targets_follow_prior_declarations_not_receiver_spelling() {
         );
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let program = resolve(ResolutionRequest::new(syntax)).expect("resolve");
         let expected = program
             .machines
             .iter()

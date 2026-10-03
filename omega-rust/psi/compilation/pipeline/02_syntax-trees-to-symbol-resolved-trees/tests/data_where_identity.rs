@@ -28,7 +28,7 @@ fn data_where_fields_and_static_parameters_receive_exact_local_symbols() {
     .tokenize()
     .expect("tokenize data invariant");
     let syntax = parse_syntax_trees(&tokens).expect("parse data invariant");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve data invariant");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve data invariant");
 
     let definition = program
         .data_definitions
@@ -90,7 +90,7 @@ fn unresolved_template_facts_stay_gated_until_concrete_instantiation() {
         let source = format!("data Buffer<const N: u64> where {fact}, {{ count: u64; }}");
         let tokens = Lexer::new(&source).tokenize().expect("tokenize template");
         let syntax = parse_syntax_trees(&tokens).expect("parse template");
-        let program = resolve(ResolutionRequest::new(&syntax)).expect("retain open template facts");
+        let program = resolve(ResolutionRequest::new(syntax)).expect("retain open template facts");
         let definition = program.data_definitions.iter().next().expect("template");
         assert!(
             definition.zero_gated,
@@ -115,7 +115,7 @@ fn data_where_zero_classification_retains_unknown_predicates() {
         let source = format!("data Sample where {fact}, {{ value: {carrier}; }}");
         let tokens = Lexer::new(&source).tokenize().expect("tokenize predicate");
         let syntax = parse_syntax_trees(&tokens).expect("parse predicate");
-        let program = resolve(ResolutionRequest::new(&syntax)).expect("retain predicate");
+        let program = resolve(ResolutionRequest::new(syntax)).expect("retain predicate");
         let definition = program.data_definitions.iter().next().expect("sample");
         assert_eq!(definition.zero_gated, zero_gated, "{carrier}: {fact}");
         let [ProofFact::Expression(_)] = program.proof_facts(definition.where_facts) else {
@@ -133,7 +133,7 @@ fn unresolved_zero_predicates_keep_exact_callable_identity() {
     .tokenize()
     .expect("tokenize callable predicate");
     let syntax = parse_syntax_trees(&tokens).expect("parse callable predicate");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve callable predicate");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve callable predicate");
     let definition = program.data_definitions.iter().next().expect("sample");
     assert!(
         definition.zero_gated,
@@ -179,7 +179,7 @@ fn data_zero_gating_preserves_membership_and_first_case_contributions() {
     .tokenize()
     .expect("tokenize independent gates");
     let syntax = parse_syntax_trees(&tokens).expect("parse independent gates");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve independent gates");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve independent gates");
     for (name, zero_gated) in [
         ("Membership", true),
         ("FirstRejected", true),

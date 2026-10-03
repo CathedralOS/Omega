@@ -75,7 +75,7 @@ fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table
             .collect::<Vec<_>>();
         let preparation =
             crate::resolution::prepare_const_initializer_selection(crate::ResolutionRequest {
-                syntax: &syntax,
+                syntax: syntax.clone(),
                 sources: Some(sources.clone()),
                 top_level_bindings: Vec::new(),
             })
@@ -131,7 +131,7 @@ fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table
             syntax.items.replace_item(*item, Item::Const(definition));
         }
         crate::resolve(crate::ResolutionRequest {
-            syntax: &syntax,
+            syntax: syntax.clone(),
             sources: Some(sources.clone()),
             top_level_bindings: Vec::new(),
         })
@@ -151,7 +151,7 @@ fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table
             .replace_item(definitions[1].0, Item::Const(declaration));
         assert!(
             crate::resolve(crate::ResolutionRequest {
-                syntax: &changed,
+                syntax: changed,
                 sources: Some(sources),
                 top_level_bindings: Vec::new()
             })
@@ -265,7 +265,7 @@ fn initializer_receipt_rejects_changed_or_missing_custody() {
         }
         syntax.items.replace_item(item, Item::Const(definition));
         assert!(
-            crate::resolve(crate::ResolutionRequest::new(&syntax)).is_err(),
+            crate::resolve(crate::ResolutionRequest::new(syntax)).is_err(),
             "mutation {mutation}"
         );
     }
@@ -274,7 +274,7 @@ fn initializer_receipt_rejects_changed_or_missing_custody() {
 #[test]
 fn unary_initializer_receipt_rejoins_operand_and_operator_custody() {
     let (syntax, item) = normalized_expression(true);
-    crate::resolve(crate::ResolutionRequest::new(&syntax))
+    crate::resolve(crate::ResolutionRequest::new(syntax.clone()))
         .expect("a normalized unary initializer retains its dependency and operator");
     for mutation in 0..3 {
         let mut changed = syntax.clone();
@@ -299,7 +299,7 @@ fn unary_initializer_receipt_rejoins_operand_and_operator_custody() {
         }
         changed.items.replace_item(item, Item::Const(definition));
         assert!(
-            crate::resolve(crate::ResolutionRequest::new(&changed)).is_err(),
+            crate::resolve(crate::ResolutionRequest::new(changed)).is_err(),
             "unary receipt mutation {mutation}"
         );
     }
@@ -310,7 +310,7 @@ fn retained_initializer_custody_rejects_unchecked_operators_and_cycles() {
     for mutation in 0..3 {
         let (syntax, _) = normalized();
         let mut program =
-            crate::resolve(crate::ResolutionRequest::new(&syntax)).expect("retained base");
+            crate::resolve(crate::ResolutionRequest::new(syntax)).expect("retained base");
         let owner = program
             .const_declarations
             .iter()
@@ -485,13 +485,13 @@ fn seeded_initializer_rejoins_retained_transitive_custody() {
     combined.extend_from(&extension_syntax);
     let sources = Arc::new(sources);
     let one_shot = crate::resolve(crate::ResolutionRequest {
-        syntax: &combined,
+        syntax: combined,
         sources: Some(sources.clone()),
         top_level_bindings: Vec::new(),
     })
     .expect("one-shot normalized declarations");
     let base = crate::resolve(crate::ResolutionRequest {
-        syntax: &base_syntax,
+        syntax: base_syntax,
         sources: Some(sources.clone()),
         top_level_bindings: Vec::new(),
     })
@@ -499,7 +499,7 @@ fn seeded_initializer_rejoins_retained_transitive_custody() {
     let retained_selections = base.authored_declaration_selections().as_slice().to_vec();
     let seeded = crate::resolve_extension(crate::ExtensionRequest {
         base,
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources,
         top_level_bindings: Vec::new(),
     })

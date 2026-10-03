@@ -117,7 +117,7 @@ fn direct_structural_normalization_replays_live_expression_and_selected_paramete
         machine keep(first: Pick<(Value { value: 1 })>, second: Pick<(Value { value: 2 })>) -> u64 { 0 }";
     let syntax = normalize_generic_data(GenericDataRequest::new(parse_sources(source, "", false)))
         .expect("direct structural values normalize");
-    crate::resolution::resolve(crate::resolution::ResolutionRequest::new(&syntax))
+    crate::resolution::resolve(crate::resolution::ResolutionRequest::new(syntax.clone()))
         .expect("actual direct arguments lower");
     let (application, argument, normalization) = syntax
         .type_references
@@ -185,7 +185,7 @@ fn direct_structural_normalization_replays_live_expression_and_selected_paramete
         })
         .expect("different source integer");
     changed.expressions.replace_expression(field, replacement);
-    let errors = crate::resolution::resolve(crate::resolution::ResolutionRequest::new(&changed))
+    let errors = crate::resolution::resolve(crate::resolution::ResolutionRequest::new(changed))
         .expect_err("same-span value drift rejects");
     assert!(
         errors
@@ -323,7 +323,7 @@ fn open_template_domain_index_substitutes_on_the_closed_instance() {
             ),
             "the instance carries the closed index: prefix {prefix:?}"
         );
-        let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        let program = crate::resolve(crate::ResolutionRequest::new(syntax))
             .expect("the closed instance resolves");
         let resolved_instance = program
             .data_definitions
@@ -482,7 +482,7 @@ fn open_template_range_endpoint_substitutes_on_the_closed_instance() {
         ),
         "the instance's bound rewrote to the closed `3`"
     );
-    crate::resolve(crate::ResolutionRequest::new(&syntax))
+    crate::resolve(crate::ResolutionRequest::new(syntax))
         .expect("the closed range endpoint resolves");
 }
 

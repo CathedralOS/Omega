@@ -7,7 +7,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolved(source: &str) -> SymbolResolvedTrees {
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
-    resolve(ResolutionRequest::new(&syntax)).unwrap()
+    resolve(ResolutionRequest::new(syntax)).unwrap()
 }
 
 fn value_statements(program: &SymbolResolvedTrees) -> &[StatementNode] {

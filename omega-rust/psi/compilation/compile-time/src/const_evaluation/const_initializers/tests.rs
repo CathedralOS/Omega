@@ -64,8 +64,7 @@ fn evaluate_fully(
     })
     .expect("pre-resolution evaluation");
     let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-    let resolved =
-        crate::syntax_probes::resolve(&syntax, Some(sources), bindings).expect("resolve");
+    let resolved = crate::syntax_probes::resolve(syntax, Some(sources), bindings).expect("resolve");
     let mut typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
     pre_check.evaluate(&mut typed).expect("receipt replay");

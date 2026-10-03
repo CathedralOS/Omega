@@ -2636,12 +2636,6 @@ same flow already performed, not the check itself.
   construction before any artifact is produced; that overlaps
   **CHECKING-FROZEN-PROGRAM-CONTEXT** and should land with it.
 
-- **RESOLVE-SYNTAX-FOREST-CLONE.** (new-scope) Stage 02's
-  `preparation/mod.rs` starts with `let mut syntax = syntax.clone()`, copying
-  the whole syntax forest it was handed by reference. Take `SyntaxTrees` by
-  value at the stage entry and move it through preparation. Acceptance: the
-  stage 02 entry consumes its input and preparation performs no whole-forest
-  clone; full check corpus unchanged.
 
 - **CALLABLE-IDENTITY-INTERNED.** (new-scope) `NormalizedNamedCallableIdentity`
   (`typed-trees` `type_system/type_identity/normalized_identities.rs`) holds

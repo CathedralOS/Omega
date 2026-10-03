@@ -43,7 +43,7 @@ fn stage<T, E: std::fmt::Debug>(name: &str, source: &str, result: Result<T, E>) 
 pub(crate) fn typed_program(source: &str) -> TypedTrees {
     let tokens = stage("tokenize", source, Lexer::new(source).tokenize());
     let syntax = stage("parse", source, parse_syntax_trees(&tokens));
-    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(syntax)));
     stage("type", source, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -53,7 +53,7 @@ pub(crate) fn typed_program(source: &str) -> TypedTrees {
 pub(crate) fn typed_program_result(source: &str) -> Result<TypedTrees, Vec<Diagnostic>> {
     let tokens = stage("tokenize", source, Lexer::new(source).tokenize());
     let syntax = stage("parse", source, parse_syntax_trees(&tokens));
-    let resolved = resolve(ResolutionRequest::new(&syntax))?;
+    let resolved = resolve(ResolutionRequest::new(syntax))?;
     lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
 }
 
@@ -70,7 +70,7 @@ pub(crate) fn typed_program_with_generic_data(source: &str) -> TypedTrees {
         source,
         normalize_generic_data(GenericDataRequest::new(syntax)),
     );
-    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(syntax)));
     stage("type", source, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -92,7 +92,7 @@ pub(crate) fn typed_program_from_texts(texts: &[&str]) -> TypedTrees {
             tokens_to_syntax_trees::parse(&mut syntax, SourceId(source_ordinal + 1), &tokens),
         );
     }
-    let resolved = stage("resolve", first, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", first, resolve(ResolutionRequest::new(syntax)));
     stage("type", first, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -142,7 +142,7 @@ pub(crate) fn typed_program_from_source_map_typing_result(
         "resolve",
         last_text(texts),
         resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         }),
@@ -182,7 +182,7 @@ pub(crate) fn typed_program_from_merged_source_map(
         "resolve",
         program,
         resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         }),

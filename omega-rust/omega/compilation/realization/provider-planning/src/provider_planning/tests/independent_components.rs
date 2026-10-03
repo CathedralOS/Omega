@@ -115,7 +115,7 @@ fn independent_selection(mode: CompositionMode) -> IndependentSelection {
         .expect("parse independent selection fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(std::sync::Arc::new(sources)),
             top_level_bindings: Vec::new(),
         },

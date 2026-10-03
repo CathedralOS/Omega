@@ -558,7 +558,7 @@ machine enter(buffer: &mut Buffer) reaches Sink { Sink::take(&mut buffer.bytes);
 fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_overload: &str) {
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let resolved = resolve(ResolutionRequest::new(syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
     let machine = checked
@@ -648,7 +648,7 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
 
     let tokens = Lexer::new(wrong_overload).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let resolved = resolve(ResolutionRequest::new(syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let wrong = typed
         .machines()

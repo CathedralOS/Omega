@@ -90,17 +90,17 @@ pub(super) use synthesis::desugar_generic_data_instances_with_selection;
 
 /// Authored constant arguments in concrete data fields and constant declarations.
 /// Open templates and machine lexical scopes cannot borrow a standalone probe.
-/// These handles borrow the input syntax; no provisional program escapes.
+/// These handles borrow the input syntax; no provisional program escapes. That
+/// borrow is why discovery names the forest directly instead of taking the
+/// resolution request, which consumes the forest it prepares.
 /// Each tuple retains the argument, parameter type, and real owner's public exposure.
 pub fn closed_data_const_argument_expressions(
-    request: crate::ResolutionRequest<'_>,
+    syntax: &SyntaxTrees,
+    sources: Option<std::sync::Arc<source::SourceMap>>,
+    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let syntax = request.syntax;
-    let selection = declaration_selection::ConstantSelection::new(
-        syntax,
-        request.sources,
-        request.top_level_bindings,
-    )?;
+    let selection =
+        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
     let positions = collect_data_type_reference_positions(syntax, false);
     let public_positions = collect_data_type_reference_positions(syntax, true);
     Ok(collect_closed_const_arguments(
@@ -116,14 +116,12 @@ pub fn closed_data_const_argument_expressions(
 /// supplies destinations, not value-selection authority: callers must resolve
 /// each expression in its original machine and state scope before evaluation.
 pub fn closed_machine_const_arguments(
-    request: crate::ResolutionRequest<'_>,
+    syntax: &SyntaxTrees,
+    sources: Option<std::sync::Arc<source::SourceMap>>,
+    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let syntax = request.syntax;
-    let selection = declaration_selection::ConstantSelection::new(
-        syntax,
-        request.sources,
-        request.top_level_bindings,
-    )?;
+    let selection =
+        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
     let (positions, public_positions) = collect_machine_type_reference_positions(syntax);
     Ok(collect_closed_const_arguments(
         syntax,

@@ -19,7 +19,7 @@ use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve")
+    crate::resolve(ResolutionRequest::new(syntax)).expect("resolve")
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn authored_core_spelling_cannot_shadow_fixed_vocabulary() {
     let syntax =
         parse_syntax_trees_with_id(source_id, &Lexer::new(source).tokenize().unwrap()).unwrap();
     let program = crate::resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -295,7 +295,7 @@ fn an_authored_core_module_cannot_steal_a_fixed_call_target() {
     let syntax =
         parse_syntax_trees_with_id(source_id, &Lexer::new(source).tokenize().unwrap()).unwrap();
     let program = crate::resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -409,7 +409,7 @@ fn seeded_extension_keeps_mathematical_declarations_and_their_symbols() {
     let base_syntax =
         parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
     let base = crate::resolve(ResolutionRequest {
-        syntax: &base_syntax,
+        syntax: base_syntax,
         sources: Some(Arc::new(sources.clone())),
         top_level_bindings: Vec::new(),
     })
@@ -424,7 +424,7 @@ fn seeded_extension_keeps_mathematical_declarations_and_their_symbols() {
     .unwrap();
     let program = resolve_extension(ExtensionRequest {
         base,
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })

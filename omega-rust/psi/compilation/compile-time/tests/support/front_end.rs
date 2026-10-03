@@ -87,7 +87,7 @@ pub(crate) fn syntax_program_from_texts(texts: &[(SourceId, &str)]) -> SyntaxTre
 /// map.
 pub(crate) fn typed_program(source: &str) -> TypedTrees {
     let syntax = syntax_program(source);
-    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(syntax)));
     stage("type", source, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -103,7 +103,7 @@ pub(crate) fn typed_program_with_generic_data(source: &str) -> TypedTrees {
         source,
         normalize_generic_data(GenericDataRequest::new(syntax)),
     );
-    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(syntax)));
     stage("type", source, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -135,7 +135,7 @@ pub(crate) fn typed_program_from_source_map_with_syntax(
         "resolve",
         program,
         resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax: syntax.clone(),
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         }),
@@ -165,7 +165,7 @@ pub(crate) fn typed_program_from_evaluated_syntax_result(
     sources: Option<Arc<SourceMap>>,
 ) -> Result<TypedTrees, Vec<Diagnostic>> {
     let resolved = resolve(ResolutionRequest {
-        syntax,
+        syntax: syntax.clone(),
         sources,
         top_level_bindings: Vec::new(),
     })?;

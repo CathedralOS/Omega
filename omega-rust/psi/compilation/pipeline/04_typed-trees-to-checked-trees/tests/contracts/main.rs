@@ -26,7 +26,7 @@ fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagn
     )?;
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(std::sync::Arc::new(sources)),
             top_level_bindings: Vec::new(),
         },

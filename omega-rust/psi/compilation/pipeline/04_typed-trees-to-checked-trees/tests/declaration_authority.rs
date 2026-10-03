@@ -84,7 +84,7 @@ fn fixture(requester_has_identity: bool, requester_text: &str) -> TypedTrees {
     )
     .expect("requester syntax");
     let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })

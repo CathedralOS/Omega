@@ -9,7 +9,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
-    crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve field type expressions")
+    crate::resolve(ResolutionRequest::new(syntax)).expect("resolve field type expressions")
 }
 
 fn fields<'program>(

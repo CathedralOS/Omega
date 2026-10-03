@@ -48,7 +48,7 @@ pub(crate) fn typed_with_core_service(name: &str, source: &str) -> TypedTrees {
         .expect("parse dispatch fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         },

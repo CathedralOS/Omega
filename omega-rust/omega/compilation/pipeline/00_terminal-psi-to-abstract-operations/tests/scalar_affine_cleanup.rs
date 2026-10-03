@@ -34,7 +34,7 @@ fn named_and_legacy_cleanup_receivers_cross_the_runtime_firewall() {
             .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
         )
         .unwrap();
         let typed =

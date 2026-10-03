@@ -10,7 +10,7 @@ use typed_trees::TypedTrees;
 fn typed(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolved");
     lower_symbol_resolved_trees(&resolved).expect("typed")
 }
 

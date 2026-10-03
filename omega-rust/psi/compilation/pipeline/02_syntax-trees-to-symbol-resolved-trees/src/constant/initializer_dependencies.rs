@@ -461,7 +461,7 @@ mod tests {
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).expect("syntax");
         let preparation =
             crate::resolution::prepare_const_initializer_selection(crate::ResolutionRequest {
-                syntax: &syntax,
+                syntax: syntax.clone(),
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
             })

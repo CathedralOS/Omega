@@ -21,7 +21,7 @@ fn retains_exact_expression_selection_symbols() {
         .tokenize()
         .expect("tokenize exact selections");
     let syntax = parse_syntax_trees(&tokens).expect("parse exact selections");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve exact selections");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve exact selections");
     let expressions = &program.tables.bodies.expressions;
 
     let path = expressions
@@ -158,7 +158,7 @@ fn authored_outcome_specific_contract_uses_the_exact_base_result_sum() {
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -211,7 +211,7 @@ fn outcome_specific_ensures_rejects_non_sum_and_foreign_cases() {
             .expect("tokenize invalid guarded guarantee");
         let syntax = parse_syntax_trees(&tokens).expect("parse invalid guarded guarantee");
         let diagnostics =
-            resolve(ResolutionRequest::new(&syntax)).expect_err("guard resolution must reject");
+            resolve(ResolutionRequest::new(syntax)).expect_err("guard resolution must reject");
         assert!(
             diagnostics
                 .iter()
@@ -237,7 +237,7 @@ fn guard_hoist_copies_share_one_authored_call_occurrence() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize guard hoist");
     let syntax = parse_syntax_trees(&tokens).expect("parse guard hoist");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve guard hoist");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve guard hoist");
     let target_start = source
         .find("self.value() == seed")
         .expect("guard call source")
@@ -286,7 +286,7 @@ fn retains_authored_expression_exposure_for_embedded_type_lowering() {
         .expect("tokenize expression type exposure");
     let syntax = parse_syntax_trees(&tokens).expect("parse expression type exposure");
     let program =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve expression type exposure");
+        resolve(ResolutionRequest::new(syntax)).expect("resolve expression type exposure");
     let mut exposures = program
         .tables
         .bodies
@@ -330,7 +330,7 @@ fn retains_nested_unary_operator_custody_in_public_propositions() {
         .expect("tokenize public unary proposition");
     let syntax = parse_syntax_trees(&tokens).expect("parse public unary proposition");
     let program =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve public unary proposition");
+        resolve(ResolutionRequest::new(syntax)).expect("resolve public unary proposition");
     let proposition = program
         .propositions
         .iter()
@@ -449,7 +449,7 @@ fn static_and_proof_static_arguments_obey_current_activation_resolution_strata()
         &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
     );
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -589,7 +589,7 @@ fn abs_desugar_subtraction_retains_authored_operator_custody() {
         .tokenize()
         .expect("tokenize abs desugar custody");
     let syntax = parse_syntax_trees(&tokens).expect("parse abs desugar custody");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve abs desugar custody");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve abs desugar custody");
     let table = &program.tables.bodies.expressions;
     let subtractions = table
         .iter_expressions()
@@ -642,7 +642,7 @@ fn contract_clause_calls_naming_no_declaration_skip_call_selection() {
         .expect("tokenize uninterpreted contract calls");
     let syntax = parse_syntax_trees(&tokens).expect("parse uninterpreted contract calls");
     let program =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve uninterpreted contract calls");
+        resolve(ResolutionRequest::new(syntax)).expect("resolve uninterpreted contract calls");
     let call_spans = program
         .authored_declaration_selections()
         .iter()

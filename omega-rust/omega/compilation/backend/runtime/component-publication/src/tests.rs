@@ -2750,7 +2750,7 @@ fn interpreted_unregister_drives_registration_ledger_teardown() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
@@ -3110,7 +3110,7 @@ fn interpreted_register_and_unregister_drive_the_registration_ledger() {
         .tokenize()
         .expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))

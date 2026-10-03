@@ -21,7 +21,7 @@ fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .unwrap();
     let typed =
@@ -112,7 +112,7 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
             .unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
         )
         .unwrap();
         let typed =
@@ -263,7 +263,7 @@ fn whole_owner_replacement_rejoins_verified_destination() {
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .unwrap();
     let typed =

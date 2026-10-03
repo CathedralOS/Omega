@@ -42,19 +42,15 @@ pub(crate) fn evaluate(
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let data_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            &syntax,
+            sources.clone(),
+            bindings.to_vec(),
         )?;
     let machine_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            &syntax,
+            sources.clone(),
+            bindings.to_vec(),
         )?;
     let mut lexical_arguments = Vec::new();
     let mut aggregate_arguments = Vec::new();
@@ -113,7 +109,7 @@ pub(crate) fn evaluate(
         // declaration through a runtime parameter or prior local binding.
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
+                syntax: syntax.clone(),
                 sources: sources.clone(),
                 top_level_bindings: bindings.to_vec(),
             },
@@ -169,7 +165,7 @@ pub(crate) fn evaluate(
         // Their runtime bodies are neither typed as probes nor executed here.
         let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
+                syntax: syntax.clone(),
                 sources: sources.clone(),
                 top_level_bindings: bindings.to_vec(),
             },
@@ -215,7 +211,7 @@ pub(crate) fn evaluate(
     }
     let probe =
         crate::syntax_probes::normalize_generic_data(probe, sources.clone(), bindings, None)?;
-    let resolved = crate::syntax_probes::resolve(&probe, sources, bindings)?;
+    let resolved = crate::syntax_probes::resolve(probe, sources, bindings)?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
 

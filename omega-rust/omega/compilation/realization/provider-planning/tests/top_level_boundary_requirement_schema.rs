@@ -6,7 +6,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 fn typed_source(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve source");
     lower_symbol_resolved_trees(&resolved).expect("type source")
 }
 

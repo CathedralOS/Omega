@@ -130,8 +130,7 @@ pub fn desugar_placed_views(
         None,
     )?;
     let probe_plan_laid = crate::desugar_plan_laid_value_types(&mut probe)?;
-    let resolved =
-        crate::syntax_probes::resolve(&probe, sources, source_scoped_top_level_bindings)?;
+    let resolved = crate::syntax_probes::resolve(probe, sources, source_scoped_top_level_bindings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     crate::evaluate_const_array_lengths(&mut typed, selection_authority.clone())?;

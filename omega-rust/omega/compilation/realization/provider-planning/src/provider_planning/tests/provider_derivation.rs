@@ -92,7 +92,7 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse top-level requirement fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve top-level requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -424,7 +424,7 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse external top-level requirement fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve external top-level requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -621,7 +621,7 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
     let retained_syntax = tokens_to_syntax_trees::parse_syntax_trees(&retained_tokens)
         .expect("parse retained binding");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&retained_syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(retained_syntax),
     )
     .expect("resolve retained binding");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -666,7 +666,7 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse source-inferred catalog leaf");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve source-inferred catalog leaf");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -828,7 +828,7 @@ fn selected_target_compiler_leaf_requires_nonhosted_origin_custody() {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse selected-target compiler leaf");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve selected-target compiler leaf");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -942,7 +942,7 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse external binding");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve external binding");
     let mut typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

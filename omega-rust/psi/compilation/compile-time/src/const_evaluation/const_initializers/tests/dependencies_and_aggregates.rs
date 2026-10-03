@@ -165,7 +165,7 @@ fn aggregate_constant_names_materialize_the_selected_value() {
             .expression(constant(&evaluated, "Q").value),
         ExpressionNode::StructLiteral(_)
     ));
-    crate::syntax_probes::resolve(&evaluated, None, &[])
+    crate::syntax_probes::resolve(evaluated, None, &[])
         .expect("aggregate constant-name receipts rejoin");
     evaluate_fully(
         &[(
@@ -260,7 +260,7 @@ fn aggregate_receipts_reject_changed_results_and_dropped_call_custody() {
         }
         invalid.items.replace_item(item, Item::Const(definition));
         assert!(
-            crate::syntax_probes::resolve(&invalid, Some(sources.clone()), &[]).is_err(),
+            crate::syntax_probes::resolve(invalid, Some(sources.clone()), &[]).is_err(),
             "{mutation}"
         );
     }

@@ -10,7 +10,7 @@ fn typed_requirement() -> TypedTrees {
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse boundary requirement");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve boundary requirement");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

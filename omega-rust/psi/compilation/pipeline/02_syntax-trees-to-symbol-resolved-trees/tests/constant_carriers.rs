@@ -8,7 +8,7 @@ fn resolve(source: &str) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnos
         .tokenize()
         .expect("tokenize constant carrier");
     let syntax = parse_syntax_trees(&tokens).expect("parse constant carrier");
-    syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest::new(&syntax))
+    syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest::new(syntax))
 }
 
 #[test]

@@ -22,7 +22,7 @@ fn fixed_token_checked_adapter_fixture() -> (checked_trees::CheckedTrees, Provid
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse fixed-token checked-adapter fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve fixed-token checked-adapter fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

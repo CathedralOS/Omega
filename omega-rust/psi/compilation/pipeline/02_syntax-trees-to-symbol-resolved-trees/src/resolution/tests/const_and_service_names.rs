@@ -58,7 +58,7 @@ fn const_declaration_collisions_still_reject_within_the_extension_stratum() {
         syntax.extend_from(&right_syntax);
 
         let diagnostics = resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         })
@@ -114,7 +114,7 @@ fn authored_memberships_and_struct_literals_ignore_extension_first_declarations(
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -232,7 +232,7 @@ fn authored_trait_machine_conformance_and_dynamic_assignments_ignore_extension_f
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -370,7 +370,7 @@ fn trait_slot_catalogs_and_evidence_seeding_use_exact_trait_identity() {
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -471,7 +471,7 @@ fn retains_const_declaration_visibility_after_value_substitution() {
         .tokenize()
         .expect("tokenize const visibility");
     let syntax = parse_syntax_trees(&tokens).expect("parse const visibility");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve const visibility");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve const visibility");
 
     assert_eq!(program.const_declarations.len(), 2);
     assert!(program.const_declarations[0].is_public);
@@ -494,14 +494,14 @@ fn public_const_requires_canonical_compatibility_value_but_private_const_v0_does
         .tokenize()
         .expect("tokenize private string const");
     let syntax = parse_syntax_trees(&tokens).expect("parse private string const");
-    resolve(ResolutionRequest::new(&syntax)).expect("private const-v0 behavior remains unchanged");
+    resolve(ResolutionRequest::new(syntax)).expect("private const-v0 behavior remains unchanged");
 
     let public_source = r#"pub const LABEL: string = "public";"#;
     let tokens = Lexer::new(public_source)
         .tokenize()
         .expect("tokenize public string const");
     let syntax = parse_syntax_trees(&tokens).expect("parse public string const");
-    let diagnostics = resolve(ResolutionRequest::new(&syntax))
+    let diagnostics = resolve(ResolutionRequest::new(syntax))
         .expect_err("unsupported public const identity must reject rather than emit a weak row");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -539,7 +539,7 @@ fn authored_base_service_names_cannot_resolve_extension_only_declarations() {
         &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
     );
     let diagnostic = resolve(ResolutionRequest {
-        syntax: &reach_syntax,
+        syntax: reach_syntax,
         sources: Some(Arc::new(reach_sources)),
         top_level_bindings: Vec::new(),
     })
@@ -575,7 +575,7 @@ fn authored_base_service_names_cannot_resolve_extension_only_declarations() {
         &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
     );
     let program = resolve(ResolutionRequest {
-        syntax: &invoke_syntax,
+        syntax: invoke_syntax,
         sources: Some(Arc::new(invoke_sources)),
         top_level_bindings: Vec::new(),
     })
@@ -605,7 +605,7 @@ fn rejects_unknown_machine_parameter_service_reach_before_resolved_trees() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+    let diagnostic = resolve(ResolutionRequest::new(syntax_trees))
         .expect_err("unknown machine-parameter reach must not enter resolved trees");
 
     assert!(diagnostic[0].message.contains(
@@ -630,7 +630,7 @@ fn rejects_authored_service_reach_on_external_realization_before_resolved_trees(
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+    let diagnostic = resolve(ResolutionRequest::new(syntax_trees))
         .expect_err("external realization must derive rather than repeat service reach");
 
     assert!(

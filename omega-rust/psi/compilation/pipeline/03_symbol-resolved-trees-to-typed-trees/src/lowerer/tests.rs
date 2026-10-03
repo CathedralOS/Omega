@@ -112,7 +112,7 @@ fn seeded_plain_data_inputs(
     let extension_syntax = crate::front_end::syntax_program_with_id(extension_id, extension_source);
     let seeded = resolve_extension(ExtensionRequest {
         base: typing_base.resolved_base_for_extension(),
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
@@ -166,7 +166,7 @@ fn seeded_normalized_plain_data_inputs(
         .expect("normalize extension unit with its exact retained argument declarations");
     let seeded = resolve_extension(ExtensionRequest {
         base: resolved_base,
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources,
         top_level_bindings: Vec::new(),
     })

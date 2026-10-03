@@ -26,7 +26,7 @@ fn retained_machine_equation_cannot_be_discarded_by_extension_call() {
         parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
     let sources = Arc::new(sources);
     let base = resolve(ResolutionRequest {
-        syntax: &base_syntax,
+        syntax: base_syntax,
         sources: Some(sources.clone()),
         top_level_bindings: Vec::new(),
     })
@@ -43,7 +43,7 @@ fn retained_machine_equation_cannot_be_discarded_by_extension_call() {
     .unwrap();
     let diagnostics = resolve_extension(ExtensionRequest {
         base,
-        syntax: &extension,
+        syntax: extension,
         sources,
         top_level_bindings: Vec::new(),
     })
@@ -62,7 +62,7 @@ fn caller_type_binder_cannot_be_reinterpreted_as_same_named_global_type() {
         machine forward<Element>() -> u64 { chosen<Element>() }";
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let result = resolve(ResolutionRequest::new(&syntax));
+    let result = resolve(ResolutionRequest::new(syntax));
     assert!(
         result.is_err(),
         "a caller binder must remain open despite a same-named global data declaration"
@@ -75,7 +75,7 @@ fn nested_caller_type_binder_cannot_be_reinterpreted_as_global_array_element() {
         machine forward<Element>() -> u64 { chosen<[Element; 7]>() }";
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let result = resolve(ResolutionRequest::new(&syntax));
+    let result = resolve(ResolutionRequest::new(syntax));
     assert!(
         result.is_err(),
         "a nested caller binder remains open in the selected type tree"
@@ -90,7 +90,7 @@ fn machine_equations_do_not_escape_through_implicit_operator_or_conformance_supp
     ] {
         let tokens = Lexer::new(source).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let diagnostics = resolve(ResolutionRequest::new(&syntax)).unwrap_err();
+        let diagnostics = resolve(ResolutionRequest::new(syntax)).unwrap_err();
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -106,7 +106,7 @@ fn unused_attached_equations_still_validate_type_and_value_kinds() {
         "data Item {} machine Item::bad<Type, const Count: u64>() -> u64 where Type == Count { 0 }";
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let diagnostics = resolve(ResolutionRequest::new(&syntax)).unwrap_err();
+    let diagnostics = resolve(ResolutionRequest::new(syntax)).unwrap_err();
     assert!(
         diagnostics
             .iter()
@@ -130,7 +130,7 @@ fn bare_attached_selection_retains_its_exact_owner_and_member_roster() {
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+        let resolved = resolve(ResolutionRequest::new(syntax)).unwrap();
         let expressions = &resolved.tables.bodies.expressions;
         let path = expressions
             .iter_expressions()
@@ -171,7 +171,7 @@ fn bare_attached_selection_cannot_reopen_a_shadowed_owner() {
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+        let resolved = resolve(ResolutionRequest::new(syntax)).unwrap();
         let path = resolved
             .tables
             .bodies

@@ -10,7 +10,7 @@ fn nominal_machine_parameter_view_rejects_mismatched_trait_requirement_pair() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve traits");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve traits");
     let first = program
         .traits
         .iter()
@@ -57,7 +57,7 @@ fn resolves_every_selected_conformance_bound_application_lane() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     let machine = program
         .machines
         .iter()
@@ -116,7 +116,7 @@ fn retains_named_conformance_visibility_and_snapshot_identity() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
+    let program = resolve(ResolutionRequest::new(syntax_trees)).expect("resolve");
     let conformances = program.conformances.iter().collect::<Vec<_>>();
 
     assert_eq!(conformances.len(), 2);
@@ -146,7 +146,7 @@ fn lowers_subjectless_conformance_to_package_symbol_and_closed_rows() {
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("subjectless block should parse");
     let program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("subjectless rows should normalize");
+        resolve(ResolutionRequest::new(syntax_trees)).expect("subjectless rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     assert!(matches!(
         conformance.subject,
@@ -190,7 +190,7 @@ fn closed_conformance_blocks_never_fall_back_to_ambient_attached_machines() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+    let diagnostic = resolve(ResolutionRequest::new(syntax_trees))
         .expect_err("closed map must ignore the ambient attached look-alike");
     assert!(
         diagnostic[0]
@@ -221,7 +221,7 @@ fn parameterized_trait_default_applications_partition_shared_authored_calls() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("source should parse");
-    let program = resolve(ResolutionRequest::new(&syntax_trees))
+    let program = resolve(ResolutionRequest::new(syntax_trees))
         .expect("each parameterized default application should own its routed call");
 
     let applications = ["ParentCounter::put", "ForwardedCounter::put"].map(|name| {
@@ -285,7 +285,7 @@ fn closed_conformance_matches_inline_members_to_result_overloads() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let program = resolve(ResolutionRequest::new(&syntax_trees))
+    let program = resolve(ResolutionRequest::new(syntax_trees))
         .expect("the inline member's complete signature should select one overload");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
@@ -344,7 +344,7 @@ fn trait_default_synthesis_is_idempotent_across_orchestration_and_lowering() {
         Vec::new(),
     )
     .expect("orchestration may synthesize before resolution");
-    let program = resolve(ResolutionRequest::new(&syntax_trees))
+    let program = resolve(ResolutionRequest::new(syntax_trees))
         .expect("resolution's mandatory synthesis pass must not duplicate the row");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
@@ -378,7 +378,7 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
-    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+    let diagnostic = resolve(ResolutionRequest::new(syntax_trees))
         .expect_err("a short row name must not choose one inherited declaration");
     assert!(
         diagnostic[0]
@@ -403,7 +403,7 @@ fn inherited_requirement_collisions_require_trait_qualified_rows() {
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("qualified rows should parse");
     let program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("qualified rows should normalize");
+        resolve(ResolutionRequest::new(syntax_trees)).expect("qualified rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -433,7 +433,7 @@ fn inline_conformance_member_calls_route_through_the_same_closed_map() {
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
     let program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
+        resolve(ResolutionRequest::new(syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -500,7 +500,7 @@ fn inline_conformance_calls_preserve_a_foreign_receiver_method() {
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("block syntax should parse");
     let program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("closed rows should normalize");
+        resolve(ResolutionRequest::new(syntax_trees)).expect("closed rows should normalize");
     let conformance = program.conformances.iter().next().expect("one conformance");
     let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
         &conformance.implementation
@@ -549,8 +549,7 @@ fn proposition_declarations_resolve_as_a_distinct_proof_category() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
+    let program = resolve(ResolutionRequest::new(syntax_trees)).expect("resolution should succeed");
 
     assert_eq!(program.propositions.len(), 3);
     assert!(program.propositions[0].is_public);
