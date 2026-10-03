@@ -252,10 +252,12 @@ execution and native exit/output. A moved refusal is still unfinished work.
   agreement`, so it is not an authoring workaround.
   `calls/nested_call_tail_roots_exit` stops at `InvalidUnitMachinePlan` on
   `Wrap::get_count` after its case payload became `&ItemList`.
-  `run/borrows/shared_record_loan_member_read` stops at
-  `Unsupported("Unit graph local disposition type drifted")` once its entry
-  names its subject and threads it into `done`/`bad` while a `&`-record loan
-  local (`let plain: &Desc = &main.desc`) is live across the guard.
+  `omega run --both tests/omega/run/borrows/shared_record_loan_member_read/main.omg`
+  now exits 0 natively and in checked execution on macOS ARM64. Its shared
+  record loan is observed in the guard before the owner transfers into
+  `done`/`bad`. Stage 05's state-exit disposal now consumes the independently
+  replayed producer contract instead of guessing the carrier's type and
+  multiplicity again from the local's syntax.
   `core/task_lifecycle_operations` is omitted through `Main::settle` after its
   linear subject became by-value `Task<T>`.
 

@@ -94,18 +94,17 @@ fn qualified_byte_disposition_replays_constructor_and_call_local_carriers() {
         .find(|plan| plan.machine == machine.symbol)
         .expect("composed main");
     let mut replayed = 0;
-    for state in &plan.states {
+    for (state_index, state) in plan.states.iter().enumerate() {
         let authored = checked
             .machine_states(machine)
             .iter()
             .find(|authored| authored.symbol == state.state)
             .expect("authored state");
         let statements = checked.statement_table.statements(authored.statement_nodes);
-        for result in state
-            .operations
-            .iter()
-            .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
-        {
+        for (operation_index, operation) in state.operations.iter().enumerate() {
+            let Some(result) = operation.structural_result_binding() else {
+                continue;
+            };
             let Some(StatementNode::LocalData(local)) =
                 statements.get(result.statement_index as usize)
             else {
@@ -116,14 +115,39 @@ fn qualified_byte_disposition_replays_constructor_and_call_local_carriers() {
             {
                 continue;
             }
-            validate(&checked, machine.symbol, authored, local, result)
+            validate_disposition(&checked, machine.symbol, authored, local, result)
                 .expect("exact local receipt");
-            let mut wrong = result.clone();
-            wrong.type_identity.push_str("different-capacity");
-            assert!(validate(&checked, machine.symbol, authored, local, &wrong).is_err());
-            wrong = result.clone();
-            wrong.multiplicity = Multiplicity::Affine;
-            assert!(validate(&checked, machine.symbol, authored, local, &wrong).is_err());
+            // Result types belong to the producer's independent replay, not
+            // state-exit disposal. Corrupt the actual operation and exercise
+            // that boundary for construction and call results alike.
+            for corrupt_identity in [true, false] {
+                let mut wrong = checked.clone();
+                let body = wrong
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_machines
+                    .iter_mut()
+                    .find(|plan| plan.machine == machine.symbol)
+                    .expect("composed main");
+                let binding = match &mut body.states[state_index].operations[operation_index] {
+                    CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => result,
+                    CheckedUnitEffectOperationPlan::Call(call) => {
+                        call.structural_result_mut().expect("call result").0
+                    }
+                    operation => panic!("unexpected qualified-byte producer: {operation:?}"),
+                };
+                if corrupt_identity {
+                    binding.type_identity.push_str("different-capacity");
+                } else {
+                    binding.multiplicity = Multiplicity::Affine;
+                }
+                assert!(
+                    crate::lower_machine(&wrong, crate::TerminalMachineSelection::Name("main"))
+                        .is_err(),
+                    "forged producer identity or custody must not reach Terminal Psi"
+                );
+            }
             replayed += 1;
         }
     }
@@ -131,4 +155,60 @@ fn qualified_byte_disposition_replays_constructor_and_call_local_carriers() {
         replayed, 2,
         "both constructor and ordinary-call results are replayed"
     );
+}
+
+#[test]
+fn shared_record_disposition_uses_the_produced_carrier() {
+    for body in [
+        r#"
+        machine check(root: &mut Root) -> bool {
+            let plain: &Desc = &root.desc;
+            transition plain.tag == root.expected {
+                true -> done(root)
+                false -> bad(root)
+            }
+            state done(root: &mut Root) { true }
+            state bad(root: &mut Root) { false }
+        }
+        "#,
+        r#"
+        machine check(root: &mut Root) -> bool {
+            transition { _ -> arrived(root) }
+            state arrived(root: &mut Root) {
+                let plain: &Desc = &root.desc;
+                transition plain.tag == root.expected {
+                    true -> done(root)
+                    false -> bad(root)
+                }
+            }
+            state done(root: &mut Root) { true }
+            state bad(root: &mut Root) { false }
+        }
+        "#,
+        r#"
+        machine borrow(root: &Root) -> &Desc { &root.desc }
+        machine check(root: &mut Root) -> bool {
+            let plain: &Desc = borrow(root);
+            transition plain.tag == root.expected {
+                true -> done(root)
+                false -> bad(root)
+            }
+            state done(root: &mut Root) { true }
+            state bad(root: &mut Root) { false }
+        }
+        "#,
+    ] {
+        let source =
+            format!("data Desc {{ tag: u32; }} data Root {{ desc: Desc; expected: u32; }} {body}");
+        let checked = crate::front_end::checked_program(&source);
+        let lowered =
+            crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("check"))
+                .expect("shared aliases and returned carriers compose with owner transfers");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("exact loan and source custody verify independently");
+    }
 }

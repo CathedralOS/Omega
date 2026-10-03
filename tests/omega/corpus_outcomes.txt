@@ -2421,8 +2421,7 @@ run/borrows/shared_field_borrow checked 2583ms @2d8ed253669f
 run/borrows/shared_indexed_read checked 2944ms @2d8ed253669f
 run/borrows/shared_local_borrow checked 1108ms @18d68e27ec16+wt
 run/borrows/shared_recast_borrow checked 894ms @a3bac00e54bb+wt
-run/borrows/shared_record_loan_member_read rejected 572ms @0f3b86efb4e5+wt
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph local disposition type drifted"))
+run/borrows/shared_record_loan_member_read checked 695ms @b4b09410fe2c
 run/borrows/shared_runtime_index_borrow checked 3050ms @2d8ed253669f
 run/borrows/transition_shared_borrow checked 604ms @4e4bfed13aee+wt
 run/contained_health_loop_command_branch checked 287ms @4e4bfed13aee+wt
