@@ -152,13 +152,6 @@ pub(crate) fn record_establishment_matches(
     field_initializers_match(function, result, declarations, fields, types, domains)
 }
 
-pub(crate) fn plain_owned_shape(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    root: StructuralTypeId,
-) -> bool {
-    record_type(types, root, false, false)
-}
-
 pub(crate) fn field_initializers_match(
     function: &PsiOptimizationFunction,
     result: &terminal_psi::StructuralOperationResult,

@@ -51,6 +51,43 @@ pub fn call_origins(
     )
 }
 
+/// An aggregate owns its returned carrier while each shared byte slot retains
+/// independently replayed nonlocal backing. Rebuild from current functions:
+/// an optimizer's changed constructor, arrival or callee cannot reuse Terminal
+/// provenance. Root descriptors and reference returns keep their own contracts.
+pub(crate) fn owned_aggregate_descriptor_returns<'a>(
+    function: &PsiOptimizationFunction,
+    functions: impl IntoIterator<Item = &'a PsiOptimizationFunction>,
+    types: &[StructuralTypeDeclaration],
+) -> bool {
+    let Some(graph) = optimized_catalog_graph(functions, types) else {
+        return false;
+    };
+    let Some(returns) = graph
+        .iter()
+        .find(|machine| machine.id == function.machine)
+        .and_then(|machine| machine.returns.as_ref())
+    else {
+        return false;
+    };
+    !returns.is_empty()
+        && returns.iter().all(|(position, location)| {
+            location.path.is_empty()
+                && crate::unit_validation::operation_contracts::structural_source_contract(
+                    function,
+                    location.root,
+                )
+                .is_some_and(|source| source.access == StructuralAccess::Owned)
+                && kernel::reconstruct_return_slots_external(
+                    types,
+                    &graph,
+                    function.machine,
+                    *position,
+                    location.root,
+                )
+        })
+}
+
 fn adapt(
     types: &[StructuralTypeDeclaration],
     functions: &[&PsiOptimizationFunction],

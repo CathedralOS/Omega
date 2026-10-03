@@ -457,3 +457,5 @@ fn case_dispatch_cannot_observe_a_result_discarded_on_an_earlier_edge() {
 
 #[path = "structural_cases/owned_results.rs"]
 mod owned_results;
+
+mod borrowed_results;

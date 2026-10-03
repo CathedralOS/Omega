@@ -109,7 +109,13 @@ pub(crate) fn case_establishment_matches(
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && result.qualification_establishments.is_empty()
-        && super::records::plain_owned_shape(types, result.structural_type)
+        // Construction binds only the selected payload. Shared descriptor
+        // fields carry their existing loans; escape is checked independently
+        // at each return against the current executable slot graph.
+        && terminal_semantics::descriptor_results::owned_shared_byte_descriptor_shape(
+            types.values().copied(),
+            result.structural_type,
+        )
         && types
             .get(&result.structural_type)
             .is_some_and(|declaration| {

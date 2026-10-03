@@ -51,15 +51,35 @@ pub(crate) fn validate_structural_root_operations(
     });
     // A descriptor owns its payload, not its backing. Reconstruct every
     // returned origin even for functions with no callers in this unit.
-    let descriptor_origins_valid = !shared_descriptor_result
-        || crate::descriptor_results::optimized_graph(unit).is_some_and(|graph| {
-            terminal_semantics::descriptor_results::reconstruct_result_origins(
-                &unit.structural_types,
-                &graph,
-                function.machine,
-            )
-            .is_some()
-        });
+    let aggregate_descriptor_slots = function.result.structural().map(|result| {
+        terminal_semantics::descriptor_results::aggregate_descriptor_slots(
+            &unit.structural_types,
+            result.place,
+            result.structural_type,
+        )
+    });
+    let aggregate_origins_valid = match aggregate_descriptor_slots {
+        None => true,
+        Some(None) => false,
+        Some(Some(slots)) => {
+            slots.is_empty()
+                || crate::descriptor_results::owned_aggregate_descriptor_returns(
+                    function,
+                    unit.functions.iter(),
+                    &unit.structural_types,
+                )
+        }
+    };
+    let descriptor_origins_valid = aggregate_origins_valid
+        && (!shared_descriptor_result
+            || crate::descriptor_results::optimized_graph(unit).is_some_and(|graph| {
+                terminal_semantics::descriptor_results::reconstruct_result_origins(
+                    &unit.structural_types,
+                    &graph,
+                    function.machine,
+                )
+                .is_some()
+            }));
     let place_kinds = function
         .structural_places
         .iter()
