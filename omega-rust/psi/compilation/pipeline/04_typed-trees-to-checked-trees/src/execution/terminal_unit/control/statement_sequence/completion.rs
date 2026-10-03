@@ -114,6 +114,15 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             .root_for_expression(state.symbol, ordinal, *expression)
     });
     let returned_local = statements.last().and_then(|statement| {
+        // A scalar result observes a reference local's value; it does not
+        // return that local's permission carrier. Keep the establishment and
+        // let scalar completion replay the exact checked observation below.
+        if program
+            .primitive_type_reference(state.return_type)
+            .is_some()
+        {
+            return None;
+        }
         let StatementNode::Expression(expression) = statement else {
             return None;
         };
