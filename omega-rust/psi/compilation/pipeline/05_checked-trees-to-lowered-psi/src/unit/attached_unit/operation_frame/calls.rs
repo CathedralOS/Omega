@@ -21,7 +21,7 @@ use super::{OperationFrame, StructuralResults};
 use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
     StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
@@ -29,6 +29,7 @@ use crate::unit::{
     value_id,
 };
 use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
+use semantic_vocabulary::ScalarQualificationSetId;
 
 /// The completed operands one call hands the frame. Each route evaluates
 /// them on its own schedule before the call.
@@ -624,17 +625,27 @@ impl OperationFrame<'_, '_> {
         // Both catalogs have been source-validated before emission.
         // An operation-body callee uses its real ordered emitter,
         // not a fabricated PreparedScalarCallee graph.
-        let target_result = match self
+        let prepared = self
             .callees
             .prepared_scalar_machines
             .iter()
-            .find(|prepared| prepared.source_machine() == *realization_machine)
-        {
-            Some(prepared) => prepared.result_type(),
+            .find(|prepared| prepared.source_machine() == *realization_machine);
+        // The call result republishes the callee's own declared membership:
+        // a prepared graph carries its qualified result; every other callee
+        // kind mints an unqualified result, which is exactly what its emitted
+        // machine declares. Operands meet the callee's emitted entry
+        // parameters the same way — qualified where the callee publishes
+        // qualifications, unqualified where it does not.
+        let (target_result, result_qualifications) = match prepared {
+            Some(PreparedScalarCallee::Graph(graph)) => (
+                graph.result_type.scalar_type,
+                graph.result_type.qualifications,
+            ),
+            Some(prepared) => (prepared.result_type(), ScalarQualificationSetId::ZERO),
             None if self.callees.closure.contains(realization_machine)
                 && matches!(target, CheckedScalarCallee::Operations(_)) =>
             {
-                target.result_type()?
+                (target.result_type()?, ScalarQualificationSetId::ZERO)
             }
             None => {
                 return unsupported("Unit scalar call target is absent from the prepared closure");
@@ -650,6 +661,20 @@ impl OperationFrame<'_, '_> {
             .iter()
             .map(|primitive| terminal_scalar_type(*primitive))
             .collect::<Result<Vec<_>, _>>()?;
+        let expected_parameter_types = match prepared {
+            Some(PreparedScalarCallee::Graph(graph)) => graph
+                .states
+                .first()
+                .map(|state| state.parameter_types.clone())
+                .ok_or(LoweringError::Unsupported(
+                    "scalar call target lost its prepared entry state",
+                ))?,
+            _ => target_parameter_types
+                .iter()
+                .copied()
+                .map(semantic_vocabulary::QualifiedScalarType::from)
+                .collect(),
+        };
         let (arguments, erased_arguments, erased_proof_arguments) = match (
             call.erased_scalar_arguments(),
             call.erased_proof_arguments(),
@@ -661,7 +686,7 @@ impl OperationFrame<'_, '_> {
                 // caller's namespace and never runtime operands.
                 let arguments = argument_evaluation::validated_values(
                     inputs.evaluated_scalar_arguments,
-                    &target_parameter_types,
+                    &expected_parameter_types,
                 )?;
                 if erased_scalar_arguments.len() != target.erased_parameters().len() {
                     return unsupported("scalar call erased lane disagrees with its target roster");
@@ -734,7 +759,7 @@ impl OperationFrame<'_, '_> {
             .map(|_| self.calls.allocate_requirement())
             .collect::<Result<Vec<_>, LoweringError>>()?;
         let value = ValueDeclaration {
-            qualifications: Default::default(),
+            qualifications: result_qualifications,
             id: value_id(allocate_dense(self.next_value)?),
             scalar_type: target_result,
         };

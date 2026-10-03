@@ -3,29 +3,25 @@
 //! carried in the prefix. The final destination alone receives added or erased
 //! tags; explicit source-cast replay owns permission for that change.
 use super::{
-    LoweringError, MachineId, StructuralArgument, Terminator, ValueDeclaration, edge_id,
-    scalar_source_block, unsupported,
+    BlockId, LoweringError, MachineId, StructuralArgument, Terminator, ValueDeclaration,
+    unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use semantic_vocabulary::EdgeId;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn emit(
-    target: usize,
+pub(crate) fn emit(
+    successor: BlockId,
+    edge: EdgeId,
+    machine: MachineId,
     arguments: &[LoweredDirectExpression],
     structural_arguments: &[StructuralArgument],
     sources: &[ValueDeclaration],
-    state_parameters: &[Vec<ValueDeclaration>],
-    machine: MachineId,
-    identity_base: u64,
-    next_edge_identity: &mut u64,
-    catalog: &mut terminal_psi::ScalarQualificationCatalog,
+    destinations: &[ValueDeclaration],
+    sets: &[terminal_psi::ScalarQualificationSet],
+    coercions: &mut Vec<terminal_psi::ScalarQualificationCoercion>,
 ) -> Result<Terminator, LoweringError> {
-    let destinations = state_parameters
-        .get(target)
-        .ok_or(LoweringError::Unsupported(
-            "scalar qualification has no successor declarations",
-        ))?;
     if !structural_arguments.is_empty()
         || arguments.is_empty()
         || arguments.len() != destinations.len()
@@ -60,9 +56,7 @@ pub(super) fn emit(
             let source_domains = if source.qualifications.is_empty() {
                 &[][..]
             } else {
-                catalog
-                    .sets
-                    .iter()
+                sets.iter()
                     .find(|set| set.id == source.qualifications)
                     .map(|set| set.domains.as_slice())
                     .ok_or(LoweringError::Unsupported(
@@ -72,9 +66,7 @@ pub(super) fn emit(
             let destination_domains = if destination.qualifications.is_empty() {
                 &[][..]
             } else {
-                catalog
-                    .sets
-                    .iter()
+                sets.iter()
                     .find(|set| set.id == destination.qualifications)
                     .map(|set| set.domains.as_slice())
                     .ok_or(LoweringError::Unsupported(
@@ -94,29 +86,21 @@ pub(super) fn emit(
                     "scalar qualification must add or erase membership on a fresh value",
                 );
             }
-            catalog
-                .coercions
-                .push(terminal_psi::ScalarQualificationCoercion {
-                    machine,
-                    edge: edge_id(*next_edge_identity),
-                    argument_ordinal: u32::try_from(ordinal).map_err(|_| {
-                        LoweringError::Unsupported("scalar qualification ordinal exceeds u32")
-                    })?,
-                    source: source.id,
-                    destination: destination.id,
-                });
+            coercions.push(terminal_psi::ScalarQualificationCoercion {
+                machine,
+                edge,
+                argument_ordinal: u32::try_from(ordinal).map_err(|_| {
+                    LoweringError::Unsupported("scalar qualification ordinal exceeds u32")
+                })?,
+                source: source.id,
+                destination: destination.id,
+            });
         }
         values.push(source.id);
     }
-    let edge = edge_id(*next_edge_identity);
-    *next_edge_identity = next_edge_identity
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "scalar qualification edge identity overflow",
-        ))?;
     Ok(Terminator::Jump {
         edge,
-        target: scalar_source_block(identity_base, target),
+        target: successor,
         arguments: values,
         erased_arguments: Vec::new(),
         erased_proof_arguments: Vec::new(),
@@ -128,8 +112,8 @@ pub(super) fn emit(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{ScalarType, block_id, value_id};
-    use super::{LoweredDirectExpression, MachineId, Terminator, ValueDeclaration, edge_id, emit};
+    use super::super::{ScalarType, block_id, edge_id, value_id};
+    use super::{LoweredDirectExpression, MachineId, Terminator, ValueDeclaration, emit};
     use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId};
 
     fn declaration(identity: u64, set: u64) -> ValueDeclaration {
@@ -157,24 +141,22 @@ mod tests {
             }],
             ..Default::default()
         };
-        let mut next_edge = 7;
         let terminator = emit(
-            1,
+            block_id(2),
+            edge_id(7),
+            MachineId::new(1).unwrap(),
             &arguments,
             &[],
             &sources,
-            &destinations,
-            MachineId::new(1).unwrap(),
-            0,
-            &mut next_edge,
-            &mut catalog,
+            &destinations[1],
+            &catalog.sets,
+            &mut catalog.coercions,
         )
         .unwrap();
         assert!(
             matches!(terminator, Terminator::Jump { edge, target, arguments, .. }
             if edge == edge_id(7) && target == block_id(2) && arguments == vec![value_id(1), value_id(2)])
         );
-        assert_eq!(next_edge, 8);
         assert_eq!(catalog.coercions.len(), 1);
         assert_eq!(catalog.coercions[0].source, value_id(2));
         assert_eq!(catalog.coercions[0].destination, value_id(4));
@@ -185,15 +167,15 @@ mod tests {
         changed[1][0].qualifications = ScalarQualificationSetId::new(1);
         assert!(
             emit(
-                1,
+                block_id(2),
+                edge_id(8),
+                MachineId::new(1).unwrap(),
                 &arguments,
                 &[],
                 &sources,
-                &changed,
-                MachineId::new(1).unwrap(),
-                0,
-                &mut next_edge,
-                &mut catalog
+                &changed[1],
+                &catalog.sets,
+                &mut catalog.coercions,
             )
             .is_err()
         );
@@ -201,15 +183,15 @@ mod tests {
         changed[1].qualifications = ScalarQualificationSetId::new(1);
         assert!(
             emit(
-                1,
+                block_id(2),
+                edge_id(8),
+                MachineId::new(1).unwrap(),
                 &arguments,
                 &[],
                 &changed,
-                &destinations,
-                MachineId::new(1).unwrap(),
-                0,
-                &mut next_edge,
-                &mut catalog
+                &destinations[1],
+                &catalog.sets,
+                &mut catalog.coercions,
             )
             .is_err()
         );

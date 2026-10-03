@@ -198,11 +198,16 @@ pub(crate) fn emit_boundary_scalar_return(
         &mut operations,
         scalar_calls,
     )?;
-    let arguments =
-        argument_evaluation::validated_values(arguments.as_deref(), &boundary_scalar_parameters)?
-            .into_iter()
-            .map(|value| value.id)
-            .collect::<Vec<_>>();
+    let arguments = argument_evaluation::validated_values(
+        arguments.as_deref(),
+        &boundary_scalar_parameters
+            .iter()
+            .map(|scalar_type| (*scalar_type).into())
+            .collect::<Vec<_>>(),
+    )?
+    .into_iter()
+    .map(|value| value.id)
+    .collect::<Vec<_>>();
     let scalar_type = terminal_scalar_type(plan.result_type)?;
     let call_result = ValueDeclaration {
         qualifications: Default::default(),

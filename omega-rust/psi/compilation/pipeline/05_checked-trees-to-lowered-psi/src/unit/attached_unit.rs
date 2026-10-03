@@ -487,7 +487,9 @@ pub(crate) fn lower_unit_closure(
         closure: &closure,
         provider_candidate_plans: &provider_candidate_plans,
         prepared_scalar_machines: &prepared_scalar_callees.machines,
+        prepared_scalar_qualifications: &prepared_scalar_callees.prepared_qualifications,
     };
+    let mut scalar_qualification_coercions = Vec::new();
     for (signature, admitted) in machine_signatures.iter().zip(admitted_bodies) {
         let body = admitted.source();
         let plan = body.entry()?;
@@ -520,6 +522,8 @@ pub(crate) fn lower_unit_closure(
                     scalar_requirement_counts: &scalar_requirement_counts,
                     closure: &closure,
                     prepared_scalar_machines: &prepared_scalar_callees.machines,
+                    prepared_scalar_qualifications: &prepared_scalar_callees
+                        .prepared_qualifications,
                 },
                 composed_control::callable::EmissionCounters {
                     place: &mut next_place,
@@ -557,6 +561,7 @@ pub(crate) fn lower_unit_closure(
             },
         )?;
         scalar_block_invariants.extend(emitted.scalar_block_invariants);
+        scalar_qualification_coercions.extend(emitted.qualification_coercions);
         machines.push(emitted.machine);
         occurrences.retain(
             emitted.source_calls,
@@ -618,6 +623,9 @@ pub(crate) fn lower_unit_closure(
     call_evidence.append(&mut scalar_output.evidence);
     scalar_block_invariants.append(&mut scalar_output.scalar_block_invariants);
     let mut scalar_qualifications = scalar_output.qualifications;
+    scalar_qualifications
+        .coercions
+        .append(&mut scalar_qualification_coercions);
     scalar_qualifications
         .float_entry_ranges
         .sort_by_key(|range| (range.machine, range.parameter));

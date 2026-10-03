@@ -64,7 +64,6 @@ impl StateGraphEmission<'_, '_> {
             let reads_payloads = arm.successor().is_some_and(successor_may_read_payloads);
             let guard = if let Some(expression) = evaluation.branch_guard(
                 checked,
-                owner,
                 state.state,
                 arm.statement_ordinal(),
                 values,

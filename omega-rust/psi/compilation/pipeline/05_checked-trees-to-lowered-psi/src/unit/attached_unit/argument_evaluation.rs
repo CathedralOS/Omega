@@ -33,30 +33,20 @@ mod record_captures;
 mod scalar_control;
 mod source_values;
 
-fn prepare_shared_qualifications(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    values: &[ValueDeclaration],
-) -> Result<
-    crate::expression_preparation::qualifications::PreparedScalarQualifications,
-    LoweringError,
-> {
-    let qualifications =
-        crate::expression_preparation::qualifications::PreparedScalarQualifications::prepare(
-            checked,
-            &[machine],
-        )?;
-    if !qualifications.catalog().domains.is_empty()
-        || values.iter().any(|value| !value.qualifications.is_empty())
-    {
-        return unsupported(
-            "attached scalar qualifications require the enclosing catalog namespace",
-        );
-    }
-    Ok(qualifications)
-}
-
 pub(crate) struct Evaluation {
+    /// The enclosing emission unit's scalar qualification namespace. A call
+    /// result publishes the callee's qualified result in it, so argument
+    /// evaluation resolves operand memberships against the same catalog the
+    /// emitted machine declares — never a machine-private interning.
+    pub(crate) shared_qualifications:
+        crate::expression_preparation::qualifications::PreparedScalarQualifications,
+    /// The emitted machine's terminal identity, stamped on qualification
+    /// coercions this evaluation's expansions mint. Emission frames that
+    /// cannot mint qualification edges carry none.
+    pub(crate) machine: Option<semantic_vocabulary::MachineId>,
+    /// Qualification coercions this evaluation's expansions minted; the
+    /// machine's emission drains them into the module catalog.
+    pub(crate) qualification_coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
     pub(crate) structural_types: std::sync::Arc<[StructuralTypeDeclaration]>,
     pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
@@ -136,6 +126,9 @@ impl Evaluation {
     /// without changing the sibling's compile-time view of that frontier.
     pub(crate) fn branch(&self, block: BlockId, operation_start: usize) -> Self {
         Self {
+            shared_qualifications: self.shared_qualifications.clone(),
+            machine: self.machine,
+            qualification_coercions: self.qualification_coercions.clone(),
             structural_types: self.structural_types.clone(),
             structural_value_owners: self.structural_value_owners.clone(),
             selection_cleanups: self.selection_cleanups.clone(),
@@ -750,6 +743,10 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            shared_qualifications:
+                crate::expression_preparation::qualifications::PreparedScalarQualifications::empty(),
+            machine: None,
+            qualification_coercions: Vec::new(),
             structural_types: std::sync::Arc::from([]),
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
@@ -924,7 +921,7 @@ impl Evaluation {
             }
             None => (arguments, 0),
         };
-        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
+        let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()
             .map(|value| value.value_type())
@@ -942,7 +939,7 @@ impl Evaluation {
                     }
                     crate::scalar_graph::scalar_computations::computation_value_type(
                         checked,
-                        &qualifications,
+                        qualifications,
                         *root,
                         &source_bindings,
                         &source_types,
@@ -979,7 +976,7 @@ impl Evaluation {
 
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
-            &qualifications,
+            qualifications,
             machine,
             1,
         )
@@ -1049,7 +1046,7 @@ impl Evaluation {
             .with_structural_locals(&self.structural_locals)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
             .with_byte_record_loans(&self.byte_record_loans);
-        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
+        let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()
             .map(|value| value.value_type())
@@ -1134,7 +1131,7 @@ impl Evaluation {
         }
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
-            &qualifications,
+            qualifications,
             machine,
             1,
         )
@@ -1187,23 +1184,6 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Vec<ValueDeclaration>, LoweringError> {
-        if states.iter().any(|state| {
-            state
-                .parameter_types
-                .iter()
-                .any(|value_type| !value_type.qualifications.is_empty())
-                || matches!(
-                    state.terminator,
-                    LoweredScalarBranchTerminator::Qualify { .. }
-                )
-        }) || result_types
-            .iter()
-            .any(|value_type| !value_type.qualifications.is_empty())
-        {
-            return unsupported(
-                "attached scalar expansion requires a shared qualification catalog",
-            );
-        }
         let source_types = values
             .iter()
             .map(|value| value.value_type())
@@ -1256,6 +1236,10 @@ impl Evaluation {
                 &self.erased_scalar_formals,
                 &self.erased_proof_formals,
                 &targets,
+                &parameters,
+                self.machine,
+                &self.shared_qualifications.catalog().sets,
+                &mut self.qualification_coercions,
                 next_value,
                 next_block,
                 next_edge,
@@ -1294,15 +1278,16 @@ fn declarations(
 
 pub(crate) fn validated_values(
     values: Option<&[ValueDeclaration]>,
-    types: &[ScalarType],
+    types: &[QualifiedScalarType],
 ) -> Result<Vec<ValueDeclaration>, LoweringError> {
     let values = values.ok_or(LoweringError::Unsupported(
         "call has no completed scalar operands",
     ))?;
     if values.len() != types.len()
-        || values.iter().zip(types).any(|(value, scalar_type)| {
-            value.scalar_type != *scalar_type || !value.qualifications.is_empty()
-        })
+        || values
+            .iter()
+            .zip(types)
+            .any(|(value, expected)| value.value_type() != *expected)
     {
         return unsupported("completed call scalar operands disagree with the target signature");
     }
@@ -1317,6 +1302,10 @@ fn emit_state(
     caller_erased_formals: &[ValueDeclaration],
     source_erased_proof_formals: &[checked_trees::CheckedErasedProofParameterPlan],
     targets: &[BlockId],
+    state_parameters: &[Vec<ValueDeclaration>],
+    machine: Option<semantic_vocabulary::MachineId>,
+    qualification_sets: &[terminal_psi::ScalarQualificationSet],
+    coercions: &mut Vec<terminal_psi::ScalarQualificationCoercion>,
     next_value: &mut u64,
     next_block: &mut u64,
     next_edge: &mut u64,
@@ -1437,10 +1426,61 @@ fn emit_state(
                 .collect()
         };
     let terminator = match &state.terminator {
-        LoweredScalarBranchTerminator::Qualify { .. } => {
-            return unsupported(
-                "attached scalar computation qualification requires a shared catalog namespace",
-            );
+        LoweredScalarBranchTerminator::Qualify {
+            target,
+            arguments: qualify_arguments,
+            erased_arguments: qualify_erased_arguments,
+            erased_proof_arguments: qualify_erased_proof_arguments,
+            structural_arguments: qualify_structural_arguments,
+        } => {
+            let mut terminator = crate::scalar_graph::scalar_graph_module::qualifications::emit(
+                *targets.get(*target).ok_or(LoweringError::Unsupported(
+                    "call computation qualification target is absent",
+                ))?,
+                edge_id(allocate_dense(next_edge)?),
+                machine.ok_or(LoweringError::Unsupported(
+                    "attached scalar qualification has no machine identity",
+                ))?,
+                qualify_arguments,
+                qualify_structural_arguments,
+                &values,
+                state_parameters
+                    .get(*target)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar qualification has no successor declarations",
+                    ))?,
+                qualification_sets,
+                coercions,
+            )?;
+            let Terminator::Jump {
+                erased_arguments: scalar_actuals,
+                erased_proof_arguments: proof_actuals,
+                ..
+            } = &mut terminator
+            else {
+                return unsupported("scalar qualification lost its successor edge");
+            };
+            *scalar_actuals = qualify_erased_arguments
+                .iter()
+                .map(|argument| {
+                    crate::proofs::crash_routes::lowered_direct_scalar_term(
+                        argument,
+                        &values,
+                        &erased_formals,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            *proof_actuals = qualify_erased_proof_arguments
+                .iter()
+                .map(|argument| {
+                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                        argument,
+                        &values,
+                        &erased_formals,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            terminator
         }
         LoweredScalarBranchTerminator::Jump {
             target,

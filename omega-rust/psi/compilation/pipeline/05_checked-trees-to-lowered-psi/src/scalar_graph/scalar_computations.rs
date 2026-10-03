@@ -766,9 +766,13 @@ impl<'a> Expansion<'a> {
                 let ScalarType::Integer(target_type) = result_type.scalar_type else {
                     return unsupported("authored conversion requires fixed integer carriers");
                 };
+                // Conversion bindings bind the operand's bare carrier: an
+                // operand that still carries domains erases them on a
+                // qualification edge before the conversion state.
+                let bound_operand_type = QualifiedScalarType::from(operand_type.scalar_type);
                 let mut operand_types = input_types.to_vec();
-                operand_types.push(operand_type);
-                let operand_expression = parameter(input_types.len(), operand_type);
+                operand_types.push(bound_operand_type);
+                let operand_expression = parameter(input_types.len(), bound_operand_type);
                 let conversion = match domain {
                     ArithmeticDomain::Exact => {
                         if source_type == target_type {
@@ -822,6 +826,27 @@ impl<'a> Expansion<'a> {
                     target,
                     LoweredScalarBinding::Expression(conversion),
                 );
+                let bound = if operand_type.qualifications.is_empty() {
+                    bound
+                } else {
+                    let mut qualified_types = input_types.to_vec();
+                    qualified_types.push(operand_type);
+                    self.push(LoweredScalarBranchState {
+                        structural_parameters: Vec::new(),
+                        parameter_types: qualified_types.clone(),
+                        erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
+                        bindings: Vec::new(),
+                        structural_effects: Vec::new(),
+                        terminator: LoweredScalarBranchTerminator::Qualify {
+                            target: bound,
+                            arguments: parameters(&qualified_types),
+                            erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                        },
+                    })
+                };
                 self.argument(&operand, input_types, bound, site, active)?
             }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => self.dispatch(

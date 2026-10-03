@@ -342,7 +342,13 @@ pub(super) fn emit(
             && matches!(integer.bits(), 8 | 16 | 32 | 64))) {
         return unsupported("ordinary structural side arguments require fixed-width integers");
     }
-    let scalar_values = argument_evaluation::validated_values(evaluated, &scalar_types)?;
+    let scalar_values = argument_evaluation::validated_values(
+        evaluated,
+        &scalar_types
+            .iter()
+            .map(|scalar_type| (*scalar_type).into())
+            .collect::<Vec<_>>(),
+    )?;
     let arguments = scalar_values.iter().map(|value| value.id).collect();
     // A claim-free affine leaf still publishes the crash ceiling its checked
     // plan carries; scalar side arguments substitute its parameter-relative

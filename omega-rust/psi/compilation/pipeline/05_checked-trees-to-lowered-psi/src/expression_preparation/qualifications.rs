@@ -22,6 +22,7 @@ use terminal_psi::{
     ScalarQualificationSet,
 };
 
+#[derive(Clone)]
 pub(crate) struct PreparedScalarQualifications {
     catalog: ScalarQualificationCatalog,
 }
@@ -246,6 +247,16 @@ impl PreparedScalarQualifications {
             });
         }
         Ok(Self { catalog })
+    }
+
+    /// An empty namespace for emission contexts that own no prepared scalar
+    /// callees — boundary returns and dynamic leaves. Qualified lookups
+    /// decline against it exactly as they do against a prepared catalog
+    /// missing the domain.
+    pub(crate) fn empty() -> Self {
+        Self {
+            catalog: ScalarQualificationCatalog::default(),
+        }
     }
 
     pub(crate) fn catalog(&self) -> &ScalarQualificationCatalog {

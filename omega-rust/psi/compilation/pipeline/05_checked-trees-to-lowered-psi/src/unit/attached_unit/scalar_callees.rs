@@ -162,6 +162,10 @@ pub(super) fn wrapper_domains(callees: &[CheckedScalarCallee<'_>]) -> Vec<Semant
 pub(super) struct PreparedScalarCallees<'checked> {
     pub(super) machines: Vec<PreparedScalarCallee<'checked>>,
     qualifications: ScalarQualificationCatalog,
+    /// The closure's canonical scalar qualification namespace: a call's
+    /// emitted result republishes the callee's qualified result through it.
+    pub(super) prepared_qualifications:
+        crate::expression_preparation::qualifications::PreparedScalarQualifications,
     /// Each callee's structural parameters by source machine, keyed by the
     /// parameter's authored position; only graph callees allocate any here.
     graph_parameters: Vec<(
@@ -246,6 +250,7 @@ pub(super) fn prepare<'checked>(
     Ok(PreparedScalarCallees {
         machines,
         qualifications: qualifications.catalog().clone(),
+        prepared_qualifications: qualifications,
         graph_parameters: allocated
             .into_iter()
             .map(|(source, _, _, view_roster)| (source, view_roster))

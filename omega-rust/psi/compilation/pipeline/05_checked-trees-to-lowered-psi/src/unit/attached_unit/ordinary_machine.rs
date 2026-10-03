@@ -68,6 +68,10 @@ pub(super) struct ClosureCatalog<'a> {
     pub(super) closure: &'a [symbols::SymbolHandle],
     pub(super) provider_candidate_plans: &'a [CheckedUnitProviderCandidate],
     pub(super) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
+    /// The closure's scalar qualification namespace; a call's emitted
+    /// result republishes the callee's qualified result through it.
+    pub(super) prepared_scalar_qualifications:
+        &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
 }
 
 mod locals;
@@ -140,6 +144,9 @@ pub(super) struct StepInputs {
 /// The lowered machine and the occurrence rows the closure accumulates.
 pub(super) struct EmittedMachine {
     pub(super) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
+    /// Qualification coercions the machine's call-argument expansions minted,
+    /// merged into the module's shared qualification catalog at publication.
+    pub(super) qualification_coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
     pub(super) machine: TerminalMachine,
     pub(super) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(super) selected_ieee_float_comparisons: Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
@@ -169,6 +176,7 @@ pub(super) fn emit(
         closure,
         provider_candidate_plans,
         prepared_scalar_machines,
+        prepared_scalar_qualifications,
     } = catalog;
     let EmissionCounters {
         place: place_counter,
@@ -304,6 +312,8 @@ pub(super) fn emit(
     let primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
     let structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+    evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
+    evaluation.machine = Some(terminal_machine);
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
     evaluation.byte_record_loans =
         crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
@@ -970,6 +980,7 @@ pub(super) fn emit(
     *call_obligation_counter = next_call_obligation;
     Ok(EmittedMachine {
         scalar_block_invariants,
+        qualification_coercions: evaluation.qualification_coercions,
         machine,
         source_calls,
         selected_ieee_float_comparisons,

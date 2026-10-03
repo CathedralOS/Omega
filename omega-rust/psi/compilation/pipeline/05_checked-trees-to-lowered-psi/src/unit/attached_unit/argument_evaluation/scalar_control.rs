@@ -4,7 +4,7 @@
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, Evaluation, LoweredBooleanReturnExpression,
     LoweredDirectExpression, LoweringError, QualifiedScalarType, ScalarType, ValueDeclaration,
-    prepare_shared_qualifications, terminal_scalar_type, unsupported,
+    terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -497,7 +497,7 @@ impl Evaluation {
             // A case arm may read a payload its own membership test selects;
             // the arm's dispatch binds or refuses each read.
             .with_deferred_case_payloads();
-        let qualifications = prepare_shared_qualifications(checked, machine, values)?;
+        let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()
             .map(|value| value.value_type())
@@ -505,7 +505,7 @@ impl Evaluation {
         let result_type = terminal_scalar_type(control.primitive_type)?;
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
-            &qualifications,
+            qualifications,
             machine,
             1,
         )
