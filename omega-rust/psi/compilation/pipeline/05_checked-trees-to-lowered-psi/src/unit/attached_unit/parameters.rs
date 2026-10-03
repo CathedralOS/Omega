@@ -346,8 +346,10 @@ pub(crate) fn checked_scalar_source_parameters(
                 .map(|primitive_type| (position, source, primitive_type))
         })
         .map(|(position, source, primitive_type)| {
-            if source.is_self || source.is_const || source.is_mutable {
-                return unsupported("scalar parameter is not an immutable direct value");
+            // A mutable scalar still arrives as a value of this exact type;
+            // the state body separately establishes its current-value slot.
+            if source.is_self || source.is_const {
+                return unsupported("scalar parameter is not a direct value binding");
             }
             Ok(checked_trees::CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).map_err(|_| {

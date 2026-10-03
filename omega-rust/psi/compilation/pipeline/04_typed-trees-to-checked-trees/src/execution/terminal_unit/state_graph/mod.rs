@@ -476,14 +476,26 @@ fn build_traced_with(
         )
         .unwrap_or_default()
         .into_iter()
-        // The prefix carries immutable scalar values, not storage homes.
-        // Mutable declarations and their suffix use ordinary sequencing, whose
-        // EstablishPrimitiveLocal owns every later read, assignment and loan.
-        // Splitting a local's initializer into this value-only prefix would
-        // leave a later effectful assignment without its established referent.
+        // Entry scalar parameters already own current-value slots. Their
+        // assignments use the same ordered SSA binding owner as immutable
+        // locals. Mutable local declarations instead establish addressable
+        // homes in ordinary sequencing; never split those initializers away
+        // from the later reads, assignments, and loans that need the home.
         .take_while(|binding| {
             binding.value == CheckedScalarBindingValue::Expression
-                && binding.destination == checked_trees::CheckedScalarBindingDestination::Immutable
+                && match binding.destination {
+                    checked_trees::CheckedScalarBindingDestination::Immutable => true,
+                    checked_trees::CheckedScalarBindingDestination::StorageAssign { symbol } => {
+                        program.state_parameters(state).iter().any(|parameter| {
+                            parameter.symbol == symbol
+                                && crate::values::mutable_scalar_parameter_type(program, parameter)
+                                    == Some(binding.primitive_type)
+                        })
+                    }
+                    checked_trees::CheckedScalarBindingDestination::StorageInitialize {
+                        ..
+                    } => false,
+                }
         })
         // An atomic load or result placeholder is an event, not a pure prefix.
         .take_while(|binding| {
@@ -1927,23 +1939,28 @@ fn successor_bindings(
         return None;
     }
     mark(SuccessorGuard::TargetState);
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = program.statement_table.transition_target(transition.target)
-    else {
-        return None;
-    };
-    let target_index = fused_target_index(program, fused, path.symbol)?;
     let &(machine, source) = fused.get(source_index)?;
+    let (target_index, explicit_arguments) =
+        match program.statement_table.transition_target(transition.target) {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => (
+                fused_target_index(program, fused, path.symbol)?,
+                Some(program.statement_table.expression_handles(*arguments)),
+            ),
+            TransitionTargetNode::SelfTarget => (source_index, None),
+            _ => return None,
+        };
     let &(_, target) = fused.get(target_index)?;
-    let arguments = program.statement_table.expression_handles(*arguments);
+    let arguments = explicit_arguments.unwrap_or(&[]);
     let target_parameters = program.state_parameters(target);
     mark(SuccessorGuard::ArgumentCount);
-    if arguments.len()
-        != target_parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
+    if explicit_arguments.is_some()
+        && arguments.len()
+            != target_parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count()
     {
         return None;
     }
@@ -2057,6 +2074,18 @@ fn successor_bindings(
                 });
             }
             mark(SuccessorGuard::StructuralArgument);
+            if explicit_arguments.is_none() {
+                let source_index = source_structural.iter().position(|parameter| parameter.position == target.position)?;
+                if source_structural[source_index] != *target {
+                    return None;
+                }
+                return Some(CheckedStructuralControlTransferPlan {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                        index: u32::try_from(source_index).ok()?,
+                    },
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
+            }
             let expression = argument_at(target.position)?;
             if let Some(range_expression) = validation::subslice_expression(program, expression)
                 && let ExpressionNode::Indexed(indexed) = program.expression_table.expression(range_expression)
@@ -2581,6 +2610,24 @@ fn successor_bindings(
         .enumerate()
         .filter(|(index, _)| !payload_parameters.contains(&(*index as u32)))
         .map(|(target_index, target)| {
+            // A self edge supplies the current value of each exact formal;
+            // it has no authored expression occurrence to manufacture.
+            if explicit_arguments.is_none() {
+                let source_index = source_scalar
+                    .iter()
+                    .position(|parameter| parameter.source_position == target.source_position)?;
+                if source_scalar[source_index] != *target {
+                    return None;
+                }
+                return Some(CheckedStructuralScalarArgumentPlan {
+                    argument_ordinal: target.source_position,
+                    source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                        index: u32::try_from(source_index).ok()?,
+                    },
+                    target_scalar_parameter_index: u32::try_from(target_index).ok()?,
+                    primitive_type: target.primitive_type,
+                });
+            }
             let argument = argument_at(target.source_position)?;
             let role = CheckedScalarExpressionRole::TransitionArgument {
                 argument_ordinal: target.source_position,
