@@ -9,8 +9,7 @@ satisfies ProgressProfile
 established by Scheduler::grant;
 
 pub boundary trait Scheduler {
-    machine notify(&self, value: i32)
-    requires self in SchedulerHandle::WeakFair
+    machine notify(value: i32)
     terminates;
 
     machine grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
@@ -22,23 +21,23 @@ data SchedulerProvider { grant: addr; notify: addr; }
 // requirement into canonical ProcessExit or establish its progress premise.
 // The provider covers every catalogued host: a fixture compiled under the
 // corpus's host-selected target finds a complete candidate wherever it runs.
-linux_x86_64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
+linux_x86_64 machine SchedulerProvider::notify(value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::Syscall(1);
 
-linux_arm64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
+linux_arm64 machine SchedulerProvider::notify(value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_arm64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
+macos_arm64 machine SchedulerProvider::notify(value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_x86_64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
+macos_x86_64 machine SchedulerProvider::notify(value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-windows_x86_64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
+windows_x86_64 machine SchedulerProvider::notify(value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
