@@ -164,7 +164,7 @@ pub(super) fn read_type(
     scalar_type(module, structural_type).ok_or_else(invalid)
 }
 
-fn writable_signature<'a>(
+fn storage_signature<'a>(
     module: &TerminalModule,
     machine: &'a TerminalMachine,
     place: PlaceId,
@@ -226,8 +226,15 @@ fn writable_signature<'a>(
         if !result.claims.is_empty() {
             return None;
         }
-        if super::record::completed_source(module, machine, place).is_none()
-            && !super::scalar::array::plain_return_source(module, machine, place)
+        // Reading a primitive leaf transfers no sibling view or reference
+        // custody. Use the same completed construction contract as canonical
+        // scalar-field reads; writes retain their narrower storage authority.
+        let completed = if writing {
+            super::record::completed_source(module, machine, place)
+        } else {
+            super::record::constructed_source(module, machine, place)
+        };
+        if completed.is_none() && !super::scalar::array::plain_return_source(module, machine, place)
         {
             return None;
         }
@@ -246,7 +253,7 @@ fn projected_type(
     path: &[terminal_psi::StructuralPathSegment],
     writing: bool,
 ) -> Option<ScalarType> {
-    let signature = writable_signature(module, machine, place, writing)?;
+    let signature = storage_signature(module, machine, place, writing)?;
     // A read may end at a scalar field of an element it selects at run time
     // (`cells[i].hp`); a store may not, because only the field store owns a
     // bounded field's range obligation. A static path to a field keeps the

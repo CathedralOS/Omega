@@ -543,3 +543,94 @@ fn a_runtime_element_field_store_forgets_only_its_array() {
         "a runtime element store publishes no field equation: {after:?}"
     );
 }
+
+/// Constructing the enclosing record does not stop a scalar observation from
+/// reading an element just because that element also carries a shared view.
+#[test]
+fn constructed_view_bearing_array_root_preserves_indexed_scalar_read_authority() {
+    use terminal_psi::{
+        ByteSequenceCarrier, RecordFieldInitializer, RecordFieldValue, StructuralArgument,
+        StructuralOperationResult,
+    };
+    let mut module = fixture();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields.push(field(
+        "label",
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        }),
+        5,
+    ));
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].structural_type = id(2);
+    machine.structural_parameters[0].access = StructuralAccess::Owned;
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(2),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: id(3),
+            structural_type: id(3),
+        },
+    });
+    let OperationKind::PrimitiveScalarRead { source, .. } =
+        &mut machine.blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *source = id(2);
+    machine.blocks[0].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(3),
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: id(2),
+                structural_type: id(3),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishRecord {
+                fields: vec![RecordFieldInitializer {
+                    field: id(1),
+                    value: RecordFieldValue::Structural(StructuralArgument {
+                        place: id(1),
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    }),
+                }],
+            },
+        },
+    );
+    let bundle = bundle_for(&module);
+    verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
+    assert!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .is_err()
+    );
+
+    // A view-bearing root cannot disguise a descriptor as a primitive leaf.
+    let mut wrong_leaf = module.clone();
+    let OperationKind::PrimitiveScalarRead { path, .. } =
+        &mut wrong_leaf.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    *path.last_mut().unwrap() = "label".into();
+    assert!(validate_module(&wrong_leaf).is_err());
+
+    // Result declaration order alone never supplies initialization authority.
+    let mut read_before_construction = module;
+    read_before_construction.machines[0].blocks[0]
+        .operations
+        .rotate_left(1);
+    assert!(validate_module(&read_before_construction).is_err());
+}
