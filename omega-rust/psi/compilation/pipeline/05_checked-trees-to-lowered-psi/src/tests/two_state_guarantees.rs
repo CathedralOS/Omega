@@ -336,7 +336,7 @@ fn sequential_ranked_components_survive_serialization_and_execution() {
         "/../../../../../tests/omega/pass/proofs/runtime_sequential_ranked_components_exit/main.omg"
     ));
     // Identity carriage permits n > previous at the invocation.
-    assert_sequential_artifact(customer, &[(0, 9, 9), (3, 9, 9), (3, 0, 0)]);
+    assert_sequential_artifact(customer, &[(0, 9, 9), (3, 9, 9), (3, 0, 0)], &[1, 1]);
 }
 
 #[test]
@@ -347,10 +347,41 @@ fn sequential_relational_accumulator_survives_serialization_and_execution() {
     ));
     // The first component changes previous: only its established order, not
     // equality to the invocation value, may cross into the second component.
-    assert_sequential_artifact(customer, &[(3, 9, 1), (0, 9, 9), (1, 9, 1), (3, 3, 1)]);
+    assert_sequential_artifact(
+        customer,
+        &[(3, 9, 1), (0, 9, 9), (1, 9, 1), (3, 3, 1)],
+        &[1, 1],
+    );
 }
 
-fn assert_sequential_artifact(customer: &str, inputs: &[(u128, u128, u128)]) {
+#[test]
+fn ranked_intermediary_accumulator_survives_serialization_and_execution() {
+    let customer = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/proofs/runtime_ranked_intermediary_accumulator_exit/main.omg"
+    ));
+    // The intermediary carries the established bound across a second strict
+    // edge before the later component consumes it. Even and odd ranks take
+    // different exits from the first component.
+    assert_sequential_artifact(
+        customer,
+        &[
+            (3, 9, 1),
+            (0, 9, 9),
+            (1, 9, 1),
+            (2, 9, 2),
+            (4, 9, 2),
+            (5, 9, 1),
+        ],
+        &[2, 1],
+    );
+}
+
+fn assert_sequential_artifact(
+    customer: &str,
+    inputs: &[(u128, u128, u128)],
+    expected_strict_edges: &[usize],
+) {
     use terminal_interpreter::{
         AcceptTerminalEffects, TerminalExecutionResult, TerminalScalarValue,
         TerminalStructuralInputs,
@@ -397,6 +428,21 @@ fn assert_sequential_artifact(customer: &str, inputs: &[(u128, u128, u128)]) {
             .any(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)),
         "both components retain actual strict descent witnesses"
     );
+    let mut strict_edges: Vec<_> = cycles
+        .iter()
+        .map(|cycle| {
+            cycle
+                .edges
+                .iter()
+                .filter(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
+                .count()
+        })
+        .collect();
+    let mut expected_strict_edges = expected_strict_edges.to_vec();
+    // SCC serialization order is not part of the authored rank contract.
+    strict_edges.sort_unstable();
+    expected_strict_edges.sort_unstable();
+    assert_eq!(strict_edges, expected_strict_edges);
     let carrier = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let unsigned = |value| TerminalScalarValue::Integer {
         scalar_type: carrier,

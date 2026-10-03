@@ -7,7 +7,7 @@
 use super::{Header, ScopedArithmeticBinding, ScopedArithmeticExpression, ScopedArithmeticValue};
 
 /// Bounds all nested substitution and cloning work across one machine's
-/// condensation graph, including alternative incoming paths.
+/// state graph, including alternative incoming state-simple paths.
 pub(super) const TRANSPORT_WORK: usize = 16_384;
 const SUBSTITUTION_DEPTH: usize = 64;
 
