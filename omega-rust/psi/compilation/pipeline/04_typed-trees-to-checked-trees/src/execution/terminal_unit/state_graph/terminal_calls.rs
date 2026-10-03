@@ -30,8 +30,7 @@
 //! terminal call whose result differs from the caller's declared result.
 //!
 //! Honest boundaries: structural results are not planned here; an arm call
-//! is ordinary, transfers no claims, is its statement's only call (its guard
-//! makes none), and has no operand that needs its own establishment (nested
+//! transfers no claims, is its statement's only call (its guard makes none), and has no operand that needs its own establishment (nested
 //! calls, constructed values or arrays), because those operands would have to
 //! run inside the arm as well.
 use super::{
@@ -42,10 +41,10 @@ use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call
 use crate::execution::terminal_unit::control::bind_scalar_call_result;
 use crate::execution::terminal_unit::types::{is_unit, state_flow};
 
-/// The machine state an arm's named target invokes, when that target is
-/// another machine rather than a state of this one. Naming the enclosing
-/// machine re-enters its entry state: that is a state-graph edge.
-pub(super) fn invoked_machine_state(
+/// The exact callable destination an arm invokes. Local state transfers and
+/// entry re-entry remain state-graph edges; requirements keep their declaration
+/// identity and ordinary machines keep their executable state identity.
+pub(super) fn invoked_callable(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     transition: &typed_trees::statement::TableTransition,
@@ -69,12 +68,7 @@ pub(super) fn invoked_machine_state(
     if static_machine_parameter.is_valid() {
         return None;
     }
-    let (owner, target) = if let Some(owner) = program.machine_by_symbol(path.symbol) {
-        (owner, program.machine_states(owner).first()?)
-    } else {
-        crate::semantic::calls::find_state_with_machine(program, path.symbol)?
-    };
-    (owner.symbol != machine.symbol).then_some(target.symbol)
+    control::terminal_callable_target(program, machine, path.symbol).map(|(target, _)| target)
 }
 
 /// Plan a guarded arm's terminal machine call as the arm's own operation.
@@ -100,22 +94,17 @@ pub(super) fn arm_call(
     statement_ordinal: u32,
     trace: &control::LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedConditionalReturnArm> {
-    let target = invoked_machine_state(program, machine, transition)?;
+    let target = invoked_callable(program, machine, transition)?;
     trace.phase("state graph: terminator: terminal call arm: completion");
     trace.statement(Some(statement_ordinal));
-    let target_state = program.state_by_symbol(target)?;
+    let return_type = crate::flow::call_target_return_type(program, target)?;
     // The callee's normal result is this machine's result, so the two
     // signatures must agree exactly; checking rejects any other pairing.
     let scalar_result = match result {
-        checked_trees::CheckedControlResultPlan::Unit
-            if is_unit(program, target_state.return_type) =>
-        {
-            None
-        }
+        checked_trees::CheckedControlResultPlan::Unit if is_unit(program, return_type) => None,
         checked_trees::CheckedControlResultPlan::Scalar { primitive_type }
-            if program.primitive_type_reference(target_state.return_type)
-                == Some(*primitive_type)
-                && program.normalized_type_identity(target_state.return_type)
+            if program.primitive_type_reference(return_type) == Some(*primitive_type)
+                && program.normalized_type_identity(return_type)
                     == program.normalized_type_identity(state.return_type) =>
         {
             Some(checked_trees::CheckedUnitScalarResultBindingPlan {
@@ -145,8 +134,8 @@ pub(super) fn arm_call(
     // without replacing that source identity in the ordinary call fact.
     if occurrences.next().is_some()
         || call.call_ordinal != 0
-        || crate::semantic::calls::find_machine_head(program, call.target_symbol)
-            .is_none_or(|(_, entry)| entry.symbol != target)
+        || control::terminal_callable_target(program, machine, call.target_symbol)
+            .is_none_or(|(selected, _)| selected != target)
     {
         return None;
     }
@@ -173,15 +162,14 @@ pub(super) fn arm_call(
         trace,
     )?;
     let planned = operation.call()?;
-    if planned.is_boundary()
-        || *planned.result() != checked_trees::CheckedUnitCallResult::Unit
+    if *planned.result() != checked_trees::CheckedUnitCallResult::Unit
         || !planned.claim_transfers().is_empty()
         || planned.coordinate.statement_index != statement_ordinal
     {
         return None;
     }
     let operation = match scalar_result {
-        Some(result) => bind_scalar_call_result(facts, operation, result, false)?,
+        Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
         None => operation,
     };
     Some(checked_trees::CheckedConditionalReturnArm::Call(operation))
@@ -214,6 +202,6 @@ pub(super) fn has_guarded_machine_arm(
         })
         && tail.iter().any(|statement| {
             matches!(statement, typed_trees::statement::StatementNode::Transition(transition)
-                if invoked_machine_state(program, machine, transition).is_some())
+                if invoked_callable(program, machine, transition).is_some())
         })
 }

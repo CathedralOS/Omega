@@ -55,25 +55,29 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     else {
         return None;
     };
-    let target = if let Some(owner) = program.machine_by_symbol(path.symbol) {
-        // Naming the enclosing machine re-enters its entry state with the
-        // current arguments. That edge stays on the state-graph route, like
-        // an internal state destination, rather than a nested call.
-        if owner.symbol == machine.symbol {
-            return None;
-        }
-        program.machine_states(owner).first()?
-    } else {
-        let (owner, target) =
-            crate::semantic::calls::find_state_with_machine(program, path.symbol)?;
-        if owner.symbol == machine.symbol {
-            return None;
-        }
-        target
-    };
-    (program.normalized_type_identity(target.return_type)
+    let (_, return_type) = terminal_callable_target(program, machine, path.symbol)?;
+    (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(path.symbol)
+}
+
+/// Resolve one exact call destination and its result contract. A stored
+/// body contributes its executable state; a requirement contributes its
+/// declaration. States owned by this activation remain internal control edges,
+/// including a machine-named re-entry of this activation's entry state.
+pub(in crate::execution::terminal_unit) fn terminal_callable_target(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    target: SymbolHandle,
+) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
+    if let Some(owner) = program.machine_by_symbol(target) {
+        let entry = program.machine_states(owner).first()?;
+        return (owner.symbol != machine.symbol).then_some((entry.symbol, entry.return_type));
+    }
+    if let Some((owner, state)) = crate::semantic::calls::find_state_with_machine(program, target) {
+        return (owner.symbol != machine.symbol).then_some((state.symbol, state.return_type));
+    }
+    crate::flow::call_target_return_type(program, target).map(|return_type| (target, return_type))
 }
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(

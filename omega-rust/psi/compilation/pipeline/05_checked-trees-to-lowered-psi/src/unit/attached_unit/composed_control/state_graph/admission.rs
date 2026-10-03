@@ -1352,7 +1352,9 @@ fn validate_guarded_return(
 /// that arm alone before its completion's ordinary return disposal. Its
 /// normal result is the machine's: Unit, or the primitive scalar the call
 /// binds at the arm's transition, which the arm returns. Emission rejoins
-/// that binding's ordinal in the namespace the arm inherits.
+/// that binding's ordinal in the namespace the arm inherits. Checked bodies
+/// and selected requirements share this completion contract; ordinary call
+/// admission below retains their distinct target and argument custody.
 fn validate_arm_call(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
@@ -1377,7 +1379,6 @@ fn validate_arm_call(
         _ => false,
     };
     if !completes
-        || call.is_boundary()
         || !call.claim_transfers().is_empty()
         || call.coordinate.statement_index as usize != ordinal
         || call.coordinate.call_ordinal != 0
