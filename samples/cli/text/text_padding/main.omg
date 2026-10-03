@@ -3,8 +3,8 @@
 //
 // A carrier `.len` is a COUNT, and a count is `u64` -- see
 // `wiki/spec/language/counts_and_addresses.md`. It is not carrier-free, and it
-// does not silently take the destination's type: `self.padding = 16 -
-// self.message.len` into an `i32 in Saturating` is a cross-carrier store and
+// does not silently take the destination's type: `main.padding = 16 -
+// main.message.len` into an `i32 in Saturating` is a cross-carrier store and
 // is refused, naming the `as` that spells it. Subtracting an unconverted
 // length from a literal would also be `u64` arithmetic, which underflows for
 // a message longer than the width, so the conversion is where the intent gets

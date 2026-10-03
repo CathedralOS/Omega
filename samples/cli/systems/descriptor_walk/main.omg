@@ -1,7 +1,7 @@
 // DESCRIPTOR WALK -- the Cathedral M2 memory-map pattern, in-tree: a byte
 // buffer holding firmware-style descriptors is walked at a RUNTIME stride
-// (`off + self.descriptor_size`, never sizeof), each entry re-viewed
-// through the §5b record recast (`&self.buf[off] as &Desc`) with member
+// (`off + main.descriptor_size`, never sizeof), each entry re-viewed
+// through the §5b record recast (`&main.buf[off] as &Desc`) with member
 // reads through the view. Every proof is compiler-side:
 //   - the walk bound: the back-edge guard `next <= 32` admits the
 //     forwarded offset into the walk states' `requires off <= 32` contract;

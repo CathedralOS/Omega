@@ -10,7 +10,7 @@ use omega::language::core::binding;
 // How every piece fits, all in this file + build.omg:
 //   * build.omg sets `efi_application` + `freestanding` -> an import-free
 //     PE32+ that firmware loads directly.
-//   * `boundary machine Main::run(&self, handle, table: &EfiSystemTable)` is
+//   * `boundary machine Main::run(main: &Main, handle, table: &EfiSystemTable)` is
 //     the EXPORTED CALLABLE: firmware calls it, and the parameter list is the
 //     boundary-trusted shape imposed over the registers it hands us (handle in
 //     RCX, the SystemTable pointer in RDX). The boundary VOUCHES for that

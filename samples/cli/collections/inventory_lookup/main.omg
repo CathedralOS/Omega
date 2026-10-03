@@ -3,7 +3,7 @@
 // a `[u8; 8] in Utf8` carrier `name`, stored in a fixed array `items: [Item; 3]`.
 // This combines array-of-structs storage, text CARRIERS as record fields, carrier
 // content comparison (`==`) inside guards, and array-element value reads (exiting
-// `self.items[k].id`). A guard chain searches for "Shield" and returns its id (20).
+// `main.items[k].id`). A guard chain searches for "Shield" and returns its id (20).
 // Expected exit: 20.
 
 domain [u8]::Utf8(bytes)

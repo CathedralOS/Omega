@@ -1,9 +1,9 @@
 // Nested method receivers through a plain-data intermediate. A `Dashboard` is a
 // plain record (no attached machine) holding two DISTINCT subsystem types, each
-// with its own machine; `main` reads them with `self.dash.engine.reading()` and
-// `self.dash.battery.reading()`. The receiver is a two-hop member chain whose
+// with its own machine; `main` reads them with `main.dash.engine.reading()` and
+// `main.dash.battery.reading()`. The receiver is a two-hop member chain whose
 // middle hop (`dash`) is a plain record -- the backend descends the record's
-// layout to bind each callee's `self` (receiver-place staircase: symbol
+// layout to bind each callee's subject (subject-place staircase: symbol
 // resolution walks the chain's field types, and the storage walk descends the
 // nested record). Distinct leaf types mean the by-type dispatch lands on exactly
 // the named instance -- no aliasing.
@@ -17,7 +17,7 @@
 //   batt = dash.battery.reading()  -> 85
 //   both match -> report nominal, exit the battery level (85)
 //
-// A miscompile in the nested-receiver binding (wrong callee self, or a dropped
+// A miscompile in the nested-subject binding (wrong callee subject, or a dropped
 // call binding 0) would fail one of the equality guards and exit 1.
 // Expected exit: 85.
 

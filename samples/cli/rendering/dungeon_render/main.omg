@@ -1,6 +1,6 @@
 // A tile-map / dungeon renderer -- the tile-based rendering shape a real game or map viewer uses.
 // A flat array of `Cell` enums (Wall / Floor / Door / Water) is scanned row by row and each cell is
-// classified by matching it DIRECTLY at a runtime index -- `transition self.grid[self.k] { Cell::Wall
+// classified by matching it DIRECTLY at a runtime index -- `transition main.grid[main.k] { Cell::Wall
 // -> .. Cell::Water -> .. }` -- to pick its glyph, which is written into a `[u8;6]` carrier line
 // buffer and flushed with `write_line` per row. This is the first sample to rely on the direct
 // runtime-indexed ENUM-MATCH subject (fixed 2026-07-01): before that, a direct `grid[k] { .. }`

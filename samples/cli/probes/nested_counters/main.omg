@@ -1,7 +1,7 @@
 // Nested data: a struct field that is itself a struct, with field updates
-// through &mut self across multiple sub-machine calls.
+// through an explicit `&mut` subject across multiple sub-machine calls.
 //
-// Exercises: deep nested field access (self.state.inner.value), mutation of
+// Exercises: deep nested field access (main.state.inner.value), mutation of
 // nested struct fields via separate sub-machines, and guards reading nested
 // fields after multiple rounds of mutation.
 //

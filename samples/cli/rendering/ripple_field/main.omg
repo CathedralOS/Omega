@@ -5,7 +5,7 @@
 //
 // Per cell: Manhattan distance to the centre, scrolled by the frame counter, taken mod
 // the 8-char ramp " .:-=+*#" (dim->bright). The ramp lookup uses a FIELD intermediate
-// (self.c = ramp[level]; line[x] = self.c) -- a runtime-indexed READ into a scalar then
+// (main.c = ramp[level]; line[x] = main.c) -- a runtime-indexed READ into a scalar then
 // a runtime-indexed WRITE from that scalar -- because the fused both-runtime-indexed
 // form line[x] = ramp[level] is a known gap. Each frame homes the cursor (ESC[H),
 // redraws the grid one row at a time, then sleeps. Pure compute + stdout + Clock.sleep;
