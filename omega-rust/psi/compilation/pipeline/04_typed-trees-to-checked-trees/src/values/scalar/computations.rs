@@ -714,7 +714,6 @@ pub(crate) fn build_checked_value_computation_plans(
                         .filter(|call| call.statement_index == statement_index)
                     {
                         let Some(crate::semantic::calls::CallSite::TransitionNamed {
-                            path,
                             arguments,
                             ..
                         }) = crate::semantic::calls::find_call_site(
@@ -741,7 +740,11 @@ pub(crate) fn build_checked_value_computation_plans(
                         else {
                             continue;
                         };
-                        if owner.symbol == machine.symbol && path.symbol != machine.symbol {
+                        // A machine-head target owned by this activation re-enters
+                        // its entry state, exactly like a named sibling edge. Its
+                        // operands belong to the transition roles below, never
+                        // simultaneously to a call's argument roster.
+                        if owner.symbol == machine.symbol {
                             continue;
                         }
                         let Ok(call_ordinal) = u32::try_from(call.call_ordinal) else {
