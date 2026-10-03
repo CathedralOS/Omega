@@ -313,4 +313,45 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn field_precondition_program_keeps_terminal_requirement_plan() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/omega/pass/recast/runtime_field_precondition_capture_exit/main.omg"
+        ))
+        .replace(
+            "use omega_language_std::console;",
+            "boundary trait Console { machine exit_process(return_code: i32) reaches Console; }",
+        );
+        let checked = crate::tests::front_end::checked_program(&source);
+        let program = &checked.typed;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .expect("caller");
+        let trace = super::control::LocalConstructionTrace::default();
+        let plan = super::super::build_traced(
+            program,
+            &checked.facts,
+            super::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+            },
+            &mut crate::execution::terminal_unit::types::ShapeCollector::new(program),
+            machine,
+            None,
+            &trace,
+        )
+        .unwrap_or_else(|| panic!("full recast terminal call plan: {:?}", trace.stage()));
+        assert_eq!(plan.states.len(), 1);
+        assert_eq!(
+            plan.states[0]
+                .operation_dependencies()
+                .filter(|operation| operation.call().is_some())
+                .count(),
+            3,
+        );
+    }
 }

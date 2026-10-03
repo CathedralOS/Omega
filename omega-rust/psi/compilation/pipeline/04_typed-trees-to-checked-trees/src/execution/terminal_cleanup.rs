@@ -1099,15 +1099,13 @@ pub(super) fn state_exit_result_locals(
             else {
                 return None;
             };
-            let target_index = crate::checks::termination::named_transition_target_state_index(
-                program,
-                machine,
-                path.symbol,
-            )?;
-            let target = &program.machine_states(machine)[target_index];
+            // Named state edges and completing calls use the same exact
+            // formal/actual ownership pairing. A requirement has no local
+            // executable state, but its declaration still owns that contract.
+            let target_parameters =
+                crate::semantic::calls::call_target_parameters(program, path.symbol)?;
             let arguments = program.statement_table.expression_handles(*arguments);
-            let target_parameters = program
-                .state_parameters(target)
+            let target_parameters = target_parameters
                 .iter()
                 .filter(|parameter| !parameter.is_self);
             if target_parameters.clone().count() != arguments.len() {

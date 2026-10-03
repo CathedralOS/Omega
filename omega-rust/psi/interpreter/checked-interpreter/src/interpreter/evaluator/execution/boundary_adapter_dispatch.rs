@@ -1,8 +1,36 @@
 use crate::interpreter::evaluator::{
-    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle,
-    TableCall, Value, trap,
+    EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
+    trap,
 };
 impl<'program> Evaluator<'program> {
+    /// Named invocations share provider selection regardless of whether their
+    /// result is discarded by a statement or completes a selected transition arm.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::interpreter::evaluator) fn try_selected_named_call(
+        &mut self,
+        receiver_symbol: SymbolHandle,
+        receiver_root: SymbolHandle,
+        receiver_members: &[typed_trees::name::Identifier],
+        target_symbol: SymbolHandle,
+        machine_arguments: &[typed_trees::expression::StaticMachineArgument],
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        if let Some(dispatch) =
+            self.selected_boundary_adapter(receiver_symbol, target_symbol, machine_arguments)
+        {
+            let receiver = if dispatch.forward_receiver {
+                Some(self.eval_boundary_receiver_path(receiver_root, receiver_members, frame)?)
+            } else {
+                None
+            };
+            return self
+                .run_boundary_adapter(dispatch, receiver, arguments, frame)
+                .map(Some);
+        }
+        self.try_operator_application(target_symbol, ExpressionHandle::invalid(), arguments, frame)
+    }
+
     pub(in crate::interpreter::evaluator) fn selected_boundary_adapter(
         &self,
         receiver: SymbolHandle,
@@ -29,19 +57,16 @@ impl<'program> Evaluator<'program> {
     /// Receiver forwarding is an argument operation, not a synthetic source edit.
     pub(in crate::interpreter::evaluator) fn eval_boundary_receiver_path(
         &mut self,
-        call: &TableCall,
+        receiver_root: SymbolHandle,
+        members: &[typed_trees::name::Identifier],
         frame: &Frame,
     ) -> EvalResult<EvaluatedArgument> {
-        let members = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver);
         let Some((head, rest)) = members.split_first() else {
             return trap("selected boundary adapter lost its receiver");
         };
         let mut cell = if head.is_self_receiver() {
             frame.self_cell.clone()
-        } else if let Some(local) = frame.local_cell(call.receiver_root_symbol) {
+        } else if let Some(local) = frame.local_cell(receiver_root) {
             local
         } else {
             self.field_cell(&frame.self_cell, head.as_str())?

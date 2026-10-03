@@ -347,10 +347,24 @@ impl<'program> Evaluator<'program> {
                 path, arguments, ..
             } => {
                 let members = self.program.statement_table.name_path_members(path.members);
-                let state_name = members
-                    .last()
-                    .map(|name| name.as_str())
+                let (name, receiver_members) = members
+                    .split_last()
                     .ok_or_else(|| Halt::Unsupported("empty named transition".to_owned()))?;
+                let state_name = name.as_str();
+                // This runs after guard selection. Provider dispatch owns operand
+                // evaluation and returns the same value an ordinary call produces;
+                // the enclosing activation then performs its normal completion.
+                if let Some(value) = self.try_selected_named_call(
+                    path.head_symbol,
+                    path.head_symbol,
+                    receiver_members,
+                    path.symbol,
+                    &[],
+                    self.program.statement_table.expression_handles(*arguments),
+                    frame,
+                )? {
+                    return Ok(TransitionDecision::Value(value));
+                }
 
                 // Resolution already distinguishes an internal state from a
                 // machine invocation. Follow that identity: a machine names
@@ -397,32 +411,14 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
-        if let Some(dispatch) = self.selected_boundary_adapter(
+        if let Some(value) = self.try_selected_named_call(
             call.receiver_symbol,
+            call.receiver_root_symbol,
+            self.program
+                .statement_table
+                .name_path_members(call.receiver),
             call.target_symbol,
             &call.machine_arguments,
-        ) {
-            let receiver = if dispatch.forward_receiver {
-                Some(self.eval_boundary_receiver_path(call, frame)?)
-            } else {
-                None
-            };
-            return self.run_boundary_adapter(
-                dispatch,
-                receiver,
-                self.program
-                    .statement_table
-                    .expression_handles(call.arguments),
-                frame,
-            );
-        }
-
-        // The statement twin of the value-position requirement route: a
-        // boundary requirement application runs its checked-selected
-        // realization by identity, and the statement discards the result.
-        if let Some(value) = self.try_operator_application(
-            call.target_symbol,
-            ExpressionHandle::invalid(),
             self.program
                 .statement_table
                 .expression_handles(call.arguments),
