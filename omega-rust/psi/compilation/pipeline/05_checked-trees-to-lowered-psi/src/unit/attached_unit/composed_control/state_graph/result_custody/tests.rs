@@ -26,13 +26,96 @@ fn boundary_operands_retire_local_owners_with_exact_transfer_receipts() {
             "#
         ));
         let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
-            .expect("boundary calls consume local owners independently of their producer");
+            .unwrap_or_else(|error| panic!("boundary operand producer {producer}: {error:?}"));
         terminal_verifier::verify_module(
             &lowered.semantic_module,
             &lowered.proof_bundle,
             &proof_admission::AdmissionProfile::default(),
         )
         .expect("boundary operand transfer verifies without an exit drop of moved storage");
+
+        let source_machine = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .position(|machine| {
+                machine.blocks.iter().any(|block| {
+                    block
+                        .operations
+                        .iter()
+                        .filter(|operation| {
+                            matches!(&operation.kind,
+                            terminal_psi::OperationKind::BoundaryCall { structural_arguments, .. }
+                                if !structural_arguments.is_empty())
+                        })
+                        .count()
+                        == 2
+                })
+            })
+            .expect("two owned boundary consumers");
+        for corruption in ["duplicate transfer", "before establishment"] {
+            let mut forged = lowered.semantic_module.clone();
+            let block = forged.machines[source_machine]
+                .blocks
+                .iter_mut()
+                .find(|block| {
+                    block
+                        .operations
+                        .iter()
+                        .filter(|operation| {
+                            matches!(&operation.kind,
+                            terminal_psi::OperationKind::BoundaryCall { structural_arguments, .. }
+                                if !structural_arguments.is_empty())
+                        })
+                        .count()
+                        == 2
+                })
+                .expect("consumer block");
+            let consumers = block
+                .operations
+                .iter()
+                .enumerate()
+                .filter_map(|(position, operation)| match &operation.kind {
+                    terminal_psi::OperationKind::BoundaryCall {
+                        structural_arguments,
+                        ..
+                    } if !structural_arguments.is_empty() => {
+                        Some((position, structural_arguments[0].clone()))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            match corruption {
+                "duplicate transfer" => {
+                    let terminal_psi::OperationKind::BoundaryCall {
+                        structural_arguments,
+                        ..
+                    } = &mut block.operations[consumers[1].0].kind
+                    else {
+                        unreachable!()
+                    };
+                    structural_arguments[0] = consumers[0].1.clone();
+                }
+                "before establishment" => {
+                    let producer_position = block
+                        .operations
+                        .iter()
+                        .position(|operation| {
+                            operation
+                                .result
+                                .structural()
+                                .is_some_and(|result| result.place == consumers[0].1.place)
+                        })
+                        .expect("local result producer");
+                    block.operations.swap(producer_position, consumers[0].0);
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                terminal_verifier::validate_module(&forged).is_err(),
+                "producer {producer} with {corruption} must fail independent frontier replay"
+            );
+        }
 
         let machine = checked
             .machines()
