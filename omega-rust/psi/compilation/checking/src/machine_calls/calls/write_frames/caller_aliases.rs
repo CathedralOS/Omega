@@ -97,6 +97,7 @@ pub(crate) enum CallerWriteSite<'query> {
     Call(&'query TableCall),
     Statement(&'query StatementNode),
     Expression(ExpressionHandle),
+    Transition(typed_trees::statement::TransitionTargetHandle),
 }
 
 /// Transient caller-prefix inventory for projecting local references into
@@ -643,6 +644,7 @@ fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize) {
         CallerWriteSite::Call(call) => (0, std::ptr::from_ref(call).addr()),
         CallerWriteSite::Statement(statement) => (1, std::ptr::from_ref(statement).addr()),
         CallerWriteSite::Expression(expression) => (2, expression.arena_index() as usize),
+        CallerWriteSite::Transition(target) => (3, target.arena_index() as usize),
     }
 }
 
@@ -864,6 +866,11 @@ pub(super) fn caller_statement_owner<'program>(
                     matches!(statement, StatementNode::Call(candidate) if std::ptr::eq(call, candidate))
                 }
                 CallerWriteSite::Statement(candidate) => std::ptr::eq(statement, candidate),
+                CallerWriteSite::Transition(target) => {
+                    target.is_valid()
+                        && matches!(statement, StatementNode::Transition(transition)
+                        if transition.target == target || transition.continuation == target)
+                }
                 CallerWriteSite::Expression(expression) => {
                     statement_value_expression_roots(program, statement)
                         .into_iter()

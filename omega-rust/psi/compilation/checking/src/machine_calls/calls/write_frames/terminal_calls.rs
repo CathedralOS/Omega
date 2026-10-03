@@ -5,7 +5,7 @@
 //! argument origins. Operand effects are collected by the state walker before
 //! this call; a terminal spelling neither hides them nor grants an empty frame.
 
-use super::caller_aliases::CallOriginContext;
+use super::caller_aliases::{CallOriginContext, CallerWriteSite};
 use super::{FrameInference, Machine, MachineSymbols, SymbolHandle, TopLevelSymbols, TypedTrees};
 use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
@@ -42,7 +42,9 @@ pub(super) fn written_paths(
     // Retain the exact callable state: spelling-based lookup can accidentally
     // substitute an internal destination with a different write contract.
     let callee_symbol = target(program, caller, transition);
-    let (_, callee) = super::machine_state_by_symbol(program, callee_symbol)?;
+    if !callee_symbol.is_valid() {
+        return None;
+    }
     let TransitionTargetNode::Named {
         path,
         arguments,
@@ -64,12 +66,16 @@ pub(super) fn written_paths(
         .map(|member| member.as_str().to_owned())
         .collect::<Vec<_>>();
     let arguments = program.statement_table.expression_handles(*arguments);
-    let argument_types = program
-        .state_parameters(callee)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .map(|parameter| parameter.type_reference)
-        .collect::<Vec<_>>();
+    let site = CallerWriteSite::Transition(transition);
+    let argument_types = super::call_targets::call_argument_types(
+        program,
+        caller,
+        callee_symbol,
+        name.as_str(),
+        &receiver,
+        site,
+        symbols,
+    );
     let argument_origins = origins.argument_origins(
         program,
         caller,
@@ -79,20 +85,56 @@ pub(super) fn written_paths(
         arguments,
         &argument_types,
     )?;
-    let paths = super::known_call_written_paths_for_parts_with_origins(
-        program,
-        callee_symbol,
-        name.as_str(),
-        &receiver,
-        &[],
-        None,
-        arguments,
-        caller,
-        machine_symbols,
-        symbols,
-        inference,
-        Some(&argument_origins),
-    )?;
+    let paths = if super::machine_state_by_symbol(program, callee_symbol).is_some() {
+        super::known_call_written_paths_for_parts_with_origins(
+            program,
+            callee_symbol,
+            name.as_str(),
+            &receiver,
+            &[],
+            None,
+            arguments,
+            caller,
+            machine_symbols,
+            symbols,
+            inference,
+            Some(&argument_origins),
+        )
+    } else {
+        // Signature calls retain the same origin restrictions as ordinary
+        // statement calls. A selected requirement never falls back to a
+        // same-spelled machine body, and its qualifier grants no storage.
+        if arguments.iter().any(|argument| {
+            super::assignment_targets::expression_is_effectful_indexed_place(program, *argument)
+        }) {
+            return None;
+        }
+        super::boundary_calls::known_boundary_call_written_paths_for_parts(
+            program,
+            caller,
+            machine_symbols,
+            symbols,
+            &receiver,
+            name.as_str(),
+            site,
+            arguments,
+            inference,
+        )
+        .or_else(|| {
+            super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                program,
+                caller,
+                machine_symbols,
+                symbols,
+                &receiver,
+                name.as_str(),
+                None,
+                site,
+                arguments,
+                inference,
+            )
+        })
+    }?;
     Some(origins.close_paths(paths))
 }
 
