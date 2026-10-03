@@ -1412,97 +1412,18 @@ the complete product bar; focused successes below do not establish that baseline
   require exact finite candidate-origin coverage, never universal coverage from
   unresolved selectors.
 
-  Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
-  closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. The owned-call
-  repair clears the instruction-selection refusal at Machine 10, Operation
-  781: consumers rejoin the unique producer and exact result declaration,
-  not a producer-family whitelist. Psi sequences inline owned arguments and
-  retains the completed producer's qualifications instead of manufacturing an
-  unqualified result. On macOS ARM64, `borrows/owned_byte_value_call_exit`
-  executes exit 70 for literal, Unicode, concatenated, returned and empty
-  qualified byte values; six related native controls execute 70 and seven
-  invalid ownership/domain/capacity cases reject on `94940a170e`.
-
-  Full game acceptance remains open: on macOS ARM64 at `8d34ee6221`,
-  `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with closed stdin
-  exits 0 after 3,958 seconds but omits
-  `A bottomless dark room near the dungeon heart.`; checked interpretation
-  prints it correctly. The help/exit route also processes input but omits the
-  description. CLI `--both` compares exit status, not stdout, and native
-  package production selects `main.omg` even when given an alternate filename.
-  The reduced lookup now prints the authored description at storage, lookup and
-  formatting, and preserves its sentinel (macOS ARM64, `27950676fa31` plus the
-  projected-observation repair). Enum membership had indexed the view descriptor
-  instead of its backing storage. Case tags, scalar/byte fields and projected
-  copies now resolve that storage through one address owner, with independent
-  replay; `control_flow/element_view_enum_equality_exit` executes 70 for ordinary
-  and derived views. The latest help/exit run (macOS ARM64, `98f2f5f3ac` compiler,
-  unchanged source checkout `356d43c6d6`) remains in compilation. The preceding
-  compiler's OS sample is in spill recovery's allocation-legality analysis and
-  identity hashing; its earlier sample located repeated source-custody reconstruction
-  inside spill production's upstream replay. Legalization now retains the
-  block-entry custody reconstructed by its input match for that invocation's
-  construction or replay; independent replay never consumes producer snapshots.
-  Spill production projects its unadmitted manifest from retained receipts;
-  final allocation admission independently reconstructs and compares the entire
-  prefix before replaying recovery. These remove duplicate work, not checks.
-  The full run clears an upstream
-  borrowed-argument rejection: a validated Fused-service receipt is compatible
-  with ordinary loan geometry, while receipt authentication and exact carrier
-  checks remain separate. `providers/borrowed_service_field_forward_exit`
-  previously rejected and now prints `R` and exits 70; forged receipts and
-  substituted actuals still reject through full lowering. Omega's
-  `optimization-unit/semantics/src/unit_validation/function_structure/mutable_views.rs`
-  now prepares each exact edge transfer once and merges definite/possible
-  arrivals directly, retaining distinct parallel edges, entry/backedges,
-  attenuation, and independent validation. This removes the repeated graph
-  scanning witnessed in the older full run; an end-to-end speedup has not yet
-  been measured. Four superseded compiler runs were cancelled, not accepted;
-  the latest and immediately preceding runs remain live. Both full-game commands
-  still need completed output and exit
-  evidence. Re-profile the live run if it remains slow and follow its actual
-  next dependency; do not restart merely because an observation times out.
-  Do not substitute the
-  reduced program's result for application acceptance. Independent live-range
-  replay visits actual register memberships,
-  groups operands by instruction, reconstructs tied components once and walks
-  ordered fragments. It retains liveness revalidation and exact evidence
-  comparison; repeated full scans are removed, not the checks. Independent
-  liveness replay also prepares its own exact edge substitutions after transport
-  validation, retaining them across its separate full-scan solver and successor
-  publication instead of reconstructing them for each live register. Spill recovery
-  retains a failed crossing allocation probe within its current victim attempt:
-  an independently validated bounded rewrite reuses it only when the complete
-  plan and receipt match. Final recovery replay remains independent. Full-game
-  output and elapsed time remain unverified for these repairs.
-  Indexed-field replacement retains its explicit complete projection, distinct
-  from whole-element replacement. A reference crossing alone is not a child
-  window: whole-root replacement still requires the original exclusive parameter
-  loan. Keep `borrows/indexed_record_field_replacement_exit` and returned-reference
-  field/whole-referent controls alongside the view-membership regression.
-  Require both full-game commands to print the authored description and retain
-  their exit/input behavior. Allocation retains constrained-neighbor placement,
-  prepared copy-affinity incidence and one full recovery admission replay in
-  `RetainedAllocation::try_from`; pass traversal permits 1,000,000 iterations,
-  with semantic checks and candidate/commit limits unchanged. Small transport
-  controls are not evidence that the full game runs. Retain exact access,
-  qualifications, source-length/capacity evidence, every possible origin,
-  ranking, live-root rebind rejection and same-typed-sibling rejection. Keep
+  Keep the unchanged Dungeon Crawler as application regression coverage:
+  run closed stdin and `help`/`exit` through the commands and output oracle in
+  [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
+  Both routes now have full macOS ARM64 native acceptance; the receiver/domain
+  obligation above remains unfinished. Preserve the view-membership and
+  returned-reference controls, including
+  `control_flow/element_view_enum_equality_exit`,
+  `borrows/indexed_record_field_replacement_exit`,
   `borrows/qualified_byte_owner_exclusive_call_exit`,
+  `borrows/branch_selected_record_composed_receiver_exit`,
   `returned_record_case_field_store_exit` and
-  `interleaved_parameter_field_replacement_exit` as transport controls.
-
-  The composed receiver reproduction
-  `borrows/branch_selected_record_composed_receiver_exit` and nested owned
-  byte-record literal witness both execute their authored exit 70. The receiver
-  case combines a selected reference result, a nested qualified-byte result,
-  copied enum operands and a composed mutable receiver. Exact static record/
-  fixed-array observation paths now reach the same storage through verification,
-  interpretation and native lowering without acquiring runtime-index, view
-  crossing or mutation authority. Sixteen existing native controls retain their
-  authored results, and four invalid-borrow controls still reject. None of those
-  closes the application; its current dependency is recorded above.
+  `interleaved_parameter_field_replacement_exit`.
 
   Preserve exact initializer identity, nested consuming-call coordinates,
   finite reference-origin coverage, selected result addresses and loan release;
