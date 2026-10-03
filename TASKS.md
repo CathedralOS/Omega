@@ -214,9 +214,23 @@ execution and native exit/output. A moved refusal is still unfinished work.
   why this is split out rather than attempted alongside fixture work. Update
   the diagnostic text in the same change; it currently teaches the retired
   spelling. Customers:
-  `tests/omega/fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`,
-  whose expectation `satisfies dependent parameter` stops being satisfied the
-  moment they are respelled, so neither may be migrated before this lands.
+  `tests/omega/fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`.
+  Both have since been respelled to `[0..=main.count]` and BOTH NOW PIN
+  NOTHING: each rejects on the non-constant-bound diagnostic rather than its
+  authored `satisfies dependent parameter`, so the gate reports
+  `expected_satisfied: False` and two fixtures "rejected without their
+  expected fragment".
+
+  Do not read that as migration damage and do not repair it by editing the
+  expectations. Measured by restoring the receiver spelling on
+  `dependent_arg_unrelated_rejected` and re-running the gate: it rejects
+  without its expected fragment that way too, because the parse refusal
+  "`self` receivers are retired" cannot match `satisfies dependent parameter`
+  either. The pin was lost when `self` was retired, not when the fixture was
+  respelled, and the respelling cannot restore it. Both pins return only when
+  the recognizer accepts a subject-rooted bound; until then the corpus has no
+  coverage of the R1a dependent-parameter obligation at all, which is the
+  reason to do this work rather than the two fixtures being individually red.
 
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Three migrated pass fixtures now clear CHECKING and are then omitted in
