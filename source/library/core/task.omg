@@ -43,9 +43,9 @@ data StartOutcome<T, Arguments> {
 // Cancellation requests retain the linear claim. `finish` is the terminal
 // operation: it may park while the provider reaches a lifecycle outcome and
 // consumes the claim exactly once.
-pub boundary requirement Task::request_cancel<T>(&self);
+pub boundary requirement Task::request_cancel<T>(task: &Task<T>);
 
-pub boundary requirement Task::finish<T>(self) -> TaskOutcome<T>
+pub boundary requirement Task::finish<T>(task: Task<T>) -> TaskOutcome<T>
 suspends; blocks;
 
 // Runtime authority is an ordinary selected boundary capability. These
@@ -54,14 +54,12 @@ suspends; blocks;
 // elaboration; provider admission/dispatch remains the next runtime layer.
 boundary trait TaskRuntime {
     machine start<T, Arguments, machine Target>(
-        &self,
         arguments: Arguments
     ) -> Task<T>
     where machine Target(arguments: Arguments) -> T suspends; blocks;
     ensures true;
 
     machine try_start<T, Arguments, machine Target>(
-        &self,
         arguments: Arguments
     ) -> StartOutcome<T, Arguments>
     where machine Target(arguments: Arguments) -> T suspends; blocks;

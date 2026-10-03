@@ -24,7 +24,6 @@ use queue;
 // is the "provider selection" leg of the item.
 pub boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(
-        &self,
         arguments: Arguments
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
@@ -120,14 +119,12 @@ pub data Executor<T, Arguments, const N: u64> [linear] {
     outstanding: u64;
 }
 
-// Admit this submission into `executor`. Linear values must move through
-// `self` on a bodyless requirement — a named linear parameter would "reach
-// scope exit" unconsumed — so the moved custody is always the receiver:
-// `submission.submit(&mut executor)`. Accepting moves custody into the
+// Admit this submission into `executor`. The ordinary owned submission
+// parameter transfers linear custody across the boundary. Accepting moves custody into the
 // executor and vends the linear `Ticket<T>` claim; a refused submission is
 // returned whole inside `Rejected`.
 pub boundary requirement Submission::submit<T, Arguments, const N: u64>(
-    self,
+    submission: Submission<T, Arguments>,
     executor: &mut Executor<T, Arguments, N>
 ) -> SubmitOutcome<T, Arguments>;
 
@@ -136,10 +133,10 @@ pub boundary requirement Submission::submit<T, Arguments, const N: u64>(
 // point, so the park is declared at the boundary, not invented inside.
 // The returned submission's custody moves to the worker.
 pub boundary requirement Executor::take_one<T, Arguments, const N: u64>(
-    &mut self
+    executor: &mut Executor<T, Arguments, N>
 ) -> Submission<T, Arguments>
 requires
-    self.open
+    executor.open
 suspends; blocks;
 
 // Request cancellation of the activation this claim covers — the
@@ -149,16 +146,16 @@ suspends; blocks;
 // nothing — only `settle`/`Executor::close` consume the claim. A worker
 // that ignores the request and never reports an outcome is the hung case;
 // recovery from it is the `IsolatedWorkerProvider` contract above.
-pub boundary requirement Ticket::request_cancel<T>(&self);
+pub boundary requirement Ticket::request_cancel<T>(ticket: &Ticket<T>);
 
 // Terminally consume this claim against the executor that vended it;
 // blocks until the worker reports a lifecycle outcome. Same shape as
-// `Task::finish(self)`: settlement is the only discharge of the claim.
+// `Task::finish(task)`: settlement is the only discharge of the claim.
 // The executor is borrowed mutably so a satisfying body can retire the
 // claim on `outstanding` — an immutable borrow would leave `close`'s
 // provable zero-claims obligation unreachable.
 pub boundary requirement Ticket::settle<T, Arguments, const N: u64>(
-    self,
+    ticket: Ticket<T>,
     executor: &mut Executor<T, Arguments, N>
 ) -> ExecutorOutcome<T>
 suspends; blocks;
@@ -169,8 +166,8 @@ suspends; blocks;
 // submissions or vended tickets survive (a `Ticket` has no other
 // discharge route once its executor is gone).
 pub boundary requirement Executor::close<T, Arguments, const N: u64>(
-    self
+    executor: Executor<T, Arguments, N>
 ) -> ()
 requires
-    self.queue.length == 0;
-    self.outstanding == 0;
+    executor.queue.length == 0;
+    executor.outstanding == 0;

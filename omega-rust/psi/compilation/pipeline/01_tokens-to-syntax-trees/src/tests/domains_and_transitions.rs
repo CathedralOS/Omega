@@ -243,8 +243,8 @@ fn parses_trait_requirement_termination_guarantee() {
     // parser's skip-any-token fallback ATE it silently.
     let source = r#"
         trait Worker {
-            machine run(&mut self, n: u64) -> u64 terminates;
-            machine peek(&self) -> u64;
+            machine run(value: &mut Self, n: u64) -> u64 terminates;
+            machine peek(value: &Self) -> u64;
         }
         "#;
 
@@ -280,7 +280,7 @@ fn rejects_ranking_witness_on_trait_requirement() {
     // body to prove.
     let source = r#"
         trait Worker {
-            machine run(&mut self, n: u64) -> u64 terminates by n;
+            machine run(value: &mut Self, n: u64) -> u64 terminates by n;
         }
         "#;
 
@@ -589,7 +589,7 @@ fn parses_slice_range_indexing_into_range_expression() {
     let source = r#"
         data Main {}
 
-        machine Main::main(&mut self) -> usize {
+        machine Main::main(main: &mut Main) -> usize {
             let values: [usize; 4] = [1, 2, 3, 4];
             let view: &[usize] = values.as_slice();
             let tail: &[usize] = view[1..];
@@ -777,8 +777,8 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
             player: Player;
         }
 
-        machine Main::main(&mut self) {
-            transition self.player {
+        machine Main::main(main: &mut Main) {
+            transition main.player {
                 Player::Alive -> done()
                 Player { health, .. } if health > 5 -> done()
                 _ -> done()
@@ -1060,7 +1060,7 @@ fn parses_asm_jmp_block_as_transition_statement() {
             value: i32;
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(main: &mut Main) {
             asm {
                 jmp other()
             }
@@ -1109,11 +1109,11 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
             port: u16;
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(main: &mut Main) {
             let mut status: u8 = 0;
             asm { hlt }
-            asm { out self.port, status }
-            asm { in status, self.port }
+            asm { out main.port, status }
+            asm { in status, main.port }
         }
         "#;
 

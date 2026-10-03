@@ -122,8 +122,8 @@ fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
 
     let ordinary = r#"
         data Join { value: i32; }
-        machine Join::join(&self) -> i32 {
-            transition { _ -> self.value }
+        machine Join::join(join: &Join) -> i32 {
+            transition { _ -> join.value }
         }
     "#;
     let tokens = Lexer::new(ordinary)
@@ -281,7 +281,7 @@ fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
 fn parses_plain_and_boundary_traits() {
     let source = r#"
         trait Drawable {
-            machine draw(&self, canvas: &mut Canvas);
+            machine draw(value: &Self, canvas: &mut Canvas);
         }
 
         boundary trait Console {
@@ -478,7 +478,7 @@ fn parses_machine_requires_before_reaches_on_one_line() {
     let source = r#"
         data App { a: u32; b: u32; }
 
-        machine App::main(&mut self) requires self.a <= self.b reaches Console {
+        machine App::main(app: &mut App) requires app.a <= app.b reaches Console {
         }
         "#;
 
@@ -515,25 +515,25 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
     let source = r#"
         data App { a: u32; b: u32; }
 
-        machine App::reaches_then_requires(&mut self) reaches Console requires self.a <= self.b {
+        machine App::reaches_then_requires(app: &mut App) reaches Console requires app.a <= app.b {
         }
-        machine App::requires_semicolon_reaches(&mut self) requires self.a <= self.b; reaches Console {
+        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b; reaches Console {
         }
-        machine App::requires_newline_reaches(&mut self)
-            requires self.a <= self.b
+        machine App::requires_newline_reaches(app: &mut App)
+            requires app.a <= app.b
             reaches Console {
         }
-        machine App::requires_only(&mut self) requires self.a <= self.b {
+        machine App::requires_only(app: &mut App) requires app.a <= app.b {
         }
-        machine App::reaches_only(&mut self) reaches Console {
+        machine App::reaches_only(app: &mut App) reaches Console {
         }
-        machine App::bare(&mut self) {
+        machine App::bare(app: &mut App) {
         }
-        machine App::predicate_then_reaches(&mut self) ensures self.a settled reaches Console {
+        machine App::predicate_then_reaches(app: &mut App) ensures app.a settled reaches Console {
         }
 
         trait Visitor {
-            machine visit(&mut self) requires self.a <= self.b reaches Console;
+            machine visit(value: &mut Self) requires value.a <= value.b reaches Console;
         }
         "#;
 
@@ -582,7 +582,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
     }
 
     // The same-line predicate form survives beside a following clause:
-    // `ensures self.a settled` keeps its `self.a.settled()` call fact.
+    // `ensures app.a settled` keeps its `app.a.settled()` call fact.
     let predicate_machine = machine("App::predicate_then_reaches");
     let [contract] = contracts(predicate_machine) else {
         panic!("predicate machine should carry one ensures contract");
@@ -633,7 +633,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
 fn rejects_malformed_requires_fact_lists() {
     for source in [
         // A second stray name on the fact line is not a clause separator.
-        "machine f() requires self.a <= self.b bogus stray { }",
+        "machine f(a: u32, b: u32) requires a <= b bogus stray { }",
         // `requires` followed by a separator authors no proposition.
         "machine f() requires; { }",
         // `requires` at end of input has no proposition to parse.
@@ -1177,10 +1177,10 @@ fn parses_explicit_top_level_boundary_requirement_and_retains_legacy_boundary_ma
 #[test]
 fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
     let source = r#"
-        pub boundary requirement InterruptMaskGuard::restore(self)
-        requires self in InterruptMaskGuard::Active;
+        pub boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
+        requires guard in InterruptMaskGuard::Active;
 
-        pub boundary requirement InterruptAcknowledgement::complete(self);
+        pub boundary requirement InterruptAcknowledgement::complete(acknowledgement: InterruptAcknowledgement);
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -1210,7 +1210,7 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
 #[test]
 fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     let source = r#"
-        pub boundary requirement Task::finish<T>(self) -> T
+        pub boundary requirement Task::finish<T>(task: Task<T>) -> T
         suspends; blocks;
 
         boundary trait TaskRuntime {}

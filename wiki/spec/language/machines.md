@@ -46,6 +46,9 @@ is an explicit root-parameter obligation, not a receiver exception.
 
 This is the source contract. Remaining receiver-based compiler paths, samples
 and documentation examples are migration debt, not an alternative accepted form.
+An implementation must reject retired `self` declarations and expressions rather
+than silently translate them or enable a compatibility mode. A rejected legacy
+fixture does not verify the behavior that its eventual static form must exercise.
 The `STATIC-MACHINE-MIGRATION` item in [the execution board](../../../TASKS.md)
 tracks their removal and end-to-end validation.
 

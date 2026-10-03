@@ -36,7 +36,7 @@ pub(in crate::bodies::transitions) fn parse_transition_block_target_with_binding
     input: Input<'tokens, 'source>,
     bindings: &[DestructureBindings],
 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
-    // A target-shaped arm body (a bare path or `self`, optionally called) can
+    // A target-shaped arm body (a bare path, optionally called) can
     // name a transition target; anything else -- including an arm body the
     // author EXPLICITLY parenthesized -- is a value expression. `-> burn(n)`
     // is a transition target; `-> (burn(n))` is the value of the call (the
@@ -46,7 +46,8 @@ pub(in crate::bodies::transitions) fn parse_transition_block_target_with_binding
     // (symbol assignment), so existing target spellings keep their meaning.
     let target_shaped = !input.at_keyword(KeywordKind::True)
         && !input.at_keyword(KeywordKind::False)
-        && (input.at_keyword(KeywordKind::SelfValue) || input.at_name_like());
+        && !input.at_keyword(KeywordKind::SelfValue)
+        && input.at_name_like();
     let (expression, rest, target_shaped) = if target_shaped {
         let ((expression, named_target), rest) =
             parse_transition_target_expression_handle(syntax_trees, input)?;
@@ -100,7 +101,6 @@ fn classify_transition_target_handle(
         ExpressionNode::Call(call) if target_shaped => {
             classify_call_target_handle(syntax_trees, call)?
         }
-        ExpressionNode::SelfValue => TransitionTargetNode::SelfTarget,
         ExpressionNode::Name(_) => TransitionTargetNode::Value(expression),
         _ => TransitionTargetNode::Value(expression),
     };
@@ -112,12 +112,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, (ExpressionHandle, bool)> {
-    let (mut expression, mut input) = if input.at_keyword(KeywordKind::SelfValue) {
-        (
-            syntax_trees.expressions.insert(ExpressionNode::SelfValue),
-            input.take_keyword(KeywordKind::SelfValue, "self")?,
-        )
-    } else {
+    let (mut expression, mut input) = {
         let (path, rest) = parse_path_handle_span(input, |member| {
             syntax_trees
                 .expressions
@@ -143,16 +138,13 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                 }));
     }
 
-    // Namespace paths and implicit/current-self calls may name state targets.
+    // Namespace paths may name state targets.
     // A dotted call on another receiver is an invocation, even when its leaf
     // happens to spell the current machine or a sibling state.
-    let named_target = match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Member(member) => matches!(
-            syntax_trees.expressions.expression(member.receiver),
-            ExpressionNode::SelfValue
-        ),
-        _ => true,
-    };
+    let named_target = !matches!(
+        syntax_trees.expressions.expression(expression),
+        ExpressionNode::Member(_)
+    );
     if input.at_punctuation(PunctuationKind::LeftParen) {
         input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let ((arguments, evidence_arguments), rest) =
@@ -233,37 +225,26 @@ fn classify_call_target_handle(
             syntax_trees.expressions.insert(ExpressionNode::Call(call)),
         ));
     }
-    let (path, path_starts_at_self) = if call.receiver.is_valid() {
+    let path = if call.receiver.is_valid() {
         let receiver =
             copy_expression_identifier_path_to_statement_table(syntax_trees, call.receiver)
                 .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
-        (
-            append_statement_identifier_path_member(
-                syntax_trees,
-                receiver.members,
-                call.target.clone(),
-            ),
-            receiver.starts_at_self,
-        )
+        append_statement_identifier_path_member(syntax_trees, receiver, call.target.clone())
     } else {
         let handle = syntax_trees
             .statements
             .append_identifier_path_member(call.target.clone());
-        (HandleSpan::from_parts(handle, 1), false)
+        HandleSpan::from_parts(handle, 1)
     };
 
-    if path_starts_at_self && path.count() == 1 {
-        Ok(TransitionTargetNode::SelfTarget)
-    } else {
-        let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
-        Ok(TransitionTargetNode::Named {
-            path,
-            path_starts_at_self,
-            arguments,
-            evidence_arguments: call.evidence_arguments,
-            source_span: call.target.source_span(),
-        })
-    }
+    let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
+    Ok(TransitionTargetNode::Named {
+        path,
+        path_starts_at_self: false,
+        arguments,
+        evidence_arguments: call.evidence_arguments,
+        source_span: call.target.source_span(),
+    })
 }
 
 fn expression_handle_identifier_depth(
@@ -281,7 +262,6 @@ fn expression_handle_identifier_depth(
             let depth = expression_handle_identifier_depth(syntax_trees, member.receiver)?;
             Some(depth + 1)
         }
-        ExpressionNode::SelfValue => Some(1),
         _ => None,
     }
 }

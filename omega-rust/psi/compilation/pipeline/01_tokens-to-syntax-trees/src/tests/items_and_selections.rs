@@ -210,14 +210,13 @@ fn first_machine_statements(
 fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordinates() {
     for (target, named) in [
         ("next", true),
-        ("self.next", true),
         ("Main::next", true),
         ("other.next", false),
-        ("self.child.next", false),
+        ("main.child.next", false),
         ("other.child.next", false),
     ] {
         let source = format!(
-            "machine Main::next(&self, input: u64) -> u64 {{ transition {{ _ -> {target}(input; proof) }} }}"
+            "machine Main::next(main: &Main, input: u64) -> u64 {{ transition {{ _ -> {target}(input; proof) }} }}"
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let parsed = parse_syntax_trees(&tokens).unwrap();

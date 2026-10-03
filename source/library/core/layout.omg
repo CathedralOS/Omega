@@ -492,15 +492,15 @@ pub trait PlacementCustody<P, T> {
 // The compiler derives conforming accessor types from a normalized placement;
 // source cannot construct the opaque template or use it as placement evidence.
 pub trait Readable<T> {
-    machine read(&self) -> T;
+    machine read(placed_field: &Self) -> T;
 }
 
 pub trait DestructiveRead<T> {
-    machine take(&mut self) -> T;
+    machine take(placed_field: &mut Self) -> T;
 }
 
 pub trait Writable<T> {
-    machine write(&mut self, value: T);
+    machine write(placed_field: &mut Self, value: T);
 }
 
 pub boundary data PlacedField<T>;
