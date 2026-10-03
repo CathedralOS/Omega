@@ -694,6 +694,15 @@ the complete product bar; focused successes below do not establish that baseline
     window, call and state transport through Terminal replay and native
     execution; the deleted `compiler --test bounded_slice_selectors` is no
     longer evidence for those distinct obligations.
+    The static `checked-interpreter/tests/borrowed_subslices.rs` test
+    `inline_const_generic_selectors_execute_distinct_inferred_extents` checks
+    endpoint `ensures` and executes prefix, suffix and inclusive views. Native
+    stored views with call-computed endpoints still lack a structural producer:
+    `let view: &[u8] = &context.values[..Window::endpoint(&pair)]` reaches
+    stage 04's `statement_sequence/local_data.rs` structural-call fallback,
+    which rejects a non-call initializer. Retain the checked loan and captured
+    endpoint in ordinary view formation; do not replace it with callee-body
+    evaluation or a generic-selector-only lowering path.
 
     Carry exact anonymous arithmetic through generic/evidence-adapted,
     boundary, aggregate, parameter/constant, float and proof uses, retaining

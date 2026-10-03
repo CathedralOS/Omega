@@ -1,0 +1,18 @@
+data Counter { value: u64; }
+
+machine Counter::inspect() -> bool {
+    let value: u64 = 18446744073709551615;
+    let counter: Counter = Counter { value: value };
+    let observed: u64 = counter.value as u64;
+    value == 18446744073709551615u64 && observed == value
+}
+
+machine main() crashes Trap {
+    let correct: bool = Counter::inspect();
+    transition correct {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

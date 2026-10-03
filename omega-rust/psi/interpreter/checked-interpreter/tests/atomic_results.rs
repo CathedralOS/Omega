@@ -37,16 +37,17 @@ fn assert_atomic_results(source: &str) {
 fn fetch_and_swap_bind_priors_in_their_own_state_scope() {
     assert_atomic_results(
         "data Main { counter: AtomicU32; untouched: u32 in Wrapping; }
-         machine Main::main(&mut self) -> i32 {
-             self.untouched = 41;
-             self.counter.store(10, NoOrdering);
-             let prior: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
-             transition prior == 10 && self.counter == 15 && self.untouched == 41 {
-                 true -> exchange() false -> 71
+         machine Main::main() -> i32 {
+             let mut context: Main;
+             context.untouched = 41;
+             context.counter.store(10, NoOrdering);
+             let prior: u32 in Wrapping = context.counter.fetch_add(5, NoOrdering);
+             transition prior == 10 && context.counter == 15 && context.untouched == 41 {
+                 true -> exchange(&mut context) false -> 71
              }
-             state exchange(&mut self) -> i32 {
-                 let prior: u32 in Wrapping = self.counter.swap(23, ReceivePublish);
-                 transition prior == 15 && self.counter == 23 && self.untouched == 41 {
+             state exchange(context: &mut Main) -> i32 {
+                 let prior: u32 in Wrapping = context.counter.swap(23, ReceivePublish);
+                 transition prior == 15 && context.counter == 23 && context.untouched == 41 {
                      true -> 70 false -> 72
                  }
              }
@@ -58,16 +59,17 @@ fn fetch_and_swap_bind_priors_in_their_own_state_scope() {
 fn compare_exchange_binds_the_observed_prior_on_success_and_mismatch() {
     assert_atomic_results(
         "data Main { counter: AtomicU32; untouched: u32 in Wrapping; }
-         machine Main::main(&mut self) -> i32 {
-             self.untouched = 41;
-             self.counter.store(10, NoOrdering);
-             let prior: u32 in Wrapping = self.counter.compare_exchange(10, 99, ReceivePublish, Receive);
-             transition prior == 10 && self.counter == 99 && self.untouched == 41 {
-                 true -> mismatch() false -> 71
+         machine Main::main() -> i32 {
+             let mut context: Main;
+             context.untouched = 41;
+             context.counter.store(10, NoOrdering);
+             let prior: u32 in Wrapping = context.counter.compare_exchange(10, 99, ReceivePublish, Receive);
+             transition prior == 10 && context.counter == 99 && context.untouched == 41 {
+                 true -> mismatch(&mut context) false -> 71
              }
-             state mismatch(&mut self) -> i32 {
-                 let prior: u32 in Wrapping = self.counter.compare_exchange(10, 42, ReceivePublish, Receive);
-                 transition prior == 99 && self.counter == 99 && self.untouched == 41 {
+             state mismatch(context: &mut Main) -> i32 {
+                 let prior: u32 in Wrapping = context.counter.compare_exchange(10, 42, ReceivePublish, Receive);
+                 transition prior == 99 && context.counter == 99 && context.untouched == 41 {
                      true -> 70 false -> 72
                  }
              }
@@ -76,11 +78,11 @@ fn compare_exchange_binds_the_observed_prior_on_success_and_mismatch() {
 }
 
 #[test]
-fn atomic_result_local_cannot_shadow_a_receiver_field() {
+fn atomic_result_local_cannot_shadow_a_parameter() {
     let diagnostics = crate::front_end::checked_program_result(
-        "data Main { counter: AtomicU32; prior: u32 in Wrapping; }
-         machine Main::main(&mut self) -> i32 {
-             let prior: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
+        "machine Main::main(prior: u32 in Wrapping) -> i32 {
+             let mut counter: AtomicU32;
+             let prior: u32 in Wrapping = counter.fetch_add(5, NoOrdering);
              0
          }",
     )

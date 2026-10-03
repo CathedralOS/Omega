@@ -68,6 +68,47 @@ fn private_realization_range_does_not_become_a_public_requirement_fact() {
 }
 
 #[test]
+fn call_result_contract_bounds_follow_the_selected_identity() {
+    let (mut program, expression) = fixture(
+        "machine cut() -> u64 ensures result <= 3 { 2 }
+         machine other() -> u64 ensures result == 5 { 5 }
+         machine inspect() -> u64 { cut() }",
+    );
+    assert_eq!(range(&program, expression), Some((0, 3)));
+    let other = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "other")
+        .expect("other machine");
+    let other_state = program.machine_states(other)[0].symbol;
+    for (target, expected) in [(other_state, Some((5, 5))), (SymbolHandle::invalid(), None)] {
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            panic!("call kind")
+        };
+        call.target_symbol = target;
+        assert_eq!(range(&program, expression), expected);
+    }
+}
+
+#[test]
+fn call_result_contract_bounds_do_not_use_private_realizations_or_shadowed_results() {
+    let (mut program, expression) = fixture(
+        "machine cut() -> u64 ensures result <= 3 { 2 }
+         machine inspect() -> u64 { cut() }",
+    );
+    let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+        panic!("call kind")
+    };
+    call.static_requirement_dispatch = Some(StaticRequirementDispatch::default());
+    assert_eq!(range(&program, expression), None);
+    let (program, expression) = fixture(
+        "machine cut(result: u64) -> u64 ensures result <= 3 { 8 }
+         machine inspect() -> u64 { cut(2) }",
+    );
+    assert_eq!(range(&program, expression), None);
+}
+
+#[test]
 fn const_extent_floor_uses_resolved_binder_identity() {
     let program = typed_program(
         "machine inspect<const N: u64>(items: &[u8; N]) requires N >= 1 { }
