@@ -522,31 +522,16 @@ pub(super) fn build(
                     // A mid-chain arm transfers to its named state or completes
                     // with its authored Unit/value result under the guard, just
                     // like the closing fallback.
-                    let jump_target = match &exit.destination {
-                        checked_trees::CheckedScalarBranchDestination::Jump(selected) => {
-                            if exit.guard_statement_ordinal != arm_ordinal
-                                || selected.statement_ordinal != arm_ordinal
-                            {
-                                return None;
-                            }
-                            Some(selected.target)
-                        }
-                        checked_trees::CheckedScalarBranchDestination::Return {
-                            statement_ordinal,
-                            is_continuation,
-                        } => {
-                            if *statement_ordinal != arm_ordinal
-                                || *is_continuation
-                                || exit.guard_statement_ordinal != arm_ordinal
-                                || transition.exit != TransitionExit::Ordinary
-                                || transition.continuation.is_valid()
-                            {
-                                return None;
-                            }
-                            None
-                        }
-                        _ => return None,
-                    };
+                    if exit.guard_statement_ordinal != arm_ordinal {
+                        return None;
+                    }
+                    let jump_target = internal_destination(
+                        program,
+                        machine,
+                        transition,
+                        &exit.destination,
+                        arm_ordinal,
+                    )?;
                     trace.phase(
                         "state graph: terminator: guarded jump successors: guard expression",
                     );
@@ -555,7 +540,8 @@ pub(super) fn build(
                     if !guard_is_boolean(facts, &guard) {
                         return None;
                     }
-                    let arm = if let Some(target) = jump_target {
+                    let arm = if jump_target.is_valid() {
+                        let target = jump_target;
                         let successor = edge(
                             operations,
                             transition,
@@ -585,6 +571,7 @@ pub(super) fn build(
                             structural,
                             entry_claims,
                             &result,
+                            next_scalar_binding,
                             operations,
                             arm_ordinal,
                             transition,
@@ -619,11 +606,14 @@ pub(super) fn build(
                 // The roster's proven else may be a named-state edge or the
                 // authored `(expression)` arm that returns its value — the
                 // same outcome split a `ConditionalReturn` arm carries.
-                let fallback = match fallback_destination {
-                    Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) => {
-                        if selected.statement_ordinal != fallback_ordinal {
-                            return None;
-                        }
+                let fallback = match internal_destination(
+                    program,
+                    machine,
+                    fallback_transition,
+                    fallback_destination?,
+                    fallback_ordinal,
+                )? {
+                    target if target.is_valid() => {
                         let fallback = edge(
                             operations,
                             fallback_transition,
@@ -631,7 +621,7 @@ pub(super) fn build(
                             SuccessorEdge::GuardedJump,
                             shapes,
                         )?;
-                        if fallback.target_state != selected.target {
+                        if fallback.target_state != target {
                             trace.phase(
                                 SuccessorEdge::GuardedJump.phase(SuccessorGuard::TargetState),
                             );
@@ -640,13 +630,7 @@ pub(super) fn build(
                         }
                         checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback)
                     }
-                    Some(checked_trees::CheckedScalarBranchDestination::Return {
-                        statement_ordinal,
-                        is_continuation,
-                    }) => {
-                        if *statement_ordinal != fallback_ordinal || *is_continuation {
-                            return None;
-                        }
+                    _ => {
                         trace.phase(
                             "state graph: terminator: guarded jump successors: return completion",
                         );
@@ -661,13 +645,13 @@ pub(super) fn build(
                             structural,
                             entry_claims,
                             &result,
+                            next_scalar_binding,
                             operations,
                             fallback_ordinal,
                             fallback_transition,
                             trace,
                         )?)
                     }
-                    _ => return None,
                 };
                 CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback }
             }
@@ -723,6 +707,39 @@ pub(super) fn build(
     Some(terminator)
 }
 
+/// Rejoin the shared roster's authored destination, distinguishing a local
+/// state edge from completion through a value or another machine's result.
+/// A machine-named destination is not a jump inside this activation merely
+/// because the scalar roster retains its target alongside state targets.
+fn internal_destination(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    transition: &typed_trees::statement::TableTransition,
+    destination: &checked_trees::CheckedScalarBranchDestination,
+    ordinal: u32,
+) -> Option<symbols::SymbolHandle> {
+    if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
+        return None;
+    }
+    match destination {
+        checked_trees::CheckedScalarBranchDestination::Jump(selected)
+            if selected.statement_ordinal == ordinal && !selected.is_continuation =>
+        {
+            match terminal_calls::invoked_machine_state(program, machine, transition) {
+                Some(target) => {
+                    (target == selected.target).then_some(symbols::SymbolHandle::default())
+                }
+                None => Some(selected.target),
+            }
+        }
+        checked_trees::CheckedScalarBranchDestination::Return {
+            statement_ordinal,
+            is_continuation: false,
+        } if *statement_ordinal == ordinal => Some(symbols::SymbolHandle::default()),
+        _ => None,
+    }
+}
+
 /// The completion an ordered-chain arm selects: a mid-chain arm and the closing
 /// fallback use this same join. Unit exits preserve ordinary return cleanup,
 /// without manufacturing a value. A scalar arm rejoins the
@@ -741,6 +758,7 @@ fn guarded_return_arm(
     structural: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
     result: &checked_trees::CheckedControlResultPlan,
+    next_scalar_binding: usize,
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     statement_ordinal: u32,
     transition: &typed_trees::statement::TableTransition,
@@ -748,6 +766,22 @@ fn guarded_return_arm(
 ) -> Option<checked_trees::CheckedConditionalReturnArm> {
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
+    }
+    if terminal_calls::invoked_machine_state(program, machine, transition).is_some() {
+        return terminal_calls::arm_call(
+            program,
+            facts,
+            scalar_callees,
+            machine,
+            state,
+            structural,
+            entry_claims,
+            result,
+            next_scalar_binding,
+            transition,
+            statement_ordinal,
+            trace,
+        );
     }
     let expression = match program.statement_table.transition_target(transition.target) {
         TransitionTargetNode::Terminal
@@ -828,4 +862,44 @@ fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32)
         && exits[0].guard_statement_ordinal == ordinal
         && exits[1].guard_statement_ordinal == ordinal + 1)
         .then_some(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ScalarCalleePlans, ShapeCollector, control};
+
+    #[test]
+    fn ordered_terminal_calls_keep_selected_completion() {
+        let checked = crate::tests::front_end::checked_program(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/omega/pass/calls/guarded_terminal_call_chain_exit/main.omg"
+        )));
+        let program = &checked.typed;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "choose")
+            .unwrap();
+        let trace = control::LocalConstructionTrace::default();
+        let plan = super::super::build_traced(
+            program,
+            &checked.facts,
+            ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+            },
+            &mut ShapeCollector::new(program),
+            machine,
+            None,
+            &trace,
+        )
+        .unwrap_or_else(|| panic!("ordered call completion: {:?}", trace.stage()));
+        assert_eq!(
+            plan.states[0]
+                .operation_dependencies()
+                .filter(|operation| operation.call().is_some())
+                .count(),
+            3
+        );
+    }
 }

@@ -10,6 +10,8 @@ use typed_trees::statement::TransitionExit;
 
 #[cfg(test)]
 mod crash_tests;
+#[cfg(test)]
+mod terminal_call_tests;
 
 /// Whether a call target is a build declaration the build-config pass
 /// harvests statically, which evaluation serves as a no-op so the build
@@ -352,35 +354,26 @@ impl<'program> Evaluator<'program> {
                     .map(|name| name.as_str())
                     .ok_or_else(|| Halt::Unsupported("empty named transition".to_owned()))?;
 
-                // Same-machine sibling state on the current `self`, or a FREE
-                // machine's self-recursion (`-> count(...)` inside top-level
-                // `machine count` names the MACHINE, whose body state is the
-                // generated `entry`). The check stage resolved the target's
-                // state symbol, so sibling lookup prefers it over the
-                // spelling — renamed/colliding states still hit the exact
-                // resolved target before any name fallback.
-                let (machine, state) = match self
-                    .current_machine(frame)
-                    .and_then(|machine| {
-                        self.find_state_by_symbol(machine, path.symbol)
-                            .map(|state| (machine, state))
-                    })
-                    .or_else(|| {
-                        self.machine_of_state_named(state_name, frame)
-                            .and_then(|machine| {
-                                self.find_state(machine, state_name)
-                                    .map(|state| (machine, state))
-                            })
-                    }) {
-                    Some(resolved) => resolved,
-                    None => self
-                        .free_machine_self_recursion_target(state_name, frame)
-                        .ok_or_else(|| {
-                            Halt::Unsupported(format!(
-                                "transition target `{state_name}` not found in current machine"
-                            ))
-                        })?,
+                // Resolution already distinguishes an internal state from a
+                // machine invocation. Follow that identity: a machine names
+                // its entry, including self-reentry and foreign tail calls.
+                // Name fallback could execute a colliding sibling instead.
+                let resolved = if let Some(machine) = self.program.machine_by_symbol(path.symbol) {
+                    self.machine_entry_state(machine)
+                        .map(|state| (machine, state))
+                } else {
+                    self.program
+                        .machine_holding_state(path.symbol)
+                        .and_then(|machine| {
+                            self.find_state_by_symbol(machine, path.symbol)
+                                .map(|state| (machine, state))
+                        })
                 };
+                let (machine, state) = resolved.ok_or_else(|| {
+                    Halt::Unsupported(format!(
+                        "transition target `{state_name}` has no resolved machine or state"
+                    ))
+                })?;
 
                 let arguments = self.eval_state_arguments(
                     state,
@@ -396,56 +389,6 @@ impl<'program> Evaluator<'program> {
                 })
             }
         }
-    }
-
-    /// A FREE machine's self-recursive transition target: the named target is the
-    /// CURRENT machine's own (leaf) name and the machine has no attached data, so
-    /// the recursion re-enters the machine's entry state (the generated `entry`)
-    /// with the transition's arguments.
-    fn free_machine_self_recursion_target(
-        &self,
-        state_name: &str,
-        frame: &Frame,
-    ) -> Option<(&'program Machine, &'program State)> {
-        let machine = self.current_machine(frame)?;
-        let leaf = machine.name.as_str().rsplit("::").next().unwrap_or("");
-        if machine.attached_data.is_some() || leaf != state_name {
-            return None;
-        }
-        let entry = self.machine_entry_state(machine)?;
-        Some((machine, entry))
-    }
-
-    /// Find the machine that owns a sibling state of `self` by state name. The entry and
-    /// its sub-states all live in the same machine group; a named transition stays within
-    /// the current machine.
-    fn machine_of_state_named(&self, state_name: &str, frame: &Frame) -> Option<&'program Machine> {
-        // A named transition target is a SIBLING state of the machine currently executing, so
-        // resolve within the CURRENT machine FIRST. Otherwise a state name shared across machines
-        // -- e.g. `Picker::pick` and `Main::read_at` BOTH having a `try1` sub-state -- collides on
-        // the type/global fallbacks below and runs the WRONG machine's body (the read_at `try1`
-        // transition would run pick's `try1`, returning pick's value).
-        if let Some(machine) = self.current_machine(frame)
-            && self.find_state(machine, state_name).is_some()
-        {
-            return Some(machine);
-        }
-        let type_symbol = match &*frame.self_cell.borrow() {
-            Value::Struct { type_symbol, .. } => *type_symbol,
-            _ => SymbolHandle::invalid(),
-        };
-        // First, the machine whose symbol matches the instance and has the state.
-        for machine in self.program.machines() {
-            if machine.symbol == type_symbol && self.find_state(machine, state_name).is_some() {
-                return Some(machine);
-            }
-        }
-        // Fall back: any machine that defines a state of that name (single-machine
-        // programs share one instance shape).
-        self.program
-            .machines()
-            .iter()
-            .find(|machine| self.find_state(machine, state_name).is_some())
     }
 
     // ---- calls --------------------------------------------------------------

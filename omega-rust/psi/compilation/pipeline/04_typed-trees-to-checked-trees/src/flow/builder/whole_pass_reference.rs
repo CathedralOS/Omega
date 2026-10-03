@@ -102,7 +102,7 @@ pub(super) fn build_whole_pass_reference(
         // contexts. Only a change after that point requires rebuilding flow.
         if !build.state_value_inputs_changed_after_build {
             let mut flow = build.finish();
-            attach_reach_summaries(&mut flow, service_reaches, operational);
+            attach_reach_summaries(program, &mut flow, service_reaches, operational);
             return flow;
         }
         inputs = std::mem::take(&mut build.state_value_inputs);
@@ -139,6 +139,6 @@ pub(super) fn build_whole_pass_reference(
         }
     }
     let mut flow = build.finish();
-    attach_reach_summaries(&mut flow, service_reaches, operational);
+    attach_reach_summaries(program, &mut flow, service_reaches, operational);
     flow
 }

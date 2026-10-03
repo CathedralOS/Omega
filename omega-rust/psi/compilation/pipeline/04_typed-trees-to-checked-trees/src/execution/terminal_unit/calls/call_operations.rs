@@ -202,13 +202,14 @@ pub(in crate::execution) fn build_call_operation(
     }
 
     phase("call operation: target state");
-    let target_state = crate::semantic::calls::find_state(program, call.target_symbol)?;
-    let target_machine = program.machines().iter().find(|candidate| {
-        program
-            .machine_states(candidate)
-            .iter()
-            .any(|candidate_state| candidate_state.symbol == target_state.symbol)
-    })?;
+    // Source custody can name a machine head or an exact stored state. A
+    // machine invokes its entry; an explicitly selected state keeps its own
+    // signature. Resolve that executable pair without rewriting the flow
+    // occurrence, which still authenticates the authored call and operands.
+    let (target_machine, target_state) =
+        crate::semantic::calls::find_machine_head(program, call.target_symbol).or_else(|| {
+            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
+        })?;
     phase("call operation: target contract");
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     let call_target = CheckedUnitCallTarget {

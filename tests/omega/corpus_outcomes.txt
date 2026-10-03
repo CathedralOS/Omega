@@ -1327,6 +1327,7 @@ pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb
 pass/calls/guarded_arm_value_tail_call_exit checked 2342ms @4e4bfed13aee+wt
 pass/calls/guarded_arm_view_range_tail_call_exit rejected 1423ms @9b253f5667e5
 	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(1), block: BlockId(1), node: 13, place: PlaceId(1) }))
+pass/calls/guarded_terminal_call_chain_exit checked 704ms @d30440d3c3f
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/inline_record_scalar_call_arguments_exit checked 791ms @3a2233464b3b
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f

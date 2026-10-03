@@ -140,7 +140,14 @@ pub(super) fn arm_call(
                 && !facts.flow.control.is_retired(state.symbol, call)
         });
     let call = occurrences.next()?;
-    if occurrences.next().is_some() || call.call_ordinal != 0 || call.target_symbol != target {
+    // Flow custody retains the resolved authored symbol, which can name the
+    // machine rather than its entry state. Compare executable destinations
+    // without replacing that source identity in the ordinary call fact.
+    if occurrences.next().is_some()
+        || call.call_ordinal != 0
+        || crate::semantic::calls::find_machine_head(program, call.target_symbol)
+            .is_none_or(|(_, entry)| entry.symbol != target)
+    {
         return None;
     }
     if !control::structural_operands::operations_for_call(program, facts, machine, state, call)?

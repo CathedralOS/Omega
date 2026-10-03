@@ -438,11 +438,7 @@ fn named_target_arguments(
     if static_machine_parameter.is_valid() {
         return unsupported("named call custody has an unselected static target");
     }
-    let source_target = checked
-        .typed
-        .machine_by_symbol(path.symbol)
-        .and_then(|owner| checked.typed.machine_states(owner).first())
-        .map_or(path.symbol, |entry| entry.symbol);
+    let source_target = path.symbol;
     let target = target_signature(checked, caller_machine, source_target)?;
     if target.machine == caller_machine && path.symbol != caller_machine {
         return unsupported("internal state transfer is not a terminal machine invocation");
@@ -545,11 +541,18 @@ pub(crate) fn target_signature(
     // requirement; the leaf declares no body to supply one.
     let external_leaf =
         validation::exact_external_leaf_boundary_requirement(program, source_target);
+    // Captured calls retain the authored machine head, while execution names
+    // its entry state. Resolve only the signature here: replacing the source
+    // identity would break exact flow and borrow occurrence custody.
+    let target_state = program
+        .machine_by_symbol(source_target)
+        .and_then(|machine| program.machine_states(machine).first())
+        .map_or(source_target, |state| state.symbol);
     let mut states = program.machines().iter().flat_map(|machine| {
         program
             .machine_states(machine)
             .iter()
-            .filter_map(move |state| (state.symbol == source_target).then_some((machine, state)))
+            .filter_map(move |state| (state.symbol == target_state).then_some((machine, state)))
     });
     if external_leaf.is_none()
         && let Some((machine, state)) = states.next()
@@ -672,6 +675,9 @@ mod named_terminal_tests {
             first_state,
         )
         .expect("guarded named invocation");
+        assert_eq!(outer.source_target, call.target_symbol);
+        super::super::validate_observations(&checked, machine.symbol, state, coordinate, &outer)
+            .expect("authored machine head rejoins its exact borrow occurrence");
         assert_eq!(outer.scalar_arguments.len(), 2);
         assert!(
             outer.source_site.is_none(),

@@ -15,6 +15,8 @@ use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind
 /// An unconditional named machine invocation completes this Unit body after
 /// its ordinary call operation. Internal state destinations remain control
 /// edges; guarded invocations must not be hoisted into this linear sequence.
+/// Return the authored identity to join captured occurrences; the call builder
+/// separately resolves the callee's executable entry and signature.
 pub(in crate::execution::terminal_unit) fn terminal_named_call(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -71,7 +73,7 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     };
     (program.normalized_type_identity(target.return_type)
         == program.normalized_type_identity(state.return_type))
-    .then_some(target.symbol)
+    .then_some(path.symbol)
 }
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(

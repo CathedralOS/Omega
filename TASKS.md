@@ -1780,8 +1780,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `calls/value_tail_call_to_machine_exit` and
   `calls/guarded_arm_value_tail_call_exit` exit 70 natively and on the
   interpreter on macOS ARM64; `collections/runtime_frame_indexed_param_read_exit`
-  still exits 1. Structural-result tail calls, terminal calls in guarded
-  chains of three or more arms or in closed-sum case arms, range-constrained
+  still exits 1. `calls/guarded_terminal_call_chain_exit` now exits **0**
+  natively and in the checked interpreter on macOS ARM64: three ordered arms
+  forward 20, 30, and 40 while mutating the borrowed counter exactly once per
+  invocation. Source-free Terminal replay also executes mixed call/state/value
+  completion and rejects substituted call placement, target, coordinate, access,
+  and service evidence. Structural-result tail calls, closed-sum case arms, range-constrained
   result compatibility, arm calls whose guard or operands make calls, and
   claim-transferring arm calls remain declined there.
 

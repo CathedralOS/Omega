@@ -982,10 +982,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         }
                         (
                             checked_trees::CheckedGuardedJumpArmPlan::Return(return_plan),
-                            checked_trees::CheckedScalarBranchDestination::Return {
-                                statement_ordinal: retained_ordinal,
-                                is_continuation,
-                            },
+                            destination,
                         ) => {
                             // The same revalidation the fallback's return arm
                             // gets: the plan's arm ordinal and the roster row
@@ -997,10 +994,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 state,
                                 transition,
                                 &return_plan.return_arm,
+                                destination,
                             )?;
-                            if *retained_ordinal != statement_ordinal
-                                || *is_continuation
-                                || arm_ordinal != statement_ordinal
+                            if arm_ordinal != statement_ordinal
                                 || return_plan.statement_ordinal != statement_ordinal
                                 || exit.guard_statement_ordinal != statement_ordinal
                             {
@@ -1060,18 +1056,18 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     }
                     (
                         checked_trees::CheckedGuardedJumpFallbackPlan::Return(return_arm),
-                        Some(checked_trees::CheckedScalarBranchDestination::Return {
-                            statement_ordinal: retained_ordinal,
-                            is_continuation,
-                        }),
+                        Some(destination),
                     ) => {
                         let arm_ordinal = validate_guarded_return(
-                            checked, plan, source, state, transition, return_arm,
+                            checked,
+                            plan,
+                            source,
+                            state,
+                            transition,
+                            return_arm,
+                            destination,
                         )?;
-                        if *retained_ordinal != statement_ordinal
-                            || *is_continuation
-                            || arm_ordinal != statement_ordinal
-                        {
+                        if arm_ordinal != statement_ordinal {
                             return unsupported(
                                 "guarded jump return arm drifted from its authored ordinals",
                             );
@@ -1269,13 +1265,43 @@ fn validate_guarded_return(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     transition: &checked_trees::statement::TableTransition,
     arm: &checked_trees::CheckedConditionalReturnArm,
+    destination: &checked_trees::CheckedScalarBranchDestination,
 ) -> Result<u32, LoweringError> {
     use checked_trees::statement::TransitionTargetNode;
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return unsupported("guarded return is not an ordinary completion");
     }
+    let ordinal = match (arm, destination) {
+        (
+            checked_trees::CheckedConditionalReturnArm::Call(operation),
+            checked_trees::CheckedScalarBranchDestination::Jump(selected),
+        ) if !selected.is_continuation
+            && operation
+                .call()
+                .is_some_and(|call| call.target.state == selected.target) =>
+        {
+            validate_arm_call(
+                checked,
+                plan,
+                source,
+                state,
+                transition,
+                selected.statement_ordinal as usize,
+                operation,
+            )?;
+            return Ok(selected.statement_ordinal);
+        }
+        (
+            _,
+            checked_trees::CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation: false,
+            },
+        ) => *statement_ordinal,
+        _ => return unsupported("guarded completion changed its retained destination"),
+    };
     let target = checked.statement_table.transition_target(transition.target);
-    match (arm, target) {
+    let retained_ordinal = match (arm, target) {
         (
             checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal },
             TransitionTargetNode::Terminal,
@@ -1306,7 +1332,11 @@ fn validate_guarded_return(
             Ok(*statement_ordinal)
         }
         _ => unsupported("guarded return disagrees with its authored completion or result"),
+    }?;
+    if retained_ordinal != ordinal {
+        return unsupported("guarded completion changed its retained ordinal");
     }
+    Ok(ordinal)
 }
 
 /// A graph guard names exactly the value its `Guard` coordinate retains: the
