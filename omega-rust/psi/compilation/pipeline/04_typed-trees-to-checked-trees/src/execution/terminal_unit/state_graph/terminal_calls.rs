@@ -32,8 +32,7 @@
 //! Scalar operand computations retain their nested calls; the shared argument
 //! schedule evaluates them inside the selected arm in authored order.
 //! Honest boundaries: structural results are not planned here; an arm call
-//! transfers no claims, its guard makes no call, and no structural operand
-//! needs a separate establishment.
+//! transfers no claims and no structural operand needs a separate establishment.
 use super::{
     CheckFacts, CheckedUnitStructuralParameterPlan, ScalarCalleePlans, TransitionExit,
     TransitionTargetNode, TypedTrees, control,
@@ -73,9 +72,9 @@ pub(super) fn invoked_callable(
 }
 
 /// Plan a guarded arm's terminal machine call as the arm's own operation.
-/// The outer flow call is the invocation itself (preorder zero, so the arm's
-/// guard makes no call before it). Every nested scalar call must belong to
-/// an operand computation; structural operands need no separate establishment.
+/// The outer flow call names this exact transition target after the guard's
+/// earlier occurrences. Every nested scalar call must belong to an operand
+/// computation; structural operands need no separate establishment.
 ///
 /// A scalar-result machine forwards the callee's result: the call binds it
 /// at `next_scalar_binding`, the ordinal the arm's namespace (the state's
@@ -122,8 +121,24 @@ pub(super) fn arm_call(
     let calls = facts.flow.control.calls.span_or_empty(flow.calls);
     let mut occurrences = calls.iter().filter(|call| {
         call.statement_index == statement_ordinal as usize
-            && call.call_ordinal == 0
             && !facts.flow.control.is_retired(state.symbol, call)
+            && matches!(
+                crate::semantic::calls::find_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                ),
+                Some(crate::semantic::calls::CallSite::TransitionNamed { .. })
+            )
+            && crate::semantic::calls::transition_call_target(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                call.call_ordinal,
+            ) == Some(transition.target)
     });
     let call = occurrences.next()?;
     // Flow custody retains the resolved authored symbol, which can name the
@@ -135,7 +150,7 @@ pub(super) fn arm_call(
     {
         return None;
     }
-    control::call_owns_statement_operands(
+    control::call_owns_statement_computations(
         program,
         facts,
         machine.symbol,
@@ -218,6 +233,19 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../tests/omega/pass/calls/runtime_guarded_terminal_operand_order_exit/main.omg"
         ));
+        assert_guarded_terminal_call_custody(source, 0);
+    }
+
+    #[test]
+    fn guarded_terminal_guard_and_operands_retain_separate_call_custody() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/omega/pass/calls/runtime_guarded_terminal_guard_order_exit/main.omg"
+        ));
+        assert_guarded_terminal_call_custody(source, 1);
+    }
+
+    fn assert_guarded_terminal_call_custody(source: &str, call_ordinal: u32) {
         let checked = crate::tests::front_end::checked_program(source);
         let program = &checked.typed;
         let machine = program
@@ -253,6 +281,7 @@ mod tests {
             .filter_map(|operation| operation.call())
             .collect::<Vec<_>>();
         assert_eq!(calls.len(), 2, "each arm owns one outer invocation");
+        assert_eq!(calls[0].coordinate.call_ordinal, call_ordinal);
         assert_eq!(calls[0].scalar_arguments.len(), 2);
         assert!(calls[0].scalar_arguments.iter().all(|argument| matches!(
             argument,

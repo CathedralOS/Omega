@@ -1381,7 +1381,6 @@ fn validate_arm_call(
     if !completes
         || !call.claim_transfers().is_empty()
         || call.coordinate.statement_index as usize != ordinal
-        || call.coordinate.call_ordinal != 0
         || transition.exit != TransitionExit::Ordinary
         || transition.continuation.is_valid()
         || !matches!(
@@ -1390,6 +1389,14 @@ fn validate_arm_call(
         )
     {
         return unsupported("Unit graph call arm is not its arm's terminal invocation");
+    }
+    if crate::emission::call_source_custody::authored::transition_target_at_call(
+        checked,
+        state.state,
+        call.coordinate,
+    )? != transition.target
+    {
+        return unsupported("Unit graph call arm names a different authored target");
     }
     crate::emission::call_source_custody::validate_operation(
         checked,
