@@ -14,15 +14,15 @@ data Main {
     desc: Desc;
 }
 
-machine Main::main(&mut self) reaches Console {
-    let plain: &Desc = &self.desc;
-    transition plain.tag == self.buf[0] as u32 { true -> done() _ -> bad() }
+machine Main::main(main: &mut Main) reaches Console {
+    let plain: &Desc = &main.desc;
+    transition plain.tag == main.buf[0] as u32 { true -> done(main) _ -> bad(main) }
 
-    state done(&mut self) {
-        self.console.exit_process(0);
+    state done(main: &mut Main) {
+        main.console.exit_process(0);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 2.13, "load1_start": 2.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 1.9, "load1_start": 1.9, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1608,7 +1608,7 @@ pass/control_flow/state_local_operand_edge_call_exit checked 1919ms @f05a1760528
 pass/control_flow/structural_result_transition_tail checked 1353ms @1da616075c39+wt
 pass/control_flow/sum_field_storage_roundtrip checked 1418ms @2d8ed253669f
 pass/control_flow/termination_index_distance_compile checked 978ms @ca8c127c90c5
-pass/control_flow/transition_operand_schedule checked 314ms @2d8ed253669f
+pass/control_flow/transition_operand_schedule checked 165ms @0f3b86efb4e5+wt
 pass/control_flow/transition_tail_self_call checked 295ms @2d8ed253669f
 pass/core/carry_permission_provider_adapter checked 663ms @2d8ed253669f
 pass/core/content_conservation_contract rejected 651ms @4e4bfed13aee+wt
@@ -2420,7 +2420,8 @@ run/borrows/shared_field_borrow checked 2583ms @2d8ed253669f
 run/borrows/shared_indexed_read checked 2944ms @2d8ed253669f
 run/borrows/shared_local_borrow checked 1108ms @18d68e27ec16+wt
 run/borrows/shared_recast_borrow checked 894ms @a3bac00e54bb+wt
-run/borrows/shared_record_loan_member_read checked 3057ms @2d8ed253669f
+run/borrows/shared_record_loan_member_read rejected 572ms @0f3b86efb4e5+wt
+	terminal-artifact production failed: Lowering(Unsupported("Unit graph local disposition type drifted"))
 run/borrows/shared_runtime_index_borrow checked 3050ms @2d8ed253669f
 run/borrows/transition_shared_borrow checked 604ms @4e4bfed13aee+wt
 run/contained_health_loop_command_branch checked 287ms @4e4bfed13aee+wt
