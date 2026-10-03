@@ -4,6 +4,7 @@ mod byte_owner_views;
 mod direct_call_operands;
 mod mutable_view_arrivals;
 mod nominal_cleanup;
+mod returned_record_storage;
 
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,

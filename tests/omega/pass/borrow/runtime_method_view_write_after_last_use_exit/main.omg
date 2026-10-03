@@ -1,13 +1,12 @@
 // RUN canary (lifetimes stage 1, the complement of
-// fail/borrow/method_view_receiver_unrelated_field_write): the receiver-wide
-// loan of a method-returned view ends at the view's LAST USE, not at scope
-// end -- so writing another field of the same receiver AFTER the final write
+// fail/borrow/method_view_receiver_unrelated_field_write): the whole-record
+// loan of a returned view ends at the view's LAST USE, not at scope
+// end -- so writing another field of the local record AFTER the final write
 // through the view must compile (use-ranged loans, Rust's NLL shape). The
 // runtime assertion proves both writes landed: 7 through the view into
 // cells[2], then 63 directly into `other` (sum 70).
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Cell {
     value: i32;
@@ -25,24 +24,20 @@ machine Bag::pick(bag: &mut Bag) -> &mut Cell {
     }
 }
 
-data Main {
-    console: Binding<Console>;
-    bag: Bag;
-}
-
-machine Main::main(main: &mut Main) reaches Console {
-    let cell: &mut Cell = Bag::pick(&mut main.bag);
+machine main() reaches Console {
+    let mut bag: Bag;
+    let cell: &mut Cell = Bag::pick(&mut bag);
     cell.value = 7;
-    // `cell` is dead from here on: the receiver-wide loan has ended.
-    main.bag.other = 63;
-    transition (main.bag.cells[2].value as i64) + (main.bag.other as i64) == 70 {
-        true -> good(main)
-        false -> bad(main)
+    // `cell` is dead from here on: the whole-record loan has ended.
+    bag.other = 63;
+    transition (bag.cells[2].value as i64) + (bag.other as i64) == 70 {
+        true -> good()
+        false -> bad()
     }
-    state good(main: &mut Main) {
-        main.console.exit_process(70);
+    state good() {
+        Console::exit_process(70);
     }
-    state bad(main: &mut Main) {
-        main.console.exit_process(71);
+    state bad() {
+        Console::exit_process(71);
     }
 }

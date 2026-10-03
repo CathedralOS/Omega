@@ -1326,9 +1326,13 @@ fn write_destination(
         return None;
     }
     let (access, root_type) = read_access(function, target, leaf.root, purpose)?;
+    // The loan may be backed by this activation's owned storage, not only a
+    // borrowed parameter. Mandatory custody replay checks the lending access;
+    // publication retains the same declared root and exact referent paths.
     if !matches!(
         access,
-        terminal_psi::StructuralAccess::MutableBorrow
+        terminal_psi::StructuralAccess::Owned
+            | terminal_psi::StructuralAccess::MutableBorrow
             | terminal_psi::StructuralAccess::WriteOnlyBorrow
     ) || leaf.root_paths.iter().any(|path| {
         if path.is_empty() {

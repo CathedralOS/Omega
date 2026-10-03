@@ -236,30 +236,22 @@ fn returned_mutable_record_projection(
         return None;
     }
     let root = leaf.root.place();
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root)?;
-    if !matches!(
-        parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || function
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == root)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == root)
-        || leaf
-            .root
-            .paths()
-            .iter()
-            .any(|path| leaf_type(types, parameter.structural_type, path) != Some(*referent))
-        || leaf.root.paths().is_empty()
+    // Reconstruct every candidate origin from its declared storage contract,
+    // including fresh local owners. The producer's chosen physical home is
+    // not evidence of access, qualification or claim eligibility.
+    let paths = leaf.root.paths();
+    if paths.is_empty()
+        || paths.iter().any(|path| {
+            direct_storage_type(
+                function,
+                types,
+                &StructuralArgument {
+                    place: root,
+                    path: path.clone(),
+                    access: StructuralAccess::WriteOnlyBorrow,
+                },
+            ) != Some(*referent)
+        })
     {
         return None;
     }
