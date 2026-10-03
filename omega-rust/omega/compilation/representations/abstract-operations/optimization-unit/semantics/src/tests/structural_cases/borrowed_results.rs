@@ -4,6 +4,7 @@ use crate::tests::support::refresh_node_derivatives;
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation as Operation;
 use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralTypeShape,
 };
@@ -93,17 +94,29 @@ fn returned_shared_byte_aggregate_rejects_implicit_or_mutable_slot_access() {
 
 #[test]
 fn returned_shared_byte_aggregate_requires_its_owned_carrier() {
-    let mut unit = verified_source_machine_unit(
-        r#"
-        data Remainder { bytes: &[u8]; }
-        machine copy(source: &Remainder) -> Remainder {
-            transition { _ -> Remainder { bytes: source.bytes } }
-        }
-        "#,
-        "copy",
-    );
-    validate_psi_optimization_unit(&unit).expect("an owned result may copy the shared slot");
-    let borrowed = unit.functions[0].structural_parameters[0].place;
+    let mut unit = returned_case();
+    validate_psi_optimization_unit(&unit).expect("the original case returns own their carriers");
+    let function = &mut unit.functions[0];
+    let result_type = function.result.structural().unwrap().structural_type;
+    let borrowed = PlaceId::new(10_000).unwrap();
+    assert!(!function.declared_places.contains(&borrowed));
+    let mut parameter = function.structural_parameters[0].clone();
+    parameter.place = borrowed;
+    parameter.position = function.structural_parameters.len() as u32;
+    parameter.structural_type = result_type;
+    parameter.access = StructuralAccess::SharedBorrow;
+    let position = parameter.position;
+    function.structural_parameters.push(parameter);
+    function.declared_places.insert(borrowed);
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: borrowed,
+            kind: StructuralPlaceKind::Parameter {
+                position,
+                is_self: false,
+            },
+        });
     let (block, node) = unit.functions[0]
         .blocks
         .iter()
@@ -122,6 +135,31 @@ fn returned_shared_byte_aggregate_requires_its_owned_carrier() {
     };
     *source = borrowed;
     refresh_node_derivatives(&mut unit, 0, block, node);
+    // Its slots really have external backing and the return type is unchanged.
+    // The refusal must retain the separate requirement to own the carrier.
+    let graph = crate::descriptor_results::optimized_graph(&unit)
+        .expect("the counterfeit retains an exact current descriptor graph");
+    let function = &unit.functions[0];
+    let machine = graph
+        .iter()
+        .find(|machine| machine.id == function.machine)
+        .unwrap();
+    let (position, location) = machine
+        .returns
+        .as_ref()
+        .unwrap()
+        .iter()
+        .find(|(_, location)| location.root == borrowed)
+        .unwrap();
+    assert!(
+        terminal_semantics::descriptor_results::reconstruct_return_slots_external(
+            &unit.structural_types,
+            &graph,
+            function.machine,
+            *position,
+            location.root,
+        )
+    );
     assert!(
         !crate::descriptor_results::owned_aggregate_descriptor_returns(
             &unit.functions[0],
