@@ -5,7 +5,7 @@
 //! are custody evidence: replay rejoins the unique target row and requires the
 //! legalized payload to carry it exactly, while every derivable coordinate —
 //! scalar argument order, placement, source identity, structural projection,
-//! and the optional scalar result home — is reconstructed independently from
+//! and the completion result home — is reconstructed independently from
 //! the boundary declaration and the claimed plan. A substituted binding,
 //! provider, argument, or result home fails closed.
 use super::super::{Error, PsiOptimizationUnit, TargetOperationPlan};
@@ -16,7 +16,7 @@ use abstract_operations::AbstractOperationPlan;
 use calling_conventions::{CallSignature, ValueLocation};
 use legalized_operations::LegalizedScalarInstruction;
 use semantic_vocabulary::OperationId;
-use target_operations::{TargetUnitOperation, TargetUnitScalarHomeRequirement};
+use target_operations::{TargetBoundaryResult, TargetUnitOperation};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
@@ -54,7 +54,7 @@ pub(super) fn validate(
         binding,
         scalar_arguments,
         structural_arguments: row_structural,
-        result_home,
+        result: row_result,
     }) = scalar_graph_input::normalized_foreign::row(native, optimized.machine, operation)?
     else {
         return Err(invalid);
@@ -143,35 +143,15 @@ pub(super) fn validate(
             },
         )
         .collect::<Result<Vec<_>, LegalizationError>>()?;
-    let expected_result = match (result, &declaration.result) {
-        (
-            abstract_operations::AbstractBoundaryResult::Unit,
-            terminal_psi::BoundaryMachineResult::Unit,
-        ) => None,
-        (
-            abstract_operations::AbstractBoundaryResult::Scalar(result),
-            terminal_psi::BoundaryMachineResult::Scalar(declared),
-        ) => {
-            if *declared != result.scalar_type
-                || scalar_graph_input::value_type(optimized, result.value)
-                    != Some(result.scalar_type)
-            {
-                return Err(invalid);
-            }
-            let shape =
-                scalar_graph_input::scalar_shape(result.scalar_type).ok_or(invalid.clone())?;
-            Some((
-                TargetUnitScalarHomeRequirement {
-                    defining_operation: operation,
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape,
-                },
-                shape,
-            ))
-        }
-        _ => return Err(invalid),
-    };
+    let (expected_result, result_shape) = scalar_graph_input::normalized_foreign::result_at(
+        result,
+        &declaration.result,
+        operation,
+        optimized,
+        plan,
+        call.binding.boundary_entry_plan.call.policy,
+    )
+    .map_err(|_| invalid.clone())?;
     // A retained callback occupies one native-only parameter slot in the
     // registrar plan; the validated signature then spells every authored and
     // private placement while the declaration still counts only semantic
@@ -209,7 +189,7 @@ pub(super) fn validate(
     }
     let signature = CallSignature {
         parameters,
-        result: expected_result.map(|(_, shape)| shape),
+        result: result_shape,
     };
     let validated = match callbacks.first() {
         Some(callback) => {
@@ -233,7 +213,7 @@ pub(super) fn validate(
         || *binding != call.binding
         || scalar_arguments.as_slice() != call.scalar_arguments.as_slice()
         || row_structural.as_slice() != call.structural_arguments.as_slice()
-        || *result_home != call.result_home
+        || *row_result != call.result
         || callbacks != call.callbacks.iter().collect::<Vec<_>>()
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
@@ -306,15 +286,13 @@ pub(super) fn validate(
                         _ => false,
                     }
             })
-        || call.result_home != expected_result.map(|(home, _)| home)
-        || match (
-            &call.binding.boundary_entry_plan.call.result,
-            expected_result,
-        ) {
+        || call.result != expected_result
+        || match (&call.binding.boundary_entry_plan.call.result, result_shape) {
             (None, None) => false,
-            (Some(placement), Some((_, shape))) => {
+            (Some(placement), Some(shape)) => {
                 placement.shape != shape
-                    || !matches!(placement.locations.as_slice(),
+                    || matches!(expected_result, TargetBoundaryResult::Scalar(_))
+                        && !matches!(placement.locations.as_slice(),
                         [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
                             if *byte_size == shape.byte_size)
             }

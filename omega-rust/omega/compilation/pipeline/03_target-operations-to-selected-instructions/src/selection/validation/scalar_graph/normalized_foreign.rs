@@ -22,7 +22,7 @@ pub(super) fn validate(
     let LegalizedScalarInstructionKind::NormalizedForeignCall(call) = &operation.kind else {
         return Err(replay.invalid());
     };
-    if operation.result.is_some() != call.result_home.is_some() {
+    if operation.result.is_some() != call.result.scalar_home().is_some() {
         return Err(replay.invalid());
     }
     let key = crate::selection::scalar_call_abi::normalized_foreign::call_key(call, environment)
@@ -214,6 +214,62 @@ pub(super) fn validate(
         )
     });
     let mut operands: Vec<_> = operands.into_iter().map(|(_, register)| register).collect();
+    let hidden = super::structural::indirect_results::prepare_call(source, operation, replay)?;
+    let mut result_registers = Vec::new();
+    if let Some(pointer) = hidden {
+        operands.push(pointer);
+    } else if let Some((result, placement, _)) =
+        crate::selection::aggregate_result_input::call_completion(source, operation)
+    {
+        for location in &placement.locations {
+            let ValueLocation::Register {
+                value_byte_offset, ..
+            } = location
+            else {
+                return Err(replay.invalid());
+            };
+            let class = constraint
+                .operands
+                .get(operands.len())
+                .ok_or_else(|| replay.invalid())?
+                .class;
+            let expected_origin = VirtualRegisterOrigin::AbiTransport {
+                instruction: SelectedInstructionId(
+                    replay
+                        .instruction_cursor
+                        .try_into()
+                        .map_err(|_| replay.invalid())?,
+                ),
+                place: result.place,
+                byte_offset: *value_byte_offset,
+            };
+            let expected_type = semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .map_err(|_| replay.invalid())?,
+            );
+            let retained = replay
+                .selected
+                .virtual_registers
+                .get(replay.register_cursor)
+                .ok_or_else(|| replay.invalid())?;
+            if retained.id.0 as usize != replay.register_cursor
+                || retained.class != class
+                || retained.origin != expected_origin
+                || retained.scalar_type != expected_type
+                || retained.definition_site.is_some()
+                || retained.entry_fixed_view.is_some()
+            {
+                return Err(replay.invalid());
+            }
+            let register = retained.id;
+            replay.register_cursor += 1;
+            operands.push(register);
+            result_registers.push(register);
+        }
+    }
     let short_result = if let Some(result) = operation.result {
         let class = constraint
             .operands
@@ -291,6 +347,11 @@ pub(super) fn validate(
                 ..Default::default()
             },
         )?;
+    }
+    if hidden.is_some() {
+        super::structural::indirect_results::finish_call(source, operation, replay)?;
+    } else {
+        super::unit_call::retain_result(source, operation, &result_registers, replay)?;
     }
     if let (Some(short_result), Some(result)) = (short_result, operation.result) {
         let output =

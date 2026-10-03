@@ -731,10 +731,16 @@ pub(super) fn lower_operation(
                 provenance,
                 &mut live.nonreturning,
             )?;
-            if let Some(TargetUnitOperation::BoundarySettlement {
-                result: target_operations::TargetBoundaryResult::Structural(home),
-                ..
-            }) = operations.last()
+            if let Some(
+                TargetUnitOperation::BoundarySettlement {
+                    result: target_operations::TargetBoundaryResult::Structural(home),
+                    ..
+                }
+                | TargetUnitOperation::NormalizedForeignCall {
+                    result: target_operations::TargetBoundaryResult::Structural(home),
+                    ..
+                },
+            ) = operations.last()
                 && live
                     .structural_homes
                     .insert(home.place(), home.clone())

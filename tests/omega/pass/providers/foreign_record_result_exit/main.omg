@@ -1,0 +1,44 @@
+// libc div returns two signed int fields in one public C record.
+use omega::language::core::external_binding;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+pub data Division {
+    quotient: i32;
+    remainder: i32;
+}
+
+pub boundary trait IntegerDivision {
+    machine divide(numerator: i32, denominator: i32) -> Division;
+}
+
+macos_arm64 machine division_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_div",
+        },
+    }
+}
+
+macos_arm64 machine divide(numerator: i32, denominator: i32) -> Division
+    satisfies IntegerDivision::divide via division_binding();
+
+data Main {
+    foreign: Binding<IntegerDivision>;
+    console: Binding<Console>;
+    negative: Division;
+    positive: Division;
+}
+
+machine Main::main(main: &mut Main) reaches IntegerDivision + Console {
+    main.negative = main.foreign.divide(-70, 3);
+    main.positive = main.foreign.divide(70, 9);
+    transition main.negative.quotient == -23 && main.negative.remainder == -1
+        && main.positive.quotient == 7 && main.positive.remainder == 7 {
+        true -> passed(main)
+        _ -> failed(main)
+    }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
+}

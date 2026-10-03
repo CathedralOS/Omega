@@ -102,7 +102,7 @@ pub(in crate::lowering) fn result_home_layout(
     )?))
 }
 
-pub(super) fn home(
+pub(in crate::lowering) fn home(
     operation: OperationId,
     result: &terminal_psi::StructuralOperationResult,
     types: &StructuralTypeLookup<'_>,

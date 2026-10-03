@@ -16,7 +16,9 @@ use calling_conventions::validate_boundary_entry_plan;
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId};
-use target_operations::{TargetStructuralArgumentSource, TargetUnitScalarArgumentSource};
+use target_operations::{
+    TargetBoundaryResult, TargetStructuralArgumentSource, TargetUnitScalarArgumentSource,
+};
 
 // The operand views alone cannot distinguish an import from kernel entry
 // (notably a zero-argument call). Mechanism selects the family; the complete
@@ -115,23 +117,17 @@ fn plan_operand_views(
         }
     }
     if let Some(result) = &plan.result {
-        let [
-            ValueLocation::Register {
-                register,
-                value_byte_offset: 0,
-                byte_size,
-            },
-        ] = result.locations.as_slice()
-        else {
-            return None;
-        };
-        if *byte_size != result.shape.byte_size {
-            return None;
+        for location in &result.locations {
+            let (register, access) = match location {
+                ValueLocation::Register { register, .. } => (*register, RegisterOperandAccess::Def),
+                ValueLocation::Indirect {
+                    pointer: calling_conventions::IndirectPointerLocation::Register(register),
+                    ..
+                } => (*register, RegisterOperandAccess::Use),
+                _ => return None,
+            };
+            views.push((environment.fixed_register_view(register)?, access));
         }
-        views.push((
-            environment.fixed_register_view(*register)?,
-            RegisterOperandAccess::Def,
-        ));
     }
     Some(views)
 }
@@ -455,9 +451,9 @@ pub(crate) fn validate(
     // source value, scalar type, and shape must equal the legalized result,
     // and the plan's result must be one register of that exact shape. A unit
     // result admits neither a home nor a plan result row.
-    match (&call.result_home, &plan.call.result, instruction.result) {
-        (None, None, None) => {}
-        (Some(home), Some(placement), Some(result)) => {
+    let result_shape = match (&call.result, &plan.call.result, instruction.result) {
+        (TargetBoundaryResult::Unit, None, None) => None,
+        (TargetBoundaryResult::Scalar(home), Some(placement), Some(result)) => {
             if scalar_shape(result.scalar_type).is_none()
                 || home.defining_operation != instruction.operation
                 || home.source_value != result.value
@@ -480,9 +476,34 @@ pub(crate) fn validate(
             if *byte_size != home.shape.byte_size {
                 return Err(invalid());
             }
+            Some(home.shape)
+        }
+        (TargetBoundaryResult::Structural(home), Some(placement), None) => {
+            let (producer, result) = home.operation_result().ok_or_else(invalid)?;
+            let signature = source.structural.as_ref().ok_or_else(invalid)?;
+            let storage = crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                &signature.structural_types,
+            )
+            .ok_or_else(invalid)?;
+            let shape = abstract_operations_to_target_operations::classified_boundary_shape(
+                result.structural_type,
+                &signature.structural_types,
+                plan.call.policy,
+            )
+            .map_err(|_| invalid())?;
+            if producer != instruction.operation
+                || crate::selection::aggregate_result_input::home(source, result.place)
+                    != Some((producer, result))
+                || home.layout != target_operations::TargetStructuralHomeLayout::Aggregate(storage)
+                || placement.shape != shape
+            {
+                return Err(invalid());
+            }
+            Some(shape)
         }
         _ => return Err(invalid()),
-    }
+    };
     // Re-validate the retained plan against the independently re-derived
     // signature; the canonical evaluation must equal the carried plan exactly.
     let mut parameters = vec![
@@ -497,7 +518,7 @@ pub(crate) fn validate(
     }
     let signature = CallSignature {
         parameters,
-        result: call.result_home.as_ref().map(|home| home.shape),
+        result: result_shape,
     };
     let validated = match call.callbacks.first() {
         Some(callback) => {

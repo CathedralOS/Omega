@@ -4288,11 +4288,19 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   through emission using the selected aggregate locations and descriptor words;
   owned indirect placement must not become a semantic borrow.
 
-  Aggregate results stop earlier: stage 02's
-  `lower_normalized_foreign_scalar_result` accepts only Unit/scalar results.
-  Carry structural result custody through target lowering, legalization,
-  selection and emission. Reuse backend `calling-conventions::BoundaryValueGraph`
-  classification and ordinary call operands, without signature-specific families.
+  Aggregate results retain structural completion homes through target lowering,
+  legalization, ordinary call-result storage, recovery encoding and fragment
+  publication. On macOS ARM64, `python3 tools/corpus_gate.py --native --filter
+  providers/foreign_record_result_exit` builds and executes two C record-returning
+  calls, retains both results and exits 70. Direct `omega run` still requires
+  the project's ordinary package review; the corpus run supplies isolated test
+  admissions. This does not establish the whole ABI task.
+
+  The selected foreign-call catalog still enumerates Unit/single-register
+  results. Multi-register and indirect results need plan-driven register
+  constraints through emission, not more signature-specific catalog families.
+  Complete that transport and owned arguments using the evaluated ABI plan;
+  preserve the distinction between storage geometry and ABI classification.
 
   Acceptance: an owned whole-place argument and aggregate result execute
   source-to-C on a matching host with exact values, register/stack placement

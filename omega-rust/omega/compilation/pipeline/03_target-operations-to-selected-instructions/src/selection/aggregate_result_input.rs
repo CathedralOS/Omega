@@ -284,6 +284,43 @@ pub(super) fn membership_layout(
         .map(|tag| (tag, byte_offset, elements))
 }
 
+/// Physical completion storage is shared by internal and foreign calls. Their
+/// signature validators establish different ABI classes; this query preserves
+/// each validated placement and the exact produced place instead of converting
+/// a foreign aggregate into a scalar merely because it fits one register.
+pub(super) fn call_completion<'a>(
+    source: &LegalizedScalarFunction,
+    instruction: &'a LegalizedScalarInstruction,
+) -> Option<(
+    &'a terminal_psi::StructuralOperationResult,
+    &'a calling_conventions::ValuePlacement,
+    calling_conventions::CallingPolicy,
+)> {
+    match &instruction.kind {
+        LegalizedScalarInstructionKind::Call(call) => {
+            let (result, placement) = call_result(source, call)?;
+            Some((result, placement, call.call_plan.policy))
+        }
+        LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+            let target_operations::TargetBoundaryResult::Structural(home) = &call.result else {
+                return None;
+            };
+            let (producer, result) = home.operation_result()?;
+            if producer != instruction.operation
+                || operation_result(source, result.place) != Some((producer, result))
+            {
+                return None;
+            }
+            Some((
+                result,
+                call.binding.boundary_entry_plan.call.result.as_ref()?,
+                call.binding.boundary_entry_plan.call.policy,
+            ))
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn call_result<'a>(
     source: &LegalizedScalarFunction,
     call: &'a legalized_operations::LegalizedScalarCall,

@@ -74,11 +74,42 @@ pub(super) fn encode_normalized_foreign_call(
     for argument in &call.structural_arguments {
         encode_target_argument(bytes, argument);
     }
-    match &call.result_home {
-        None => bytes.push(0),
-        Some(home) => {
+    match &call.result {
+        target_operations::TargetBoundaryResult::Unit => bytes.push(0),
+        target_operations::TargetBoundaryResult::Scalar(home) => {
             bytes.push(1);
             encode_scalar_home(bytes, home);
+        }
+        target_operations::TargetBoundaryResult::Structural(home) => {
+            bytes.push(2);
+            match &home.origin {
+                target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    result,
+                } => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&operation.get().to_le_bytes());
+                    super::read_result::encode_result(bytes, result);
+                }
+                target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                    block,
+                    declaration,
+                } => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&block.get().to_le_bytes());
+                    super::declarations::encode_semantic_parameter(bytes, declaration, true);
+                }
+            }
+            match &home.layout {
+                target_operations::TargetStructuralHomeLayout::Aggregate(shape) => {
+                    bytes.push(0);
+                    encode_shape(bytes, *shape);
+                }
+                target_operations::TargetStructuralHomeLayout::Sum(layout) => {
+                    bytes.push(1);
+                    super::read_result::encode_layout(bytes, layout);
+                }
+            }
         }
     }
     length(bytes, call.callbacks.len());
@@ -111,9 +142,34 @@ pub(super) fn decode_normalized_foreign_call(
     for _ in 0..structural_count {
         structural_arguments.push(decode_target_argument(cursor)?);
     }
-    let result_home = match cursor.byte()? {
-        0 => None,
-        1 => Some(decode_scalar_home(cursor)?),
+    let result = match cursor.byte()? {
+        0 => target_operations::TargetBoundaryResult::Unit,
+        1 => target_operations::TargetBoundaryResult::Scalar(decode_scalar_home(cursor)?),
+        2 => {
+            let origin = match cursor.byte()? {
+                0 => target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation: decode_id(cursor, OperationId::new)?,
+                    result: super::read_result::decode_result(cursor)?,
+                },
+                1 => target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                    block: decode_id(cursor, semantic_vocabulary::BlockId::new)?,
+                    declaration: super::declarations::decode_semantic_parameter(cursor, true)?,
+                },
+                tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+            };
+            let layout = match cursor.byte()? {
+                0 => {
+                    target_operations::TargetStructuralHomeLayout::Aggregate(decode_shape(cursor)?)
+                }
+                1 => target_operations::TargetStructuralHomeLayout::Sum(
+                    super::read_result::decode_layout(cursor)?,
+                ),
+                tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+            };
+            target_operations::TargetBoundaryResult::Structural(
+                target_operations::TargetStructuralHomeRequirement { origin, layout },
+            )
+        }
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
     let callback_count = cursor.length()?;
@@ -130,7 +186,7 @@ pub(super) fn decode_normalized_foreign_call(
             binding,
             scalar_arguments,
             structural_arguments,
-            result_home,
+            result,
             callbacks,
         },
         effect: decode_effect(cursor)?,
@@ -781,14 +837,16 @@ mod tests {
                 }],
                 structural_arguments: Vec::new(),
                 callbacks: Vec::new(),
-                result_home: Some(TargetUnitScalarHomeRequirement {
-                    defining_operation: OperationId::new(7).unwrap(),
-                    source_value: ValueId::new(8).unwrap(),
-                    scalar_type: ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                    ),
-                    shape: ValueShape::integer(4, 4),
-                }),
+                result: target_operations::TargetBoundaryResult::Scalar(
+                    TargetUnitScalarHomeRequirement {
+                        defining_operation: OperationId::new(7).unwrap(),
+                        source_value: ValueId::new(8).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                        ),
+                        shape: ValueShape::integer(4, 4),
+                    },
+                ),
                 binding,
             },
             effect: EffectLink {
@@ -932,7 +990,54 @@ mod tests {
         encode_normalized_foreign_call(&mut changed_bytes, &changed);
         assert_ne!(bytes, changed_bytes);
         let mut changed = source.clone();
-        changed.call.result_home = None;
+        changed.call.result = target_operations::TargetBoundaryResult::Unit;
+        let mut changed_bytes = Vec::new();
+        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        assert_ne!(bytes, changed_bytes);
+    }
+
+    #[test]
+    fn normalized_foreign_structural_result_roundtrip_preserves_origin_and_layout() {
+        let mut source = row();
+        let result = terminal_psi::StructuralOperationResult {
+            place: semantic_vocabulary::PlaceId::new(9).unwrap(),
+            structural_type: semantic_vocabulary::StructuralTypeId::new(10).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        source.call.result = target_operations::TargetBoundaryResult::Structural(
+            target_operations::TargetStructuralHomeRequirement {
+                origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation: source.operation,
+                    result,
+                },
+                layout: target_operations::TargetStructuralHomeLayout::Aggregate(
+                    ValueShape::integer(12, 4),
+                ),
+            },
+        );
+        let mut bytes = Vec::new();
+        encode_normalized_foreign_call(&mut bytes, &source);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_normalized_foreign_call(&mut cursor).unwrap(), source);
+        assert_eq!(cursor.remaining(), 0);
+        for length in 0..bytes.len() {
+            assert!(decode_normalized_foreign_call(&mut Cursor::new(&bytes[..length])).is_err());
+        }
+        let mut changed = source.clone();
+        let target_operations::TargetBoundaryResult::Structural(home) = &mut changed.call.result
+        else {
+            panic!("structural fixture")
+        };
+        let target_operations::TargetStructuralHomeOrigin::OperationResult { result, .. } =
+            &mut home.origin
+        else {
+            panic!("operation fixture")
+        };
+        result.place = semantic_vocabulary::PlaceId::new(11).unwrap();
         let mut changed_bytes = Vec::new();
         encode_normalized_foreign_call(&mut changed_bytes, &changed);
         assert_ne!(bytes, changed_bytes);

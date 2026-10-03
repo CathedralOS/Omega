@@ -512,7 +512,7 @@ pub enum TargetUnitOperation {
         stored: AbstractStoredDynamicDescriptor,
         source_argument: TargetStructuralArgument,
     },
-    /// One Unit-returning evaluated import leaf. Native settlement rejoins
+    /// One evaluated foreign leaf. Native settlement rejoins
     /// this exact carrier; lowering never accepts locator or calling-plan
     /// strings from the call site. The bounded scalar lane admits fixed-width
     /// integer constants and exact preceding scalar-result homes in the
@@ -531,10 +531,9 @@ pub enum TargetUnitOperation {
         /// and structural formals, so a mixed signature cannot rejoin its
         /// exact plan positions without a wider coordinate.
         structural_arguments: Vec<NormalizedForeignStructuralArgument>,
-        /// Optional fixed-integer result retained in the attached Unit frame.
-        /// The evaluated plan must place the complete 8/16/32/64-bit signed or
-        /// unsigned value in one register; later calls may consume this home.
-        result_home: Option<TargetUnitScalarHomeRequirement>,
+        /// Completion establishes this exact scalar or structural home.
+        /// ABI indirection belongs to the evaluated plan, not semantic access.
+        result: TargetBoundaryResult,
     },
     PortWrite {
         psi_operation: OperationId,

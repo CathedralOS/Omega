@@ -24,8 +24,8 @@ use super::{
 use crate::LegalizationError;
 use calling_conventions::{CallSignature, ValueLocation};
 use target_operations::{
-    TargetOperationPlan, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
-    TargetUnitScalarHomeRequirement,
+    TargetBoundaryResult, TargetOperationPlan, TargetStructuralParameter,
+    TargetUnitScalarArgumentSource as Source,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -47,7 +47,7 @@ pub(super) fn validate(
             binding,
             scalar_arguments,
             structural_arguments,
-            result_home,
+            result: actual_result,
         },
         abstract_operations::AbstractOperation::BoundaryCall {
             psi_operation: expected_operation,
@@ -145,33 +145,14 @@ pub(super) fn validate(
             },
         )
         .collect::<Result<Vec<_>, LegalizationError>>()?;
-    let expected_result = match (result, &declaration.result) {
-        (
-            abstract_operations::AbstractBoundaryResult::Unit,
-            terminal_psi::BoundaryMachineResult::Unit,
-        ) => None,
-        (
-            abstract_operations::AbstractBoundaryResult::Scalar(result),
-            terminal_psi::BoundaryMachineResult::Scalar(declared),
-        ) => {
-            if *declared != result.scalar_type
-                || super::super::value_type(optimized, result.value) != Some(result.scalar_type)
-            {
-                return Err(LegalizationError::custody());
-            }
-            let shape = scalar_shape(result.scalar_type).ok_or(LegalizationError::custody())?;
-            Some((
-                TargetUnitScalarHomeRequirement {
-                    defining_operation: *psi_operation,
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape,
-                },
-                shape,
-            ))
-        }
-        _ => return Err(LegalizationError::custody()),
-    };
+    let (expected_result, result_shape) = super::super::normalized_foreign::result_at(
+        result,
+        &declaration.result,
+        *psi_operation,
+        optimized,
+        plan,
+        binding.boundary_entry_plan.call.policy,
+    )?;
     // A retained callback occupies one native-only parameter slot in the
     // registrar plan; the validated signature then spells every authored and
     // private placement while the declaration still counts only semantic
@@ -217,7 +198,7 @@ pub(super) fn validate(
     }
     let signature = CallSignature {
         parameters,
-        result: expected_result.map(|(_, shape)| shape),
+        result: result_shape,
     };
     let validated = match callbacks.first() {
         Some(callback) => {
@@ -301,12 +282,13 @@ pub(super) fn validate(
                         identity == value && *expected == argument.source
                     })
             })
-        || expected_result.map(|(home, _)| home) != *result_home
-        || match (&binding.boundary_entry_plan.call.result, expected_result) {
+        || expected_result != *actual_result
+        || match (&binding.boundary_entry_plan.call.result, result_shape) {
             (None, None) => false,
-            (Some(placement), Some((_, shape))) => {
+            (Some(placement), Some(shape)) => {
                 placement.shape != shape
-                    || !matches!(placement.locations.as_slice(),
+                    || matches!(expected_result, TargetBoundaryResult::Scalar(_))
+                        && !matches!(placement.locations.as_slice(),
                         [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
                             if *byte_size == shape.byte_size)
             }
@@ -315,8 +297,8 @@ pub(super) fn validate(
     {
         return Err(LegalizationError::custody());
     }
-    if let Some((home, _)) = expected_result {
-        values.push((home.source_value, Source::Home(home)));
+    if let Some(home) = expected_result.scalar_home() {
+        values.push((home.source_value, Source::Home(*home)));
     }
     Ok(())
 }

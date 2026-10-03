@@ -116,8 +116,19 @@ pub(super) fn emit(
     if hidden.is_some() {
         return super::structural::indirect_results::finish_call(source, operation, builder);
     }
-    if let Some((result, placement)) =
-        crate::selection::aggregate_result_input::call_result(source, call)
+    retain_result(source, operation, &result_registers, builder)
+}
+
+/// Capture completed register fragments in the ordinary addressable result
+/// home. Both call mechanisms use this storage operation after ABI validation.
+pub(super) fn retain_result(
+    source: &LegalizedScalarFunction,
+    operation: &LegalizedScalarInstruction,
+    result_registers: &[selected_instructions::VirtualRegisterId],
+    builder: &mut Builder<'_>,
+) -> Result<(), SelectedInstructionError> {
+    if let Some((result, placement, _)) =
+        crate::selection::aggregate_result_input::call_completion(source, operation)
     {
         // The call and complete structural result remain retained, but an
         // empty payload owns no physical result home or address operation.
@@ -173,7 +184,10 @@ pub(super) fn emit(
             &[pointer],
             Default::default(),
         )?;
-        for (location, value) in placement.locations.iter().zip(result_registers) {
+        if placement.locations.len() != result_registers.len() {
+            return Err(SelectedInstructionError::custody());
+        }
+        for (location, &value) in placement.locations.iter().zip(result_registers) {
             let ValueLocation::Register {
                 value_byte_offset,
                 byte_size,
@@ -181,6 +195,38 @@ pub(super) fn emit(
             } = location
             else {
                 return Err(SelectedInstructionError::custody());
+            };
+            // Aggregate fragments carry bits, not scalar normalization. Move
+            // an FP-bank fragment into an integer scratch before storing its
+            // exact byte range in the completed home.
+            let value = if builder.registers[value.0 as usize].class != builder.class {
+                let (kind, key) = match byte_size {
+                    4 => (
+                        SelectedInstructionKind::Float32ToBits,
+                        builder.constraints.keys.float32_to_bits,
+                    ),
+                    8 => (
+                        SelectedInstructionKind::Float64ToBits,
+                        builder.constraints.keys.float64_to_bits,
+                    ),
+                    _ => return Err(SelectedInstructionError::custody()),
+                };
+                let output = super::structural_case::register(
+                    builder,
+                    result.place,
+                    *value_byte_offset,
+                    64,
+                    false,
+                )?;
+                builder.emit(
+                    kind,
+                    key.ok_or_else(SelectedInstructionError::custody)?,
+                    &[value, output],
+                    Default::default(),
+                )?;
+                output
+            } else {
+                value
             };
             super::structural_case::memory(
                 builder,

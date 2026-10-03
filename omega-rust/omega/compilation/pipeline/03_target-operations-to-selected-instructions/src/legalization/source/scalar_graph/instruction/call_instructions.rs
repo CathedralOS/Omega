@@ -143,7 +143,7 @@ pub(super) fn project_normalized_foreign_call(
         binding,
         scalar_arguments,
         structural_arguments,
-        result_home,
+        result,
     }) = scalar_graph_input::normalized_foreign::row(native, optimized.machine, operation)?
     else {
         return Err(Error::custody());
@@ -169,7 +169,7 @@ pub(super) fn project_normalized_foreign_call(
             binding: binding.clone(),
             scalar_arguments: scalar_arguments.clone(),
             structural_arguments: structural_arguments.clone(),
-            result_home: *result_home,
+            result: result.clone(),
             callbacks,
         },
     ))

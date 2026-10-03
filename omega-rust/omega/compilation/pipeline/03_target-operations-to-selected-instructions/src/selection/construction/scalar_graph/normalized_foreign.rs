@@ -29,7 +29,7 @@ pub(super) fn emit(
     let LegalizedScalarInstructionKind::NormalizedForeignCall(call) = &operation.kind else {
         return Err(SelectedInstructionError::custody());
     };
-    if operation.result.is_some() != call.result_home.is_some() {
+    if operation.result.is_some() != call.result.scalar_home().is_some() {
         return Err(SelectedInstructionError::custody());
     }
     let key = crate::selection::scalar_call_abi::normalized_foreign::call_key(call, environment)
@@ -226,6 +226,36 @@ pub(super) fn emit(
     });
     let mut operands: Vec<VirtualRegisterId> =
         operands.into_iter().map(|(_, register)| register).collect();
+    let hidden = structural::indirect_results::prepare_call(source, operation, builder)?;
+    let mut result_registers = Vec::new();
+    if let Some(pointer) = hidden {
+        operands.push(pointer);
+    } else if let Some((result, placement, _)) =
+        crate::selection::aggregate_result_input::call_completion(source, operation)
+    {
+        for location in &placement.locations {
+            let ValueLocation::Register {
+                value_byte_offset, ..
+            } = location
+            else {
+                return Err(SelectedInstructionError::custody());
+            };
+            let register = super::structural_case::register(
+                builder,
+                result.place,
+                *value_byte_offset,
+                64,
+                false,
+            )?;
+            builder.registers[register.0 as usize].class = row(builder.catalog, key)?
+                .operands
+                .get(operands.len())
+                .ok_or_else(SelectedInstructionError::custody)?
+                .class;
+            operands.push(register);
+            result_registers.push(register);
+        }
+    }
     let short_result = if let Some(result) = operation.result {
         let register =
             builder.register(result.value, result.definition_site, result.scalar_type)?;
@@ -293,6 +323,11 @@ pub(super) fn emit(
                 ..Default::default()
             },
         )?;
+    }
+    if hidden.is_some() {
+        structural::indirect_results::finish_call(source, operation, builder)?;
+    } else {
+        super::unit_call::retain_result(source, operation, &result_registers, builder)?;
     }
     // After restoring machine controls, retain the exact result bits in the
     // ordinary scalar home. Integer and Boolean carriers normalize as before.

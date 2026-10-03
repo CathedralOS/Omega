@@ -29,12 +29,13 @@ use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTyp
 
 mod normalized_foreign;
 
+use normalized_foreign::{
+    lower_normalized_foreign_result, lower_normalized_foreign_scalar_arguments_with_result,
+};
 #[cfg(test)]
 use normalized_foreign::{
-    lower_normalized_foreign_scalar_arguments, lower_normalized_foreign_structural_arguments,
-};
-use normalized_foreign::{
-    lower_normalized_foreign_scalar_arguments_with_result, lower_normalized_foreign_scalar_result,
+    lower_normalized_foreign_scalar_arguments, lower_normalized_foreign_scalar_result,
+    lower_normalized_foreign_structural_arguments,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -88,12 +89,13 @@ pub(in crate::lowering) fn lower_boundary_call(
                 foreign,
             ) = &binding.realization
             {
-                let result_home = lower_normalized_foreign_scalar_result(
+                let target_result = lower_normalized_foreign_result(
                     *boundary,
                     declaration,
                     *psi_operation,
-                    result.scalar(),
+                    result,
                     &foreign.boundary_entry_plan,
+                    structural_types,
                 )?;
                 let structural_arguments =
                     normalized_foreign::lower_normalized_foreign_structural_arguments(
@@ -127,7 +129,12 @@ pub(in crate::lowering) fn lower_boundary_call(
                         ieee_float_constants,
                         scalar_block_parameters,
                     },
-                    result_home.map(|home| home.shape),
+                    foreign
+                        .boundary_entry_plan
+                        .call
+                        .result
+                        .as_ref()
+                        .map(|result| result.shape),
                     native_callbacks_slice,
                     &structural_parameter_shapes,
                 )?;
@@ -149,7 +156,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                 else {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 };
-                if let Some(home) = result_home {
+                if let Some(home) = target_result.scalar_home().copied() {
                     match home.scalar_type {
                         ScalarType::Integer(_) => insert_known_unit_integer(
                             scalar_values,
@@ -170,7 +177,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     binding: foreign.clone(),
                     scalar_arguments,
                     structural_arguments,
-                    result_home,
+                    result: target_result,
                 });
                 provenance.operations.push(*psi_operation);
                 return Ok(());
