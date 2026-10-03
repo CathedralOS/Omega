@@ -168,7 +168,8 @@ impl CallRequirement<'_> {
                         &site_judge,
                         parameters,
                         self.expression,
-                        &substitution
+                        &substitution,
+                        caller_state.map(|state| (machine, state)),
                     ),
                     StructuralJudgment::Proven
                 )
