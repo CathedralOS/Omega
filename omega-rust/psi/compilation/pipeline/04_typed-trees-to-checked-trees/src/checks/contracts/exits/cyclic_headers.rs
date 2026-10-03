@@ -20,9 +20,9 @@
 //! caller; invocation requirements remain about the immutable formals. Neither
 //! ranking nor prefix facts grant an invariant. Unsupported substitutions and
 //! any failed arrival retire the whole component proposal. Candidate discovery
-//! remains incomplete: demands propagate backwards through the component DAG,
-//! including acyclic bridges and components without their own exit, but internal
-//! cycle edges are not unrolled to invent further predicates.
+//! remains incomplete: demands propagate backwards along state-simple paths,
+//! including exitless intermediaries and acyclic bridges, and stop before a
+//! state repeats. They never unroll a cycle to invent further predicates.
 //!
 //! The binders are the state's immutable fixed-integer parameters in either
 //! readable arithmetic domain. `Exact` terms read as mathematical integers
@@ -971,3 +971,6 @@ mod origin_tests;
 
 #[cfg(test)]
 mod relational_tests;
+
+#[cfg(test)]
+mod intermediary_tests;

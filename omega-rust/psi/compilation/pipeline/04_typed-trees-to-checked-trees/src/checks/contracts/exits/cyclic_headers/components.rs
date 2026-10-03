@@ -1,8 +1,10 @@
-//! Discover demands backwards through the component DAG, then prove forwards.
+//! Discover demands along state-simple backward paths, then prove components.
 //! A destination's exact exit predicate can demand a relation from a preceding
 //! component with no exit of its own. Transport retains scoped substitutions,
 //! not new source expressions or guessed parameter correspondence. Internal
-//! cycle edges are proved inductively rather than unrolled during discovery.
+//! paths stop before revisiting a state: discovery can reach an exitless
+//! intermediary inside a cycle, but never unrolls that cycle. Cycle edges still
+//! require induction proofs, independently of how their demands were found.
 //!
 //! Each component proves all arrivals and invocation establishment before its
 //! predicates become available to later components. Acyclic singleton bridges
@@ -62,7 +64,7 @@ pub(super) fn admitted(
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    discover(&headers, &components, &arrivals, &mut demands);
+    discover(&headers, &arrivals, &mut demands);
 
     let mut proved = vec![false; states.len()];
     let mut admitted = Vec::new();
@@ -79,50 +81,95 @@ pub(super) fn admitted(
     admitted
 }
 
+/// A demand occurrence keeps its own path: another path reaching the same
+/// predicate can have a different unvisited predecessor. Predicate sharing in
+/// the roster must not suppress that distinct discovery route.
+struct PendingDemand {
+    state: usize,
+    predicate: usize,
+    visited: Vec<usize>,
+}
+
+fn discovery_work(remaining: &mut usize, amount: usize) -> Option<()> {
+    *remaining = remaining.checked_sub(amount)?;
+    Some(())
+}
+
 fn discover(
     headers: &[Header<'_, '_>],
-    components: &[Vec<usize>],
     arrivals: &[Vec<Arrival>],
     demands: &mut [Vec<ScopedArithmeticExpression>],
 ) {
     let mut remaining = demands::TRANSPORT_WORK;
-    // Destinations precede their predecessors in this order, so a propagated
-    // demand is present before its owning component is visited. No cyclic
-    // expansion is necessary or permitted here.
-    for component in components {
-        for &destination in component {
-            for arrival in &arrivals[destination] {
-                let Some(caller) = headers
-                    .iter()
-                    .position(|header| header.header.symbol == arrival.caller)
-                else {
-                    continue;
-                };
-                if component.contains(&caller) {
-                    continue;
-                }
-                let replacements = headers[destination]
-                    .arrival_roster(&arrival.arguments, headers[caller].current_roster());
-                let (before, after) = demands.split_at_mut(destination.max(caller));
-                let (destination_demands, caller_demands) = if destination < caller {
-                    (&before[destination], &mut after[0])
-                } else {
-                    (&after[0], &mut before[caller])
-                };
-                for demand in destination_demands {
-                    let Some(transported) = demands::substitute(
-                        demand,
-                        &headers[destination],
-                        &replacements,
-                        &mut remaining,
-                    ) else {
-                        return;
-                    };
-                    if !caller_demands.contains(&transported) {
-                        caller_demands.push(transported);
-                    }
-                }
+    let mut pending = Vec::new();
+    for (state, predicates) in demands.iter().enumerate() {
+        for predicate in 0..predicates.len() {
+            if discovery_work(&mut remaining, 1).is_none() {
+                return;
             }
+            pending.push(PendingDemand {
+                state,
+                predicate,
+                visited: vec![state],
+            });
+        }
+    }
+    // FIFO traversal explores every original seed and shortest transport
+    // first. A longer simple path cannot monopolize discovery ahead of a
+    // nearer exit. The same finite budget pays for paths and substitutions.
+    let mut cursor = 0;
+    while cursor < pending.len() {
+        let item = &pending[cursor];
+        if discovery_work(&mut remaining, item.visited.len() + 1).is_none() {
+            return;
+        }
+        let destination = item.state;
+        let predicate = item.predicate;
+        let visited = item.visited.clone();
+        cursor += 1;
+        for arrival in &arrivals[destination] {
+            if discovery_work(&mut remaining, headers.len() + visited.len()).is_none() {
+                return;
+            }
+            let Some(caller) = headers
+                .iter()
+                .position(|header| header.header.symbol == arrival.caller)
+            else {
+                continue;
+            };
+            if visited.contains(&caller) {
+                continue;
+            }
+            let replacements = headers[destination]
+                .arrival_roster(&arrival.arguments, headers[caller].current_roster());
+            let Some(transported) = demands::substitute(
+                &demands[destination][predicate],
+                &headers[destination],
+                &replacements,
+                &mut remaining,
+            ) else {
+                return;
+            };
+            let predicate = match demands[caller]
+                .iter()
+                .position(|existing| existing == &transported)
+            {
+                Some(index) => index,
+                None => {
+                    demands[caller].push(transported);
+                    demands[caller].len() - 1
+                }
+            };
+            if discovery_work(&mut remaining, visited.len() + 1).is_none() {
+                return;
+            }
+            let mut next_visited = visited.clone();
+            next_visited.push(caller);
+            pending.push(PendingDemand {
+                state: caller,
+                predicate,
+                visited: next_visited,
+            });
         }
     }
 }
