@@ -2019,9 +2019,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `calls/runtime_guarded_boundary_tail_call_exit` and
   `recast/runtime_field_precondition_capture_exit` both exit **70** natively
   and in the interpreter, covering scalar provider results and Unit host calls.
+  `calls/runtime_guarded_terminal_operand_order_exit` exits **0** in both
+  engines: unselected arms make no operand calls, and two selected scalar
+  operands mutate one counter exactly once each in authored order. Optional
+  fused scalar graphs require complete successor operand producers before
+  taking precedence over the common invocation plan; the admitted mutual
+  tail-call loop remains at **70** in both engines.
   Structural-result tail calls, closed-sum case arms, range-constrained result
-  compatibility, arm calls whose guard or operands make calls, and
-  claim-transferring arm calls remain declined there. Nested receiver terminal
+  compatibility, arm calls whose guard makes calls or whose structural operands
+  need separate establishment, and claim-transferring arm calls remain declined
+  there. Nested receiver terminal
   calls still need the exact receiver leaf identity retained in the typed
   transition and joined to an occurrence-specific selected dispatch row;
   the receiver root cannot substitute for that identity.

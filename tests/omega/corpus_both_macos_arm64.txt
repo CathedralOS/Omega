@@ -15,6 +15,7 @@ pass/calls/guarded_arm_view_range_tail_call_exit built 1362ms exit:70 interprete
 pass/calls/mixed_projection_sources_in_one_call built 2038ms exit:0 interpreter-exit:0 interpreter:agrees @6de152ee297f
 pass/calls/mixed_value_forwarding_exit built 1368ms exit:70 interpreter-exit:70 interpreter:agrees @4d9c84188259+wt
 pass/calls/runtime_guarded_boundary_tail_call_exit built 1559ms exit:70 interpreter-exit:70 interpreter:agrees @107e79a608d59bd9eb5a38b5570d124edf1e1114+wt
+pass/calls/runtime_guarded_terminal_operand_order_exit built 842ms exit:0 interpreter-exit:0 interpreter:agrees @e2a12bf7c056aa30aa020384afcb304e80173f68
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb
 pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt
 pass/collections/runtime_shared_array_dot_product_exit built 2463ms exit:32 stdout:match interpreter-exit:32 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
