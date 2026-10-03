@@ -386,7 +386,7 @@ fn range_constraints_keep_literal_and_named_lower_bounds() {
         "0..10",
         "minimum..=maximum",
         "minimum..maximum",
-        "self.minimum..=self.maximum",
+        "bounds.minimum..=bounds.maximum",
         "minimum + 1..=maximum",
         "range..=maximum",
     ] {

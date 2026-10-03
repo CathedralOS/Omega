@@ -11,7 +11,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Machine;
 use tokens::PunctuationKind;
 
-use crate::bodies::tail_calls::rewrite_terminal_tail_self_calls;
+use crate::bodies::tail_calls::rewrite_terminal_tail_calls;
 use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
 use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
@@ -116,8 +116,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         machine_return_type,
     )?;
     // Measured recursion MR2: a MEASURED machine's state whose TERMINAL
-    // expression is a self-call to the machine's own entry (`{ self.sum(n -
-    // 1, acc + n) }`, or the bare `sum(..)` in a free machine) is TAIL
+    // expression is a bare call to the machine's own entry (`sum(n - 1, acc + n)`) is TAIL
     // recursion -- rewrite it to the loop-back transition `{ _ ->
     // <entry>(args) }` here, so every downstream pass (termination decrease
     // proof, loop-carried arg staging, both engines) sees the same bare
@@ -125,12 +124,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     // call; validation names the missing measure.
     if !bodyless && !ranking_subjects.is_empty() {
         let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
-        rewrite_terminal_tail_self_calls(
-            syntax_trees,
-            states,
-            &entry_callable,
-            entry_name.is_some(),
-        );
+        rewrite_terminal_tail_calls(syntax_trees, states, &entry_callable);
     }
     Ok((
         Machine {

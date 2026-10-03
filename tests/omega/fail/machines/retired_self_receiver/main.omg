@@ -1,0 +1,2 @@
+data Counter { value: u32; }
+machine Counter::clear(&mut self) { self.value = 0; }

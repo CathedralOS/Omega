@@ -8,11 +8,10 @@ use syntax_trees::statement::StatementHandle;
 /// LAST statement is a bare terminal expression that IS a self-entry call,
 /// replace it with an always-transition to the entry carrying the same
 /// argument expressions.
-pub(crate) fn rewrite_terminal_tail_self_calls(
+pub(crate) fn rewrite_terminal_tail_calls(
     syntax_trees: &mut SyntaxTrees,
     states: HandleSpan<StateHandle>,
     entry_callable: &Identifier,
-    receiver_must_be_self: bool,
 ) {
     use syntax_trees::expression::ExpressionNode;
     use syntax_trees::statement::{
@@ -39,17 +38,7 @@ pub(crate) fn rewrite_terminal_tail_self_calls(
         if call.target.as_str() != entry_callable.as_str() {
             continue;
         }
-        let receiver_is_self = call.receiver.is_valid()
-            && matches!(
-                syntax_trees.expressions.expression(call.receiver),
-                ExpressionNode::SelfValue
-            );
-        let shape_matches = if receiver_must_be_self {
-            receiver_is_self
-        } else {
-            !call.receiver.is_valid()
-        };
-        if !shape_matches {
+        if call.receiver.is_valid() {
             continue;
         }
         let arguments = syntax_trees

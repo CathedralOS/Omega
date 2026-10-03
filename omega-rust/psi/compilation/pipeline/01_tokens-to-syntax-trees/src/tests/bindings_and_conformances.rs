@@ -319,7 +319,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     // relevance marker (PROOF-RELEVANCE-MIGRATION).
     let source = r#"
         data Main { v: i32; }
-        machine Main::main(&mut self, n: i32, bound [erased]: i32) {
+        machine Main::main(main: &mut Main, n: i32, bound [erased]: i32) {
             let x [erased]: i32 = 0;
             let mut y: i32 = 1;
         }
@@ -348,7 +348,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let [receiver, n, bound] = parameters.as_slice() else {
         panic!("three parameters");
     };
-    assert!(receiver.is_self);
+    assert!(!receiver.is_self);
     assert_eq!(
         receiver.relevance,
         language_core::BindingRelevance::Relevant
@@ -383,7 +383,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             "duplicate binding property `erased`",
         ),
         (
-            "data Main { v: i32; } machine Main::main(&mut self) { let x [bogus]: i32 = 0; }",
+            "data Main { v: i32; } machine Main::main(main: &mut Main) { let x [bogus]: i32 = 0; }",
             "unknown local binding property `bogus`",
         ),
     ] {
@@ -400,7 +400,7 @@ fn empty_binding_brackets_stay_relevant_on_signature_parameters_and_locals() {
     // Consistent with data fields, `[]` is a legal no-op binding bracket.
     for source in [
         "machine m(x []: i32) {}",
-        "data Main { v: i32; } machine Main::main(&mut self) { let x []: i32 = 0; }",
+        "data Main { v: i32; } machine Main::main(main: &mut Main) { let x []: i32 = 0; }",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -792,16 +792,16 @@ fn retired_named_conformance_headers_direct_the_name_first_migration() {
 fn parses_closed_conformance_block_members() {
     let source = r#"
         trait Ranked {
-            machine Self::before(&self, other: &Self) -> bool;
-            machine Self::rank_value(&self) -> u32;
+            machine Self::before(value: &Self, other: &Self) -> bool;
+            machine Self::rank_value(value: &Self) -> u32;
         }
 
         data Card { power: u32; }
 
-        machine Card::stable_rank_value(&self) -> u32 { }
+        machine Card::stable_rank_value(value: &Card) -> u32 { }
 
         PowerOrder: Card satisfies Ranked {
-            machine before(&self, other: &Card) -> bool { }
+            machine before(value: &Card, other: &Card) -> bool { }
 
             Ranked::rank_value = Card::stable_rank_value;
         }
@@ -853,10 +853,10 @@ fn parses_closed_conformance_block_members() {
 #[test]
 fn closed_conformance_member_cannot_repeat_satisfaction() {
     let source = r#"
-        trait Ranked { machine Self::before(&self, other: &Self) -> bool; }
+        trait Ranked { machine Self::before(value: &Self, other: &Self) -> bool; }
         data Card { }
         PowerOrder: Card satisfies Ranked {
-            machine before(&self, other: &Card) -> bool
+            machine before(value: &Card, other: &Card) -> bool
                 satisfies Ranked::before
             { }
         }
@@ -1144,7 +1144,7 @@ fn parses_attached_main_state_name_as_main() {
         data Main {
         }
 
-        machine Main::main(&mut self) {}
+        machine Main::main(main: &mut Main) {}
         "#;
 
     let tokens = Lexer::new(source)

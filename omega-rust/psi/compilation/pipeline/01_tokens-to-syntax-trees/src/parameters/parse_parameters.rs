@@ -2,7 +2,6 @@ use crate::input::token_cursor::{Input, ParseResult};
 use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{StateParameterHandle, StateSignature};
 use syntax_trees::types::TypeReferenceHandle;
 use tokens::{KeywordKind, PunctuationKind};
@@ -93,34 +92,8 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
         };
 
         if input.at_keyword(KeywordKind::SelfValue) {
-            let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
-            // Preserve the receiver's ownership mode in the type graph.
-            // `is_self` identifies receiver binding and `is_mutable` drives
-            // borrow access, but neither can distinguish shared `&self` from
-            // consuming `self`. The reference node is the canonical ownership
-            // distinction used by permission-event discovery downstream.
-            let self_type = syntax_trees.tables.type_references.insert_self_type();
-            let type_reference = syntax_trees.tables.type_references.insert_reference(
-                self_type,
-                if is_leading_mutable {
-                    language_core::ReferenceAccess::Mutable
-                } else {
-                    access
-                },
-            );
-
-            return Ok((
-                syntax_trees.items.insert_state_parameter_node(
-                    syntax_trees::item::StateParameterNode {
-                        name: Identifier::generated("self"),
-                        type_reference,
-                        is_const,
-                        is_mutable: access.is_exclusive() || is_leading_mutable,
-                        is_self: true,
-                        relevance: language_core::BindingRelevance::Relevant,
-                    },
-                ),
-                input,
+            return Err(input.error_here(
+                "`self` receivers are retired; declare an explicit named parameter and type",
             ));
         }
 
@@ -151,21 +124,8 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::SelfValue) {
-        let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
-        let type_reference = syntax_trees.tables.type_references.insert_self_type();
-
-        return Ok((
-            syntax_trees.items.insert_state_parameter_node(
-                syntax_trees::item::StateParameterNode {
-                    name: Identifier::generated("self"),
-                    type_reference,
-                    is_const,
-                    is_mutable: is_leading_mutable,
-                    is_self: true,
-                    relevance: language_core::BindingRelevance::Relevant,
-                },
-            ),
-            input,
+        return Err(input.error_here(
+            "`self` receivers are retired; declare an explicit named parameter and type",
         ));
     }
 

@@ -173,25 +173,18 @@ execution and native exit/output. A moved refusal is still unfinished work.
   This is an owner decision, not a feature proposal or optional compatibility mode.
   - Rewrite the remaining spec/guide examples, bundled libraries, product sources,
     canaries and samples to qualified static calls with explicit arguments. Keep
-    ownership, mutation, termination and output oracles; do not demote required
-    coverage merely because the explicit form exposes a compiler gap.
-    `source/library/core/layout.omg` still declares six receiver requirements or
-    satisfiers for `Readable`, `DestructiveRead`, `Writable` and `PlacedField`.
-    Make the accessor subject an ordinary explicit type/parameter consistently
-    across those traits, their satisfiers, the chapter-20 `send_byte` example,
-    and `pass/layouts/placed_view_source_access_compile` (which still calls
-    `view.transmit.write` and `view.status.read`). Preserve derived access
-    permissions: readable, destructive-read and writable access are distinct
-    contracts, not a reason to retain receiver-based dispatch.
-    The owning synthesis is `psi/compilation/compile-time/src/layouts/placed_views/record_synthesis.rs`:
-    `clone_accessor_machine` currently changes the attachment and substitutes
-    only `T`. It must also instantiate the explicit accessor parameter with the
-    generated carrier identity. The unchanged placed-view compile canary checks;
-    use it as the before/after control, not evidence that static calls work.
+    ownership, mutation, termination and output oracles. Retired source syntax
+    now rejects instead of keeping compatibility alive while customers migrate;
+    a fixture stopped by that diagnostic is unfinished migration, not evidence
+    that its underlying ownership or execution behavior was checked.
+    `STATIC-DERIVED-ACCESSOR-SUBJECT` owns generated placed-accessor parameter
+    substitution and the remaining accessor call sites.
   - Replace special receiver signatures, lookup, argument insertion, state carry
     and evidence flags with ordinary parameter identities through both producers,
     interpreters, Terminal verification and native lowering. Remove the retired
-    syntax/parser paths after customer migration; add rejection coverage for them.
+    internal receiver paths and evidence flags; parser receiver construction and
+    implicit-self transition/tail-call routes are removed. Do not restore them
+    to make an unmigrated sample or fixture pass.
     Do not delete unrelated receiver-side artifact admission or mathematical
     subject binding. Implement the explicit domain subject binder from
     [domains](wiki/spec/language/domains.md#declaration-and-membership):

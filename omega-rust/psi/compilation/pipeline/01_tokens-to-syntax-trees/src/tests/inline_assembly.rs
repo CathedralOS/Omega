@@ -8,7 +8,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
     let source = r#"
         data Main {}
 
-        machine Main::main(&mut self) {
+        machine Main::main(main: &mut Main) {
             asm where clobbers none { lfence; sfence; mfence }
         }
         "#;
@@ -48,7 +48,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
     let source = r#"
         data Main {}
 
-        machine Main::main(&mut self) reaches MachineControl {
+        machine Main::main(main: &mut Main) reaches MachineControl {
             asm where clobbers none { cli; sti }
         }
         "#;
@@ -85,10 +85,10 @@ fn parses_x86_flags_as_explicit_value_operations() {
     let source = r#"
         data Main { saved: u64; }
 
-        machine Main::main(&mut self) reaches MachineControl {
+        machine Main::main(main: &mut Main) reaches MachineControl {
             asm where clobbers r10, r15 {
-                pushfq self.saved;
-                popfq self.saved
+                pushfq main.saved;
+                popfq main.saved
             }
         }
         "#;
@@ -131,10 +131,10 @@ fn parses_x86_msr_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) reaches MachineControl {
+        machine Main::main(main: &mut Main) reaches MachineControl {
             asm where clobbers rax, rcx, rdx, r10, r11, r15 {
-                rdmsr self.value, 3221225600;
-                wrmsr 3221225600, self.value
+                rdmsr main.value, 3221225600;
+                wrmsr 3221225600, main.value
             }
         }
         "#;
@@ -177,15 +177,15 @@ fn parses_x86_control_registers_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) reaches MachineControl {
+        machine Main::main(main: &mut Main) reaches MachineControl {
             asm where clobbers rax, r10, r11, r15 {
-                read_cr0 self.value;
-                write_cr0 self.value;
-                read_cr2 self.value;
-                read_cr3 self.value;
-                write_cr3 self.value;
-                read_cr4 self.value;
-                write_cr4 self.value
+                read_cr0 main.value;
+                write_cr0 main.value;
+                read_cr2 main.value;
+                read_cr3 main.value;
+                write_cr3 main.value;
+                read_cr4 main.value;
+                write_cr4 main.value
             }
         }
         "#;
@@ -243,14 +243,14 @@ fn parses_x86_control_registers_as_structured_value_operations() {
 fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
     let source = r#"
         trait Idle {
-            machine idle(&mut self) {
+            machine idle(value: &mut Self) {
                 asm { hlt; hlt }
             }
         }
 
         data Main {}
 
-        machine Main::main(&mut self) {
+        machine Main::main(main: &mut Main) {
             transition { _ -> next() }
 
             state next() {
@@ -311,7 +311,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
 fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
     for (block, expected) in [
         (
-            "asm { out self.port, self.value hlt }",
+            "asm { out main.port, main.value hlt }",
             "multiple asm instructions must be separated by `;`",
         ),
         (
@@ -334,7 +334,7 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
                 value: u8;
             }}
 
-            machine Main::main(&mut self) {{
+            machine Main::main(main: &mut Main) {{
                 {block}
                 state done() {{}}
             }}
@@ -356,21 +356,21 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
 fn rejects_asm_availability_and_unmodeled_operation_classes() {
     for (instruction, expected) in [
         ("iretq", "deriver-only"),
-        ("lidt self.value", "deriver-only"),
+        ("lidt main.value", "deriver-only"),
         ("ret", "creates a hidden control exit"),
         (
-            "ldrb x0, self.value",
+            "ldrb x0, main.value",
             "no structured operand provenance/permission contract",
         ),
         (
-            "ldur x0, self.value",
+            "ldur x0, main.value",
             "no structured operand provenance/permission contract",
         ),
     ] {
         let source = format!(
             r#"
             data Main {{ value: i32; }}
-            machine Main::main(&mut self) {{ asm {{ {instruction} }} }}
+            machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
         let tokens = Lexer::new(&source)
@@ -396,11 +396,11 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
             buffer: [u64; 4];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(main: &mut Main) {
             let mut scratch: u64 = 0;
             asm {
-                mov self.value, 3;
-                movq scratch, self.buffer[1]
+                mov main.value, 3;
+                movq scratch, main.buffer[1]
             }
         }
         "#;
@@ -451,10 +451,10 @@ fn parses_memory_transfers_as_place_assignments() {
             buffer: [u64; 4];
         }
 
-        machine Main::main(&mut self) {
+        machine Main::main(main: &mut Main) {
             asm {
-                str self.value, self.buffer[0];
-                ldr self.value, self.buffer[0]
+                str main.value, main.buffer[0];
+                ldr main.value, main.buffer[0]
             }
         }
         "#;
@@ -496,13 +496,13 @@ fn parses_memory_transfers_as_place_assignments() {
     ));
 
     for instruction in [
-        "ldr self.value, [self.buffer]",
-        "str [self.buffer], self.value",
+        "ldr main.value, [main.buffer]",
+        "str [main.buffer], main.value",
     ] {
         let source = format!(
             r#"
             data Main {{ value: u64; buffer: [u64; 4]; }}
-            machine Main::main(&mut self) {{ asm {{ {instruction} }} }}
+            machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
         let tokens = Lexer::new(&source)
@@ -523,14 +523,14 @@ fn parses_memory_transfers_as_place_assignments() {
 #[test]
 fn rejects_bracketed_memory_operands_on_register_moves() {
     for instruction in [
-        "mov self.value, [self.other]",
-        "mov [self.value], self.other",
-        "movq self.value, [self.buffer]",
+        "mov main.value, [main.other]",
+        "mov [main.value], main.other",
+        "movq main.value, [main.buffer]",
     ] {
         let source = format!(
             r#"
             data Main {{ value: i32; other: i32; buffer: [u64; 4]; }}
-            machine Main::main(&mut self) {{ asm {{ {instruction} }} }}
+            machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
         let tokens = Lexer::new(&source)
@@ -549,12 +549,12 @@ fn rejects_bracketed_memory_operands_on_register_moves() {
 fn parses_exact_asm_where_clobber_contracts() {
     for block in [
         "asm where clobbers none { hlt }",
-        "asm where clobbers r11, rax, rdx, r10, r15 { out self.port, self.value }",
+        "asm where clobbers r11, rax, rdx, r10, r15 { out main.port, main.value }",
     ] {
         let source = format!(
             r#"
             data Main {{ port: u16; value: u8; }}
-            machine Main::main(&mut self) {{ {block} }}
+            machine Main::main(main: &mut Main) {{ {block} }}
             "#
         );
         let tokens = Lexer::new(&source)
@@ -568,12 +568,12 @@ fn parses_exact_asm_where_clobber_contracts() {
 fn parses_asm_where_facts_at_entry_and_exit() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
-        machine Main::main(&mut self) {
+        machine Main::main(main: &mut Main) {
             asm where
-                requires self.ready
+                requires main.ready
                 clobbers rax, rdx, r10, r11, r15
-                ensures self.ready
-            { out self.port, self.value }
+                ensures main.ready
+            { out main.port, main.value }
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -610,7 +610,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
 fn rejects_inexact_asm_where_clobber_contracts() {
     for (block, expected) in [
         (
-            "asm where clobbers rax, rdx, r10 { out self.port, self.value }",
+            "asm where clobbers rax, rdx, r10 { out main.port, main.value }",
             "missing `r11`",
         ),
         ("asm where clobbers rax { hlt }", "not clobbered `rax`"),
@@ -623,7 +623,7 @@ fn rejects_inexact_asm_where_clobber_contracts() {
         let source = format!(
             r#"
             data Main {{ port: u16; value: u8; }}
-            machine Main::main(&mut self) {{ {block} }}
+            machine Main::main(main: &mut Main) {{ {block} }}
             "#
         );
         let tokens = Lexer::new(&source)
@@ -649,7 +649,7 @@ fn rejects_unknown_asm_mnemonics() {
                 value: i32;
             }}
 
-            machine Main::main(&mut self) {{
+            machine Main::main(main: &mut Main) {{
                 {block}
             }}
             "#

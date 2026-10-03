@@ -114,10 +114,8 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::SelfValue) {
-        let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
-        return Ok((
-            syntax_trees.expressions.insert(ExpressionNode::SelfValue),
-            input,
+        return Err(input.error_here(
+            "implicit `self` is retired; name the explicit parameter or domain subject",
         ));
     }
 

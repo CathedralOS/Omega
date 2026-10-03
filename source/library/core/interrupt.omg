@@ -28,7 +28,7 @@ established by InterruptMaskControl::save_and_mask;
 // The capability that may change the current activation's interrupt mask.
 // Saving returns the only authority that can restore that exact prior state.
 pub boundary trait InterruptMaskControl {
-    machine save_and_mask(&mut self) -> InterruptMaskGuard in Active
+    machine save_and_mask() -> InterruptMaskGuard in Active
     reaches MachineControl
     ensures
         result in InterruptMaskGuard::Active;
@@ -49,12 +49,12 @@ pub boundary trait InterruptEntry {
     reaches <= MachineControl + PortIo;
 }
 
-pub boundary requirement InterruptMaskGuard::restore(self)
+pub boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
 reaches MachineControl
 requires
-    self in InterruptMaskGuard::Active;
+    guard in InterruptMaskGuard::Active;
 
-pub boundary requirement InterruptAcknowledgement::complete(self)
+pub boundary requirement InterruptAcknowledgement::complete(acknowledgement: InterruptAcknowledgement)
 reaches PortIo
 requires
-    self in InterruptAcknowledgement::Pending;
+    acknowledgement in InterruptAcknowledgement::Pending;

@@ -8,10 +8,10 @@ use syntax_trees::types::TypeReferenceNode;
 #[test]
 fn parses_domain_definition_surface() {
     let source = r#"
-        domain Player::Alive
+        domain Player::Alive(player)
         requires
-            self in Player::Valid;
-            self.health > 0
+            player in Player::Valid;
+            player.health > 0
         "#;
 
     let tokens = Lexer::new(source)
@@ -58,15 +58,18 @@ fn parses_domain_definition_surface() {
             &source[span.span.start..span.span.end]
         })
         .collect::<Vec<_>>();
-    assert_eq!(source_slices, ["self in Player::Valid", "self.health > 0"]);
+    assert_eq!(
+        source_slices,
+        ["player in Player::Valid", "player.health > 0"]
+    );
 }
 
 #[test]
 fn parses_domain_requires_and_requirement_routes_independently() {
     let source = r#"
-        domain Reservation::Confirmed
+        domain Reservation::Confirmed(reservation)
         requires
-            self.seats > 0
+            reservation.seats > 0
         established by
             Reservations::confirm,
             Imported::Reservations::restore;
@@ -357,12 +360,12 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
 }
 
 #[test]
-fn parses_self_parameter_with_dedicated_self_type() {
+fn parses_explicit_parameter_with_named_carrier_type() {
     let source = r#"
         data Main {
         }
 
-        machine Main::main(&mut self) {}
+        machine Main::main(main: &mut Main) {}
         "#;
 
     let tokens = Lexer::new(source)
@@ -390,22 +393,22 @@ fn parses_self_parameter_with_dedicated_self_type() {
             .state_parameters(state.parameters)
             .first()
             .copied()
-            .expect("self parameter"),
+            .expect("explicit parameter"),
     );
 
-    assert!(parameter.is_self);
+    assert!(!parameter.is_self);
     let TypeReferenceNode::Reference {
         referee, access, ..
     } = parsed
         .type_references
         .type_reference(parameter.type_reference)
     else {
-        panic!("&mut self should retain its reference ownership mode");
+        panic!("explicit mutable borrow should retain its reference ownership mode");
     };
     assert_eq!(*access, ReferenceAccess::Mutable);
     assert!(matches!(
         parsed.type_references.type_reference(*referee),
-        TypeReferenceNode::SelfType
+        TypeReferenceNode::Named(name) if name.as_str() == "Main"
     ));
 }
 
@@ -501,13 +504,13 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
 }
 
 #[test]
-fn parses_self_expression_as_dedicated_node() {
+fn parses_explicit_parameter_use_as_ordinary_name() {
     let source = r#"
         data Main {
         }
 
-        machine Main::main(&mut self) {
-            self;
+        machine Main::main(main: &mut Main) {
+            main;
         }
         "#;
 
@@ -542,10 +545,13 @@ fn parses_self_expression_as_dedicated_node() {
         panic!("expected expression statement");
     };
 
-    assert!(matches!(
-        parsed.expressions.expression(*expression),
-        ExpressionNode::SelfValue
-    ));
+    let ExpressionNode::Name(path) = parsed.expressions.expression(*expression) else {
+        panic!("explicit parameter must remain an ordinary name");
+    };
+    assert_eq!(
+        parsed.expressions.identifier_path_members(*path)[0].as_str(),
+        "main"
+    );
 }
 
 #[test]
@@ -560,10 +566,10 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
             xp_table: Player;
         }
 
-        machine Main::main(&mut self, player: &mut Player) {
-            player.xp = max(0, player.xp - self.xp_required(player.level));
+        machine Main::main(main: &mut Main, player: &mut Player) {
+            player.xp = max(0, player.xp - xp_required(player.level));
 
-            state xp_required(&mut self, level: i32) -> i32 {
+            state xp_required(level: i32) -> i32 {
                 10
             }
         }
@@ -602,7 +608,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
 
     assert_eq!(
         parsed.expressions.display_name(assignment.value),
-        "max(0, player.xp - self.xp_required(player.level))"
+        "max(0, player.xp - xp_required(player.level))"
     );
 }
 
@@ -777,7 +783,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
         data Card {}
         data Deck {}
 
-        machine Deck::best<machine Key>(&self, card: &Card) -> u64
+        machine Deck::best<machine Key>(deck: &Deck, card: &Card) -> u64
         where machine Key(value: &Card) -> u64
         reaches Console
         requires value in Card::Scorable
@@ -1002,7 +1008,7 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
         data Device {}
 
         machine poll_once<T>(device: &mut T)
-        where machine T::poll(&mut self)
+        where machine T::poll(value: &mut T)
         {
         }
         "#;
@@ -1459,9 +1465,9 @@ fn parse_domain_facts(
 fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
     let (parsed, facts) = parse_domain_facts(
         r#"
-        domain Extent::Placed
+        domain Extent::Placed(extent)
         requires
-            self in Granted & Resident<SlotPlacement, Slot>
+            extent in Granted & Resident<SlotPlacement, Slot>
         "#,
     );
     let [
@@ -1498,9 +1504,9 @@ fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
 fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
     let tokens = Lexer::new(
         r#"
-        domain Extent::Placed
+        domain Extent::Placed(extent)
         requires
-            self in Granted | Resident<SlotPlacement, Slot>
+            extent in Granted | Resident<SlotPlacement, Slot>
         "#,
     )
     .tokenize()
@@ -1519,9 +1525,9 @@ fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
 fn proof_fact_carry_permission_rejects_index_arguments() {
     let tokens = Lexer::new(
         r#"
-        domain Extent::Placed
+        domain Extent::Placed(extent)
         requires
-            self in Carry::AnyCpu<SlotPlacement>
+            extent in Carry::AnyCpu<SlotPlacement>
         "#,
     )
     .tokenize()

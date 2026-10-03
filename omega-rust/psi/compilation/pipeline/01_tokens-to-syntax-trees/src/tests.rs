@@ -12,5 +12,6 @@ mod mathematical_definitions;
 mod numbered_data;
 mod properties_and_requirements;
 mod source_parsing;
+mod static_parameters;
 mod type_constraints;
 mod value_dispatch;

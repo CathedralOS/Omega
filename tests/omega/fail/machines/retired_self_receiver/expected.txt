@@ -1,0 +1,1 @@
+`self` receivers are retired
