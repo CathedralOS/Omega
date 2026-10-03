@@ -1,9 +1,8 @@
 //! Exact qualification custody shared by structural calls and returns.
 
 use crate::validation::{
-    BTreeSet, OperationKind, PlaceId, StructuralDomainId, StructuralFieldType,
-    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    TerminalMachine, TerminalModule,
+    BTreeSet, OperationKind, PlaceId, StructuralDomainId, StructuralMultiplicity,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 #[derive(Clone, Copy)]
 pub(in crate::validation) struct StructuralResultSignature<'a> {
@@ -250,80 +249,54 @@ pub(in crate::validation) fn has_plain_owned_shape(
     module: &TerminalModule,
     root: StructuralTypeId,
 ) -> bool {
-    fn visit(
-        module: &TerminalModule,
-        root: StructuralTypeId,
-        active: &mut Vec<StructuralTypeId>,
-        complete: &mut BTreeSet<StructuralTypeId>,
-    ) -> bool {
-        if complete.contains(&root) {
-            return true;
-        }
-        if active.contains(&root) {
-            return false;
-        }
-        let mut declarations = module
-            .structural_types
-            .iter()
-            .filter(|declaration| declaration.id == root);
-        let Some(declaration) = declarations.next() else {
-            return false;
-        };
-        if declarations.next().is_some() {
-            return false;
-        }
-        active.push(root);
-        let mut field_is_owned = |field: &terminal_psi::StructuralFieldDeclaration| {
-            // Erased declarations contribute no storage or loan authority.
-            if field.relevance.is_erased() {
-                return matches!(field.field_type, StructuralFieldType::Erased { .. });
-            }
-            match &field.field_type {
-                StructuralFieldType::Scalar(_)
-                | StructuralFieldType::Atomic(_)
-                | StructuralFieldType::BoundedInteger(_)
-                | StructuralFieldType::RefinedScalar(_)
-                | StructuralFieldType::IeeeFloat(_) => true,
-                StructuralFieldType::Structural(child) => visit(module, *child, active, complete),
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                )
-                | StructuralFieldType::PredicateByteSequence {
-                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    ..
-                } => true,
-                StructuralFieldType::ByteSequence(_)
-                | StructuralFieldType::PredicateByteSequence { .. }
-                | StructuralFieldType::Erased { .. } => false,
-            }
-        };
-        let supported = match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => true,
-            StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-            ) => true,
-            StructuralTypeShape::ByteSequence(_) => false,
-            StructuralTypeShape::FusedServiceBinding => false,
-            StructuralTypeShape::ElementView { .. } => false,
-            StructuralTypeShape::Reference { .. } => false,
-            StructuralTypeShape::Record { fields } => fields.iter().all(&mut field_is_owned),
-            StructuralTypeShape::Sum { cases } => cases
+    terminal_semantics::descriptor_results::plain_owned_shape(&module.structural_types, root)
+}
+
+/// Plain storage and explicitly shared byte descriptors form an owned carrier
+/// only after exact return-slot replay proves that no backing is activation-local.
+/// ElementView carries access outside its shape and ordinary references have
+/// their own return contract; neither acquires shared permission here.
+pub(in crate::validation) fn owned_descriptor_return_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> bool {
+    let Some(signature) = source_signature(machine, source) else {
+        return false;
+    };
+    let owned = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
                 .iter()
-                .flat_map(|case| &case.fields)
-                .all(&mut field_is_owned),
-            StructuralTypeShape::Mixed { fields, cases } => fields
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == source)
+        .map(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
+        .unwrap_or_else(|| {
+            machine
+                .blocks
                 .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-                .all(&mut field_is_owned),
-            StructuralTypeShape::FixedArray { element, .. } => {
-                visit(module, *element, active, complete)
-            }
-        };
-        active.pop();
-        if supported {
-            complete.insert(root);
-        }
-        supported
-    }
-    visit(module, root, &mut Vec::new(), &mut BTreeSet::new())
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| operation.result.structural())
+                .any(|result| result.place == source && result.claims.is_empty())
+        });
+    owned
+        && matches!(
+            signature.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        && has_empty_qualification_rosters(
+            signature.qualifications,
+            signature.projected_qualifications,
+        )
+        && terminal_semantics::descriptor_results::owned_shared_byte_descriptor_shape(
+            &module.structural_types,
+            signature.structural_type,
+        )
+        && terminal_semantics::descriptor_results::return_slots_have_external_backing(
+            module, machine, source,
+        )
 }

@@ -1,4 +1,10 @@
 //! One position-sensitive contents replay over the descriptor cohort graph.
+//!
+//! A returned aggregate owns its carrier but may borrow through several declared
+//! slots. Summarize those slots separately and substitute their incoming origins
+//! from the pre-call snapshot; treating the carrier as backing either loses the
+//! caller loan or invents a loan on the temporary result. Missing active contents
+//! remain unknown. Exact case constructors alone mark inactive slots empty.
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 
@@ -814,6 +820,33 @@ pub(super) fn return_origins(
         .map(|origin| result_origin(types, machine, replay.exported(machine, origin)?))
         .collect()
 }
+pub(super) fn return_slots_have_external_backing(
+    types: &[StructuralTypeDeclaration],
+    machines: &[DescriptorMachine],
+    identity: MachineId,
+    position: DescriptorPosition,
+    source: PlaceId,
+) -> Option<()> {
+    let mut replay = Replay::new(types, machines);
+    let machine = replay.machine(identity)?;
+    let slots = descriptor_slots(types, source, *machine.place_types.get(&source)?)?;
+    if slots.is_empty() || slots.iter().any(|slot| slot.path.is_empty()) {
+        return None;
+    }
+    let states = replay.states(identity, 0)?;
+    let state = states.get(&position)?;
+    for slot in slots {
+        let origins = replay.read(machine, state, &slot)?;
+        if origins.is_empty() {
+            return None;
+        }
+        for origin in origins {
+            replay.exported(machine, &origin)?;
+        }
+    }
+    Some(())
+}
+
 pub(super) fn call_origins(
     types: &[StructuralTypeDeclaration],
     machines: &[DescriptorMachine],

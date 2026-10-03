@@ -792,6 +792,9 @@ fn close_return_structural(
         && !reference_return
         && !bounded_owned_byte_return
         && !shared_descriptor_return
+        && !super::super::structural::result_contracts::owned_descriptor_return_source(
+            module, machine, *source,
+        )
         && !exact_payloadless_claim_free_return
         && !exact_affine_parameter_return
         && !plain_owned_block_return
