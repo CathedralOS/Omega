@@ -2,6 +2,40 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// A plain scalar declaration supports a reference view without contextual
+/// landing evidence only when every stored representation implies the viewed
+/// declaration. This deliberately omits current requires/where refinements:
+/// those authorize individual observations, not an unconditional carrier.
+pub(crate) fn declaration_scalar_view_is_total(
+    program: &TypedTrees,
+    source: TypeReferenceHandle,
+    target: TypeReferenceHandle,
+) -> bool {
+    let Some(source_primitive) = super::representation_types::exact_primitive_type(program, source)
+    else {
+        return false;
+    };
+    let Some(target_primitive) = super::representation_types::exact_primitive_type(program, target)
+    else {
+        return false;
+    };
+    if source_primitive == target_primitive {
+        return true;
+    }
+    if source_primitive == PrimitiveType::Addr
+        || target_primitive == PrimitiveType::Addr
+        || source_primitive.scalar_byte_size().is_none()
+        || source_primitive.scalar_byte_size() != target_primitive.scalar_byte_size()
+    {
+        return false;
+    }
+    mutable_scalar_representation_facts(program, source)
+        .zip(mutable_scalar_representation_facts(program, target))
+        .is_some_and(|(source, target)| {
+            scalar_representation_facts_imply(program, &source, &target)
+        })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct MutableScalarRepresentationFacts {
     pub(super) domains: Vec<SymbolHandle>,

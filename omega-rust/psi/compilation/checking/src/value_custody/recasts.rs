@@ -69,6 +69,7 @@ pub use record_representation::{
 };
 mod representation_types;
 mod scalar_representation;
+pub(crate) use scalar_representation::declaration_scalar_view_is_total;
 
 pub use literal_indexed_footprints::{
     ValidatedLiteralIndexedRecastFootprint, validate_literal_indexed_recast_footprint,

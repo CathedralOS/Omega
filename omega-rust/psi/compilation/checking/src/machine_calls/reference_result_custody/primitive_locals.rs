@@ -115,6 +115,10 @@ pub fn primitive_local_source(
     {
         return None;
     }
+    if !crate::value_custody::recasts::declaration_scalar_view_is_total(program, storage, referent)
+    {
+        return None;
+    }
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path: Vec::new(),
