@@ -378,8 +378,7 @@ pub(super) fn build(
                     }
                     // Another machine in target position is an invocation
                     // that completes this machine on its own arm only.
-                    if terminal_calls::invoked_machine_state(program, machine, transition).is_some()
-                    {
+                    if terminal_calls::invoked_callable(program, machine, transition).is_some() {
                         return terminal_calls::arm_call(
                             program,
                             facts,
@@ -725,7 +724,7 @@ fn internal_destination(
         checked_trees::CheckedScalarBranchDestination::Jump(selected)
             if selected.statement_ordinal == ordinal && !selected.is_continuation =>
         {
-            match terminal_calls::invoked_machine_state(program, machine, transition) {
+            match terminal_calls::invoked_callable(program, machine, transition) {
                 Some(target) => {
                     (target == selected.target).then_some(symbols::SymbolHandle::default())
                 }
@@ -767,7 +766,7 @@ fn guarded_return_arm(
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
-    if terminal_calls::invoked_machine_state(program, machine, transition).is_some() {
+    if terminal_calls::invoked_callable(program, machine, transition).is_some() {
         return terminal_calls::arm_call(
             program,
             facts,
