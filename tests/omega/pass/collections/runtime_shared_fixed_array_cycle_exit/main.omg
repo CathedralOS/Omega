@@ -1,0 +1,66 @@
+// Find the maximum element of an array -- a small but real data-processing loop
+// over an invocation-local array. States carry the index and running maximum;
+// the current element exists only in the state that compares it.
+//
+// Over [4, 15, 8, 42, 16, 23] the maximum (at index 3, not the last) is 42.
+// Expected exit: 42.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
+    let numbers: [i32; 6] = [4, 15, 8, 42, 16, 23];
+    let maximum: i32 = array_maximum(&numbers);
+    context.console.write_line("result: the maximum, 42 for this dataset (the exit code)");
+    context.console.write_line("[press Enter to close]");
+    let mut pause: [u8; 256];
+    _ = block context.console.read_line(&mut pause);
+    context.console.exit_process(maximum);
+}
+
+machine array_maximum(numbers: &[i32; 6]) -> i32 {
+    transition { _ -> step(numbers, 0, 0) }
+
+    // Loop head: scan until every element has been visited.
+    state step(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0 {
+        transition index < 6 {
+            true -> body(numbers, index, maximum)
+            _ -> done(maximum)
+        }
+    }
+
+    // Read the current element; keep it if it beats the running maximum.
+    state body(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0
+    requires index < 6 {
+        let current: i32 = numbers[index];
+        transition current > maximum {
+            true -> advance(numbers, index, current)
+            _ -> advance(numbers, index, maximum)
+        }
+    }
+
+    // Re-guard before the increment: the direct edge into bump proves
+    // index + 1 cannot overflow -- fully Exact, no wrapping arithmetic.
+    state advance(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0 {
+        transition index < 6 {
+            true -> bump(numbers, index, maximum)
+            _ -> step(numbers, index, maximum)
+        }
+    }
+
+    state bump(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    requires index >= 0
+    requires index < 6 {
+        transition { _ -> step(numbers, index + 1, maximum) }
+    }
+
+    state done(maximum: i32) -> i32 { maximum }
+}
