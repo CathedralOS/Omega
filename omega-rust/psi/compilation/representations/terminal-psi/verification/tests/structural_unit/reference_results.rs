@@ -2839,9 +2839,19 @@ fn scalar_reference_view_module(source: ScalarType, target: ScalarType) -> Termi
                 id: value_id(2),
                 scalar_type: target,
             }),
-            kind: OperationKind::PrimitiveScalarRead {
-                source: place_id(2),
-                path: vec![StructuralPathSegment::Referent],
+            kind: OperationKind::CallStructuralScalar {
+                callee: machine_id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument {
+                    place: place_id(2),
+                    path: vec![StructuralPathSegment::Referent],
+                    access: StructuralAccess::SharedBorrow,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
             },
         },
         release(3, 2),
@@ -2857,6 +2867,50 @@ fn scalar_reference_view_module(source: ScalarType, target: ScalarType) -> Termi
             },
         },
     ];
+    // The reference supplies a helper's ordinary primitive referent formal.
+    // PrimitiveScalarRead observes that formal with an empty path; formation
+    // and call custody authenticate the original backing independently.
+    let mut reader = machine.clone();
+    reader.id = machine_id(2);
+    reader.entry = block_id(2);
+    reader.contract = empty_contract(contract_id(2));
+    reader.parameters.clear();
+    reader.structural_parameters[0].place = place_id(10);
+    reader.structural_parameters[0].structural_type = structural_type_id(3);
+    reader.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    reader.structural_places = vec![StructuralPlaceDeclaration {
+        id: place_id(10),
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    reader.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(12),
+        scalar_type: target,
+    });
+    reader.blocks[0].id = block_id(2);
+    reader.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(10),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: value_id(11),
+            scalar_type: target,
+        }),
+        kind: OperationKind::PrimitiveScalarRead {
+            source: place_id(10),
+            path: Vec::new(),
+        },
+    }];
+    reader.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(2),
+        value: value_id(11),
+        cleanup_actions: Vec::new(),
+    };
+    module.machines.push(reader);
     module
 }
 
@@ -2900,6 +2954,12 @@ fn shared_scalar_reference_views_reject_invalid_formation_and_live_loan_use() {
         rejects_custody(&scalar_reference_view_module(source, target));
     }
     let original = scalar_reference_view_module(f32_type, unsigned(32));
+    verify_module(
+        &original,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the helper-call reference fixture verifies before tampering");
     for mutation in 0..5 {
         let mut module = original.clone();
         match mutation {
@@ -2918,7 +2978,9 @@ fn shared_scalar_reference_views_reject_invalid_formation_and_live_loan_use() {
             2 => module.machines[0].blocks[0].operations.swap(2, 3),
             3 => module.machines[0].blocks[0].operations.swap(1, 2),
             _ => {
-                module.machines[0].blocks[0].operations.remove(2);
+                // Leave the reference live at the exit without adding an
+                // overlapping write that could reject before cleanup replay.
+                module.machines[0].blocks[0].operations.truncate(2);
             }
         }
         assert!(
