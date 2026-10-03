@@ -2,7 +2,7 @@
 //! Byte members retain their complete owned value, including live length and
 //! qualifications. A destination declaration never supplies missing source proof:
 //! Terminal replay checks each completed operand before establishing the record.
-use super::super::super::{StructuralAccess, StructuralArgument, StructuralFieldType};
+use super::super::super::StructuralFieldType;
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, Multiplicity, Operation, OperationKind,
     OperationResult, PlaceId, ScalarType, StructuralMultiplicity, StructuralOperationResult,
@@ -304,14 +304,10 @@ impl emission::Emission<'_, '_, '_> {
                                     );
                                 }
                             };
-                        let place = self.record_field_value(value, field.type_reference)?;
+                        let argument = self.constructor_operand(value, field.type_reference)?;
                         self.structural_type = parent_type;
                         self.multiplicity = parent_multiplicity;
-                        terminal_psi::RecordFieldValue::Structural(StructuralArgument {
-                            place,
-                            path: Vec::new(),
-                            access: StructuralAccess::Owned,
-                        })
+                        terminal_psi::RecordFieldValue::Structural(argument)
                     }
                 }
             };

@@ -81,7 +81,7 @@ pub(super) fn append_transfer(
                         | TypeReferenceNode::FixedArray { .. }
                 ) && type_multiplicity(program, type_reference) == Multiplicity::Affine
                     && (validation::has_plain_owned_contents(program, type_reference)
-                        || validation::has_owned_or_shared_view_fields(program, type_reference))
+                        || validation::has_owned_or_shared_view_contents(program, type_reference))
             })
     };
     if !plain_affine(&root) || !plain_affine(&projected) {
