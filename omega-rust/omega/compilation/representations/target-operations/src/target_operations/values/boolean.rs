@@ -19,6 +19,17 @@ pub enum TargetBooleanExpression {
         parameter_index: usize,
         location: ScalarParameterLocation,
     },
+    ElementViewRead {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        view: Box<crate::TargetElementView>,
+        index: Box<TargetIntegerExpression>,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        element_byte_offset: u32,
+    },
     StructuralField {
         psi_operation: OperationId,
         source_value: ValueId,

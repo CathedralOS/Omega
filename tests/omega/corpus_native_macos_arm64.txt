@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.51, "load1_start": 8.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.1, "load1_start": 6.49, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -889,8 +889,7 @@ pass/range/runtime_funnel_guard_agreement_exit built 673ms exit:7
 pass/range/runtime_guarded_runtime_index_increment_exit built 1769ms exit:1 @fb2178def922
 pass/ranges/sum_payload_range_arith_narrowed_exit built 1581ms exit:70 @fb2178def922
 pass/recast/nested_operand_view_compile checked 183ms
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 948ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 5)
+pass/recast/runtime_aggregate_slice_representation_recast_exit built 4750ms exit:70 @9765a474ac87+wt
 pass/recast/runtime_bool_representation_recast_exit built 874ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_float_range_representation_recast_exit built 1687ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def922

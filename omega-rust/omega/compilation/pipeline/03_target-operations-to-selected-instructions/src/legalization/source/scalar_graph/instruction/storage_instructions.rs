@@ -558,6 +558,7 @@ pub(super) fn project_element_view_write(
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::ElementViewWrite {
+        path,
         psi_operation,
         destination,
         index,
@@ -579,6 +580,7 @@ pub(super) fn project_element_view_write(
             })
             .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::ElementViewWrite {
+            path: path.clone(),
             destination: *destination,
             index: *index,
             value: *value,

@@ -85,20 +85,30 @@ pub(super) fn validate(
                 "byte region lost its representation contract"
             ));
         }
-        match checked.expression_table.expression(expression) {
-            ExpressionNode::Call(call) => {
-                if !call.arguments.is_empty() {
-                    return unsupported(refusal!(loan, "call gained arguments"));
-                }
-                (call.receiver, None)
+        if let Some(source) = validation::slice_recast_source(&checked.typed, expression) {
+            let access = match loan {
+                LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
+                LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
+            };
+            if source.access != access {
+                return unsupported(refusal!(loan, "recast changed its authored access"));
             }
-            ExpressionNode::Indexed(indexed) => {
-                let ExpressionNode::Range(range) =
-                    checked.expression_table.expression(indexed.index)
-                else {
-                    return unsupported(refusal!(loan, "lost its authored view call"));
-                };
-                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            (source.source, None)
+        } else {
+            match checked.expression_table.expression(expression) {
+                ExpressionNode::Call(call) => {
+                    if !call.arguments.is_empty() {
+                        return unsupported(refusal!(loan, "call gained arguments"));
+                    }
+                    (call.receiver, None)
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    let ExpressionNode::Range(range) =
+                        checked.expression_table.expression(indexed.index)
+                    else {
+                        return unsupported(refusal!(loan, "lost its authored view call"));
+                    };
+                    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 start,
                 end,
                 ..
@@ -187,8 +197,9 @@ pub(super) fn validate(
                 };
                 (indexed.collection, Some(window))
             }
+                }
+                _ => return unsupported(refusal!(loan, "lost its authored view call")),
             }
-            _ => return unsupported(refusal!(loan, "lost its authored view call")),
         }
     };
     if argument.access != loan.planned_access() {

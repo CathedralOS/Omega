@@ -809,7 +809,13 @@ pub(crate) fn collection_view_region_geometry(
         tip,
         element,
         region,
+        argument.access,
     )?;
+    if region == terminal_psi::ElementViewRegion::WholeCollection
+        && !typed_collection_layout_matches(tip, element, argument.access, declarations)
+    {
+        return None;
+    }
     let (backing, representation) = match geometry {
         terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => (backing, None),
         terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
@@ -2286,4 +2292,49 @@ fn bounded_byte_collection_geometry_separates_capacity_from_pointer_storage() {
         declarations[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
         assert!(collection_view_geometry(&source, &argument, view, &declarations).is_none());
     }
+}
+
+/// A typed representation loan keeps both declarations. Portable validity
+/// grants no target layout authority: replay each realized leaf and padded
+/// size independently before transporting the original backing pointer.
+pub(crate) fn typed_collection_layout_matches(
+    collection: StructuralTypeId,
+    target: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    declarations: &[StructuralTypeDeclaration],
+) -> bool {
+    let Some(StructuralTypeShape::FixedArray {
+        element: source, ..
+    }) = declarations
+        .iter()
+        .find(|row| row.id == collection)
+        .map(|row| &row.shape)
+    else {
+        return true;
+    };
+    if *source == target {
+        return true;
+    }
+    let Some(relation) = terminal_semantics::element_representation_relation(
+        declarations.iter(),
+        *source,
+        target,
+        access,
+    ) else {
+        return false;
+    };
+    [
+        (*source, &relation.source_layout),
+        (target, &relation.target_layout),
+    ]
+    .into_iter()
+    .all(|(element, layout)| {
+        shape(element, declarations).is_some_and(|shape| {
+            u64::from(shape.byte_size) == layout.size
+                && u64::from(shape.alignment) == layout.alignment
+        }) && layout.leaves.iter().all(|leaf| {
+            element_leaf_geometry(element, &leaf.path, leaf.scalar_type, declarations)
+                .is_some_and(|(offset, _)| u64::from(offset) == leaf.offset)
+        })
+    })
 }

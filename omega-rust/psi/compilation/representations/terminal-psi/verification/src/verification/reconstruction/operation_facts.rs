@@ -698,7 +698,17 @@ pub(super) fn append_operation(
                 }),
             });
         }
-        if let Some((id, proposition)) = observation.canonical_obligation() {
+        let canonical_obligation =
+            if let OperationKind::ElementViewWrite { obligation, .. } = operation.kind {
+                Some((
+                    obligation,
+                    element_extent::write_goal(module, machine, operation)
+                        .ok_or(ModuleError::InvalidElementViewWrite(operation.id))?,
+                ))
+            } else {
+                observation.canonical_obligation()
+            };
+        if let Some((id, proposition)) = canonical_obligation {
             // An indexed byte store into a predicate-bearing field owes the
             // stored byte's class legs beside its bound, reconstructed from
             // the exact destination declaration rather than the operands.

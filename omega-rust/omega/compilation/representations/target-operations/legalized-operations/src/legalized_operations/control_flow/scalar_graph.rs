@@ -591,6 +591,7 @@ pub enum LegalizedScalarInstructionKind {
     /// view, retaining its bounds fact. `destination` is the view place: an
     /// `&mut [T]` parameter or a mutable establishment result.
     ElementViewWrite {
+        path: Vec<terminal_psi::StructuralPathSegment>,
         destination: semantic_vocabulary::PlaceId,
         index: ValueId,
         value: ValueId,

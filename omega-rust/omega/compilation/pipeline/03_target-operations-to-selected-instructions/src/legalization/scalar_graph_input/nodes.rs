@@ -619,6 +619,7 @@ pub(super) fn validate(
             continue;
         }
         if let AbstractOperation::ElementViewWrite {
+            path,
             destination,
             index,
             value,
@@ -647,7 +648,13 @@ pub(super) fn validate(
                 || !mutable_view
                 || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
-                || !matches!(value_type(optimized, *value), Some(ScalarType::Integer(_)))
+                || super::byte_views::element_type(optimized, *destination, types).and_then(
+                    |element| terminal_semantics::element_view_leaf_scalar(types, element, path),
+                ) != value_type(optimized, *value)
+                || !matches!(
+                    value_type(optimized, *value),
+                    Some(ScalarType::Integer(_) | ScalarType::Boolean)
+                )
             {
                 return Err(LegalizationError::custody());
             }

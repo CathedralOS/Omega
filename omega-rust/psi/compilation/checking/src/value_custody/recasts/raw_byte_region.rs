@@ -26,32 +26,8 @@ pub fn slice_recast_byte_region(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<SliceRecastByteRegion> {
-    let initializer = super::strip_mutable(program, expression);
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
-        return None;
-    };
-    if !cast.form.is_recast() {
-        return None;
-    }
-    let TypeReferenceNode::Slice {
-        element_type: element,
-    } = program
-        .type_reference_table
-        .type_reference(cast.target_type)
-    else {
-        return None;
-    };
-    let access = if cast.form == language_core::cast_form::CastForm::RecastMutable {
-        language_core::ReferenceAccess::Mutable
-    } else {
-        language_core::ReferenceAccess::Shared
-    };
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
-        && borrow.access != access
-    {
-        return None;
-    }
-    let source = super::strip_mutable(program, cast.value);
+    let authored = super::slice_recast_source(program, expression)?;
+    let source = authored.source;
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
         return None;
     };
@@ -77,8 +53,8 @@ pub fn slice_recast_byte_region(
         source,
         start: indexed.index,
         extent: u64::try_from(*length).ok()?,
-        element: *element,
-        access,
+        element: authored.element,
+        access: authored.access,
     })
 }
 

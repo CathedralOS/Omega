@@ -18,6 +18,7 @@ pub(super) fn write(
     row: &LegalizedScalarInstruction,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarInstructionKind::ElementViewWrite {
+        ref path,
         destination,
         index,
         value,
@@ -37,7 +38,7 @@ pub(super) fn write(
             != ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?,
             )
-        || !matches!(value_type, ScalarType::Integer(_))
+        || !matches!(value_type, ScalarType::Integer(_) | ScalarType::Boolean)
     {
         return Err(replay.invalid());
     }
@@ -61,12 +62,12 @@ pub(super) fn write(
             _ => None,
         })
         .ok_or_else(|| replay.invalid())?;
-    // The write covers one scalar leaf at the element's offset zero — the
-    // same leaf geometry a read reconstructs, with an empty path.
+    // Preserve the whole element stride while independently selecting the
+    // authored scalar leaf inside each element.
     let (byte_offset, byte_count) =
         crate::structural_inputs::structural_reference_input::element_leaf_geometry(
             element,
-            &[],
+            path,
             value_type,
             signature.structural_types.as_slice(),
         )

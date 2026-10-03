@@ -545,6 +545,7 @@ pub(super) fn validate_element_view_write(
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::ElementViewWrite {
+            path,
             destination,
             index,
             value,
@@ -553,6 +554,7 @@ pub(super) fn validate_element_view_write(
             accepted_fact,
         },
         AbstractOperation::ElementViewWrite {
+            path: expected_path,
             destination: expected_destination,
             index: expected_index,
             value: expected_value,
@@ -565,7 +567,8 @@ pub(super) fn validate_element_view_write(
         unreachable!("dispatched validate_element_view_write")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
-    if destination != expected_destination
+    if path != expected_path
+        || destination != expected_destination
         || index != expected_index
         || value != expected_value
         || length != expected_length

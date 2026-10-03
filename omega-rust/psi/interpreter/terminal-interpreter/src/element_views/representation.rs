@@ -199,6 +199,7 @@ impl TerminalExecution {
         &mut self,
         view: &ElementView,
         index: usize,
+        path: &[StructuralPathSegment],
         scalar: TerminalScalarValue,
     ) -> Result<(), TerminalInterpretError> {
         if view.access != StructuralAccess::MutableBorrow {
@@ -208,7 +209,7 @@ impl TerminalExecution {
             return Err(invalid());
         };
         let (position, _) =
-            representation.scalar_position(view, index, &[], scalar.scalar_type())?;
+            representation.scalar_position(view, index, path, scalar.scalar_type())?;
         let ByteStorage::Array { storage, offset } = &representation.storage else {
             return Err(invalid());
         };

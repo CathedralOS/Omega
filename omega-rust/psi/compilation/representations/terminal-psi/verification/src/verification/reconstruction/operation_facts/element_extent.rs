@@ -130,6 +130,7 @@ pub(super) fn representation_region(
         collection,
         element,
         region,
+        source.access,
     )?
     else {
         return None;
@@ -166,8 +167,13 @@ pub(super) fn establishment_collection_length(
     };
     let root = source_root_type(machine, source.place)?;
     let collection = path_end_type(module, root, &source.path)?;
-    terminal_semantics::collection_backing(module.structural_types.iter(), collection, element)
-        .map(|backing| backing.length)
+    terminal_semantics::collection_view_backing(
+        module.structural_types.iter(),
+        collection,
+        element,
+        source.access,
+    )
+    .map(|backing| backing.length)
 }
 
 /// Retain both the source's extent and equality with a previous observation.
@@ -428,4 +434,39 @@ fn arrival_producer<'machine>(
             })
         })
         .map(|(_, _, producer, produced)| (producer, produced))
+}
+
+pub(super) fn write_goal(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Option<Proposition> {
+    let OperationKind::ElementViewWrite {
+        destination,
+        path,
+        index,
+        length,
+        value,
+        ..
+    } = &operation.kind
+    else {
+        return None;
+    };
+    let root = source_root_type(machine, *destination)?;
+    let StructuralTypeShape::ElementView { element } = module
+        .structural_types
+        .iter()
+        .find(|row| row.id == root)?
+        .shape
+    else {
+        return None;
+    };
+    terminal_semantics::element_view_write_goal(
+        &module.structural_types,
+        element,
+        path,
+        *index,
+        *length,
+        *value,
+    )
 }

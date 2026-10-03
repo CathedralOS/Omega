@@ -14,8 +14,8 @@ pub use byte_predicate::byte_predicate_equation;
 mod element_extent;
 pub use byte_extent::{literal_length_equation, subslice_length_equation};
 pub use element_extent::{
-    element_establishment_length_equation, element_subslice_length_equation,
-    element_view_leaf_scalar,
+    ElementViewLeaf, element_establishment_length_equation, element_subslice_length_equation,
+    element_view_leaf, element_view_leaf_scalar, element_view_write_goal,
 };
 
 #[cfg(test)]
@@ -881,6 +881,7 @@ pub enum StructuralEffectObservation {
     /// discharging index < length counted in elements.
     ElementViewWrite {
         destination: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         index: ValueId,
         value: ValueId,
         length: ValueId,
@@ -997,8 +998,9 @@ impl StructuralEffectObservation {
                 index,
                 length,
                 obligation,
+                path,
                 ..
-            } => Some((
+            } if path.is_empty() => Some((
                 *obligation,
                 Proposition::LessThan(value(*index), value(*length)),
             )),
@@ -1680,6 +1682,7 @@ pub fn structural_effect_leaf_observation_in(
             StructuralEffectAction::WriteElementView,
             OperationKind::ElementViewWrite {
                 destination,
+                path,
                 index,
                 value,
                 length,
@@ -1687,6 +1690,7 @@ pub fn structural_effect_leaf_observation_in(
             },
         ) => StructuralEffectObservation::ElementViewWrite {
             destination: *destination,
+            path: path.clone(),
             index: *index,
             value: *value,
             length: *length,

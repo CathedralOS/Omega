@@ -163,6 +163,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         )?,
         OperationKind::ElementViewWrite {
             destination,
+            path,
             index,
             value,
             length,
@@ -170,6 +171,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         } => storage_operations::encode_element_view_write(
             writer,
             destination,
+            path,
             index,
             value,
             length,
@@ -2046,6 +2048,7 @@ mod tests {
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::ElementViewWrite {
+                    path: Vec::new(),
                     destination: id::<PlaceId>(4),
                     index: id::<ValueId>(5),
                     value: id::<ValueId>(6),

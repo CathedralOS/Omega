@@ -98,14 +98,14 @@ impl DescriptorLoans {
                     }));
                 }
                 let descriptor = match &node.operation {
-                    O::EstablishElementView { result, source, region, .. }
+                    O::EstablishElementView { result, source, element, region, .. }
                         if source.access == StructuralAccess::SharedBorrow
-                            || matches!(region, terminal_psi::ElementViewRegion::RepresentationBytes { .. }) => {
+                            || !crate::descriptor_results::element_coordinates_preserved(function, types.values().copied(), source, *element, *region) => {
                         let mut projection = Projection::new(&source.path);
-                        if matches!(region, terminal_psi::ElementViewRegion::RepresentationBytes { .. }) {
+                        if !crate::descriptor_results::element_coordinates_preserved(function, types.values().copied(), source, *element, *region) {
                             // This descriptor owns the narrowed loan itself, unlike
                             // the temporary exclusive whole-collection capability.
-                            // Its child indices cannot refine byte-unit geometry.
+                            // Its child coordinates cannot refine differently typed backing.
                             projection.exact = false;
                         }
                         Some((result.place, source.place, projection, source.access))

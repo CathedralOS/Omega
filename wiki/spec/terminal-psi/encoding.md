@@ -567,14 +567,20 @@ lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
 An element-view region is a required `u8` tag: `0` means the whole
-same-element collection and carries no payload; `1` means a representation byte
+collection and carries no payload; `1` means a representation byte
 region and carries start value id, end value id, and obligation id, in that order.
 Unknown tags and truncated payloads reject. The source structural argument
 encodes place id, structural access, and counted structural path before the
 element type id. Neither bounds nor target stride is a producer-supplied wire
 constant; the verifier reconstructs them from the exact source and element.
 
-Module bytes are `PSITERM\0` + `u16` format marker 115 + `u16` vocabulary
+`ElementViewWrite` encodes the destination place, counted structural path,
+index value, stored value, length value, and obligation id, in that order.
+An empty path denotes the scalar element itself. The path is part of semantic
+identity and independently selects the destination leaf; its bounded carrier
+contributes range clauses to the operation's index obligation.
+
+Module bytes are `PSITERM\0` + `u16` format marker 116 + `u16` vocabulary
 marker 116 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
@@ -1752,7 +1758,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 115 | yes |
+| semantic module | `PSITERM\0` | 116 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

@@ -419,12 +419,14 @@ pub(super) fn lower(
             })
         }
         OperationKind::ElementViewWrite {
+            path,
             destination,
             index,
             value,
             length,
             obligation,
         } => Ok(AbstractOperation::ElementViewWrite {
+            path: path.clone(),
             psi_operation: operation.id,
             destination: *destination,
             index: *index,

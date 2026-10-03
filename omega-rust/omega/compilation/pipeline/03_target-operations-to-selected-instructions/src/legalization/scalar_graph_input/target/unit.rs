@@ -564,6 +564,7 @@ pub(super) fn validate_operation(
                 .any(|(identity, source)| identity == expected_value && source == value) => {}
         (
             TargetUnitOperation::ElementViewWrite {
+                path,
                 psi_operation,
                 destination,
                 view,
@@ -573,6 +574,7 @@ pub(super) fn validate_operation(
                 obligation,
             },
             AbstractOperation::ElementViewWrite {
+                path: expected_path,
                 psi_operation: expected_operation,
                 destination: expected_destination,
                 index: expected_index,
@@ -580,7 +582,8 @@ pub(super) fn validate_operation(
                 length: expected_length,
                 obligation: expected_obligation,
             },
-        ) if psi_operation == expected_operation
+        ) if path == expected_path
+            && psi_operation == expected_operation
             && destination == expected_destination
             && length == expected_length
             && obligation == expected_obligation

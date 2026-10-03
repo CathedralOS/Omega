@@ -323,6 +323,7 @@ pub enum TargetUnitOperation {
     /// Scalar origins and the exact same-view element-length proof remain
     /// independent.
     ElementViewWrite {
+        path: Vec<terminal_psi::StructuralPathSegment>,
         psi_operation: OperationId,
         destination: PlaceId,
         view: crate::TargetElementView,

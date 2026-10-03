@@ -10,8 +10,8 @@ use semantic_vocabulary::{
     ValueId,
 };
 use terminal_psi::{
-    ByteSequenceCarrier, ElementViewRegion, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, ElementViewRegion, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,124 +27,33 @@ pub struct RepresentationElementLayout {
     pub leaves: Vec<RepresentationScalarLeaf>,
 }
 
-fn scalar_layout(scalar: ScalarType) -> Option<RepresentationElementLayout> {
-    let size = match scalar {
-        ScalarType::Integer(integer)
-            if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-        {
-            u64::from(integer.bits() / 8)
-        }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => 4,
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => 8,
-        _ => return None,
-    };
-    Some(RepresentationElementLayout {
-        size,
-        alignment: size,
-        leaves: vec![RepresentationScalarLeaf {
-            path: Vec::new(),
-            offset: 0,
-            scalar_type: scalar,
-        }],
-    })
-}
-fn align(value: u64, alignment: u64) -> Option<u64> {
-    value
-        .checked_add(alignment.checked_sub(1)?)
-        .map(|value| value / alignment * alignment)
-}
-/// Bounded declaration reconstruction; cycles, zero-stride and unsupported
-/// validity/layout families remain unavailable rather than borrowing host size.
+/// Raw bytes grant only full bit-pattern validity. The typed layout owner is
+/// shared, but restrictions and Boolean validity cannot be inferred from bytes.
 pub fn representation_element_layout<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     element: StructuralTypeId,
 ) -> Option<RepresentationElementLayout> {
-    fn visit<'a>(
-        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-        element: StructuralTypeId,
-        active: &mut Vec<StructuralTypeId>,
-        budget: &mut usize,
-    ) -> Option<RepresentationElementLayout> {
-        *budget = budget.checked_sub(1)?;
-        if active.len() >= 128 || active.contains(&element) {
-            return None;
-        }
-        let mut matches = types.clone().filter(|row| row.id == element);
-        let row = matches.next()?;
-        if matches.next().is_some() {
-            return None;
-        }
-        active.push(element);
-        let layout = match &row.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar) => scalar_layout(*scalar)?,
-            StructuralTypeShape::FixedArray { element, length } => {
-                let child = visit(types.clone(), *element, active, budget)?;
-                let stride = align(child.size, child.alignment)?;
-                let count = usize::try_from(*length)
-                    .ok()?
-                    .checked_mul(child.leaves.len())?;
-                *budget = budget.checked_sub(count)?;
-                let mut leaves = Vec::new();
-                leaves.try_reserve_exact(count).ok()?;
-                for index in 0..*length {
-                    for leaf in &child.leaves {
-                        let mut path = vec![StructuralPathSegment::FixedIndex(index)];
-                        path.extend_from_slice(&leaf.path);
-                        leaves.push(RepresentationScalarLeaf {
-                            path,
-                            offset: stride.checked_mul(index)?.checked_add(leaf.offset)?,
-                            scalar_type: leaf.scalar_type,
-                        });
-                    }
-                }
-                RepresentationElementLayout {
-                    size: stride.checked_mul(*length)?,
-                    alignment: child.alignment,
-                    leaves,
-                }
-            }
-            StructuralTypeShape::Record { fields } => {
-                let mut offset = 0;
-                let mut alignment = 1;
-                let mut leaves = Vec::new();
-                for field in fields {
-                    if field.relevance.is_erased() {
-                        return None;
-                    }
-                    let child = match &field.field_type {
-                        StructuralFieldType::Scalar(scalar) => scalar_layout(*scalar)?,
-                        StructuralFieldType::Structural(child) => {
-                            visit(types.clone(), *child, active, budget)?
-                        }
-                        _ => return None,
-                    };
-                    *budget = budget.checked_sub(child.leaves.len())?;
-                    offset = align(offset, child.alignment)?;
-                    alignment = alignment.max(child.alignment);
-                    leaves.try_reserve(child.leaves.len()).ok()?;
-                    for leaf in child.leaves {
-                        let mut path = vec![StructuralPathSegment::Field(field.identity.clone())];
-                        path.extend(leaf.path);
-                        leaves.push(RepresentationScalarLeaf {
-                            path,
-                            offset: offset.checked_add(leaf.offset)?,
-                            scalar_type: leaf.scalar_type,
-                        });
-                    }
-                    offset = offset.checked_add(child.size)?;
-                }
-                RepresentationElementLayout {
-                    size: align(offset, alignment)?,
-                    alignment,
-                    leaves,
-                }
-            }
-            _ => return None,
-        };
-        active.pop();
-        (layout.size != 0 && !layout.leaves.is_empty()).then_some(layout)
+    let layout = crate::element_representation_layout(types, element)?;
+    if layout
+        .leaves
+        .iter()
+        .any(|leaf| leaf.bounds.is_some() || leaf.scalar_type == ScalarType::Boolean)
+    {
+        return None;
     }
-    visit(types, element, &mut Vec::new(), &mut 16384)
+    Some(RepresentationElementLayout {
+        size: layout.size,
+        alignment: layout.alignment,
+        leaves: layout
+            .leaves
+            .into_iter()
+            .map(|leaf| RepresentationScalarLeaf {
+                path: leaf.path,
+                offset: leaf.offset,
+                scalar_type: leaf.scalar_type,
+            })
+            .collect(),
+    })
 }
 
 /// Only fixed original octet storage supplies this region's extent. Capacity of
@@ -187,10 +96,13 @@ pub fn element_view_region_geometry<'a>(
     collection: StructuralTypeId,
     element: StructuralTypeId,
     region: ElementViewRegion,
+    access: terminal_psi::StructuralAccess,
 ) -> Option<ElementViewRegionGeometry> {
     match region {
-        ElementViewRegion::WholeCollection => crate::collection_backing(types, collection, element)
-            .map(ElementViewRegionGeometry::WholeCollection),
+        ElementViewRegion::WholeCollection => {
+            crate::collection_view_backing(types, collection, element, access)
+                .map(ElementViewRegionGeometry::WholeCollection)
+        }
         ElementViewRegion::RepresentationBytes { .. } => {
             Some(ElementViewRegionGeometry::RepresentationBytes {
                 byte_extent: representation_byte_extent(types.clone(), collection)?,

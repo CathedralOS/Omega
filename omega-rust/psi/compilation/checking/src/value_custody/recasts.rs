@@ -62,6 +62,7 @@ mod raw_byte_region;
 mod recast_judgments;
 mod record_eligibility;
 mod record_representation;
+mod slice_views;
 pub use record_representation::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, recast_record_source_leaf, recast_scalar_layout,
@@ -318,3 +319,4 @@ fn statement_expression_roots(
 }
 
 pub use raw_byte_region::{SliceRecastByteRegion, slice_recast_byte_region};
+pub use slice_views::{SliceRecastSource, slice_recast_source};

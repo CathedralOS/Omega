@@ -1211,7 +1211,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             self.state,
             leaf.statement_index(),
-            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
+            leaf.index_role(self.checked, self.state)?,
         )?;
         let value = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
         let kind = crate::emission::indexed_write::emit(

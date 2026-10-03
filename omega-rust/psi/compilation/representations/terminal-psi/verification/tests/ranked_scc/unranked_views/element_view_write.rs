@@ -69,6 +69,7 @@ fn fixture() -> TerminalModule {
         id: id(30, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::ElementViewWrite {
+            path: Vec::new(),
             destination: id(2, PlaceId::new),
             index: id(1, ValueId::new),
             value: id(30, ValueId::new),
@@ -630,3 +631,76 @@ fn mutable_child_call_restoration_does_not_discharge_descriptor_cleanup() {
 
 #[path = "element_view_write/contract_ordering.rs"]
 mod contract_ordering;
+
+#[test]
+fn projected_element_write_reconstructs_declared_range_and_rejects_path_drift() {
+    use semantic_vocabulary::{BoundedIntegerType, IntegerValue, StructuralFieldId};
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    };
+    let mut module = fixture();
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    module
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == id(9, StructuralTypeId::new))
+        .unwrap()
+        .shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            id: id(1, StructuralFieldId::new),
+            identity: "bounded".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    integer,
+                    IntegerValue::Unsigned(0),
+                    IntegerValue::Unsigned(100),
+                )
+                .unwrap(),
+            ),
+        }],
+    };
+    let OperationKind::ElementViewWrite { path, .. } =
+        &mut module.machines[0].blocks[1].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *path = vec![StructuralPathSegment::Field("bounded".into())];
+    validate_module(&module).unwrap();
+    let obligations = reconstruct_interpretable_operation_obligations(
+        validate_module_for_interpretation(&module).unwrap(),
+    )
+    .unwrap();
+    let obligation = obligations
+        .iter()
+        .find(|row| row.obligation.id == id(30, ObligationId::new))
+        .unwrap();
+    let Proposition::Conjunction(legs) = &obligation.obligation.proposition else {
+        panic!("range evidence cannot be erased")
+    };
+    assert_eq!(legs.len(), 3);
+    assert_eq!(
+        legs[2],
+        Proposition::LessOrEqual(
+            ScalarTerm::value(id(30, ValueId::new), ScalarType::Integer(integer)),
+            ScalarTerm::integer(integer, IntegerValue::Unsigned(100)).unwrap()
+        )
+    );
+    assert!(
+        matches!(verify_module_for_interpretation(&module,&ProofBundle::default(),&AdmissionProfile::default()),Err(VerificationError::MissingEvidence(id)) if id==ObligationId::new(30).unwrap())
+    );
+    for mutation in 0..3 {
+        let mut wrong = module.clone();
+        let OperationKind::ElementViewWrite { path, .. } =
+            &mut wrong.machines[0].blocks[1].operations[1].kind
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => path.clear(),
+            1 => path[0] = StructuralPathSegment::Field("other".into()),
+            _ => path[0] = StructuralPathSegment::Referent,
+        }
+        assert!(validate_module(&wrong).is_err(), "mutation {mutation}");
+    }
+}

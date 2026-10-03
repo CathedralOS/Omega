@@ -23,6 +23,7 @@ pub(super) fn lower(
 ) -> Result<(), LoweringError> {
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::ElementViewWrite {
+        path,
         psi_operation,
         destination,
         index,
@@ -60,27 +61,27 @@ pub(super) fn lower(
     let Some(element_scalar) = terminal_semantics::element_view_leaf_scalar(
         structural_types.catalog().as_slice(),
         *element,
-        &[],
+        path,
     ) else {
         return Err(invalid());
     };
-    // Integer elements lower through the dominating-integer roster; other
-    // scalar leaf kinds have no unit write vocabulary yet.
+    // Resolve the authored leaf value from the common dominating scalar roster.
     let index_value = *live.integers.get(index).ok_or_else(invalid)?;
-    let element_value = *live.integers.get(value).ok_or_else(invalid)?;
+    let element_value = super::scalar_sources::source(*value, function, live)?;
     if index_value.scalar_type().sign() != IntegerSign::Unsigned
         || index_value.scalar_type().bits() != 64
         || index_value.scalar_type().is_address()
-        || element_scalar != semantic_vocabulary::ScalarType::Integer(element_value.scalar_type())
+        || element_scalar != element_value.scalar_type()
     {
         return Err(invalid());
     }
     operations.push(TargetUnitOperation::ElementViewWrite {
+        path: path.clone(),
         psi_operation: *psi_operation,
         destination: *destination,
         view,
         index: index_value.into_target_source(*index),
-        value: element_value.into_target_source(*value),
+        value: element_value,
         length: *length,
         obligation: *obligation,
     });

@@ -141,3 +141,13 @@ pub use representation_regions::{
     element_view_region_geometry, representation_byte_extent, representation_element_layout,
     representation_region_goal, representation_region_length,
 };
+
+mod element_representation;
+pub use element_representation::{
+    ElementRepresentationLayout, ElementRepresentationLeaf, ElementRepresentationRelation,
+    element_representation_layout, element_representation_relation,
+};
+
+pub use collection_backing::{collection_view_backing, collection_view_preserves_coordinates};
+
+pub use structural_effect::{ElementViewLeaf, element_view_leaf, element_view_write_goal};

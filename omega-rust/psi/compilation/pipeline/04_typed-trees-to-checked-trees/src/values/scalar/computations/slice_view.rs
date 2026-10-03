@@ -164,7 +164,29 @@ impl Builder<'_, '_> {
             &mut place,
         );
         let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+        let authored_recast = validation::slice_recast_source(self.program, expression);
         let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
+        if let Some(authored) = authored_recast {
+            if authored.access != view.access
+                || self.program.normalized_type_identity(authored.element)
+                    != self.program.normalized_type_identity(view.element)
+            {
+                return None;
+            }
+            if recast.is_none() {
+                let mut collection =
+                    crate::flow::canonical_place_from_expression(self.program, authored.source)?;
+                crate::flow::normalize_attached_place_root(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    &mut collection,
+                );
+                if collection != place {
+                    return None;
+                }
+            }
+        }
         if let Some(region) = recast {
             if region.access != view.access
                 || self.program.normalized_type_identity(region.element)
@@ -382,12 +404,15 @@ impl Builder<'_, '_> {
                     .into_string(),
             )
         };
-        // The lent place must hold the very elements this view carries; an
-        // equal-sized or same-named collection supplies no view custody.
+        // Ordinary collection openers retain their exact element identity.
+        // An authored recast retains both declared identities: source
+        // checking admits the relation and Terminal independently replays
+        // geometry and validity under the authenticated access.
         let Some(lent) = lent_collection_element(self.program, projected) else {
             return None;
         };
         if recast.is_none()
+            && authored_recast.is_none()
             && self.program.normalized_type_identity(lent)
                 != self.program.normalized_type_identity(view.element)
         {

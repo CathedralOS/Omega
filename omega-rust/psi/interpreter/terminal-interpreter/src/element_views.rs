@@ -2,9 +2,10 @@
 //!
 //! Scalar views retain their element snapshot; structural views retain the original
 //! storage identity and collection path. Neither descriptor copies an owned
-//! structural element. Representation views decode and update the original byte
-//! allocation using independently reconstructed layout. A window selects the
-//! same backing across local bindings,
+//! structural element. Byte representation views decode their original allocation;
+//! typed representation views map target leaves to original typed cells using the
+//! independently reconstructed validity relation and padded layout. A window
+//! selects the same backing across local bindings,
 //! calls and state transfer, without relying on a frame-local source place ID.
 //! The verified loan controls interference; execution preserves its access and
 //! exact bounds when resolving a field below the descriptor.
@@ -51,6 +52,7 @@ pub(crate) struct ElementView {
 enum ElementViewBacking {
     Scalars(Arc<[TerminalScalarValue]>),
     Structural { collection: TerminalStructuralValue },
+    Typed(Arc<typed::TypedElementView>),
     Representation(Arc<representation::RepresentationView>),
 }
 
@@ -369,6 +371,45 @@ impl TerminalExecution {
             }
             return Ok(OperationFlow::Advance);
         }
+        if let StructuralTypeShape::FixedArray {
+            element: source_element,
+            length,
+        } = self.program.structural_types[&collection_type].shape
+            && source_element != element
+        {
+            if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
+                return Err(invalid());
+            }
+            let typed = self.typed_element_view(source, source_element, element)?;
+            let extent = usize::try_from(length).map_err(|_| invalid())?;
+            self.element_view_values.insert(
+                result.place,
+                ElementView {
+                    backing: ElementViewBacking::Typed(Arc::new(typed)),
+                    window: 0..extent,
+                    home: None,
+                    access,
+                },
+            );
+            self.structural_values.insert(
+                result.place,
+                TerminalStructuralValue {
+                    opaque_identity: result.place.get(),
+                    structural_type: result.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                },
+            );
+            if multiplicity == StructuralMultiplicity::Affine {
+                self.live_affine_frontier
+                    .insert(terminal_psi::StructuralAffineDiscard {
+                        place: result.place,
+                        path: Vec::new(),
+                        structural_type: result.structural_type,
+                    });
+            }
+            return Ok(OperationFlow::Advance);
+        }
         let collection = terminal_semantics::collection_backing(
             self.program.structural_types.values(),
             collection_type,
@@ -467,6 +508,7 @@ impl TerminalExecution {
             index,
             value,
             length,
+            path,
             ..
         } = &operation.kind
         else {
@@ -486,7 +528,10 @@ impl TerminalExecution {
             return Err(invalid());
         }
         if let Some(view) = self.element_view_values.get(destination)
-            && matches!(view.backing, ElementViewBacking::Representation(_))
+            && matches!(
+                view.backing,
+                ElementViewBacking::Representation(_) | ElementViewBacking::Typed(_)
+            )
         {
             let view = view.clone();
             if view.access != StructuralAccess::MutableBorrow
@@ -495,8 +540,16 @@ impl TerminalExecution {
             {
                 return Err(invalid());
             }
-            self.write_representation_element(&view, index, element)?;
+            match &view.backing {
+                ElementViewBacking::Typed(_) => {
+                    self.write_typed_element(&view, index, path, element)?
+                }
+                _ => self.write_representation_element(&view, index, path, element)?,
+            }
             return Ok(OperationFlow::Advance);
+        }
+        if !path.is_empty() {
+            return Err(invalid());
         }
         let Some(view) = self.element_view_values.get_mut(destination) else {
             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -590,7 +643,9 @@ impl TerminalExecution {
         // A mutable descendant may have updated the original storage while
         // this descriptor was suspended. Snapshots cannot authorize stale reads
         // after restoration; shared descendants retain read-only access to home.
-        let element = if matches!(view.backing, ElementViewBacking::Representation(_)) {
+        let element = if matches!(view.backing, ElementViewBacking::Typed(_)) {
+            self.read_typed_element(view, index, path, result.scalar_type)?
+        } else if matches!(view.backing, ElementViewBacking::Representation(_)) {
             self.read_representation_element(view, index, path, result.scalar_type)?
         } else if !path.is_empty() {
             return Err(invalid());
@@ -747,6 +802,7 @@ impl TerminalExecution {
 }
 
 mod representation;
+mod typed;
 
 #[cfg(test)]
 mod tests;

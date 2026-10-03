@@ -3,11 +3,12 @@
 //!
 //! The three leaves replay and emit one shape. Replay rejoins the authored
 //! indexed target, requires the builtin index meaning, and binds the
-//! `AssignmentIndex { depth: 0 }` operand and the stored value (a pure
+//! exact `AssignmentIndex` occurrence and the stored value (a pure
 //! `AssignmentValue` expression, or the scalar result of the statement's own
 //! call) to the checked plan. Emission converts the index to Terminal's `u64`
 //! coordinate, evaluates the value, observes the destination's length, and
-//! ends in a write that owes one bound obligation; value and obligation
+//! ends in a write whose obligation retains the index and any target field
+//! bounds through the shared Terminal judgment; value and obligation
 //! identities are allocated in exactly that order.
 //!
 //! What differs stays with the leaf: its destination check, the stored
@@ -149,6 +150,31 @@ impl<'a> IndexedWriteLeaf<'a> {
         }
     }
 
+    pub(crate) fn index_role(
+        self,
+        checked: &CheckedTrees,
+        state: SymbolHandle,
+    ) -> Result<CheckedScalarExpressionRole, LoweringError> {
+        let (_, authored) = source_custody::authored_state(checked, state)?;
+        let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
+            .statement_table
+            .statements(authored.statement_nodes)
+            .get(self.statement_index() as usize)
+        else {
+            return unsupported(self.wording().lost_index);
+        };
+        let target = indexed_target(checked, state, assignment, self)?;
+        let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(target) else {
+            return unsupported(self.wording().lost_index);
+        };
+        let depth = validation::assignment_target_selectors(&checked.typed, assignment.target)
+            .iter()
+            .position(|selector| *selector == indexed.index)
+            .and_then(|depth| u32::try_from(depth).ok())
+            .ok_or(LoweringError::Unsupported(self.wording().lost_operand))?;
+        Ok(CheckedScalarExpressionRole::AssignmentIndex { depth })
+    }
+
     fn index(self) -> &'a CheckedScalarExpression {
         match self {
             Self::ByteView(write) => &write.index,
@@ -222,6 +248,93 @@ impl<'a> IndexedWriteLeaf<'a> {
     }
 }
 
+/// Peel only the retained element projection, authenticating every member
+/// against its resolved declaration. The remaining index is the descriptor's
+/// selector; its occurrence and value still use ordinary assignment replay.
+fn indexed_target(
+    checked: &CheckedTrees,
+    state_symbol: SymbolHandle,
+    assignment: &TableAssignment,
+    leaf: IndexedWriteLeaf<'_>,
+) -> Result<checked_trees::expression::ExpressionHandle, LoweringError> {
+    let IndexedWriteLeaf::ElementView(write) = leaf else {
+        return Ok(assignment.target);
+    };
+    let (machine, state) = source_custody::authored_state(checked, state_symbol)?;
+    let mut target = assignment.target;
+    for segment in write.path.iter().rev() {
+        match (segment, checked.expression_table.expression(target)) {
+            (CheckedUnitStructuralPathSegment::Field(identity), ExpressionNode::Member(member))
+                if member.case_variant.is_none() =>
+            {
+                let reference = validation::declared_place_type_raw(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    member.receiver,
+                )
+                .and_then(|reference| {
+                    validation::unwrapped_type_reference(&checked.typed, reference)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "element-view field lost its authored owner",
+                ))?;
+                let owner = checked.typed.closed_data_definition(reference).ok_or(
+                    LoweringError::Unsupported("element-view field has no record declaration"),
+                )?;
+                let field = validation::exact_data_member_field(
+                    &checked.typed,
+                    owner,
+                    member.member_symbol,
+                    member.member.as_str(),
+                    None,
+                )
+                .or_else(|| {
+                    checked.typed.closed_data_member_field(
+                        reference,
+                        member.member_symbol,
+                        member.member.as_str(),
+                    )
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "element-view field changed its declaration",
+                ))?;
+                if field.relevance.is_erased() || field.path_identity() != *identity {
+                    return unsupported("element-view field changed its exact projection");
+                }
+                target = member.receiver;
+            }
+            (
+                CheckedUnitStructuralPathSegment::FixedIndex(expected),
+                ExpressionNode::Indexed(indexed),
+            ) => {
+                let actual = checked
+                    .expression_table
+                    .constant_integer_value(indexed.index)
+                    .and_then(|value| u64::try_from(value).ok())
+                    .or_else(
+                        || match checked.expression_table.expression(indexed.index) {
+                            ExpressionNode::Name(name) => {
+                                source_custody::structural_places::constant_local_index(
+                                    checked,
+                                    state,
+                                    name.symbol,
+                                )
+                            }
+                            _ => None,
+                        },
+                    );
+                if actual != Some(*expected) {
+                    return unsupported("element-view field changed its fixed element");
+                }
+                target = indexed.collection;
+            }
+            _ => return unsupported("element-view write changed its authored element projection"),
+        }
+    }
+    Ok(target)
+}
+
 /// Rejoin one indexed write's checked plan to its authored assignment. Each
 /// leaf checks its own destination ahead of the index meaning, except the byte
 /// field's carrier path and field, which follow it.
@@ -234,7 +347,8 @@ pub(crate) fn validate_assignment(
 ) -> Result<(), LoweringError> {
     let wording = leaf.wording();
     let (owner, state) = source_custody::authored_state(checked, state_symbol)?;
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(assignment.target)
+    let indexed_expression = indexed_target(checked, state_symbol, assignment, leaf)?;
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(indexed_expression)
     else {
         return unsupported(wording.lost_index);
     };
@@ -364,7 +478,7 @@ pub(crate) fn validate_assignment(
         }
     }
     if checked.facts.operators.uses.iter().any(|(_, selected)| {
-        selected.expression == assignment.target
+        selected.expression == indexed_expression
             && (selected.spelling != language_core::OperatorSpelling::Index
                 || selected.selected_operator_symbol.is_valid()
                 || selected.candidate_count != 0
@@ -397,15 +511,12 @@ pub(crate) fn validate_assignment(
         }
     }
     let statement_index = leaf.statement_index();
+    let index_role = leaf.index_role(checked, state_symbol)?;
     let (binding, expression) = checked
         .facts
         .values
         .scalar_expressions
-        .bound_expression_at(
-            state_symbol,
-            statement_index,
-            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
-        )
+        .bound_expression_at(state_symbol, statement_index, index_role)
         .ok_or(LoweringError::Unsupported(wording.lost_operand))?;
     if binding.expression != indexed.index || expression != leaf.index() {
         return unsupported(wording.substituted_operand);
@@ -414,13 +525,8 @@ pub(crate) fn validate_assignment(
         checked,
         binding,
         terminal_scalar_type(
-            source_custody::locate(
-                checked,
-                state_symbol,
-                statement_index,
-                CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
-            )?
-            .primitive_type,
+            source_custody::locate(checked, state_symbol, statement_index, index_role)?
+                .primitive_type,
         )?,
     )?;
     match leaf.value() {
@@ -582,7 +688,9 @@ enum DestinationShape {
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
     },
-    ElementView,
+    ElementView {
+        path: Vec<StructuralPathSegment>,
+    },
 }
 
 impl<'a> IndexedWriteTarget<'a> {
@@ -719,9 +827,9 @@ impl<'a> IndexedWriteTarget<'a> {
                 })
             }
             Self::ElementView {
+                write,
                 place,
                 structural_type,
-                ..
             } => {
                 let element = structural_types
                     .iter()
@@ -736,23 +844,17 @@ impl<'a> IndexedWriteTarget<'a> {
                     .ok_or(LoweringError::Unsupported(
                         "element-view write destination is not an element view",
                     ))?;
-                let value_type = structural_types
-                    .iter()
-                    .find_map(|declaration| match declaration.shape {
-                        StructuralTypeShape::PrimitiveScalar(scalar_type)
-                            if declaration.id == element =>
-                        {
-                            Some(scalar_type)
-                        }
-                        _ => None,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "element-view write element is not a scalar leaf",
-                    ))?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(&write.path)?;
+                let value_type =
+                    terminal_semantics::element_view_leaf(structural_types, element, &path)
+                        .map(|leaf| leaf.scalar_type)
+                        .ok_or(LoweringError::Unsupported(
+                            "element-view write path is not an admitted scalar leaf",
+                        ))?;
                 Ok(Destination {
                     place,
                     value_type,
-                    shape: DestinationShape::ElementView,
+                    shape: DestinationShape::ElementView { path },
                 })
             }
         }
@@ -789,7 +891,7 @@ impl Destination {
                     field: *field,
                 }
             }
-            DestinationShape::ElementView => {
+            DestinationShape::ElementView { .. } => {
                 OperationKind::ElementViewLength { source: self.place }
             }
         };
@@ -870,8 +972,9 @@ pub(crate) fn emit(
                 obligation,
             }
         }
-        DestinationShape::ElementView => OperationKind::ElementViewWrite {
+        DestinationShape::ElementView { path } => OperationKind::ElementViewWrite {
             destination: place,
+            path,
             index,
             value,
             length,
@@ -1003,5 +1106,106 @@ mod tests {
                 "byte-view write destination is absent"
             ))
         ));
+    }
+    #[test]
+    fn element_view_field_write_keeps_projection_and_bounded_value_obligation() {
+        use super::{CheckedElementViewWritePlan, CheckedUnitStructuralPathSegment};
+        use semantic_vocabulary::{
+            BoundedIntegerType, IntegerSign, IntegerType, StructuralFieldId,
+        };
+        use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+        let record = StructuralTypeId::new(1).unwrap();
+        let view = StructuralTypeId::new(2).unwrap();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+        let types = [
+            StructuralTypeDeclaration {
+                id: record,
+                identity: "Exact".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "value".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::BoundedInteger(
+                            BoundedIntegerType::new(
+                                integer,
+                                IntegerValue::Unsigned(0),
+                                IntegerValue::Unsigned(100),
+                            )
+                            .unwrap(),
+                        ),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: view,
+                identity: "[Exact]".into(),
+                shape: StructuralTypeShape::ElementView { element: record },
+            },
+        ];
+        let literal = CheckedScalarExpression::IntegerLiteral {
+            literal: numerics::literals::IntegerLiteral::from_value(1),
+        };
+        let mut write = CheckedElementViewWritePlan {
+            statement_index: 0,
+            destination: CheckedStoreRoot::Parameter { position: 0 },
+            index: literal.clone(),
+            path: vec![CheckedUnitStructuralPathSegment::Field("value".into())],
+            element: PrimitiveType::U16,
+            value: CheckedStoreValue::Pure(literal),
+        };
+        let emit_write = |write: &CheckedElementViewWritePlan| {
+            emit(
+                IndexedWriteTarget::ElementView {
+                    write,
+                    place: PlaceId::new(1).unwrap(),
+                    structural_type: view,
+                },
+                &[],
+                &types,
+                &LoweredDirectExpression::IntegerLiteral {
+                    value: IntegerValue::Unsigned(1),
+                    scalar_type: terminal_scalar_type(PrimitiveType::U64).unwrap(),
+                },
+                &LoweredDirectExpression::IntegerLiteral {
+                    value: IntegerValue::Unsigned(99),
+                    scalar_type: terminal_scalar_type(PrimitiveType::U16).unwrap(),
+                },
+                &[],
+                &mut 1,
+                &mut 1,
+                &mut OperationBuffer::new(0),
+            )
+        };
+        let OperationKind::ElementViewWrite {
+            path,
+            index,
+            length,
+            value,
+            ..
+        } = emit_write(&write).unwrap()
+        else {
+            panic!("element write");
+        };
+        assert_eq!(
+            path,
+            [terminal_psi::StructuralPathSegment::Field("value".into())]
+        );
+        let semantic_vocabulary::Proposition::Conjunction(requirements) =
+            terminal_semantics::element_view_write_goal(
+                &types, record, &path, index, length, value,
+            )
+            .unwrap()
+        else {
+            panic!("index and declared range");
+        };
+        assert_eq!(requirements.len(), 3);
+        write.path = vec![CheckedUnitStructuralPathSegment::Field("other".into())];
+        assert!(emit_write(&write).is_err());
+        write.path.clear();
+        assert!(
+            emit_write(&write).is_err(),
+            "a record cannot become a whole scalar store"
+        );
     }
 }

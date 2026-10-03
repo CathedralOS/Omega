@@ -377,6 +377,22 @@ pub(crate) fn validate(
         {
             return unsupported("structural zero synthesis changed its source omission");
         }
+        if matches!(
+            node.kind,
+            CheckedStructuralValueKind::BorrowedSliceView { .. }
+                | CheckedStructuralValueKind::MutableSliceView { .. }
+        ) && let Some(recast) = validation::slice_recast_source(&checked.typed, expression)
+        {
+            let view = validation::slice_view_shell(&checked.typed, reference, &[]).ok_or(
+                LoweringError::Unsupported("slice recast lost its declared view"),
+            )?;
+            if view.access != recast.access
+                || checked.normalized_type_identity(view.element)
+                    != checked.normalized_type_identity(recast.element)
+            {
+                return unsupported("slice recast changed its declared element or access");
+            }
+        }
         match node.kind.clone() {
             // A borrowed `&[T]` or `&mut [T]` view rejoins its loan exactly:
             // the retained argument names the lent collection root and path

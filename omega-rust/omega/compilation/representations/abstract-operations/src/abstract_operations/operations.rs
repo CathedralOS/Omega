@@ -204,6 +204,7 @@ pub enum AbstractOperation {
     /// verified bounds (`view[index] = element`). `length` is the dominating
     /// same-view element-length observation the bounds obligation names.
     ElementViewWrite {
+        path: Vec<terminal_psi::StructuralPathSegment>,
         psi_operation: OperationId,
         destination: PlaceId,
         index: ValueId,

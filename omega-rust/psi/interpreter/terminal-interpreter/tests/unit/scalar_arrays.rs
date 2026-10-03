@@ -997,6 +997,7 @@ fn mutable_element_view_writes_owned_array_and_retires_exact_loan() {
                 id: operation_id(105),
                 result: OperationResult::Unit,
                 kind: OperationKind::ElementViewWrite {
+                    path: Vec::new(),
                     destination: place_id(3),
                     index: value_id(101),
                     value: value_id(102),
@@ -1025,6 +1026,7 @@ fn mutable_element_view_writes_owned_array_and_retires_exact_loan() {
                 id: operation_id(107),
                 result: OperationResult::Unit,
                 kind: OperationKind::ElementViewWrite {
+                    path: Vec::new(),
                     destination: place_id(3),
                     index: value_id(101),
                     value: value_id(106),

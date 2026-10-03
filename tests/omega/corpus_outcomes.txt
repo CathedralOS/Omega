@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.21, "load1_start": 8.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 5.93, "load1_start": 5.4, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2088,8 +2088,7 @@ pass/ranges/subject_guard_compound_index_successor checked 126ms @34bff3b8a5fe
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 145ms @92c4e14e5396+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 1278ms @40866b59e47
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 5)
+pass/recast/runtime_aggregate_slice_representation_recast_exit checked 5206ms @9765a474ac87+wt
 pass/recast/runtime_bool_representation_recast_exit checked 1642ms @a3bac00e54bb+wt
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms @a3bac00e54bb+wt
 pass/recast/runtime_guarded_offset_recast_exit checked 1534ms @a3bac00e54bb+wt

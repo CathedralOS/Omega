@@ -219,6 +219,7 @@ pub(super) fn decode_byte_sequence_write(
 pub(super) fn encode_element_view_write(
     writer: &mut Writer,
     destination: PlaceId,
+    path: Vec<StructuralPathSegment>,
     index: ValueId,
     value: ValueId,
     length: ValueId,
@@ -226,6 +227,7 @@ pub(super) fn encode_element_view_write(
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ELEMENT_VIEW_WRITE);
     writer.id(destination);
+    encode_structural_path(writer, "element write path", &path)?;
     writer.id(index);
     writer.id(value);
     writer.id(length);
@@ -238,6 +240,7 @@ pub(super) fn decode_element_view_write(
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::ElementViewWrite {
         destination: reader.id("PlaceId")?,
+        path: decode_structural_path(reader)?,
         index: reader.id("ValueId")?,
         value: reader.id("ValueId")?,
         length: reader.id("ValueId")?,
