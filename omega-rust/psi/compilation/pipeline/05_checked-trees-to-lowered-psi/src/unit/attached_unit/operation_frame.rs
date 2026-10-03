@@ -74,10 +74,10 @@ use crate::unit::{
     BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
     ClaimId, LoweringError, Operation, OperationKind, OperationResult, PermissionClaimIdentity,
     PlaceId, ScalarType, ServiceId, ServiceReachId, ServiceReachSummary, StructuralAccess,
-    StructuralDomainId, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
-    allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id, terminal_scalar_type,
-    unsupported,
+    StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    ValueDeclaration, allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id,
+    terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
