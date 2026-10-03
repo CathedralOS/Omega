@@ -36,8 +36,7 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, PermissionEventKind, SymbolHandle, TypedTrees,
-    is_reference,
+    CheckedUnitStructuralResultBindingPlan, SymbolHandle, TypedTrees, is_reference,
 };
 
 /// Authored requirement declarations share one call planner. This is a
@@ -481,10 +480,9 @@ pub(super) fn build(
     // contract fingerprint below, so a blocking boundary is planned
     // exactly like a nonblocking one.
     let capsule = facts.contract_plans.crash_capsule(owner, target)?;
-    // Trait calls transfer each owned argument into the boundary. Their
-    // permission events are transfers, not the terminal consumption used
-    // by an owned receiver. Reuse the exact call-site custody replay so
-    // every live claim has a normal-completion receipt at its argument.
+    // The common caller-custody join accounts for each owned argument.
+    // Here those rows are normal-completion receipts because the selected
+    // destination is a boundary, rather than a checked body's entry roster.
     phase("call operation: boundary claim transfers");
     let completion_receipts = call_claim_transfers(
         facts,
@@ -495,7 +493,6 @@ pub(super) fn build(
         entry_claims,
         caller_structural_results,
         &structural_arguments,
-        PermissionEventKind::Transfer,
     )?;
     checked_trees::CheckedUnitCallPlan::new(checked_trees::CheckedUnitCallParts {
         coordinate,
