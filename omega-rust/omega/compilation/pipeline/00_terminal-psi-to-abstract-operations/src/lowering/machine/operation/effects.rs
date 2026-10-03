@@ -46,7 +46,7 @@ pub(super) fn lower(
             // producer. It must not acquire a fictitious entry parameter
             // merely to share the store's addressing and leaf checks.
             let destination =
-                super::primitive_storage::parameter(machine, structural_types, destination)
+                super::primitive_storage::parameter(machine, destination)
                     .cloned()
                     .map(StructuralScalarStoreDestination::Parameter)
                     .or_else(|| {

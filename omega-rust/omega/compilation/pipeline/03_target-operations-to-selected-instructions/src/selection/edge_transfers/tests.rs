@@ -47,9 +47,10 @@ fn address_transports_preserve_empty_referents_without_dropping_pointer_custody(
                     panic!("test source has one jump");
                 };
                 for (position, binding) in successor.structural_bindings.iter_mut().enumerate() {
-                    let SelectedStructuralTransport::Descriptor {
+                    let SelectedStructuralTransport::WholeValue {
                         argument,
                         destination,
+                        ..
                     } = binding.transport
                     else {
                         panic!("test source supplies descriptor addresses");

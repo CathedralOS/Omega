@@ -284,7 +284,6 @@ pub(super) fn names_structurally(
     successor.structural_bindings.iter().any(|binding| {
         matches!(binding.transport,
             SelectedStructuralTransport::WholeValue { argument, .. }
-            | SelectedStructuralTransport::Descriptor { argument, .. }
             | SelectedStructuralTransport::Address {
                 base: selected_instructions::SelectedAddressBase::Register(argument),
                 ..

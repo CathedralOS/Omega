@@ -394,7 +394,6 @@ fn scratch_dies(
                     matches!(
                         binding.transport,
                         SelectedStructuralTransport::WholeValue { argument, .. }
-                            | SelectedStructuralTransport::Descriptor { argument, .. }
                             if argument == register
                     )
                 })
@@ -854,8 +853,7 @@ fn edge_keeps(
         // observable through the joined pointer, so the root counts as read.
         let (destination, lent) = match binding.transport {
             SelectedStructuralTransport::Unused => continue,
-            SelectedStructuralTransport::WholeValue { destination, .. }
-            | SelectedStructuralTransport::Descriptor { destination, .. } => (destination, None),
+            SelectedStructuralTransport::WholeValue { destination, .. } => (destination, None),
             SelectedStructuralTransport::Address {
                 base, destination, ..
             } => (destination, Some(base)),

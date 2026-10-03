@@ -205,8 +205,7 @@ fn expected_plan(
             }
             for binding in &successor.structural_bindings {
                 let named = match binding.transport {
-                    SelectedStructuralTransport::WholeValue { argument, .. }
-                    | SelectedStructuralTransport::Descriptor { argument, .. } => {
+                    SelectedStructuralTransport::WholeValue { argument, .. } => {
                         argument == register
                     }
                     SelectedStructuralTransport::Address {

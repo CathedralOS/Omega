@@ -102,22 +102,8 @@ pub(crate) fn transport(
         // receives the element's address at the projected offset beneath
         // it — not the descriptor's own storage.
         SelectedAddressBase::Register(view.backing_pointer)
-    } else if let Some((_, pointer)) = pointers.iter().find(|(place, _)| *place == argument.place) {
-        SelectedAddressBase::Register(*pointer)
     } else {
-        let mut homes = local_slots.iter().filter(|slot| {
-            slot.id.structural_place() == Some(argument.place)
-                && !matches!(slot.id, LocalStorageSlotId::StructuralBlockParameter { .. })
-        });
-        let home = homes.next()?;
-        if homes.next().is_some()
-            || byte_offset
-                .checked_add(lent.byte_size)
-                .is_none_or(|end| end > home.byte_size)
-        {
-            return None;
-        }
-        SelectedAddressBase::Local(home.id)
+        storage_base(argument.place, byte_offset, lent.byte_size, pointers, local_slots)?
     };
     Some(SelectedStructuralTransport::Address {
         base,
@@ -130,10 +116,36 @@ pub(crate) fn transport(
     })
 }
 
+/// Find the original storage address without reading or copying its contents.
+/// Both referent loans and view construction use this; a pointer cell is not
+/// implicitly dereferenced here. The caller determines what storage it names.
+pub(super) fn storage_base(
+    place: PlaceId,
+    byte_offset: u32,
+    byte_count: u32,
+    pointers: &[(PlaceId, VirtualRegisterId)],
+    local_slots: &[SelectedLocalStorageSlot],
+) -> Option<SelectedAddressBase> {
+    if let Some((_, pointer)) = pointers.iter().find(|(candidate, _)| *candidate == place) {
+        return Some(SelectedAddressBase::Register(*pointer));
+    }
+    let mut homes = local_slots.iter().filter(|slot| {
+        slot.id.structural_place() == Some(place)
+            && !matches!(slot.id, LocalStorageSlotId::StructuralBlockParameter { .. })
+    });
+    let home = homes.next()?;
+    if homes.next().is_some()
+        || byte_offset.checked_add(byte_count).is_none_or(|end| end > home.byte_size)
+    {
+        return None;
+    }
+    Some(SelectedAddressBase::Local(home.id))
+}
+
 /// The structural type of a root that may lend an address: a local home, an
 /// owned block arrival, an entrance parameter or an earlier address join.
 /// Legalization already replayed each root's owner, access and dominance.
-fn root_type(
+pub(super) fn root_type(
     source: &LegalizedScalarFunction,
     place: PlaceId,
     access: StructuralAccess,

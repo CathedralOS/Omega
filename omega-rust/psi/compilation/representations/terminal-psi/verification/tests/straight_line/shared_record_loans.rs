@@ -245,6 +245,130 @@ fn projected_shared_loan_joins_the_exact_view() {
     }
 }
 
+/// Fixed byte storage and its bounded view have different type identities,
+/// but the loan must preserve the exact element type and extent.
+fn fixed_byte_loan_module() -> TerminalModule {
+    let mut module = pair_module(StructuralMultiplicity::Unrestricted);
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: id(PAYLOAD_TYPE),
+            identity: "test::Byte".to_owned(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            )),
+        },
+        StructuralTypeDeclaration {
+            id: id(PAIR_TYPE),
+            identity: "test::ByteArray".to_owned(),
+            shape: StructuralTypeShape::FixedArray {
+                element: id(PAYLOAD_TYPE),
+                length: 48,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: id(TWIN_TYPE),
+            identity: "test::ByteView".to_owned(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                    capacity: 48,
+                },
+            ),
+        },
+    ];
+    argument(&mut module).path.clear();
+    view_parameter(&mut module).structural_type = id(TWIN_TYPE);
+    module.machines[0].blocks[1].operations.clear();
+    module
+}
+
+#[test]
+fn shared_fixed_byte_loan_preserves_backing_extent() {
+    let module = fixed_byte_loan_module();
+    assert_eq!(
+        terminal_semantics::borrowed_referent_presentation(
+            module.structural_types.iter(), id(PAIR_TYPE), id(TWIN_TYPE)),
+        Some(terminal_semantics::BorrowedReferentPresentation::AddressOfBacking { byte_count: 48 }),
+    );
+    assert_eq!(
+        terminal_semantics::borrowed_referent_presentation(
+            module.structural_types.iter(), id(TWIN_TYPE), id(TWIN_TYPE)),
+        Some(terminal_semantics::BorrowedReferentPresentation::Unchanged),
+    );
+    validate_module(&module).expect("the exact whole fixed array backs its shared view");
+    let mut local = module.clone();
+    local.machines[0].structural_parameters.clear();
+    local.machines[0].structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer: id(910),
+        structural_type: id(PAIR_TYPE),
+    };
+    local.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(910),
+        result: structural_result(ROOT, PAIR_TYPE),
+        kind: OperationKind::EstablishZeroedStructural {},
+    });
+    validate_module(&local).expect("the local owned array supplies the same exact loan");
+    let mut forwarded = local.clone();
+    let machine = &mut forwarded.machines[0];
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(SECOND_VIEW),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: id(SIBLING_BLOCK),
+            position: 0,
+        },
+    });
+    let end = machine.blocks[1].terminator.clone();
+    machine.blocks[1].terminator = Terminator::Jump {
+        edge: id(903),
+        target: id(SIBLING_BLOCK),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![loan_argument(VIEW, &[])],
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: vec![shared_parameter(SECOND_VIEW, 0, TWIN_TYPE)],
+        id: id(SIBLING_BLOCK),
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: end,
+    });
+    validate_module(&forwarded).expect("the bounded loan forwards without changing its backing");
+    // A declaration alone cannot authorize reading an unestablished local.
+    local.machines[0].blocks[0].operations.clear();
+    assert!(validate_module(&local).is_err());
+    for mutation in 0..5 {
+        let mut invalid = module.clone();
+        match mutation {
+            0 => {
+                invalid.structural_types[1].shape = StructuralTypeShape::FixedArray {
+                    element: id(PAYLOAD_TYPE),
+                    length: 47,
+                }
+            }
+            1 => {
+                invalid.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap()),
+                )
+            }
+            2 => argument(&mut invalid).access = StructuralAccess::MutableBorrow,
+            3 => {
+                invalid.machines[0].structural_parameters[0].access =
+                    StructuralAccess::WriteOnlyBorrow
+            }
+            4 => argument(&mut invalid).place = id(SECOND_VIEW),
+            _ => unreachable!(),
+        }
+        assert!(validate_module(&invalid).is_err(), "mutation {mutation}");
+    }
+}
+
 #[test]
 fn shared_loan_rejects_substituted_access_path_root_or_signature() {
     for mutation in 0..18 {

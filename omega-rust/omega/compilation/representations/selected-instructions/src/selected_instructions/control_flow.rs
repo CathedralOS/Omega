@@ -171,10 +171,6 @@ pub enum SelectedStructuralTransport {
         byte_size: u32,
         alignment: u16,
     },
-    Descriptor {
-        argument: VirtualRegisterId,
-        destination: super::LocalStorageSlotId,
-    },
     /// Store one borrowed referent's exact address in the destination slot.
     /// The edge lends that place: it neither reads nor copies the referent's
     /// `byte_count` bytes at `byte_offset` beneath `base`, and the root keeps

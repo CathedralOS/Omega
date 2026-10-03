@@ -78,15 +78,26 @@ fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() 
                         };
                         physical[home(1)] = descriptors[descriptor][byte_offset as usize / 8];
                     }
-                    SelectedInstructionKind::Store64 {
+                    SelectedInstructionKind::FrameAddress {
                         slot: FrameStorageSlotId::Local(slot),
-                        byte_offset,
+                        byte_offset: 0,
                     } => {
                         let destination = slots
                             .iter()
                             .position(|candidate| *candidate == slot)
                             .unwrap();
-                        descriptors[destination][byte_offset as usize / 8] = physical[home(0)];
+                        physical[home(0)] = [1000, 2000][destination];
+                    }
+                    SelectedInstructionKind::Store {
+                        byte_offset,
+                        byte_size: 8,
+                    } => {
+                        let destination = match physical[home(0)] {
+                            1000 => 0,
+                            2000 => 1,
+                            other => panic!("invalid destination {other}"),
+                        };
+                        descriptors[destination][byte_offset as usize / 8] = physical[home(1)];
                     }
                     _ => panic!("unexpected transfer instruction"),
                 }
@@ -241,9 +252,11 @@ pub(super) fn swapped_function(
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                 },
             },
-            transport: SelectedStructuralTransport::Descriptor {
+            transport: SelectedStructuralTransport::WholeValue {
                 argument: VirtualRegisterId((3 - position) as u32),
                 destination: slots[position],
+                byte_size: 16,
+                alignment: 8,
             },
         })
         .collect();

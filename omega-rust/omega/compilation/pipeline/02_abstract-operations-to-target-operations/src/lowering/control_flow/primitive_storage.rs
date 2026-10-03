@@ -665,24 +665,20 @@ pub(super) fn lower(
                 // the leaf and offset; borrowing this home for an earlier
                 // call must not make later reads observe an argument copy.
                 home.structural_type()
-            } else if live.address_joins.contains(source) {
-                function
-                    .block_entries
-                    .iter()
-                    .flat_map(|entry| &entry.structural_parameters)
-                    .find(|parameter| {
-                        parameter.place == *source
-                            && abstract_operations::control_flow::address_joins::is_address_join(
-                                parameter,
-                                |identity| types.get(&identity).copied(),
-                            )
-                    })
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                    .structural_type
             } else {
-                prepared
-                    .parameters
+                function
+                    .structural_parameters
                     .iter()
+                    .chain(
+                        function
+                            .block_entries
+                            .iter()
+                            .flat_map(|entry| &entry.structural_parameters)
+                            .filter(|parameter| {
+                                live.address_joins.contains(&parameter.place)
+                                    || live.block_views.contains(&parameter.place)
+                            }),
+                    )
                     .find(|parameter| {
                         parameter.place == *source
                             && parameter.multiplicity != StructuralMultiplicity::Linear

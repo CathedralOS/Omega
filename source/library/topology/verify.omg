@@ -28,7 +28,7 @@
 //             facts, re-encoded; the artifact codec itself lives with
 //             component-description under COMPONENT-SUBSTRATE).
 //
-// `self.ok` is the parse/dispatch latch; `self.verdict` reports the
+// `verify.ok` is the parse/dispatch latch; `verify.verdict` reports the
 // outcome: 0 = CheckedPlan ("composition checked" — not installation
 // admission), otherwise the PlanRejection category:
 //   1 MalformedRequest      2 MalformedPlan          3 UnverifiedCompleteness
@@ -2853,7 +2853,7 @@ machine Verify::id_eq(verify: &mut Verify, a: u64 in Wrapping) {
 
 // Membership: does stored array `cb` (n entries of 32 bytes starting at
 // field offset `base`... no — the stored arrays are per-record blocks)
-// contain `ident`? Scans `self.m` entries of the selected table;
+// contain `ident`? Scans `verify.m` entries of the selected table;
 // `d0` = 1 found / 0 absent, `d1` = the matching index when found.
 machine Verify::id_member(verify: &mut Verify, n: u64 in Wrapping) {
     verify.m = 0;
@@ -3942,7 +3942,7 @@ machine Verify::check_coverage(verify: &mut Verify) {
 
 // ---- reachability ---------------------------------------------------------------
 // BFS over `adj` from the sources in `src` (bitmask), excluding vertices
-// in `excl` (bitmask) — `self.reach` collects the reached mask.
+// in `excl` (bitmask) — `verify.reach` collects the reached mask.
 machine Verify::reachable(verify: &mut Verify, src: u64 in Wrapping, excl: u64 in Wrapping) {
     verify.ja = src;
     verify.jb = excl;

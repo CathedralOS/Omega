@@ -66,14 +66,9 @@ pub(super) fn validate_structural_block_bindings(
                                             &module.structural_types,
                                         ) || parameter.multiplicity
                                             == terminal_psi::StructuralMultiplicity::Unrestricted
-                                            && matches!(
-                                                declaration.shape,
-                                                terminal_psi::StructuralTypeShape::ByteSequence(
-                                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                                ) | terminal_psi::StructuralTypeShape::ElementView {
-                                                    ..
-                                                }
-                                            )
+                                            && (declaration.shape.is_borrowed_byte_carrier()
+                                                || matches!(declaration.shape,
+                                                    terminal_psi::StructuralTypeShape::ElementView { .. }))
                                     }
                                     terminal_psi::StructuralAccess::WriteOnlyBorrow => false,
                                 }

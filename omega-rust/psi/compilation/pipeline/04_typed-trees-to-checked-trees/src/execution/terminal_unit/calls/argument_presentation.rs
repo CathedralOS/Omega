@@ -1,4 +1,4 @@
-//! Carrier presentation shared by ordinary and boundary calls.
+//! Carrier presentation shared by ordinary calls, boundary calls and state edges.
 //!
 //! This owner decides representation compatibility only. Call admission keeps
 //! source access, multiplicity, predicate obligations and live-loan custody.

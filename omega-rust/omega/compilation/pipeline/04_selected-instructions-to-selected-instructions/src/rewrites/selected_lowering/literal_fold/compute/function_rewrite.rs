@@ -299,11 +299,7 @@ fn redensify(
         };
         for successor in successors {
             for binding in &mut successor.structural_bindings {
-                if let selected_instructions::SelectedStructuralTransport::Descriptor {
-                    argument,
-                    ..
-                }
-                | selected_instructions::SelectedStructuralTransport::WholeValue {
+                if let selected_instructions::SelectedStructuralTransport::WholeValue {
                     argument,
                     ..
                 }

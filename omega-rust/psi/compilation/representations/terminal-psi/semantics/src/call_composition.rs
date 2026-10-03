@@ -7,8 +7,9 @@ pub use bounded_byte_owner::{
     bounded_byte_owner_capacity_in,
 };
 pub use fixed_byte_view::{
-    FixedByteArrayWindow, fixed_byte_array_extent, fixed_byte_array_window,
-    fixed_element_array_extent,
+    BorrowedReferentPresentation, FixedByteArrayWindow, borrowed_referent_matches,
+    borrowed_referent_presentation, fixed_byte_array_extent,
+    fixed_byte_array_window, fixed_element_array_extent,
 };
 
 use semantic_vocabulary::StructuralTypeId;

@@ -1,4 +1,4 @@
-//! Stored structural transports — `Descriptor` and `WholeValue` snapshot
+//! Stored structural transports — `WholeValue` snapshot
 //! arguments on an edge-transfer continuation — name the register holding the
 //! source place's address. The bridge's own chunk loads are the real uses of
 //! the victim; the binding's `argument` field must follow the single register
@@ -272,29 +272,8 @@ fn seal(source: &mut ValidatedRuntimeSpill) {
     source.receipt.transformed_selected = identity;
 }
 
-/// The `Descriptor` idiom: two 8-byte `Load64` chunk loads plus two `Store64`
-/// destination replacements; the continuation binding's `argument` is the
-/// victim register.
-fn descriptor_fixture(target: NativeTarget) -> ValidatedRuntimeSpill {
-    let mut source = cfg_fixture(target);
-    let environment = baseline_target_register_environment(target).unwrap();
-    let chunks = [(0, 8u8), (8, 8u8)];
-    snapshot_loads(&mut source, &environment, &chunks);
-    destination_stores(&mut source, &environment, &chunks, false);
-    let (slot, _) = destination();
-    structural_binding(
-        &mut source,
-        SelectedStructuralTransport::Descriptor {
-            argument: VirtualRegisterId(1),
-            destination: slot,
-        },
-    );
-    seal(&mut source);
-    source
-}
-
-/// The `WholeValue` idiom at a single chunk: one `Load64`, a `FrameAddress`
-/// pointer, and one typed `Store`.
+/// Snapshot every chunk, then replace the destination through a `FrameAddress`
+/// pointer and typed stores.
 fn whole_value_fixture(target: NativeTarget, byte_size: u16) -> ValidatedRuntimeSpill {
     let mut source = cfg_fixture(target);
     let environment = baseline_target_register_environment(target).unwrap();
@@ -423,7 +402,7 @@ fn structural_argument_uses_reject_unverifiable_or_ambiguous_plans() {
     for target in targets() {
         let environment = baseline_target_register_environment(target).unwrap();
         for mutation in 0..5 {
-            let mut source = descriptor_fixture(target);
+            let mut source = whole_value_fixture(target, 16);
             let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
             match mutation {
                 // No `ReadPlace` access stream: the binding cannot resolve.
@@ -504,7 +483,7 @@ fn unshareable_snapshot_arguments_take_a_dedicated_edge_reload() {
     for target in targets() {
         let environment = baseline_target_register_environment(target).unwrap();
         for shape in ["pinned", "separated", "trailing", "redefined", "crossable"] {
-            let mut source = descriptor_fixture(target);
+            let mut source = whole_value_fixture(target, 16);
             let mut pinned_view = None;
             match shape {
                 // A pinned chunk operand keeps a private pair while the
@@ -609,7 +588,7 @@ fn unshareable_snapshot_arguments_take_a_dedicated_edge_reload() {
                     .virtual_register;
                 let second = bridge_instruction(&result.transformed().functions[0], 11).operands[0]
                     .virtual_register;
-                let SelectedStructuralTransport::Descriptor { argument, .. } =
+                let SelectedStructuralTransport::WholeValue { argument, .. } =
                     bridge_terminator_binding(&result.transformed().functions[0])
                 else {
                     unreachable!()
@@ -687,7 +666,7 @@ fn unshareable_snapshot_arguments_take_a_dedicated_edge_reload() {
                             else {
                                 unreachable!()
                             };
-                            let SelectedStructuralTransport::Descriptor { argument, .. } =
+                            let SelectedStructuralTransport::WholeValue { argument, .. } =
                                 &mut successor.structural_bindings[0].transport
                             else {
                                 unreachable!()
@@ -702,7 +681,7 @@ fn unshareable_snapshot_arguments_take_a_dedicated_edge_reload() {
                             else {
                                 unreachable!()
                             };
-                            let SelectedStructuralTransport::Descriptor { argument, .. } =
+                            let SelectedStructuralTransport::WholeValue { argument, .. } =
                                 &mut successor.structural_bindings[0].transport
                             else {
                                 unreachable!()
@@ -960,9 +939,11 @@ fn structural_argument_on_the_victims_own_incoming_edge_stays_rejected() {
         let (slot, _) = destination();
         structural_binding(
             &mut source,
-            SelectedStructuralTransport::Descriptor {
+            SelectedStructuralTransport::WholeValue {
                 argument: VirtualRegisterId(1),
                 destination: slot,
+                byte_size: 16,
+                alignment: 8,
             },
         );
         seal(&mut source);

@@ -261,10 +261,6 @@ fn sole_use_site(
                         argument,
                         ..
                     }
-                    | selected_instructions::SelectedStructuralTransport::Descriptor {
-                        argument,
-                        ..
-                    }
                     | selected_instructions::SelectedStructuralTransport::Address {
                         base: selected_instructions::SelectedAddressBase::Register(argument),
                         ..
@@ -2392,10 +2388,6 @@ fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId)
                             argument,
                             ..
                         }
-                        | selected_instructions::SelectedStructuralTransport::Descriptor {
-                            argument,
-                            ..
-                        }
                         | selected_instructions::SelectedStructuralTransport::Address {
                             base: selected_instructions::SelectedAddressBase::Register(argument),
                             ..
@@ -3208,11 +3200,7 @@ fn redensify(
         };
         for successor in successors {
             for binding in &mut successor.structural_bindings {
-                if let selected_instructions::SelectedStructuralTransport::Descriptor {
-                    argument,
-                    ..
-                }
-                | selected_instructions::SelectedStructuralTransport::WholeValue {
+                if let selected_instructions::SelectedStructuralTransport::WholeValue {
                     argument,
                     ..
                 }

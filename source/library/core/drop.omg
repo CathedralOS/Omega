@@ -3,7 +3,7 @@
 // `drop<T>` is the ordinary consuming machine for ending a value's lifetime
 // early: `omega::language::core::drop::drop(value)` moves the whole value in,
 // and the callee's return edge applies the same checked cleanup plan that
-// scope exit would — the exact owner-attached `T::drop(&mut self)` hook when
+// scope exit would — the exact owner-attached `T::drop(value: &mut T)` hook when
 // one exists, then structural field cleanup. The hook is compiler-selected at
 // the edge; it is never an authored call target, trait requirement, or
 // separately named conformance. Erased fields remain semantically present in
@@ -11,7 +11,7 @@
 // runtime cleanup actions.
 //
 // The body is intentionally empty: `value` reaches its checked cleanup edge
-// here. This is not a direct call to `T::drop(&mut self)`; cleanup runs at the
+// here. This is not a direct call to `T::drop`; cleanup runs at the
 // edge under the ownership contract, not inside authored statements.
 
 pub machine drop<T>(value: T) {

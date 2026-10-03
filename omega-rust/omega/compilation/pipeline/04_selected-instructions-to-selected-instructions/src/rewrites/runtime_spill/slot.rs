@@ -529,10 +529,6 @@ fn classify(function: &SelectedFunction, slot: LocalStorageSlotId) -> Option<Can
                     selected_instructions::SelectedStructuralTransport::WholeValue {
                         destination,
                         ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::Descriptor {
-                        destination,
-                        ..
                     } => destination == slot,
                     selected_instructions::SelectedStructuralTransport::Address {
                         base,
@@ -607,10 +603,6 @@ fn classify(function: &SelectedFunction, slot: LocalStorageSlotId) -> Option<Can
                     }) || successor.structural_bindings.iter().any(|binding| {
                     match binding.transport {
                         selected_instructions::SelectedStructuralTransport::WholeValue {
-                            argument,
-                            ..
-                        }
-                        | selected_instructions::SelectedStructuralTransport::Descriptor {
                             argument,
                             ..
                         } => slot_addresses.contains(&argument),

@@ -798,10 +798,6 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
                 argument,
                 destination,
                 ..
-            }
-            | SelectedStructuralTransport::Descriptor {
-                argument,
-                destination,
             } => (Some(argument), destination, None),
             SelectedStructuralTransport::Address {
                 base, destination, ..

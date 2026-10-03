@@ -47,12 +47,8 @@ pub(super) fn validate(
                         parameter.access == StructuralAccess::Owned
                             || address_join(parameter, types)
                             || shared_view_carrier(parameter, types)
-                            || matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    ByteSequenceCarrier::BorrowedView { .. }
-                                ) | StructuralTypeShape::ElementView { .. }
-                            )
+                            || declaration.shape.is_borrowed_byte_carrier()
+                            || matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
                     })
                 || !function.structural_places.iter().any(|place| {
                     place.id == parameter.place
@@ -167,18 +163,25 @@ pub(super) fn validate(
                 } else {
                     binding.argument.path.is_empty()
                         && source.is_some_and(|(source_type, access, multiplicity)| {
-                            source_type == parameter.structural_type
-                                // A borrowed arrival carries permission over the
+                            // A borrowed arrival carries permission over the
                                 // source, not ownership of its descriptor. Its
                                 // declaration does not erase the affine result's
                                 // separate custody and cleanup obligations.
-                                && match parameter.access {
-                                    StructuralAccess::Owned => access == StructuralAccess::Owned
+                                match parameter.access {
+                                    StructuralAccess::Owned => source_type == parameter.structural_type
+                                        && access == StructuralAccess::Owned
                                         && multiplicity == parameter.multiplicity,
-                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow =>
-                                        matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
-                                            && super::super::operation_contracts::structural_access_can_supply(access, parameter.access)
-                                            && multiplicity != StructuralMultiplicity::Linear,
+                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
+                                        let presentation = terminal_semantics::borrowed_referent_presentation(
+                                            types.values().copied(), source_type, parameter.structural_type);
+                                        let lends_backing = matches!(presentation,
+                                            Some(terminal_semantics::BorrowedReferentPresentation::AddressOfBacking { .. }));
+                                        presentation.is_some()
+                                            && (access == StructuralAccess::Owned && lends_backing
+                                                || matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+                                                    && super::super::operation_contracts::structural_access_can_supply(access, parameter.access))
+                                            && multiplicity != StructuralMultiplicity::Linear
+                                    },
                                     StructuralAccess::WriteOnlyBorrow => false,
                                 }
                         })

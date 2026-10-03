@@ -36,8 +36,7 @@ fn address(transport: SelectedStructuralTransport) -> Option<Address> {
             destination,
         } => Some((base, byte_offset, byte_count, destination)),
         SelectedStructuralTransport::Unused
-        | SelectedStructuralTransport::WholeValue { .. }
-        | SelectedStructuralTransport::Descriptor { .. } => None,
+        | SelectedStructuralTransport::WholeValue { .. } => None,
     }
 }
 

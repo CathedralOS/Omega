@@ -349,7 +349,6 @@ pub(crate) fn stored_transport_size(transport: SelectedStructuralTransport) -> O
     match transport {
         // An address transport stores a pointer it forms; it snapshots nothing.
         SelectedStructuralTransport::Unused | SelectedStructuralTransport::Address { .. } => None,
-        SelectedStructuralTransport::Descriptor { .. } => Some(16),
         SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(u32::from(byte_size)),
     }
 }
