@@ -503,3 +503,137 @@ fn shared_call_carriers_defer_domains_for_every_reference_producer() {
         );
     }
 }
+
+fn inline_recast_argument(program: &TypedTrees) -> ExpressionHandle {
+    program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Borrow(borrow) = node else {
+                return None;
+            };
+            matches!(program.expression_table.expression(borrow.target),
+                ExpressionNode::Cast(cast) if cast.form.is_recast())
+            .then_some(handle)
+        })
+        .expect("the normalized inline recast retains its borrow shell")
+}
+
+#[test]
+fn inline_recast_arguments_preserve_target_carrier_qualification_and_access() {
+    // This is argument correspondence, not recast admission: the separate
+    // representation judgment still proves the source can supply the target.
+    for (expression, required, declared, runtime) in [
+        ("&mut storage[0] as &mut [u8]", "&mut [u8]", true, true),
+        ("&storage[0] as &[u8]", "&[u8]", true, true),
+        ("&mut storage[0] as &mut [u8]", "&[u8]", false, true),
+        ("&storage[0] as &[u8]", "&mut [u8]", false, false),
+        ("&mut storage[0] as &mut [u8]", "&write [u8]", false, false),
+        ("&mut storage[0] as &mut [u8]", "&mut [u16]", false, false),
+        ("&storage[0] as &[u8]", "&[u16]", false, false),
+        (
+            "&mut storage[0] as &mut [u8]",
+            "&mut [u8] in Ascii",
+            false,
+            false,
+        ),
+        ("&storage[0] as &[u8]", "&[u8] in Ascii", false, false),
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "domain [u8]::Ascii(bytes) requires ascii_only(bytes);
+             machine inspect(storage: &mut [u8; 8], expected: {required}) {{ {expression}; }}"
+        ));
+        let argument = inline_recast_argument(&program);
+        assert_eq!(
+            argument_matches_type_reference_handle(&program, argument, expected(&program)),
+            declared,
+            "declaration correspondence: {expression} to {required}"
+        );
+        assert_eq!(
+            argument_matches_carrier(&program, argument, expected(&program)),
+            runtime,
+            "runtime correspondence: {expression} to {required}"
+        );
+    }
+}
+
+#[test]
+fn inline_recast_arguments_match_exact_selected_generic_elements() {
+    let program = crate::front_end::typed_program(
+        "machine inspect<Element>(storage: &mut [u8; 8], expected: &mut [Element],
+                                  selected: &u8, wrong: &u16) {
+             &mut storage[0] as &mut [u8];
+         }",
+    );
+    let machine = &program.machines()[0];
+    let parameters = program.state_parameters(&program.machine_states(machine)[0]);
+    let formal = program.machine_type_parameters(machine)[0].symbol;
+    let argument = inline_recast_argument(&program);
+    assert!(!argument_matches_carrier(
+        &program,
+        argument,
+        expected(&program)
+    ));
+    for (position, accepted) in [(2, true), (3, false)] {
+        let TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(parameters[position].type_reference)
+        else {
+            panic!("selected carrier")
+        };
+        assert_eq!(
+            argument_matches_carrier_with_substitutions(
+                &program,
+                argument,
+                expected(&program),
+                &[(formal, *referee)]
+            ),
+            accepted
+        );
+    }
+}
+
+#[test]
+fn inline_recast_arguments_do_not_rebind_inserted_caller_types() {
+    let program = crate::front_end::typed_program(
+        "machine inspect<Required, Caller>(storage: &mut [u8; 8], expected: &mut Required,
+                                           selected: &mut [Caller], wrong: &u16) {
+             &mut storage[0] as &mut [Caller];
+         }",
+    );
+    let machine = &program.machines()[0];
+    let parameters = program.state_parameters(&program.machine_states(machine)[0]);
+    let formals = program.machine_type_parameters(machine);
+    let referee = |position: usize| {
+        let TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(parameters[position].type_reference)
+        else {
+            panic!("reference carrier")
+        };
+        *referee
+    };
+    let argument = inline_recast_argument(&program);
+    let bindings = [
+        (formals[0].symbol, referee(2)),
+        (formals[1].symbol, referee(3)),
+    ];
+    assert!(
+        argument_matches_carrier_with_substitutions(
+            &program,
+            argument,
+            expected(&program),
+            &bindings
+        ),
+        "Required selects the caller's [Caller]; Caller must not then become u16"
+    );
+    assert!(
+        !argument_matches_carrier_with_substitutions(
+            &program,
+            argument,
+            expected(&program),
+            &[(formals[0].symbol, referee(3))]
+        ),
+        "a different selected carrier remains incompatible"
+    );
+}

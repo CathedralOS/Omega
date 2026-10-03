@@ -1,0 +1,95 @@
+// Inline shared byte and record views retain their captured backing window.
+// Scalar observations through the record slice replay their exact field and
+// index while independent bounds proofs retain the live descriptor extent.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair {
+    low: u16;
+    high: u16;
+}
+
+data Main {
+    console: Binding<Console>;
+    tail_bytes: [u8; 8];
+    pair_bytes: [u8; 12];
+    k: u32 [0..=4];
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.k = 3;
+    main.tail_bytes[7] = 9;
+    main.pair_bytes[4] = 1;
+    main.pair_bytes[5] = 2;
+    main.pair_bytes[6] = 3;
+    main.pair_bytes[7] = 4;
+    main.pair_bytes[8] = 5;
+    main.pair_bytes[9] = 6;
+    main.pair_bytes[10] = 7;
+    main.pair_bytes[11] = 8;
+
+    transition main.k < 4 {
+        true -> write_tail(main, &main.tail_bytes[main.k] as &[u8])
+        _ -> bad_tail_length(main)
+    }
+
+    state write_tail(main: &mut Main, tail: &[u8]) {
+    transition tail.len > 4 {
+        true -> write_tail_bytes(main, tail)
+        _ -> bad_tail_length(main)
+    }
+    }
+
+    state write_tail_bytes(main: &mut Main, tail: &[u8]) {
+    // Changing the selector cannot relocate the captured descriptor.
+    main.k = 1;
+    transition tail.len == 5 && tail[4] == 9 {
+        true -> check_tail_backing(main)
+        _ -> bad_tail_write(main)
+    }
+    }
+
+    state check_tail_backing(main: &mut Main) {
+    transition main.tail_bytes[7] == 9 {
+        true -> pair_view(main)
+        _ -> bad_tail_write(main)
+    }
+    }
+
+    state pair_view(main: &mut Main) {
+    transition main.k == 1 {
+        true -> write_pairs(main, &main.pair_bytes[4] as &[Pair])
+        _ -> bad_pair_length(main)
+    }
+    }
+
+    state write_pairs(main: &mut Main, pairs: &[Pair]) {
+    transition pairs.len > 1 {
+        true -> write_pair_fields(main, pairs)
+        _ -> bad_pair_length(main)
+    }
+    }
+
+    state write_pair_fields(main: &mut Main, pairs: &[Pair]) {
+    transition pairs.len == 2 && pairs[0].low == 0x0201 && pairs[0].high == 0x0403 && pairs[1].low == 0x0605 && pairs[1].high == 0x0807 {
+        true -> check_pair_backing(main)
+        _ -> bad_pair_write(main)
+    }
+    }
+
+    state check_pair_backing(main: &mut Main) {
+    transition main.pair_bytes[4] == 1 && main.pair_bytes[5] == 2
+        && main.pair_bytes[6] == 3 && main.pair_bytes[7] == 4
+        && main.pair_bytes[8] == 5 && main.pair_bytes[9] == 6
+        && main.pair_bytes[10] == 7 && main.pair_bytes[11] == 8 {
+        true -> good(main)
+        _ -> bad_pair_write(main)
+    }
+    }
+
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad_tail_length(main: &mut Main) { main.console.exit_process(71); }
+    state bad_tail_write(main: &mut Main) { main.console.exit_process(72); }
+    state bad_pair_length(main: &mut Main) { main.console.exit_process(73); }
+    state bad_pair_write(main: &mut Main) { main.console.exit_process(74); }
+}

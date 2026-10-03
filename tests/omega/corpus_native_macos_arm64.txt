@@ -894,6 +894,8 @@ pass/recast/runtime_aggregate_slice_representation_recast_exit built 4750ms exit
 pass/recast/runtime_bool_representation_recast_exit built 874ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_float_range_representation_recast_exit built 1687ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def922
+pass/recast/runtime_inline_shared_slice_record_read_exit built 1915ms exit:70 @3b624377ec31
+pass/recast/runtime_inline_slice_view_mutable_write_exit built 1715ms exit:70 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit built 1515ms exit:70 @48008365d839
 pass/recast/runtime_interior_slice_congruent_offset_exit built 1004ms exit:70 @57fc72937714+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
@@ -903,6 +905,7 @@ pass/recast/runtime_mutable_equivalent_range_recast_exit built 1178ms exit:70 @4
 pass/recast/runtime_mutable_equivalent_record_recast_exit built 2362ms exit:70 @a2c11620030e
 pass/recast/runtime_nested_record_byte_store_exit built 975ms exit:70 @2517a050d7b4+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1791ms exit:70 @48008365d839
+pass/recast/runtime_recast_record_view_indexed_write_exit built 1576ms exit:70 @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit built 3951ms exit:70 @06ca7704be0a
 pass/recast/runtime_scalar_parameter_shared_views_exit built 990ms exit:70 @7e0a52664189
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922

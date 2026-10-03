@@ -1482,6 +1482,14 @@ fn collect_scalar_storage_reads(
             element_path,
             primitive_type,
         } => {
+            // Selector-only read inventory cannot authenticate a parameter
+            // view's record field. Replay its exact collection and field even
+            // when this expression contains no other view-length observation.
+            if matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. })
+                && !element_path.is_empty()
+            {
+                *needs_value_replay = true;
+            }
             // A nested read (`self.a[i][k]`) places its selectors where the
             // authored walk visits them: the top indexing's selector -- the
             // last one applied -- at `[0]`, each enclosing one a level deeper

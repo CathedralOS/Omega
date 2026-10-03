@@ -2093,6 +2093,8 @@ pass/recast/runtime_aggregate_slice_representation_recast_exit checked 5206ms @9
 pass/recast/runtime_bool_representation_recast_exit checked 1642ms @a3bac00e54bb+wt
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms @a3bac00e54bb+wt
 pass/recast/runtime_guarded_offset_recast_exit checked 1534ms @a3bac00e54bb+wt
+pass/recast/runtime_inline_shared_slice_record_read_exit checked 2196ms @3b624377ec31
+pass/recast/runtime_inline_slice_view_mutable_write_exit checked 1981ms @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit checked 1553ms @a3bac00e54bb+wt
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 911ms @57fc72937714+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit checked 1199ms @c851c47b7cd1
@@ -2101,6 +2103,7 @@ pass/recast/runtime_mutable_equivalent_range_recast_exit checked 1194ms @a3bac00
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 5307ms @a3bac00e54bb+wt
 pass/recast/runtime_nested_record_byte_store_exit checked 1232ms @a3bac00e54bb+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms @a3bac00e54bb+wt
+pass/recast/runtime_recast_record_view_indexed_write_exit checked 1653ms @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit checked 3863ms @def08a434d7a+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 2961ms @9782e38b64ab+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms @a3bac00e54bb+wt

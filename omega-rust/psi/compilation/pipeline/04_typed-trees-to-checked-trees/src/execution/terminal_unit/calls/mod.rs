@@ -51,7 +51,7 @@ pub(crate) use signatures::{
     partial_affine_structural_signature, structural_scalar_signature,
     structural_scalar_signature_traced, structural_signature,
 };
-pub(crate) use structural_arguments::call_claim_transfers;
+pub(crate) use structural_arguments::{call_claim_transfers, exact_structural_borrow_access};
 pub(crate) use structural_result_call::{
     view_self_member_symbol, view_source_parameter_is_mutable,
 };

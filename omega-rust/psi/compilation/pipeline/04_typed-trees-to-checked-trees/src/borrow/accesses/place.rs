@@ -11,6 +11,69 @@ pub(crate) fn borrow_access_place(
     expression: ExpressionHandle,
     machine_symbol: SymbolHandle,
 ) -> Option<BorrowAccessPlace> {
+    // An indexed recast can cover more than its selected element. Replay the
+    // same footprint judgment used by retained local loans before ordinary
+    // place descent, retaining the complete literal or conservative suffix.
+    let mut viewed = expression;
+    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(viewed) {
+        viewed = borrow.target;
+    }
+    if let ExpressionNode::Cast(cast) = program.expression_table.expression(viewed)
+        && cast.form.is_recast()
+    {
+        let mut source = cast.value;
+        while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
+            source = borrow.target;
+        }
+        if matches!(
+            program.expression_table.expression(source),
+            ExpressionNode::Indexed(_)
+        ) {
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
+            let state = crate::semantic::calls::find_state(program, state_symbol)?;
+            let access = if cast.form == language_core::cast_form::CastForm::RecastMutable {
+                language_semantics::ReferenceAccess::Mutable
+            } else {
+                language_semantics::ReferenceAccess::Shared
+            };
+            if let Some(footprint) = validation::validate_literal_indexed_recast_footprint(
+                program,
+                machine,
+                state,
+                expression,
+                cast.target_type,
+                access,
+            ) {
+                let mut place = borrow_access_place(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    footprint.collection(),
+                    machine_symbol,
+                )?;
+                place.segments.push(facts::PlaceSegment::FixedRange {
+                    start: footprint.start(),
+                    end: footprint.end(),
+                });
+                return Some(place);
+            }
+            let source = validation::validate_runtime_indexed_recast_source(
+                program,
+                machine,
+                state,
+                expression,
+                cast.target_type,
+                access,
+            )?;
+            return borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                source,
+                machine_symbol,
+            );
+        }
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(_) => None,
         ExpressionNode::Indexed(indexed) => {
@@ -114,11 +177,8 @@ pub(crate) fn borrow_access_place(
         }
         // A recast re-views the SAME backing storage under another stated
         // shape (§5b): its access place is the source place, so `&x as &T`
-        // conflicts exactly where `&x` would. Restricted to whole-place
-        // sources -- an indexed recast's validated byte-region footprint can
-        // cover neighbouring elements, and an element-granularity place
-        // would understate it; literal ranges publish `FixedRange` loans
-        // through `literal_indexed_recast_borrow_place` instead.
+        // conflicts exactly where `&x` would. Indexed footprints were
+        // independently validated above; this arm retains whole-place identity.
         ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             let mut source = cast.value;
             while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {

@@ -2187,9 +2187,13 @@ fn successor_bindings(
                 && target.multiplicity == Multiplicity::Unrestricted
                 && matches!(program.expression_table.expression(expression), ExpressionNode::Borrow(borrow)
                     if borrow.access == language_core::ReferenceAccess::Mutable);
-            if target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view || mutable_local {
+            // Fresh inline values have no retained source place. Only local
+            // result forwarding needs one; its absence leaves construction
+            // to the ordinary selected-edge establishment below.
+            if (target.access == CheckedStructuralAccess::Owned || shared_view || mutable_view || mutable_local)
+                && let Some(place) = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)
+            {
                 mark(SuccessorGuard::ResultTransfer);
-                let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
                     let mut matches = operations.iter()
                         .filter(|operation| !operand_owned_construction(operation))
@@ -2230,14 +2234,12 @@ fn successor_bindings(
                     }
                 }
             }
-            if let Some((subject_place, selected_case)) = &case_test {
+            if let Some((subject_place, selected_case)) = &case_test
+                && let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                    program, source.symbol, ordinal as usize, expression,
+                )
+            {
                 mark(SuccessorGuard::CasePayloadTransfer);
-                let place = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    source.symbol,
-                    ordinal as usize,
-                    expression,
-                )?;
                 if let Some(source) = case_payload_transfer(
                     program,
                     place,
@@ -2268,16 +2270,51 @@ fn successor_bindings(
             // own move roster subtracts it from this edge's cleanup. Nested
             // structural operands remain in the edge's operation sequence;
             // they run after selection through the ordinary call emitter.
-            if target.access == CheckedStructuralAccess::Owned
-                && let Some(root) = facts.values.structural_values.root_for_expression(
+            if let Some(root) = facts.values.structural_values.root_for_expression(
                     source.symbol,
                     ordinal,
                     expression,
                 )
                 && root.machine == machine.symbol
-                && program.normalized_type_identity(root.type_reference).into_string()
-                    == target.type_identity
+                && (target.access == CheckedStructuralAccess::Owned
+                    || validation::slice_view_shell(program, root.type_reference, &[]).is_some())
             {
+                let multiplicity = if target.access == CheckedStructuralAccess::Owned {
+                    if program.normalized_type_identity(root.type_reference).as_str()
+                        != target.type_identity
+                    {
+                        return None;
+                    }
+                    target.multiplicity
+                } else {
+                    // A descriptor is constructed here just as in a local
+                    // initializer. Its mutable producer owes affine cleanup;
+                    // the successor borrows it and does not acquire that debt.
+                    // Type correspondence does not grant the backing loan:
+                    // the registered value already rejoins its exact call
+                    // occurrence and ordered checked borrow accesses.
+                    let view = validation::slice_view_shell(program, root.type_reference, &[])?;
+                    let access: CheckedStructuralAccess = view.access.into();
+                    let parameter = target_parameters.get(target.position as usize)?;
+                    if access != target.access
+                        || target.multiplicity != Multiplicity::Unrestricted
+                        || program.normalized_type_identity(root.type_reference)
+                            != program.normalized_type_identity(parameter.type_reference)
+                        || super::types::base_type_identity(program, root.type_reference, &[])?
+                            != target.type_identity
+                    {
+                        return None;
+                    }
+                    // Custody follows the declared access. Common structural
+                    // establishment authenticates the registered producer,
+                    // including descriptor copies from a record field; the
+                    // edge must not maintain another producer-kind catalog.
+                    match access {
+                        CheckedStructuralAccess::SharedBorrow => Multiplicity::Unrestricted,
+                        CheckedStructuralAccess::MutableBorrow => Multiplicity::Affine,
+                        _ => return None,
+                    }
+                };
                 // Edge-local bindings number after the state's own results,
                 // so no source result ordinal is reused on this edge.
                 // Scratch includes the predecessor's result producers so the
@@ -2307,7 +2344,7 @@ fn successor_bindings(
                     statement_index: ordinal,
                     binding_ordinal: u32::try_from(result_count).ok()?,
                     type_identity: target.type_identity.clone(),
-                    multiplicity: target.multiplicity,
+                    multiplicity,
                 };
                 let establishment = control::structural_operands::establish_value(
                     facts, result, root.root, calls, None, false, &mut operand_calls,

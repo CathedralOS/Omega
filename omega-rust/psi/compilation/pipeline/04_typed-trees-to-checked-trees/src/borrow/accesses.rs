@@ -27,6 +27,8 @@ mod dispatch_extraction;
 mod place;
 mod read;
 mod records;
+mod replay;
+pub(crate) use replay::rejoin_call_accesses;
 
 use collection::BorrowAccessCollection;
 pub(crate) use place::{BorrowAccessPlace, borrow_access_place};
@@ -144,7 +146,7 @@ fn collect_argument_accesses(
     match collection.program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner_expression) => {
             read::collect_place_evaluation_reads(collection, inner_expression.target);
-            if let Some(access_place) = collection.borrow_access_place(inner_expression.target) {
+            if let Some(access_place) = collection.borrow_access_place(expression) {
                 collection.append_argument_access(
                     access_place,
                     borrow_access_kind(inner_expression.access),

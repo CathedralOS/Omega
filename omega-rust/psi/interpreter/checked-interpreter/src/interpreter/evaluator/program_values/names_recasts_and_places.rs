@@ -126,26 +126,24 @@ impl<'program> Evaluator<'program> {
         Ok(value)
     }
 
-    /// Recognize the parser's `Mutable(Cast(RecastMutable))` initializer and
-    /// retain either one equal-width scalar cell or the complete indexed byte
-    /// region behind the stated scalar view.
-    pub(in crate::interpreter::evaluator) fn mutable_scalar_recast_initializer(
+    /// Retain the original cells and captured coordinates of a reference
+    /// recast, whether shared or mutable. The checked reference type owns
+    /// access; this descriptor owns representation and backing identity.
+    pub(in crate::interpreter::evaluator) fn reference_recast_initializer(
         &mut self,
         initializer: ExpressionHandle,
         frame: &mut Frame,
     ) -> EvalResult<Option<(Cell, MutableScalarRecast)>> {
         let cast_handle = match self.program.expression_table.expression(initializer) {
             ExpressionNode::Borrow(inner) => inner.target,
-            ExpressionNode::Cast(cast) if cast.form == language_core::CastForm::RecastMutable => {
-                initializer
-            }
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => initializer,
             _ => return Ok(None),
         };
         let ExpressionNode::Cast(cast) = self.program.expression_table.expression(cast_handle)
         else {
             return Ok(None);
         };
-        if cast.form != language_core::CastForm::RecastMutable {
+        if !cast.form.is_recast() {
             return Ok(None);
         }
         let target = self.cast_target_primitive(cast.target_type);
@@ -264,13 +262,13 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Option<(MutableScalarRecast, Vec<MutableRecordProjectionStep>)>> {
         match self.program.expression_table.expression(handle).clone() {
             ExpressionNode::Borrow(inner) => {
-                if let Some((_, recast)) = self.mutable_scalar_recast_initializer(handle, frame)? {
+                if let Some((_, recast)) = self.reference_recast_initializer(handle, frame)? {
                     return Ok(Some((recast, Vec::new())));
                 }
                 self.mutable_recast_path(inner.target, frame)
             }
             ExpressionNode::Cast(cast) if cast.form.is_recast() => Ok(self
-                .mutable_scalar_recast_initializer(handle, frame)?
+                .reference_recast_initializer(handle, frame)?
                 .map(|(_, recast)| (recast, Vec::new()))),
             ExpressionNode::Name(path) => {
                 let members = self
