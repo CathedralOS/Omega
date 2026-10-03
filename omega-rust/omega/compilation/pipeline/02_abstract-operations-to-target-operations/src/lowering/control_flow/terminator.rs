@@ -317,7 +317,7 @@ pub(super) fn lower_terminator(
                     .get(source)
                     .filter(|home| {
                         home.multiplicity() == StructuralMultiplicity::Unrestricted
-                            && home.qualifications().is_empty()
+                            && home.qualifications() == result.qualifications
                             && home.projected_qualifications().is_empty()
                     })
                     .map(|home| home.structural_type())
@@ -338,14 +338,17 @@ pub(super) fn lower_terminator(
                                     && parameter.multiplicity
                                         == StructuralMultiplicity::Unrestricted
                                     && !parameter.is_self
-                                    && parameter.qualifications.is_empty()
+                                    && parameter.qualifications == result.qualifications
                                     && parameter.projected_qualifications.is_empty()
                             })
                             .map(|parameter| parameter.structural_type)
                     });
                 if source_type != Some(result.structural_type)
                     || result.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !result.qualifications.is_empty()
+                    || (!result.qualifications.is_empty()
+                        && !structural_types.get(&result.structural_type).is_some_and(
+                            |declaration| declaration.shape.supports_result_qualifications(),
+                        ))
                     || !result.projected_qualifications.is_empty()
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()

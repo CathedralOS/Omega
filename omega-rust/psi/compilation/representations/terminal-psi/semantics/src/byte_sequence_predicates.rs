@@ -158,11 +158,12 @@ pub fn byte_qualification_predicates_in<'domain>(
     Some(predicates)
 }
 
-/// Authenticate the owned bytes imported by one ordinary normal completion.
-/// This query imports only the exact callee signature, never incidental facts
-/// about its initializer. Receiving validation separately checks the callee
-/// body, call obligations and producer dominance.
-pub fn byte_owned_call_result<'machine>(
+/// The one signature join a byte call result answers to, independent of
+/// whether the callee's carrier owns the bytes or views them: an exact
+/// producer, an unrestricted result spelling the exact callee signature with
+/// no projected claims or loan sources. The carrier itself is each query's
+/// own gate — owned bytes and shared views authenticate identically to here.
+fn authenticated_call_result<'machine>(
     module: &TerminalModule,
     machine: &'machine TerminalMachine,
     source: PlaceId,
@@ -205,17 +206,59 @@ pub fn byte_owned_call_result<'machine>(
         && signature.reference_sources.is_empty()
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
-        && result.claims.is_empty()
-        && module.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
+        && result.claims.is_empty())
+    .then_some(result)
+}
+
+/// Authenticate the owned bytes imported by one ordinary normal completion.
+/// This query imports only the exact callee signature, never incidental facts
+/// about its initializer. Receiving validation separately checks the callee
+/// body, call obligations and producer dominance.
+pub fn byte_owned_call_result<'machine>(
+    module: &TerminalModule,
+    machine: &'machine TerminalMachine,
+    source: PlaceId,
+) -> Option<&'machine terminal_psi::StructuralOperationResult> {
+    let result = authenticated_call_result(module, machine, source)?;
+    module
+        .structural_types
+        .iter()
+        .any(|declaration| {
+            declaration.id == result.structural_type
                 && matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                     )
                 )
-        }))
-    .then_some(result)
+        })
+        .then_some(result)
+}
+
+/// Authenticate the shared borrowed view imported by one ordinary normal
+/// completion — the same exact callee signature as the owned form; the loan
+/// itself, not byte ownership, is what the result carries.
+pub fn byte_view_call_result<'machine>(
+    module: &TerminalModule,
+    machine: &'machine TerminalMachine,
+    source: PlaceId,
+) -> Option<&'machine terminal_psi::StructuralOperationResult> {
+    let result = authenticated_call_result(module, machine, source)?;
+    module
+        .structural_types
+        .iter()
+        .any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow)
+                        }
+                    )
+                )
+        })
+        .then_some(result)
 }
 
 /// The declared primitive predicates of an exact established owned byte result.
@@ -277,45 +320,35 @@ fn byte_result_predicates(
         .iter()
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == producer)?;
-    let result = operation.result.structural()?;
-    if result.place != source
-        || result.structural_type != structural_type
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !result.projected_qualifications.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !result.claims.is_empty()
-        || !module.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            | terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                access: None | Some(StructuralAccess::SharedBorrow)
-                            }
-                    )
+    let result = if matches!(
+        operation.kind,
+        OperationKind::CallStructural { .. }
+            | OperationKind::CallStructuralWithScalarArguments { .. }
+    ) {
+        authenticated_call_result(module, machine, source)?
+    } else {
+        let result = operation.result.structural()?;
+        (result.place == source
+            && result.structural_type == structural_type
+            && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && result.projected_qualifications.is_empty()
+            && result.qualification_establishments.is_empty()
+            && result.claims.is_empty())
+        .then_some(result)?
+    };
+    if !module.structural_types.iter().any(|declaration| {
+        declaration.id == structural_type
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow)
+                        }
                 )
-        })
-    {
+            )
+    }) {
         return None;
-    }
-    if let OperationKind::CallStructural { callee, .. }
-    | OperationKind::CallStructuralWithScalarArguments { callee, .. } = operation.kind
-    {
-        let signature = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == callee)?
-            .result
-            .structural()?;
-        if signature.structural_type != structural_type
-            || signature.multiplicity != result.multiplicity
-            || signature.qualifications != result.qualifications
-            || !signature.projected_qualifications.is_empty()
-            || !signature.reference_sources.is_empty()
-        {
-            return None;
-        }
     }
     byte_qualification_predicates_in(
         module.structural_domains.iter(),

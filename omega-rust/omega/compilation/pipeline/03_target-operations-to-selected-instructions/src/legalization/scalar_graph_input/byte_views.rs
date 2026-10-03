@@ -194,7 +194,10 @@ pub(in crate::legalization) fn shared_return(
     };
     if view_type(function, place, types) != Some(declared.structural_type)
         || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !declared.qualifications.is_empty()
+        || (!declared.qualifications.is_empty()
+            && !types.iter().any(|row| {
+                row.id == declared.structural_type && row.shape.supports_result_qualifications()
+            }))
         || !declared.projected_qualifications.is_empty()
         || !terminal_semantics::descriptor_results::is_shared_descriptor(
             types.iter(),
@@ -209,13 +212,13 @@ pub(in crate::legalization) fn shared_return(
             terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::SharedBorrow
         ) && parameter.multiplicity == declared.multiplicity
             && !parameter.is_self
-            && parameter.qualifications.is_empty()
+            && parameter.qualifications == declared.qualifications
             && parameter.projected_qualifications.is_empty();
     }
     if let Ok((_, result)) = super::structural_case::source_result(function, place) {
         return result.multiplicity == declared.multiplicity
             && result.claims.is_empty()
-            && result.qualifications.is_empty()
+            && result.qualifications == declared.qualifications
             && result.projected_qualifications.is_empty()
             && result.qualification_establishments.is_empty();
     }
@@ -311,7 +314,10 @@ pub(in crate::legalization) fn descriptor_result(
 )> {
     let (producer, result) = super::structural_case::source_result(function, place).ok()?;
     (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
+        && (result.qualifications.is_empty()
+            || types.iter().any(|row| {
+                row.id == result.structural_type && row.shape.supports_result_qualifications()
+            }))
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()

@@ -52,12 +52,6 @@ pub(in crate::execution::terminal_unit) fn signature(
         .then_some(CheckedControlResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
-    let qualifications = parameter_qualifications(program, shapes, reference, &[])?;
-    let represented_copy = multiplicity == Multiplicity::Unrestricted
-        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
-    let owned_bytes = multiplicity == Multiplicity::Unrestricted
-        && validation::bounded_byte_buffer_capacity(program, reference).is_some()
-        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
     // A `&mut T` result is the reference family's mutable custody kind: it
     // loans one exact place of callee storage rather than owning fresh
     // contents, whatever the referee spells, so the owned-contents and
@@ -72,11 +66,32 @@ pub(in crate::execution::terminal_unit) fn signature(
         || crate::execution::terminal_unit::types::borrowed_slice_view(program, reference)
         || crate::execution::terminal_unit::types::borrowed_named_view(program, reference)
         || crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference);
+    // A reference carrier transports a loan, not owned referent claims —
+    // except a byte view, whose lowered type peels the borrow so `&[u8] in
+    // Utf8` registers `Utf8` on the result's own slice carrier. Those
+    // inside-borrow domains are the view type's qualifications; other
+    // reference results declare none. Owned results keep the root constraint
+    // collection.
+    let qualifications = if view_result {
+        let qualifications =
+            validation::view_result_carrier_qualifications(program, reference).ok()?;
+        for domain in &qualifications {
+            shapes.add_domain(*domain, reference, &[])?;
+        }
+        qualifications
+    } else {
+        parameter_qualifications(program, shapes, reference, &[])?
+    };
+    let represented_copy = multiplicity == Multiplicity::Unrestricted
+        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
+    let owned_bytes = multiplicity == Multiplicity::Unrestricted
+        && validation::bounded_byte_buffer_capacity(program, reference).is_some()
+        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
     if (is_reference(program, reference) && !view_result)
         || type_graph_requires_nominal_drop(program, reference)
         || (multiplicity != Multiplicity::Linear
             && !owned_bytes
-            && (!qualifications.is_empty()
+            && ((!view_result && !qualifications.is_empty())
                 || (!view_result
                     && !represented_copy
                     && !validation::has_plain_owned_contents_with_numeric_constraints(
@@ -573,11 +588,32 @@ pub(super) fn literal_result_operation(
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let bytes = control::statement_sequence::bounded_byte_values::expression_octets(
+    let bytes = match control::statement_sequence::bounded_byte_values::expression_octets(
         program,
         state.return_type,
         expression,
-    )?;
+    ) {
+        Some(bytes) => bytes,
+        // A literal returned under a borrowed view keeps its image storage:
+        // admission is the view's own — every declared domain a plain byte
+        // predicate the octets grant — never the owned-bounded capacity gate.
+        None if crate::execution::terminal_unit::types::borrowed_slice_view(
+            program,
+            state.return_type,
+        ) && crate::facts::field_domain::string_literal_grants_view_domains(
+            program,
+            state.return_type,
+            expression,
+        ) =>
+        {
+            let ExpressionNode::String(literal) = program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            literal.to_vec()
+        }
+        None => return None,
+    };
     // A shared literal descriptor remains unrestricted after peeling its
     // reference shell. Only a mutable descriptor owes affine retirement.
     let (type_identity, multiplicity) =

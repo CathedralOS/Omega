@@ -190,7 +190,7 @@ fn borrowed_view_slice(
     checked: &CheckedTrees,
     mut reference: checked_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::types::TypeReferenceHandle> {
-    let referee = loop {
+    let mut referee = loop {
         match checked.type_reference_table.type_reference(reference) {
             checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type
@@ -203,45 +203,30 @@ fn borrowed_view_slice(
             _ => return None,
         }
     };
-    matches!(
-        checked.type_reference_table.type_reference(referee),
-        checked_trees::types::TypeReferenceNode::Slice { .. }
-    )
-    .then_some(referee)
+    // Constraint shells inside the borrow qualify the referent's storage, not
+    // the loan's shape: `&([u8] in Utf8)` refers to a slice exactly as `&[u8]`
+    // does, and the domain rides the carrier the plan spells.
+    loop {
+        match checked.type_reference_table.type_reference(referee) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                referee = *base_type
+            }
+            checked_trees::types::TypeReferenceNode::Slice { .. } => return Some(referee),
+            _ => return None,
+        }
+    }
 }
 
-/// Domain qualifications collected above a view result's reference shell,
-/// mirroring `parameter_qualifications` in the checked side: constraints
-/// inside the borrow belong to the carrier's own shape and stop the slice
-/// resolution before this point is ever reached.
+/// Domain qualifications a view result declares on its own carrier:
+/// constraints above the borrow directly, and on a byte view the
+/// inside-borrow domains too — the lowered view type peels the reference so
+/// `&[u8] in Utf8` registers `Utf8` under the slice identity the result
+/// spells. Other referent domains stay inside the loan.
 fn view_result_qualifications(
     checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
 ) -> Option<Vec<language_semantics::SemanticDomainId>> {
-    let mut qualifications = Vec::new();
-    while let checked_trees::types::TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = checked.type_reference_table.type_reference(reference)
-    {
-        let retained = checked.type_reference_table.constraints(*constraints);
-        if retained.len() != constraints.len() {
-            return None;
-        }
-        for constraint in retained {
-            let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint else {
-                return None;
-            };
-            if !domain.semantic_id.is_valid() {
-                return None;
-            }
-            qualifications.push(domain.semantic_id);
-        }
-        reference = *base_type;
-    }
-    qualifications.sort_by_key(|domain| domain.0);
-    qualifications.dedup();
-    Some(qualifications)
+    validation::view_result_carrier_qualifications(&checked.typed, reference).ok()
 }
 
 pub(super) fn validate(

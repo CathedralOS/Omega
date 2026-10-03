@@ -438,6 +438,54 @@ pub fn structural_result_qualifications(
     Ok(qualifications)
 }
 
+/// Every domain a view result's carrier declares. Constraints above the
+/// borrow qualify the result shell directly. Constraints inside the borrow
+/// qualify the referent — except on a byte view, whose lowered type peels
+/// the reference so the referent slice and the result spell one carrier
+/// identity: `&[u8] in Utf8` registers `Utf8` on the result's own structural
+/// type, making the inside-borrow domain a result qualification rather than
+/// a referent claim the loan cannot transport. Other reference referents
+/// carry a distinct identity, so their inside-borrow domains stay out.
+pub fn view_result_carrier_qualifications(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Result<Vec<SemanticDomainId>, &'static str> {
+    let byte_view =
+        crate::value_custody::reference_shells::byte_sequence_carrier(program, reference, &[])
+            .is_some();
+    let mut qualifications = Vec::new();
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let retained = program.type_reference_table.constraints(*constraints);
+                if retained.len() != constraints.len() {
+                    return Err("view result qualification span is stale");
+                }
+                for constraint in retained {
+                    let TypeConstraintNode::Domain(domain) = constraint else {
+                        return Err("view result has an unsupported qualification");
+                    };
+                    if !domain.semantic_id.is_valid() {
+                        return Err("view result qualification has no exact identity");
+                    }
+                    qualifications.push(domain.semantic_id);
+                }
+                reference = *base_type;
+            }
+            TypeReferenceNode::Reference { referee, .. } if byte_view => {
+                reference = *referee;
+            }
+            _ => break,
+        }
+    }
+    qualifications.sort_by_key(|domain| domain.0);
+    qualifications.dedup();
+    Ok(qualifications)
+}
+
 /// Reconstruct exact nested domain rows from a source structural type. Root
 /// constraints remain owned by `structural_result_qualifications`; this route
 /// only emits nonempty fixed-index paths and rejects malformed spans.
@@ -763,7 +811,7 @@ pub fn structural_claim_path(
 /// Shared slice descriptors borrow contents without inheriting owned claims.
 /// Their unrestricted multiplicity remains distinct from the affine lifetime
 /// obligation of a materialized named-reference carrier.
-fn shared_slice_view_result(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+pub fn shared_slice_view_result(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     crate::slice_view_shell(program, reference, &[])
         .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared)
 }
@@ -818,27 +866,33 @@ pub fn reconstruct_structural_call_custody(
     {
         return Err("structural call result differs from the callee contract");
     }
-    let result_qualifications =
-        if crate::machine_calls::reference_result_custody::parts(program, destination.return_type)
-            .is_some()
-            || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
-                program,
-                destination.return_type,
-            )
-            .is_some()
-            || shared_slice_view_result(program, destination.return_type)
-            || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
-                program,
-                destination.return_type,
-            )
-            .is_some()
-        {
-            // The reference carrier transports a loan, not owned referent claims.
-            // Exact ingress substitution and its weakening are reconstructed below.
-            Vec::new()
-        } else {
-            structural_result_qualifications(program, destination.return_type)?
-        };
+    let result_qualifications = if shared_slice_view_result(program, destination.return_type) {
+        // A shared view's result type is its referent's carrier: the
+        // byte-predicate domains it declares ride the same structural
+        // identity, so the callee's qualifications are the call result's own.
+        view_result_carrier_qualifications(program, destination.return_type)?
+    } else if crate::machine_calls::reference_result_custody::parts(
+        program,
+        destination.return_type,
+    )
+    .is_some()
+        || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
+            program,
+            destination.return_type,
+        )
+        .is_some()
+        || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
+            program,
+            destination.return_type,
+        )
+        .is_some()
+    {
+        // The reference carrier transports a loan, not owned referent claims.
+        // Exact ingress substitution and its weakening are reconstructed below.
+        Vec::new()
+    } else {
+        structural_result_qualifications(program, destination.return_type)?
+    };
     let mut states = facts
         .flow
         .control
@@ -891,15 +945,27 @@ pub fn reconstruct_structural_call_custody(
         .collect::<Vec<_>>();
     if result.multiplicity != Multiplicity::Linear {
         // Primitive byte predicates describe an independently established
-        // owned value, not resource claims. Preserve their exact signature
-        // roster; arbitrary qualified or loan-bearing results keep the fence.
-        let owned_bytes = result.multiplicity == Multiplicity::Unrestricted
-            && crate::bounded_byte_buffer_capacity(program, destination.return_type).is_some()
-            && crate::has_plain_owned_contents_with_represented_constraints(
-                program,
-                destination.return_type,
-            );
-        if (!result_qualifications.is_empty() && !owned_bytes) || !transfers.is_empty() {
+        // byte value, not resource claims — the carrier owns or views the
+        // bytes either way. Preserve the exact signature roster when every
+        // minted qualification is one of those predicates on a byte
+        // carrier; arbitrary qualified or loan-bearing results keep the
+        // fence.
+        let byte_predicated = result.multiplicity == Multiplicity::Unrestricted
+            && crate::byte_sequence_carrier(program, destination.return_type, &[]).is_some()
+            && result_qualifications.iter().all(|domain| {
+                program
+                    .domain_definitions()
+                    .iter()
+                    .find(|definition| definition.semantic_id == *domain)
+                    .and_then(|definition| {
+                        typed_trees::byte_predicates::domain_byte_predicate(
+                            program,
+                            definition.symbol,
+                        )
+                    })
+                    .is_some()
+            });
+        if (!result_qualifications.is_empty() && !byte_predicated) || !transfers.is_empty() {
             return Err("claim-bearing structural call has no returned claim frontier");
         }
         // A bare `&'a V` shared-view result is itself counted a reference

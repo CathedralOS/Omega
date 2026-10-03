@@ -124,6 +124,7 @@ pub(in crate::validation) fn validate_source(
             )
             .or_else(|| super::concatenation::owned_result(machine, source))
             .or_else(|| terminal_semantics::byte_owned_call_result(module, machine, source))
+            .or_else(|| terminal_semantics::byte_view_call_result(module, machine, source))
             .ok_or_else(&invalid)?
             .structural_type
         }

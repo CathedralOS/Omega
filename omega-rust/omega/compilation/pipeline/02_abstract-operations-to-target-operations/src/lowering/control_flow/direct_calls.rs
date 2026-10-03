@@ -471,8 +471,9 @@ fn ordinary_contract(
 
 /// The structural result retains its exact declared type and home layout.
 /// Returned claims and outcome-specific evidence still need separate transport.
-/// Only bounded byte owners may carry qualifications; the caller may add only
-/// domains this call's own establishment rows mint.
+/// Byte carriers — bounded owners and shared views alike — may carry
+/// qualifications; the caller may add only domains this call's own
+/// establishment rows mint.
 fn structural_result_home(
     call: &DirectCall<'_>,
     callee_function: &AbstractFunction,
@@ -496,7 +497,9 @@ fn structural_result_home(
         || callee_result.projected_qualifications != result.projected_qualifications
         || !callee_result.projected_qualifications.is_empty()
         || (!callee_result.qualifications.is_empty()
-            && !bounded_owned_byte_result(result.structural_type, types))
+            && !types
+                .get(&result.structural_type)
+                .is_some_and(|declaration| declaration.shape.supports_result_qualifications()))
         || !returned_claim_transfers.is_empty()
         || !selected_evidence.is_empty()
     {
