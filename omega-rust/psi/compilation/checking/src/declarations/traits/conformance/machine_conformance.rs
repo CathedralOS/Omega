@@ -789,6 +789,7 @@ fn validate_machine_single_requirement(
         entry_state,
         trait_definition,
         requirement,
+        SymbolHandle::invalid(),
         Some(trait_lifetime_arguments),
         explicit_type_arguments,
         diagnostics,

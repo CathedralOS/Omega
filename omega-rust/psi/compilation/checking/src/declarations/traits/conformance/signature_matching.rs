@@ -1,6 +1,11 @@
 //! Matching a machine state against a trait signature: effect ceilings,
 //! parameter matches, trait type bindings, lifetimes and fixed array
 //! lengths.
+//!
+//! Whole conformances supply their declared subject explicitly. Exact
+//! satisfaction edges instead infer Self from the callable signature. A
+//! machine's namespace never chooses that substitution: namespace-only
+//! owners such as F32 declare operations over a different runtime carrier.
 
 use crate::value_custody::type_references::{type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
@@ -96,6 +101,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     state: &State,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
+    conformance_subject: SymbolHandle,
     trait_lifetime_arguments: Option<&[u32]>,
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -418,6 +424,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             requirement,
             &required_generic_types,
             &mut type_bindings,
+            conformance_subject,
             index,
             actual,
             required,
@@ -567,7 +574,7 @@ pub(crate) fn subject_role_matches(
     actual: &StateParameter,
     required: &StateParameter,
 ) -> bool {
-    if required_is_subject_position(program, machine.attached_data_symbol, required) {
+    if required.is_self {
         program.parameter_declares_attached_data(machine, actual)
     } else {
         !actual.is_self
@@ -582,6 +589,7 @@ fn validate_trait_parameter_match(
     requirement: &StateSignature,
     trait_type_parameters: &[TypeParameter],
     type_bindings: &mut Vec<TraitTypeBinding>,
+    conformance_subject: SymbolHandle,
     index: usize,
     actual: &StateParameter,
     required: &StateParameter,
@@ -593,9 +601,20 @@ fn validate_trait_parameter_match(
     // declaring the conforming data (`counter: &mut Counter`), which denotes
     // exactly what `&mut self` denotes. Access still has to agree, so
     // `is_mutable` is compared either way.
-    if !subject_role_matches(program, machine, actual, required)
-        || actual.is_mutable != required.is_mutable
-    {
+    // Only a whole conformance supplies a nominal subject. Qualification of
+    // an exact satisfier supplies a namespace, not a runtime carrier: the
+    // ordinary Self substitution below also applies to Namespace::operation.
+    let has_nominal_subject =
+        conformance_subject.is_valid() && required_is_subject_parameter(program, required);
+    let subject_matches = if has_nominal_subject {
+        program
+            .data_binding_position(conformance_subject, std::slice::from_ref(actual))
+            .is_some()
+            && (!actual.is_self || machine.attached_data_symbol == conformance_subject)
+    } else {
+        subject_role_matches(program, machine, actual, required)
+    };
+    if !subject_matches || actual.is_mutable != required.is_mutable {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter {}: expected `{}`, got `{}`",
             machine.name,
@@ -615,9 +634,10 @@ fn validate_trait_parameter_match(
     // `Self` to either makes a later concrete `other: &Type` spuriously
     // mismatch. The carrier is inferred from the first non-subject `Self`
     // occurrence instead. The subject's own type needs no comparison here:
-    // `data_binding_parameter` admitted it only because it declares this
-    // machine's attached data, which is what the `satisfies` edge names.
-    if required_is_subject_position(program, machine.attached_data_symbol, required) {
+    // The whole-conformance path checks the declared subject independently
+    // of the realization's namespace; the legacy receiver path checks the
+    // realization's attached data. Exact ordinary parameters use the matcher.
+    if required.is_self || has_nominal_subject {
         return;
     }
 
@@ -1164,22 +1184,6 @@ pub(crate) fn required_is_self_type(program: &TypedTrees, required: TypeReferenc
         program.type_reference_table.type_reference(required),
         TypeReferenceNode::Named { name, .. } if name.as_str() == "Self"
     )
-}
-
-/// The subject-position test for an edge where one side carries attached
-/// data: a `self` receiver, or under named subjects a `Self`-typed parameter
-/// on an attached signature. The gate symbol is whichever side realizes the
-/// position — the satisfier's own data at `satisfies`, the requirement
-/// machine's data at top-level conformance. A free machine's requirements are
-/// Self-shaped binders (`add(a: Self, b: Self)` binds the carrier from the
-/// satisfier's signature); they have no subject position at all.
-pub(crate) fn required_is_subject_position(
-    program: &TypedTrees,
-    attached_data_symbol: SymbolHandle,
-    required: &typed_trees::signature::StateParameter,
-) -> bool {
-    required.is_self
-        || (attached_data_symbol.is_valid() && required_is_subject_parameter(program, required))
 }
 
 /// A requirement's subject position: a `self` receiver, or under named
