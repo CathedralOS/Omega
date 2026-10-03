@@ -333,15 +333,18 @@ pub(crate) fn record_view_leaf_destination(
         validation::declared_place_type_raw(&checked.typed, owner, Some(state), place).ok_or(
             LoweringError::Unsupported("record view store lost its source place type"),
         )?;
-    let leaf = validation::recast_record_source_leaf(
+    let Some(leaf) = validation::recast_record_source_leaf(
         &checked.typed,
         source_type,
         *referee,
         member.member_symbol,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "record view store field has no single source leaf",
-    ))?;
+    ) else {
+        // Byte-backed views have no single typed source leaf. Their checked
+        // destination remains the view-local projection: ordinary source
+        // replay authenticates that path, and the captured-loan emitter
+        // independently resolves its footprint into original backing bytes.
+        return Ok(None);
+    };
     let mut path = source.path;
     for segment in &leaf.path {
         path.push(match segment {
@@ -535,6 +538,81 @@ enum ByteStoreIndex {
 }
 
 impl ByteStoreDestination {
+    /// Add one declared array coordinate to the captured byte location. The
+    /// dimension bound is independent of the enclosing byte capacity: an
+    /// in-bounds byte address cannot justify selecting another array member.
+    pub(crate) fn project_index(
+        &mut self,
+        index: ValueId,
+        stride: u64,
+        extent: u64,
+        next_value: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let scalar_type = terminal_scalar_type(PrimitiveType::U64)?;
+        let coordinate =
+            crate::expression_preparation::bindings::recast_records::bounded_coordinate(
+                LoweredDirectExpression::Parameter {
+                    position: 0,
+                    scalar_type,
+                },
+                extent,
+            )?;
+        let scaled = LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactMultiply,
+            scalar_type,
+            left: Box::new(coordinate),
+            right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                value: IntegerValue::Unsigned(u128::from(stride)),
+                scalar_type,
+            }),
+        };
+        let index_value = ValueDeclaration {
+            id: index,
+            scalar_type,
+            qualifications: Default::default(),
+        };
+        let scaled = emit_direct_expression(&scaled, &[index_value], next_value, operations);
+        let base = match self.index {
+            ByteStoreIndex::Fixed(index) => emit_scalar_leaf(
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(u128::from(index)),
+                },
+                scalar_type,
+                next_value,
+                operations,
+            ),
+            ByteStoreIndex::Runtime(index) => index,
+        };
+        let base_value = ValueDeclaration {
+            id: base,
+            ..index_value
+        };
+        let scaled_value = ValueDeclaration {
+            id: scaled,
+            ..index_value
+        };
+        let sum = LoweredDirectExpression::IntegerBinary {
+            kind: LoweredIntegerBinaryKind::ExactAdd,
+            scalar_type,
+            left: Box::new(LoweredDirectExpression::Parameter {
+                position: 0,
+                scalar_type,
+            }),
+            right: Box::new(LoweredDirectExpression::Parameter {
+                position: 1,
+                scalar_type,
+            }),
+        };
+        self.index = ByteStoreIndex::Runtime(emit_direct_expression(
+            &sum,
+            &[base_value, scaled_value],
+            next_value,
+            operations,
+        ));
+        Ok(())
+    }
+
     /// Prove semantic-to-stored representability before extracting any bytes.
     /// Reusing the completed SSA value is essential: repeated RHS reads could
     /// observe bytes already changed by earlier stores in the same assignment.
