@@ -148,9 +148,10 @@ pub(super) struct StoredWriteOrigin {
     pub local_symbol: SymbolHandle,
     pub local_path: String,
     pub local_segments: Vec<PlaceSegment>,
-    /// The reference boundary exists even when its captured storage is unknown.
-    /// Such a leaf must survive transport and prevent overlapping writes from
-    /// being discarded as private local storage.
+    /// A reference boundary, or opaque region which may contain one, remains
+    /// present even when its captured storage is unknown. Such a region must
+    /// survive transport and prevent overlapping writes from being discarded
+    /// as private local storage; it proves no actual referent identity.
     pub origin: Option<FramePlaceOrigin>,
 }
 

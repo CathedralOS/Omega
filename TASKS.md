@@ -599,21 +599,24 @@ the complete product bar; focused successes below do not establish that baseline
   outer guard, three before the trailing one) exits 70 natively, and
   `control_flow/guarded_transition_dispatch_exit` exits 0 with `look` on stdout,
   both agreeing with the checked interpreter.
-  `collections/record_array_field_access_exit` (exit 0, three lines of
-  output) stops at `scalar field store sequence: write frame agreement` in
-  `result_code`: `context.room.exits[0] = Exit { .. }` replaces a
-  reference-bearing element below a non-receiver root, and checking's
-  `write_frames/stored_origins/assignments.rs` `assigned_stored_origins`
-  refuses every index selector, so the inferred frame is opaque. Behind it,
-  stage 04 `record_literal_stores` decomposes only field-path destinations
-  without case members; the `destination: CellId::A2` member needs a borrowed
-  storage window at a field inside a fixed-index element, which trusted
-  Terminal verification cannot spell (`borrowed_windows.rs`
-  `declared_window_field_type`/`validate_move_static` read a window path ending
-  in `FixedIndex` as the element itself; `context.room.exits[0].destination =
-  CellId::A2` alone rejects with `InvalidBorrowedStorageWindow`); and Omega
-  stage 02 `lowering/unit/projected_argument.rs` refuses a `FixedIndex`
-  segment when lending `context.room.exits[0].command` to `write_line`.
+  `collections/record_array_field_access_exit` still needs exit 0 and its
+  three authored stdout lines. On macOS ARM64, the opaque-region inventory
+  repair based on `1d666f28d800` makes `omega run --both
+  tests/omega/pass/collections/record_array_field_access_exit/main.omg`
+  advance past write-frame agreement to `statement sequence: assignment:
+  structural operand calls` in `result_code`. An unrelated opaque
+  `Binding<Console>` sibling had poisoned the whole inventory; checking now
+  retains its unknown region while preserving disjoint declared writes.
+  The next producer dependency is stage 04
+  `execution/terminal_unit/structural_scalar_store/mod.rs`:
+  `record_literal_stores` still excludes indexed destinations and non-scalar
+  case members of `Exit`. This file is assigned to
+  **DEFERRED-LOCAL-INITIALIZATION**; coordinate the shared operation rather
+  than adding an indexed-record special route. Recheck downstream borrowed
+  windows and Omega projected arguments after that producer can emit the
+  unchanged customer; older failure descriptions predate their shared
+  projection work. Acceptance remains the public command's actual output,
+  not the passing write-frame tests.
 
   Acceptance: every named customer has its actual entry and interpreter/native
   oracle accounted for. Use focused corpus filters and matching-host native

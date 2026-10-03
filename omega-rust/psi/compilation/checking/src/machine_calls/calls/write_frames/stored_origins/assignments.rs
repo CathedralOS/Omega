@@ -292,3 +292,52 @@ fn assigned_stored_origins(
     }
     Some(replaced)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn indexed_record_replacement_retains_its_storage_write_frame() {
+        let program = crate::front_end::typed_program(
+            r#"
+            domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+            boundary data Authority;
+            data CellId { case Empty; case A1; case A2; }
+            data Exit { command: &[u8] in Utf8; destination: CellId; }
+            data Room { cell: CellId; label: &[u8] in Utf8; description: &[u8] in Utf8; exits: [Exit; 2]; }
+            data Main { authority: Authority; room: Room; }
+            machine print(value: &[u8] in Utf8) {}
+            machine fill(context: &mut Main) -> i32 {
+                context.room.cell = CellId::A1;
+                context.room.label = "A1";
+                context.room.description = "A1: a stone entry.";
+                context.room.exits[0] = Exit { command: "north", destination: CellId::A2 };
+                context.room.exits[1] = Exit { command: "wait", destination: CellId::Empty };
+                print(context.room.label);
+                print(context.room.description);
+                print(context.room.exits[0].command);
+                0
+            }
+            "#,
+        );
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "fill")
+            .expect("fill machine");
+        let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+        let frame =
+            resolver.inferred_state_write_frame(machine, &program.machine_states(machine)[0]);
+        assert_eq!(
+            frame
+                .complete_paths()
+                .map(|paths| paths.iter().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec![
+                "$P0.room.cell",
+                "$P0.room.description",
+                "$P0.room.exits",
+                "$P0.room.label"
+            ]),
+            "indexed record writes must retain their exact conservative frame: {frame:?}",
+        );
+    }
+}
