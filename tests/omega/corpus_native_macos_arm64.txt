@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 3.6, "load1_start": 3.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 4.3, "load1_start": 4.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -942,7 +942,7 @@ pass/slices/projected_array_call_exit built 1072ms exit:70 stdout:match @64c3c65
 pass/slices/qualified_subslice_composition_exit built 2037ms exit:70 @a5ac65bf511d+wt
 pass/slices/recursive_subslice_element_accumulator_exit built 806ms exit:70 @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 186ms
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 9468ms exit:3 @0bc11b9b33e8
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 9468ms exit:3 @f7e9667e2f4a
 pass/slices/runtime_byte_view_guarded_state_contract_exit built 1070ms exit:70 @5fb2e19e1f1+wt
 pass/slices/runtime_join_meet_bound_exit built 596ms exit:70
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 987ms exit:70 @59aa9580a54d+wt
