@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 13.42, "load1_start": 13.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 4.12, "load1_start": 4.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2028,6 +2028,7 @@ pass/proofs/runtime_inductive_gauss_sum_exit checked 1055ms @b5a937001475+wt
 pass/proofs/runtime_nat_structural_recursion_exit checked 1175ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_early_exit checked 1867ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 1671ms @2d8ed253669f
+pass/proofs/runtime_two_state_accumulator_exit checked 1028ms @ccbf3802c51a
 pass/providers/bare_byte_array_boundary_argument checked 1466ms @2d8ed253669f
 pass/providers/borrowed_service_field_forward_exit checked 944ms @5745c7562b65
 pass/providers/boundary_scalar_field_store checked 1609ms @2d8ed253669f
