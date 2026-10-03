@@ -277,9 +277,11 @@ remove the access checks on references within the source path.
 
 The same establishment operations also carry `RepresentationBytes { start,
 end, obligation }`. This region borrows initialized fixed byte backing through
-its exact source path and produces an element descriptor. Both endpoint values
-are captured at formation and have the exact `u64` carrier. The verifier
-reconstructs the ordered obligation `start <= end`, `end <= source_extent`, and
+its exact source path and produces an element descriptor, or the ordinary
+borrowed-byte descriptor when the element is exactly `u8`. The byte carrier
+retains the same captured window and original backing as an element carrier.
+Both endpoint values are captured at formation and have the exact `u64` carrier.
+The verifier reconstructs the ordered obligation `start <= end`, `end <= source_extent`, and
 `(end - start) % element_stride == 0`; zero stride cannot establish a view.
 Length observations retain `(end - start) / element_stride` as the descriptor's
 exact count. A later mutation of the source offset variable cannot change it.

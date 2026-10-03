@@ -208,7 +208,7 @@ pub(super) fn is_shared_borrow_value(
         })
 }
 
-/// A LocalData initializer whose declared type is a borrowed `&[T]` view. The
+/// A LocalData initializer whose declared type is a shared or mutable slice. The
 /// value itself is adjudicated by `slice_view_place`, which rejoins
 /// the checked loan the view holds; this only decides that the destination is
 /// a view at all, so the ordinary owned classifications keep every other local.
@@ -218,6 +218,10 @@ pub(super) fn is_borrowed_slice_view_value(
 ) -> bool {
     crate::execution::terminal_unit::types::borrowed_slice_view_element(program, expected, &[])
         .is_some()
+        || matches!(
+            crate::execution::terminal_unit::types::byte_sequence_carrier(program, expected, &[]),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+        )
 }
 
 /// A LocalData initializer copying one element of a borrowed view

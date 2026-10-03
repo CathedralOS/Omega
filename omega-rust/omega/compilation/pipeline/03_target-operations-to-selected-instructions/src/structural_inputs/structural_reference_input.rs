@@ -856,9 +856,8 @@ pub(crate) fn collection_view_region_geometry(
         if layout.size != u64::from(element_stride)
             || layout.alignment != u64::from(shape(element, declarations)?.alignment)
             || layout.leaves.iter().any(|leaf| {
-                primitive_geometry(element, &leaf.path, leaf.scalar_type, declarations).is_none_or(
-                    |(offset, _, indices)| u64::from(offset) != leaf.offset || !indices.is_empty(),
-                )
+                element_leaf_geometry(element, &leaf.path, leaf.scalar_type, declarations)
+                    .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
             })
         {
             return None;

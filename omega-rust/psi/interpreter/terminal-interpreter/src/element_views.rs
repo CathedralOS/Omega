@@ -336,31 +336,63 @@ impl TerminalExecution {
             &source.path,
         )?;
         if let ElementViewRegion::RepresentationBytes { start, end, .. } = region {
-            if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
-                return Err(invalid());
-            }
             let start = count(&start, &self.values)?;
             let end = count(&end, &self.values)?;
-            let view = self.representation_view(source, collection_type, element, start, end)?;
-            let extent = view.length;
-            self.element_view_values.insert(
-                result.place,
-                ElementView {
-                    backing: ElementViewBacking::Representation(Arc::new(view)),
-                    window: 0..extent,
-                    home: None,
+            let mut descriptor_value = TerminalStructuralValue {
+                opaque_identity: result.place.get(),
+                structural_type: result.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            };
+            if descriptor.is_borrowed_byte_view() {
+                // This remains an exact byte collection, not an arbitrary
+                // record whose layout happens to occupy the same byte count.
+                // The result-family check above independently requires u8.
+                let collection = terminal_semantics::collection_backing(
+                    self.program.structural_types.values(),
+                    collection_type,
+                    element,
+                )
+                .ok_or_else(invalid)?;
+                if start > end || u64::try_from(end).map_err(|_| invalid())? > collection.length {
+                    return Err(invalid());
+                }
+                let mut cursor = self.local_structural_identities.cursor();
+                let (source_value, binding) = self.establish_byte_array_binding(
+                    source,
+                    result.structural_type,
+                    &collection,
+                    &mut cursor,
+                )?;
+                let (value, binding) = self.narrow_byte_sequence_binding(
+                    &binding,
+                    &source_value,
+                    start..end,
                     access,
-                },
-            );
-            self.structural_values.insert(
-                result.place,
-                TerminalStructuralValue {
-                    opaque_identity: result.place.get(),
-                    structural_type: result.structural_type,
-                    qualifications: Vec::new(),
-                    path: Vec::new(),
-                },
-            );
+                    descriptor_value,
+                )?;
+                descriptor_value = value;
+                self.local_structural_identities.commit_cursor(cursor);
+                self.byte_sequence_values.insert(result.place, binding);
+            } else {
+                if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
+                    return Err(invalid());
+                }
+                let view =
+                    self.representation_view(source, collection_type, element, start, end)?;
+                let extent = view.length;
+                self.element_view_values.insert(
+                    result.place,
+                    ElementView {
+                        backing: ElementViewBacking::Representation(Arc::new(view)),
+                        window: 0..extent,
+                        home: None,
+                        access,
+                    },
+                );
+            }
+            self.structural_values
+                .insert(result.place, descriptor_value);
             if multiplicity == StructuralMultiplicity::Affine {
                 self.live_affine_frontier
                     .insert(terminal_psi::StructuralAffineDiscard {

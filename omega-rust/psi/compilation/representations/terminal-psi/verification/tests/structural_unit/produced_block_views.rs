@@ -735,3 +735,141 @@ fn representation_region_requires_exact_geometry_operands_and_certificate() {
         );
     }
 }
+
+fn byte_representation_region_module(shared: bool) -> (TerminalModule, ProofBundle) {
+    use proof_admission::{
+        CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+    };
+    use semantic_vocabulary::{EvidenceIdentity, ObligationId};
+    let mut module = representation_region_module();
+    module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+    ));
+    module.structural_types[2].shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        });
+    module.machines[0].blocks[1].operations[0].kind = OperationKind::ByteSequenceLength {
+        source: place_id(RECEIVED),
+    };
+    if shared {
+        module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        module.machines[0].blocks[1].structural_parameters[0].access =
+            StructuralAccess::SharedBorrow;
+        result(&mut module).multiplicity = StructuralMultiplicity::Unrestricted;
+        let OperationKind::EstablishMutableElementView {
+            destination,
+            source,
+            element,
+            region,
+        } = module.machines[0].blocks[0].operations[0].kind.clone()
+        else {
+            unreachable!()
+        };
+        module.machines[0].blocks[0].operations[0].kind = OperationKind::EstablishElementView {
+            destination,
+            source: StructuralArgument {
+                access: StructuralAccess::SharedBorrow,
+                ..source
+            },
+            element,
+            region,
+        };
+        let Terminator::Jump {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].access = StructuralAccess::SharedBorrow;
+        let Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = &mut module.machines[0].blocks[1].terminator
+        else {
+            unreachable!()
+        };
+        trivial_affine_discards.clear();
+    }
+    let goal =
+        terminal_semantics::representation_region_goal(value_id(30), value_id(31), 8, 1).unwrap();
+    module.machines[0].contract.requires = vec![goal.clone()];
+    let bundle = ProofBundle {
+        evidence: vec![terminal_psi::ObligationEvidence {
+            obligation: ObligationId::new(40).unwrap(),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(40).unwrap(),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+            }),
+        }],
+        ..ProofBundle::default()
+    };
+    (module, bundle)
+}
+
+#[test]
+fn byte_representation_region_replays_borrowed_result_and_independent_certificate() {
+    for shared in [false, true] {
+        let (module, proof) = byte_representation_region_module(shared);
+        verify_module(&module, &proof, &AdmissionProfile::default())
+            .expect("exact u8 region is an ordinary forwarded byte descriptor");
+        assert!(
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn byte_representation_region_rejects_carrier_access_and_evidence_drift() {
+    let (module, proof) = byte_representation_region_module(false);
+    for mutation in 0..6 {
+        let mut wrong = module.clone();
+        match mutation {
+            0 => {
+                wrong.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap()),
+                )
+            }
+            1 => {
+                wrong.structural_types[2].shape = StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                )
+            }
+            2 => wrong.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow,
+            3 => {
+                let OperationKind::EstablishMutableElementView {
+                    region: terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. },
+                    ..
+                } = &mut wrong.machines[0].blocks[0].operations[0].kind
+                else {
+                    unreachable!()
+                };
+                std::mem::swap(start, end);
+            }
+            4 => {
+                let StructuralTypeShape::FixedArray { length, .. } =
+                    &mut wrong.structural_types[1].shape
+                else {
+                    unreachable!()
+                };
+                *length = 7;
+            }
+            5 => wrong.machines[0].contract.requires.clear(),
+            _ => unreachable!(),
+        }
+        assert!(
+            verify_module(&wrong, &proof, &AdmissionProfile::default()).is_err(),
+            "invalid byte-region mutation {mutation}"
+        );
+    }
+}

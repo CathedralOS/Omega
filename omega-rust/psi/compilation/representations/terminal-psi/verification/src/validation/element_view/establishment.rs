@@ -78,9 +78,7 @@ pub(in crate::validation) fn collection_source_matches(
                     .any(|row| row.id == view_type && row.shape.is_borrowed_byte_view())
         }
         Some(terminal_semantics::ElementViewRegionGeometry::RepresentationBytes { .. }) => {
-            module.structural_types.iter().any(|row| {
-                row.id == view_type && row.shape == StructuralTypeShape::ElementView { element }
-            })
+            collection_view_result_matches(module, view_type, element)
         }
         None => false,
     }

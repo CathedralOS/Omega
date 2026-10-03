@@ -450,15 +450,13 @@ impl Checker<'_> {
                             u64::from(shape.byte_size) != layout.size
                                 || u64::from(shape.alignment) != layout.alignment
                         }) || layout.leaves.iter().any(|leaf| {
-                        crate::structural_inputs::structural_reference_input::primitive_geometry(
+                        crate::structural_inputs::structural_reference_input::element_leaf_geometry(
                             element,
                             &leaf.path,
                             leaf.scalar_type,
                             self.types,
                         )
-                        .is_none_or(|(offset, _, indices)| {
-                            u64::from(offset) != leaf.offset || !indices.is_empty()
-                        })
+                        .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
                     }) {
                         return false;
                     }

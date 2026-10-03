@@ -29,7 +29,14 @@ machine Main::main(main: &mut Main) reaches Console {
 
     state write_tail(main: &mut Main, tail: &mut [u8]) {
     tail[4] = 9;
-    transition tail.len == 5 && main.tail_bytes[7] == 9 {
+    transition tail.len == 5 {
+        true -> check_tail_backing(main)
+        _ -> bad_tail_write(main)
+    }
+    }
+
+    state check_tail_backing(main: &mut Main) {
+    transition main.tail_bytes[7] == 9 {
         true -> pair_view(main)
         _ -> bad_tail_write(main)
     }
@@ -49,8 +56,14 @@ machine Main::main(main: &mut Main) reaches Console {
     pairs[0].high = 0x0403;
     pairs[1].low = 0x0605;
     pairs[1].high = 0x0807;
-    transition pairs.len == 2
-        && main.pair_bytes[4] == 1 && main.pair_bytes[5] == 2
+    transition pairs.len == 2 {
+        true -> check_pair_backing(main)
+        _ -> bad_pair_write(main)
+    }
+    }
+
+    state check_pair_backing(main: &mut Main) {
+    transition main.pair_bytes[4] == 1 && main.pair_bytes[5] == 2
         && main.pair_bytes[6] == 3 && main.pair_bytes[7] == 4
         && main.pair_bytes[8] == 5 && main.pair_bytes[9] == 6
         && main.pair_bytes[10] == 7 && main.pair_bytes[11] == 8 {

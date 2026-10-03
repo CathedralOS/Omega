@@ -696,7 +696,7 @@ static OP_BYTE_SEQUENCE_EQUAL: TrustedSurfaceEntry = entry(
 static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
     "operation:establish-element-view",
     "a validated shared element-view establishment over an exact-element collection, a normalized typed collection whose source leaf bit sets imply target validity, or a total normalized representation region of original fixed byte backing",
-    "the establishment observation; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
+    "the establishment observation; an exact u8 representation region may produce the ordinary borrowed-byte descriptor; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
     EFFECT_DEPS,
     &[
         VOCAB,
@@ -714,7 +714,7 @@ static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
 static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
     "operation:establish-mutable-element-view",
     "a validated mutable element-view establishment over an exact-element collection, a normalized typed collection with equivalent leaf bit sets and padding geometry and no overlapping source occurrence qualifications, or a total normalized representation region of original fixed byte backing",
-    "the establishment observation; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
+    "the establishment observation; an exact u8 representation region may produce the ordinary borrowed-byte descriptor; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
     EFFECT_DEPS,
     &[
         VOCAB,

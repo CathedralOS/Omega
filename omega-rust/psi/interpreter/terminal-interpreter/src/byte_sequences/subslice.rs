@@ -1,7 +1,8 @@
 //! Validate and publish one byte window without replacing its backing.
 
+use crate::byte_sequences::binding::ByteSequenceBinding;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind, ValueId};
-use terminal_psi::{Operation, OperationKind, StructuralMultiplicity};
+use terminal_psi::{Operation, OperationKind, StructuralAccess, StructuralMultiplicity};
 
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
@@ -112,7 +113,7 @@ impl TerminalExecution {
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let mut destination = TerminalStructuralValue {
+        let destination = TerminalStructuralValue {
             opaque_identity: result.place.get(),
             structural_type: result.structural_type,
             qualifications: Vec::new(),
@@ -129,54 +130,17 @@ impl TerminalExecution {
             ) if *previous == destination => {}
             _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
         }
-        use crate::byte_sequences::binding::ByteSequenceBinding;
-        let view = match binding {
-            ByteSequenceBinding::Immutable(bytes) => ByteSequenceBinding::Immutable(
-                bytes
-                    .subslice(start, end)
-                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
-            ),
-            ByteSequenceBinding::MutableArray {
-                array,
-                array_type,
-                offset,
-                ..
-            } => {
-                binding.validate_mutable_referent(&self.program.structural_types, source_value)?;
-                let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-                let start = offset
-                    .checked_add(u64::try_from(start).map_err(|_| invalid())?)
-                    .ok_or_else(invalid)?;
-                let end = offset
-                    .checked_add(u64::try_from(end).map_err(|_| invalid())?)
-                    .ok_or_else(invalid)?;
-                if mutable {
-                    destination = source_value.clone();
-                    destination.path = array.referent.path.clone();
-                    destination
-                        .path
-                        .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
-                    let view = ByteSequenceBinding::MutableArray {
-                        array: array.clone(),
-                        array_type: *array_type,
-                        offset: start,
-                        length: end - start,
-                        referent: destination.clone(),
-                    };
-                    view.validate_mutable_referent(&self.program.structural_types, &destination)?;
-                    view
-                } else {
-                    ByteSequenceBinding::Immutable(self.stored_byte_array_snapshot(
-                        array,
-                        usize::try_from(start).map_err(|_| invalid())?,
-                        usize::try_from(end).map_err(|_| invalid())?,
-                    )?)
-                }
-            }
-            ByteSequenceBinding::MutableField { .. } => {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-            }
-        };
+        let (destination, view) = self.narrow_byte_sequence_binding(
+            binding,
+            source_value,
+            start..end,
+            if mutable {
+                StructuralAccess::MutableBorrow
+            } else {
+                StructuralAccess::SharedBorrow
+            },
+            destination,
+        )?;
         self.byte_sequence_values.insert(result.place, view);
         self.structural_values.insert(result.place, destination);
         if mutable {
@@ -188,5 +152,94 @@ impl TerminalExecution {
                 });
         }
         Ok(())
+    }
+    /// Capture a window of an authenticated byte binding before publication.
+    /// Region formation and subslicing use the same absolute array coordinates;
+    /// descriptor copies never acquire a second backing or require copyback.
+    pub(crate) fn narrow_byte_sequence_binding(
+        &self,
+        binding: &ByteSequenceBinding,
+        source: &TerminalStructuralValue,
+        window: std::ops::Range<usize>,
+        access: StructuralAccess,
+        mut destination: TerminalStructuralValue,
+    ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if window.start > window.end
+            || !matches!(
+                access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+            || source.structural_type != destination.structural_type
+            || !source.qualifications.is_empty()
+            || !destination.qualifications.is_empty()
+            || !self
+                .program
+                .structural_types
+                .get(&destination.structural_type)
+                .is_some_and(|row| row.shape.is_borrowed_byte_view())
+        {
+            return Err(invalid());
+        }
+        let narrowed = match binding {
+            ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
+                if !source.path.is_empty() {
+                    return Err(invalid());
+                }
+                ByteSequenceBinding::Immutable(
+                    bytes
+                        .subslice(window.start, window.end)
+                        .ok_or_else(invalid)?,
+                )
+            }
+            ByteSequenceBinding::MutableArray {
+                array,
+                array_type,
+                offset,
+                length,
+                ..
+            } => {
+                binding.validate_mutable_referent(&self.program.structural_types, source)?;
+                let start = u64::try_from(window.start).map_err(|_| invalid())?;
+                let end = u64::try_from(window.end).map_err(|_| invalid())?;
+                if end > *length {
+                    return Err(invalid());
+                }
+                let start = offset.checked_add(start).ok_or_else(invalid)?;
+                let end = offset.checked_add(end).ok_or_else(invalid)?;
+                if usize::try_from(end).map_err(|_| invalid())?
+                    > self.stored_byte_array_length(array)?
+                {
+                    return Err(invalid());
+                }
+                if access == StructuralAccess::MutableBorrow {
+                    destination = source.clone();
+                    destination.path = array.referent.path.clone();
+                    destination
+                        .path
+                        .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
+                    let narrowed = ByteSequenceBinding::MutableArray {
+                        array: array.clone(),
+                        array_type: *array_type,
+                        offset: start,
+                        length: end - start,
+                        referent: destination.clone(),
+                    };
+                    narrowed
+                        .validate_mutable_referent(&self.program.structural_types, &destination)?;
+                    narrowed
+                } else {
+                    ByteSequenceBinding::Immutable(self.stored_byte_array_snapshot(
+                        array,
+                        usize::try_from(start).map_err(|_| invalid())?,
+                        usize::try_from(end).map_err(|_| invalid())?,
+                    )?)
+                }
+            }
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableField { .. } => {
+                return Err(invalid());
+            }
+        };
+        Ok((destination, narrowed))
     }
 }
