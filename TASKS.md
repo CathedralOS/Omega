@@ -2513,6 +2513,175 @@ crash and native exit behavior. Use affected check/native corpus slices under
   artifact-only admission directly, including valid optional-proof combinations,
   instead of treating a check/native corpus pass as their acceptance.
 
+## Data-flow defects
+
+Each item removes one verified copy, rescan or repeated validation in the
+compiler's flow from source bytes to image bytes. Sites were read at
+`017136d36f` (2026-10-02); re-read the cited symbol before starting, since
+paths drift. Each item lands alone with the cited corpus slice unchanged
+(check plus `--native` where the code is backend-visible). Re-checking stays
+allowed at trust boundaries; these items remove repetition of a check the
+same flow already performed, not the check itself.
+
+- **STD-CHECKED-ONCE-PER-INVOCATION.** (new-scope) `omega --check --timings`
+  of `tests/omega/pass/borrows/runtime_record_byte_region_loan_exit` takes
+  14.8 s on the Windows release build, of which its own stages take about
+  120 ms. With `OMEGA_REVIEW_TIMINGS=1`, `omega_language_std` compiles twice:
+  11.0 s in the `discovery` review pass and 1.6 s in the `bound` pass
+  (`package-manager` `review/candidate/compilation/package_pass.rs`
+  `compile_dependency_closure`, run once per pass). Reuse the discovery pass's
+  checked dependency compilation in the bound pass when that dependency's
+  compilation inputs are unchanged. Acceptance: the same command prints one
+  `stage=package omega_language_std` row, and its outcome and diagnostics are
+  unchanged.
+
+- **CHECK-MEMO-PROGRAM-CLONES.** (new-scope) Stage 04's
+  `checking/exact_input_memo.rs` deep-copies whole programs. A miss clones
+  the input `TypedTrees` (`let retained = program.clone()`) and the result
+  (`result: result.clone()`). A hit clones the stored result.
+  `programs_equal_for_check` clones two programs to clear one field before
+  comparing them. Retain shared `Arc` values and compare without clearing
+  copies. Acceptance: `exact_input_memo.rs` contains no `TypedTrees` or
+  checked-result `.clone()`, and memo hit/miss counts on
+  `python tools/corpus_gate.py --filter providers/` are unchanged.
+
+- **LOWERING-NOMINAL-RETURN-CLONE.** (new-scope) Stage 05's
+  `returns/structural_scalar_return/nominal.rs` (`let mut staged =
+  checked.clone()`) copies the entire `CheckedTrees` for each nominal
+  structural return it stages. Stage the return against a local record of the
+  changed facts instead. Acceptance: no `checked.clone()` in stage 05
+  non-test code; corpus `--filter returns,structs/` check and native
+  unchanged.
+
+- **CHECKED-LEDGER-VERIFY-ONCE.** (new-scope) Stage 05's
+  `machine_lowering/checked_ledger.rs::verify` runs on every
+  `lower_machine` call (`machine_lowering.rs`), so once per entry and
+  callback artifact. Each permission event does a linear
+  `checked.machines().iter().find(..)` plus a state scan, and duplicate
+  detection uses `events.contains` on a `Vec` (quadratic). Index machines and
+  states once, detect duplicates with a set, and verify once per checked
+  program. Acceptance: one `verify` call per `CheckedTrees`, linear in
+  events; the ledger rejection fixtures still reject.
+
+- **RESOLVE-SYNTAX-FOREST-CLONE.** (new-scope) Stage 02's
+  `preparation/mod.rs` starts with `let mut syntax = syntax.clone()`, copying
+  the whole syntax forest it was handed by reference. Take `SyntaxTrees` by
+  value at the stage entry and move it through preparation. Acceptance: the
+  stage 02 entry consumes its input and preparation performs no whole-forest
+  clone; full check corpus unchanged.
+
+- **REFERENCE-CUSTODY-STATE-SCANS.** (new-scope)
+  `checking/src/machine_calls/reference_result_custody.rs` finds a call's
+  target state by scanning every state of every machine
+  (`machines().iter().flat_map(|machine| program.machine_states(machine))`,
+  five sites), once per call expression. Resolve the state through its
+  symbol's parent machine or the existing declaration index
+  (`TypedTrees::machine_by_symbol`). Acceptance: no whole-program state scan
+  remains in that file; corpus `--filter borrows,references/` unchanged.
+
+- **TYPE-IDENTITY-RENDER-ONCE.** (new-scope)
+  `TypedTrees::normalized_type_identity` renders a fresh
+  `NormalizedTypeIdentity(String)` on every call, with no cache, and stages
+  04, 05 and checking call it at about 500 sites. Memoize the rendered
+  identity per `TypeReferenceHandle` inside `TypedTrees` and return it by
+  reference or shared handle. Acceptance: a second call for the same handle
+  does no rendering, and identities and the full check corpus are unchanged.
+
+- **PSI-OPTIMIZATION-VALIDATE-ONCE.** (new-scope) Stage 06's
+  `psi_optimization.rs` runs the full Terminal verifier through
+  `validate_carrier` on its input, which stage 05 already verified at the end
+  of lowering (`validate_module`), and again on its output. Validate the
+  output only. Acceptance: one `validate_carrier` call per optimization run,
+  and the rejection controls in stage 06's tests still reject.
+
+- **PSI-CLEANUP-MODULE-CLONE.** (new-scope) Stage 06's
+  `control_flow_cleanup/machines.rs` clones the whole module on each prune
+  iteration (`let mut proposed = module.clone()`) to compute
+  `block_local_evidence` over the kept machines. Compute the evidence over the
+  kept set without copying the module. Acceptance: no module clone in that
+  loop; the `ControlFlowCleanup` optimizer tests and corpus `--filter
+  optimizer/` unchanged.
+
+- **TERMINAL-DECODE-ONCE.** (new-scope) Omega non-test code calls
+  `terminal_codec::decode_module` at 22 sites, eight in stage 00 alone
+  (artifact admission, callback settlement, entry settlement, service
+  establishment, retained-terminal admission), and
+  `native-artifact/src/fragment_object_publication.rs` round-trips the
+  artifact through `from_bytes(&terminal.to_bytes())`. Decode once at stage
+  00 admission and pass the decoded module with its memoized validation to
+  the other consumers; remove the round trip. Acceptance: one decode per
+  realization (assert with a counter in a test), and native corpus `--filter
+  entry/,providers/` unchanged.
+
+- **EMISSION-SOURCE-VALIDATE-ONCE.** (new-scope) machine-emission's
+  `fragment_emission/mod.rs` calls `validate_source(&source)` and then
+  `validate_optimized_function_fragment_emission`, which calls
+  `validate_source` on the same source again. `frame_application` and
+  `text_placement` repeat the pattern. Validate each step's source once.
+  Acceptance: one `validate_source` per emission step, and native corpus
+  unchanged.
+
+- **SELECTION-CUSTODY-REVALIDATION.** (new-scope) Stage 03's
+  `optimized/validation.rs::validate_optimized_selection_custody`
+  re-legalizes and re-selects (`validate_legalized_operations`, then
+  selection validation) work that `legalize`/`select` already validated. Stage
+  04's liveness custody (`analyses/liveness/staging/validation.rs`) calls it
+  again, and the live-range and legality custody validators each re-run the
+  validator before them. Have each validator accept the sealed receipt of its
+  predecessor instead of re-running it. Acceptance: selection custody
+  validation runs once per selected plan, with existing substitution and
+  mismatch controls still rejecting.
+
+- **BRANCH-RELAXATION-BATCH.** (new-scope) Stage 09's
+  `x86_branch_relaxation/compute/production.rs` loop relaxes one branch per
+  iteration. Each iteration scans every function for the first candidate,
+  re-encodes it, reflows every function and hashes the whole program twice
+  (`revision_identity`). Relax every out-of-range branch found in a sweep,
+  reflow once and hash once per sweep. Acceptance: iteration count is bounded
+  by sweeps rather than relaxed branches, and the relaxed bytes on native
+  corpus `--filter control_flow/` are unchanged.
+
+- **PRE-ALLOCATION-BATCH-COMMIT.** (new-scope) Stage 04's
+  `rewrites/pre_allocation/execution.rs` commits the first admissible
+  candidate and restarts the whole sweep ("The first admissible candidate
+  commits and the whole sweep restarts"). Commit every non-conflicting
+  candidate in a sweep and restart only when a commit enables another family.
+  Acceptance: the same fixed point is reached in at most as many sweeps as
+  family interactions require, with the pre-allocation optimizer tests and
+  native corpus `--filter optimizer/` unchanged.
+
+- **IMAGE-BUILT-ONCE.** (new-scope) image-emission's `image_output.rs`
+  builds the final image (`image::build_final_image`) and
+  `validate_direct_executable_image` builds it again from the same inputs to
+  compare them. Keep the image's structural validation and drop the rebuild.
+  Acceptance: one `build_final_image` call per emitted image, and native
+  corpus image bytes unchanged.
+
+- **OBJECT-CONTAINER-NO-ROUNDTRIP.** (new-scope) object-file's
+  `fragment_container/validation.rs` decodes
+  (`decode_relocation_free_object`) the container its production just
+  encoded. Validate the staged plan before encoding and keep the decoder for
+  independent readers. Acceptance: the production path encodes the container
+  once and does not decode it; native corpus unchanged.
+
+- **ENCODED-ROW-ALLOCATIONS.** (new-scope) machine-code's
+  `encoding/rows.rs` stores every encoded instruction as its own
+  `bytes: Vec<u8>` plus a `Box<SelectedFormDecodedFootprint>`, so each
+  instruction costs two heap allocations. Store a function's bytes in one
+  buffer with per-row offset spans, and keep footprints inline or in a
+  per-function table. Acceptance: no per-row heap allocation in encoded rows,
+  and native corpus bytes unchanged.
+
+- **CHECKING-FROZEN-PROGRAM-CONTEXT.** (new-scope)
+  `checking/src/frozen_program.rs` keeps its memos in a `thread_local!`
+  `RefCell` slot keyed by the program's address, which AGENTS.md rules out
+  as an ownership escape hatch. It has 11 uses in 9 files. Replace it with an
+  explicit context value passed to those consumers. The global
+  `ENVIRONMENTS` mutex cache with a linear find in Omega stage 03's
+  `selection/mod.rs` goes the same way: build the environment once per
+  realization and pass it. Acceptance: neither the thread-local nor the
+  static mutex remains, and the check corpus is unchanged.
+
 ## Automatic service reach
 
 Finish portable coverage of
