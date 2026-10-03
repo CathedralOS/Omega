@@ -2612,26 +2612,41 @@ paths drift. Each item lands alone with the cited corpus slice unchanged
 allowed at trust boundaries; these items remove repetition of a check the
 same flow already performed, not the check itself.
 
-- **STD-CHECKED-ONCE-PER-INVOCATION.** (new-scope) Finish avoiding repeated
-  dependency compilation work in discovery and bound review passes. Identical
-  whole-program checks already reuse exact-input results; a package timing row
-  measures the entire occurrence, not a checker execution. At `f056d152743` on
-  macOS ARM64, the unoptimized dev compiler's `omega --check --timings
-  tests/omega/pass/borrows/runtime_record_byte_region_loan_exit/main.omg`
-  succeeds in 139.92 s. Discovery executes two preliminary and two settled
-  checks; bound requests both again but executes zero of either. Its std
-  occurrence still takes 6.36 s through
-  `package-manager/src/review/candidate/compilation/package_pass.rs`.
+- **COMPILE-TRUSTS-ACCEPTED-PACKAGES.** (new-scope) Owner ruling
+  2026-10-03: a compile does not re-review a package the project already
+  accepted. Review is how you decide to trust new code (install, update,
+  a new dependency). A process that can rewrite accepted sources can also
+  rewrite the lock and the compiler, so a compile-time re-review does not
+  protect against it. Today every `omega --check`/`run` goes through
+  `package-manager` `review/candidate/compilation.rs`
+  (`package_pass::compile_dependency_closure`, discovery pass then bound
+  pass). Those passes compile each dependency whole from its package root
+  and re-derive the full review findings for comparison against the lock
+  (`lock/README.md`: "Fresh whole-candidate checking and audit still
+  produce those findings"). std's root `std/main.omg` imports every module,
+  so `use omega_language_std::console` (265 lines including its five target
+  implementations) checks all 12,307 std lines. At `f056d152743`
+  (unoptimized dev, macOS ARM64) `runtime_record_byte_region_loan_exit`
+  takes 139.92 s to check.
 
-  Profile and remove that residual repeated work while preserving fresh source
-  custody and binding settlement. Whole-occurrence reuse already requires equal
-  complete inputs. New accepted bindings can change provider plans and fused
-  erasure authorization; do not erase them from the reuse key or reuse a review
-  that never consumed them. The two `std_importing_check_*` tests distinguish
-  requests from executions, unchanged programs from Linux's changed settled
-  input, and repeated candidate invocations. Acceptance: retain those exact
-  execution counts and the CLI outcome, and measure a reduction in the remaining
-  bound-pass work. One package timing row is not an acceptance oracle.
+  In one commit:
+  - An ordinary compile compares each occurrence's source identity and the
+    compiler identity with the accepted lock. On a match it skips the review
+    passes. On a mismatch it rejects and names the package and the review
+    command to run; it does not run an inline audit.
+  - Dependencies compile from the modules the consumer's `use` items name,
+    plus whatever those reach, not from the package root.
+  - The full-package review and the discovery/bound pair run only in the
+    review, accept and update commands.
+  - Amend `lock/README.md` and `wiki/spec/packages/review.md` to state
+    that compiles trust accepted packages, citing this ruling.
+
+  This replaces **STD-CHECKED-ONCE-PER-INVOCATION**: the repeated passes it
+  tried to shave are deleted. Acceptance: the fixture's `--check` runs no
+  review pass and checks only console's module closure from std, its
+  `stage=package` time drops by at least 10x, a source edit to an accepted
+  path dependency fails the compile with the review instruction, and review
+  command output plus the check corpus are unchanged.
 
 - **CHECK-MEMO-PROGRAM-CLONES.** (new-scope) Stage 04's
   `checking/exact_input_memo.rs` deep-copies whole programs. A miss clones
