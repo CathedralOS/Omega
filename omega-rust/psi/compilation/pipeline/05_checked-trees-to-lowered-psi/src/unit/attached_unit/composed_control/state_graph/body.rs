@@ -926,6 +926,12 @@ pub(super) fn validate(
                     elements,
                 )?;
             }
+            (
+                CheckedUnitEffectOperationPlan::EstablishReference { result, source },
+                StatementNode::LocalData(_),
+            ) if result.statement_index as usize == ordinal => {
+                super::super::super::reference_results::validate_local_establishment(checked, state.state, result, source)?;
+            }
             // A transition-tail `&mut` return mints its reference custody at
             // the transition itself: the authored statement is the transition
             // carrying the `&mut` borrow value.

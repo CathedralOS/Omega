@@ -29,6 +29,15 @@ pub(super) fn validate_establishment(
     };
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+    if matches!(
+        checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(binding.statement_index as usize),
+        Some(StatementNode::LocalData(_))
+    ) {
+        return validate_local_establishment(checked, machine.state, binding, source);
+    }
     let returned = machine
         .structural_result
         .as_ref()
@@ -116,6 +125,44 @@ pub(super) fn validate_establishment(
         || checked.normalized_type_identity(state.return_type).as_str() != binding.type_identity
     {
         return unsupported("reference completion differs from its exact returned ingress");
+    }
+    Ok(())
+}
+
+/// A local loan replays the exact authored primitive source and retains the
+/// full reference shell independently of the backing carrier.
+pub(super) fn validate_local_establishment(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Result<(), LoweringError> {
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let ordinal = result.statement_index as usize;
+    let expected = validation::reference_result_custody::primitive_local_source(
+        &checked.typed,
+        authored,
+        ordinal,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "primitive reference lost its authored source",
+    ))?;
+    let Some(StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(authored.statement_nodes)
+        .get(ordinal)
+    else {
+        return unsupported("primitive reference has no local declaration");
+    };
+    if expected != *source
+        || result.multiplicity != Multiplicity::Affine
+        || checked
+            .normalized_type_identity(local.type_reference)
+            .as_str()
+            != result.type_identity
+    {
+        return unsupported("primitive reference changed its source or declared carrier");
     }
     Ok(())
 }

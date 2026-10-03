@@ -768,6 +768,14 @@ pub(crate) fn borrowed_nominal_argument(
     } else {
         shapes.add_type(target.type_reference, &[], &[])?
     };
+    let mut path = path;
+    if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source
+        && let Some((ordinal, _)) = program.state_local_declaration(state, symbol)
+        && validation::reference_result_custody::primitive_local_source(program, state, ordinal)
+            .is_some()
+    {
+        path.insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    }
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path,

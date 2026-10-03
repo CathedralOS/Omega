@@ -3,7 +3,7 @@
 //! structural values (whose member operands are calls) emit through the shared
 //! `operation_frame`.
 
-use super::super::{parameters, reference_results, scalar_arrays, structural_values};
+use super::super::{parameters, scalar_arrays, structural_values};
 use super::MachineEmission;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, OperationKind,
@@ -11,36 +11,6 @@ use crate::unit::{
 };
 
 impl MachineEmission<'_> {
-    pub(super) fn establish_reference(
-        &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
-    ) -> Result<Option<OperationKind>, LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation
-        else {
-            unreachable!("dispatched establish_reference")
-        };
-        if result.binding_ordinal as usize != self.structural_result_places.len() {
-            return unsupported("reference result binding is not dense");
-        }
-        let argument = parameters::lower_reference_source(
-            source,
-            self.structural_types,
-            self.parameters,
-            &self.local_places,
-            &self.structural_result_places,
-            &self.primitive_local_places,
-        )?;
-        let declaration = reference_results::emit(
-            result,
-            argument,
-            self.type_ids,
-            &mut self.next_place,
-            &mut self.operations,
-        )?;
-        self.structural_result_places.push((declaration, false));
-        Ok(None)
-    }
-
     pub(super) fn release_reference(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,

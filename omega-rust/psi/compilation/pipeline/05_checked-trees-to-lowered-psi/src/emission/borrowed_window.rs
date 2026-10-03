@@ -487,6 +487,9 @@ fn spell_place(
     parameters: &[StructuralParameterDeclaration],
 ) -> String {
     let mut spelling = match plan.source {
+        CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index } => {
+            format!("scalar parameter#{parameter_index}")
+        }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             match parameters.get(parameter_index as usize) {
                 Some(parameter) if parameter.is_self => "self".to_owned(),

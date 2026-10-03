@@ -46,6 +46,8 @@ impl CheckedCallScalarArgument {
 pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Dense index into the caller's structural parameter list.
     Parameter { parameter_index: u32 },
+    /// Dense scalar ingress whose original storage is established before lending.
+    ScalarParameter { parameter_index: u32 },
     /// Exact initialized mutable primitive storage in the caller state.
     PrimitiveLocal { symbol: SymbolHandle },
     /// Exact immutable structural declaration; the operation sequence owns its slot.
@@ -116,7 +118,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 Some(parameter_index)
             }
-            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -131,7 +134,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
-            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
@@ -146,7 +150,8 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                 Some(binding_ordinal)
             }
-            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
@@ -159,7 +164,8 @@ impl CheckedUnitStructuralArgumentPlan {
     pub fn byte_sequence_literal(&self) -> Option<&[u8]> {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
-            CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
+            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }

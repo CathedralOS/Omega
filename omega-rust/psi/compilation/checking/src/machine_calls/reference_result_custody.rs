@@ -12,6 +12,9 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod primitive_locals;
+pub use primitive_locals::primitive_local_source;
+
 #[cfg(test)]
 mod tests;
 
