@@ -1,17 +1,8 @@
-// A subject threaded from the caller's own data keeps its ESTABLISHED
-// domains across a transition, where an ordinary parameter owes them.
-//
-// The boundary read writes `game.input` through a `&mut`, which retires the
-// record's facts. Passing the record on as the successor's subject then had
-// to re-prove the default domain of every nested domained field --
-// `game.room.label requires [u8; N]::Utf8` -- because an argument must satisfy
-// its parameter's declared domain while a receiver never was an argument.
-//
-// That obligation belongs to a value whose establishment the callee cannot
-// see: a zeroed local, a projection, another record of the same type. It does
-// not belong to the record this activation already holds. A default domain is
-// store-enforced, so every write to a domained field is independently checked
-// to maintain it, and the caller's own subject is established by its entry.
+// Every arrival owes its parameter's declared field domains, including when
+// the argument is the caller's own subject. The boundary read writes only
+// `game.input`; that write must not retire the disjoint `game.room.label`
+// qualification. Enum payload extraction and later operands likewise retain
+// facts outside their actual write footprints. No receiver exemption applies.
 //
 // Expected exit: 0.
 

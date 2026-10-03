@@ -858,24 +858,56 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ) else {
                     continue;
                 };
-                let overlaps = self.operand_writes[*first_write..].iter().any(|writes| {
-                    writes.as_ref().is_none_or(|writes| {
-                        writes.iter().any(|write| {
-                            super::ownership::normalized_event_place_root(self.program, place.root)
-                                == super::ownership::normalized_event_place_root(
-                                    self.program,
-                                    write.root,
-                                )
-                                && canonical_place_segments_may_overlap(
-                                    self.program,
-                                    &place.segments,
-                                    &write.segments,
-                                )
-                        })
-                    })
-                });
-                if overlaps && !changed.contains(&place) {
-                    changed.push(place);
+                for writes in &self.operand_writes[*first_write..] {
+                    let Some(writes) = writes else {
+                        if !changed.contains(&place) {
+                            changed.push(place.clone());
+                        }
+                        continue;
+                    };
+                    for write in writes {
+                        if super::ownership::normalized_event_place_root(self.program, place.root)
+                            != super::ownership::normalized_event_place_root(
+                                self.program,
+                                write.root,
+                            )
+                            || !canonical_place_segments_may_overlap(
+                                self.program,
+                                &place.segments,
+                                &write.segments,
+                            )
+                        {
+                            continue;
+                        }
+                        // Only the written part differs from the saved operand.
+                        // Broadening a field write to its aggregate discards
+                        // unchanged siblings of copies and live references alike.
+                        // A fixed exact prefix permits the intersection; runtime
+                        // selectors cannot establish identity across evaluations.
+                        let exact_prefix =
+                            place.segments.len() < write.segments.len()
+                                && place.segments.iter().zip(&write.segments).all(
+                                    |(left, right)| {
+                                        !matches!(left, facts::PlaceSegment::Index { .. })
+                                            && super::canonical_place_segments_equal(
+                                                self.program,
+                                                *left,
+                                                *right,
+                                            )
+                                    },
+                                );
+                        let affected = if exact_prefix {
+                            CanonicalPlace {
+                                root: place.root,
+                                segments: write.segments.clone(),
+                            }
+                        } else {
+                            place.clone()
+                        };
+                        if !changed.contains(&affected) {
+                            changed.push(affected);
+                        }
+                    }
                 }
             }
         }
