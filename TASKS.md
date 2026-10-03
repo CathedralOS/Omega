@@ -2682,6 +2682,78 @@ same flow already performed, not the check itself.
   realization and pass it. Acceptance: neither the thread-local nor the
   static mutex remains, and the check corpus is unchanged.
 
+- **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) `CheckedTrees` embeds the
+  typed program, but stage 04 rewrites that program in place first, so the
+  embedded value is a checking-time variant rather than typing's output.
+  `typed-trees-to-checked-trees` `checking.rs::lower_typed_trees` takes the
+  program by value and then:
+  - runs the specialization fixed point
+    (`specialize_static_machine_calls_with_selections`,
+    `generate_dynamic_family_specializations`,
+    `bind_selected_operator_calls`, with `normalize_open_index_identities`
+    every round);
+  - runs the binding and landing passes:
+    - `resolve_projected_receiver_calls` (twice)
+    - `resolve_dynamic_call_targets`
+    - `resolve_named_result_overloads`
+    - `bind_float_conversion_casts`
+    - `land_float_literal_destinations` (twice)
+    - `refine_default_domain_zero`
+    - `bind_pre_specialization_authored_selections`
+  - after checking, writes conclusions back through
+    `finalize_checked_authored_selections(&mut program, &facts)`.
+
+  In one commit, move the specialization fixed point and its rebinding passes
+  into a new `typed-trees-to-typed-trees` stage between stages 03 and 04,
+  calling each pass once at its required point. Record finalized authored
+  selections in `CheckFacts` instead of the typed program. Delete the moved
+  calls from stage 04 in the same commit; no fallback route remains. The
+  stage takes the same selected-provider inputs stage 04 takes today, so land
+  it before or with **PROVIDER-SELECTION-AFTER-TERMINAL** rather than racing
+  it. Acceptance: `lower_typed_trees` performs no `&mut` pass over the
+  program and nothing writes to `CheckedTrees.typed` after construction (a
+  stage 04 test pins both), and the full check corpus plus native corpus
+  `--filter generics,operators,providers/` are unchanged.
+
+- **LOWERING-READS-CHECKED-TYPES.** (new-scope) Stage 05 recomputes place
+  and expression types that checking already resolved. It calls
+  `validation::declared_place_type_raw` 44 times,
+  `validation::unwrapped_type_reference` 37 times and
+  `validation::expression_result_type_reference` 24 times; checking and stage
+  04 call the same functions 354 times. Have checking record each resolved
+  place and expression type once, in a dense table in `CheckFacts` indexed by
+  expression handle, and replace every stage 05 call with a read of that
+  table in one commit. Acceptance: stage 05 non-test sources call none of the
+  three functions, enforced by a stage 05 test that scans its own sources;
+  check and native corpus unchanged.
+
+- **LOWERING-READS-CHECKED-BORROW-CUSTODY.** (new-scope) Stage 05 makes 72
+  calls into `validation::reference_result_custody` (`mutable_borrowed_parts`
+  18, `shared_borrowed_parts` 7, `result_multiplicity` 7, `parts`,
+  `is_reference_record`, and others) to recompute the borrow-custody answers
+  checking established when it validated those calls. Have checking record
+  each call's custody result as a checked fact, and replace every stage 05
+  call with a read of it in one commit. Acceptance: stage 05 non-test sources
+  do not name `reference_result_custody`, enforced by the same self-scanning
+  test; corpus `--filter borrows,references/` check and native unchanged.
+
+- **LOWERING-READS-CHECKED-CONTENT-CLASSES.** (new-scope) Stage 05
+  reclassifies types with checking's ownership and content predicates, about
+  90 calls:
+  - `has_plain_owned_contents_with_numeric_constraints`
+  - `has_plain_owned_contents_with_represented_constraints`
+  - `has_linear_owned_contents`
+  - `has_owned_or_shared_view_fields`
+  - `is_closed_primitive_array_type`
+  - `bounded_byte_buffer_capacity`
+
+  Each type's answer is a pure function of the checked program. Compute one
+  classification row per type reference during checking, store it in
+  `CheckFacts`, and replace every stage 05 call with a read of that row in
+  one commit. Acceptance: stage 05 non-test sources call none of the listed
+  predicates, enforced by the self-scanning test; check and native corpus
+  unchanged.
+
 ## Automatic service reach
 
 Finish portable coverage of
