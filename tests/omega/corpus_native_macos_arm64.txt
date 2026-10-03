@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.35, "load1_start": 4.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.42, "load1_start": 3.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -845,6 +845,7 @@ pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70
 pass/proofs/runtime_sequential_ranked_components_exit built 894ms exit:70 @3ed38434a87f+wt
+pass/proofs/runtime_sequential_relational_accumulator_exit built 888ms exit:70 @abeaf0e29f04+wt
 pass/proofs/runtime_two_state_accumulator_exit built 1153ms exit:70 @ccbf3802c51a+wt
 pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
 pass/providers/borrowed_service_field_forward_exit built 1142ms exit:70 stdout:match @5745c7562b65

@@ -3719,20 +3719,19 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `checks/contracts/exits/cyclic_headers.rs` caches only admitted exits;
   stage 05's `proofs/scalar_block_invariants/cyclic_guarantees.rs` searches again.
 
-  Finish invariant discovery through states without direct exits, transfer of
-  established relations between distinct cyclic components, and storage-changing
-  `self` transitions. Exact all-path scalar origins now retain unchanged
-  invocation values across components. The remaining relation frontier changes
-  `previous` to `n` while decrementing `n`, under `n <= previous <= 1000`, then
-  hands off to a second countdown at `n <= 1`: the first component has no direct
-  exit, and the second needs `previous_current <= previous_invocation`.
-  Preserve establishment, every arrival's
+  Finish invariant discovery at exitless states inside a cyclic component and
+  storage-changing `self` transitions. Backward demands cross component
+  boundaries and acyclic bridges, but skip internal cycle edges: an exitless
+  `carry` state on `descend -> carry -> descend` receives no proposal relating
+  its carried value to the invocation bound, even when both edges strictly
+  decrement the counter. Preserve establishment, every arrival's
   simultaneous substitution, and exact source/Terminal scope; an authored state
   edge cannot borrow the preserving implementation-edge exception to strict
   ranking.
 
   Retain the native `runtime_ranked_accumulator_guarantee_exit`,
   `runtime_two_state_accumulator_exit`, `runtime_sequential_ranked_components_exit`,
+  `runtime_sequential_relational_accumulator_exit`,
   `runtime_inductive_climbing_sum_exit`, and `runtime_inductive_gauss_sum_exit`
   controls. Their guarantees survive
   package review, serialization, independent verification,
