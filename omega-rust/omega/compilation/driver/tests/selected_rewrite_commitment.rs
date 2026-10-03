@@ -1,10 +1,10 @@
-//! The corpus `optimizer/*_selection_compile` fixtures select one exact
-//! machine-stage rewrite family each, and their `expected_native_exit.txt`
-//! oracles now execute the result. Executing alone cannot show which rule
-//! committed: a compile that silently skipped the fold would still emit a
-//! runnable program — it would just exit differently. This suite pins the
-//! other half of the claim — that the named rule's transformation is what
-//! the published artifact carries.
+//! The corpus `optimizer/*_selection_compile` and `*_selection_exit`
+//! fixtures select one exact machine-stage rewrite family each, and their
+//! `expected_native_exit.txt` oracles now execute the result. Executing
+//! alone cannot show which rule committed: a compile that silently skipped
+//! the fold would still emit a runnable program — it would just exit
+//! differently. This suite pins the other half of the claim — that the
+//! named rule's transformation is what the published artifact carries.
 //!
 //! For each fixture the compiler's own product route is driven twice:
 //! once as authored, and once with the named rule rolled back through the
@@ -201,5 +201,38 @@ fn redundant_compare_removal_commits_to_the_published_artifact() {
         rule: Optimization::SelectedRedundantCompareRemovalV1,
         rolled_back_receipt: "requested=[SelectedRedundantCompareRemovalV1]; \
                               applied=[SelectedRedundantCompareRemovalV1]; effective=[]",
+    });
+}
+
+/// `copied_call_operand_selection_exit` selects
+/// `SelectedCopiedCallOperandFoldV1` alone: `scale(14i64, 3i64)` stages both
+/// scalar arguments through `CopyI64` records, and the fold rebinds the
+/// call's `Use` operand registers to the copies' sources. The rebound
+/// operand encoding is the byte difference the rollback must restore, and
+/// the program still exits 70 only when `scale` returned 42 either way.
+#[test]
+fn copied_call_operand_fold_commits_to_the_published_artifact() {
+    committed_rule_changes_the_published_bytes(&CommitmentCase {
+        fixture: "tests/omega/pass/optimizer/copied_call_operand_selection_exit/main.omg",
+        rule: Optimization::SelectedCopiedCallOperandFoldV1,
+        rolled_back_receipt: "requested=[SelectedCopiedCallOperandFoldV1]; \
+                              applied=[SelectedCopiedCallOperandFoldV1]; effective=[]",
+    });
+}
+
+/// `stored_load_forwarding_selection_exit` selects
+/// `SelectedStoredLoadForwardingV1` alone: the store of 43 into the context
+/// field and the immediate reload forward the stored register, replacing the
+/// field reload with a register copy. Rolling the rule back retains the
+/// reload, so the emitted text differs — the fixture's own README records
+/// the initial witness's 76- versus 80-byte extents — and `main` still
+/// traps only when the observed field read back wrong.
+#[test]
+fn stored_load_forwarding_commits_to_the_published_artifact() {
+    committed_rule_changes_the_published_bytes(&CommitmentCase {
+        fixture: "tests/omega/pass/optimizer/stored_load_forwarding_selection_exit/main.omg",
+        rule: Optimization::SelectedStoredLoadForwardingV1,
+        rolled_back_receipt: "requested=[SelectedStoredLoadForwardingV1]; \
+                              applied=[SelectedStoredLoadForwardingV1]; effective=[]",
     });
 }
