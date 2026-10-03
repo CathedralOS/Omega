@@ -483,10 +483,23 @@ fn plan_assignment(
         return None;
     }
     trace.phase("structural field store: scalar field type");
-    // A runtime selector below a field names an element, not this field.
+    // A runtime selector below a field names an element, not this field:
+    // `record.field[i]` composes through the same indexed primitive store
+    // a bare `arr[i]` destination reaches, carrying this channel's resolved
+    // root and authority. Elements the primitive leaf walk cannot type
+    // decline there as before.
     if destination.dynamic_index.is_some() {
         trace.phase("structural field store: scalar field type: indexed element destination");
-        return None;
+        return primitive::indexed_store(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            statement_index,
+            assignment,
+        )
+        .map(|store| vec![store]);
     }
     // The same complete field declaration governs construction and every
     // replacement. Retaining its carrier requests the declaration-derived

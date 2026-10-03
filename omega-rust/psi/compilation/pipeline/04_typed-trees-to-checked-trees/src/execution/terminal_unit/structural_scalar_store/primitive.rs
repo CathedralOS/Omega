@@ -200,36 +200,30 @@ pub(super) fn indexed_store(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let mut path = primitive_path(
+    // `resolve` split the outermost selector into `dynamic_index` for the
+    // byte stores' operand slot; a primitive element store walks the same
+    // selector as the last segment of its checked path — a literal keeps its
+    // fixed index, a runtime selector its authored expression — so the path
+    // admission governs field-rooted (`record.field[i]`) and bare-rooted
+    // (`arr[i]`) element destinations identically.
+    let mut segments = destination.place.segments.to_vec();
+    if let Some(index) = destination.dynamic_index {
+        segments.push(match program.expression_table.expression(index) {
+            ExpressionNode::Integer(literal) => facts::PlaceSegment::FixedIndex {
+                index: usize::try_from(literal.value_bignum()?.to_u64()?).ok()?,
+            },
+            _ => facts::PlaceSegment::Index { expression: index },
+        });
+    }
+    let path = primitive_path(
         program,
         facts,
         machine,
         state,
         statement_index,
         assignment.target,
-        &destination.place.segments,
+        &segments,
     )?;
-    if let Some(index) = destination.dynamic_index {
-        // `resolve` split the outermost selector into `dynamic_index` for
-        // the byte stores' operand slot; a primitive element store needs
-        // the same selector back in its checked path, spelled the way the
-        // statement's selector list admits it.
-        let segment = match program.expression_table.expression(index) {
-            ExpressionNode::Integer(literal) => CheckedUnitStructuralPathSegment::FixedIndex(
-                u64::try_from(literal.value_bignum()?.to_u64()?).ok()?,
-            ),
-            _ => super::selectors::TargetSelectors::resolve(
-                program,
-                facts,
-                machine,
-                state,
-                statement_index,
-                assignment.target,
-            )?
-            .runtime_segment(index)?,
-        };
-        path.push(segment);
-    }
     let primitive_type = program.primitive_type_reference(primitive_leaf_type_reference(
         program,
         machine,
