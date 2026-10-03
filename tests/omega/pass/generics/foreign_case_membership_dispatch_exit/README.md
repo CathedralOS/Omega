@@ -14,6 +14,6 @@ python3 tools/corpus_gate.py --both --filter generics/foreign_case_membership_di
 Expected native and checked-interpreter exit: 70. Before referent normalization,
 checking rejected the two instances with exact-declaring-type and
 payload-classifier-as-constructor diagnostics. The stronger direct payload-read
-program remains unchanged under `pending/generics/foreign_case_payload_reads_exit`.
+program now also runs unchanged under `pass/generics/foreign_case_payload_reads_exit`.
 The public command also requires ordinary package review; corpus evidence does
 not manufacture or substitute that approval.
