@@ -1272,10 +1272,8 @@ pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms @011fd400e8c1+wt
-pass/borrows/case_payload_shared_transition_exit rejected 1615ms @82ec69a91ce
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect_nested", reason: "scalar callee has no checked executable body", omission: Some("`inspect_nested` has no admitted body (local construction stopped at state graph: terminator: conditional successors: loan transfer, state 0, statement 1)") })
-pass/borrows/case_payload_state_loan_exit rejected 1588ms @82ec69a91ce
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read", reason: "scalar callee has no checked executable body", omission: Some("`read` has no admitted body (local construction stopped at state graph: terminator: guarded jump successors: loan transfer, state 0, statement 2)") })
+pass/borrows/case_payload_shared_transition_exit checked 2612ms @e8505b71528
+pass/borrows/case_payload_state_loan_exit checked 2340ms @e8505b71528
 pass/borrows/enum_selected_view_reference_exit checked 1343ms @011fd400e8c1+wt
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms @63377f7122bb+wt
@@ -1338,8 +1336,7 @@ pass/calls/callback_private_materialization rejected 1409ms @2d8ed253669f
 pass/calls/caller_result_binding_mutable_loan_exit checked 1568ms @2d8ed253669f
 pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d973a+wt
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
-pass/calls/case_payload_clone_observation_exit rejected 1554ms @82ec69a91ce
-	terminal-artifact production failed: Lowering(Unsupported("record operand substituted its projected referent path"))
+pass/calls/case_payload_clone_observation_exit checked 2727ms @e8505b71528
 pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
 pass/calls/case_scrutinee_self_dispatch_exit checked 914ms @b9ead894da43+wt
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
