@@ -2,7 +2,7 @@
 // where the base requirement does not declare it widens the contract.
 
 trait Logger {
-    machine write(&mut self);
+    machine write(subject: &mut Self);
 }
 
 trait LocalLogger = Logger {

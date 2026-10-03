@@ -7,7 +7,7 @@
 // satisfying `Counter satisfies Incrementable` with a machine that never
 // touches a `Counter`.
 trait Incrementable {
-    machine increment(&mut self);
+    machine increment(subject: &mut Self);
 }
 
 data Counter {

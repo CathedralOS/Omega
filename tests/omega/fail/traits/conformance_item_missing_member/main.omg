@@ -3,7 +3,7 @@
 // has no default body.
 
 trait Shape {
-    machine code(&mut self) -> i32;
+    machine code(subject: &mut Self) -> i32;
 }
 
 data Point {

@@ -1,1 +1,2 @@
-abstract `Self` has no field namespace
+authored MemberAccess declaration selection occurrence 0 (`value` in
+remained unresolved after successful checking (CheckedMember)

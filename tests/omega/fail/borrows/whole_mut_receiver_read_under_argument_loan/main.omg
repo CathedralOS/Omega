@@ -1,29 +1,29 @@
 // A whole `&mut` receiver reads the field its own call's argument lends
 // exclusively: `counter` suspends `count` for the whole call, so the callee
-// reading `self.count` after writing through `counter` would observe the
+// reading `main.count` after writing through `counter` would observe the
 // aliased store. A read through a receiver helper is the callee's read too.
 
 data Main { count: u64; other: u64; }
 
-machine Main::peek(&self) -> u64 { (self.count) }
+machine Main::peek(main: &Main) -> u64 { (main.count) }
 
-machine Main::read_after(&mut self, counter: &mut u64) -> u64 {
+machine Main::read_after(main: &mut Main, counter: &mut u64) -> u64 {
     counter = 5;
-    let seen: u64 = self.count;
+    let seen: u64 = main.count;
     (seen)
 }
 
-machine Main::read_through_helper(&mut self, counter: &mut u64) -> u64 {
+machine Main::read_through_helper(main: &mut Main, counter: &mut u64) -> u64 {
     counter = 5;
-    (self.peek())
+    (Main::peek(main))
 }
 
 machine Main::value_receiver_form(main: &mut Main) -> u64 {
-    let seen: u64 = main.read_through_helper(&mut main.count);
+    let seen: u64 = Main::read_through_helper(main, &mut main.count);
     (seen)
 }
 
-machine Main::main(&mut self) -> u64 {
-    let seen: u64 = self.read_after(&mut self.count);
+machine Main::main(main: &mut Main) -> u64 {
+    let seen: u64 = Main::read_after(main, &mut main.count);
     (seen)
 }

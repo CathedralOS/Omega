@@ -1,1 +1,2 @@
-receives `main.arr[0..2]` as read-only while its mutable receiver writes `main.arr[0]`
+state `overwrite_then_read` receives `main` as both mutable and read-only
+state `overwrite_then_read` receives `main` as both mutable and read-only

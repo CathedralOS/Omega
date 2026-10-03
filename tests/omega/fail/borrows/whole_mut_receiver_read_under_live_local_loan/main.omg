@@ -1,7 +1,7 @@
 // A whole `&mut` receiver call reads what its callee reads while every loan
 // live around the call stays live. `view` is used after the call, so its
 // exclusive loan suspends `count` across it: `peek_count` reading
-// `self.count` observes storage `view` rewrites afterwards, although no
+// `main.count` observes storage `view` rewrites afterwards, although no
 // operand of the call names `view`. A read through a receiver helper is the
 // callee's read too. The complement, `view` last used before the call, is
 // `pass/borrow/runtime_method_view_write_after_last_use_exit`'s use-ranged
@@ -9,22 +9,22 @@
 
 data Main { count: u64; other: u64; }
 
-machine Main::peek(&self) -> u64 { (self.count) }
+machine Main::peek(main: &Main) -> u64 { (main.count) }
 
-machine Main::peek_count(&mut self) -> u64 { (self.count) }
+machine Main::peek_count(main: &mut Main) -> u64 { (main.count) }
 
-machine Main::peek_through(&mut self) -> u64 { (self.peek()) }
+machine Main::peek_through(main: &mut Main) -> u64 { (Main::peek(main)) }
 
-machine Main::read_through_helper(&mut self) -> u64 {
-    let other_view: &mut u64 = &mut self.count;
-    let seen: u64 = self.peek_through();
+machine Main::read_through_helper(main: &mut Main) -> u64 {
+    let other_view: &mut u64 = &mut main.count;
+    let seen: u64 = Main::peek_through(main);
     other_view = 4;
     (seen)
 }
 
-machine Main::run(&mut self) -> u64 {
-    let view: &mut u64 = &mut self.count;
-    let seen: u64 = self.peek_count();
+machine Main::run(main: &mut Main) -> u64 {
+    let view: &mut u64 = &mut main.count;
+    let seen: u64 = Main::peek_count(main);
     view = 3;
     (seen)
 }

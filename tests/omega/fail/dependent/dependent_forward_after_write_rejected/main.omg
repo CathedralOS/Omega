@@ -2,23 +2,23 @@
 // into a same-bound sibling is route (c) -- the argument's own atom -- but
 // that atom speaks of the field AT THIS STATE'S ENTRY while the new
 // obligation speaks of the NEXT entry. A write to the field in between
-// (here `self.count = 3` after entering with i <= count == 8) makes the
+// (here `main.count = 3` after entering with i <= count == 8) makes the
 // bridge unsound, so the write DEFEATS the route and the transition
 // refuses (relate them with a fresh guard after the write instead).
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; items: [u8; 12]; count: u32 [0..=11]; j: u32; out: i32; }
-machine Main::main(&mut self) {
-    self.count = 8;
-    self.j = 6;
-    transition self.j <= self.count { true -> read(self.j) _ -> bad() }
-    state read(&mut self, i: u32 [0..=self.count]) {
-        self.count = 3;
-        transition self.out == 0 { true -> deeper(i) _ -> bad() }
+machine Main::main(main: &mut Main) {
+    main.count = 8;
+    main.j = 6;
+    transition main.j <= main.count { true -> read(main, main.j) _ -> bad(main) }
+    state read(main: &mut Main, i: u32 [0..=main.count]) {
+        main.count = 3;
+        transition main.out == 0 { true -> deeper(main, i) _ -> bad(main) }
     }
-    state deeper(&mut self, k: u32 [0..=self.count]) {
-        self.out = self.items[k] as i32;
-        self.console.exit_process(self.out);
+    state deeper(main: &mut Main, k: u32 [0..=main.count]) {
+        main.out = main.items[k] as i32;
+        main.console.exit_process(main.out);
     }
-    state bad(&mut self) { self.console.exit_process(9); }
+    state bad(main: &mut Main) { main.console.exit_process(9); }
 }

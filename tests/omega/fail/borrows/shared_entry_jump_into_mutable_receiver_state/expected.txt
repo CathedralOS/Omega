@@ -1,2 +1,2 @@
-state `next` requires a mutable receiver, but its machine's entry receiver is not writable
-state `write` requires a mutable receiver, but its machine's entry receiver is not writable
+argument `main` for state `next` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+argument `main` for state `write` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
