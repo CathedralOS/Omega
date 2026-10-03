@@ -169,6 +169,23 @@ pub(super) fn establish(
             });
         }
     }
+    // A whole owned move re-homes the record's stored loans onto the bound
+    // name: their formation identity, roots and parents are untouched, only
+    // the carrier coordinate follows the value across the edge.
+    for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
+        if parameter.access != StructuralAccess::Owned
+            || argument.access != StructuralAccess::Owned
+            || !argument.path.is_empty()
+            || argument.place == parameter.place
+        {
+            continue;
+        }
+        for reference in frontier.references.iter_mut() {
+            if reference.carrier == argument.place {
+                reference.carrier = parameter.place;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -208,8 +225,12 @@ fn carries_owned_frontier(
     match declaration.kind {
         StructuralPlaceKind::TrivialAffineLocal { .. } => true,
         StructuralPlaceKind::OperationResult { .. } => {
-            super::super::byte_sequence::subslice::borrowed_result_in_module(module, machine, place).is_none()
-                && super::super::element_view::subslice::borrowed_result_in_module(module, machine, place).is_none()
+            super::super::byte_sequence::subslice::borrowed_result_in_module(module, machine, place)
+                .is_none()
+                && super::super::element_view::subslice::borrowed_result_in_module(
+                    module, machine, place,
+                )
+                .is_none()
                 && super::super::primitive_storage::local_result(machine, place).is_none()
                 && !super::super::scalar::array::plain_return_source(module, machine, place)
                 && !super::super::structural::leaf_copy::copied_return_source(machine, place)

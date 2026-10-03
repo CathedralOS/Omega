@@ -48,6 +48,23 @@ pub(super) fn bind_owned_parameters(
             return Err(invalid());
         }
     }
+    // A whole owned move re-homes the record's stored loans onto the bound
+    // name: their formation identity, roots and parents are untouched, only
+    // the carrier coordinate follows the value across the edge.
+    for (binding, parameter) in bindings.iter().zip(&target.structural_parameters) {
+        if parameter.access != StructuralAccess::Owned
+            || binding.argument.access != StructuralAccess::Owned
+            || !binding.argument.path.is_empty()
+            || binding.argument.place == parameter.place
+        {
+            continue;
+        }
+        for reference in frontier.live_references.iter_mut() {
+            if reference.carrier == binding.argument.place {
+                reference.carrier = parameter.place;
+            }
+        }
+    }
     Ok(())
 }
 

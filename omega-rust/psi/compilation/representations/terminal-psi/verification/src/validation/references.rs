@@ -654,19 +654,34 @@ pub(super) fn validate_machine(
             ));
         }
     }
-    if machine
+    // A block parameter may hold a whole owned reference record: the same
+    // eligibility as an incoming parameter. The frontier's live-reference
+    // rows re-home onto the bound place at each edge, so edge custody, not
+    // the parameter shape, carries the loan's exact evidence. Anything
+    // weaker — borrowed access, a qualifier, a non-affine or non-constructible
+    // carrier — still has no verified edge meaning.
+    for parameter in machine
         .blocks
         .iter()
         .flat_map(|block| &block.structural_parameters)
-        .any(|parameter| contains_reference(module, parameter.structural_type))
+        .filter(|parameter| contains_reference(module, parameter.structural_type))
     {
-        return Err(invalid(
-            machine,
-            "reference carrier block parameters are not yet supported",
-        ));
+        if parameter.access != StructuralAccess::Owned
+            || parameter.multiplicity != StructuralMultiplicity::Affine
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !super::record::constructible_type(module, parameter.structural_type)
+        {
+            return Err(invalid(
+                machine,
+                "reference carrier block parameters require whole unqualified affine ownership",
+            ));
+        }
     }
     // Binding any subtree of a reference-bearing root would need partial-move
     // custody, even when the selected target parameter itself has no references.
+    // A whole owned argument moves the entire record — and every stored loan
+    // with it — across the edge; a borrow lane or a projected path cannot.
     for block in &machine.blocks {
         let arguments: &[StructuralArgument] = match &block.terminator {
             Terminator::Jump {
@@ -694,6 +709,7 @@ pub(super) fn validate_machine(
             .any(|argument| {
                 super::structural::result_contracts::source_signature(machine, argument.place)
                     .is_some_and(|source| contains_reference(module, source.structural_type))
+                    && (argument.access != StructuralAccess::Owned || !argument.path.is_empty())
             })
         {
             return Err(invalid(

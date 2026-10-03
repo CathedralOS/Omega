@@ -33,6 +33,40 @@ pub(super) fn validate_parameters(
     Ok(())
 }
 
+/// A whole owned edge move re-homes the moved record's loan leaves onto the
+/// bound name: the custody key is the current carrier location and follows
+/// the value across the edge. Formation identity, result row, root, parent
+/// and referent are provenance and stay put.
+pub(super) fn re_home_bound_references(
+    bindings: &[abstract_operations::AbstractStructuralBinding],
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    live: &mut LiveDefinitions,
+) {
+    for (binding, parameter) in bindings.iter().zip(parameters) {
+        if parameter.access != terminal_psi::StructuralAccess::Owned
+            || binding.argument.access != terminal_psi::StructuralAccess::Owned
+            || !binding.argument.path.is_empty()
+            || binding.argument.place == parameter.place
+        {
+            continue;
+        }
+        let moved: Vec<(
+            semantic_vocabulary::PlaceId,
+            Vec<terminal_psi::StructuralPathSegment>,
+        )> = live
+            .references
+            .keys()
+            .filter(|(carrier, _)| *carrier == binding.argument.place)
+            .cloned()
+            .collect();
+        for (carrier, path) in moved {
+            if let Some(custody) = live.references.remove(&(carrier, path.clone())) {
+                live.references.insert((parameter.place, path), custody);
+            }
+        }
+    }
+}
+
 pub(super) fn enter(block: &AbstractBlockEntry, live: &mut LiveDefinitions) {
     for parameter in &block.parameters {
         match parameter.scalar_type {
@@ -229,9 +263,15 @@ pub(super) fn validate_successors(
                     continue;
                 }
                 // Binding a reference-bearing subtree would need partial-move
-                // custody across an edge; the verified contract rejects it and
-                // this layer keeps the same boundary.
-                if references::contains_reference(structural_types, parameter.structural_type) {
+                // custody across an edge; the verified contract admits only a
+                // whole owned move — every stored loan travels with the record.
+                // A projected path or a borrow lane still rejects here, and the
+                // exact-contract checks below keep the same boundary.
+                if references::contains_reference(structural_types, parameter.structural_type)
+                    && (parameter.access != terminal_psi::StructuralAccess::Owned
+                        || binding.argument.access != terminal_psi::StructuralAccess::Owned
+                        || !binding.argument.path.is_empty())
+                {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let place = binding.argument.place;

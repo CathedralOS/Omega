@@ -2270,6 +2270,7 @@ pass/termination/named_computed_rank_endpoints checked 339ms @2d8ed253669f
 pass/termination/natural_call_variable_step checked 333ms @2d8ed253669f
 pass/termination/proof_non_tail_joint_machine_cycle_compile checked 363ms @2d8ed253669f
 pass/termination/quotient_endpoint_call_component checked 341ms @2d8ed253669f
+pass/termination/rank_endpoint_borrows_recovery checked 3880ms @f7f6234600+wt
 pass/termination/rank_range_call_component checked 327ms @2d8ed253669f
 pass/termination/rank_range_call_declared_step_copy checked 320ms @2d8ed253669f
 pass/termination/rank_range_declared_step_copies checked 358ms @2d8ed253669f
@@ -2289,8 +2290,8 @@ pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms @2d8
 pass/termination/runtime_rank_range_state_call_exit checked 867ms @82d2bd2d7669
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms @c9c108ecb4ac+wt
 pass/termination/runtime_shrinking_slice_recursion_exit checked 852ms @2f8006be6cc9+wt
-pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1212ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
+pass/termination/runtime_stored_exclusive_endpoint_exit rejected 2776ms @f7f6234600+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural value: reference record loans, statement 2)") })
 pass/termination/stored_reference_endpoint_arrivals checked 320ms @2d8ed253669f
 pass/termination/symbolic_quotient_endpoints checked 334ms @2d8ed253669f
 pass/termination/unsigned_identity_measure_rank_range checked 300ms @2d8ed253669f

@@ -177,6 +177,38 @@ impl SourceTypes<'_> {
                     );
                     self.data_shape(data, &local_substitutions)?
                 }
+                TypeReferenceNode::Reference { access, .. } => {
+                    // A stored-loan leaf keeps its reference shell as a
+                    // `Reference` shape over the peeled referee -- the same
+                    // plan `add_view_type` registers for it. An exclusive
+                    // shell lends whatever it borrows; a shared shell lends
+                    // only a named referent, and slice views register
+                    // through their own carriers, so neither arrives here as
+                    // a record leaf. The referee replays under no
+                    // substitutions, exactly as the collector registers it.
+                    let (referee, _) = match access {
+                        language_semantics::ReferenceAccess::Mutable => {
+                            validation::reference_result_custody::mutable_borrowed_parts(
+                                &checked.typed,
+                                reference,
+                            )
+                        }
+                        language_semantics::ReferenceAccess::Shared => {
+                            validation::reference_result_custody::shared_borrowed_parts(
+                                &checked.typed,
+                                reference,
+                            )
+                        }
+                        language_semantics::ReferenceAccess::WriteOnly => None,
+                    }
+                    .ok_or(LoweringError::Unsupported(
+                        "owned source type has no admitted structural shape",
+                    ))?;
+                    CheckedUnitStructuralTypeShape::Reference {
+                        referent_identity: self.validate_type(referee, &[])?,
+                        access: (*access).into(),
+                    }
+                }
                 _ => return unsupported("owned source type has no admitted structural shape"),
             }
         };

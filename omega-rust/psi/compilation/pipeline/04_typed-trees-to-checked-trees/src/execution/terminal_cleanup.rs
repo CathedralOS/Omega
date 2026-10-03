@@ -812,10 +812,33 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 statements.get(statement_index),
                 Some(StatementNode::Transition(_))
             ),
-            PermissionEventSource::Call { target_symbol, .. } => program
-                .machines()
-                .iter()
-                .any(|candidate| candidate.symbol == target_symbol),
+            PermissionEventSource::Call {
+                statement_index,
+                target_symbol,
+                ..
+            } => {
+                // A call-sourced move on a transition statement whose target
+                // IS the transition's named target is an edge forward — a
+                // machine re-entry or a foreign machine jump — exactly like a
+                // state-targeting edge call. Only a different machine's call
+                // (an arm operand) consumed the value before the edge.
+                let edge_target = match statements.get(statement_index) {
+                    Some(StatementNode::Transition(transition))
+                        if transition.exit == TransitionExit::Ordinary =>
+                    {
+                        match program.statement_table.transition_target(transition.target) {
+                            TransitionTargetNode::Named { path, .. } => Some(path.symbol),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                };
+                edge_target != Some(target_symbol)
+                    && program
+                        .machines()
+                        .iter()
+                        .any(|candidate| candidate.symbol == target_symbol)
+            }
             _ => false,
         }
     };

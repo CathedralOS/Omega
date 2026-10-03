@@ -79,9 +79,7 @@ pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle)
         reference: TypeReferenceHandle,
         seen: &mut Vec<SymbolHandle>,
     ) -> Option<bool> {
-        if parts(program, reference).is_some()
-            || shared_borrowed_parts(program, reference).is_some()
-        {
+        if stored_loan_parts(program, reference).is_some() {
             return Some(true);
         }
         if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
@@ -124,7 +122,14 @@ pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle)
         seen.pop();
         Some(contains_reference)
     }
-    parts(program, reference).is_none() && visit(program, reference, &mut Vec::new()) == Some(true)
+    // A bare exclusive leaf — `&mut` over a primitive or named referent — is
+    // its own custody family, not a record, so the classifier stays out.
+    // A shared `&T` borrow has no such family: it has always counted as
+    // reference-bearing here, and the discarded-result and admission gates
+    // rely on that classification.
+    parts(program, reference).is_none()
+        && stored_mutable_parts(program, reference).is_none()
+        && visit(program, reference, &mut Vec::new()) == Some(true)
 }
 
 /// Reconstruct a leaf's exact formal ingress. Structural parameter ordinals
@@ -135,8 +140,7 @@ pub fn initializer_source(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-    let (referent, access) =
-        parts(program, reference).or_else(|| shared_borrowed_parts(program, reference))?;
+    let (referent, access) = stored_loan_parts(program, reference)?;
     if !matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Name(_)
@@ -155,7 +159,7 @@ pub fn initializer_source(
     {
         return None;
     }
-    let (position, parameter) = program
+    let found = program
         .state_parameters(state)
         .iter()
         .filter(|parameter| {
@@ -165,21 +169,36 @@ pub fn initializer_source(
                     .is_none()
         })
         .enumerate()
-        .find(|(_, parameter)| parameter.symbol == path.symbol)?;
-    if parameter.is_self
-        || parameter.name != *name
-        || !reference_parameter_can_supply(program, parameter.type_reference, reference)
+        .find(|(_, parameter)| parameter.symbol == path.symbol);
+    if let Some((position, parameter)) = found {
+        if parameter.is_self
+            || parameter.name != *name
+            || !reference_parameter_can_supply(program, parameter.type_reference, reference)
+        {
+            return None;
+        }
+        return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(position).ok()?,
+            },
+            path: Vec::new(),
+            type_identity: program.normalized_type_identity(referent).into_string(),
+            access,
+        });
+    }
+    // A reference-typed local forwards its own loan: the binding plans no
+    // storage of its own, so the field's ingress is the loan the local's
+    // initializer captured, re-derived at the same access. The marker is
+    // immutable (a reference binding cannot reseat) and its declared carrier
+    // must be able to supply the exact reference the field asks for.
+    let (_, local) = program.state_local_declaration(state, path.symbol)?;
+    if local.is_mutable
+        || local.name != *name
+        || !reference_parameter_can_supply(program, local.type_reference, reference)
     {
         return None;
     }
-    Some(checked_trees::CheckedUnitStructuralArgumentPlan {
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: u32::try_from(position).ok()?,
-        },
-        path: Vec::new(),
-        type_identity: program.normalized_type_identity(referent).into_string(),
-        access,
-    })
+    borrowed_initializer_source(program, state, local.initial_value, reference)
 }
 
 /// Returning an ingress loan can reduce access, never change its referent.
@@ -228,8 +247,7 @@ pub fn borrowed_initializer_source(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-    let (referent, access) =
-        parts(program, reference).or_else(|| shared_borrowed_parts(program, reference))?;
+    let (referent, access) = stored_loan_parts(program, reference)?;
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -262,9 +280,6 @@ pub fn borrowed_initializer_source(
             _ => break,
         };
     }
-    if projections.is_empty() {
-        return None;
-    }
     let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
         return None;
     };
@@ -285,14 +300,48 @@ pub fn borrowed_initializer_source(
         })
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == path.symbol);
-    let (position, parameter) = found?;
-    if parameter.is_self || parameter.name != *name {
-        return None;
+    // The borrowed carrier roots at a non-self structural formal — the
+    // existing ingress family — or at an established local of this state,
+    // which mints the local's own storage as the loaned home. A formal still
+    // requires a projected leaf (`&mut formal.field`); a local admits the
+    // whole place (`&mut owner`) because its storage is wholly owned by this
+    // frame. A mutable or write-only loan needs a mutable referent
+    // declaration, the local must not be erased, and a reference-typed
+    // local is a silent marker with no storage to name — borrowing through
+    // one is the reborrow lane, which this plan does not reconstruct.
+    enum CarrierRoot {
+        Parameter(u32),
+        Local(SymbolHandle),
     }
+    let (root, mut owner_type) = match found {
+        Some((position, parameter)) => {
+            if parameter.is_self || parameter.name != *name || projections.is_empty() {
+                return None;
+            }
+            (
+                CarrierRoot::Parameter(u32::try_from(position).ok()?),
+                parameter.type_reference,
+            )
+        }
+        None => {
+            let (_, local) = program.state_local_declaration(state, path.symbol)?;
+            let exclusive = matches!(
+                access,
+                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+            );
+            if local.name != *name
+                || local.relevance.is_erased()
+                || (exclusive && !local.is_mutable)
+                || crate::reference_shell(program, local.type_reference).is_some()
+            {
+                return None;
+            }
+            (CarrierRoot::Local(local.symbol), local.type_reference)
+        }
+    };
     // Each member hop resolves against the nominal owner its receiver
     // projects: the root carrier's declaration first, then each selected
     // field's (or indexed element's) type.
-    let mut owner_type = parameter.type_reference;
     let mut segments = Vec::with_capacity(projections.len() + 1);
     for projection in projections.iter().rev() {
         match program.expression_table.expression(*projection) {
@@ -347,10 +396,16 @@ pub fn borrowed_initializer_source(
     if program.normalized_type_identity(leaf) != program.normalized_type_identity(referent) {
         return None;
     }
+    let source = match root {
+        CarrierRoot::Parameter(parameter_index) => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
+        }
+        CarrierRoot::Local(symbol) => {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+        }
+    };
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: u32::try_from(position).ok()?,
-        },
+        source,
         path: segments,
         type_identity: program.normalized_type_identity(referent).into_string(),
         access,
@@ -444,7 +499,7 @@ fn construction_sources_with_calls(
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    if parts(program, reference).is_some() || shared_borrowed_parts(program, reference).is_some() {
+    if stored_loan_parts(program, reference).is_some() {
         return Some(vec![checked_trees::CheckedReferenceResultSourcePlan {
             path: Vec::new(),
             source: initializer_source(program, state, expression, reference)?,
@@ -615,9 +670,7 @@ fn formal_record_sources(
         path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         output: &mut Vec<checked_trees::CheckedReferenceResultSourcePlan>,
     ) -> Option<()> {
-        if let Some((referent, access)) =
-            parts(program, reference).or_else(|| shared_borrowed_parts(program, reference))
-        {
+        if let Some((referent, access)) = stored_loan_parts(program, reference) {
             let mut source_path = path.clone();
             source_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
             output.push(checked_trees::CheckedReferenceResultSourcePlan {
@@ -794,21 +847,37 @@ pub fn local_record_loans(
     let flow = state_flow(facts, machine, state.symbol)?;
     let mut output = Vec::new();
     for source in sources {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            source.source.source
-        else {
-            return None;
+        // The leaf's loaned home is either a formal ingress position or an
+        // earlier local's own storage — `borrowed_initializer_source` mints
+        // `StructuralLocal` for the local-rooted form (`Indirect { target:
+        // &mut owner }`), and the ledger records the same root symbol on
+        // either arm. The root's declared type feeds the expected segment
+        // replay the same way on both arms.
+        let (root_symbol, root_type) = match source.source.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                let parameter = program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| {
+                        !parameter.is_const
+                            && program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_none()
+                    })
+                    .nth(parameter_index as usize)?;
+                (parameter.symbol, parameter.type_reference)
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                let (ordinal, referent) = program.state_local_declaration(state, symbol)?;
+                if ordinal >= statement_index as usize {
+                    return None;
+                }
+                (symbol, referent.type_reference)
+            }
+            _ => return None,
         };
-        let parameter = program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| {
-                !parameter.is_const
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
-            .nth(parameter_index as usize)?;
         let mut owner_path = Vec::new();
         let mut selected = local.type_reference;
         for segment in &source.path {
@@ -852,10 +921,10 @@ pub fn local_record_loans(
             CheckedStructuralAccess::Owned => return None,
         };
         let expected_segments =
-            expected_loan_segments(program, parameter.type_reference, &source.source.path)?;
+            expected_loan_segments(program, root_type, &source.source.path)?;
         if matching.next().is_some()
             || loan.statement_index != statement_index as usize
-            || loan.root_symbol != parameter.symbol
+            || loan.root_symbol != root_symbol
             || loan.kind != expected_kind
             || facts.borrow.loan_segments(loan) != expected_segments.as_slice()
         {
@@ -1480,6 +1549,40 @@ pub fn parts(
         return None;
     }
     Some((*referee, CheckedStructuralAccess::MutableBorrow))
+}
+
+/// The referee beneath an exclusive `&mut T` stored leaf whose referent is a
+/// `Named` declaration — primitive or record. `parts` keeps its
+/// primitive-only reference-result shape for the whole-return family; a
+/// record member or stored leaf admits a record referent under the same
+/// exclusive loan because a `&mut Record` names caller-frame storage just
+/// as a `&mut u8` does. Slice views and unclassified referees stay out:
+/// `&mut [T]` is a view descriptor, not a stored loan leaf.
+fn stored_mutable_parts(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
+    mutable_borrowed_parts(program, reference).filter(|(referee, _)| {
+        matches!(
+            program.type_reference_table.type_reference(*referee),
+            TypeReferenceNode::Named { .. }
+        )
+    })
+}
+
+/// One stored carrier leaf's (referent, access): an exclusive `&mut` loan
+/// over a named referent or a shared `&` borrow — the two leaf families a
+/// reference record carries. Every consumer of the leaf family — the
+/// reference-record classifier, ingress reconstruction, construction-source
+/// rosters and formal forwarding — asks this one question so the admitted
+/// shape never drifts between them.
+pub fn stored_loan_parts(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
+    parts(program, reference)
+        .or_else(|| shared_borrowed_parts(program, reference))
+        .or_else(|| stored_mutable_parts(program, reference))
 }
 
 /// The referee beneath any `&mut T` carrier, with constraint shells peeled.

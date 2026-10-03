@@ -439,6 +439,36 @@ pub(super) fn lower(
         live.nonreturning = false;
         if position != entry_position {
             transfers::enter(&entries[position], &mut live);
+            // The dominator's edge carried each owned parameter's argument;
+            // whole owned moves re-home the moved record's loan leaves onto
+            // the bound place before the body sees them.
+            if let Some(dominator) = dominator {
+                let edge_bindings = match &function.operations[ranges[dominator].end - 1] {
+                    AbstractOperation::Jump {
+                        target: edge_target,
+                        structural_bindings,
+                        ..
+                    } if *edge_target == entries[position].block => {
+                        Some(structural_bindings.as_slice())
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => [when_true, when_false]
+                        .iter()
+                        .find(|edge| edge.target == entries[position].block)
+                        .map(|edge| edge.structural_bindings.as_slice()),
+                    _ => None,
+                };
+                if let Some(bindings) = edge_bindings {
+                    transfers::re_home_bound_references(
+                        bindings,
+                        &entries[position].structural_parameters,
+                        &mut live,
+                    );
+                }
+            }
             for parameter in entries[position]
                 .structural_parameters
                 .iter()

@@ -1550,7 +1550,9 @@ fn constructible_record(types: &StructuralTypeLookup<'_>, root: StructuralTypeId
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
-                StructuralFieldType::Structural(child) if referent(types, child).is_some() => {}
+                StructuralFieldType::Structural(child)
+                    if referent(types, child).is_some()
+                        || plain_record_referent(types, child).is_some() => {}
                 StructuralFieldType::Structural(child) => pending.push((child, false)),
                 _ => return false,
             }

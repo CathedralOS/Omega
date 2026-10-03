@@ -237,8 +237,16 @@ fn validate_structural_parameter(
     {
         if parameter.is_mutable
             || (!primitive_array
+                // The same owned-carrier admission the scalar graph's
+                // parameter gate applied: a record whose non-plain leaves are
+                // exactly its stored loans transfers whole across edges, so
+                // each captured loan keeps its checked ingress.
                 && !validation::has_plain_owned_contents_with_numeric_constraints(
                     checked,
+                    parameter.type_reference,
+                )
+                && !validation::reference_result_custody::is_reference_record(
+                    &checked.typed,
                     parameter.type_reference,
                 ))
             || (primitive_array && retained.multiplicity != Multiplicity::Unrestricted)
