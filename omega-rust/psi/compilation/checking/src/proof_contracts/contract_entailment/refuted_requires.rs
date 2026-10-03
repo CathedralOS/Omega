@@ -418,38 +418,59 @@ fn declared_len_extent_term(
     let Some((machine, state)) = caller_scope else {
         return term;
     };
-    let StructuralTerm::Projection { subject, path } = &term else {
-        return term;
-    };
-    if language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
-        path.as_str(),
-    ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
-    {
-        return term;
-    }
     let mut names = Vec::new();
-    let mut current = subject.as_ref();
-    loop {
-        match current {
-            StructuralTerm::Variable(name) => {
-                names.insert(0, name.clone());
-                break;
+    match &term {
+        StructuralTerm::Projection { subject, path } => {
+            if language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
+                path.as_str(),
+            ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+            {
+                return term;
             }
-            // An Opaque carries a display spelling: a caller-side
-            // multi-member place (`main.control`) joins its path with
-            // `.`, so split it back into members to recover the place.
-            StructuralTerm::Opaque(name) => {
-                for (index, member) in name.split('.').enumerate() {
-                    names.insert(index, member.to_string());
+            let mut current = subject.as_ref();
+            loop {
+                match current {
+                    StructuralTerm::Variable(name) => {
+                        names.insert(0, name.clone());
+                        break;
+                    }
+                    // An Opaque carries a display spelling: a caller-side
+                    // multi-member place (`main.control`) joins its path with
+                    // `.`, so split it back into members to recover the place.
+                    StructuralTerm::Opaque(name) => {
+                        for (index, member) in name.split('.').enumerate() {
+                            names.insert(index, member.to_string());
+                        }
+                        break;
+                    }
+                    StructuralTerm::Projection { subject, path } => {
+                        names.insert(0, path.clone());
+                        current = subject.as_ref();
+                    }
+                    _ => return term,
                 }
-                break;
             }
-            StructuralTerm::Projection { subject, path } => {
-                names.insert(0, path.clone());
-                current = subject.as_ref();
-            }
-            _ => return term,
         }
+        // A `.len`-tailed opaque spelling is the same place the projection
+        // arm names: `main.nodes.len` arrives whole when ordinary field
+        // members keep the citation vocabulary's opaque term.
+        StructuralTerm::Opaque(name) => {
+            let mut members: Vec<String> =
+                name.split('.').map(|member| member.to_string()).collect();
+            if members
+                .last()
+                .is_none_or(|last| {
+                    language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
+                        last.as_str(),
+                    ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+                })
+            {
+                return term;
+            }
+            members.pop();
+            names = members;
+        }
+        _ => return term,
     }
     let Some(declared) = crate::value_custody::places::declared_member_path_type(
         program,
