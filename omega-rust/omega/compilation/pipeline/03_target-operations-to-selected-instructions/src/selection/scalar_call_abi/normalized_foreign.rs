@@ -220,19 +220,20 @@ pub(crate) fn validate(
             return Err(invalid());
         }
     }
-    // Each structural argument re-derives its projected type, source offset,
-    // and borrowed-view shape from the caller's own structural signature and
-    // established homes; the source must retain that exact origin, and the
-    // destination is the exact pointer word the plan assigned at that index.
+    // Storage geometry and foreign classification are different contracts.
+    // Reconstruct both from source declarations; an owned indirect placement
+    // still transfers bytes, whereas a borrow transports a referent pointer.
+    let mut structural_shapes = Vec::new();
     for (index, argument) in structural_parameter_positions(call).zip(&call.structural_arguments) {
         let signature = source.structural.as_ref().ok_or_else(invalid)?;
         let parameter = signature
             .parameters
             .iter()
             .find(|parameter| parameter.semantic.place == argument.place);
-        let (root_type, expected_source) = if let Some(parameter) = parameter {
+        let (root_type, root_access, expected_source) = if let Some(parameter) = parameter {
             (
                 parameter.semantic.structural_type,
+                parameter.semantic.access,
                 TargetStructuralArgumentSource::Placement(parameter.target.placement.clone()),
             )
         } else if let Some((producer, result)) =
@@ -240,6 +241,7 @@ pub(crate) fn validate(
         {
             (
                 result.structural_type,
+                terminal_psi::StructuralAccess::Owned,
                 TargetStructuralArgumentSource::StructuralHome {
                     psi_operation: producer,
                 },
@@ -249,6 +251,7 @@ pub(crate) fn validate(
         {
             (
                 parameter.structural_type,
+                parameter.access,
                 TargetStructuralArgumentSource::BlockParameter {
                     block,
                     place: parameter.place,
@@ -269,51 +272,60 @@ pub(crate) fn validate(
             &signature.structural_types,
         )
         .ok_or_else(invalid)?;
+        let (storage_shape, abi_shape) = match argument.access {
+            terminal_psi::StructuralAccess::Owned => {
+                if root_access != terminal_psi::StructuralAccess::Owned || !argument.path.is_empty()
+                {
+                    return Err(invalid());
+                }
+                let classified =
+                    abstract_operations_to_target_operations::classified_boundary_shape(
+                        projected_type,
+                        &signature.structural_types,
+                        plan.call.policy,
+                    )
+                    .map_err(|_| invalid())?;
+                (projected_shape, classified)
+            }
+            terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
+                if !matches!(argument.destination.locations.as_slice(),
+                    [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
+                    | [ValueLocation::Stack { value_byte_offset: 0, byte_size, .. }]
+                        if *byte_size == u32::from(pointer_size))
+                {
+                    return Err(invalid());
+                }
+                (
+                    ValueShape::borrowed_reference(
+                        projected_shape.byte_size,
+                        projected_shape.alignment,
+                    ),
+                    ValueShape::integer(u32::from(pointer_size), pointer_alignment),
+                )
+            }
+        };
         if argument.path.iter().any(|segment| {
             !matches!(
                 segment,
                 terminal_psi::StructuralPathSegment::Field(_)
                     | terminal_psi::StructuralPathSegment::FixedIndex(_)
             )
-        }) || !matches!(
-            argument.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || argument.root_structural_type != root_type
+        }) || argument.root_structural_type != root_type
             || argument.structural_type != projected_type
             || argument.source_byte_offset != source_byte_offset
-            || argument.shape
-                != ValueShape::borrowed_reference(
-                    projected_shape.byte_size,
-                    projected_shape.alignment,
-                )
+            || argument.shape != storage_shape
             || argument.fixed_array_length.is_some()
             || argument.element_stride.is_some()
+            || !argument.indices.is_empty()
             || argument.source != expected_source
             || plan.call.parameters.get(index) != Some(&argument.destination)
-            || argument.destination.shape
-                != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
+            || argument.destination.shape != abi_shape
         {
             return Err(invalid());
         }
-        match argument.destination.locations.as_slice() {
-            [
-                ValueLocation::Register {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ]
-            | [
-                ValueLocation::Stack {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ] if *byte_size == u32::from(pointer_size) => {}
-            _ => return Err(invalid()),
-        }
+        structural_shapes.push((index, abi_shape));
     }
     // The scalar result home is exact value custody: the defining operation,
     // source value, scalar type, and shape must equal the legalized result,
@@ -383,6 +395,9 @@ pub(crate) fn validate(
             .get_mut(argument.parameter_index as usize)
             .ok_or_else(invalid)? =
             scalar_shape(argument.source.scalar_type()).ok_or_else(invalid)?;
+    }
+    for (position, shape) in structural_shapes {
+        *parameters.get_mut(position).ok_or_else(invalid)? = shape;
     }
     let signature = CallSignature {
         parameters,

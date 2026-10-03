@@ -220,31 +220,6 @@ pub(super) fn place_pointer_at_site(
     Ok(output)
 }
 
-/// Reconstruct the outgoing pointer from the independently replayed entry copy.
-pub(super) fn call_pointer(
-    replay: &mut Replay<'_>,
-    row: &LegalizedScalarInstruction,
-    place: PlaceId,
-    byte_offset: u32,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return Err(replay.invalid());
-    };
-    if call.validate_source(&row.ownership).is_err()
-        || !call.claim_transfers.is_empty()
-        // Origin consistency alone also admits scalar calls with no ownership
-        // event; this borrowed-pointer edge still requires authored transfer.
-        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
-            && !matches!(row.ownership.as_slice(),
-                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
-    {
-        return Err(replay.invalid());
-    }
-    // Scalar-call replay checks the result's exact type and placement. Pointer
-    // replay checks only the borrowed argument and its ownership event.
-    place_pointer(replay, row, place, byte_offset)
-}
-
 /// Replay the element-loan pointer: the view's backing pointer, never the
 /// descriptor's own address, projected to the loaned element.
 pub(super) fn view_element_pointer(

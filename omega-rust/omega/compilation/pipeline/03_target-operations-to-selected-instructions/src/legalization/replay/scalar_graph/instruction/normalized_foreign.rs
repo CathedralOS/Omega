@@ -137,6 +137,7 @@ pub(super) fn validate(
                     &function.graph.parameters,
                     optimized,
                     native.target,
+                    call.binding.boundary_entry_plan.call.policy,
                     plan,
                     operation,
                 )

@@ -35,31 +35,28 @@ pub(super) fn replay(
                 target,
                 indices,
             } => {
-                if semantic.access == StructuralAccess::Owned {
-                    let registers = super::aggregate_argument::argument(
+                if semantic.access != StructuralAccess::Owned
+                    && (call.validate_source(&operation.ownership).is_err()
+                        || !call.claim_transfers.is_empty()
+                        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
+                            && !matches!(operation.ownership.as_slice(),
+                                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty()))
+                {
+                    return Err(invalid());
+                }
+                operands.extend(
+                    structural_argument(
                         source,
                         operation,
                         argument_index,
                         semantic,
                         target,
+                        indices,
                         replay,
-                    )?;
-                    operands.extend(
-                        registers
-                            .into_iter()
-                            .map(|register| (argument_index, register)),
-                    );
-                } else if let Some(pointer) = argument_pointer(
-                    replay,
-                    source,
-                    operation,
-                    argument_index,
-                    semantic,
-                    target,
-                    indices,
-                )? {
-                    operands.push((argument_index, pointer));
-                }
+                    )?
+                    .into_iter()
+                    .map(|register| (argument_index, register)),
+                );
                 continue;
             }
             LegalizedScalarArgument::Scalar {
@@ -134,6 +131,47 @@ pub(super) fn replay(
         .collect())
 }
 
+/// Transport a validated structural actual independently of the call mechanism.
+/// Ownership selects value bytes versus the original referent; ABI indirection
+/// only selects where a private owned copy is placed.
+pub(super) fn structural_argument(
+    source: &LegalizedScalarFunction,
+    operation: &LegalizedScalarInstruction,
+    argument_index: usize,
+    semantic: &terminal_psi::StructuralArgument,
+    target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    replay: &mut Replay<'_>,
+) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
+    if semantic.place != target.place
+        || semantic.path != target.path
+        || semantic.access != target.access
+    {
+        return Err(SelectedInstructionError::custody());
+    }
+    if semantic.access == StructuralAccess::Owned {
+        return super::aggregate_argument::argument(
+            source,
+            operation,
+            argument_index,
+            semantic,
+            target,
+            replay,
+        );
+    }
+    Ok(argument_pointer(
+        replay,
+        source,
+        operation,
+        argument_index,
+        semantic,
+        target,
+        indices,
+    )?
+    .into_iter()
+    .collect())
+}
+
 /// Snapshot the projected pointer, then place its bits in the exact outgoing ABI slot.
 fn argument_pointer(
     replay: &mut Replay<'_>,
@@ -178,7 +216,7 @@ fn argument_pointer(
             target.source_byte_offset,
         )?
     } else {
-        structural::call_pointer(replay, operation, pointer_place, target.source_byte_offset)?
+        structural::place_pointer(replay, operation, pointer_place, target.source_byte_offset)?
     };
     let pointer = if indices.is_empty() {
         pointer

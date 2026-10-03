@@ -209,31 +209,6 @@ pub(super) fn place_pointer_at_site(
     Ok(output)
 }
 
-/// End the outgoing fixed-register constraint at a copy of the reference pointer.
-pub(super) fn call_pointer(
-    builder: &mut Builder<'_>,
-    row: &LegalizedScalarInstruction,
-    place: PlaceId,
-    byte_offset: u32,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return Err(invalid());
-    };
-    if call.validate_source(&row.ownership).is_err()
-        || !call.claim_transfers.is_empty()
-        // Authored structural calls retain an explicit transfer event even
-        // when no claims move. Installed calls retain their completion event.
-        || matches!(call.source, target_operations::NativeCallOrigin::Authored)
-            && !matches!(row.ownership.as_slice(),
-                [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
-    {
-        return Err(invalid());
-    }
-    // The call emitter checks result type and placement independently. A
-    // borrowed argument transports the same pointer for every result bank.
-    place_pointer(builder, row, place, byte_offset)
-}
-
 /// An element loan rides on the view's backing pointer, never the
 /// descriptor's own address: `element_backing_pointer` yields the stored base
 /// (or the derived home's live pointer) and the projected offset scales onto

@@ -2,7 +2,7 @@
 //!
 //! `row` rejoins the exact target operation the lowering emitted for one
 //! boundary call; `structural_argument_at` independently re-derives one
-//! source-rooted borrowed argument from the boundary declaration and the
+//! source-rooted argument from the boundary declaration and the
 //! evaluated entry plan. Neither helper trusts the legalized row's
 //! claims; both fail closed on missing, duplicated, or mismatched custody.
 use super::{AbstractOperationPlan, MachineId, PsiOptimizationFunction, TargetOperationPlan};
@@ -264,12 +264,10 @@ pub(in crate::legalization) fn native_callbacks_at<'a>(
     Ok(matching)
 }
 
-/// Re-derive one source-rooted borrowed argument for the boundary
-/// declaration's `position`-th structural parameter: a caller storage root's
-/// whole referent, or a record field or fixed array element inside it. The
-/// evaluated plan's parameter row at that ordinal must place the referent
-/// pointer as one pointer-width word; owned transport fails closed until an
-/// aggregate ABI contract owns it.
+/// Re-derive storage, access and ABI classification independently. Owned
+/// arguments transfer a whole occurrence, even when the ABI passes a private
+/// copy indirectly. Borrowed arguments instead transport a referent pointer;
+/// equal storage size cannot turn either contract into the other.
 pub(in crate::legalization) fn structural_argument_at(
     semantic: &terminal_psi::StructuralArgument,
     position: usize,
@@ -278,14 +276,16 @@ pub(in crate::legalization) fn structural_argument_at(
     parameters: &[TargetStructuralParameter],
     optimized: &PsiOptimizationFunction,
     native: ::target::NativeTarget,
+    policy: calling_conventions::CallingPolicy,
     plan: &AbstractOperationPlan,
     call_operation: OperationId,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use terminal_psi::{StructuralAccess, StructuralPathSegment};
     let declarations = plan.structural_types.as_slice();
-    let (root_type, source) = if let Some(caller_parameter) = parameters
-        .iter()
-        .find(|parameter| parameter.place == semantic.place)
+    let (root_type, root_access, root_multiplicity, source) = if let Some(caller_parameter) =
+        parameters
+            .iter()
+            .find(|parameter| parameter.place == semantic.place)
     {
         let semantic_parameter = optimized
             .structural_parameters
@@ -314,6 +314,8 @@ pub(in crate::legalization) fn structural_argument_at(
         }
         (
             caller_parameter.structural_type,
+            semantic_parameter.access,
+            semantic_parameter.multiplicity,
             caller_parameter.placement.clone().into(),
         )
     } else {
@@ -364,7 +366,12 @@ pub(in crate::legalization) fn structural_argument_at(
         {
             return Err(LegalizationError::custody());
         }
-        (home.structural_type(), source)
+        (
+            home.structural_type(),
+            home.access(),
+            home.multiplicity(),
+            source,
+        )
     };
     let pointer_size =
         u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
@@ -384,22 +391,38 @@ pub(in crate::legalization) fn structural_argument_at(
         crate::structural_inputs::structural_reference_input::shape(projected_type, declarations)
             .ok_or(LegalizationError::custody())?;
     let destination = plan_row.ok_or(LegalizationError::custody())?;
-    let placed_pointer_word = match destination.locations.as_slice() {
-        [
-            ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            },
-        ]
-        | [
-            ValueLocation::Stack {
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            },
-        ] => *byte_size,
-        _ => return Err(LegalizationError::custody()),
+    let (shape, destination_shape, multiplicity) = match semantic.access {
+        StructuralAccess::Owned => {
+            if root_access != StructuralAccess::Owned || !semantic.path.is_empty() {
+                return Err(LegalizationError::custody());
+            }
+            let classified = abstract_operations_to_target_operations::classified_boundary_shape(
+                projected_type,
+                declarations,
+                policy,
+            )
+            .map_err(|_| LegalizationError::custody())?;
+            (projected_shape, classified, root_multiplicity)
+        }
+        StructuralAccess::SharedBorrow
+        | StructuralAccess::MutableBorrow
+        | StructuralAccess::WriteOnlyBorrow => {
+            if !matches!(destination.locations.as_slice(),
+                [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
+                | [ValueLocation::Stack { value_byte_offset: 0, byte_size, .. }]
+                    if *byte_size == u32::from(pointer_size))
+            {
+                return Err(LegalizationError::custody());
+            }
+            (
+                ValueShape::borrowed_reference(
+                    projected_shape.byte_size,
+                    projected_shape.alignment,
+                ),
+                ValueShape::integer(u32::from(pointer_size), pointer_alignment),
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+            )
+        }
     };
     // Record fields and fixed array elements are static offsets inside the
     // caller's referent; an empty path forwards the whole parameter's loan.
@@ -411,21 +434,14 @@ pub(in crate::legalization) fn structural_argument_at(
     }) || usize::try_from(declaration_parameter.position).ok() != Some(position)
         || projected_type != declaration_parameter.structural_type
         || semantic.access != declaration_parameter.access
-        || !matches!(
-            semantic.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        )
-        || declaration_parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || declaration_parameter.multiplicity != multiplicity
         || !declaration_parameter.qualifications.is_empty()
         || !declaration_parameter.projected_qualifications.is_empty()
         || projected_shape
             .byte_size
             .checked_add(source_byte_offset)
             .is_none_or(|end| end > root_shape.byte_size)
-        || destination.shape != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
-        || placed_pointer_word != u32::from(pointer_size)
+        || destination.shape != destination_shape
     {
         return Err(LegalizationError::custody());
     }
@@ -435,7 +451,7 @@ pub(in crate::legalization) fn structural_argument_at(
         path: semantic.path.clone(),
         root_structural_type: root_type,
         structural_type: projected_type,
-        shape: ValueShape::borrowed_reference(projected_shape.byte_size, projected_shape.alignment),
+        shape,
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,

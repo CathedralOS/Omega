@@ -103,8 +103,8 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
     let cleanup_borrow = source.blocks.iter().any(|block| matches!(&block.terminator,
         legalized_operations::LegalizedScalarTerminator::ReturnCleanup { calls, .. }
             if calls.iter().any(|(_, call)| call.arguments.iter().any(|argument|
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
-                    if semantic.place == place && semantic.access != StructuralAccess::Owned)))));
+                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
+                    if semantic.place == place && argument_transport_requires_home(target))))));
     forwarded || dispatched || cleanup_borrow || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
@@ -135,9 +135,70 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place && semantic.access != StructuralAccess::Owned)
             }),
+            LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
+                .structural_arguments
+                .iter()
+                .any(|argument| argument.place == place && argument_transport_requires_home(argument)),
             _ => false,
         }
     })
+}
+
+/// A register fragment can be forwarded as bytes only when the outgoing
+/// read starts at that fragment and fits within it. A different grouping or
+/// projection needs an addressable source; this depends on transport geometry,
+/// not on the internal/foreign call mechanism.
+fn argument_transport_requires_home(
+    argument: &target_operations::TargetStructuralArgument,
+) -> bool {
+    if argument.access != StructuralAccess::Owned {
+        return true;
+    }
+    let target_operations::TargetStructuralArgumentSource::Placement(source) = &argument.source
+    else {
+        return false;
+    };
+    if !source.locations.iter().all(|location| {
+        matches!(
+            location,
+            calling_conventions::ValueLocation::Register { .. }
+        )
+    }) {
+        return false;
+    }
+    let can_forward =
+        |offset: u32, size: u32| {
+            let Some(offset) = argument.source_byte_offset.checked_add(offset) else {
+                return false;
+            };
+            source.locations.iter().any(|location| matches!(
+            location,
+            calling_conventions::ValueLocation::Register { value_byte_offset, byte_size, .. }
+                if *value_byte_offset == offset && *byte_size >= size
+        ))
+        };
+    if indirect_argument(&argument.destination).is_some() {
+        return (0..argument.shape.byte_size)
+            .step_by(8)
+            .any(|offset| !can_forward(offset, (argument.shape.byte_size - offset).min(8)));
+    }
+    argument
+        .destination
+        .locations
+        .iter()
+        .any(|location| match location {
+            calling_conventions::ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | calling_conventions::ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => !can_forward(*value_byte_offset, *byte_size),
+            _ => true,
+        })
 }
 
 /// Reconstruct nominal tag identity from the retained readable root contract.
@@ -587,7 +648,58 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
 /// Complete call-plan replay fixes register choice and disjoint stack offsets.
 /// This classifier distinguishes an owned value copy from a borrowed pointer.
 pub(super) fn owned_argument_placement(placement: &calling_conventions::ValuePlacement) -> bool {
-    inline_argument_fragments(placement) || indirect_argument(placement).is_some()
+    if indirect_argument(placement).is_some()
+        || super::scalar_call_abi::empty_aggregate_placement(placement)
+    {
+        return true;
+    }
+    if !placement.shape.alignment.is_power_of_two()
+        || placement.shape.class == calling_conventions::ValueClass::BorrowedReference
+        || placement.shape.byte_size == 0
+    {
+        return false;
+    }
+    // The validated plan owns bank choice. Transport requires only complete
+    // nonoverlapping payload fragments that the exact-width access primitives
+    // can move; neither a register count nor an aggregate class selects a lane.
+    let mut ranges = Vec::with_capacity(placement.locations.len());
+    for location in &placement.locations {
+        let (offset, byte_size) = match location {
+            calling_conventions::ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            } if (1..=8).contains(byte_size) => (*value_byte_offset, *byte_size),
+            calling_conventions::ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                stack_byte_offset,
+                alignment,
+            } if alignment.is_power_of_two()
+                && stack_byte_offset.is_multiple_of(u32::from(*alignment))
+                && stack_byte_offset.checked_add(*byte_size).is_some() =>
+            {
+                (*value_byte_offset, *byte_size)
+            }
+            _ => return false,
+        };
+        if byte_size == 0 {
+            return false;
+        }
+        ranges.push((offset, byte_size));
+    }
+    ranges.sort_unstable_by_key(|(offset, _)| *offset);
+    let mut end = 0_u32;
+    for (offset, byte_size) in ranges {
+        if offset != end {
+            return false;
+        }
+        let Some(next) = end.checked_add(byte_size) else {
+            return false;
+        };
+        end = next;
+    }
+    end == placement.shape.byte_size
 }
 
 pub(super) fn bounded_owned_byte_type(
@@ -621,7 +733,7 @@ pub(super) fn indirect_argument(
     else {
         return None;
     };
-    if placement.shape.class != calling_conventions::ValueClass::Integer
+    if placement.shape.class == calling_conventions::ValueClass::BorrowedReference
         || *byte_size == 0
         || *byte_size != placement.shape.byte_size
         || *alignment != placement.shape.alignment

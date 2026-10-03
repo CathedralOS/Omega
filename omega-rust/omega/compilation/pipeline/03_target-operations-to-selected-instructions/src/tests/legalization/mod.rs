@@ -11,6 +11,7 @@ mod element_views;
 mod ieee_literal_sources;
 mod leaf_copy;
 mod normalized_foreign;
+mod owned_foreign;
 pub(crate) mod owned_block_store;
 mod owned_byte_parameter_store;
 mod owned_byte_write;
