@@ -437,23 +437,9 @@ impl<'a> Destination<'a> {
         (plan.access == expected_access).then_some(())
     }
 
-    /// Walk `segments` from the root as direct storage access: relevant plain
-    /// record fields (never through a reference, never through a
-    /// domain-constrained carrier whose invariant a leaf write could break)
-    /// and elements of declared fixed arrays, literal within the extent or
-    /// runtime-selected, in any order. The walk ends at a record, whose
-    /// declaration is returned.
-    pub(super) fn carrier(
-        &self,
-        program: &'a TypedTrees,
-        segments: &[facts::PlaceSegment],
-    ) -> Option<Carrier<'a>> {
-        self.walk(program, segments, false)
-    }
-
-    /// The carrier of one scalar leaf store: [`Self::carrier`], except that
-    /// the walk may also end at a mixed shape whose common field the leaf
-    /// writes. A common field sits at the same offset in every case, so the
+    /// Walk relevant record fields and fixed-array selectors to the carrier
+    /// of one scalar leaf store. The walk may end at a mixed shape whose
+    /// common field the leaf writes. That field sits at the same offset in every case, so the
     /// write needs no case knowledge and leaves the tag and payload intact.
     /// Common fields are scalar primitives (checking's `validate_data_shape`),
     /// so a mixed shape is only ever the last owner, never an intermediate hop.
@@ -462,19 +448,9 @@ impl<'a> Destination<'a> {
         program: &'a TypedTrees,
         segments: &[facts::PlaceSegment],
     ) -> Option<Carrier<'a>> {
-        self.walk(program, segments, true)
-    }
-
-    fn walk(
-        &self,
-        program: &'a TypedTrees,
-        segments: &[facts::PlaceSegment],
-        may_end_at_mixed: bool,
-    ) -> Option<Carrier<'a>> {
         let operators = self.operators;
         let final_owner = |owner: &typed_trees::data::DataDefinition| {
-            plain_record(owner, program, operators)
-                || (may_end_at_mixed && plain_mixed(owner, program, operators))
+            plain_record(owner, program, operators) || plain_mixed(owner, program, operators)
         };
         if let Some(owner) = self.root_owner
             && !(plain_record(owner, program, operators)
@@ -545,27 +521,6 @@ impl<'a> Destination<'a> {
         }
         let owner = owner?;
         final_owner(owner).then_some(Carrier { path, owner })
-    }
-
-    /// The canonical mutation-summary spelling of this destination's place:
-    /// the receiver is `self` and other parameters are positional, even when
-    /// the receiver occupies structural position zero.
-    pub(super) fn mutation_path(&self, program: &TypedTrees) -> Option<String> {
-        let Root::Parameter { plan, .. } = self.root else {
-            return None;
-        };
-        let source_path =
-            facts::canonical_place_label_from_parts(program, self.place.root, &self.place.segments);
-        let source_root = facts::canonical_place_label_from_parts(program, self.place.root, &[]);
-        let mutation_root = if plan.is_self {
-            "self".to_owned()
-        } else {
-            format!("$P{}", plan.position)
-        };
-        Some(format!(
-            "{mutation_root}{}",
-            source_path.strip_prefix(&source_root)?
-        ))
     }
 }
 

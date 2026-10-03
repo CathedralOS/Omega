@@ -70,7 +70,7 @@ fn call_argument_changes(
         };
         let Some(contract) =
             crate::unit_validation::operation_contracts::structural_source_contract(
-                function, place, false,
+                function, place,
             )
             .filter(|contract| contract.structural_type == structural_type)
         else {

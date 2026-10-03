@@ -87,7 +87,9 @@ pub(super) fn append(
                     | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                 )
                 | terminal_psi::StructuralFieldType::PredicateByteSequence {
-                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    carrier:
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                     ..
                 } => {}
                 _ => return Err(ModuleError::RecordResultMismatch(operation.id)),

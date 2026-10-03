@@ -126,43 +126,6 @@ pub(super) fn authored_value(
     Some(checked_trees::CheckedStoreValue::Pure(value.clone()))
 }
 
-/// One literal record member's value: the computation rooted at the
-/// assignment's own `RecordField` coordinate. A root borrowed from another
-/// role would let the store consume a computation the assignment never
-/// authored.
-pub(super) fn record_field_value(
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    literal: typed_trees::expression::ExpressionHandle,
-    field_ordinal: u32,
-    field: &checked_trees::CheckedStructuralRecordField,
-    primitive_type: PrimitiveType,
-) -> Option<checked_trees::CheckedStoreValue> {
-    let checked_trees::CheckedStructuralRecordFieldValue::Scalar(root) = field.value else {
-        return None;
-    };
-    facts
-        .values
-        .scalar_computations
-        .roots
-        .iter()
-        .map(|(_, row)| row)
-        .find(|row| {
-            row.machine == machine.symbol
-                && row.state == state.symbol
-                && row.statement_ordinal == statement_index
-                && row.root == root
-                && matches!(row.role,
-                    CheckedScalarExpressionRole::RecordField { expression, field_ordinal: ordinal }
-                        if expression == literal && ordinal == field_ordinal)
-        })?;
-    let node = facts.values.scalar_computations.nodes.get(root);
-    (node.authored_root == field.expression && node.primitive_type == primitive_type)
-        .then_some(checked_trees::CheckedStoreValue::Computation(root))
-}
-
 /// Floating stores forward existing bits: an authored IEEE literal or an
 /// already-defined scalar (parameter, local, or a leaf read out of existing
 /// structural storage). A floating operation in a pure expression has no

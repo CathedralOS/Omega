@@ -449,7 +449,7 @@ impl OperationFrame<'_, '_> {
             service_ids,
             primitive_locals,
             mut results,
-            mut private_places,
+            private_places,
             windows,
             evaluation,
             values,
@@ -505,7 +505,7 @@ impl OperationFrame<'_, '_> {
                             StructuralResults::StateGraph { state, places }
                         }
                     },
-                    private_places: super::PrivatePlaces::Shared(temporary_places),
+                    private_places: temporary_places,
                     windows: &mut *windows,
                     evaluation,
                     values,
@@ -573,7 +573,7 @@ impl OperationFrame<'_, '_> {
             type_ids,
             callees.domain_ids,
             next_place,
-            private_places.temporaries(),
+            private_places,
             &mut emit_operand,
             calls,
             evaluation,

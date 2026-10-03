@@ -455,7 +455,7 @@ fn check_observation_access(
     place: PlaceId,
     region: &[terminal_psi::StructuralPathSegment],
 ) -> Result<(), OptimizationUnitValidationError> {
-    let access = structural_source_contract(function, place, false)
+    let access = structural_source_contract(function, place)
         .and_then(|contract| types.get(&contract.structural_type))
         .and_then(|declaration| match declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { access, .. } => Some(access),
@@ -498,7 +498,7 @@ fn shared_source_compatible(
     access: StructuralAccess,
 ) -> bool {
     access == StructuralAccess::SharedBorrow
-        && structural_source_contract(function, reference.carrier, false)
+        && structural_source_contract(function, reference.carrier)
             .and_then(|contract| {
                 leaf_type(
                     structural_types,
@@ -544,7 +544,7 @@ fn normalized_source(
         // A `[fields.., Referent]` leaf that is not itself a reference borrows
         // a member's own storage: the loan roots at that member under the
         // source place rather than continuing a live parent loan.
-        let leaf = structural_source_contract(function, source.place, false)
+        let leaf = structural_source_contract(function, source.place)
             .and_then(|contract| {
                 crate::unit_validation::references::leaf_type(
                     structural_types,
@@ -683,7 +683,7 @@ pub(super) fn discard_owned(
     live: &mut Vec<LiveReference>,
     source: PlaceId,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let Some(signature) = structural_source_contract(function, source, false) else {
+    let Some(signature) = structural_source_contract(function, source) else {
         return Ok(());
     };
     let paths =
@@ -786,15 +786,14 @@ fn establish_record(
         let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };
-        let signature =
-            structural_source_contract(function, argument.place, false).ok_or_else(|| {
-                invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "record operand has no structural source",
-                )
-            })?;
+        let signature = structural_source_contract(function, argument.place).ok_or_else(|| {
+            invalid(
+                function,
+                block,
+                Some(node),
+                "record operand has no structural source",
+            )
+        })?;
         let paths = leaf_paths(structural_types, signature.structural_type, live.len())
             .ok_or_else(|| {
                 invalid(
@@ -1183,8 +1182,8 @@ pub(super) fn apply_operation(
                     "reference-bearing owned calls require a whole internal argument",
                 ));
             }
-            let signature = structural_source_contract(function, argument.place, false)
-                .ok_or_else(|| {
+            let signature =
+                structural_source_contract(function, argument.place).ok_or_else(|| {
                     invalid(
                         function,
                         block,
@@ -1245,7 +1244,7 @@ pub(super) fn apply_operation(
             }
             continue;
         }
-        if structural_source_contract(function, argument.place, false)
+        if structural_source_contract(function, argument.place)
             .is_some_and(|source| contains_reference(structural_types, source.structural_type))
             || live
                 .iter()
@@ -1329,8 +1328,7 @@ pub(super) fn apply_operation(
                                         if structural_source_contract(
                                             callee,
                                             identity.place,
-                                            false,
-                                        )
+)
                                         .and_then(|signature| {
                                             leaf_type(
                                                 structural_types,
@@ -1566,7 +1564,7 @@ pub(super) fn transfer_return(
     live: &mut Vec<LiveReference>,
     observed: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
 ) -> Result<bool, OptimizationUnitValidationError> {
-    let Some(signature) = structural_source_contract(function, source, false) else {
+    let Some(signature) = structural_source_contract(function, source) else {
         return Ok(false);
     };
     if !contains_reference(structural_types, signature.structural_type) {

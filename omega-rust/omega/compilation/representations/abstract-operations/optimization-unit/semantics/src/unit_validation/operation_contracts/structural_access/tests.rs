@@ -106,7 +106,6 @@ fn copied_byte_field_call_replays_declaration_and_excludes_only_its_consumer() {
             &types,
             &domains,
             StructuralProjectionPolicy::Unit,
-            false,
         )
     };
     assert!(matches(&unit));
@@ -286,7 +285,6 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
                     &types,
                     &Default::default(),
                     StructuralProjectionPolicy::Unit,
-                    false
                 ),
                 structural_access_can_supply(source, presented),
                 "{source:?} -> {presented:?}",
@@ -324,7 +322,6 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
             &types,
             &Default::default(),
             StructuralProjectionPolicy::Unit,
-            false
         ));
     }
     argument.path = path;
@@ -338,7 +335,6 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
             &types,
             &Default::default(),
             StructuralProjectionPolicy::Unit,
-            false
         ));
     }
 }
@@ -374,12 +370,11 @@ fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitu
             &types,
             &Default::default(),
             StructuralProjectionPolicy::Projected,
-            false,
         )
     };
     assert!(accepts(&argument, &parameter));
     assert_eq!(
-        structural_source_contract(caller, argument.place, false)
+        structural_source_contract(caller, argument.place)
             .unwrap()
             .multiplicity,
         Multiplicity::Affine
@@ -431,7 +426,7 @@ fn shared_literal_loan_replays_content_predicates_without_granting_mutation() {
         path: Vec::new(),
         access: Access::SharedBorrow,
     };
-    let source = structural_source_contract(&unit.functions[0], argument.place, true)
+    let source = structural_source_contract(&unit.functions[0], argument.place)
         .expect("literal descriptor has shared custody");
     assert_eq!(source.access, Access::SharedBorrow);
     assert_eq!(
@@ -457,7 +452,6 @@ fn shared_literal_loan_replays_content_predicates_without_granting_mutation() {
                 .map(|row| (row.id, row))
                 .collect(),
             StructuralProjectionPolicy::Unit,
-            true,
         )
     };
     assert!(accepts(&unit, &argument, &parameter));
@@ -602,7 +596,6 @@ fn ordinary_call_owned_byte_result_lends_a_shared_view_without_producer_spelling
             &types,
             &domains,
             StructuralProjectionPolicy::Unit,
-            false,
         )
     };
     assert!(
@@ -665,7 +658,7 @@ fn ordinary_call_owned_byte_result_lends_a_shared_view_without_producer_spelling
                 .map(|declaration| (declaration.id, declaration))
                 .collect();
             let caller = &changed.functions[0];
-            let source_contract = structural_source_contract(caller, source, false).unwrap();
+            let source_contract = structural_source_contract(caller, source).unwrap();
             assert!(
                 !owned_bounded_owner_loan(
                     caller,
@@ -828,7 +821,6 @@ fn shared_byte_view_presentation_follows_exact_entry_and_state_arrivals() {
             &types,
             &domains,
             StructuralProjectionPolicy::Projected,
-            false,
         )
     };
     assert!(matches(&unit, entry, &parameter));
@@ -918,7 +910,6 @@ fn bounded_owner_call_rechecks_predicate_preservation_after_rewriting() {
             &types,
             &domains,
             StructuralProjectionPolicy::Unit,
-            false,
         )
     };
     assert!(accepts(&argument, &expected));

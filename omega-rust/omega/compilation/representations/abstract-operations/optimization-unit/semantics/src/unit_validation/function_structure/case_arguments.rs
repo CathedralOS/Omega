@@ -73,9 +73,9 @@ fn active_on_every_path(
     // Exhaustive exclusion is over the complete declared roster, not a
     // special two-case complement. Every alternative must remain disproved
     // on every current arrival, even when different guards supply the facts.
-    let Some(source) = crate::unit_validation::operation_contracts::structural_source_contract(
-        function, root, false,
-    ) else {
+    let Some(source) =
+        crate::unit_validation::operation_contracts::structural_source_contract(function, root)
+    else {
         return false;
     };
     let Some((_, declaration)) = terminal_semantics::canonical_static_projection(

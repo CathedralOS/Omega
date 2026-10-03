@@ -99,19 +99,16 @@ pub(crate) fn operation_structural_call_contract_matches(
         O::EstablishScalarArray { .. } => {
             scalar_array_establishment_matches(caller, operation, types)
         }
-        O::EstablishCase { .. } => case_establishment_matches(caller, operation, types),
+        O::EstablishCase { .. } => case_establishment_matches(caller, operation, types, domains),
         O::EstablishRecord { .. } => {
             record_establishment_matches(caller, operation, types, domains)
         }
         O::EstablishZeroedStructural { .. } => {
             zeroed_establishment_matches(caller, operation, types)
         }
-        // A byte-literal structural argument is admitted only on a call
-        // that forwards no descriptors.
         O::CallStructural {
             callee,
             structural_arguments,
-            dynamic_arguments,
             claim_transfers,
             result: AbstractStructuralCallResult::Unit,
             ..
@@ -124,7 +121,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                 types,
                 domains,
                 StructuralProjectionPolicy::Unit,
-                dynamic_arguments.is_empty(),
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,
@@ -135,7 +131,6 @@ pub(crate) fn operation_structural_call_contract_matches(
         O::CallStructural {
             callee,
             structural_arguments,
-            dynamic_arguments,
             claim_transfers,
             result: AbstractStructuralCallResult::Scalar(_),
             ..
@@ -148,7 +143,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                 types,
                 domains,
                 StructuralProjectionPolicy::Projected,
-                dynamic_arguments.is_empty(),
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,
@@ -168,7 +162,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                         types,
                         domains,
                         StructuralProjectionPolicy::Projected,
-                        false,
                     ) && structural_arguments_match(
                         caller,
                         operation.psi_operation(),
@@ -177,7 +170,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                         types,
                         domains,
                         StructuralProjectionPolicy::Projected,
-                        false,
                     )
                 }),
             abstract_operations::AbstractDynamicDispatch::Stored(dynamic_dispatch) => functions
@@ -191,7 +183,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                         types,
                         domains,
                         StructuralProjectionPolicy::Projected,
-                        false,
                     )
                 }),
             abstract_operations::AbstractDynamicDispatch::Parameter(_) => true,
@@ -237,7 +228,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                 // producer or carrier family. Replay ordinary projections and
                 // literal backing with the same source/access contract.
                 StructuralProjectionPolicy::Projected,
-                true,
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,
@@ -246,7 +236,7 @@ pub(crate) fn operation_structural_call_contract_matches(
             ) && validate_structural_call_result(
                 result,
                 callee,
-                exact_payloadless_structural_call(operation, callee, types)
+                exact_payloadless_structural_call(operation, callee, types, domains)
                     || plain_scalar_array_call(operation, callee, types)
                     || plain_scalar_sum_call(operation, callee, types)
                     || plain_record_call(operation, callee, types)
@@ -255,7 +245,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 returned_claim_transfers,
                 types,
             ) && structural_call_contract_surface_matches(operation, callee)
-                && payloadless_selected_evidence_surface_matches(operation, callee, types)
+                && payloadless_selected_evidence_surface_matches(operation, callee, types, domains)
                 && (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                     || !terminal_semantics::descriptor_results::is_shared_descriptor(
                         types.values().copied(),
@@ -278,7 +268,6 @@ pub(crate) fn operation_structural_call_contract_matches(
                 types,
                 domains,
                 StructuralProjectionPolicy::Boundary,
-                true,
             ) && boundary_requirements_match(caller, structural_arguments, boundary, domains)
                 && boundary_completion_matches(
                     caller,
@@ -430,7 +419,6 @@ fn reference_call_matches(
                 types,
                 domains,
                 StructuralProjectionPolicy::Unit,
-                true,
             ),
         ),
     ];

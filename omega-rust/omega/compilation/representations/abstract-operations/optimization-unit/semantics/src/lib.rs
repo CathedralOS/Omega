@@ -39,7 +39,7 @@ pub fn structural_place_access(
     function: &optimization_unit::PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<terminal_psi::StructuralAccess> {
-    unit_validation::operation_contracts::structural_source_contract(function, place, true)
+    unit_validation::operation_contracts::structural_source_contract(function, place)
         .map(|source| source.access)
 }
 

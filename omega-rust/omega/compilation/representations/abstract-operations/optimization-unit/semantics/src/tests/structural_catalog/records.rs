@@ -152,6 +152,46 @@ fn zeroed_record_result_composes_with_owned_record_construction() {
 }
 
 #[test]
+fn shared_byte_record_members_replay_current_predicates() {
+    let unit = crate::tests::indexed_byte_fields::indexed_field_source_unit(
+        r#"
+        domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+        data Cell { label: &[u8] in Utf8; value: i32; }
+        data Record { header: &[u8] in Utf8; cells: [Cell; 2]; }
+        machine Record::replace(context: &mut Record) {
+            context.header = "heading";
+            context.cells[1] = Cell { label: "hello", value: 7 };
+        }
+        "#,
+    );
+    validate_psi_optimization_unit(&unit)
+        .expect("completed descriptors compose with indexed whole-record replacement");
+    let mut changed = unit.clone();
+    let (function_index, block_index, node_index) = changed.functions.iter()
+        .enumerate().find_map(|(function_index, function)|
+            function.blocks.iter().enumerate().find_map(|(block_index, block)|
+                block.nodes.iter().enumerate().find_map(|(node_index, node)|
+                    matches!(&node.operation, AbstractOperation::EstablishByteSequenceLiteral { bytes, .. }
+                        if bytes == b"hello")
+                        .then_some((function_index, block_index, node_index)))))
+        .expect("constructor's literal descriptor");
+    let AbstractOperation::EstablishByteSequenceLiteral { bytes, .. } =
+        &mut changed.functions[function_index].blocks[block_index].nodes[node_index].operation
+    else {
+        unreachable!("selected literal");
+    };
+    *bytes = vec![255];
+    refresh_function_derivatives(&mut changed, function_index);
+    assert!(
+        matches!(
+            validate_psi_optimization_unit(&changed),
+            Err(crate::OptimizationUnitValidationError::StructuralCallContractMismatch { .. })
+        ),
+        "receiving predicates must be replayed from current contents after metadata refresh"
+    );
+}
+
+#[test]
 fn zeroed_record_rejects_changed_producer_result_and_availability() {
     let original = zeroed_child_record_unit(true);
     assert_eq!(validate_psi_optimization_unit(&original), Ok(()));

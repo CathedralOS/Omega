@@ -1490,8 +1490,7 @@ pass/collections/nested_empty_record_array_borrow_exit checked 497ms @3e847a4109
 pass/collections/nested_runtime_indexed_successor_argument_exit checked 1506ms @2d8ed253669f
 pass/collections/owned_array_scalar_comparisons checked 307ms @2d8ed253669f
 pass/collections/policy_array_literal_store_exit checked 1541ms @2d8ed253669f
-pass/collections/record_array_field_access_exit rejected 588ms @765e6c51624f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`result_code`), which was itself omitted at local construction at `scalar field store sequence: write frame agreement`
+pass/collections/record_array_field_access_exit checked 1074ms @3b6b4258b4af+wt
 pass/collections/record_array_literal_field_store_exit checked 1646ms @2d8ed253669f
 pass/collections/runtime_argmax_index_exit checked 1390ms @2d8ed253669f
 pass/collections/runtime_borrowed_element_float_guard_exit checked 6010ms @bea382792161+wt

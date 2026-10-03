@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). A record literal assigned to a record field through
-// an exclusive receiver decomposes into one store per member: each quoted
-// `&[u8] in Utf8` member replaces the field's view descriptor with the
-// literal's, and each scalar member takes an ordinary field store. The second
+// an exclusive receiver constructs all operands before whole replacement:
+// each quoted `&[u8] in Utf8` member contributes an image-backed descriptor,
+// and each scalar contributes its computed value. The second
 // literal names its members in reverse declaration order. Both records are
 // read back through their stored descriptors and scalars, and both texts are
 // written out. exits: 71 = left record wrong; 72 = right record wrong.

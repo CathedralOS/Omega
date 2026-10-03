@@ -13,5 +13,7 @@ checked-interpreter execution must agree. The opaque console binding is a
 disjoint sibling, not permission to discard the room's write footprint or to
 claim knowledge of the binding's contents.
 
-The current compiler frontier belongs to
-`STATE-GRAPH-SCALAR-RESULT-CUSTOMERS` in `TASKS.md`.
+Each replacement constructs a complete `Exit` before opening the destination's
+write window. Literal descriptors, enum values and indexed destinations use the
+ordinary construction and replacement flow; no memberwise record-literal path
+is required. Native macOS ARM64 and checked-interpreter execution agree.

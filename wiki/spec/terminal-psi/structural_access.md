@@ -554,9 +554,12 @@ current declared predicates can imply the destination's requirements directly;
 otherwise the operation carries an obligation for the required predicates on
 its exact current source. Accepted runtime content observations may discharge
 that obligation. A copied qualification roster, a different equal-typed source,
-or stale observations cannot substitute for it. A record literal assigned
-through an exclusive root decomposes into one store per member: shared view
-members take this store, the rest scalar field stores. The store costs one
+or stale observations cannot substitute for it. A whole record assignment
+constructs its operands before replacing the destination through the ordinary
+structural replacement operation. Shared-view members relocate completed
+descriptors; their declared predicates and backing lifetime are checked
+independently. Root, field, and indexed destinations do not change construction
+semantics or decompose the assignment into member stores. A field store costs one
 logical operation unit, invalidates every observation of the replaced field,
 and creates no ownership frontier entry. Copy permission on an enclosing
 `[copy]` record neither establishes the field's predicates nor extends the

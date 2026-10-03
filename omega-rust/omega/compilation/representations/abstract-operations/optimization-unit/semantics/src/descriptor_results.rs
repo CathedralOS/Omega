@@ -694,7 +694,6 @@ pub(crate) fn element_coordinates_preserved<'a>(
     let Some(root) = crate::unit_validation::operation_contracts::structural_source_contract(
         function,
         source.place,
-        false,
     ) else {
         return false;
     };

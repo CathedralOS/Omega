@@ -25,7 +25,6 @@ pub(super) fn apply_operation(
         module,
         machine,
         machines,
-        dominators,
         ..
     } = *walk;
     // An operation touching an open borrowed-storage window's absent subtree
@@ -54,7 +53,7 @@ pub(super) fn apply_operation(
         operation,
         &mut frontier.references,
     )?;
-    validate_owned_reads(module, machine, operation, frontier, dominators)?;
+    validate_owned_reads(module, machine, operation, frontier)?;
     if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
         && frontier
             .owned_places

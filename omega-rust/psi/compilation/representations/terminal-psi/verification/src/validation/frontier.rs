@@ -236,7 +236,6 @@ pub(super) struct FrontierWalk<'a> {
     pub(super) machine: &'a TerminalMachine,
     pub(super) machines: &'a BTreeMap<MachineId, &'a TerminalMachine>,
     pub(super) blocks: &'a BTreeMap<BlockId, &'a terminal_psi::Block>,
-    pub(super) dominators: &'a crate::control_graph::DominatorTree,
     pub(super) parameter_order: &'a [&'a StructuralParameterDeclaration],
     /// Possible storage regions pinned by shared state parameters after
     /// composing their incoming projections through borrowed arrivals.
@@ -280,7 +279,6 @@ pub(super) fn validate_structural_frontier(
         machine,
         machines,
         blocks,
-        dominators,
         parameter_order: &parameter_order,
         shared_loans: &shared_loans,
         descriptor_loans: &descriptor_loans,
@@ -350,7 +348,6 @@ fn validate_owned_reads(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     frontier: &StructuralOwnershipFrontier,
-    dominators: &crate::control_graph::DominatorTree,
 ) -> Result<(), ModuleError> {
     if let OperationKind::EstablishRecord { fields }
     | OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind
@@ -362,61 +359,12 @@ fn validate_owned_reads(
             let source =
                 super::structural::result_contracts::source_signature(machine, argument.place)
                     .ok_or(ModuleError::RecordResultMismatch(operation.id))?;
-            let unrestricted_parameter = source.multiplicity
-                == StructuralMultiplicity::Unrestricted
-                && (super::record::completed_source(module, machine, argument.place).is_some()
-                    || super::record::owned_byte_source(module, machine, argument.place)
-                    || (super::scalar::case::plain_return_source(module, machine, argument.place)
-                        || super::structural::case::plain_return_source(
-                            module,
-                            machine,
-                            argument.place,
-                        ))
-                    || super::scalar::array::plain_return_source(module, machine, argument.place)
-                    // Storing a shared descriptor retains its loan; it does
-                    // not move the backing's custody. Authenticate the exact
-                    // producer chain so narrowing, copying and returning a
-                    // view preserve this rule. record::validate_uses separately
-                    // requires the descriptor to dominate this capture.
-                    || super::element_view::view_loan_result_in_module(
-                        module, machine, argument.place,
-                    ).is_some_and(|(_, access)| access == StructuralAccess::SharedBorrow)
-                    // A reference is a separate carrier, not an element view.
-                    || machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.operations)
-                        .any(|candidate| {
-                            matches!(
-                                candidate.kind,
-                                OperationKind::EstablishReference { .. }
-                            ) && candidate
-                                .result
-                                .structural()
-                                .is_some_and(|result| result.place == argument.place)
-                        })
-                    || machine.structural_parameters.iter().any(|parameter| {
-                        parameter.place == argument.place
-                            && parameter.access == StructuralAccess::Owned
-                    })
-                    || machine
-                        .blocks
-                        .iter()
-                        .find(|block| {
-                            block
-                                .operations
-                                .iter()
-                                .any(|candidate| candidate.id == operation.id)
-                        })
-                        .is_some_and(|current| {
-                            machine.blocks.iter().any(|definition| {
-                                definition.structural_parameters.iter().any(|parameter| {
-                                    parameter.place == argument.place
-                                        && parameter.access == StructuralAccess::Owned
-                                }) && dominators.dominates(definition.id, current.id)
-                            })
-                        }));
-            if (!unrestricted_parameter
+            // Copying a completed unrestricted operand consumes no ownership.
+            // Record validation independently checks the declaration, permission,
+            // and producer dominance for every operand; a producer-kind roster
+            // here would confuse those obligations with affine custody.
+            let unrestricted = source.multiplicity == StructuralMultiplicity::Unrestricted;
+            if (!unrestricted
                 && frontier.owned_places.get(&argument.place) != Some(&source.multiplicity))
                 || frontier
                     .claims

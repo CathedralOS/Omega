@@ -18,6 +18,186 @@ const SOURCE: &str = "
     }
 ";
 
+#[test]
+fn shared_view_members_construct_before_indexed_replacement() {
+    for body in [
+        "machine fill(context: &mut Context) {
+            context.header = \"heading\";
+            context.cells[1] = Cell { label: \"hello\", value: 7 };
+        }",
+        "machine fill(text: &[u8] in Utf8) {
+            let cell: Cell = Cell { label: text, value: 7 };
+            let value: i32 = cell.value;
+        }",
+    ] {
+        let source = format!(
+            "domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+             data Cell {{ label: &[u8] in Utf8; value: i32; }}
+             data Context {{ header: &[u8] in Utf8; cells: [Cell; 2]; }}
+             {body}"
+        );
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("fill"))
+            .unwrap_or_else(|error| panic!("{body}: {error:?}"));
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("descriptor custody and predicate implication verify");
+        let encoded = terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("qualified descriptor members have ordinary wire formation");
+        let decoded =
+            terminal_codec::decode_module(&encoded).expect("descriptor construction round trips");
+        assert_eq!(decoded, lowered.semantic_module);
+        if body.contains("\"hello\"") {
+            let descriptor = lowered
+                .semantic_module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| match &operation.kind {
+                    OperationKind::EstablishRecord { fields } => {
+                        fields.iter().find_map(|field| match &field.value {
+                            RecordFieldValue::Structural(argument) => Some(argument.place),
+                            _ => None,
+                        })
+                    }
+                    _ => None,
+                })
+                .expect("record descriptor operand");
+            let mut unavailable = lowered.semantic_module.clone();
+            let block = unavailable
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .find(|block| {
+                    block.operations.iter().any(|operation| {
+                        matches!(
+                            operation.kind,
+                            OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                                if destination == descriptor
+                        )
+                    })
+                })
+                .expect("literal's defining block");
+            let position = block
+                .operations
+                .iter()
+                .position(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                            if destination == descriptor
+                    )
+                })
+                .expect("literal's definition");
+            let literal = block.operations.remove(position);
+            let OperationKind::EstablishByteSequenceLiteral { destination, .. } = literal.kind
+            else {
+                unreachable!("selected literal establishment");
+            };
+            let consumer = unavailable
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .find(|block| {
+                    block
+                        .operations
+                        .iter()
+                        .any(|operation| match &operation.kind {
+                            OperationKind::EstablishRecord { fields } => {
+                                fields.iter().any(|field| {
+                                    matches!(&field.value, RecordFieldValue::Structural(argument)
+                            if argument.place == destination)
+                                })
+                            }
+                            _ => false,
+                        })
+                })
+                .expect("record consumes the descriptor");
+            consumer.operations.push(literal);
+            assert!(
+                terminal_verifier::validate_module(&unavailable).is_err(),
+                "unrestricted operands must still be defined before use"
+            );
+
+            let mut wrong_access = lowered.semantic_module.clone();
+            let argument = wrong_access
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match &mut operation.kind {
+                    OperationKind::EstablishRecord { fields } => {
+                        fields.iter_mut().find_map(|field| match &mut field.value {
+                            RecordFieldValue::Structural(argument) => Some(argument),
+                            _ => None,
+                        })
+                    }
+                    _ => None,
+                })
+                .expect("descriptor record operand");
+            argument.access = terminal_psi::StructuralAccess::MutableBorrow;
+            assert!(
+                terminal_verifier::validate_module(&wrong_access).is_err(),
+                "copying a shared descriptor cannot grant mutable authority"
+            );
+            assert!(
+                terminal_codec::encode_module(&wrong_access).is_err(),
+                "wire formation also rejects changed operand custody"
+            );
+
+            let mut corrupted = lowered.semantic_module.clone();
+            let literal = corrupted
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match &mut operation.kind {
+                    OperationKind::EstablishByteSequenceLiteral {
+                        destination, bytes, ..
+                    } if *destination == descriptor => Some(bytes),
+                    _ => None,
+                })
+                .expect("literal descriptor operand");
+            *literal = vec![255];
+            assert!(
+                terminal_verifier::validate_module(&corrupted).is_err(),
+                "the receiving field check rejects invalid UTF-8 before proof-envelope identity checks"
+            );
+            assert!(
+                terminal_verifier::verify_module(
+                    &corrupted,
+                    &lowered.proof_bundle,
+                    &proof_admission::AdmissionProfile::default(),
+                )
+                .is_err(),
+                "the field declaration cannot prove corrupted UTF-8 contents"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_record_cannot_export_call_scoped_descriptor_backing() {
+    let rejected = crate::front_end::checked_program_result(
+        "domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+         data Cell { label: &[u8] in Utf8; value: i32; }
+         data Context { cells: [Cell; 2]; }
+         machine fill(context: &mut Context, text: &[u8] in Utf8) {
+             context.cells[1] = Cell { label: text, value: 7 };
+         }",
+    )
+    .expect_err("a borrowed parameter cannot escape into caller storage");
+    assert!(
+        rejected
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("normal-exit backing relation"))
+    );
+}
+
 /// One array leaf as the lowered producer names it: a folded or computed
 /// integer, or the machine's scalar input.
 #[derive(Debug, PartialEq, Eq)]

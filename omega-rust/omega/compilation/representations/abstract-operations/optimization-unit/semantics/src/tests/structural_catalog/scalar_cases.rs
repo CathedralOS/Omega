@@ -83,7 +83,8 @@ fn scalar_case_initializer_is_a_live_typed_scalar_use() {
         crate::unit_validation::operation_contracts::case_establishment_matches(
             function,
             &node.operation,
-            &types
+            &types,
+            &Default::default(),
         )
     );
     let original = candidate.identity;
@@ -117,7 +118,8 @@ fn scalar_case_initializer_is_a_live_typed_scalar_use() {
             !crate::unit_validation::operation_contracts::case_establishment_matches(
                 &changed.functions[0],
                 &changed.functions[0].blocks[0].nodes[1].operation,
-                &types
+                &types,
+                &Default::default(),
             )
         );
     }

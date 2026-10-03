@@ -343,12 +343,14 @@ pub(crate) fn fields<'a>(
                     return Err(failure());
                 }
             }
-            (
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ),
-                RecordFieldValue::Structural(argument),
-            ) => {
+            (field_type, RecordFieldValue::Structural(argument))
+                if matches!(
+                    field_type.byte_sequence_carrier(),
+                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    })
+                ) =>
+            {
                 // The field owns a copy of an existing shared-view descriptor:
                 // the source must name a borrowed view, arrive whole, and come
                 // from a place the machine may read and share.
@@ -360,7 +362,9 @@ pub(crate) fn fields<'a>(
                         && matches!(
                             item.shape,
                             StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                    access: None | Some(StructuralAccess::SharedBorrow),
+                                }
                             )
                         )
                 });
@@ -368,7 +372,19 @@ pub(crate) fn fields<'a>(
                     || !argument.path.is_empty()
                     || argument.place == result.place
                     || !shared_view
-                    || !source.qualifications.is_empty()
+                    || terminal_semantics::byte_qualification_predicates_in(
+                        module.structural_domains.iter(),
+                        source.structural_type,
+                        source.qualifications,
+                    )
+                    .is_none()
+                    || (!field_type.byte_predicates().is_empty()
+                        && !terminal_semantics::byte_sequence_source_predicates(
+                            module,
+                            machine,
+                            argument.place,
+                        )
+                        .is_some_and(|predicates| predicates.implies(field_type.byte_predicates())))
                     || !source.projected_qualifications.is_empty()
                     || !matches!(
                         source.multiplicity,
@@ -677,13 +693,14 @@ pub(super) fn validate_uses(
         | OperationKind::EstablishStructuralCase { fields, .. } => {
             for field in fields {
                 if let RecordFieldValue::Structural(argument) = &field.value {
-                    validate(argument.place)?;
-                    copy_payload(argument.place)?;
-                    if owned_byte_source(module, machine, argument.place)
-                        && machine.structural_places.iter().any(|place| {
-                            place.id == argument.place
-                                && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
-                        })
+                    // Every constructed child must be available, irrespective
+                    // of whether it was supplied at entry, returned, copied or
+                    // established from image bytes. This is not ownership:
+                    // unrestricted descriptors have no affine frontier entry.
+                    if !machine
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == argument.place)
                         && !available.contains(&argument.place)
                     {
                         return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
@@ -741,28 +758,6 @@ pub(super) fn validate_uses(
         _ => {}
     }
     Ok(())
-}
-
-/// A byte child remains an ordinary unrestricted value. Its exact producer,
-/// predicates and current availability are checked separately before binding.
-pub(super) fn owned_byte_source(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    place: PlaceId,
-) -> bool {
-    super::structural::result_contracts::source_signature(machine, place).is_some_and(|source| {
-        source.multiplicity == StructuralMultiplicity::Unrestricted
-            && source.projected_qualifications.is_empty()
-            && module.structural_types.iter().any(|candidate| {
-                candidate.id == source.structural_type
-                    && matches!(
-                        candidate.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
-            })
-    })
 }
 
 /// A validated affine record establishment returns whole: `fields` has already

@@ -12,10 +12,14 @@
 //! - a primitive field takes one `StructuralScalarFieldStore`;
 //! - a primitive-array place takes a closed array literal as one element
 //!   store per element (`primitive.rs`);
-//! - a record place takes a record literal as one field store per member;
 //! - a payload-free sum field takes a whole owned parameter of its type;
 //! - a bounded-owned byte field or a whole borrowed byte view takes the byte
 //!   store operations of `byte_stores.rs`.
+//!
+//! Whole record assignments stay with ordinary structural construction and
+//! replacement in `control::statement_sequence`: operands complete before
+//! destination mutation, regardless of whether the destination is a root,
+//! field, or indexed element. This planner does not decompose constructors.
 //!
 //! What remains refused is a custody or proof condition, not an arrangement:
 //! write frames, linear or qualified roots, reference crossings, and fields
@@ -374,20 +378,8 @@ fn plan_assignment(
     }
     trace.phase("structural field store: carrier path");
     let Some((leaf, carriers)) = destination.place.segments.split_last() else {
-        // The whole root is replaced: only a record literal decomposes into
-        // stores the root's own authority covers.
-        return record_literal_stores(
-            program,
-            facts,
-            machine,
-            state,
-            roots,
-            &destination,
-            statement_index,
-            assignment,
-            source,
-            trace,
-        );
+        // Whole structural replacement is owned by the statement sequencer.
+        return None;
     };
     let facts::PlaceSegment::Field { symbol } = leaf else {
         // An indexed leaf reaches a primitive element the `WriteOnlyPrimitiveStore`
@@ -585,18 +577,7 @@ fn plan_assignment(
     let field_data =
         crate::facts::field_domain::data_definition_for_field_type(program, field.type_reference)?;
     if plain_record(field_data, program, &facts.operators) {
-        return record_literal_stores(
-            program,
-            facts,
-            machine,
-            state,
-            roots,
-            &destination,
-            statement_index,
-            assignment,
-            source,
-            trace,
-        );
+        return None;
     }
     trace.phase("structural field store: case field type");
     if !static_carrier {
@@ -720,150 +701,6 @@ fn interval_store_carrier(
             _ => return type_reference,
         }
     }
-}
-
-/// `place = Record { .. }` where `place` is a plain record: the literal
-/// decomposes into the ordered member stores an authored `place.member`
-/// sequence would produce. Every member supplies its scalar computation at
-/// the literal's `RecordField` coordinate, and each store carries the place's
-/// full path so the emitted shape matches a field store the source could
-/// spell directly.
-fn record_literal_stores(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    roots: StoreRoots<'_>,
-    destination: &Destination<'_>,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    source: AssignmentSource,
-    trace: &LocalConstructionTrace,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    trace.phase("structural field store: record literal source");
-    // Decomposition is an attached-Unit operation sequence whose custody
-    // proof is the borrowed root's write frame. Indexed carriers belong to
-    // the borrowed-element custody family, which rejoins its own element.
-    let (AssignmentSource::Authored, Root::Parameter { .. }) = (source, &destination.root) else {
-        return None;
-    };
-    if destination
-        .place
-        .segments
-        .iter()
-        .any(|segment| !matches!(segment, facts::PlaceSegment::Field { .. }))
-    {
-        return None;
-    }
-    let carrier = destination.carrier(program, &destination.place.segments)?;
-    let value_root = facts.values.structural_values.root_for_expression(
-        state.symbol,
-        statement_index,
-        assignment.value,
-    )?;
-    if value_root.machine != machine.symbol {
-        return None;
-    }
-    let checked_trees::CheckedStructuralValueKind::Record {
-        data_symbol,
-        fields,
-    } = facts
-        .values
-        .structural_values
-        .nodes
-        .get(value_root.root)
-        .kind
-        .clone()
-    else {
-        return None;
-    };
-    if data_symbol != carrier.owner.symbol {
-        return None;
-    }
-    let fields = facts
-        .values
-        .structural_values
-        .record_fields
-        .span(fields)?
-        .to_vec();
-    trace.phase("structural field store: record literal frame");
-    // Sequence admission already replayed the complete frame; this
-    // statement's write must be one of its named paths -- the custody proof a
-    // field sequence earns one store at a time, applied to the literal's
-    // whole record.
-    let expected_mutation_path = destination.mutation_path(program)?;
-    let frame = &facts
-        .mutation
-        .for_machine(machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)?
-        .frame;
-    if !frame
-        .complete_paths()?
-        .iter()
-        .any(|path| path == &expected_mutation_path)
-    {
-        return None;
-    }
-    let mut stores = Vec::with_capacity(fields.len());
-    for (ordinal, field) in fields.iter().enumerate() {
-        let declaration = exact_relevant_field(program, carrier.owner, field.field)?;
-        // A shared view member takes the descriptor replacement a whole view
-        // field store would; its literal must grant the member's domains.
-        if is_shared_view_field(program, declaration.type_reference) {
-            stores.push(view_field_store::member_store(
-                program,
-                facts,
-                machine,
-                state,
-                roots,
-                destination,
-                carrier.path.clone(),
-                declaration,
-                statement_index,
-                field.expression,
-                AssignmentSource::Authored,
-            )?);
-            continue;
-        }
-        // A member refined only by exact-interval domains is the bounded
-        // integer range the literal's RecordField computation already proved
-        // at construction: its domain membership and its byte width are the
-        // same obligation, so the member store carries nothing a plain field
-        // does not. Predicate or routed domains keep declining -- their
-        // membership needs the routed evidence the store plan cannot carry.
-        if !crate::facts::field_domain::domains_are_exact_intervals(
-            program,
-            declaration.type_reference,
-        ) {
-            return None;
-        }
-        let primitive_type = scalar_leaf(program, roots, declaration)?;
-        let value = value::record_field_value(
-            facts,
-            machine,
-            state,
-            statement_index,
-            assignment.value,
-            u32::try_from(ordinal).ok()?,
-            field,
-            primitive_type,
-        )?;
-        stores.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-            CheckedStructuralScalarFieldStorePlan {
-                statement_index,
-                destination: destination.root.destination(),
-                carrier_path: carrier.path.clone(),
-                field_identity: terminal_field_identity(program, declaration.symbol)?,
-                primitive_type,
-                value,
-            },
-        ));
-    }
-    // A fieldless literal writes nothing the coverage checks can name; the
-    // authored assignment must still own at least one store.
-    (!stores.is_empty()).then_some(stores)
 }
 
 /// `place.<sum field> = <parameter path>`: an initialized unrestricted-sum

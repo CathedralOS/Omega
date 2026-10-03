@@ -104,9 +104,9 @@ pub(crate) fn byte_view_field_store_is_valid(
     if source_kind.is_none() || destination == source {
         return false;
     }
-    let Some(contract) = crate::unit_validation::operation_contracts::structural_source_contract(
-        function, *source, true,
-    ) else {
+    let Some(contract) =
+        crate::unit_validation::operation_contracts::structural_source_contract(function, *source)
+    else {
         return false;
     };
     matches!(
@@ -307,9 +307,8 @@ pub(super) fn validate_source(
             })
         })
         .or_else(|| {
-            let contract = super::super::operation_contracts::structural_source_contract(
-                function, source, false,
-            );
+            let contract =
+                super::super::operation_contracts::structural_source_contract(function, source);
             let contract = contract?;
             let result = contract.operation_result()?;
             (result.place == source
@@ -416,7 +415,7 @@ pub(super) fn validate_source(
     // and endpoints to dominate the operation. Structural availability checks
     // require a subslice producer to dominate every descriptor use.
     let writable = !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
-        || super::super::operation_contracts::structural_source_contract(function, source, false)
+        || super::super::operation_contracts::structural_source_contract(function, source)
             .is_some_and(|contract| {
                 matches!(
                     contract.access,

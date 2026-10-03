@@ -16,8 +16,8 @@ use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
 use super::operation_frame::{
-    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, PrivatePlaces,
-    StructuralResults, StructuralTypeRoster,
+    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, StructuralResults,
+    StructuralTypeRoster,
 };
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
@@ -118,9 +118,8 @@ pub(super) struct MachineEmission<'a> {
     scalar_result_values: Vec<ValueDeclaration>,
     primitive_local_places: Vec<primitive_locals::PrimitiveLocal>,
     structural_result_places: Vec<(StructuralPlaceDeclaration, bool)>,
-    structural_value_temporaries: Vec<StructuralPlaceDeclaration>,
     local_places: Vec<StructuralPlaceDeclaration>,
-    literal_places: Vec<StructuralPlaceDeclaration>,
+    private_places: Vec<StructuralPlaceDeclaration>,
     next_literal_argument: usize,
     staged_arguments: Vec<Vec<usize>>,
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
@@ -286,7 +285,7 @@ pub(super) fn emit(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let (literal_places, call_literal_count, operations) = establish_call_literals(
+    let (private_places, call_literal_count, operations) = establish_call_literals(
         checked,
         plan,
         plans,
@@ -304,7 +303,6 @@ pub(super) fn emit(
     let scalar_result_values = scalar_parameters.clone();
     let primitive_local_places = Vec::<primitive_locals::PrimitiveLocal>::new();
     let structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
-    let structural_value_temporaries = Vec::<StructuralPlaceDeclaration>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
     evaluation.byte_record_loans =
@@ -438,9 +436,8 @@ pub(super) fn emit(
         scalar_result_values,
         primitive_local_places,
         structural_result_places,
-        structural_value_temporaries,
         local_places,
-        literal_places,
+        private_places,
         next_literal_argument,
         staged_arguments,
         staged_subslices,
@@ -470,9 +467,8 @@ pub(super) fn emit(
         mut scalar_result_values,
         primitive_local_places,
         structural_result_places,
-        structural_value_temporaries,
         local_places,
-        mut literal_places,
+        mut private_places,
         next_literal_argument,
         subslice_places,
         borrowed_windows,
@@ -659,8 +655,8 @@ pub(super) fn emit(
                     let source = place_id(allocate_dense(&mut next_place)?);
                     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
                     let declaration_ordinal =
-                        crate::emission::next_byte_sequence_literal_ordinal(&literal_places)?;
-                    literal_places.push(StructuralPlaceDeclaration {
+                        crate::emission::next_byte_sequence_literal_ordinal(&private_places)?;
+                    private_places.push(StructuralPlaceDeclaration {
                         id: source,
                         kind: StructuralPlaceKind::ByteSequenceLiteral {
                             declaration_ordinal,
@@ -793,7 +789,7 @@ pub(super) fn emit(
     crate::scalar_graph::scalar_computations::literals::retain_declarations(
         &evaluation.literals,
         evaluation.blocks.iter().flat_map(|block| &block.operations),
-        &mut literal_places,
+        &mut private_places,
     )?;
     let computed_array_places = evaluation
         .blocks
@@ -807,7 +803,7 @@ pub(super) fn emit(
             !structural_result_places
                 .iter()
                 .any(|(existing, _)| existing.id == place.id)
-                && !structural_value_temporaries
+                && !private_places
                     .iter()
                     .any(|existing| existing.id == place.id)
         })
@@ -831,7 +827,7 @@ pub(super) fn emit(
         .chain(provider_places.iter().copied())
         .chain(local_places.iter().copied())
         .chain(primitive_local_places.iter().map(|local| local.declaration))
-        .chain(literal_places.iter().copied())
+        .chain(private_places.iter().copied())
         .chain(subslice_places.iter().copied())
         .chain(
             structural_result_places
@@ -841,7 +837,6 @@ pub(super) fn emit(
                 })
                 .map(|(place, _)| *place),
         )
-        .chain(structural_value_temporaries)
         .chain(computed_array_places)
         .collect::<Vec<_>>();
     crate::scalar_graph::scalar_computations::copies::retain_declarations(
@@ -986,7 +981,7 @@ fn establish_call_literals(
                 .map(|(index, argument)| (argument, target_machine, index)),
         );
     }
-    let mut private_places = Vec::new();
+    let mut operand_places = Vec::new();
     let operation_identity_base =
         next_operation
             .checked_sub(1)
@@ -994,7 +989,7 @@ fn establish_call_literals(
                 "terminal operation identity starts at one",
             ))?;
     let mut operations = OperationBuffer::new(operation_identity_base);
-    let mut literal_places = literal_arguments
+    let mut private_places = literal_arguments
         .iter()
         .map(|(argument, target_machine, argument_index)| {
             // The literal occurrence replays the domain memberships checking
@@ -1049,7 +1044,7 @@ fn establish_call_literals(
                 argument.access,
                 qualifications,
                 structural_types,
-                &mut private_places,
+                &mut operand_places,
                 next_place,
                 next_value,
                 next_obligation,
@@ -1057,14 +1052,14 @@ fn establish_call_literals(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let argument_count = literal_places.len();
-    private_places.retain(|place| {
-        !literal_places
+    let argument_count = private_places.len();
+    operand_places.retain(|place| {
+        !private_places
             .iter()
             .any(|argument| argument.id == place.id)
     });
-    literal_places.extend(private_places);
-    Ok((literal_places, argument_count, operations))
+    private_places.extend(operand_places);
+    Ok((private_places, argument_count, operations))
 }
 
 impl MachineEmission<'_> {
@@ -1090,7 +1085,7 @@ impl MachineEmission<'_> {
                     &mut self.next_place,
                     &mut self.next_value_identity,
                     &mut self.operations,
-                    &mut self.structural_value_temporaries,
+                    &mut self.private_places,
                 )?;
                 return Ok(());
             }
@@ -1346,7 +1341,7 @@ impl<'a> MachineEmission<'a> {
         // call's structural arguments in call order.
         let byte_places = byte_subslices::argument_places(
             operation.call_structural_arguments(),
-            &self.literal_places,
+            &self.private_places,
             &mut self.next_literal_argument,
             &self.staged_subslices[step.operation_index],
         )?;
@@ -1385,10 +1380,7 @@ impl<'a> MachineEmission<'a> {
             service_ids: self.service_ids,
             primitive_locals: &self.primitive_local_places,
             results: StructuralResults::Dense(&mut self.structural_result_places),
-            private_places: PrivatePlaces::Split {
-                literals: &mut self.literal_places,
-                temporaries: &mut self.structural_value_temporaries,
-            },
+            private_places: &mut self.private_places,
             windows: &mut self.borrowed_windows,
             evaluation: &mut self.evaluation,
             values: &mut self.scalar_result_values,

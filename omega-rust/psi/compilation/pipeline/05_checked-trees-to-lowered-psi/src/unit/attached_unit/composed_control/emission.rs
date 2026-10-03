@@ -16,8 +16,8 @@ use super::super::super::{
 use super::super::argument_schedule::{self, Step};
 use super::super::bodies::UnitPlans;
 use super::super::operation_frame::{
-    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, PrivatePlaces,
-    StructuralResults, StructuralTypeRoster,
+    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, StructuralResults,
+    StructuralTypeRoster,
 };
 use super::super::primitive_locals::PrimitiveLocal;
 use super::super::{
@@ -392,7 +392,7 @@ pub(super) fn emit_call_operations(
             },
             // A composed body keeps literals, construction and join places
             // in its one private temporary roster.
-            private_places: PrivatePlaces::Shared(&mut catalogs.temporary_places),
+            private_places: &mut catalogs.temporary_places,
             windows: &mut windows,
             evaluation,
             values,

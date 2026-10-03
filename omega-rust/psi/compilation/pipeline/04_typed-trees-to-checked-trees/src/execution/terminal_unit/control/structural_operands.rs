@@ -256,10 +256,8 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
+            | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
-            // A literal view member exists only to be decomposed into member
-            // stores; no establishment carries a shared view operand.
-            checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. } => return None,
         }
     }
     Some(output)

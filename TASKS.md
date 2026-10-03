@@ -748,58 +748,6 @@ the complete product bar; focused successes below do not establish that baseline
   corpus and execution oracles must pass; fewer dispatch branches or an empty
   entry compiling do not establish closure.
 
-- **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** Finish native execution of
-  result-bearing state graphs and their callers under **LOWERING-ROUTE-CONSOLIDATION**
-  and **STATE-LOCAL-VALUE-FRONTIER**. Scalar result completion is implemented;
-  retain `proofs/runtime_decreases_u64_measure_exit`'s five effects/result 5
-  (recorded native exit 70) and `calls/value_call_param_effect_arm`'s one
-  mutation (exit 1). The latter replaced the obsolete fail fixture; restoring
-  its rejection would regress mutable-record transfer.
-
-  - **Results and control.** `calls/runtime_dispatch_float_terminal_exit` and
-    `calls/runtime_dispatch_result_enum_case_exit` (score 15) exit 70 on macOS
-    ARM64. `control_flow/runtime_tuple_transition_exit` now exits 22 natively
-    and interpreted with explicit context parameters on every state edge;
-    its old receiver-less intermediate state relied on retired implicit carry.
-    Keep short-circuit evaluation and later-binding order from
-    `unit_state_graph/scalars.rs`; the old prefix-initializer refusal has been
-    replaced by ordinary conditional sequencing.
-  - **Borrowed arguments.** `calls/runtime_param_receiver_second_instance_exit`
-    (value 9 versus 7) and
-    `calls/runtime_dispatch_{slice_element_terminal,machine_array_slice_arg}_exit`
-    (slice element 7) exit 70 on macOS ARM64. **BORROW-PROOF-CONVERGENCE** owns
-    compatibility evidence. Genuine conflicting parent/child loans must still
-    reject; widening the verifier's pair check does not supply missing
-    authority.
-
-  The deleted customers are recovered with explicit context parameters:
-  `calls/runtime_trailing_state_mut_param_phase_exit` (two mutations before the
-  outer guard, three before the trailing one) exits 70 natively, and
-  `control_flow/guarded_transition_dispatch_exit` exits 0 with `look` on stdout,
-  both agreeing with the checked interpreter.
-  `collections/record_array_field_access_exit` still needs exit 0 and its
-  three authored stdout lines. On macOS ARM64, the opaque-region inventory
-  repair based on `1d666f28d800` makes `omega run --both
-  tests/omega/pass/collections/record_array_field_access_exit/main.omg`
-  advance past write-frame agreement to `statement sequence: assignment:
-  structural operand calls` in `result_code`. An unrelated opaque
-  `Binding<Console>` sibling had poisoned the whole inventory; checking now
-  retains its unknown region while preserving disjoint declared writes.
-  The next producer dependency is stage 04
-  `execution/terminal_unit/structural_scalar_store/mod.rs`:
-  `record_literal_stores` still excludes indexed destinations and non-scalar
-  case members of `Exit`. Extend the shared operation while preserving
-  completed partial-record and stored-view establishment. Recheck downstream borrowed
-  windows and Omega projected arguments after that producer can emit the
-  unchanged customer; older failure descriptions predate their shared
-  projection work. Acceptance remains the public command's actual output,
-  not the passing write-frame tests.
-
-  Acceptance: every named customer has its actual entry and interpreter/native
-  oracle accounted for. Use focused corpus filters and matching-host native
-  execution; the default corpus can expose lowering failures, but a `checked`
-  or `built` record without execution does not satisfy a runtime oracle.
-
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
   [ownership windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)

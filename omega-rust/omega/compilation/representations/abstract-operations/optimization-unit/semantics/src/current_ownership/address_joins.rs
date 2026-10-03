@@ -298,7 +298,7 @@ impl AddressJoinPins {
                                 place.kind,
                                 semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
                             )
-                    }) && structural_source_contract(function, **root, false)
+                    }) && structural_source_contract(function, **root)
                         .is_some_and(|source| source.access == StructuralAccess::Owned)
                 })
                 .copied()
@@ -460,7 +460,7 @@ impl AddressJoinPins {
                 continue;
             }
             let place = binding.argument.place;
-            let Some(source) = structural_source_contract(function, place, false)
+            let Some(source) = structural_source_contract(function, place)
                 .filter(|source| source.access == StructuralAccess::Owned)
             else {
                 continue;

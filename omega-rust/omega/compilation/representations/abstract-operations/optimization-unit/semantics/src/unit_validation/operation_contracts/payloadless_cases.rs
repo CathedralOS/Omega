@@ -78,6 +78,10 @@ pub(crate) fn case_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let O::EstablishCase {
         psi_operation,
@@ -127,7 +131,7 @@ pub(crate) fn case_establishment_matches(
                         .collect::<Vec<_>>();
                     case.id == *result_case
                         && super::records::field_initializers_match(
-                            function, result, &roster, fields, types,
+                            function, result, &roster, fields, types, domains,
                         )
                 })
             })
@@ -136,6 +140,10 @@ pub(crate) fn case_establishment_matches(
 pub(crate) fn exact_payloadless_case_return_exits(
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let Some(signature) = callee.result.structural() else {
         return false;
@@ -213,7 +221,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
         if result.place != *source
             || !fields.is_empty()
             || result.structural_type != signature.structural_type
-            || !case_establishment_matches(callee, producer, types)
+            || !case_establishment_matches(callee, producer, types, domains)
         {
             return false;
         }
@@ -226,6 +234,10 @@ pub(crate) fn exact_payloadless_structural_call(
     operation: &O,
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let O::CallStructural {
         result:
@@ -274,13 +286,17 @@ pub(crate) fn exact_payloadless_structural_call(
                 .into_iter()
                 .all(|root| root == callee_result.place)
         })
-        && exact_payloadless_case_return_exits(callee, types)
+        && exact_payloadless_case_return_exits(callee, types, domains)
 }
 
 pub(crate) fn payloadless_selected_evidence_surface_matches(
     operation: &O,
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     let O::CallStructural {
         result:
@@ -293,7 +309,7 @@ pub(crate) fn payloadless_selected_evidence_surface_matches(
         return true;
     };
     selected_evidence.is_empty()
-        || (exact_payloadless_structural_call(operation, callee, types)
+        || (exact_payloadless_structural_call(operation, callee, types, domains)
             && callee
                 .verified_contract
                 .as_ref()

@@ -103,7 +103,6 @@ pub(crate) fn structural_arguments_match(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     projection: StructuralProjectionPolicy,
-    allow_byte_literal: bool,
 ) -> bool {
     if arguments.len() != parameters.len() {
         return false;
@@ -173,8 +172,7 @@ pub(crate) fn structural_arguments_match(
             }
             continue;
         }
-        let Some(source) = structural_source_contract(caller, argument.place, allow_byte_literal)
-        else {
+        let Some(source) = structural_source_contract(caller, argument.place) else {
             return false;
         };
         // Moving a carrier remains a custody operation. Lending payload must
@@ -658,7 +656,7 @@ pub(crate) fn structural_arguments_match(
                     // obligation just like parameters and operation results.
                     || ((left.access == terminal_psi::StructuralAccess::Owned
                         || right.access == terminal_psi::StructuralAccess::Owned)
-                        && structural_source_contract(caller, left.place, allow_byte_literal)
+                        && structural_source_contract(caller, left.place)
                             .is_some_and(|source| source.access == terminal_psi::StructuralAccess::Owned
                                 && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine)))
             {
@@ -776,10 +774,12 @@ fn owned_bounded_owner_loan(
         .is_some_and(|available| available.implies(required))
 }
 
+/// Reconstructs declared custody without deciding whether a particular use is
+/// legal. Literal descriptors have the same source facts at every consumer;
+/// availability, backing access, predicates and ownership are checked separately.
 pub(crate) fn structural_source_contract(
     caller: &PsiOptimizationFunction,
     place: PlaceId,
-    allow_byte_literal: bool,
 ) -> Option<StructuralSourceContract<'_>> {
     caller
         .arrival_parameter(place)
@@ -805,7 +805,6 @@ pub(crate) fn structural_source_contract(
         })
         .or_else(|| trivial_affine_local_contract(caller, place))
         .or_else(|| {
-            allow_byte_literal.then_some(())?;
             caller
                 .blocks
                 .iter()

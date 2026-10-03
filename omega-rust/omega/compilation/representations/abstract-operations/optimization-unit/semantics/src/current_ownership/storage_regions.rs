@@ -20,7 +20,7 @@ pub(super) fn projected(
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> terminal_semantics::StorageRegion {
-    structural_source_contract(function, place, false).map_or_else(
+    structural_source_contract(function, place).map_or_else(
         || terminal_semantics::StorageRegion {
             path: Vec::new(),
             indirect: true,
@@ -53,7 +53,7 @@ pub(super) fn canonical_field(
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Vec<StructuralPathSegment> {
-    structural_source_contract(function, place, false).map_or_else(Vec::new, |root| {
+    structural_source_contract(function, place).map_or_else(Vec::new, |root| {
         terminal_semantics::canonical_field_storage_region(
             types.values().copied(),
             root.structural_type,
