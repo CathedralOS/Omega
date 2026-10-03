@@ -58,36 +58,32 @@ pub(super) fn validate_bindings(
     payloads: &[checked_trees::CheckedClosedSumPayloadTransferPlan],
     dispatched_parameter: Option<u32>,
 ) -> Result<(), LoweringError> {
-    let (authored_target, explicit_arguments) =
-        match checked.statement_table.transition_target(transition.target) {
-            TransitionTargetNode::Named {
-                path, arguments, ..
-            } => {
-                // A machine name denotes its exact authored entry state.
-                let target = match checked
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == path.symbol)
-                {
-                    Some(machine) => {
-                        checked
-                            .machine_states(machine)
-                            .first()
-                            .ok_or(LoweringError::Unsupported(
-                                "Unit graph edge machine has no authored entry",
-                            ))?
-                            .symbol
-                    }
-                    None => path.symbol,
-                };
-                (
-                    target,
-                    Some(checked.statement_table.expression_handles(*arguments)),
-                )
-            }
-            TransitionTargetNode::SelfTarget => (source.symbol, None),
-            _ => return unsupported("Unit graph edge has no authored state target"),
-        };
+    let TransitionTargetNode::Named {
+        path, arguments, ..
+    } = checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("Unit graph edge has no named source target");
+    };
+    // An edge that spells a machine's own symbol enters that machine's
+    // authored entry state; a fused roster holds foreign machines' entries
+    // too, so resolve the named machine's entry rather than assuming the
+    // dispatch machine's first position.
+    let authored_target = match checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == path.symbol)
+    {
+        Some(machine) => {
+            checked
+                .machine_states(machine)
+                .first()
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph edge machine has no authored entry",
+                ))?
+                .symbol
+        }
+        None => path.symbol,
+    };
     if edge.statement_ordinal as usize != ordinal
         || edge.target_state != authored_target
         || transition.exit != TransitionExit::Ordinary
@@ -143,18 +139,17 @@ pub(super) fn validate_bindings(
         .ok_or(LoweringError::Unsupported(
             "Unit graph successor target is missing",
         ))?;
-    let arguments = explicit_arguments.unwrap_or(&[]);
+    let arguments = checked.statement_table.expression_handles(*arguments);
     // The authored operand list carries every position, including proof-only
     // erased formals the retained lanes strip.
-    if (explicit_arguments.is_some()
-        && arguments.len()
-            != target
-                .structural_parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count()
-                + target.scalar_parameters.len()
-                + target.erased_scalar_parameters.len())
+    if arguments.len()
+        != target
+            .structural_parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+            + target.scalar_parameters.len()
+            + target.erased_scalar_parameters.len()
         || edge.transfers.len() != target.structural_parameters.len()
         || edge.scalar_arguments.len() + payloads.len() != target.scalar_parameters.len()
         || edge.erased_arguments.len() != target.erased_scalar_parameters.len()
@@ -179,17 +174,6 @@ pub(super) fn validate_bindings(
     };
     let validate_argument =
         |argument_position: u32, source_position: u32| {
-            if explicit_arguments.is_none() {
-                return if source.symbol == state.state
-                    && target.state == source.symbol
-                    && argument_position == source_position
-                    && source_parameters.get(source_position as usize).is_some()
-                {
-                    Ok(())
-                } else {
-                    unsupported("Unit graph self successor changed its exact parameter")
-                };
-            }
             let argument_position = explicit_argument_position(argument_position);
             let expression = arguments
                 .get(argument_position)
@@ -1257,11 +1241,6 @@ pub(super) fn validate_bindings(
                 validate_argument(target.source_position, source.source_position)?;
             }
             checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
-                if explicit_arguments.is_none() {
-                    return unsupported(
-                        "Unit graph self successor fabricated an expression operand",
-                    );
-                }
                 super::scalars::successor_value(checked, state, edge, transfer)?;
             }
         }
