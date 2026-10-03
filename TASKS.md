@@ -177,16 +177,46 @@ execution and native exit/output. A moved refusal is still unfinished work.
   `sections/obligation_ledger.rs:87` add further whole-module passes per
   artifact publish.
 
-  Two fixes are available and they are not equivalent. Threading one computed
-  identity through the optimizer validation layer keeps every check and changes
-  no trust, but it alters signatures across `01_abstract-operations-to-abstract-operations`
-  and the codec. Making `semantic_fingerprint` call `encode_raw` directly is a
-  few lines and removes the repetition outright, but it moves the guarantee
-  that a fingerprinted module is valid from the codec to the fingerprint's
-  callers -- a canonical-identity trust question, since byte-level identity is
-  what the bootstrap chain and package review compare. That second option is
-  not an engineering call to make unilaterally; the first is, and is the one to
-  cost first.
+  Neither available fix is an ordinary engineering call, and the repetition is
+  DELIBERATE rather than waste. The two derivations inside
+  `validate_psi_optimization_unit_with_context` read the SAME module --
+  `ranked_cycles/mod.rs:33` passes `input.context().module()` to
+  `replay::rederive_exact_components`, and `context_projection.rs:22` derives
+  from `input.context().module()` as well -- but `replay.rs`'s own header
+  states its purpose: "Independent Terminal/current component identity
+  replay". Threading one precomputed identity through them would collapse that
+  independence, which [hard rules](../AGENTS.md) protect directly: "Preserve
+  genuine semantic and ABI distinctions and independent verification." So it
+  is not a free refactor; it is a decision about how much independent
+  re-derivation the optimizer keeps.
+
+  The other route, making `semantic_fingerprint` call `encode_raw` instead of
+  `encode_module`, is a few lines and removes the per-fingerprint validation
+  outright, but it moves the guarantee that a fingerprinted module is valid
+  from the codec to the fingerprint's callers. Byte-level identity is what the
+  bootstrap chain and package review compare, so that is a canonical-identity
+  trust question.
+
+  Both therefore need an owner ruling on where module validation lives and how
+  much independence to retain, and the dungeon's cost is a consequence of the
+  verification design rather than a defect to optimize away. What is NOT
+  blocked in principle is candidate (c), the 256 MB-stack OS thread spawned and
+  joined per certificate at
+  `proof/admission/src/mathematical_core/certificate.rs:72`, about 145 per
+  second. Pooling a persistent worker is NOT the way in: that entry uses
+  `std::thread::scope`/`spawn_scoped` because its closure borrows
+  `arena: &mut TermArena` and `budget: &mut Budget`, so a reusable worker would
+  need the work to be `'static` or an unsafe lifetime erasure. The viable
+  shape is routing shallow certificates to the entry that already exists --
+  `verify_mathematical_certificate_on_current_thread`, which the
+  bounded-certificate route already uses -- so the wide stack is reserved only
+  where depth needs it; the profile saw tiny two-row `ValueEqualityTransport`
+  certificates from
+  `terminal-psi/verification/.../path_facts/transport.rs:50` paying a full
+  spawn each. That is an optimization over a correct general path, which the
+  hard rules permit, but the failure mode of a wrong threshold is stack
+  exhaustion rather than a wrong answer, so it needs a depth bound derived
+  from the certificate rather than a guess.
 
   The rewrite itself remains ready: `scratchpad/dungeon_v2.patch` still applies
   cleanly and brings the app's receiver count to zero. The deadline has
