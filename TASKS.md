@@ -2641,13 +2641,6 @@ same flow already performed, not the check itself.
   package-review records) are unchanged, and the provider and native corpus
   slices are unchanged.
 
-- **PSI-OPTIMIZATION-VALIDATE-ONCE.** (new-scope) Stage 06's
-  `psi_optimization.rs` runs the full Terminal verifier through
-  `validate_carrier` on its input, which stage 05 already verified at the end
-  of lowering (`validate_module`), and again on its output. Validate the
-  output only. Acceptance: one `validate_carrier` call per optimization run,
-  and the rejection controls in stage 06's tests still reject.
-
 - **PSI-CLEANUP-MODULE-CLONE.** (new-scope) Stage 06's
   `control_flow_cleanup/machines.rs` clones the whole module on each prune
   iteration (`let mut proposed = module.clone()`) to compute
@@ -2667,25 +2660,6 @@ same flow already performed, not the check itself.
   realization (assert with a counter in a test), and native corpus `--filter
   entry/,providers/` unchanged.
 
-- **EMISSION-SOURCE-VALIDATE-ONCE.** (new-scope) machine-emission's
-  `fragment_emission/mod.rs` calls `validate_source(&source)` and then
-  `validate_optimized_function_fragment_emission`, which calls
-  `validate_source` on the same source again. `frame_application` and
-  `text_placement` repeat the pattern. Validate each step's source once.
-  Acceptance: one `validate_source` per emission step, and native corpus
-  unchanged.
-
-- **SELECTION-CUSTODY-REVALIDATION.** (new-scope) Stage 03's
-  `optimized/validation.rs::validate_optimized_selection_custody`
-  re-legalizes and re-selects (`validate_legalized_operations`, then
-  selection validation) work that `legalize`/`select` already validated. Stage
-  04's liveness custody (`analyses/liveness/staging/validation.rs`) calls it
-  again, and the live-range and legality custody validators each re-run the
-  validator before them. Have each validator accept the sealed receipt of its
-  predecessor instead of re-running it. Acceptance: selection custody
-  validation runs once per selected plan, with existing substitution and
-  mismatch controls still rejecting.
-
 - **BRANCH-RELAXATION-BATCH.** (new-scope) Stage 09's
   `x86_branch_relaxation/compute/production.rs` loop relaxes one branch per
   iteration. Each iteration scans every function for the first candidate,
@@ -2703,20 +2677,6 @@ same flow already performed, not the check itself.
   Acceptance: the same fixed point is reached in at most as many sweeps as
   family interactions require, with the pre-allocation optimizer tests and
   native corpus `--filter optimizer/` unchanged.
-
-- **IMAGE-BUILT-ONCE.** (new-scope) image-emission's `image_output.rs`
-  builds the final image (`image::build_final_image`) and
-  `validate_direct_executable_image` builds it again from the same inputs to
-  compare them. Keep the image's structural validation and drop the rebuild.
-  Acceptance: one `build_final_image` call per emitted image, and native
-  corpus image bytes unchanged.
-
-- **OBJECT-CONTAINER-NO-ROUNDTRIP.** (new-scope) object-file's
-  `fragment_container/validation.rs` decodes
-  (`decode_relocation_free_object`) the container its production just
-  encoded. Validate the staged plan before encoding and keep the decoder for
-  independent readers. Acceptance: the production path encodes the container
-  once and does not decode it; native corpus unchanged.
 
 - **ENCODED-ROW-ALLOCATIONS.** (new-scope) machine-code's
   `encoding/rows.rs` stores every encoded instruction as its own
@@ -2807,6 +2767,101 @@ same flow already performed, not the check itself.
   one commit. Acceptance: stage 05 non-test sources call none of the listed
   predicates, enforced by the self-scanning test; check and native corpus
   unchanged.
+
+- **SELF-CHECK-POLICY.** (new-scope) Land first; the deletions below cite it.
+  AGENTS.md's compositional-lowering rule ("Independent verification must
+  reconstruct and check the operation/evidence relationships, not trust a
+  producer assertion") has been applied at every internal seam, so stages
+  re-check their own fresh output in the same process with the same code.
+  Amend AGENTS.md and `omega-rust/pipeline.md` to say:
+  - verification runs at trust boundaries: a Terminal artifact admitted from
+    outside the producing process, and foreign package or retained artifacts;
+  - a stage does not re-validate, replay or rebuild output that the same
+    compile just produced;
+  - the verifiers stay exercised by the corpus runner and tests, not on the
+    default compile path.
+
+  Acceptance: the amended text is on main and the items below link to it.
+
+- **TERMINAL-SELF-VERIFICATION-DELETED.** (new-scope) A Terminal module
+  produced and consumed inside one compile goes through the full verifier at
+  least four times:
+  - `checked-trees-to-lowered-psi` `machine_lowering.rs` runs
+    `terminal_verifier::validate_module` (or `validate_module_for_interpretation`)
+    on the module it just lowered;
+  - stage 06's `psi_optimization.rs` runs `validate_carrier` on its input and
+    again on its output;
+  - Omega stage 00's `native_admission.rs::admit_native_realization` replays
+    the whole artifact with `artifact.validate()`.
+
+  Delete the stage 05 and stage 06 calls. Keep stage 00's replay only for
+  artifacts that did not come from the same compile: retained or loaded bytes
+  enter through a constructor that verifies, and the in-process handoff does
+  not. Make `corpus_runner` verify each produced artifact once, so the
+  verifier stays tested. This replaces **PSI-OPTIMIZATION-VALIDATE-ONCE**.
+  Acceptance: a default native compile calls the Terminal verifier zero times
+  for its own artifact, retained-artifact admission still verifies, and check
+  plus native corpus are unchanged.
+
+- **SELECTION-CUSTODY-CHAIN-DELETED.** (new-scope) Stage 03's
+  `optimized.rs::stage_optimized_instruction_selection` calls
+  `validate_optimized_selection_custody`, which re-legalizes
+  (`validate_legalized_operations`) and re-validates selection work the same
+  call just performed. Stage 04's liveness, live-range and legality staging
+  types each keep their predecessor and re-run its custody validator (for
+  example `analyses/liveness/staging/validation.rs`). Delete these
+  validators, and the retained predecessors kept only for them, in one
+  commit. This replaces **SELECTION-CUSTODY-REVALIDATION**. Acceptance:
+  `validate_optimized_selection_custody` and the staged liveness/live-range/
+  legality custody validators no longer exist outside tests, and the native
+  corpus is unchanged.
+
+- **ALLOCATION-REPLAY-DELETED.** (new-scope) Register allocation's result
+  (`register_allocation.rs::stage_register_allocation`,
+  `into_replayed_evidence`) keeps its replay inputs, and later stages replay
+  the allocation:
+  - stage 06's `stage_optimized_post_allocation_machine_plan`
+    (`.replay_allocation()`);
+  - machine emission's
+    `function_realization/fixed_frame.rs::stage_fixed_frame_function_relative_realization`,
+    which calls `.replay_allocation()` and then
+    `validate_optimized_post_allocation_machine_plan_custody`.
+
+  Consume the allocation as produced; delete the replay inputs, the replays
+  and that validator in one commit. Acceptance: `replay_allocation` and
+  `into_replayed_evidence` are gone, and the native corpus is unchanged.
+
+- **MACHINE-EMISSION-SELF-VALIDATION-DELETED.** (new-scope) Each
+  machine-emission step validates what it just produced:
+  - `fragment_emission/mod.rs` calls `validate_source`, then
+    `validate_optimized_function_fragment_emission` (which repeats
+    `validate_source` and `validate_resolved_function_fragments`);
+  - `frame_application` and `text_placement` repeat the pattern;
+  - `fixed_frame.rs` ends with `validate_fixed_frame_function_relative_realization`;
+  - stage 07's encoding validator re-encodes every instruction
+    (`validate_optimized_layout_independent_selected_form_encoding`).
+
+  Delete these validators from the production path in one commit. This
+  replaces **EMISSION-SOURCE-VALIDATE-ONCE**. Acceptance: emission and
+  encoding call none of the named validators outside tests, and native corpus
+  bytes are unchanged.
+
+- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) image-emission and
+  native-artifact re-check bytes the same compile just emitted:
+  - `image_output.rs::validate_direct_executable_image` builds the final image
+    a second time (`image::build_final_image`) and compares;
+  - `function_fragments` carries a `FragmentReplay` and calls
+    `replay::validate`, decoding our own x86/aarch64 instructions;
+  - object-file's `fragment_container/validation.rs` decodes the container
+    just encoded;
+  - `NativeArtifact::from_replayed_parts` re-validates the image and decodes
+    the Terminal module again.
+
+  Delete these from the production path in one commit. The decode-replay code
+  stays only where retained artifacts or tests use it. This replaces
+  **IMAGE-BUILT-ONCE** and **OBJECT-CONTAINER-NO-ROUNDTRIP**. Acceptance:
+  emitting an image builds it once, decodes none of its own instructions or
+  containers, and leaves native corpus bytes unchanged.
 
 ## Automatic service reach
 
