@@ -130,8 +130,39 @@ execution and native exit/output. A moved refusal is still unfinished work.
   or target custody`), and trading a prompt diagnostic for a fifty-minute
   build that may never terminate is not an improvement the sample rule -- a
   migration may not make a sample fail earlier -- can bless.
-  Next step, and it is a PERFORMANCE question rather than a migration one:
-  profile where the native build spends its time on this app. The deadline has
+  PROFILED, and one candidate fix is now measured and ELIMINATED. The cost is
+  CPU-bound and effectively single-threaded (96% of one core), and three sites
+  carry it. (a) `terminal-psi/verification/src/validation/structural/byte_sequence_fields/freshness.rs:78`
+  (`established_on_every_path`) rebuilt the whole successor map per call and
+  found predecessors by scanning every block with an inner `any` over its
+  successor list, so one module validation was quadratic in block count;
+  its caller `.../validation/byte_sequence/read.rs:45,65` adds a full linear
+  scan of every operation to locate the length producer. (b) the SAME
+  whole-module encode-and-validate runs 3 to 4 times per publish --
+  `omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/projection/initial_ledger.rs:15,18,23`
+  validates the final unit and then rebuilds and revalidates the initial one,
+  and `.../validation/context/mod.rs:70` runs two checks that each
+  independently re-encode the module. (c)
+  `psi/compilation/proof/admission/src/mathematical_core/certificate.rs:72`
+  spawns and joins a 256 MB-stack OS thread for EVERY certificate, about 145
+  per second.
+
+  Fix (a) does not unblock this app. Deriving the predecessor index once per
+  walk was implemented and measured: `terminal-verifier` stayed at 1146 of
+  1152 with the identical 6 pre-existing failures and nothing newly failing,
+  a 543-line sample built in 30s against 27s before (noise), and the dungeon
+  native gate at a 5400-second deadline still returned
+  `{"state": "timeout", "detail": ">5400s"}` after 5430 seconds of wall clock.
+  That change is therefore NOT landed -- a semantics-neutral optimization with
+  no measured gain is not worth its risk -- and whoever takes this next should
+  start at (b), the 3-to-4x repetition, rather than repeating (a). The scaling
+  evidence points the same way: cost is near-linear at about 42ms per line
+  across four samples from 130 to 764 lines, which extrapolates to roughly 123
+  seconds for this app's 2917 lines against a floor above 5400, so the
+  multiplier is repetition rather than per-line work.
+
+  The rewrite itself remains ready: `scratchpad/dungeon_v2.patch` still applies
+  cleanly and brings the app's receiver count to zero. The deadline has
   since been raised to 5400 seconds and the run still returned
   `{"state": "timeout"}`, so 90 minutes is not enough and the bound is open.
   Read that JSON carefully when re-measuring: `state` is the verdict and a
