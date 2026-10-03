@@ -2,5 +2,5 @@
 // (wiki/spec/resources/allocation.md, TASKS.md BUMP-ALLOCATOR-CANARY).
 
 machine build(builder: &mut Build) {
-    builder.package("alloc");
+    Build::package(builder, "alloc");
 }

@@ -258,11 +258,8 @@ pub fn project_build_declaration_in_entry(
         ) {
             continue;
         }
-        if call.receiver_starts_at_self
-            || !matches!(
-                syntax_trees.statements.identifier_path_members(call.receiver),
-                [receiver] if receiver.as_str() == builder_name
-            )
+        if !call.target_is_static
+            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str() == BUILD_TYPE_NAME)
         {
             return Err(wrong_receiver_error(operation));
         }
@@ -273,17 +270,26 @@ pub fn project_build_declaration_in_entry(
         {
             return Err(wrong_arguments_error(operation));
         }
+        let arguments = syntax_trees.statements.expression_handles(call.arguments);
+        let Some((builder, arguments)) = arguments.split_first() else {
+            return Err(wrong_arguments_error(operation));
+        };
+        if !matches!(syntax_trees.expressions.expression(*builder), ExpressionNode::Name(path)
+            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str() == builder_name))
+        {
+            return Err(wrong_receiver_error(operation));
+        }
         // The artifact-only application modifier is unconditional: it takes no
         // name or evidence operand, so there is no literal to retain.
         if operation == ARTIFACT_ONLY_MACHINE_NAME {
-            if !call.arguments.is_empty() {
+            if !arguments.is_empty() {
                 return Err(BuildDeclarationError::WrongArtifactOnlyArguments);
             }
             artifact_only += 1;
             accepted_statements.push(*statement_handle);
             continue;
         }
-        let [literal_handle] = syntax_trees.statements.expression_handles(call.arguments) else {
+        let [literal_handle] = arguments else {
             return Err(wrong_arguments_error(operation));
         };
         match operation {
@@ -478,14 +484,16 @@ fn reject_unprojected_build_declaration_syntax(
                     continue;
                 };
                 if matches!(
-                    call.target.as_str(),
+                    machine_leaf_name(call.target.as_str()),
                     PACKAGE_MACHINE_NAME
                         | APPLICATION_MACHINE_NAME
                         | MEMBER_MACHINE_NAME
                         | ARTIFACT_ONLY_MACHINE_NAME
                 ) && !accepted_statements.contains(statement_handle)
                 {
-                    return Err(unsupported_shape_error(call.target.as_str()));
+                    return Err(unsupported_shape_error(machine_leaf_name(
+                        call.target.as_str(),
+                    )));
                 }
             }
         }
@@ -495,7 +503,7 @@ fn reject_unprojected_build_declaration_syntax(
     // every accepted declaration statement leaves one matching
     // `ExpressionNode::Call` behind in the expression table. Named
     // declarations are correlated through their single literal argument.
-    // `builder.artifact_only()` carries no literal, so its zero-argument
+    // `Build::artifact_only(builder)` carries no literal, so its builder-only
     // leftovers are counted instead: an expression-position occurrence (for
     // example nested under `consume(...)`) has no accepted statement and tips
     // the count past the accepted total.
@@ -503,7 +511,7 @@ fn reject_unprojected_build_declaration_syntax(
     for (_, expression) in syntax_trees.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression
             && matches!(
-                call.target.as_str(),
+                machine_leaf_name(call.target.as_str()),
                 PACKAGE_MACHINE_NAME
                     | APPLICATION_MACHINE_NAME
                     | MEMBER_MACHINE_NAME
@@ -511,15 +519,16 @@ fn reject_unprojected_build_declaration_syntax(
             )
         {
             let arguments = syntax_trees.expressions.expression_handles(call.arguments);
-            if call.target.as_str() == ARTIFACT_ONLY_MACHINE_NAME {
-                if arguments.is_empty() {
+            let operation = machine_leaf_name(call.target.as_str());
+            if operation == ARTIFACT_ONLY_MACHINE_NAME {
+                if matches!(arguments, [_builder]) {
                     artifact_only_leftovers += 1;
                     continue;
                 }
-                return Err(unsupported_shape_error(call.target.as_str()));
+                return Err(unsupported_shape_error(operation));
             }
-            if !matches!(arguments, [literal] if accepted_literals.contains(literal)) {
-                return Err(unsupported_shape_error(call.target.as_str()));
+            if !matches!(arguments, [_builder, literal] if accepted_literals.contains(literal)) {
+                return Err(unsupported_shape_error(operation));
             }
         }
     }

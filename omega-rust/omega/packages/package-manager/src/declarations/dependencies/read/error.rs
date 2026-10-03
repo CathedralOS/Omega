@@ -74,13 +74,13 @@ impl fmt::Display for DependencyProjectionError {
                 "package build machine's first parameter must be `builder: &mut Build`",
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "dependencies are statically projected before build execution and must be unconditional direct `builder.depend(Source::...)` or `builder.depend_as(alias, Source::...)` statements in the root build entry; dependency helpers, state transitions, `builder.target`, `depend_when`, and `depend_as_when` are not dependency declaration forms",
+                "dependencies are statically projected before build execution and must be unconditional direct `Build::depend(builder, Source::...)` or `Build::depend_as(builder, alias, Source::...)` statements in the root build entry; dependency helpers, state transitions, `builder.target`, `depend_when`, and `depend_as_when` are not dependency declaration forms",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
-                "dependency request receiver must be the root build machine's first parameter",
+                "dependency request must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongDependencyArguments => formatter.write_str(
-                "`builder.depend` must have one source argument and `builder.depend_as` must have one direct alias literal followed by one source argument; neither accepts static, evidence, operational, or discard modifiers",
+                "`Build::depend` must have a builder operand followed by one source argument and `Build::depend_as` must have a builder operand followed by one direct alias literal followed by one source argument; neither accepts generic, evidence, operational, or discard modifiers",
             ),
             Self::AliasNotString => {
                 formatter.write_str("dependency alias must be a direct string literal")

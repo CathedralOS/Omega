@@ -161,9 +161,9 @@ pub(super) fn reject_unprojected_dependency_syntax(
                     DependencyOperation::classify(call.target.as_str()),
                     syntax_trees.expressions.expression_handles(call.arguments),
                 ) {
-                    (Some(operation), [source])
+                    (Some(operation), [_builder, source])
                         if !operation.takes_alias() && accepted_sources.contains(source) => {}
-                    (Some(operation), [alias, source])
+                    (Some(operation), [_builder, alias, source])
                         if operation.takes_alias()
                             && accepted_aliases.contains(alias)
                             && accepted_sources.contains(source) => {}

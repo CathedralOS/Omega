@@ -83,40 +83,40 @@ impl fmt::Display for BuildDeclarationError {
                 "package build machine must have exactly one parameter: `builder: &mut Build`",
             ),
             Self::UnsupportedPackageShape => formatter.write_str(
-                "package declaration must be one direct canonical `builder.package(\"kebab_name\")` statement in the root build entry",
+                "package declaration must be one direct canonical `Build::package(builder, \"kebab_name\")` statement in the root build entry",
             ),
             Self::WrongPackageReceiver => formatter.write_str(
-                "package declaration receiver must be the root build machine's first parameter",
+                "package declaration must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongPackageArguments => formatter.write_str(
-                "`builder.package` must have one direct name literal and accepts no static, evidence, operational, or discard modifiers",
+                "`Build::package` must have the builder operand and one direct name literal and accepts no generic, evidence, operational, or discard modifiers",
             ),
             Self::UnsupportedApplicationShape => formatter.write_str(
-                "application declaration must be one direct canonical `builder.application(\"kebab_name\")` statement in the root build entry",
+                "application declaration must be one direct canonical `Build::application(builder, \"kebab_name\")` statement in the root build entry",
             ),
             Self::WrongApplicationReceiver => formatter.write_str(
-                "application declaration receiver must be the root build machine's first parameter",
+                "application declaration must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongApplicationArguments => formatter.write_str(
-                "`builder.application` must have one direct name literal and accepts no static, evidence, operational, or discard modifiers",
+                "`Build::application` must have the builder operand and one direct name literal and accepts no generic, evidence, operational, or discard modifiers",
             ),
             Self::UnsupportedMemberShape => formatter.write_str(
-                "workspace members must be direct canonical `builder.member(\"relative/path\")` statements in the root build entry",
+                "workspace members must be direct canonical `Build::member(builder, \"relative/path\")` statements in the root build entry",
             ),
             Self::WrongMemberReceiver => formatter.write_str(
-                "workspace member declaration receiver must be the root build machine's first parameter",
+                "workspace member declaration must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongMemberArguments => formatter.write_str(
-                "`builder.member` must have one direct path literal and accepts no static, evidence, operational, or discard modifiers",
+                "`Build::member` must have the builder operand and one direct path literal and accepts no generic, evidence, operational, or discard modifiers",
             ),
             Self::UnsupportedArtifactOnlyShape => formatter.write_str(
-                "artifact-only selection must be one direct canonical `builder.artifact_only()` statement in the root build entry",
+                "artifact-only selection must be one direct canonical `Build::artifact_only(builder)` statement in the root build entry",
             ),
             Self::WrongArtifactOnlyReceiver => formatter.write_str(
-                "artifact-only selection receiver must be the root build machine's first parameter",
+                "artifact-only selection must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongArtifactOnlyArguments => formatter.write_str(
-                "`builder.artifact_only` takes no arguments and accepts no static, evidence, operational, or discard modifiers",
+                "`Build::artifact_only` takes only the builder operand and accepts no generic, evidence, operational, or discard modifiers",
             ),
             Self::DuplicateArtifactOnlyDeclarations { count } => write!(
                 formatter,
@@ -124,14 +124,14 @@ impl fmt::Display for BuildDeclarationError {
             ),
             Self::ArtifactOnlyRequiresApplication { found } => write!(
                 formatter,
-                "`builder.artifact_only()` modifies an application declaration; this build declares {}",
+                "`Build::artifact_only(builder)` modifies an application declaration; this build declares {}",
                 found.as_str()
             ),
             Self::MissingBuildDeclaration => formatter.write_str(
-                "build must declare exactly one kind through `builder.package`, `builder.application`, or one or more `builder.member` statements",
+                "build must declare exactly one kind through `Build::package`, `Build::application`, or one or more `Build::member` statements",
             ),
             Self::MissingPackageDeclaration => formatter.write_str(
-                "package build must contain one direct `builder.package(\"kebab_name\")` declaration",
+                "package build must contain one direct `Build::package(builder, \"kebab_name\")` declaration",
             ),
             Self::ExpectedPackageDeclaration { found } => write!(
                 formatter,

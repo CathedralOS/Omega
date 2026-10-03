@@ -176,23 +176,23 @@ pub data Source {
     case Path(location: &[u8]);
     case Git(repository: &[u8], revision: &[u8], selection: PackageSelection);
 }
-pub machine Build::depend(&mut self, source: Source) {
+pub machine Build::depend(builder: &mut Build, source: Source) {
 }
-pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
+pub machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) {
 }
-pub machine Build::build_depend(&mut self, source: Source) {
+pub machine Build::build_depend(builder: &mut Build, source: Source) {
 }
-pub machine Build::build_depend_as(&mut self, alias: &[u8], source: Source) {
+pub machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) {
 }
-pub machine Build::package(&mut self, name: &[u8]) {
+pub machine Build::package(builder: &mut Build, name: &[u8]) {
 }
-pub machine Build::application(&mut self, name: &[u8]) {
+pub machine Build::application(builder: &mut Build, name: &[u8]) {
 }
-pub machine Build::member(&mut self, path: &[u8]) {
+pub machine Build::member(builder: &mut Build, path: &[u8]) {
 }
 // Artifact-only application modifier: a declaration statement harvested
 // statically; the declared body is the evaluator no-op.
-pub machine Build::artifact_only(&mut self) {
+pub machine Build::artifact_only(builder: &mut Build) {
 }
 // Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a
 // product-admission requirement that the selected executable composition
@@ -200,11 +200,11 @@ pub machine Build::artifact_only(&mut self) {
 // recorded when this call executes against the original Build value;
 // the evaluator intercepts the declaration, and a
 // declaration that permits Trap cannot override it.
-pub machine Build::exclude_crash(&mut self, cause: CrashCause) {
+pub machine Build::exclude_crash(builder: &mut Build, cause: CrashCause) {
 }
 // Native realization checks this executed selection using the shared
 // physical mechanism classifier, independently of receiver permissions.
-pub machine Build::exclude_physical_authority(&mut self, authority: PhysicalAuthorityClass) {
+pub machine Build::exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) {
 }
 // Independent-component assumption acceptance
 // (wiki/spec/build/component_publication.md): a verified component
@@ -214,83 +214,83 @@ pub machine Build::exclude_physical_authority(&mut self, authority: PhysicalAuth
 // lowercase hex spelling verification diagnostics report. The declaration
 // is harvested statically with its authored span; the declared body is the
 // evaluator no-op.
-pub machine Build::accept_component_assumption(&mut self, digest: &[u8]) {
+pub machine Build::accept_component_assumption(builder: &mut Build, digest: &[u8]) {
 }
-pub machine BuildSource::resolve(&self, relative: &[u8]) -> BuildPath {
+pub machine BuildSource::resolve(source: &BuildSource, relative: &[u8]) -> BuildPath {
     BuildPath {}
 }
 // Missing slots fail the activation; the declared body is never executed.
-pub machine BuildInputs::get(&self, name: &[u8]) -> BuildSource {
+pub machine BuildInputs::get(inputs: &BuildInputs, name: &[u8]) -> BuildSource {
     BuildSource {}
 }
-pub machine BuildOutput::resolve(&self, relative: &[u8]) -> BuildPath {
+pub machine BuildOutput::resolve(output: &BuildOutput, relative: &[u8]) -> BuildPath {
     BuildPath {}
 }
-pub machine BuildSource::open(&self, path: BuildPath, flags: i32) -> i32 {
+pub machine BuildSource::open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 {
     0
 }
-pub machine BuildSource::read(&self, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 {
+pub machine BuildSource::read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 {
     0
 }
-pub machine BuildSource::close(&self, descriptor: i32) -> i32 {
+pub machine BuildSource::close(source: &BuildSource, descriptor: i32) -> i32 {
     0
 }
-pub machine BuildOutput::create(&mut self, path: BuildPath, mode: i32) -> i32 {
+pub machine BuildOutput::create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 {
     0
 }
-pub machine BuildOutput::write(&mut self, descriptor: i32, bytes: &[u8]) -> i64 {
+pub machine BuildOutput::write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 {
     0
 }
-pub machine BuildOutput::close(&mut self, descriptor: i32) -> i32 {
+pub machine BuildOutput::close(output: &mut BuildOutput, descriptor: i32) -> i32 {
     0
 }
-pub machine BuildOutput::include_source(&mut self, generated: BuildPath) {
+pub machine BuildOutput::include_source(output: &mut BuildOutput, generated: BuildPath) {
 }
 // Required-output obligation declaration: reserve the canonical output name
 // and return its obligation marker. Duplicate or colliding names reject in
 // the evaluator; this declared body never executes.
-pub machine BuildOutput::require(&mut self, name: &[u8]) -> RequiredOutput {
+pub machine BuildOutput::require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput {
     RequiredOutput {}
 }
 // Settle one obligation against its sealed staged file. The evaluator
 // intercepts the call: a sealed name yields `OutputCompletion::Sealed` with
 // the receipt, an unsealed file yields `Retry` carrying the obligation and
 // file custody back, and every other custody violation is a hard error.
-pub machine BuildOutput::complete(&mut self, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion {
+pub machine BuildOutput::complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion {
     OutputCompletion::Retry { obligation: obligation, file: file }
 }
 // Consume an obligation with an authored diagnostic. The failure is sticky:
 // the activation can never publish a successful product set.
-pub machine BuildOutput::fail(&mut self, obligation: RequiredOutput, diagnostic: &[u8]) {
+pub machine BuildOutput::fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) {
 }
 // The obligation's declared canonical output name.
-pub machine RequiredOutput::path(&self) -> &[u8] {
+pub machine RequiredOutput::path(output: &RequiredOutput) -> &[u8] {
     ""
 }
 // The described product declaration's canonical path. The evaluator answers
 // from its private description table; the declared body never executes.
-pub machine ProductTypeSchema::path(&self) -> &[u8] {
+pub machine ProductTypeSchema::path(schema: &ProductTypeSchema) -> &[u8] {
     ""
 }
 // The described provider declaration's canonical path. The evaluator answers
 // from its private description table; the declared body never executes.
-pub machine ProductProviderRef::path(&self) -> &[u8] {
+pub machine ProductProviderRef::path(provider: &ProductProviderRef) -> &[u8] {
     ""
 }
-pub machine BuildLog::write_line(&mut self, text: &[u8]) {
+pub machine BuildLog::write_line(log: &mut BuildLog, text: &[u8]) {
 }
 // Fallible logical query: select the exact product machine `path` declares in
 // this call occurrence's own package for root slot `slot`. The evaluator
 // intercepts the call and returns the restricted description marker; this
 // declared body is only a statically well-typed stand-in.
-pub machine BuildProduct::entry(&self, path: &[u8], slot: &[u8]) -> ProductEntryRef {
+pub machine BuildProduct::entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef {
     ProductEntryRef {}
 }
 // Fallible logical query: select the exact product data declaration `path`
 // names in this call occurrence's own package. The evaluator intercepts the
 // call and returns the restricted schema-description marker; this declared
 // body is only a statically well-typed stand-in.
-pub machine BuildProduct::schema(&self, path: &[u8]) -> ProductTypeSchema {
+pub machine BuildProduct::schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema {
     ProductTypeSchema {}
 }
 // Fallible logical query: select the exact product provider declaration `path`
@@ -299,7 +299,7 @@ pub machine BuildProduct::schema(&self, path: &[u8]) -> ProductTypeSchema {
 // not qualify. The evaluator intercepts the call and returns the restricted
 // provider-description marker; this declared body is only a statically
 // well-typed stand-in.
-pub machine BuildProduct::provider(&self, path: &[u8]) -> ProductProviderRef {
+pub machine BuildProduct::provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef {
     ProductProviderRef {}
 }
 // compiler-owned optimization enable machine

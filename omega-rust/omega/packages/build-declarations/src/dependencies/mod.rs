@@ -1,7 +1,7 @@
 //! Dependency rows of the canonical root `Build` entry.
 //!
 //! Dependency edges are declared as direct unconditional
-//! `builder.<operation>(...)` statements in `build.omg`. That grammar is
+//! `Build::<operation>(builder, ...)` statements in `build.omg`. That grammar is
 //! part of the one build-role grammar this crate owns: the package manager
 //! interprets each retained row's literals into source requests for
 //! acquisition, and the compiler consumes the same checked occurrences when
@@ -11,6 +11,7 @@
 use std::fmt;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
 use crate::BuildEntrySyntaxProjection;
@@ -45,7 +46,8 @@ impl DependencyPurpose {
 /// One unconditional `Build` dependency operation that projects an edge.
 ///
 /// The operation name selects both the authorized scope and the canonical
-/// argument shape: `depend` and `build_depend` take one source argument;
+/// argument shape after the explicit builder operand: `depend` and
+/// `build_depend` take one source argument;
 /// `depend_as` and `build_depend_as` take a direct alias literal followed
 /// by one source argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -123,7 +125,7 @@ pub fn is_dependency_call_name(target: &str) -> bool {
 }
 
 /// One checked dependency occurrence: a direct unconditional
-/// `builder.<operation>(...)` statement in the root build entry.
+/// `Build::<operation>(builder, ...)` statement in the root build entry.
 ///
 /// The row retains its statement and raw argument handles so a consumer can
 /// tie authored syntax to acquired edges. Interpreting the alias and source
@@ -162,17 +164,17 @@ impl DependencyRow {
     }
 }
 
-/// How one direct `builder.<operation>(...)` statement departed from the
+/// How one direct `Build::<operation>(builder, ...)` statement departed from the
 /// dependency row grammar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DependencyRowError {
-    /// The receiver was not the root build entry's `builder` parameter —
-    /// including one merely prefixed by `self`.
+    /// The static owner was not `Build`, or the explicit builder operand was
+    /// not the root build entry's first parameter.
     WrongReceiver,
     /// The call's canonical argument shape was violated: `depend` and
     /// `build_depend` take exactly one source argument, `depend_as` and
     /// `build_depend_as` take one direct alias literal followed by one
-    /// source argument, and no form accepts static, evidence, operational,
+    /// source argument after the builder operand, and no form accepts generic, evidence, operational,
     /// or discard modifiers.
     WrongArguments,
 }
@@ -181,10 +183,10 @@ impl fmt::Display for DependencyRowError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::WrongReceiver => {
-                "dependency request receiver must be the root build machine's first parameter"
+                "dependency request must use Build::<operation>(builder, ...), with the root build machine's first parameter"
             }
             Self::WrongArguments => {
-                "dependency calls take one source argument, or one direct alias literal followed by one source argument, and accept no static, evidence, operational, or discard modifiers"
+                "dependency calls take the builder operand followed by one source argument, or one direct alias literal and one source argument, and accept no generic, evidence, operational, or discard modifiers"
             }
         })
     }
@@ -196,9 +198,9 @@ impl std::error::Error for DependencyRowError {}
 /// validated by [`crate::project_build_entry_syntax`].
 ///
 /// Every direct call statement naming an edge-projecting operation on the
-/// `builder` receiver becomes one retained row, in authored order. A
-/// receiver that is not `builder` — including one merely prefixed by
-/// `self` — or a noncanonical argument shape rejects the whole projection.
+/// `Build` owner becomes one retained row, in authored order. The explicit
+/// first operand must be `builder`; a different operand or a noncanonical
+/// argument shape rejects the whole projection.
 /// Conditional `*_when` calls are recognized vocabulary but carry no
 /// unconditional purpose, so they are not rows: consumers reject them as
 /// unprojected syntax through [`is_dependency_call_name`].
@@ -220,13 +222,8 @@ pub fn project_dependency_rows(
         let Some(operation) = DependencyOperation::classify(call.target.as_str()) else {
             continue;
         };
-        if call.receiver_starts_at_self
-            || !matches!(
-                syntax_trees
-                    .statements
-                    .identifier_path_members(call.receiver),
-                [receiver] if receiver.as_str() == builder_name
-            )
+        if !call.target_is_static
+            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str() == "Build")
         {
             return Err(DependencyRowError::WrongReceiver);
         }
@@ -238,6 +235,14 @@ pub fn project_dependency_rows(
             return Err(DependencyRowError::WrongArguments);
         }
         let arguments = syntax_trees.statements.expression_handles(call.arguments);
+        let Some((builder, arguments)) = arguments.split_first() else {
+            return Err(DependencyRowError::WrongArguments);
+        };
+        if !matches!(syntax_trees.expressions.expression(*builder), ExpressionNode::Name(path)
+            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str() == builder_name))
+        {
+            return Err(DependencyRowError::WrongReceiver);
+        }
         let (alias, source) = if operation.takes_alias() {
             let [alias, source] = arguments else {
                 return Err(DependencyRowError::WrongArguments);
@@ -289,11 +294,11 @@ mod tests {
     fn rows_retain_their_purpose_and_literal_occurrences() {
         let (trees, rows) = rows(
             r#"machine build(builder: &mut Build) {
-    builder.application("probe");
-    builder.depend(Source::Path { location: "math" });
-    builder.depend_as("other", Source::Path { location: "other" });
-    builder.build_depend(Source::Git { repository: "r", revision: "v" });
-    builder.build_depend_as("host", Source::Path { location: "host" });
+    Build::application(builder, "probe");
+    Build::depend(builder, Source::Path { location: "math" });
+    Build::depend_as(builder, "other", Source::Path { location: "other" });
+    Build::build_depend(builder, Source::Git { repository: "r", revision: "v" });
+    Build::build_depend_as(builder, "host", Source::Path { location: "host" });
 }
 "#,
         )
@@ -330,8 +335,8 @@ mod tests {
     #[test]
     fn a_wrong_receiver_or_argument_shape_rejects_the_row() {
         let wrong_receiver = [
-            "builder.application(\"probe\");\n    self.depend(Source::Path { location: \"x\" });",
-            "builder.application(\"probe\");\n    helper.depend(Source::Path { location: \"x\" });",
+            "Build::depend(helper, Source::Path { location: \"x\" });",
+            "builder.depend(Source::Path { location: \"x\" });",
         ];
         for statements in wrong_receiver {
             let source = format!("machine build(builder: &mut Build) {{\n{statements}\n}}\n");
@@ -342,14 +347,14 @@ mod tests {
             );
         }
         let wrong_arguments = [
-            "builder.depend()",
-            "builder.depend_as(\"only\")",
-            "builder.build_depend(Source::Path { location: \"x\" }, Source::Path { location: \"y\" })",
-            "builder.depend_as(\"x\", Source::Path { location: \"x\" }, 1)",
+            "Build::depend()",
+            "Build::depend_as(builder, \"only\")",
+            "Build::build_depend(builder, Source::Path { location: \"x\" }, Source::Path { location: \"y\" })",
+            "Build::depend_as(builder, \"x\", Source::Path { location: \"x\" }, 1)",
         ];
         for statement in wrong_arguments {
             let source = format!(
-                "machine build(builder: &mut Build) {{\n    builder.application(\"probe\");\n    {statement};\n}}\n"
+                "machine build(builder: &mut Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
@@ -374,9 +379,9 @@ mod tests {
         }
         let (.., rows) = rows(
             r#"machine build(builder: &mut Build) {
-    builder.application("probe");
-    builder.depend_when(flag(), Source::Path { location: "x" });
-    builder.depend(Source::Path { location: "math" });
+    Build::application(builder, "probe");
+    Build::depend_when(builder, flag(), Source::Path { location: "x" });
+    Build::depend(builder, Source::Path { location: "math" });
 }
 "#,
         )

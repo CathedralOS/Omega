@@ -16,7 +16,7 @@ fn project(source: &str) -> Result<BuildDeclaration, BuildDeclarationError> {
 fn source_and_syntax_apis_project_the_same_authoritative_role() {
     let source = r#"
         machine build(builder: &mut Build) {
-            builder.application("omega_compiler");
+            Build::application(builder, "omega_compiler");
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("lex fixture");
@@ -52,18 +52,18 @@ fn source_and_syntax_apis_project_the_same_authoritative_role() {
 #[test]
 fn projects_package_application_and_workspace_declarations() {
     assert!(matches!(
-        project(r#"machine build(builder: &mut Build) { builder.package("exact_math"); }"#),
+        project(r#"machine build(builder: &mut Build) { Build::package(builder, "exact_math"); }"#),
         Ok(BuildDeclaration::Package(PackageDeclaration { name }))
             if name.as_str() == "exact_math"
     ));
     assert!(matches!(
-        project(r#"machine build(builder: &mut Build) { builder.application("omega"); }"#),
+        project(r#"machine build(builder: &mut Build) { Build::application(builder, "omega"); }"#),
         Ok(BuildDeclaration::Application(ApplicationDeclaration { name, .. }))
             if name.as_str() == "omega"
     ));
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.member("omega/std"); builder.member("source/compiler"); }"#,
+            r#"machine build(builder: &mut Build) { Build::member(builder, "omega/std"); Build::member(builder, "source/compiler"); }"#,
         ),
         Ok(BuildDeclaration::Workspace(WorkspaceDeclaration {
             members: vec![
@@ -97,19 +97,19 @@ fn the_build_entry_has_exactly_one_canonical_builder_parameter() {
 fn rejects_mixed_duplicate_and_hidden_role_syntax() {
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.package("one"); builder.application("two"); }"#,
+            r#"machine build(builder: &mut Build) { Build::package(builder, "one"); Build::application(builder, "two"); }"#,
         ),
         Err(BuildDeclarationError::MixedBuildDeclarations)
     );
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.application("one"); builder.application("two"); }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "one"); Build::application(builder, "two"); }"#,
         ),
         Err(BuildDeclarationError::DuplicateApplicationDeclarations { count: 2 })
     );
     assert_eq!(
         project(
-            r#"machine helper(builder: &mut Build) { builder.member("hidden"); } machine build(builder: &mut Build) {}"#,
+            r#"machine helper(builder: &mut Build) { Build::member(builder, "hidden"); } machine build(builder: &mut Build) {}"#,
         ),
         Err(BuildDeclarationError::UnsupportedMemberShape)
     );
@@ -123,30 +123,30 @@ fn rejects_wrong_role_receivers_arguments_and_literals() {
             BuildDeclarationError::WrongPackageReceiver,
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.application(); }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder); }"#,
             BuildDeclarationError::WrongApplicationArguments,
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.member("one", "two"); }"#,
+            r#"machine build(builder: &mut Build) { Build::member(builder, "one", "two"); }"#,
             BuildDeclarationError::WrongMemberArguments,
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.package(package_name); }"#,
+            r#"machine build(builder: &mut Build) { Build::package(builder, package_name); }"#,
             BuildDeclarationError::NameNotStringLiteral,
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.member(member_path); }"#,
+            r#"machine build(builder: &mut Build) { Build::member(builder, member_path); }"#,
             BuildDeclarationError::MemberPathNotStringLiteral,
         ),
     ] {
         assert_eq!(project(source), Err(expected), "source: {source}");
     }
     assert_eq!(
-        project(r#"machine build(builder: &mut Build) { builder.package("\x80name"); }"#),
+        project(r#"machine build(builder: &mut Build) { Build::package(builder, "\x80name"); }"#),
         Err(BuildDeclarationError::NameNotUtf8)
     );
     assert_eq!(
-        project(r#"machine build(builder: &mut Build) { builder.member("\x80path"); }"#),
+        project(r#"machine build(builder: &mut Build) { Build::member(builder, "\x80path"); }"#),
         Err(BuildDeclarationError::MemberPathNotUtf8)
     );
 }
@@ -155,13 +155,13 @@ fn rejects_wrong_role_receivers_arguments_and_literals() {
 fn rejects_duplicate_package_and_workspace_rows() {
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.package("one"); builder.package("two"); }"#,
+            r#"machine build(builder: &mut Build) { Build::package(builder, "one"); Build::package(builder, "two"); }"#,
         ),
         Err(BuildDeclarationError::DuplicatePackageDeclarations { count: 2 })
     );
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.member("same/path"); builder.member("same/path"); }"#,
+            r#"machine build(builder: &mut Build) { Build::member(builder, "same/path"); Build::member(builder, "same/path"); }"#,
         ),
         Err(BuildDeclarationError::DuplicateWorkspaceMember {
             path: "same/path".to_owned()
@@ -172,9 +172,9 @@ fn rejects_duplicate_package_and_workspace_rows() {
 #[test]
 fn rejects_role_calls_outside_the_direct_root_entry_shape() {
     for source in [
-        r#"machine helper(builder: &mut Build) { builder.package("hidden"); } machine build(builder: &mut Build) {}"#,
-        r#"machine build(builder: &mut Build) { state later(builder: &mut Build) { builder.package("nested"); } }"#,
-        r#"machine build(builder: &mut Build) { consume(builder.package("expression")); }"#,
+        r#"machine helper(builder: &mut Build) { Build::package(builder, "hidden"); } machine build(builder: &mut Build) {}"#,
+        r#"machine build(builder: &mut Build) { state later(builder: &mut Build) { Build::package(builder, "nested"); } }"#,
+        r#"machine build(builder: &mut Build) { consume(Build::package(builder, "expression")); }"#,
     ] {
         assert_eq!(
             project(source),
@@ -199,8 +199,8 @@ fn source_api_reports_lex_and_parse_failures() {
 #[test]
 fn rejects_spoofed_toolchain_vocabulary_and_nonordinary_builds() {
     for source in [
-        r#"data Build {} machine build(builder: &mut Build) { builder.package("spoof"); }"#,
-        r#"machine Build::package(name: &[u8]) {} machine build(builder: &mut Build) { builder.package("spoof"); }"#,
+        r#"data Build {} machine build(builder: &mut Build) { Build::package(builder, "spoof"); }"#,
+        r#"machine Build::package(name: &[u8]) {} machine build(builder: &mut Build) { Build::package(builder, "spoof"); }"#,
     ] {
         assert!(matches!(
             project(source),
@@ -208,7 +208,9 @@ fn rejects_spoofed_toolchain_vocabulary_and_nonordinary_builds() {
         ));
     }
     assert!(matches!(
-        project(r#"machine Owner::build(builder: &mut Build) { builder.package("scoped"); }"#),
+        project(
+            r#"machine Owner::build(builder: &mut Build) { Build::package(builder, "scoped"); }"#
+        ),
         Err(BuildDeclarationError::ScopedBuildMachine { .. })
     ));
     assert_eq!(
@@ -244,7 +246,7 @@ fn validated_names_and_member_paths_match_the_declared_canonical_forms() {
 fn artifact_only_is_a_direct_application_modifier_not_a_role() {
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.application("publisher"); builder.artifact_only(); }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "publisher"); Build::artifact_only(builder); }"#,
         ),
         Ok(BuildDeclaration::Application(ApplicationDeclaration {
             name: ProjectName::parse("publisher").unwrap(),
@@ -255,7 +257,7 @@ fn artifact_only_is_a_direct_application_modifier_not_a_role() {
     // still yields the same single application declaration.
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.artifact_only(); builder.application("publisher"); }"#,
+            r#"machine build(builder: &mut Build) { Build::artifact_only(builder); Build::application(builder, "publisher"); }"#,
         ),
         Ok(BuildDeclaration::Application(ApplicationDeclaration {
             name: ProjectName::parse("publisher").unwrap(),
@@ -264,7 +266,9 @@ fn artifact_only_is_a_direct_application_modifier_not_a_role() {
     );
     // An ordinary application declaration leaves the flag clear.
     assert_eq!(
-        project(r#"machine build(builder: &mut Build) { builder.application("publisher"); }"#,),
+        project(
+            r#"machine build(builder: &mut Build) { Build::application(builder, "publisher"); }"#,
+        ),
         Ok(BuildDeclaration::Application(ApplicationDeclaration {
             name: ProjectName::parse("publisher").unwrap(),
             artifact_only: false,
@@ -276,7 +280,7 @@ fn artifact_only_is_a_direct_application_modifier_not_a_role() {
 fn artifact_only_rejects_non_application_roles_and_repetition() {
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.package("lib"); builder.artifact_only(); }"#,
+            r#"machine build(builder: &mut Build) { Build::package(builder, "lib"); Build::artifact_only(builder); }"#,
         ),
         Err(BuildDeclarationError::ArtifactOnlyRequiresApplication {
             found: BuildDeclarationKind::Package
@@ -284,7 +288,7 @@ fn artifact_only_rejects_non_application_roles_and_repetition() {
     );
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.member("one"); builder.artifact_only(); }"#,
+            r#"machine build(builder: &mut Build) { Build::member(builder, "one"); Build::artifact_only(builder); }"#,
         ),
         Err(BuildDeclarationError::ArtifactOnlyRequiresApplication {
             found: BuildDeclarationKind::Workspace
@@ -292,13 +296,13 @@ fn artifact_only_rejects_non_application_roles_and_repetition() {
     );
     assert_eq!(
         project(
-            r#"machine build(builder: &mut Build) { builder.artifact_only(); builder.artifact_only(); builder.application("app"); }"#,
+            r#"machine build(builder: &mut Build) { Build::artifact_only(builder); Build::artifact_only(builder); Build::application(builder, "app"); }"#,
         ),
         Err(BuildDeclarationError::DuplicateArtifactOnlyDeclarations { count: 2 })
     );
     // The modifier alone never supplies the required role declaration.
     assert_eq!(
-        project(r#"machine build(builder: &mut Build) { builder.artifact_only(); }"#),
+        project(r#"machine build(builder: &mut Build) { Build::artifact_only(builder); }"#),
         Err(BuildDeclarationError::MissingBuildDeclaration)
     );
 }
@@ -307,23 +311,23 @@ fn artifact_only_rejects_non_application_roles_and_repetition() {
 fn artifact_only_rejects_wrong_receiver_arguments_and_indirect_shapes() {
     for (source, expected) in [
         (
-            r#"machine build(builder: &mut Build) { builder.application("app"); other.artifact_only(); }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "app"); other.artifact_only(); }"#,
             BuildDeclarationError::WrongArtifactOnlyReceiver,
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.application("app"); builder.artifact_only("app"); }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "app"); Build::artifact_only(builder, "app"); }"#,
             BuildDeclarationError::WrongArtifactOnlyArguments,
         ),
         (
-            r#"machine helper(builder: &mut Build) { builder.artifact_only(); } machine build(builder: &mut Build) { builder.application("app"); }"#,
+            r#"machine helper(builder: &mut Build) { Build::artifact_only(builder); } machine build(builder: &mut Build) { Build::application(builder, "app"); }"#,
             BuildDeclarationError::UnsupportedArtifactOnlyShape,
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.application("app"); consume(builder.artifact_only()); }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "app"); consume(Build::artifact_only(builder)); }"#,
             BuildDeclarationError::UnsupportedArtifactOnlyShape,
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.application("app"); state later(builder: &mut Build) { builder.artifact_only(); } }"#,
+            r#"machine build(builder: &mut Build) { Build::application(builder, "app"); state later(builder: &mut Build) { Build::artifact_only(builder); } }"#,
             BuildDeclarationError::UnsupportedArtifactOnlyShape,
         ),
     ] {
@@ -331,7 +335,7 @@ fn artifact_only_rejects_wrong_receiver_arguments_and_indirect_shapes() {
     }
     assert!(matches!(
         project(
-            r#"machine Build::artifact_only() {} machine build(builder: &mut Build) { builder.application("app"); builder.artifact_only(); }"#,
+            r#"machine Build::artifact_only() {} machine build(builder: &mut Build) { Build::application(builder, "app"); Build::artifact_only(builder); }"#,
         ),
         Err(BuildDeclarationError::AuthoredToolchainVocabulary { .. })
     ));

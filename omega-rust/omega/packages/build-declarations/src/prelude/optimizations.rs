@@ -44,11 +44,11 @@ fn declarations() -> String {
 
 fn enable_machine() -> String {
     let mut text = String::from(
-        "pub machine Optimizations::enable(&mut self, optimization: Optimization) {\n    transition optimization {\n",
+        "pub machine Optimizations::enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    transition optimization {\n",
     );
     for optimization in Optimization::ALL {
         text.push_str(&format!(
-            "        Optimization::{} -> {}()\n",
+            "        Optimization::{} -> {}(optimizations)\n",
             optimization.build_case_name(),
             optimization.build_counter_field()
         ));
@@ -57,14 +57,14 @@ fn enable_machine() -> String {
     for optimization in Optimization::ALL {
         let counter = optimization.build_counter_field();
         text.push_str(&format!(
-            "\n    state {counter}(&mut self) {{\n        self.{counter} = self.{counter} + 1;\n    }}\n"
+            "\n    state {counter}(optimizations: &mut Optimizations) {{\n        optimizations.{counter} = optimizations.{counter} + 1;\n    }}\n"
         ));
     }
     text.push_str("}\n");
     text
 }
 
-const REPORT_MACHINE: &str = r#"pub machine Optimizations::emit_report(&mut self) {
-    self.human_report = self.human_report + 1;
+const REPORT_MACHINE: &str = r#"pub machine Optimizations::emit_report(optimizations: &mut Optimizations) {
+    optimizations.human_report = optimizations.human_report + 1;
 }
 "#;
