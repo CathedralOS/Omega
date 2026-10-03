@@ -425,14 +425,20 @@ fn push_expression_call(
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
 ) {
-    let target_operator_symbol =
-        typed_trees::operator::resolve_named_expression_call(program, call)
-            .map(|operator| operator.symbol)
-            .unwrap_or_else(SymbolHandle::invalid);
+    let named_operator = typed_trees::operator::resolve_named_expression_call(program, call);
+    let target_operator_symbol = named_operator
+        .map(|operator| operator.symbol)
+        .unwrap_or_else(SymbolHandle::invalid);
+    // A named boundary use carries no leaf target symbol; borrow and flow
+    // record the same resolved operator identity, so the call summary must
+    // key on it for the reach/operational attach to join the occurrence.
+    let target_state_symbol = named_operator
+        .filter(|operator| operator.is_boundary)
+        .map_or(call.target_symbol, |operator| operator.symbol);
     push_call(
         program,
         call.target.as_str(),
-        call.target_symbol,
+        target_state_symbol,
         call.static_machine_parameter,
         &call.machine_arguments,
         target_operator_symbol,

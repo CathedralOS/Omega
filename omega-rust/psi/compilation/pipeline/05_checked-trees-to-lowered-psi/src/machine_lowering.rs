@@ -104,7 +104,6 @@ fn lower_terminal_selection(
 ) -> Result<LoweredPsi, LoweringError> {
     admit_mathematical_declarations(checked)?;
     reject_conditional_claim_joins(checked, &[selection.machine])?;
-    operation_crash_contracts::reject_unjoinable_named_sites(checked, selection.machine)?;
     // Custody gates order deliberately: this program-level check runs before
     // per-machine lowering, so a custody-carrying unit-effects plan whose
     // typed machine/state rows are missing reports "direct Unit parameter
@@ -171,11 +170,14 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module,
     )?;
     // Selected operator invocations carry their crash contract beside the
-    // exact emitted operation; a crash-qualified use the closure cannot join
-    // to one operation fails closed here rather than lowering crash-free.
+    // exact emitted operation; a named invocation's carrier is its own
+    // boundary call's declaration, verified through the same projection
+    // sources. A crash-qualified use the closure cannot join fails closed
+    // here rather than lowering crash-free.
     operation_crash_contracts::retain_operation_crash_contracts(
         checked,
         &source_machines,
+        &projection_sources,
         &mut lowered,
     )?;
     // Guarded guarantees are admitted from the finished closure: whether the

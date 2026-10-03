@@ -440,7 +440,7 @@ fn view_result_loan(
     else {
         return None;
     };
-    if expression.target_symbol != call.target_symbol
+    if crate::flow::call_target_symbol(program, expression) != call.target_symbol
         || call.authored_expression != local.initial_value
         || call.statement_index != result.statement_index as usize
         || call.call_ordinal != 0

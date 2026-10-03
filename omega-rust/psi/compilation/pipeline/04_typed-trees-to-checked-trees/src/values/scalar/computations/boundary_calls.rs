@@ -112,7 +112,11 @@ impl Builder<'_, '_> {
                 _ => return false,
             }
         };
-        boundary_operator(self.program, call.target_symbol).is_some()
+        boundary_operator(
+            self.program,
+            crate::flow::call_target_symbol(self.program, call),
+        )
+        .is_some()
             || crate::semantic::calls::find_machine_by_entry_state(self.program, call.target_symbol)
                 .is_some_and(|(machine, _)| {
                     machine.supply_mode.is_boundary_declaration() && !machine.body_is_present
@@ -180,7 +184,7 @@ impl Builder<'_, '_> {
         }
         self.boundary_application(
             expression,
-            call.target_symbol,
+            operator.symbol,
             (operator.symbol, operator.symbol),
             parameters,
             operator.return_type,

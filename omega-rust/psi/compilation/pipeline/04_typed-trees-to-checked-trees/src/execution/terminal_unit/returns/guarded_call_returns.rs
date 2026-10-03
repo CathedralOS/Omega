@@ -100,7 +100,7 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
     {
         return None;
     }
-    if flow_call.target_symbol != call.target_symbol {
+    if flow_call.target_symbol != crate::flow::call_target_symbol(program, call) {
         return None;
     }
     let call_site = crate::semantic::calls::find_call_site(

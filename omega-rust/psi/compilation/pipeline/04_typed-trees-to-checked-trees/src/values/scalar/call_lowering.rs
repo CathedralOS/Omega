@@ -90,7 +90,9 @@ pub(crate) fn lower_call_arguments(
 ) -> Option<LoweredCallArguments> {
     let target_symbol = match call_site {
         crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic::calls::CallSite::Expression { call, .. } => {
+            crate::flow::call_target_symbol(program, call)
+        }
         crate::semantic::calls::CallSite::TransitionNamed { .. } => return None,
     };
     let is_boundary = call_is_boundary(program, target_symbol);

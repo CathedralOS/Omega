@@ -33,9 +33,10 @@ pub(crate) fn is_scalar_return_call(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    crate::flow::call_target_return_type(program, call.target_symbol).is_some_and(|return_type| {
-        program.primitive_type_reference(return_type) == Some(primitive_type)
-    })
+    crate::flow::call_target_return_type(program, crate::flow::call_target_symbol(program, call))
+        .is_some_and(|return_type| {
+            program.primitive_type_reference(return_type) == Some(primitive_type)
+        })
 }
 pub(crate) fn retain_nested_structural_call_arguments(
     program: &TypedTrees,
@@ -265,7 +266,7 @@ pub(super) fn nested_structural_call_sites<'program>(
             else {
                 return None;
             };
-            if call.target_symbol != source.target_symbol
+            if crate::flow::call_target_symbol(program, call) != source.target_symbol
                 || !call.carries_only_positional_arguments()
                 || !call.selects_only_nominal_route()
             {

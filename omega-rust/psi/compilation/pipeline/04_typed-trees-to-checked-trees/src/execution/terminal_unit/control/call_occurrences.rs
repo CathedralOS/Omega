@@ -164,7 +164,7 @@ pub(super) fn ordered_statement_call<'program>(
                 .len()
             || program.normalized_type_identity(crate::flow::call_target_return_type(
                 program,
-                call.target_symbol,
+                crate::flow::call_target_symbol(program, call),
             )?) != program.normalized_type_identity(state.return_type)
             || checked_structural_result_type(
                 program,
@@ -641,7 +641,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             let (expression, authored) =
                 ordered_statement_call(program, owner, state, call.statement_index)?;
             if call.authored_expression != expression
-                || call.target_symbol != authored.target_symbol
+                || call.target_symbol != crate::flow::call_target_symbol(program, authored)
             {
                 return None;
             }
@@ -692,7 +692,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 let (_, authored) =
                     ordered_statement_call(program, owner, state, call.statement_index)?;
                 (
-                    authored.target_symbol,
+                    crate::flow::call_target_symbol(program, authored),
                     program
                         .expression_table
                         .expression_handles(authored.arguments),
@@ -721,7 +721,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     return None;
                 };
                 (
-                    authored.target_symbol,
+                    crate::flow::call_target_symbol(program, authored),
                     program
                         .expression_table
                         .expression_handles(authored.arguments),
@@ -739,7 +739,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     return None;
                 };
                 (
-                    authored.target_symbol,
+                    crate::flow::call_target_symbol(program, authored),
                     program
                         .expression_table
                         .expression_handles(authored.arguments),

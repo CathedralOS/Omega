@@ -82,7 +82,9 @@ pub(crate) fn call_array_constructions_in(
             continue;
         };
         let target_symbol = match &site {
-            crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
+            crate::semantic::calls::CallSite::Expression { call, .. } => {
+                crate::flow::call_target_symbol(program, call)
+            }
             crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
             crate::semantic::calls::CallSite::TransitionNamed { .. } => continue,
         };

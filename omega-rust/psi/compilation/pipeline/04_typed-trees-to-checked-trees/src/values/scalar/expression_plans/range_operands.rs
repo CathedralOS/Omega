@@ -138,7 +138,7 @@ fn structural_call_arguments(
     use crate::semantic::calls::CallSite;
     let target = match site {
         CallSite::Statement(call) => call.target_symbol,
-        CallSite::Expression { call, .. } => call.target_symbol,
+        CallSite::Expression { call, .. } => crate::flow::call_target_symbol(program, call),
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
     let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target) else {

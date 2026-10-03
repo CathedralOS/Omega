@@ -1030,7 +1030,9 @@ fn fact_substitutions<'program>(
     };
     let target_symbol = match &call_site {
         crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic::calls::CallSite::Expression { call, .. } => {
+            crate::flow::call_target_symbol(program, call)
+        }
         crate::semantic::calls::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
             .map_or_else(SymbolHandle::invalid, |call| call.target_symbol),
     };
@@ -1326,9 +1328,10 @@ fn enclosing_call_substitutions(
         crate::semantic::calls::CallSite::Statement(call) => {
             (call.target_symbol, call.machine_arguments.as_ref())
         }
-        crate::semantic::calls::CallSite::Expression { call, .. } => {
-            (call.target_symbol, call.machine_arguments.as_ref())
-        }
+        crate::semantic::calls::CallSite::Expression { call, .. } => (
+            crate::flow::call_target_symbol(program, call),
+            call.machine_arguments.as_ref(),
+        ),
         crate::semantic::calls::CallSite::TransitionNamed { .. } => return Vec::new(),
     };
     bound_index_substitutions(
@@ -1362,7 +1365,7 @@ fn value_call_substitutions(
         program,
         state,
         statement_index,
-        call.target_symbol,
+        crate::flow::call_target_symbol(program, call),
         &call.machine_arguments,
     )
 }

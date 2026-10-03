@@ -578,6 +578,23 @@ fn append_call_parameter_domain_facts<'plans>(
     );
 }
 
+/// The callee identity a typed call's flow occurrence keys on. A named
+/// `Namespace::requirement(...)` call keeps its authored receiver path and an
+/// invalid `target_symbol`; borrow discovery and flow rekey the occurrence by
+/// the selected boundary declaration's symbol (`resolve_named_expression_call`
+/// returns the same declaration a spelled call would target). Any consumer
+/// that compares or dispatches on the occurrence's `target_symbol` must
+/// resolve the same identity — the raw leaf loses every named boundary call
+/// to an empty match. A call this cannot name keeps its authored leaf and
+/// fails closed at whichever consumer reads it.
+pub(crate) fn call_target_symbol(
+    program: &typed_trees::TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> SymbolHandle {
+    typed_trees::operator::selected_boundary_operator(program, call)
+        .map_or(call.target_symbol, |operator| operator.symbol)
+}
+
 pub(crate) fn call_target_return_type(
     program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,

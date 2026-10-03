@@ -729,7 +729,7 @@ fn statement_call_target(
     let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
         return None;
     };
-    Some(call.target_symbol)
+    Some(crate::flow::call_target_symbol(program, call))
 }
 
 #[allow(clippy::too_many_arguments)]

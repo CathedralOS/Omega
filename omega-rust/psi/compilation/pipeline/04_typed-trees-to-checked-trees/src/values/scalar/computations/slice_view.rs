@@ -38,7 +38,12 @@ impl Builder<'_, '_> {
         // or perform effects before returning. Only erased collection openers
         // have no runtime occurrence to preserve here.
         if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
-            && self.call_ordinal(expression, call.target_symbol).is_some()
+            && self
+                .call_ordinal(
+                    expression,
+                    crate::flow::call_target_symbol(self.program, call),
+                )
+                .is_some()
         {
             return None;
         }
