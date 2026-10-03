@@ -122,9 +122,22 @@ pub(super) fn lower(
                 obligation: *obligation,
             })
         }
-        OperationKind::ByteSequencePredicate { .. } => Err(
-            LoweringError::UnsupportedByteSequencePredicate(operation.id),
-        ),
+        OperationKind::ByteSequencePredicate { operand, predicate } => {
+            let result = operation
+                .result
+                .scalar()
+                .filter(|result| result.scalar_type == ScalarType::Boolean)
+                .ok_or(LoweringError::InvalidByteSequencePredicate(operation.id))?;
+            Ok(AbstractOperation::ByteSequencePredicate {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                operand: operand.clone(),
+                predicate: *predicate,
+            })
+        }
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,

@@ -12,6 +12,9 @@ pub struct SelectedConstraintKeys {
     pub atomic_compare_exchange: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,
     pub copy_bytes: Option<RegisterConstraintKey>,
+    /// Byte-sequence predicate scan: two preserved inputs (base, count), two
+    /// early-clobber scratch registers, one defined 0/1 result operand.
+    pub scan_byte_sequence: Option<RegisterConstraintKey>,
     pub save_floating_control: Option<RegisterConstraintKey>,
     pub restore_floating_control: Option<RegisterConstraintKey>,
     pub hosted_read_byte: Option<RegisterConstraintKey>,

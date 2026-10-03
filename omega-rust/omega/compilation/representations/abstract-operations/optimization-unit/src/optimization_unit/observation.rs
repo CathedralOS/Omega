@@ -436,6 +436,7 @@ fn operation_observations(
         // or reorder against other observations of the same storage.
         | O::StructuralLeafCopy { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequencePredicate { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::EstablishElementView { .. }

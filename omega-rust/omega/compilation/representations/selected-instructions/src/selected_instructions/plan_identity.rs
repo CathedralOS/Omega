@@ -91,6 +91,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
         SelectedInstructionKind::CopyBytes => 59,
+        SelectedInstructionKind::ScanByteSequence { .. } => 96,
         SelectedInstructionKind::BitwiseAndI64 => 48,
         SelectedInstructionKind::BitwiseXorI64 => 49,
         SelectedInstructionKind::BitwiseOrI64 => 93,
@@ -190,6 +191,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     });
     match instruction.kind {
         SelectedInstructionKind::CopyBytes => {}
+        SelectedInstructionKind::ScanByteSequence { predicate } => {
+            bytes.push(predicate.mask_bit());
+        }
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());

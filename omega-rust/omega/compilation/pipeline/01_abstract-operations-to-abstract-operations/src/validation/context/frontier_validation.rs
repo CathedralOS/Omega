@@ -165,6 +165,7 @@ fn validate_surviving_byte_operations(
                 ..
             } => (*psi_operation, Some(*obligation)),
             O::ByteSequenceLength { psi_operation, .. }
+            | O::ByteSequencePredicate { psi_operation, .. }
             | O::StructuralByteSequenceFieldLength { psi_operation, .. } => (*psi_operation, None),
             O::ElementViewRead {
                 psi_operation,
@@ -314,6 +315,22 @@ fn validate_surviving_byte_operations(
                         index: *index,
                         length: *length,
                         obligation: *obligation,
+                    },
+                ),
+                O::ByteSequencePredicate {
+                    result,
+                    operand,
+                    predicate,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::ByteSequencePredicate {
+                        operand: operand.clone(),
+                        predicate: *predicate,
                     },
                 ),
                 O::StructuralByteSequenceFieldRead {
@@ -623,6 +640,53 @@ fn byte_operation_kind_matches(
                 && root_matches(*expected_source, *actual_source)
                 && operand_matches(*expected_index, *actual_index)
                 && operand_matches(*expected_length, *actual_length)
+        }
+        (
+            terminal_psi::OperationKind::ByteSequencePredicate {
+                operand: expected_operand,
+                predicate: expected_predicate,
+            },
+            terminal_psi::OperationKind::ByteSequencePredicate {
+                operand: actual_operand,
+                predicate: actual_predicate,
+            },
+        ) => {
+            use terminal_psi::control_flow::ByteSequenceOperand as Operand;
+            expected_predicate == actual_predicate
+                && match (expected_operand, actual_operand) {
+                    (
+                        Operand::Whole {
+                            source: expected_source,
+                            length: expected_length,
+                        },
+                        Operand::Whole {
+                            source: actual_source,
+                            length: actual_length,
+                        },
+                    ) => {
+                        root_matches(*expected_source, *actual_source)
+                            && operand_matches(*expected_length, *actual_length)
+                    }
+                    (
+                        Operand::Field {
+                            source: expected_source,
+                            field: expected_field,
+                            length: expected_length,
+                        },
+                        Operand::Field {
+                            source: actual_source,
+                            field: actual_field,
+                            length: actual_length,
+                        },
+                    ) => {
+                        expected_source.access == actual_source.access
+                            && expected_source.path == actual_source.path
+                            && expected_field == actual_field
+                            && root_matches(expected_source.place, actual_source.place)
+                            && operand_matches(*expected_length, *actual_length)
+                    }
+                    _ => false,
+                }
         }
         (
             terminal_psi::OperationKind::ByteSequenceSubslice {

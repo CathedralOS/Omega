@@ -6,6 +6,7 @@ use crate::selected_form_encoding::copy_bytes;
 use crate::selected_form_encoding::decoding::{decode_words, footprint, validate_decoded};
 use crate::selected_form_encoding::float_bits;
 use crate::selected_form_encoding::movn_materialization::append_canonical_materialization;
+use crate::selected_form_encoding::scan_byte_sequence;
 use crate::selected_form_encoding::{
     Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding,
 };
@@ -23,6 +24,9 @@ pub fn encode_aarch64_selected_form(
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::encode(physical, alternative, operands);
+    }
+    if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
+        return scan_byte_sequence::encode(physical, predicate, alternative, operands);
     }
     if float_bits::is_transfer(kind) {
         return float_bits::encode(physical, kind, alternative, operands);
@@ -43,6 +47,9 @@ pub fn validate_aarch64_selected_form_encoding(
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::validate(physical, alternative, operands, bytes);
+    }
+    if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
+        return scan_byte_sequence::validate(physical, predicate, alternative, operands, bytes);
     }
     if float_bits::is_transfer(kind) {
         return float_bits::validate(physical, kind, alternative, operands, bytes);
@@ -261,6 +268,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::ScanByteSequence { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
@@ -648,6 +656,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::BitsToFloat32
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::ScanByteSequence { .. }
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }

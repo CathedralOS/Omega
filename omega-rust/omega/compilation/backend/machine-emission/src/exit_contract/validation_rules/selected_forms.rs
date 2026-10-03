@@ -330,6 +330,14 @@ pub(in crate::exit_contract) fn validate_non_return(
             None,
         ) => true,
         (
+            SelectedInstructionKind::ScanByteSequence { .. },
+            MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+                base_pointer_operand: 0,
+                count_operand: 1,
+            },
+            None,
+        ) => true,
+        (
             SelectedInstructionKind::LoadPacked { byte_offset, width },
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,

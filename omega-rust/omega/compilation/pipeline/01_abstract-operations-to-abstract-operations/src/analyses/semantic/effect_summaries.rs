@@ -341,6 +341,7 @@ fn operation_effect(
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequencePredicate { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::EstablishElementView { .. }

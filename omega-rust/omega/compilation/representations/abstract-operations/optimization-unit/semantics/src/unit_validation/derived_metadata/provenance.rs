@@ -63,6 +63,7 @@ pub(crate) fn expected_provenance(
         | O::FloatResultPolicy { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
         | O::ByteSequenceRead { psi_operation, .. }
+        | O::ByteSequencePredicate { psi_operation, .. }
         | O::ByteSequenceWrite { psi_operation, .. }
         | O::ByteSequenceStore { psi_operation, .. }
         | O::StructuralByteSequenceFieldStore { psi_operation, .. }

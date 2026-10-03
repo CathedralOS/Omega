@@ -61,6 +61,13 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if Ok(integer) == IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
         }
+        O::ByteSequencePredicate {
+            result, operand, ..
+        } => {
+            result.scalar_type == ScalarType::Boolean
+                && matches!(scalar(operand.length()), Some(ScalarType::Integer(integer))
+                    if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
+        }
         _ => false,
     }
 }

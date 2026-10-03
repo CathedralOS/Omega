@@ -13,7 +13,9 @@ use semantic_vocabulary::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::TargetByteView;
-use target_operations::{TargetIntegerExpression, TargetStructuralParameter};
+use target_operations::{
+    TargetBooleanExpression, TargetIntegerExpression, TargetStructuralParameter,
+};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 pub(in crate::lowering) fn block_source(
@@ -206,6 +208,45 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
             lengths,
             result.place,
             &mut Vec::new(),
+        )?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
+    if let AbstractOperation::ByteSequencePredicate {
+        psi_operation,
+        result,
+        operand,
+        predicate,
+    } = operation
+    {
+        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        if result.scalar_type != ScalarType::Boolean {
+            return Err(invalid());
+        }
+        if let terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } = operand {
+            let (_view, _) = resolve_byte_view(
+                function,
+                structural_types,
+                parameters,
+                backings,
+                values,
+                lengths,
+                *source,
+                &mut Vec::new(),
+            )?;
+            if !observes_length(values, lengths, *length, *source) {
+                return Err(invalid());
+            }
+        }
+        insert_value(
+            values,
+            result.value,
+            KnownScalar::BooleanRuntime(TargetBooleanExpression::ByteSequencePredicate {
+                psi_operation: *psi_operation,
+                source_value: result.value,
+                operand: operand.clone(),
+                predicate: *predicate,
+            }),
         )?;
         provenance.push(*psi_operation);
         return Ok(true);

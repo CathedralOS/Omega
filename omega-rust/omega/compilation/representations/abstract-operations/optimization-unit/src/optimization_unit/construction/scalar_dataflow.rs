@@ -32,6 +32,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::PrimitiveScalarRead { result, .. }
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
+        | O::ByteSequencePredicate { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
@@ -149,6 +150,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]
         }
+        O::ByteSequencePredicate { operand, .. } => vec![operand.length()],
         O::ByteSequenceStore { length, .. }
         | O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {

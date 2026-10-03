@@ -597,6 +597,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                     bytes.extend_from_slice(&length_byte_offset.to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::ByteSequencePredicate { operand, predicate } => {
+                    bytes.push(45);
+                    encode_byte_operand(bytes, operand);
+                    bytes.push(predicate.mask_bit());
+                }
                 LegalizedScalarInstructionKind::EstablishElementView {
                     result,
                     destination,

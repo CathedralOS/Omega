@@ -198,6 +198,13 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// Runtime span at byte_offset; byte_count must be zero. `length` is the
+    /// operand's own dominating length measurement, so the extent is exactly
+    /// what the operand spells: the construction binds the read authority and
+    /// the access names no obligation certificate.
+    ReadMeasuredSpan {
+        length: semantic_vocabulary::ValueId,
+    },
     /// One runtime-selected element of a write through a verified structural
     /// projection (`grid[i][j] = v`, `ents[i].hp = v`). The written address is
     /// the subject's base plus the row's fixed `byte_offset` plus, for each

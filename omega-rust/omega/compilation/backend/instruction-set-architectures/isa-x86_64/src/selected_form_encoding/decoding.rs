@@ -1388,6 +1388,7 @@ pub(crate) fn validate_decoded(
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::ScanByteSequence { .. }
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::LoadPacked { .. }
@@ -2113,6 +2114,7 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::ScanByteSequence { .. }
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::LoadPacked { .. }

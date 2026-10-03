@@ -8,6 +8,10 @@ use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::selection::construction::scalar_graph::structural::{
+    byte_concatenation, byte_field_store,
+};
+use terminal_psi::control_flow::ByteSequenceOperand;
 
 // Store through the original backing pointer; the descriptor itself is unchanged.
 pub(super) fn write(
@@ -402,6 +406,86 @@ fn byte_sequence_length(
         builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         &[input, output],
         provenance,
+    )?;
+    Ok(output)
+}
+
+/// Scan the operand's measured extent and produce the predicate's Boolean.
+/// The operand's own dominating length measurement supplies the scan count,
+/// so the read is authorized by the operand's construction and the charge
+/// names no obligation certificate.
+pub(in crate::selection) fn byte_predicate(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ByteSequencePredicate { operand, predicate } = &row.kind
+    else {
+        return Err(invalid());
+    };
+    let result = row.result.ok_or_else(|| invalid())?;
+    let integer =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?);
+    let (_, count, _, count_type) = builder.resolve(operand.length()).ok_or_else(|| invalid())?;
+    if result.scalar_type != ScalarType::Boolean || count_type != integer {
+        return Err(invalid());
+    }
+    let base = byte_concatenation::operand_pointer(function, builder, row, operand)?;
+    let offset = match operand {
+        ByteSequenceOperand::Field { .. } => {
+            crate::selection::byte_concatenation_input::field_offset(function, operand)
+                .ok_or_else(invalid)?
+        }
+        ByteSequenceOperand::Whole { source, .. } => {
+            if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
+                .is_some()
+            {
+                8
+            } else {
+                0
+            }
+        }
+    };
+    let roots = match operand {
+        ByteSequenceOperand::Whole { source, length } => {
+            crate::selection::byte_view_homes::view_backing_roots(
+                function,
+                &builder.transport.views,
+                *source,
+                *length,
+            )?
+        }
+        ByteSequenceOperand::Field { .. } => None,
+    };
+    for (root, length) in roots.unwrap_or_else(|| vec![(operand.source(), operand.length())]) {
+        memory(
+            builder,
+            row,
+            root,
+            offset,
+            0,
+            SelectedMemoryAccessRole::ReadMeasuredSpan { length },
+        )?;
+    }
+    let cursor = byte_field_store::scratch(builder, 2)?;
+    let byte = byte_field_store::scratch(builder, 3)?;
+    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
+    builder.emit(
+        SelectedInstructionKind::ScanByteSequence {
+            predicate: *predicate,
+        },
+        builder
+            .constraints
+            .keys
+            .scan_byte_sequence
+            .ok_or_else(|| invalid())?,
+        &[base, count, cursor, byte, output],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![operand.length(), result.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
     )?;
     Ok(output)
 }

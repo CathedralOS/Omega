@@ -235,6 +235,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 bytes.push(15);
                 bytes.extend_from_slice(&producer.get().to_le_bytes());
             }
+            SelectedMemoryAccessRole::ReadMeasuredSpan { length } => {
+                bytes.push(16);
+                bytes.extend_from_slice(&length.get().to_le_bytes());
+            }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WritePlace => bytes.push(6),
             SelectedMemoryAccessRole::WriteOutgoing { slot: value } => {

@@ -8,6 +8,10 @@ use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::provenance;
 use crate::selection::validation::scalar_graph::structural::result;
+use crate::selection::validation::scalar_graph::structural::{
+    byte_concatenation, byte_field_store,
+};
+use terminal_psi::control_flow::ByteSequenceOperand;
 
 // Store through the original backing pointer; the descriptor itself is unchanged.
 pub(super) fn write(
@@ -421,6 +425,88 @@ fn byte_sequence_length(
             .ok_or_else(|| replay.invalid())?,
         &[input, output],
         &provenance,
+    )?;
+    Ok(output)
+}
+
+/// Replay the measured-extent scan: the operand's own dominating length
+/// supplies the count, so the read needs no obligation certificate.
+pub(in crate::selection) fn byte_predicate(
+    function: &LegalizedScalarFunction,
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ByteSequencePredicate { operand, predicate } = &row.kind
+    else {
+        return Err(replay.invalid());
+    };
+    let result = row.result.ok_or_else(|| replay.invalid())?;
+    let integer = ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?,
+    );
+    let (_, count, _, count_type) = replay
+        .resolve(operand.length())
+        .ok_or_else(|| replay.invalid())?;
+    if result.scalar_type != ScalarType::Boolean || count_type != integer {
+        return Err(replay.invalid());
+    }
+    let base = byte_concatenation::operand_pointer(function, replay, row, operand)?;
+    let offset = match operand {
+        ByteSequenceOperand::Field { .. } => {
+            crate::selection::byte_concatenation_input::field_offset(function, operand)
+                .ok_or_else(|| replay.invalid())?
+        }
+        ByteSequenceOperand::Whole { source, .. } => {
+            if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
+                .is_some()
+            {
+                8
+            } else {
+                0
+            }
+        }
+    };
+    let roots = match operand {
+        ByteSequenceOperand::Whole { source, length } => {
+            crate::selection::byte_view_homes::view_backing_roots(
+                function,
+                &replay.transport.views,
+                *source,
+                *length,
+            )?
+        }
+        ByteSequenceOperand::Field { .. } => None,
+    };
+    for (root, length) in roots.unwrap_or_else(|| vec![(operand.source(), operand.length())]) {
+        memory(
+            replay,
+            row,
+            root,
+            offset,
+            0,
+            SelectedMemoryAccessRole::ReadMeasuredSpan { length },
+        )?;
+    }
+    let cursor = byte_field_store::scratch(replay, 2)?;
+    let byte = byte_field_store::scratch(replay, 3)?;
+    let output =
+        replay.result_register(result.value, result.definition_site, result.scalar_type)?;
+    replay.check_instruction(
+        SelectedInstructionKind::ScanByteSequence {
+            predicate: *predicate,
+        },
+        replay
+            .constraints
+            .keys
+            .scan_byte_sequence
+            .ok_or_else(|| replay.invalid())?,
+        &[base, count, cursor, byte, output],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![operand.length(), result.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
     )?;
     Ok(output)
 }

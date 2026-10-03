@@ -18,8 +18,8 @@ use crate::register_model::{
     X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64,
     X86_64_SATURATING_DIVIDE_SIGNED, X86_64_SATURATING_MULTIPLY_CLAMPED,
     X86_64_SATURATING_MULTIPLY_U64, X86_64_SATURATING_SUBTRACT_CLAMPED,
-    X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SHIFT_I64, X86_64_STORE, X86_64_STORE64,
-    X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL,
+    X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SCAN_BYTE_SEQUENCE, X86_64_SHIFT_I64, X86_64_STORE,
+    X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
     X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR,
     X86_64_TRAPPING_SHIFT, canonical_x86_64_physical_register_model_identity,
@@ -1003,6 +1003,29 @@ pub fn x86_64_register_constraint_catalog(
                 fixed_view: None,
                 tied_to: None,
                 early_clobber: operand >= 3,
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    // The scan reads its preserved base/count inputs while the loop cursors
+    // are written before any input home is consumed; the verdict operand is
+    // the only lasting definition. Flags fall to the compare/branch pair.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_SCAN_BYTE_SEQUENCE,
+        operands: (0..5)
+            .map(|operand| RegisterOperandConstraint {
+                operand,
+                access: match operand {
+                    0 | 1 => RegisterOperandAccess::Use,
+                    _ => RegisterOperandAccess::Def,
+                },
+                class: GPR64,
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: matches!(operand, 2 | 3 | 4),
             })
             .collect(),
         implicit_uses: Vec::new(),
