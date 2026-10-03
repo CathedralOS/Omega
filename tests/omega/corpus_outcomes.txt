@@ -2109,8 +2109,7 @@ pass/recast/runtime_mutable_equivalent_range_recast_exit checked 1194ms @a3bac00
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 5307ms @a3bac00e54bb+wt
 pass/recast/runtime_nested_record_byte_store_exit checked 1232ms @a3bac00e54bb+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms @a3bac00e54bb+wt
-pass/recast/runtime_record_array_view_mutable_write_exit rejected 972ms @a3bac00e54bb+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_record_array_view_mutable_write_exit checked 2339ms @f4c97ef914e5+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 2961ms @9782e38b64ab+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms @a3bac00e54bb+wt
 pass/recast/runtime_shared_record_float_range_weakening_exit checked 3023ms @a3bac00e54bb+wt

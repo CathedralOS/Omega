@@ -80,6 +80,16 @@ carrier and takes the modular image, and a store writes the image of the
 view's value. A leaf of another carrier kind (`f32` seen as `u32`) uses the
 same scalar representation-view replay. Nested view paths remain unsupported.
 
+Byte-backed record observations and stores compose nested record and fixed-array
+paths with runtime selectors. The shared normalized layout retains a constant
+leaf offset plus each selector's stride and declared extent. Lowering proves
+each dimension before flattening the coordinate, then independently proves
+each emitted byte's backing bound. A loan's outer runtime offset is captured
+at its declaration boundary in a private primitive home; later statements read
+that home rather than reloading the authored offset field. Current inner array
+selectors remain ordinary observation or assignment operands. Exact source
+replay, loan access and scalar carrier checks remain independent of geometry.
+
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
 cannot replace the placement access plan. Focused source cases live in
