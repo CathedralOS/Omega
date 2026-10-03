@@ -93,25 +93,13 @@ pub(crate) fn membership(
             }
             subject.type_reference
         }
-        CheckedScalarComputationStructuralArgument::Place(argument) => {
-            match (
-                erased_dispatch_subject(checked, source_state, binary.left),
-                &argument.source,
-            ) {
-                (
-                    Some(borrowed),
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                ) => parameter_place(
-                    checked,
-                    source_machine,
-                    source_state,
-                    borrowed,
-                    argument,
-                    *parameter_index,
-                )?,
-                _ => local_place(checked, source_state, binary.left, argument)?,
-            }
-        }
+        CheckedScalarComputationStructuralArgument::Place(argument) => dispatch_place(
+            checked,
+            source_machine,
+            source_state,
+            erased_dispatch_subject(checked, source_state, binary.left).unwrap_or(binary.left),
+            argument,
+        )?,
         CheckedScalarComputationStructuralArgument::Array { .. } => {
             return unsupported("case membership cannot observe an array");
         }
@@ -230,9 +218,7 @@ fn match_membership(
     }
 }
 
-/// A dispatch subject must be the exact place the plan claims: an immutable
-/// local's authored name, or a member path rooted at the dense structural
-/// parameter the plan indexes.
+/// Replay a dispatch subject against its exact storage root and projection.
 fn dispatch_place(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
@@ -242,7 +228,7 @@ fn dispatch_place(
 ) -> Result<TypeReferenceHandle, LoweringError> {
     match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => {
-            local_place(checked, state, expression, argument)
+            named_place(checked, machine, state, expression, argument)
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => parameter_place(
             checked,
@@ -317,65 +303,6 @@ pub(crate) fn is_erased_dispatch_subject(
                     )
                 })
         })
-}
-
-/// Source identity is checked independently of the established-place lookup.
-/// The lookup during emission additionally requires the declaration to precede use.
-fn local_place(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    expression: ExpressionHandle,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-) -> Result<checked_trees::types::TypeReferenceHandle, LoweringError> {
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
-        argument.source
-    else {
-        return unsupported("case membership requires an exact structural local");
-    };
-    let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
-        return unsupported("case membership local lost its authored name");
-    };
-    if !symbol.is_valid()
-        || name.symbol != symbol
-        || name.head_symbol != symbol
-        || name.members.count() != 1
-        || checked
-            .expression_table
-            .name_path_members(name.members)
-            .len()
-            != 1
-        || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-        || !argument.path.is_empty()
-        || checked
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == symbol)
-    {
-        return unsupported("case membership substituted its local source or custody");
-    }
-    let mut locals = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                Some(local)
-            }
-            _ => None,
-        });
-    let local = locals.next().ok_or(LoweringError::Unsupported(
-        "case membership has no source local",
-    ))?;
-    if locals.next().is_some()
-        || local.is_mutable
-        || checked
-            .normalized_type_identity(local.type_reference)
-            .as_str()
-            != argument.type_identity
-    {
-        return unsupported("case membership changed its local declaration or type");
-    }
-    Ok(local.type_reference)
 }
 
 /// Whether an authored selector (`self.w`) is exactly the field read a
@@ -598,12 +525,20 @@ fn parameter_place(
     let parameter = structural_parameter(checked, state, parameter_index).ok_or(
         LoweringError::Unsupported("case membership has no source parameter"),
     )?;
-    parameter_place_for(checked, machine, state, expression, argument, parameter)
+    place_for(
+        checked,
+        machine,
+        state,
+        expression,
+        argument,
+        parameter.symbol,
+        parameter.type_reference,
+    )
 }
 
-/// A symbol-based computation source can name a formal without guessing the
-/// emitted structural roster. It cannot substitute a local with the same name.
-pub(crate) fn named_parameter_place(
+/// Parameters and locals retain their declaration identity rather than a
+/// guessed emitted position. Emission separately checks establishment at use.
+pub(crate) fn named_place(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
@@ -612,25 +547,53 @@ pub(crate) fn named_parameter_place(
 ) -> Result<TypeReferenceHandle, LoweringError> {
     let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = argument.source
     else {
-        return unsupported("enum equality lost its named parameter source");
+        return unsupported("case observation lost its named storage source");
     };
     let mut parameters = checked
         .state_parameters(state)
         .iter()
         .filter(|parameter| parameter.symbol == symbol);
-    let parameter = parameters.next().ok_or(LoweringError::Unsupported(
-        "enum equality has no exact named parameter",
-    ))?;
+    let parameter = parameters.next();
+    let mut locals = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
+                Some(local)
+            }
+            _ => None,
+        });
+    let local = locals.next();
     if !symbol.is_valid()
         || parameters.next().is_some()
-        || parameter.is_const
-        || parameter.relevance.is_erased()
-        || checked.symbols.get(symbol).kind != symbols::SymbolKind::Parameter
+        || locals.next().is_some()
         || checked.symbols.get(symbol).parent != state.symbol
-        || checked.state_local_declaration(state, symbol).is_some()
     {
-        return unsupported("enum equality substituted its named parameter declaration");
+        return unsupported("case observation substituted its storage declaration");
     }
+    let declared_type = match (parameter, local) {
+        (Some(parameter), None)
+            if !parameter.is_const
+                && !parameter.relevance.is_erased()
+                && checked.symbols.get(symbol).kind == symbols::SymbolKind::Parameter =>
+        {
+            parameter.type_reference
+        }
+        (None, Some(local))
+            if validation::reference_shell(&checked.typed, local.type_reference).is_none()
+                && (validation::has_plain_owned_contents_with_numeric_constraints(
+                    &checked.typed,
+                    local.type_reference,
+                ) || validation::has_owned_or_shared_view_contents(
+                    &checked.typed,
+                    local.type_reference,
+                )) =>
+        {
+            local.type_reference
+        }
+        _ => return unsupported("case observation has no exact readable storage declaration"),
+    };
     let mut root = expression;
     let mut visited = Vec::new();
     loop {
@@ -642,16 +605,14 @@ pub(crate) fn named_parameter_place(
             ExpressionNode::Member(member) => root = member.receiver,
             ExpressionNode::Indexed(indexed) => root = indexed.collection,
             ExpressionNode::Name(name)
-                if name.head_symbol == name.symbol
-                    && (name.symbol == symbol
-                        || (parameter.is_self && name.symbol == machine.symbol)) =>
+                if name.head_symbol == name.symbol && name.symbol == symbol =>
             {
                 break;
             }
             _ => return unsupported("enum equality substituted its authored parameter root"),
         }
     }
-    let mut reference = parameter.type_reference;
+    let mut reference = declared_type;
     let mut visited = Vec::new();
     loop {
         if !reference.is_valid() || visited.contains(&reference) {
@@ -669,16 +630,25 @@ pub(crate) fn named_parameter_place(
             _ => break,
         }
     }
-    parameter_place_for(checked, machine, state, expression, argument, parameter)
+    place_for(
+        checked,
+        machine,
+        state,
+        expression,
+        argument,
+        symbol,
+        declared_type,
+    )
 }
 
-fn parameter_place_for(
+fn place_for(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
-    parameter: &checked_trees::signature::StateParameter,
+    symbol: symbols::SymbolHandle,
+    declared_type: TypeReferenceHandle,
 ) -> Result<TypeReferenceHandle, LoweringError> {
     if argument.access != CheckedStructuralAccess::SharedBorrow {
         return unsupported("case membership changed its parameter custody");
@@ -686,7 +656,7 @@ fn parameter_place_for(
     // Each authored step resolves against the retained segment kind: a member
     // field identity for `Field`, a constant element index for `FixedIndex`.
     enum Step {
-        Field(symbols::SymbolHandle, ExpressionHandle),
+        Field(symbols::SymbolHandle),
         Index(u64),
         /// A runtime-selected element; the expression is its selector.
         Runtime(ExpressionHandle),
@@ -699,7 +669,7 @@ fn parameter_place_for(
                 if member.case_variant.is_some() {
                     return unsupported("case membership has a case-variant path");
                 }
-                members.push(Step::Field(member.member_symbol, current));
+                members.push(Step::Field(member.member_symbol));
                 current = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
@@ -724,76 +694,34 @@ fn parameter_place_for(
         }
     };
     members.reverse();
-    let parameters = checked.state_parameters(state);
-    let authored_self = parameter.is_self
-        && (checked.symbols.get(root.symbol).kind == symbols::SymbolKind::Machine
-            || matches!(
-                checked.expression_table.name_path_members(root.members),
-                [spelling] if spelling.is_self_receiver()
-            ));
-    let authored_name = !parameter.is_self
-        && (root.symbol == parameter.symbol
-            || checked
-                .expression_table
-                .name_path_member_symbols(root.member_symbols)
-                .contains(&parameter.symbol));
-    if !root.symbol.is_valid() && !authored_self {
-        return unsupported("case membership lost its parameter name");
-    }
-    if !authored_self && !authored_name {
-        return unsupported("case membership substituted its parameter source");
-    }
-    if parameters
-        .iter()
-        .filter(|candidate| candidate.symbol == parameter.symbol)
-        .count()
-        != 1
+    if !symbol.is_valid()
+        || root.symbol != symbol
+        || root.head_symbol != symbol
+        || root.members.count() != 1
         || members.len() != argument.path.len()
     {
-        return unsupported("case membership changed its parameter or path");
+        return unsupported("case membership changed its storage root or path");
     }
-    let mut type_reference = parameter.type_reference;
-    for (step_index, (member, segment)) in members.iter().zip(&argument.path).enumerate() {
+    let mut type_reference = declared_type;
+    for (member, segment) in members.iter().zip(&argument.path) {
         let unwrapped = validation::unwrapped_type_reference(checked, type_reference).ok_or(
             LoweringError::Unsupported("case membership lost its carrier type"),
         )?;
         match member {
-            Step::Field(member_symbol, member_expression) => {
+            Step::Field(member_symbol) => {
                 let TypeReferenceNode::Named { symbol, .. } =
                     checked.type_reference_table.type_reference(unwrapped)
                 else {
                     return unsupported("case membership requires a record carrier");
                 };
-                // Attached-data carriers name their machine; the record lives
-                // at the machine's attached data symbol.
                 let owner = checked
                     .data_definitions()
                     .iter()
                     .find(|data| data.symbol == *symbol)
-                    .or_else(|| {
-                        checked
-                            .machines()
-                            .iter()
-                            .find(|owner_machine| owner_machine.symbol == *symbol)
-                            .and_then(|owner_machine| {
-                                checked
-                                    .data_definitions()
-                                    .iter()
-                                    .find(|data| data.symbol == owner_machine.attached_data_symbol)
-                            })
-                    })
                     .ok_or(LoweringError::Unsupported(
                         "case membership lost its carrier owner",
                     ))?;
-                // Attached fields are installed under inherited machine-child
-                // symbols; a first self step rejoins through the attached
-                // declaration rather than that retained member symbol.
-                let field = if authored_self && step_index == 0 {
-                    validation::exact_self_field(&checked.typed, machine, *member_expression)
-                        .ok_or(LoweringError::Unsupported(
-                            "case membership lost its attached field",
-                        ))?
-                } else {
+                let field = {
                     let mut fields =
                         checked
                             .data_members(owner)

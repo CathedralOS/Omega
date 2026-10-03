@@ -2,6 +2,55 @@ use super::{
     CheckedScalarComputationKind, CheckedScalarExpressionRole, ExpressionNode, StatementNode,
 };
 use crate::values::scalar::computations::tests::checked_source;
+use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
+
+#[test]
+fn local_record_case_observation_retains_its_projected_place() {
+    let checked = checked_source(
+        "data Item [copy] { case Empty; case Ready; }
+         data Reward { item: Item; sibling: u64; }
+         machine inspect() -> bool {
+             let mut reward: Reward;
+             reward.item = Item::Ready;
+             reward.item == Item::Ready
+         }",
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .root_at(state.symbol, 2, CheckedScalarExpressionRole::Return)
+        .expect("a case stored inside a local record has an executable observation");
+    let CheckedScalarComputationKind::Apply { operands, .. } = &plans.nodes.get(root.root).kind
+    else {
+        panic!("ordinary enum equality retains both operands");
+    };
+    let observations = plans.operands.span(*operands).unwrap();
+    assert_eq!(observations.len(), 4);
+    let CheckedScalarComputationKind::CaseMembership { subject, .. } =
+        &plans.nodes.get(observations[0]).kind
+    else {
+        panic!("retain a case observation, not a folded construction");
+    };
+    let checked_trees::CheckedScalarComputationStructuralArgument::Place(subject) = subject else {
+        panic!("the local is observed in place");
+    };
+    assert_eq!(subject.path.len(), 1);
+    assert_eq!(
+        subject.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+    assert!(matches!(
+        &plans.nodes.get(observations[2]).kind,
+        CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(value))
+            if **value == CheckedBooleanExpression::Constant(false)
+    ));
+}
 
 #[test]
 fn enum_equality_observes_complete_left_then_right_case_rosters() {

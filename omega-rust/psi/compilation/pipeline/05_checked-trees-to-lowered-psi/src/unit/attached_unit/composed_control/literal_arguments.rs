@@ -219,7 +219,6 @@ pub(super) fn stage_range(
             &evaluation.structural_cases,
         )
         .with_primitive_storage(&evaluation.primitive_storage)
-        .with_local_cases(&evaluation.local_cases)
         .with_structural_locals(&evaluation.structural_locals)
         .with_view_locals(&evaluation.view_locals)
         .with_element_views(&evaluation.element_views);

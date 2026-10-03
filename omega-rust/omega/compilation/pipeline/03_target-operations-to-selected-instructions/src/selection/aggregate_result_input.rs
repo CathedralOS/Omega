@@ -240,38 +240,14 @@ pub(super) fn membership_layout(
         }
         parameter.structural_type
     } else {
-        let mut producers = source
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .filter_map(|row| {
-                let result = match &row.kind {
-                    LegalizedScalarInstructionKind::EstablishCase { result, .. }
-                    | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
-                    | LegalizedScalarInstructionKind::EstablishStructuralArray { result, .. }
-                    | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
-                    | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
-                    LegalizedScalarInstructionKind::Call(call) => {
-                        call.structural_result.as_ref()?
-                    }
-                    _ => return None,
-                };
-                (result.place == place).then_some((row.operation, result))
-            });
-        let (operation, result) = producers.next()?;
-        if producers.next().is_some()
-            || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        // Observation consumes the established result contract, not a list of
+        // ways its storage might have been initialized. The common lookup
+        // authenticates its unique producer and exact place declaration.
+        let (_, result) = operation_result(source, place)?;
+        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !result.claims.is_empty()
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
-            || !signature.structural_places.iter().any(|declared| {
-                declared.id == place
-                    && declared.kind
-                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                            producer: operation,
-                            structural_type: result.structural_type,
-                        }
-            })
         {
             return None;
         }

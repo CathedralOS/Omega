@@ -1,11 +1,9 @@
 use omega_language_std::console;
-use omega::language::core::binding;
 
 data Item [copy] { case Empty; case Ready; }
 data Seed { marker: u32; }
 data Reward { item: Item; sibling: u64; }
 data Factory { marker: u32; }
-data Main { console: Binding<Console>; factory: Factory; seed: Seed; reward: Reward; other: Reward; }
 
 machine Factory::choose(factory: &mut Factory, depth: u32, seed: &mut Seed) -> Item {
     factory.marker = depth;
@@ -20,20 +18,24 @@ machine Factory::fill(factory: &mut Factory, depth: u32, seed: &mut Seed, reward
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
-    main.reward.item = Item::Empty;
-    main.reward.sibling = 29;
-    main.other.item = Item::Empty;
-    main.other.sibling = 17;
-    Factory::fill(&mut main.factory, 7, &mut main.seed, &mut main.reward, &mut main.other);
-    transition main.reward.item == Item::Ready
-        && main.reward.sibling == 29
-        && main.other.item == Item::Empty
-        && main.other.sibling == 17
-        && main.factory.marker == 7
-        && main.seed.marker == 7 {
-        true -> finish(main, 70)
-        false -> finish(main, 1)
+machine main() reaches Console {
+    let mut factory: Factory;
+    let mut seed: Seed;
+    let mut reward: Reward;
+    let mut other: Reward;
+    reward.item = Item::Empty;
+    reward.sibling = 29;
+    other.item = Item::Empty;
+    other.sibling = 17;
+    Factory::fill(&mut factory, 7, &mut seed, &mut reward, &mut other);
+    transition reward.item == Item::Ready
+        && reward.sibling == 29
+        && other.item == Item::Empty
+        && other.sibling == 17
+        && factory.marker == 7
+        && seed.marker == 7 {
+        true -> finish(70)
+        false -> finish(1)
     }
-    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+    state finish(code: i32) { Console::exit_process(code); }
 }

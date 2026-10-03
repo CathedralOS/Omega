@@ -14,9 +14,9 @@ fn direct_provider_call_still_consumes_an_erased_member_argument() {
             satisfies Probe::take_descriptor via probe_binding();
         data Evidence { case Only; }
         data Sealed { payload: i32; proof [erased]: Evidence; }
-        data Main { sealed: Sealed; observed: i32; }
-        machine Main::replace(&mut self) reaches Probe {
-            self.observed = take_descriptor(self.sealed);
+        data Main { sealed: Sealed; }
+        machine Main::replace(context: &mut Main) reaches Probe {
+            let observed: i32 = take_descriptor(context.sealed);
         }";
     let diagnostics = checked_program_result(source)
         .expect_err("a direct provider call still moves the borrowed argument");
@@ -31,13 +31,22 @@ fn direct_provider_call_still_consumes_an_erased_member_argument() {
 
 #[test]
 fn evaluation_order_selected_index_uses_its_collection_operand() {
+    for collection_parameter in ["&Buffer", "&mut Buffer"] {
+        checked_program_result(&format!(
+            "data Buffer {{ value: i32; }}
+             machine [] Buffer::index(buffer: {collection_parameter}, index: u64) -> i32 {{ buffer.value }}
+             machine read(buffer: &mut Buffer) -> i32 {{ buffer[0] }}"
+        ))
+        .expect("indexing reborrows the collection using the explicit parameter contract");
+    }
+
     checked_program_result(
         "data Buffer { value: i32; }
-         machine [] Buffer::index(self, index: u64) -> i32 { self.value }
+         machine [] Buffer::index(buffer: Buffer, index: u64) -> i32 { buffer.value }
          data Main { buffer: Buffer; }
-         machine Main::replace(&mut self) {
-             let reading: i32 = self.buffer[0];
-             self.buffer = Buffer { value: reading };
+         machine Main::replace(context: &mut Main) {
+             let reading: i32 = context.buffer[0];
+             context.buffer = Buffer { value: reading };
          }",
     )
     .expect("the selected collection operand detaches before invocation and is restored");
@@ -45,12 +54,12 @@ fn evaluation_order_selected_index_uses_its_collection_operand() {
     let diagnostics = checked_program_result(
         "data Inventory { slots: i32; }
          data Buffer { inventory: Inventory; value: i32; }
-         machine [] Buffer::index(&self, index: u64) -> i32 { self.value }
+         machine [] Buffer::index(buffer: &Buffer, index: u64) -> i32 { buffer.value }
          data Main { buffer: Buffer; }
-         machine Main::replace(&mut self) {
-             let taken: Inventory = self.buffer.inventory;
-             let reading: i32 = self.buffer[0];
-             self.buffer.inventory = move taken;
+         machine Main::replace(context: &mut Main) {
+             let taken: Inventory = context.buffer.inventory;
+             let reading: i32 = context.buffer[0];
+             context.buffer.inventory = move taken;
          }",
     )
     .expect_err("selected indexing cannot observe an incomplete whole collection");
@@ -68,10 +77,10 @@ fn evaluation_order_replay_rejects_a_substituted_invocation_occurrence() {
         "machine identity(value: i32) -> i32 { value }
          data Inventory { slots: i32; }
          data Main { inventory: Inventory; }
-         machine Main::replace(&mut self) {
-             let taken: Inventory = self.inventory;
+         machine Main::replace(context: &mut Main) {
+             let taken: Inventory = context.inventory;
              let value: i32 = identity(7);
-             self.inventory = move taken;
+             context.inventory = move taken;
          }",
     )
     .expect("quiet calls can run between extraction and repair");
@@ -91,11 +100,11 @@ fn enclosing_owner_move_rejects_while_a_subtree_is_absent() {
         data Inner { tag: i32; }
         data Inventory { inner: Inner; }
         data Main { inventory: Inventory; }
-        machine Main::main(&mut self) {
-            let inner: Inner = self.inventory.inner;
-            let whole: Inventory = self.inventory;
-            self.inventory = move whole;
-            self.inventory.inner = move inner;
+        machine Main::main(context: &mut Main) {
+            let inner: Inner = context.inventory.inner;
+            let whole: Inventory = context.inventory;
+            context.inventory = move whole;
+            context.inventory.inner = move inner;
         }
         "#,
     ) {
@@ -117,10 +126,10 @@ fn store_into_the_absent_subtree_rejects() {
         data Inner { tag: i32; }
         data Inventory { inner: Inner; }
         data Main { inventory: Inventory; }
-        machine Main::main(&mut self) {
-            let inner: Inner = self.inventory.inner;
-            self.inventory.inner.tag = 9;
-            self.inventory.inner = move inner;
+        machine Main::main(context: &mut Main) {
+            let inner: Inner = context.inventory.inner;
+            context.inventory.inner.tag = 9;
+            context.inventory.inner = move inner;
         }
         "#,
     ) {
@@ -140,14 +149,14 @@ fn unreachable_arm_moves_do_not_block_agreement() {
     checked_program_result(
         r#"
         data Inventory { slots: i32; }
-        data Main { inventory: Inventory; other: Inventory; flag: bool; }
-        machine Main::main(&mut self) {
-            let taken: Inventory = match self.flag {
-                true -> self.inventory
-                false -> self.inventory
-                _ -> self.other
+        data Main { inventory: Inventory; other: Inventory; }
+        machine Main::main(context: &mut Main, flag: bool) {
+            let taken: Inventory = match flag {
+                true -> context.inventory
+                false -> context.inventory
+                _ -> context.other
             };
-            self.inventory = move taken;
+            context.inventory = move taken;
         }
         "#,
     )
@@ -159,16 +168,16 @@ fn nested_disagreement_rejects_through_the_outer_join() {
     let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
-        data Main { inventory: Inventory; flag: bool; other_flag: bool; }
-        machine Main::main(&mut self) {
-            let taken: Inventory = match self.flag {
-                true -> match self.other_flag {
-                    true -> self.inventory
+        data Main { inventory: Inventory; }
+        machine Main::main(context: &mut Main, flag: bool, other_flag: bool) {
+            let taken: Inventory = match flag {
+                true -> match other_flag {
+                    true -> context.inventory
                     _ -> Inventory { slots: 0 }
                 }
-                _ -> self.inventory
+                _ -> context.inventory
             };
-            self.inventory = move taken;
+            context.inventory = move taken;
         }
         "#,
     ) {
@@ -185,19 +194,19 @@ fn nested_disagreement_rejects_through_the_outer_join() {
 
 #[test]
 fn repeated_extraction_inside_one_arm_rejects() {
-    // Two arguments move `self.inventory` inside one arm — the second meets
+    // Two arguments move `context.inventory` inside one arm — the second meets
     // the hole the first opened, so the join never gets a consistent debt.
     let diagnostics = match checked_program_result(
         r#"
         data Inventory { slots: i32; }
         machine deliver(inventory: Inventory, other: Inventory) -> Inventory { inventory }
-        data Main { inventory: Inventory; flag: bool; }
-        machine Main::main(&mut self) {
-            let taken: Inventory = match self.flag {
-                true -> deliver(self.inventory, self.inventory)
-                _ -> self.inventory
+        data Main { inventory: Inventory; }
+        machine Main::main(context: &mut Main, flag: bool) {
+            let taken: Inventory = match flag {
+                true -> deliver(context.inventory, context.inventory)
+                _ -> context.inventory
             };
-            self.inventory = move taken;
+            context.inventory = move taken;
         }
         "#,
     ) {
@@ -217,17 +226,17 @@ fn crash_exit_abandons_the_window() {
     checked_program_result(
         r#"
         data Inventory { slots: i32; }
-        data Main { inventory: Inventory; flag: bool; }
-        machine Main::main(&mut self)
+        data Main { inventory: Inventory; }
+        machine Main::main(context: &mut Main, flag: bool)
         crashes Trap
         {
-            transition self.flag {
-                true -> busted()
-                _ -> busted()
+            transition flag {
+                true -> busted(context)
+                _ -> busted(context)
             }
 
-            state busted(&mut self) {
-                let abandoned: Inventory = self.inventory;
+            state busted(context: &mut Main) {
+                let abandoned: Inventory = context.inventory;
                 crash Trap;
             }
         }
@@ -246,8 +255,8 @@ fn operational_window_source(contract: &str, body: &str) -> String {
         "boundary trait Waiter {{ machine wait() -> i32 {contract}; }}
          machine identity(value: i32) -> i32 {{ value }}
          data Inventory {{ slots: i32; }}
-         data Main<'s> {{ inventory: Inventory; waiter: &'s mut Waiter; observed: i32; }}
-         machine Main::replace(&mut self) reaches Waiter {body_contract} {{ {body} }}"
+         data Main {{ inventory: Inventory; }}
+         machine Main::replace(context: &mut Main) reaches Waiter {body_contract} {{ {body} }}"
     )
 }
 
@@ -264,17 +273,17 @@ fn assert_window_call_fence(diagnostics: &[diagnostics::Diagnostic]) {
 #[test]
 fn blocking_call_fence_is_independent_of_expression_position() {
     for call in [
-        "_ = block self.waiter.wait();",
-        "self.observed = block self.waiter.wait();",
-        "let result: [i32; 2] = [0, block self.waiter.wait()];",
-        "let result: i32 = identity(block self.waiter.wait());",
+        "_ = block Waiter::wait();",
+        "let mut observed: i32; observed = block Waiter::wait();",
+        "let result: [i32; 2] = [0, block Waiter::wait()];",
+        "let result: i32 = identity(block Waiter::wait());",
     ] {
         let diagnostics = checked_program_result(&operational_window_source(
             "blocks",
             &format!(
-                "let taken: Inventory = self.inventory;
+                "let taken: Inventory = context.inventory;
                  {call}
-                 self.inventory = move taken;"
+                 context.inventory = move taken;"
             ),
         ))
         .err()
@@ -287,9 +296,9 @@ fn blocking_call_fence_is_independent_of_expression_position() {
 fn suspending_initializer_requires_restored_borrowed_storage() {
     let diagnostics = checked_program_result(&operational_window_source(
         "suspends",
-        "let taken: Inventory = self.inventory;
-         let result: i32 = suspend self.waiter.wait();
-         self.inventory = move taken;",
+        "let taken: Inventory = context.inventory;
+         let result: i32 = suspend Waiter::wait();
+         context.inventory = move taken;",
     ))
     .expect_err("a suspension must retain restoration custody or reject");
     assert_window_call_fence(&diagnostics);
@@ -299,9 +308,9 @@ fn suspending_initializer_requires_restored_borrowed_storage() {
 fn skipped_blocking_operand_does_not_cross_the_storage_window() {
     let source = operational_window_source(
         "blocks",
-        "let taken: Inventory = self.inventory;
-         let skipped: bool = false && block self.waiter.wait();
-         self.inventory = move taken;",
+        "let taken: Inventory = context.inventory;
+         let skipped: bool = false && block Waiter::wait();
+         context.inventory = move taken;",
     )
     .replace("machine wait() -> i32", "machine wait() -> bool");
     checked_program_result(&source)
@@ -330,10 +339,10 @@ fn recursive_quiet_calls_do_not_invent_boundary_exposure() {
          }
          data Inventory { slots: i32; }
          data Main { inventory: Inventory; }
-         machine Main::replace(&mut self, flag: bool) {
-             let taken: Inventory = self.inventory;
+         machine Main::replace(context: &mut Main, flag: bool) {
+             let taken: Inventory = context.inventory;
              let reading: i32 = quiet(flag);
-             self.inventory = move taken;
+             context.inventory = move taken;
          }";
     checked_program_result(source)
         .expect("a cycle in the retained call graph is not itself a boundary");
@@ -349,10 +358,10 @@ fn named_boundary_operator_requires_restored_borrowed_storage() {
              machine wrapped_read(value: i32) -> i32 {{ CheckedMath::read(value) }}
              data Inventory {{ slots: i32; }}
              data Main {{ inventory: Inventory; }}
-             machine Main::replace(&mut self) {{
-                 let taken: Inventory = self.inventory;
+             machine Main::replace(context: &mut Main) {{
+                 let taken: Inventory = context.inventory;
                  let reading: i32 = {invocation};
-                 self.inventory = move taken;
+                 context.inventory = move taken;
              }}"
         ));
     }
@@ -367,10 +376,10 @@ fn spelled_boundary_operator_and_wrapper_require_restored_storage() {
              machine combine(left: Number, right: Number) -> Number {{ left + right }}
              data Inventory {{ slots: i32; }}
              data Main {{ inventory: Inventory; }}
-             machine Main::replace(&mut self, left: Number, right: Number) {{
-                 let taken: Inventory = self.inventory;
+             machine Main::replace(context: &mut Main, left: Number, right: Number) {{
+                 let taken: Inventory = context.inventory;
                  let reading: Number = {invocation};
-                 self.inventory = move taken;
+                 context.inventory = move taken;
              }}"
         ));
     }
@@ -382,10 +391,10 @@ fn quiet_builtin_wrapper_can_run_during_a_storage_window() {
         "machine quiet(value: i32) -> i32 { min(value, value) }
          data Inventory { slots: i32; }
          data Main { inventory: Inventory; }
-         machine Main::replace(&mut self) {
-             let taken: Inventory = self.inventory;
+         machine Main::replace(context: &mut Main) {
+             let taken: Inventory = context.inventory;
              let reading: i32 = quiet(7);
-             self.inventory = move taken;
+             context.inventory = move taken;
          }",
     )
     .expect("an exact pure builtin inside a checked body is not a boundary");

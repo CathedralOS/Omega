@@ -51,6 +51,10 @@ pub(crate) fn validate_application(
     let (machine, source_state) = authored_state(checked, state)?;
     let source_type = |source| {
         validation::declared_place_type_raw(&checked.typed, machine, Some(source_state), source)
+            .or_else(|| {
+                validation::scalar_case_constructor(&checked.typed, source)
+                    .map(|constructor| constructor.type_reference)
+            })
     };
     let Some(owner) = source_type(binary.left).and_then(|reference| enum_owner(checked, reference))
     else {
@@ -97,47 +101,55 @@ pub(crate) fn validate_application(
             return unsupported("enum equality has a stale or reused observation");
         }
         let observed = plans.nodes.get(*operand);
-        let Computation::CaseMembership {
-            source_expression: occurrence,
-            subject: CheckedScalarComputationStructuralArgument::Place(subject),
-            case,
-        } = &observed.kind
-        else {
-            return unsupported("enum equality substituted an observation kind");
-        };
         let DataMember::Variant(expected) = &cases[position % cases.len()] else {
             return unsupported("enum equality lost its case declaration");
         };
-        if observed.primitive_type != PrimitiveType::Bool
-            || occurrence != source_expression
-            || *case != expected.symbol
-        {
-            return unsupported("enum equality changed its observation occurrence or order");
+        if observed.primitive_type != PrimitiveType::Bool {
+            return unsupported("enum equality has a non-Boolean observation");
         }
         let source = if position < cases.len() {
             binary.left
         } else {
             binary.right
         };
-        if !validation::place_has_builtin_coordinates(
-            &checked.typed,
-            machine,
-            Some(source_state),
-            source,
-        ) {
-            return unsupported("enum equality requires an established builtin place");
-        }
-        let reference = match subject.source {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => {
-                case_sources::named_parameter_place(
-                    checked,
+        let reference = match &observed.kind {
+            Computation::CaseMembership {
+                source_expression: occurrence,
+                subject: CheckedScalarComputationStructuralArgument::Place(subject),
+                case,
+            } if matches!(
+                subject.source,
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+            ) =>
+            {
+                if occurrence != source_expression || *case != expected.symbol {
+                    return unsupported(
+                        "enum equality changed its observation occurrence or order",
+                    );
+                }
+                if !validation::place_has_builtin_coordinates(
+                    &checked.typed,
                     machine,
-                    source_state,
+                    Some(source_state),
                     source,
-                    subject,
-                )?
+                ) {
+                    return unsupported("enum equality requires an established builtin place");
+                }
+                case_sources::named_place(checked, machine, source_state, source, subject)?
             }
-            _ => return unsupported("enum equality substituted its parameter source"),
+            Computation::Value(CheckedScalarExpression::Boolean(value)) => {
+                let constructor = validation::scalar_case_constructor(&checked.typed, source)
+                    .ok_or(LoweringError::Unsupported(
+                        "enum equality replaced a runtime observation with a constant",
+                    ))?;
+                if !constructor.fields.is_empty()
+                    || **value != Boolean::Constant(constructor.case == expected.symbol)
+                {
+                    return unsupported("enum equality changed its constant constructor tag");
+                }
+                constructor.type_reference
+            }
+            _ => return unsupported("enum equality substituted its operand source"),
         };
         if enum_owner(checked, reference).is_none_or(|observed| observed.symbol != owner.symbol) {
             return unsupported("enum equality substituted its observed nominal type");
@@ -256,13 +268,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enum_equality_first_self_field_initializer_uses_runtime_observations() {
+    fn local_enum_equality_checks_projection_and_constructor_identity() {
+        let checked = crate::front_end::checked_program(
+            "data Choice [copy] { case Empty; case Ready; }
+             data Pair { first: Choice; second: Choice; }
+             machine inspect() -> bool {
+                 let mut pair: Pair;
+                 pair.first = Choice::Ready;
+                 pair.first == Choice::Ready
+             }",
+        );
+        crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("inspect"))
+            .expect("local field and payloadless constructor compare through one observation plan");
+        for corrupt_path in [true, false] {
+            let mut changed = checked.clone();
+            let mut edited = false;
+            changed
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .for_each_mut(|_, node| {
+                    if edited {
+                        return;
+                    }
+                    if let Computation::CaseMembership { subject, .. } = &mut node.kind {
+                        match subject {
+                            CheckedScalarComputationStructuralArgument::Place(place)
+                                if corrupt_path =>
+                            {
+                                place.path.clear();
+                                edited = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                    if !corrupt_path
+                        && let Computation::Value(CheckedScalarExpression::Boolean(value)) =
+                            &mut node.kind
+                        && let Boolean::Constant(value) = value.as_mut()
+                    {
+                        *value = !*value;
+                        edited = true;
+                    }
+                });
+            assert!(edited);
+            assert!(
+                crate::lower_machine(&changed, crate::TerminalMachineSelection::Name("inspect"))
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn enum_equality_parameter_field_initializer_uses_runtime_observations() {
         for operator in ["==", "!="] {
             let checked = crate::front_end::checked_program(&format!(
                 "data Choice [copy] {{ case First; case Second; }}
                  data Context {{ left: Choice; right: Choice; }}
-                 machine Context::same(&mut self) -> bool {{
-                     let equal: bool = self.left {operator} self.right;
+                 machine Context::same(context: &mut Context) -> bool {{
+                     let equal: bool = context.left {operator} context.right;
                      equal
                  }}"
             ));

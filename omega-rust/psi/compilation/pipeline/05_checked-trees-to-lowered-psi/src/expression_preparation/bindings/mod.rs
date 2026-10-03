@@ -77,7 +77,6 @@ pub(crate) struct ScalarBindings {
     /// Authored parameter positions stay separate from dense Terminal positions.
     structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     structural_locals: Vec<StructuralLocalBinding>,
-    local_cases: Vec<structural_cases::LocalCaseBinding>,
     structural_fields: StructuralFieldBindings,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
     /// Whole element-view parameters resolved to their scalar element type,
@@ -343,59 +342,9 @@ impl ScalarBindings {
         })
     }
 
-    /// Observe an established whole local without transferring its ownership.
-    pub(crate) fn structural_local_observation(
-        &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        case: symbols::SymbolHandle,
-    ) -> Result<(PlaceId, semantic_vocabulary::StructuralCaseId), LoweringError> {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
-            argument.source
-        else {
-            return unsupported("case observation requires an established structural local");
-        };
-        let mut matches = self
-            .structural_locals
-            .iter()
-            .filter(|local| local.symbol == symbol);
-        let StructuralLocalBinding {
-            argument: source, ..
-        } = matches.next().ok_or(LoweringError::Unsupported(
-            "case observation lost its local place",
-        ))?;
-        if !symbol.is_valid()
-            || matches.next().is_some()
-            || !argument.path.is_empty()
-            || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-            || !source.path.is_empty()
-            || source.access != StructuralAccess::Owned
-        {
-            return unsupported("case observation changed its local custody");
-        }
-        let mut bindings = self.local_cases.iter().filter(|binding| {
-            binding.symbol == symbol
-                && binding.source == source.place
-                && binding.type_identity == argument.type_identity
-        });
-        let binding = bindings.next().ok_or(LoweringError::Unsupported(
-            "local observation lost its exact declared case namespace",
-        ))?;
-        if bindings.next().is_some() {
-            return unsupported("local observation has ambiguous declared case namespaces");
-        }
-        let case = binding
-            .cases
-            .iter()
-            .find_map(|(symbol, identity)| (*symbol == case).then_some(*identity))
-            .ok_or(LoweringError::Unsupported(
-                "local observation selected a foreign case",
-            ))?;
-        Ok((source.place, case))
-    }
-
     /// Rejoin an authored formal symbol only after receiver retention has
-    /// settled the structural roster. Actual locals keep their separate case
-    /// bindings; a missing formal cannot silently become a local observation.
+    /// settled the structural roster. Runtime-selected element observations
+    /// require a retained parameter; a local cannot supply that binding.
     pub(crate) fn case_parameter_argument(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -448,69 +397,12 @@ impl ScalarBindings {
         Ok(Some(resolved))
     }
 
-    /// A parameter-field case observation resolves through the dense
-    /// structural parameter index, then delegates to the shared
-    /// case-binding resolver for the retained path and selected case.
-    pub(crate) fn parameter_case_observation(
-        &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        case: &str,
-    ) -> Result<
-        (
-            PlaceId,
-            Vec<terminal_psi::StructuralPathSegment>,
-            semantic_vocabulary::StructuralCaseId,
-        ),
-        LoweringError,
-    > {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            argument.source
-        else {
-            return unsupported("case observation requires an exact parameter source");
-        };
-        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-            return unsupported("case observation changed its parameter custody");
-        }
-        let (parameter_position, _) = self
-            .structural_parameters
-            .get(usize::try_from(parameter_index).map_err(|_| {
-                LoweringError::Unsupported("case observation parameter index exceeds the host type")
-            })?)
-            .ok_or(LoweringError::Unsupported(
-                "case observation lost its parameter source",
-            ))?;
-        let path = argument
-            .path
-            .iter()
-            .map(|segment| match segment {
-                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
-                    checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
-                ),
-                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                    Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
-                }
-                _ => None,
-            })
-            .collect::<Option<Vec<_>>>()
-            .ok_or(LoweringError::Unsupported(
-                "case observation has a non-field parameter path",
-            ))?;
-        structural_cases::resolve(
-            &self.structural_cases,
-            &checked_trees::CheckedStructuralParameterField {
-                parameter_position: *parameter_position,
-                path,
-            },
-            case,
-        )
-    }
-
     /// A case observation of a runtime-selected element of a parameter's
     /// fixed array or element view. The checked path
     /// carries exactly one `RuntimeIndex`; its selector is read first
     /// and becomes the observation's index, and the static halves on either
-    /// side resolve against the parameter's declarations. A static path keeps
-    /// `parameter_case_observation`.
+    /// side resolve against the parameter's declarations. Static paths use
+    /// the same declaration walk without evaluating a selector.
     pub(crate) fn parameter_element_case_observation(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -623,11 +515,6 @@ impl ScalarBindings {
         })
     }
 
-    pub(crate) fn with_local_cases(mut self, cases: &[structural_cases::LocalCaseBinding]) -> Self {
-        self.local_cases = cases.to_vec();
-        self
-    }
-
     pub(crate) fn with_structural_observations(
         mut self,
         types: &[StructuralTypeDeclaration],
@@ -689,7 +576,6 @@ impl ScalarBindings {
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
             structural_locals: Vec::new(),
-            local_cases: Vec::new(),
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
