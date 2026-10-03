@@ -1,5 +1,8 @@
 // RUN CANARY (exit 70) -- a MACHINE ARRAY passed as a SLICE argument to a
-// dispatched value call (`self.pick(self.nums, ..)` with `nums: [i32; 4]`),
+// dispatched value call passing a machine array as a slice argument beside a
+// DISJOINT mutable field projection (`Main::pick(&mut main.picked, main.nums, ..)`
+// with `nums: [i32; 4]`). Lending the whole subject beside a shared view of its
+// own field is refused, correctly, so the two projections compose per argument,
 // the element read through the field-carrier idiom. Before the fix
 // (2026-07-09m) this shape had NO descriptor strategy: the value fell
 // through every arm, and a [i32; 4]'s 16 bytes coincidentally matched the
@@ -12,23 +15,23 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; nums: [i32; 4]; picked: i32; }
-machine Main::pick(main: &mut Main, s: &[i32], i: u64, j: u64)
+machine Main::pick(picked: &mut i32, s: &[i32], i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {
     transition j < i {
-        true -> pick(main, s, i, j + 1)
-        false -> leaf(main, s, j)
+        true -> pick(picked, s, i, j + 1)
+        false -> leaf(picked, s, j)
     }
-    state leaf(main: &mut Main, s: &[i32], j: u64) -> i32 {
-        transition j < s.len { true -> leaf_go(main, s, j) _ -> leaf_zero() }
+    state leaf(picked: &mut i32, s: &[i32], j: u64) -> i32 {
+        transition j < s.len { true -> leaf_go(picked, s, j) _ -> leaf_zero() }
     }
-    state leaf_go(main: &mut Main, s: &[i32], j: u64) -> i32 {
-        // The canonical idiom: element -> FIELD, field-read terminal.
-        main.picked = s[j];
-        transition true { _ -> leaf_out(main) }
+    state leaf_go(picked: &mut i32, s: &[i32], j: u64) -> i32 {
+        // element -> borrowed scalar destination, then a read terminal.
+        picked = s[j];
+        transition true { _ -> leaf_out(picked) }
     }
-    state leaf_out(main: &mut Main) -> i32 { main.picked }
+    state leaf_out(picked: &mut i32) -> i32 { picked }
     state leaf_zero() -> i32 { 0 }
 }
 machine Main::main(main: &mut Main) reaches Console {
@@ -37,7 +40,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.nums[2] = 7;
     main.nums[3] = 8;
     // Loop to j == 2, then return s[2] == 7.
-    let n: i32 = Main::pick(main, main.nums, 2, 0);
+    let n: i32 = Main::pick(&mut main.picked, main.nums, 2, 0);
     transition n == 7 { true -> good(main) _ -> bad(main) }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

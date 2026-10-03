@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.11, "load1_start": 6.11, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 25.47, "load1_start": 25.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1334,8 +1334,8 @@ pass/calls/generic_reference_forwarding_exit checked 1035ms @9782e38b64ab+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
 pass/calls/guarded_arm_value_tail_call_exit checked 2342ms @4e4bfed13aee+wt
-pass/calls/guarded_arm_view_range_tail_call_exit rejected 737ms @f12f513338f0
-	state `elements` receives `main` while local borrow `items` is still active (borrowed at statement 6; its last use is at statement 7)
+pass/calls/guarded_arm_view_range_tail_call_exit rejected 1366ms @97693f89f90c+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::elements`), which was itself omitted at local construction at `scalar field store sequence: write frame agreement` (state 2)
 pass/calls/guarded_terminal_call_chain_exit checked 704ms @d30440d3c3f
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/inline_record_scalar_call_arguments_exit checked 791ms @3a2233464b3b
@@ -1358,8 +1358,7 @@ pass/calls/mixed_projection_sources_in_one_call rejected 475ms @5ccafc567049+wt
 	terminal-artifact production failed: Lowering(Unsupported("Unit graph reordered a source effect"))
 pass/calls/mutable_output_host_call checked 2341ms @2d8ed253669f
 pass/calls/mutable_receiver_computation_exit checked 1451ms @2d8ed253669f
-pass/calls/mutable_receiver_scalar_destinations_exit rejected 1054ms @f12f513338f0
-	terminal-artifact production failed: Lowering(Unsupported("scalar storage destination lost its checked source custody"))
+pass/calls/mutable_receiver_scalar_destinations_exit checked 2253ms @97693f89f90c+wt
 pass/calls/mutual_cycle_tail_admitted_exit checked 1566ms @2d8ed253669f
 pass/calls/named_target_payload_dispatch checked 939ms @db8d57b2103d+wt
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
@@ -1387,8 +1386,7 @@ pass/calls/runtime_constructor_computed_field_exit checked 1305ms @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms @2d8ed253669f
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 1428ms @2d8ed253669f
 pass/calls/runtime_dispatch_float_terminal_exit checked 4399ms @2d8ed253669f
-pass/calls/runtime_dispatch_machine_array_slice_arg_exit rejected 1025ms @f12f513338f0
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
+pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 1911ms @97693f89f90c+wt
 pass/calls/runtime_dispatch_result_enum_case_exit checked 1492ms @2d8ed253669f
 pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253669f
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f

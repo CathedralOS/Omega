@@ -29,8 +29,8 @@ machine Main::measure(main: &mut Main, prefix: &[u8]) {
     main.seen = prefix.len;
 }
 
-machine Main::count(main: &mut Main, sub: &[i32]) {
-    main.seen = sub.len;
+machine Main::count(seen: &mut u64, sub: &[i32]) {
+    seen = sub.len;
 }
 
 machine Main::bytes(main: &mut Main, path: &[u8]) {
@@ -49,12 +49,12 @@ machine Main::domained(main: &mut Main, path: &[u8] in Path) {
     state skipped(main: &mut Main) { main.seen = 0; }
 }
 
-machine Main::elements(main: &mut Main, items: &[i32], lo: u64, hi: u64) {
+machine Main::elements(seen: &mut u64, items: &[i32], lo: u64, hi: u64) {
     transition lo <= hi && hi <= items.len {
-        true -> Main::count(main, items[lo..hi])
-        false -> skipped(main)
+        true -> Main::count(seen, items[lo..hi])
+        false -> skipped(seen)
     }
-    state skipped(main: &mut Main) { main.seen = 0; }
+    state skipped(seen: &mut u64) { seen = 0; }
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console {
     Main::domained(main, "/adir/x");
     let domained_seen: u64 = main.seen;
     let items: &[i32] = main.entries.as_slice();
-    Main::elements(main, items, 1, 3);
+    Main::elements(&mut main.seen, items, 1, 3);
     let elements_seen: u64 = main.seen;
     transition bytes_seen == 5 {
         true -> check_domained(main, domained_seen, elements_seen)
