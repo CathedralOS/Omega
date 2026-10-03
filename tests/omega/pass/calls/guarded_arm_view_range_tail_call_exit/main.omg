@@ -3,11 +3,11 @@
 // transition arms"). The arm narrows its view only when selected, and the
 // length its guard observed bounds the range:
 //
-//   bytes     `self.measure(path[0..self.k])` narrows a byte view parameter
-//             to an end held in a field, guarded by `self.k < path.len`.
+//   bytes     `Main::measure(main, path[0..main.k])` narrows a byte view parameter
+//             to an end held in a field, guarded by `main.k < path.len`.
 //   domained  the same range over a `&[u8] in Path` parameter supplies a
 //             plain `&[u8]` formal; the narrowed view leaves the domain behind.
-//   elements  `self.count(items[lo..hi])` narrows an element view parameter.
+//   elements  `Main::count(&mut main.seen, items[lo..hi])` narrows an element view parameter.
 //
 // Each callee records the length it received. A wrong length exits 71-73;
 // every leg agreeing exits 70.

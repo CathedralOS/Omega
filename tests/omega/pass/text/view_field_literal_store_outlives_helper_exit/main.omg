@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). A literal stored into a shared view field by a
 // non-entry machine outlives that machine's activation: the descriptor names
 // immutable image storage, not the helper's frame. `name_door` replaces
-// `self.name` through its own receiver and `relabel` replaces `room.label`
+// `main.name` through its own receiver and `relabel` replaces `room.label`
 // through a `&mut Room` reference. `scribble` then runs in the same stack
 // region with a literal of its own before the entry reads both fields'
 // lengths and bytes. 71 = a wrong extent, 72 = wrong bytes.

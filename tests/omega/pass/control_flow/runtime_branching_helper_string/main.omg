@@ -1,4 +1,4 @@
-// Respelled from the retired nested self-call shape (`self.out = Main::pick(flag)`);
+// Respelled from the retired nested self-call shape (`main.out = Main::pick(flag)`);
 // the direct let-call root is the admitted surface. Both spellings must reach one
 // verdict: `pick` returns only string literals, so the loan outlives every state
 // and the persistent-field store is admitted whether the call is written inline or

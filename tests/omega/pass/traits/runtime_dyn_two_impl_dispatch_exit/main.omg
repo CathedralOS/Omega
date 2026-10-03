@@ -1,7 +1,7 @@
 // Multi-conformance `dyn Trait` dispatch via call-site monomorphization. The
 // call `Shape::code(s)` retains one exact row candidate per complete conformance,
 // and each call site's receiver type picks the conformance:
-// dispatch(&mut self.c) runs Circle::code() == 9, dispatch(&mut self.q) runs
+// dispatch(&mut main.c) runs Circle::code() == 9, dispatch(&mut main.q) runs
 // Square::code() == 4, so n == 9 * 10 + 4 == 94 -> exit 70. (Pre-fix the dyn
 // call resolved to nothing and both calls returned 0.) Mirrors the interpreter
 // coverage test dyn_two_impl_dispatch_selects_impl_by_runtime_type.

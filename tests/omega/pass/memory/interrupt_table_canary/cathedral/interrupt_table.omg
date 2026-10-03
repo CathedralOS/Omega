@@ -149,7 +149,7 @@ pub data InterruptDescriptorTable {
 // only the bound and the size change. `fill` carries the loop guard, so
 // the `index < 33` bound reaches `place` as proved discharge for the
 // `entries` write, and the non-copy entry array travels by value through
-// the state parameters rather than on `self`.
+// the state parameters rather than on an implicit subject.
 pub data DescriptorTableLayout {
 }
 machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema) -> Plan {

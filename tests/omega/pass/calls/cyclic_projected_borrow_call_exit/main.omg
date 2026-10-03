@@ -1,5 +1,5 @@
 // A projected unit call inside a control cycle:
-// `self.cells[position].copy_from(&source.cells[position])` passes one
+// `holder.cells[position].copy_from(&source.cells[position])` passes one
 // borrowed element per argument on every loop traversal. The terminal
 // verifier admits the shape once three bookkeeping lookups line up:
 // unrestricted subloans resolve an argument's root through block

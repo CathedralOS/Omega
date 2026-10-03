@@ -1,5 +1,5 @@
 // SHARED `&Struct` param in a NON-boundary machine -- the first RUN coverage
-// of this shape in the corpus. `read(&self.inner)` passes a shared reference;
+// of this shape in the corpus. `read(&main.inner)` passes a shared reference;
 // the callee reads both fields as assignment RHS/operand and guards on one.
 // CONVENTION LOCKED HERE: a non-boundary shared `&Struct` arg is spilled by
 // CONTENT into the param slot (flat member reads are correct); the pointee

@@ -1,5 +1,5 @@
 // A scalar-result structural call inside a control cycle, passing the
-// caller's own `&self` parameter whole: `self.at_least(at)` loans the
+// caller's own shared subject parameter whole: `Tally::at_least(tally, at)` loans the
 // receiver place as a shared re-borrow with an empty path on every loop
 // traversal. The terminal verifier's cyclic-eligibility fence admits the
 // argument the same way the boundary arm does — a machine or block

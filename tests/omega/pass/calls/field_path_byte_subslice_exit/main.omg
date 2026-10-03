@@ -1,5 +1,5 @@
 // Field-path byte-range argument on a self-receiver call:
-// `Sink::fill(&mut self.sink, &mut self.buf[..])` — the range projects a fixed byte
+// `Sink::fill(&mut main.sink, &mut main.buf[..])` — the range projects a fixed byte
 // array below the `self` parameter, so the call's argument is an exclusive
 // byte range rooted at a parameter path.
 

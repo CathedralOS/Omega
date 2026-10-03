@@ -6,7 +6,7 @@
 // This program is ACCEPTED: &mut record parameters on arm states transfer
 // their storage across state transitions, and the composed scalar call
 // rejoins the authored position of the projected receiver actual
-// (`self.picker`). Exit 1 proves `hi` ran once against the caller's Tally.
+// (`main.picker`). Exit 1 proves `hi` ran once against the caller's Tally.
 use omega_language_std::console;
 use omega::language::core::binding;
 

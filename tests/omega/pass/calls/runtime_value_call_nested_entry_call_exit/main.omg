@@ -1,5 +1,5 @@
 // Deferral face #5: a NESTED value call inside the callee's entry.
-// `Probe::make` assigns `self.flag = self.helper.check(1)` and guards on
+// `Probe::make` assigns `probe.flag = Helper::check(&probe.helper, 1)` and guards on
 // flag -- through an OUTER value call, the nested callee splices a THIRD
 // source_key between the middle callee's ops, so a defer/fire scan that
 // stops at the first foreign key never sees the middle callee's flag

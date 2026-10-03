@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70). A local whose initializer CONTAINS a value call
-// (`let r1 = base + self.calc.double_val(6) * 3`) passed as a TRANSITION
+// (`let r1 = base + main.calc.double_val(6) * 3`) passed as a TRANSITION
 // ARGUMENT to another state must copy the local's slot, not be folded back into
 // its initializer and re-materialized in the target state.
 //
