@@ -18,7 +18,7 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use typed_trees::TypedTrees;
 
 /// Retained results. A review pass checks each package of its closure at two
@@ -29,17 +29,37 @@ const RETAINED_RESULTS: usize = 16;
 const REMEMBERED_FINGERPRINTS: usize = 64;
 
 /// The request's content: what a check reads besides the program.
-#[derive(Clone, PartialEq)]
+#[derive(PartialEq)]
 pub(super) struct RequestKey {
     pub(super) mode: CheckingMode,
     pub(super) opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 }
 
+impl RequestKey {
+    /// Whether this retained key is `incoming`'s request taken at the
+    /// preliminary checkpoint: the mode is that checkpoint's and every other
+    /// field agrees. The pattern is exhaustive, so a field added to
+    /// `RequestKey` later fails to compile here instead of silently dropping
+    /// out of the comparison.
+    fn is_preliminary_form_of(&self, incoming: &Self) -> bool {
+        let Self {
+            mode,
+            opaque_property_receipts,
+        } = self;
+        *mode == CheckingMode::Preliminary
+            && *opaque_property_receipts == incoming.opaque_property_receipts
+    }
+}
+
+/// One retained judgment. Both the program that keyed it and the judgment
+/// itself are held as shared values: a lookup, a retention and a served
+/// request each take a reference count, and the only copy any of them makes
+/// is the one its caller's owned return demands.
 struct Entry {
     fingerprint: u64,
-    program: TypedTrees,
+    program: Arc<TypedTrees>,
     request: RequestKey,
-    result: Result<CheckedTrees, Vec<Diagnostic>>,
+    result: Arc<Result<CheckedTrees, Vec<Diagnostic>>>,
 }
 
 struct Memo {
@@ -107,15 +127,22 @@ pub fn retain_repeated_checks() -> RepeatedCheckRetention {
 
 /// `check(program)`, or the retained result of an earlier check of an equal
 /// program under an equal request.
+///
+/// The judgment comes back shared. Every caller needs an owned `CheckedTrees`
+/// it may rewrite, so exactly one copy of a served judgment is made, and it is
+/// made where that ownership is taken rather than here: a request served from
+/// a retained entry and a request that ran the check both hand back a share of
+/// the one instance this memo holds.
 pub(super) fn checked(
     program: TypedTrees,
     request: RequestKey,
-    check: impl FnOnce(TypedTrees) -> Result<CheckedTrees, Vec<Diagnostic>>,
-) -> Result<CheckedTrees, Vec<Diagnostic>> {
+    check: impl FnOnce(Arc<TypedTrees>) -> Result<CheckedTrees, Vec<Diagnostic>>,
+) -> Arc<Result<CheckedTrees, Vec<Diagnostic>>> {
+    let program = Arc::new(program);
     // This crate's own tests steer checking through thread-local knobs no
     // key can see; they always check afresh.
     if cfg!(test) {
-        return check(program);
+        return Arc::new(check(program));
     }
     // OMEGA_LOWER_MEMO=1 reports each check's fingerprint, mode, and hit or
     // miss — the only way to observe which checkpoint a check served from.
@@ -124,10 +151,12 @@ pub(super) fn checked(
     {
         let mut memo = MEMO.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(position) = memo.entries.iter().position(|entry| {
-            entry.fingerprint == fingerprint && entry.request == request && entry.program == program
+            entry.fingerprint == fingerprint
+                && entry.request == request
+                && *entry.program == *program
         }) {
             let entry = memo.entries.remove(position);
-            let result = entry.result.clone();
+            let result = Arc::clone(&entry.result);
             memo.entries.push(entry);
             if probe {
                 eprintln!(
@@ -143,33 +172,37 @@ pub(super) fn checked(
         // was already checked before memo lookup. With no pending opaque-copy
         // claims the program checks identically under both modes, and a settled
         // request on such a program may serve the preliminary check's result.
-        if request.mode == CheckingMode::Settled && preliminary_mode_is_vacuous(&program) {
-            let preliminary_request = RequestKey {
-                mode: CheckingMode::Preliminary,
-                ..request.clone()
-            };
-            if let Some(position) = memo.entries.iter().position(|entry| {
+        if request.mode == CheckingMode::Settled
+            && preliminary_mode_is_vacuous(&program)
+            && let Some(position) = memo.entries.iter().position(|entry| {
                 entry.fingerprint == fingerprint
-                    && entry.request == preliminary_request
+                    && entry.request.is_preliminary_form_of(&request)
                     && programs_equal_for_check(&entry.program, &program)
-            }) {
-                let entry = memo.entries.remove(position);
-                // The masked field is return cargo: the result embeds the
-                // preliminary program, so the identities settlement stamped
-                // on this program must come back along for post-lower pruning.
-                let mut result = entry.result.clone();
-                if let Ok(checked) = &mut result {
-                    checked.typed.boundary_calling_plans = program.boundary_calling_plans.clone();
-                }
-                memo.entries.push(entry);
-                if probe {
-                    eprintln!(
-                        "[lower-memo] HIT-PRELIMINARY mode={:?} fp={fingerprint:016x}",
-                        request.mode,
-                    );
-                }
-                return result;
+            })
+        {
+            let entry = memo.entries.remove(position);
+            // The masked field is return cargo: the result embeds the
+            // preliminary program, so the identities settlement stamped on
+            // this program must come back along for post-lower pruning. That
+            // makes the served judgment differ from the retained one in this
+            // one field, so this is the single path that cannot hand back the
+            // retained share itself. It takes the copy its caller would
+            // otherwise take, stamps that copy, and leaves the preliminary
+            // judgment retained as it was checked: a preliminary request
+            // arriving later must still read the identities its own
+            // checkpoint stamped.
+            let mut result = Result::clone(&entry.result);
+            if let Ok(checked) = &mut result {
+                checked.typed.boundary_calling_plans = program.boundary_calling_plans.clone();
             }
+            memo.entries.push(entry);
+            if probe {
+                eprintln!(
+                    "[lower-memo] HIT-PRELIMINARY mode={:?} fp={fingerprint:016x}",
+                    request.mode,
+                );
+            }
+            return Arc::new(result);
         }
         if !memo.fingerprints.contains(&fingerprint) {
             if memo.fingerprints.len() == REMEMBERED_FINGERPRINTS {
@@ -183,11 +216,13 @@ pub(super) fn checked(
             {
                 drop(memo);
                 account_executed_check(request.mode);
-                return check(program);
+                // Nothing retains this program, so the check takes sole
+                // custody of it and copies nothing.
+                return Arc::new(check(program));
             }
         }
     }
-    let retained = program.clone();
+    let retained = Arc::clone(&program);
     let started = std::time::Instant::now();
     account_executed_check(request.mode);
     let result = check(program);
@@ -198,6 +233,7 @@ pub(super) fn checked(
             started.elapsed(),
         );
     }
+    let result = Arc::new(result);
     let mut memo = MEMO.lock().unwrap_or_else(PoisonError::into_inner);
     if memo.entries.len() == RETAINED_RESULTS {
         memo.entries.remove(0);
@@ -206,7 +242,7 @@ pub(super) fn checked(
         fingerprint,
         program: retained,
         request,
-        result: result.clone(),
+        result: Arc::clone(&result),
     });
     result
 }
@@ -227,17 +263,69 @@ fn preliminary_mode_is_vacuous(program: &TypedTrees) -> bool {
 /// boundary calling-policy identities on the program between the two
 /// checkpoints; `lower_typed_trees` never reads them (their consumer is
 /// post-lower product pruning), so they are masked out of the comparison
-/// while every other field — including any added later — still compares
-/// exactly.
+/// while every other field still compares exactly.
+///
+/// The pattern is exhaustive and the comparison names one field at a time, so
+/// a field added to `TypedTrees` later fails to compile here. That is how a
+/// new field is kept from leaving the comparison without a decision. The
+/// previous spelling cleared the masked field on two whole-program copies and
+/// compared those: it read every other field, and it copied both programs
+/// again for every candidate entry of every settled lookup.
 fn programs_equal_for_check(retained: &TypedTrees, incoming: &TypedTrees) -> bool {
-    if retained == incoming {
-        return true;
-    }
-    let mut retained = retained.clone();
-    let mut incoming = incoming.clone();
-    retained.boundary_calling_plans.clear();
-    incoming.boundary_calling_plans.clear();
-    retained == incoming
+    let TypedTrees {
+        // The tag names one carrier instance rather than program content, and
+        // its own equality is vacuous by construction, so it decides nothing
+        // here either way.
+        identity: _,
+        roots,
+        tables,
+        symbols,
+        service_reaches,
+        service_reach_rows,
+        authored_service_reach_rows,
+        semantic_domains,
+        external_bindings,
+        plan_laid_layouts,
+        placed_view_plans,
+        wire_placements,
+        wire_encode_obligations,
+        wire_schema_plans,
+        machine_specializations,
+        target_machine_families,
+        // The masked field; see above.
+        boundary_calling_plans: _,
+        boundary_completion_declarations,
+        fused_service_erasures,
+        open_index_normalizations,
+        evidence_forwardings,
+        proof_output_calls,
+        declaration_indexes,
+        ranking_expression_custody,
+        pending_const_range_endpoints,
+    } = retained;
+    *roots == incoming.roots
+        && *tables == incoming.tables
+        && *symbols == incoming.symbols
+        && *service_reaches == incoming.service_reaches
+        && *service_reach_rows == incoming.service_reach_rows
+        && *authored_service_reach_rows == incoming.authored_service_reach_rows
+        && *semantic_domains == incoming.semantic_domains
+        && *external_bindings == incoming.external_bindings
+        && *plan_laid_layouts == incoming.plan_laid_layouts
+        && *placed_view_plans == incoming.placed_view_plans
+        && *wire_placements == incoming.wire_placements
+        && *wire_encode_obligations == incoming.wire_encode_obligations
+        && *wire_schema_plans == incoming.wire_schema_plans
+        && *machine_specializations == incoming.machine_specializations
+        && *target_machine_families == incoming.target_machine_families
+        && *boundary_completion_declarations == incoming.boundary_completion_declarations
+        && *fused_service_erasures == incoming.fused_service_erasures
+        && *open_index_normalizations == incoming.open_index_normalizations
+        && *evidence_forwardings == incoming.evidence_forwardings
+        && *proof_output_calls == incoming.proof_output_calls
+        && *declaration_indexes == incoming.declaration_indexes
+        && *ranking_expression_custody == incoming.ranking_expression_custody
+        && *pending_const_range_endpoints == incoming.pending_const_range_endpoints
 }
 
 /// Table sizes and boundary symbols: equal programs always agree on it, and
