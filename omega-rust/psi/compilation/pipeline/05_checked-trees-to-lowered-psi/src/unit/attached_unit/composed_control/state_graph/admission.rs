@@ -56,7 +56,7 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
                 .all(|(index, state)| {
                     state.structural_parameters.iter().enumerate().all(|(parameter_index, parameter)| {
                         ((parameter.multiplicity == Multiplicity::Unrestricted
-                            && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
+                            && parameter.access != checked_trees::CheckedStructuralAccess::Owned)
                             || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
                             && (parameter.qualifications.is_empty()
                                 || parameter.multiplicity == Multiplicity::Linear
@@ -487,12 +487,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     }
                 }
             };
-            if !matches!(
-                access,
-                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-            ) || source.is_self
+            if source.is_self
                 || source.is_const
-                || source.is_mutable != (access == language_core::ReferenceAccess::Mutable)
+                || source.is_mutable != access.is_exclusive()
                 || parameter.is_self
                 || parameter.multiplicity != Multiplicity::Unrestricted
                 || parameter.access
@@ -500,7 +497,12 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         language_core::ReferenceAccess::Mutable => {
                             checked_trees::CheckedStructuralAccess::MutableBorrow
                         }
-                        _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                        language_core::ReferenceAccess::WriteOnly => {
+                            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                        }
+                        language_core::ReferenceAccess::Shared => {
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                        }
                     }
                 || parameter.fused_service_erasure.is_some()
                 || (checked.normalized_type_identity(referee).as_str()

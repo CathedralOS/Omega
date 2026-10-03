@@ -475,7 +475,9 @@ pub(super) fn lower(
                 .filter(|parameter| {
                     matches!(
                         parameter.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                            | StructuralAccess::WriteOnlyBorrow
                     )
                 })
             {

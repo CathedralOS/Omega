@@ -266,6 +266,109 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn write_only_state_forwarding_retains_exclusive_nonreading_custody() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        machine forward(destination: &write i32, value: i32) {
+            transition { _ -> write_value(&write destination, value) }
+            state write_value(destination: &write i32, value: i32) {
+                destination = value;
+            }
+        }
+        machine enter(destination: &mut i32) {
+            forward(&write destination, 42);
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("enter"))
+        .expect("write-only state transfers retain their store authority");
+    let encoded = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let decoded = terminal_codec::decode_module(&encoded).unwrap();
+    terminal_verifier::validate_module(&decoded).expect("source-free loan replay");
+    let forward_position = decoded
+        .machines
+        .iter()
+        .position(|machine| {
+            machine.blocks.iter().any(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.access == StructuralAccess::WriteOnlyBorrow)
+            })
+        })
+        .expect("write-only block arrival");
+    let forwarded = &decoded.machines[forward_position];
+    let arrival_position = forwarded
+        .blocks
+        .iter()
+        .position(|block| {
+            block
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.access == StructuralAccess::WriteOnlyBorrow)
+        })
+        .unwrap();
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut widened = decoded.clone();
+        widened.machines[forward_position].blocks[arrival_position].structural_parameters[0]
+            .access = access;
+        // Forge both ends of the edge. Matching annotations cannot create
+        // readable authority in the write-only invocation that supplies it.
+        let arrival = forwarded.blocks[arrival_position].id;
+        let mut changed_edges = 0;
+        for block in &mut widened.machines[forward_position].blocks {
+            match &mut block.terminator {
+                Terminator::Jump {
+                    target,
+                    structural_arguments,
+                    ..
+                } if *target == arrival => {
+                    structural_arguments[0].access = access;
+                    changed_edges += 1;
+                }
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for successor in [when_true, when_false] {
+                        if successor.target == arrival {
+                            successor.structural_arguments[0].access = access;
+                            changed_edges += 1;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(changed_edges > 0, "arrival has an incoming loan");
+        terminal_verifier::validate_module(&widened)
+            .expect_err("an edge cannot widen write-only arrival permission");
+    }
+    let mut stale = decoded;
+    let machine = &mut stale.machines[forward_position];
+    let retired = machine.structural_parameters[0].place;
+    let destination = machine.blocks[arrival_position]
+        .operations
+        .iter_mut()
+        .find_map(|operation| {
+            if let OperationKind::WriteOnlyPrimitiveStore { destination, .. } = &mut operation.kind
+            {
+                Some(destination)
+            } else {
+                None
+            }
+        })
+        .expect("store uses arriving name");
+    *destination = retired;
+    terminal_verifier::validate_module(&stale)
+        .expect_err("the old exclusive name cannot be reused after handoff");
+}
+
+#[test]
 fn direct_write_only_primitive_store_crosses_source_codec_and_verification() {
     let checked = crate::front_end::checked_program(
         r#"

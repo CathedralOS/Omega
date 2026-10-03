@@ -192,11 +192,8 @@ fn address_join_argument(
         .iter()
         .find(|source| source.place == argument.place)
     {
-        ((if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
-            source.access == terminal_psi::StructuralAccess::MutableBorrow
-        } else {
-            source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-        }) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+        (loan_access_permitted(source.access, parameter.access)
+            && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
             && source.qualifications.is_empty()
             && source.projected_qualifications.is_empty())
         .then_some(source.structural_type)
@@ -206,10 +203,7 @@ fn address_join_argument(
             .iter()
             .flat_map(|entry| &entry.structural_parameters)
             .find(|source| source.place == argument.place)
-            .filter(|source| {
-                parameter.access != terminal_psi::StructuralAccess::MutableBorrow
-                    || source.access == terminal_psi::StructuralAccess::MutableBorrow
-            })
+            .filter(|source| loan_access_permitted(source.access, parameter.access))
             .map(|source| source.structural_type)
     } else {
         // An element view is a readable descriptor root: a static index
@@ -224,6 +218,24 @@ fn address_join_argument(
     };
     root_type.and_then(|root| structural_types.subtree(root, &argument.path))
         == Some(parameter.structural_type)
+}
+
+/// Carrying an address cannot amplify the source loan's authority. Signature
+/// parameters and prior arrivals obey the same rule; referent shape and live
+/// storage remain separate requirements of the transfer.
+fn loan_access_permitted(
+    source: terminal_psi::StructuralAccess,
+    destination: terminal_psi::StructuralAccess,
+) -> bool {
+    use terminal_psi::StructuralAccess::{MutableBorrow, SharedBorrow, WriteOnlyBorrow};
+    matches!(
+        (source, destination),
+        (
+            MutableBorrow,
+            SharedBorrow | MutableBorrow | WriteOnlyBorrow
+        ) | (SharedBorrow, SharedBorrow)
+            | (WriteOnlyBorrow, WriteOnlyBorrow)
+    )
 }
 
 pub(super) fn validate_successors(
@@ -355,7 +367,10 @@ pub(super) fn validate_successors(
                             actual == parameter.structural_type
                         } else {
                             terminal_semantics::borrowed_referent_matches(
-                                structural_types.values().copied(), actual, parameter.structural_type)
+                                structural_types.values().copied(),
+                                actual,
+                                parameter.structural_type,
+                            )
                         }
                     })
                     || binding.argument.access != parameter.access

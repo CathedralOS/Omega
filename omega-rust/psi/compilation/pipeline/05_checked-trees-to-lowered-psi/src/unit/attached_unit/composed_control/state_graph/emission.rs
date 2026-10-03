@@ -199,22 +199,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                         ))?
                         .place;
                 } else {
-                    // Exclusive plain storage, including a primitive leaf,
-                    // crosses edges through the existing address loan. A
-                    // write-only block name still has no receiving form.
-                    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-                        && catalogs.structural_types.iter().any(|declaration| {
-                            declaration.id == parameter.structural_type
-                                && matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                                )
-                        })
-                    {
-                        return unsupported(
-                            "a state's write-only primitive reference parameter has no Terminal block form",
-                        );
-                    }
+                    // Exclusive plain storage crosses an edge by address.
+                    // Retain write-only access on the arriving name: moving
+                    // the loan cannot grant observation of its referent.
                     // The persistent receiver and claim aliases are not block
                     // parameters. Only transferred structural values occupy
                     // its dense namespace.

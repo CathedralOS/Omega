@@ -434,6 +434,8 @@ pub(crate) fn is_unrestricted_write_only_subloan(
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
 ) -> bool {
+    // Entry and state parameters carry the same loan contract; the state's
+    // available-name replay separately rejects retired or undominated names.
     // An established, claim-free result keeps whole-value custody like an
     // owned parameter does: it can lend one exact subtree as a write-only
     // projection while its producer's cleanup stays intact.
@@ -441,6 +443,7 @@ pub(crate) fn is_unrestricted_write_only_subloan(
         .structural_parameters
         .iter()
         .find(|actual| actual.place == argument.place)
+        .or_else(|| crate::validation::block_views::parameter(caller, argument.place))
         .map(|actual| (actual.structural_type, actual.access, actual.multiplicity))
         .or_else(|| {
             let result =

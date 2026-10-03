@@ -103,7 +103,13 @@ pub(crate) fn transport(
         // it — not the descriptor's own storage.
         SelectedAddressBase::Register(view.backing_pointer)
     } else {
-        storage_base(argument.place, byte_offset, lent.byte_size, pointers, local_slots)?
+        storage_base(
+            argument.place,
+            byte_offset,
+            lent.byte_size,
+            pointers,
+            local_slots,
+        )?
     };
     Some(SelectedStructuralTransport::Address {
         base,
@@ -135,7 +141,9 @@ pub(super) fn storage_base(
     });
     let home = homes.next()?;
     if homes.next().is_some()
-        || byte_offset.checked_add(byte_count).is_none_or(|end| end > home.byte_size)
+        || byte_offset
+            .checked_add(byte_count)
+            .is_none_or(|end| end > home.byte_size)
     {
         return None;
     }
@@ -150,7 +158,10 @@ pub(super) fn root_type(
     place: PlaceId,
     access: StructuralAccess,
 ) -> Option<StructuralTypeId> {
-    if access == StructuralAccess::MutableBorrow {
+    if matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) {
         if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
             return (matches!(
                 result.multiplicity,
@@ -162,7 +173,8 @@ pub(super) fn root_type(
             .then_some(result.structural_type);
         }
         if let Some((_, parameter)) = join(source, place) {
-            return (parameter.access == StructuralAccess::MutableBorrow)
+            return (parameter.access == StructuralAccess::MutableBorrow
+                || parameter.access == access)
                 .then_some(parameter.structural_type);
         }
         return source
@@ -171,7 +183,10 @@ pub(super) fn root_type(
             .parameters
             .iter()
             .find(|parameter| parameter.semantic.place == place)
-            .filter(|parameter| parameter.semantic.access == StructuralAccess::MutableBorrow)
+            .filter(|parameter| {
+                parameter.semantic.access == StructuralAccess::MutableBorrow
+                    || parameter.semantic.access == access
+            })
             .map(|parameter| parameter.semantic.structural_type);
     }
     if let Some(result) = source
@@ -204,7 +219,8 @@ pub(super) fn root_type(
         return Some(parameter.structural_type);
     }
     if let Some((_, parameter)) = join(source, place) {
-        return Some(parameter.structural_type);
+        return (parameter.access != StructuralAccess::WriteOnlyBorrow)
+            .then_some(parameter.structural_type);
     }
     let signature = source.structural.as_ref()?;
     // `self` is a valid lending root: its referent record is the attached
@@ -226,8 +242,7 @@ pub(super) fn root_type(
 /// and not for the same program spelled with a named data parameter, where
 /// each state holds its own block parameter. The join's block entry already
 /// loaded the same referent address the ABI parameter would have supplied, so
-/// the two are interchangeable here; only a mutable borrow has a join, which
-/// is why a write-only loan still has to be a parameter. The caller checks
+/// the two are interchangeable here for either exclusive permission. The caller checks
 /// access, multiplicity and qualifications against the returned declaration.
 pub(crate) fn loan_declaration(
     source: &LegalizedScalarFunction,
@@ -242,9 +257,12 @@ pub(crate) fn loan_declaration(
         .map(|parameter| &parameter.semantic)
         .find(|parameter| parameter.place == place)
         .or_else(|| {
-            (access == StructuralAccess::MutableBorrow)
-                .then(|| join(source, place))
-                .flatten()
-                .map(|(_, declared)| declared)
+            (matches!(
+                access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ))
+            .then(|| join(source, place))
+            .flatten()
+            .map(|(_, declared)| declared)
         })
 }

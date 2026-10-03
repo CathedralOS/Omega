@@ -129,8 +129,14 @@ pub(super) fn validate(
                     abstract_operations::control_flow::address_joins::is_static_projection(
                         &binding.argument.path,
                     ) && source.is_some_and(|(root_type, access, multiplicity)| {
-                        (if parameter.access == StructuralAccess::MutableBorrow {
-                            access == StructuralAccess::MutableBorrow
+                        (if matches!(
+                            parameter.access,
+                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                        ) {
+                            super::super::operation_contracts::structural_access_can_supply(
+                                access,
+                                parameter.access,
+                            ) && access != StructuralAccess::Owned
                                 || access == StructuralAccess::Owned
                                     && function.structural_places.iter().any(|place| {
                                         place.id == binding.argument.place
@@ -171,18 +177,17 @@ pub(super) fn validate(
                                     StructuralAccess::Owned => source_type == parameter.structural_type
                                         && access == StructuralAccess::Owned
                                         && multiplicity == parameter.multiplicity,
-                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
+                                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
                                         let presentation = terminal_semantics::borrowed_referent_presentation(
                                             types.values().copied(), source_type, parameter.structural_type);
                                         let lends_backing = matches!(presentation,
                                             Some(terminal_semantics::BorrowedReferentPresentation::AddressOfBacking { .. }));
                                         presentation.is_some()
                                             && (access == StructuralAccess::Owned && lends_backing
-                                                || matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+                                                || access != StructuralAccess::Owned
                                                     && super::super::operation_contracts::structural_access_can_supply(access, parameter.access))
                                             && multiplicity != StructuralMultiplicity::Linear
                                     },
-                                    StructuralAccess::WriteOnlyBorrow => false,
                                 }
                         })
                 };
@@ -322,14 +327,15 @@ fn qualified_shared_view_source(
 fn plain(parameter: &StructuralParameterDeclaration) -> bool {
     !parameter.is_self
         && match parameter.access {
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
+            StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow => {
                 parameter.multiplicity == StructuralMultiplicity::Unrestricted
             }
             StructuralAccess::Owned => matches!(
                 parameter.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
             ),
-            StructuralAccess::WriteOnlyBorrow => false,
         }
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()

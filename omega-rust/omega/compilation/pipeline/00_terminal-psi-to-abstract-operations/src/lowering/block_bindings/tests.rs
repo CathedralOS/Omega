@@ -434,23 +434,15 @@ fn mutable_address_joins_admit_projected_arguments_of_their_own_access() {
 #[test]
 fn address_joins_reject_widened_access_windows_and_descriptor_projections() {
     let edge = EdgeId::new(1).unwrap();
-    let block = BlockId::new(2).unwrap();
     let rejected_edge = Err(LoweringError::UnsupportedStructuralSuccessorArguments {
         machine: MachineId::new(1).unwrap(),
         edge,
     });
-    // Mutable primitive joins have an address carrier; write-only arrivals
-    // remain outside this receiving contract.
+    // A write-only arrival transports the same address without granting reads.
     let mut exclusive = address_join_fixture(Vec::new());
     exclusive.machines[0].blocks[1].structural_parameters[0].access =
         StructuralAccess::WriteOnlyBorrow;
-    assert_eq!(
-        validate_structural_block_bindings(&exclusive),
-        Err(LoweringError::UnsupportedStructuralBlockParameters {
-            machine: MachineId::new(1).unwrap(),
-            block,
-        })
-    );
+    assert_eq!(validate_structural_block_bindings(&exclusive), Ok(()));
     // A projected argument may not widen the join's shared access.
     let mut widened = address_join_fixture(vec![terminal_psi::StructuralPathSegment::Field(
         "left".into(),

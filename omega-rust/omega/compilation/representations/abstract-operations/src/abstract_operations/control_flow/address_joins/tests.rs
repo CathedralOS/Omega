@@ -102,6 +102,7 @@ fn fused_binding_address_joins_preserve_borrow_access_without_owned_authority() 
     for access in [
         StructuralAccess::SharedBorrow,
         StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
     ] {
         let borrowed = parameter(1, access);
         assert!(is_address_join(&borrowed, &types));
@@ -117,9 +118,10 @@ fn fused_binding_address_joins_preserve_borrow_access_without_owned_authority() 
             .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap());
         assert!(!is_address_join(&changed, &types));
     }
-    for access in [StructuralAccess::Owned, StructuralAccess::WriteOnlyBorrow] {
-        assert!(!is_address_join(&parameter(1, access), &types));
-    }
+    assert!(!is_address_join(
+        &parameter(1, StructuralAccess::Owned),
+        &types
+    ));
     assert!(!is_address_join(
         &parameter(1, StructuralAccess::MutableBorrow),
         &[]
@@ -156,6 +158,7 @@ fn empty_record_address_joins_retain_access_and_exact_catalog_identity() {
     for access in [
         StructuralAccess::SharedBorrow,
         StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
     ] {
         for structural_type in [8, 9] {
             let borrowed = parameter(structural_type, access);
@@ -187,9 +190,10 @@ fn empty_record_address_joins_retain_access_and_exact_catalog_identity() {
             ));
         }
     }
-    for access in [StructuralAccess::Owned, StructuralAccess::WriteOnlyBorrow] {
-        assert!(!is_address_join(&parameter(8, access), &types));
-    }
+    assert!(!is_address_join(
+        &parameter(8, StructuralAccess::Owned),
+        &types
+    ));
     assert_eq!(super::referent_type(types.iter(), id(8), &[]), Some(id(8)));
     assert_eq!(
         super::referent_type(
@@ -202,15 +206,20 @@ fn empty_record_address_joins_retain_access_and_exact_catalog_identity() {
 }
 
 #[test]
-fn owned_write_only_descriptor_and_loan_bearing_joins_stay_closed() {
+fn borrowed_addresses_do_not_admit_owned_descriptor_or_loan_bearing_joins() {
     let types = catalog();
     assert!(is_address_join(
         &parameter(1, StructuralAccess::MutableBorrow),
         &types
     ));
-    for access in [StructuralAccess::WriteOnlyBorrow, StructuralAccess::Owned] {
-        assert!(!is_address_join(&parameter(1, access), &types));
-    }
+    assert!(is_address_join(
+        &parameter(1, StructuralAccess::WriteOnlyBorrow),
+        &types
+    ));
+    assert!(!is_address_join(
+        &parameter(1, StructuralAccess::Owned),
+        &types
+    ));
     // Descriptor fields, references, byte views, recursive catalogs and
     // unknown identities are not plain referents.
     for structural_type in [4, 5, 6, 7, 99] {

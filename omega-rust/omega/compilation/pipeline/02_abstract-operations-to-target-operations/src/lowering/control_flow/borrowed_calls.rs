@@ -543,7 +543,10 @@ pub(super) fn byte_argument(
         let allowed = match parameter.access {
             StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
             StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-            StructuralAccess::WriteOnlyBorrow | StructuralAccess::Owned => false,
+            StructuralAccess::WriteOnlyBorrow => {
+                argument.access == StructuralAccess::WriteOnlyBorrow
+            }
+            StructuralAccess::Owned => false,
         };
         if !allowed {
             return Err(LoweringError::unsupported_control_flow(function.machine));

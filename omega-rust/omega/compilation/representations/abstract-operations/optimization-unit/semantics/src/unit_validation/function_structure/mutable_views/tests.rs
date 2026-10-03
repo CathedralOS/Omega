@@ -195,6 +195,45 @@ fn edge_preparation_retires_produced_names_before_generating_bindings() {
 }
 
 #[test]
+fn write_only_arrivals_retire_prior_names_without_gaining_readable_access() {
+    let mut function = unit().functions.remove(0);
+    let template = function.blocks[0].clone();
+    function.entry = block(2);
+    function.structural_parameters = vec![parameter(10, StructuralAccess::WriteOnlyBorrow)];
+    let write_edge = |target, source, destination| {
+        let mut transfer = edge(target, source, destination, false);
+        transfer.structural_bindings[0].argument.access = StructuralAccess::WriteOnlyBorrow;
+        transfer
+    };
+    function.blocks = vec![
+        graph_block(&template, 2, Vec::new(), vec![write_edge(70, 10, 11)]),
+        graph_block(
+            &template,
+            70,
+            vec![parameter(11, StructuralAccess::WriteOnlyBorrow)],
+            vec![write_edge(80, 11, 12)],
+        ),
+        graph_block(
+            &template,
+            80,
+            vec![parameter(12, StructuralAccess::WriteOnlyBorrow)],
+            Vec::new(),
+        ),
+    ];
+    let declaration = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: "test::Boolean".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Boolean),
+    };
+    let replay =
+        current_mutable_borrows(&function, &BTreeMap::from([(declaration.id, &declaration)]));
+    assert_eq!(replay.arrivals[&block(70)], BTreeSet::from([place(11)]));
+    assert_eq!(replay.arrivals[&block(80)], BTreeSet::from([place(12)]));
+    assert!(!replay.may_be_live(block(70), place(10)));
+    assert!(!replay.may_be_live(block(80), place(11)));
+}
+
+#[test]
 fn shared_record_attenuation_retires_block_names_not_invocation_resources() {
     let mut function = unit().functions.remove(0);
     let template = function.blocks[0].clone();
