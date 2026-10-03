@@ -218,7 +218,7 @@ pub(crate) fn resolve_unique_self_call_state<'program>(
 /// within it). All return paths of the callee state are UNIONed -- a terminal
 /// expression and/or transition VALUE targets (`{ cond -> v1 _ -> v2 }`). SOUND:
 /// every path must be captured, so the state must be a LEAF value state -- if any
-/// transition target is Named/SelfTarget (a return could come from a state we are
+/// transition target is Named (a return could come from a state we are
 /// not analyzing, or a loop), we bail. The interval is trusted only if every
 /// path's analysis is clean and the union is fully bounded. Recursion-guarded to
 /// one level.
@@ -254,9 +254,9 @@ pub(crate) fn infer_return_interval(
             match program.statement_table.transition_target(target) {
                 TransitionTargetNode::Value(expression) => return_expressions.push(*expression),
                 TransitionTargetNode::Terminal => {}
-                // Named (another state / recursion) or SelfTarget (loop): the
+                // Named (another state / recursion): the
                 // return may come from somewhere we are not analyzing -> bail.
-                TransitionTargetNode::Named { .. } | TransitionTargetNode::SelfTarget => {
+                TransitionTargetNode::Named { .. } => {
                     return None;
                 }
             }

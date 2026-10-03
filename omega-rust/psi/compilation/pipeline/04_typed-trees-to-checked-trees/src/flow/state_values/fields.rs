@@ -568,7 +568,7 @@ pub(super) fn capture(
     state: &typed_trees::state::State,
     destination: &typed_trees::state::State,
     statement_index: usize,
-    arguments: Option<&[typed_trees::expression::ExpressionHandle]>,
+    arguments: &[typed_trees::expression::ExpressionHandle],
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<FieldValue> {
     let self_carrier = has_self(program, state) && has_self(program, destination);
@@ -577,38 +577,24 @@ pub(super) fn capture(
     // storage; `put(&mut self.holder)` strips the `holder` field prefix.
     let mut argument_roots: Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>, SymbolHandle)> =
         Vec::new();
-    if let Some(arguments) = arguments {
-        let mut ordinal = 0;
-        for parameter in program.state_parameters(destination) {
-            if parameter.is_self {
-                continue;
-            }
-            let Some(&argument) = arguments.get(ordinal) else {
-                break;
-            };
-            ordinal += 1;
-            let Some(mut place) =
-                build.canonical_place_at(program, state.symbol, statement_index, argument)
-            else {
-                continue;
-            };
-            normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
-            place.root = normalized_event_place_root(program, place.root);
-            if let facts::PlaceRoot::Symbol(_) = place.root {
-                argument_roots.push((place.root, place.segments, parameter.symbol));
-            }
+    let mut ordinal = 0;
+    for parameter in program.state_parameters(destination) {
+        if parameter.is_self {
+            continue;
         }
-    } else {
-        // `-> self`: every parameter is the same storage again at the next
-        // state entry, so each maps to its own symbol identity.
-        for parameter in program.state_parameters(destination) {
-            if !parameter.is_self {
-                argument_roots.push((
-                    facts::PlaceRoot::Symbol(parameter.symbol),
-                    Vec::new(),
-                    parameter.symbol,
-                ));
-            }
+        let Some(&argument) = arguments.get(ordinal) else {
+            break;
+        };
+        ordinal += 1;
+        let Some(mut place) =
+            build.canonical_place_at(program, state.symbol, statement_index, argument)
+        else {
+            continue;
+        };
+        normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
+        place.root = normalized_event_place_root(program, place.root);
+        if let facts::PlaceRoot::Symbol(_) = place.root {
+            argument_roots.push((place.root, place.segments, parameter.symbol));
         }
     }
     if !self_carrier && argument_roots.is_empty() {

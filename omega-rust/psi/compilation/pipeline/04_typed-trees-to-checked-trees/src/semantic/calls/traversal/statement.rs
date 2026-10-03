@@ -122,7 +122,7 @@ fn find_call_site_in_transition_target<'program>(
         TransitionTargetNode::Value(expression) => {
             find_call_site_in_expression(traversal, *expression)
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => None,
+        TransitionTargetNode::Terminal => None,
     }
 }
 

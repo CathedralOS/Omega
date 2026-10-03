@@ -47,8 +47,7 @@ pub(super) fn transition_target_uses_symbol(
         typed_trees::statement::TransitionTargetNode::Value(expression) => {
             expression_uses_symbol(program, *expression, symbol)
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => false,
+        typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }
 
@@ -75,7 +74,6 @@ pub(super) fn transition_target_uses_local_name(
         typed_trees::statement::TransitionTargetNode::Value(expression) => {
             expression_uses_local_name(program, *expression, local_name)
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => false,
+        typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }

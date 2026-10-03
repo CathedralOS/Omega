@@ -1356,7 +1356,7 @@ fn validate_transition_target(
         TransitionTargetNode::Value(value) => {
             validate_expression(program, machine, state, *value, roots, diagnostics)
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::Terminal => {}
     }
 }
 

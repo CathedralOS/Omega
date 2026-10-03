@@ -253,7 +253,7 @@ pub(crate) fn validate_value_position_calls(
                             diagnostics,
                         );
                     }
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
         }

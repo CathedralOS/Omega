@@ -752,7 +752,6 @@ fn lower_transition_target_node(
             };
             Ok(TransitionTarget::Value(expression))
         }
-        syntax::statement::TransitionTargetNode::SelfTarget => Ok(TransitionTarget::SelfTarget),
         syntax::statement::TransitionTargetNode::Terminal => Ok(TransitionTarget::Terminal),
     }
 }

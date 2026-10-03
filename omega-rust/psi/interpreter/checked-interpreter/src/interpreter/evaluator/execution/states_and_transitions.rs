@@ -1053,7 +1053,7 @@ impl<'program> Evaluator<'program> {
         let mut current_args = arguments;
         // Bindings accumulated across SAME-machine sibling transitions: the backend models a
         // machine as one frame whose slots persist, so a state re-entered through a
-        // self-targeting or sibling transition keeps its earlier bindings. New arguments bind on
+        // named sibling transition keeps its earlier bindings. New arguments bind on
         // top; carried-over bindings stay in the frame.
         let mut carried: Vec<FrameLocal> = Vec::new();
 
@@ -1123,12 +1123,6 @@ impl<'program> Evaluator<'program> {
                 None => return Ok(tail_value),
                 Some(TransitionDecision::Value(value)) => return Ok(Some(value)),
                 Some(TransitionDecision::Terminal) => return Ok(None),
-                Some(TransitionDecision::SelfTarget) => {
-                    // Re-run the same state (rare; guard against infinite loops via budget),
-                    // carrying its bindings forward.
-                    carried = frame.locals;
-                    continue;
-                }
                 Some(TransitionDecision::Named {
                     state: target_state,
                     machine: target_machine,

@@ -163,8 +163,7 @@ fn primitive_value_closure(
                                 TransitionTargetNode::Value(expression) => {
                                     expression_is_closed(*expression)
                                 }
-                                TransitionTargetNode::SelfTarget
-                                | TransitionTargetNode::Terminal => true,
+                                TransitionTargetNode::Terminal => true,
                             }
                         };
                         guard && target(transition.target) && target(transition.continuation)

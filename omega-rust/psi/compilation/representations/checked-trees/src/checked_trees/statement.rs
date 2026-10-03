@@ -23,6 +23,5 @@ pub enum TransitionTarget {
         arguments: HandleSpan<crate::expression::Expression>,
     },
     Value(crate::expression::Expression),
-    SelfTarget,
     Terminal,
 }

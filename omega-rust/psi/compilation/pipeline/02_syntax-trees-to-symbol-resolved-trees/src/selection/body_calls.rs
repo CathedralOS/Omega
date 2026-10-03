@@ -187,8 +187,7 @@ fn append_transition_target_expressions(
         symbol_resolved_trees::statement::TransitionTargetNode::Value(value) => {
             expressions.push(*value);
         }
-        symbol_resolved_trees::statement::TransitionTargetNode::SelfTarget
-        | symbol_resolved_trees::statement::TransitionTargetNode::Terminal => {}
+        symbol_resolved_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 

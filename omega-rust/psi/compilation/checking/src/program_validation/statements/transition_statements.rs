@@ -139,7 +139,7 @@ pub(super) fn validate(
                     exact_integer_casts,
                 );
             }
-            TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+            TransitionTargetNode::Terminal => {}
         }
     }
 

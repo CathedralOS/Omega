@@ -674,7 +674,7 @@ fn append_state_successors_after_statement(
         .iter()
         .skip(statement_index)
     {
-        append_statement_successors(program, machine, state, statement, successors);
+        append_statement_successors(program, machine, statement, successors);
     }
 }
 
@@ -685,42 +685,33 @@ fn append_all_state_successors(
     successors: &mut Vec<symbols::SymbolHandle>,
 ) {
     for statement in program.statement_table.statements(state.statement_nodes) {
-        append_statement_successors(program, machine, state, statement, successors);
+        append_statement_successors(program, machine, statement, successors);
     }
 }
 
 fn append_statement_successors(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
     statement: &typed_trees::statement::StatementNode,
     successors: &mut Vec<symbols::SymbolHandle>,
 ) {
     let typed_trees::statement::StatementNode::Transition(transition) = statement else {
         return;
     };
-    append_transition_target_successor(program, machine, state, transition.target, successors);
+    append_transition_target_successor(program, machine, transition.target, successors);
     if transition.continuation.is_valid() {
-        append_transition_target_successor(
-            program,
-            machine,
-            state,
-            transition.continuation,
-            successors,
-        );
+        append_transition_target_successor(program, machine, transition.continuation, successors);
     }
 }
 
 fn append_transition_target_successor(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
     target: typed_trees::statement::TransitionTargetHandle,
     successors: &mut Vec<symbols::SymbolHandle>,
 ) {
     let symbol = match program.statement_table.transition_target(target) {
         typed_trees::statement::TransitionTargetNode::Named { path, .. } => path.symbol,
-        typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol,
         typed_trees::statement::TransitionTargetNode::Value(_)
         | typed_trees::statement::TransitionTargetNode::Terminal => return,
     };

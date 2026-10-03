@@ -13,7 +13,6 @@ use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
 use symbols::SymbolHandle;
-use typed_trees::signature::StateParameter;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -308,26 +307,6 @@ fn capture_place(
     captured
 }
 
-fn capture_parameter(
-    program: &typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    flow_context: &FlowBuildContext,
-    source: &StateParameter,
-    destination: SymbolHandle,
-    contexts: HandleSpan<FlowSemanticContextRef>,
-) -> Vec<CapturedQualification> {
-    capture_place(
-        program,
-        semantic,
-        flow_context,
-        facts::PlaceRoot::Symbol(source.symbol),
-        &[],
-        source.type_reference,
-        destination,
-        contexts,
-    )
-}
-
 /// Capture the predicates carried by one transition argument into its
 /// destination parameter. The argument is read at its authored evaluation
 /// point, so every denoted place counts — a renamed state parameter, a staged
@@ -412,31 +391,6 @@ pub(in crate::flow) fn finish(
         }
     }
     inputs
-}
-
-pub(super) fn capture_self(
-    program: &typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    flow_context: &FlowBuildContext,
-    state: &typed_trees::state::State,
-    contexts: HandleSpan<FlowSemanticContextRef>,
-) -> Vec<QualifiedInput> {
-    let captured = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .flat_map(|parameter| {
-            capture_parameter(
-                program,
-                semantic,
-                flow_context,
-                parameter,
-                parameter.symbol,
-                contexts,
-            )
-        })
-        .collect();
-    finish(flow_context, contexts, captured, true)
 }
 
 /// An implicit receiver carries its live storage at the edge, not a detached

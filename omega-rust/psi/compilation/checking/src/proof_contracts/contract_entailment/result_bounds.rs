@@ -118,9 +118,6 @@ pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRa
                                     return None;
                                 }
                             }
-                            // An explicit self-state edge is a loop, not an
-                            // induction hypothesis or a returned value.
-                            TransitionTargetNode::SelfTarget => {}
                             TransitionTargetNode::Terminal => return None,
                         }
                     }

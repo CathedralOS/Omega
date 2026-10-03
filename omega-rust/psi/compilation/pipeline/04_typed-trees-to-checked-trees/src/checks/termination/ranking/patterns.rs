@@ -50,9 +50,7 @@ pub(super) struct GuardedEdge<'program> {
     pub(super) statement_ordinal: usize,
     pub(super) is_continuation: bool,
     pub(super) guards: Vec<GuardFact>,
-    /// Authored actual expressions. SelfTarget has none: its implicit current
-    /// values need separate proof support, not manufactured name expressions.
-    /// Argument-based ranking queries must reject missing required inputs.
+    /// Authored actual expressions on the named edge.
     pub(super) arguments: &'program [ExpressionHandle],
 }
 
@@ -95,10 +93,6 @@ pub(super) fn edges_to_state<'program>(
                 } if target_symbol_matches_state_symbol(program, target_symbol, path.symbol) => {
                     program.statement_table.expression_handles(*arguments)
                 }
-                // Keep the occurrence and its exact guard even though the
-                // arithmetic readers cannot yet substitute implicit actuals.
-                // Omitting it would let another descending edge hide a loop.
-                TransitionTargetNode::SelfTarget if target_symbol == source.symbol => &[],
                 _ => continue,
             };
             let mut guards = previous.clone();

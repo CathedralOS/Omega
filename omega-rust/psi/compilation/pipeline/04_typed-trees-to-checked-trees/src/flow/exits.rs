@@ -183,31 +183,6 @@ pub(super) fn append_transition_flow_facts<'plans>(
             &mut branch_contexts,
             &mut branch_constraints,
         );
-        if matches!(
-            program.statement_table.transition_target(target),
-            typed_trees::statement::TransitionTargetNode::SelfTarget
-        ) {
-            // Self has no argument evaluation or ordinary call record. Retain
-            // its actual post-guard contexts for arrival checking. Reuse the
-            // immutable fact-reference spans; do not copy or re-seed facts.
-            let point = ProgramPoint::TransitionArm {
-                machine_symbol: machine.symbol,
-                state_symbol: state.symbol,
-                statement_index,
-                transition_target: target,
-            };
-            for reference in execution
-                .context
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(branch_contexts)
-            {
-                let context = execution.semantic.contexts.get(reference.context);
-                if context.point != point {
-                    execution.semantic.append_context(point, context.facts);
-                }
-            }
-        }
         append_state_exit_facts(
             program,
             proof,

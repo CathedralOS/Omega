@@ -386,15 +386,9 @@ fn frame_state_closure<'program>(
             let typed_trees::statement::StatementNode::Transition(transition) = statement else {
                 continue;
             };
-            push_transition_successor(program, machine, state, transition.target, &mut pending);
+            push_transition_successor(program, machine, transition.target, &mut pending);
             if transition.continuation.is_valid() {
-                push_transition_successor(
-                    program,
-                    machine,
-                    state,
-                    transition.continuation,
-                    &mut pending,
-                );
+                push_transition_successor(program, machine, transition.continuation, &mut pending);
             }
         }
         ordered.push(state);
@@ -405,13 +399,11 @@ fn frame_state_closure<'program>(
 fn push_transition_successor(
     program: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
-    state: &checked_trees::state::State,
     target: typed_trees::statement::TransitionTargetHandle,
     pending: &mut Vec<SymbolHandle>,
 ) {
     let symbol = match program.statement_table.transition_target(target) {
         typed_trees::statement::TransitionTargetNode::Named { path, .. } => path.symbol,
-        typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol,
         typed_trees::statement::TransitionTargetNode::Value(_)
         | typed_trees::statement::TransitionTargetNode::Terminal => return,
     };

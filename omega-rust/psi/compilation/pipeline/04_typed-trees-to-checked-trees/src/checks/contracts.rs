@@ -21,8 +21,7 @@
 //! 2. for each exit: the scalar result domains, the `ensures` clauses, the
 //!    result field domains and the field domains of readable `&mut`
 //!    referents (`exits`);
-//! 3. the state's self-transition arrival requirements (`arrivals`);
-//! 4. writes into domain-refined fields (`writes`).
+//! 3. writes into domain-refined fields (`writes`).
 //!
 //! The other children are not steps. `prover` decides whether fact contexts
 //! prove a Boolean expression or a contract fact, and reaches `direct`,
@@ -34,7 +33,6 @@
 
 // The steps: evidence binding, and the checks `check_flow_call_contracts`
 // runs.
-mod arrivals;
 mod assembly;
 pub(crate) mod calls;
 mod dynamic_erased_lane;
@@ -210,12 +208,6 @@ pub(super) fn check_flow_call_contracts(
             }
             diagnostics.extend(reported);
         }
-        arrivals::check_self_transition_arrival_requires(
-            program,
-            facts,
-            state_flow,
-            &mut diagnostics,
-        );
         // #66 write-enforcement: every assignment into a domain-refined field must
         // establish the value in that domain (the soundness floor for trusting the
         // field's declared domain on read).

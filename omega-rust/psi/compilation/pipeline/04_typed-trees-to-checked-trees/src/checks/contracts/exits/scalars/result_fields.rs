@@ -463,7 +463,6 @@ impl ExitScalars<'_, '_> {
                     target.is_valid() && match self.program.statement_table.transition_target(*target) {
                         typed_trees::statement::TransitionTargetNode::Named { path, .. } =>
                             path.symbol == entry.symbol || path.symbol == self.machine.symbol,
-                        typed_trees::statement::TransitionTargetNode::SelfTarget => state.symbol == entry.symbol,
                         _ => false,
                     }
                 })

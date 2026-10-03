@@ -58,9 +58,8 @@ pub(super) fn meet_valuations(
 }
 
 /// The machine's state-transition edges by state INDEX (Named targets
-/// matched by simple state name; Value/Terminal/SelfTarget edges carry no
-/// establishment transfer -- SelfTarget re-enters with the same entry set,
-/// modeled as a self-edge).
+/// matched by simple state name; Value/Terminal edges carry no
+/// establishment transfer).
 pub(super) fn state_edges(program: &TypedTrees, states: &[State]) -> Vec<(usize, usize)> {
     let mut edges = Vec::new();
     for (from, state) in states.iter().enumerate() {
@@ -94,7 +93,6 @@ pub(super) fn state_edges(program: &TypedTrees, states: &[State]) -> Vec<(usize,
                             edges.push((from, to));
                         }
                     }
-                    TransitionTargetNode::SelfTarget => edges.push((from, from)),
                     _ => {}
                 }
             }

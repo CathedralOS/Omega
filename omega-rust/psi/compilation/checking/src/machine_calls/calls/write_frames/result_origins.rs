@@ -311,11 +311,8 @@ fn state_result_origins<'program>(
                                 complete,
                                 prefixes.get(index).and_then(Option::as_ref),
                             )?,
-                            // A bare `-> self` re-enters this exact state with
-                            // the same parameter namespace; its result set is
-                            // already this relation. Terminal arms return
-                            // nothing.
-                            TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                            // Terminal arms return nothing.
+                            TransitionTargetNode::Terminal => {}
                         }
                     }
                 }

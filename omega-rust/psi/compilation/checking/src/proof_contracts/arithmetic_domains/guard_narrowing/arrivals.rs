@@ -656,7 +656,6 @@ impl ArrivalWalk<'_, '_> {
             TransitionTargetNode::Value(expression) => {
                 self.expression(source, *expression, environment)
             }
-            TransitionTargetNode::SelfTarget => self.join(source.symbol, environment.clone()),
             TransitionTargetNode::Terminal => {}
         }
     }

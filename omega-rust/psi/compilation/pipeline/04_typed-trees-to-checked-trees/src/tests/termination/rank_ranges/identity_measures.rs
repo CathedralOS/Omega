@@ -131,7 +131,7 @@ fn identity_measure_does_not_waive_membership_geometry_or_descent() {
     for actual in ["remaining", "remaining - 2", "remaining + 1"] {
         reject(&COUNTDOWN.replace("walk(remaining - 1)", &format!("walk({actual})")));
     }
-    reject(&COUNTDOWN.replace("false -> remaining", "false -> self"));
+    reject(&COUNTDOWN.replace("false -> remaining", "false -> walk(remaining)"));
 }
 
 #[test]

@@ -194,7 +194,7 @@ fn scan_transition_target(
                 diagnostics,
             );
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::Terminal => {}
     }
 }
 

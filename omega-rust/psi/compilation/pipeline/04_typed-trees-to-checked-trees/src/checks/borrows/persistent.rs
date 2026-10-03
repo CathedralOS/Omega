@@ -1145,7 +1145,6 @@ fn state_returns_only_static_borrows(
                     found_value_exit |= is_static;
                     is_static
                 }
-                typed_trees::statement::TransitionTargetNode::SelfTarget => false,
                 typed_trees::statement::TransitionTargetNode::Terminal => true,
             },
         );

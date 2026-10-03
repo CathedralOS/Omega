@@ -142,7 +142,7 @@ pub(in crate::preparation::generic_data) fn collect_statement_expression_handles
                     TransitionTargetNode::Value(value) => {
                         collect_expression_handles(syntax, *value, handles)
                     }
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
         }

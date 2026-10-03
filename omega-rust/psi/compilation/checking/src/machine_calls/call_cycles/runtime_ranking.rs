@@ -567,7 +567,6 @@ pub(super) fn project_component(
                         TransitionTargetNode::Value(value)
                             if expression_is_inert(program, machine, state, *value) => {}
                         TransitionTargetNode::Terminal => {}
-                        TransitionTargetNode::SelfTarget => {}
                         _ => {
                             return Err(
                                 "a non-tail call or unknown effect prevents ranking admission",
@@ -975,8 +974,8 @@ fn carrier_arrival_bound(
 }
 
 /// Every authored internal arrival: `(source index, destination index,
-/// actuals)` for each named transition target inside the machine and each
-/// implicit self transition. This mirrors the telescope's occurrence set
+/// actuals)` for each named transition target inside the machine.
+/// This mirrors the telescope's occurrence set
 /// exactly: a role consumed through an arrival this walk did not see would
 /// name a value the member's own judgment never established.
 fn internal_arrivals<'program>(
@@ -1007,9 +1006,6 @@ fn internal_arrivals<'program>(
                                 program.statement_table.expression_handles(*arguments),
                             ));
                         }
-                    }
-                    TransitionTargetNode::SelfTarget => {
-                        arrivals.push((source, source, &[]));
                     }
                     TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {}
                 }

@@ -378,8 +378,7 @@ fn transition_target_uses_owner_path(
             .iter()
             .any(|argument| uses(*argument)),
         typed_trees::statement::TransitionTargetNode::Value(expression) => uses(*expression),
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => false,
+        typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }
 
@@ -413,7 +412,6 @@ fn transition_target_uses_place_symbol(
                 symbol,
             )
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => false,
+        typed_trees::statement::TransitionTargetNode::Terminal => false,
     }
 }

@@ -426,7 +426,7 @@ fn target_exit(
             let arguments = program.statement_table.expression_handles(*arguments);
             enter(program, frame, atoms, machine, state, arguments)
         }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => Err(Stop::Unsupported),
+        TransitionTargetNode::Terminal => Err(Stop::Unsupported),
     }
 }
 

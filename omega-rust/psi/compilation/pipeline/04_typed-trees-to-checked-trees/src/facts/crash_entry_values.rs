@@ -9,7 +9,7 @@
 //! into the state, which must all produce the same entry-relative operand.
 //! A mutable binding additionally keeps that bound snapshot only while its
 //! storage is pristine: a write, an exclusive borrow, or a mutable receiver
-//! call before the read (or before a `-> self`/same-state forwarding edge
+//! call before the read (or before a same-state forwarding edge
 //! that carries the storage into the next arrival) ends provenance. Field
 //! projections version the storage below the binding root, so a field read
 //! survives writes confined to disjoint siblings. The receiver is bound once
@@ -237,6 +237,29 @@ pub(super) fn entry_operand_projected(
     operand: ExpressionHandle,
     leaf_projection: &[PlaceSegment],
 ) -> Option<CrashPredicateExpression> {
+    entry_operand_projected_at(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        operand,
+        leaf_projection,
+        0,
+    )
+}
+
+fn entry_operand_projected_at(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    operand: ExpressionHandle,
+    leaf_projection: &[PlaceSegment],
+    depth: u32,
+) -> Option<CrashPredicateExpression> {
+    if depth >= MAX_ENTRY_PROVENANCE_DEPTH {
+        return None;
+    }
     let mut projection = leaf_projection.to_vec();
     let mut spine = Vec::new();
     let mut operand_place = operand;
@@ -269,7 +292,7 @@ pub(super) fn entry_operand_projected(
                     state_symbol,
                     before_statement,
                     operand_place,
-                    0,
+                    depth + 1,
                 ) {
                     return Some(spine.iter().fold(value, |receiver, step| match step {
                         OperandSpineStep::Member(member) => CrashPredicateExpression::Member {
@@ -297,7 +320,7 @@ pub(super) fn entry_operand_projected(
                     state_symbol,
                     before_statement,
                     indexed.index,
-                    0,
+                    depth + 1,
                 )?;
                 spine.insert(0, OperandSpineStep::Indexed(index));
                 projection.insert(0, fixed_index_segment(program, indexed.index));
@@ -316,7 +339,7 @@ pub(super) fn entry_operand_projected(
                     before_statement,
                     path,
                     &projection,
-                    0,
+                    depth + 1,
                 )?;
                 return Some(spine.iter().fold(root, |receiver, step| match step {
                     OperandSpineStep::Member(member) => CrashPredicateExpression::Member {
@@ -339,7 +362,7 @@ pub(super) fn entry_operand_projected(
                         state_symbol,
                         before_statement,
                         operand,
-                        0,
+                        depth + 1,
                     )
                 } else {
                     None
@@ -780,11 +803,12 @@ fn entry_operand_name_at(
     field_path: &[PlaceSegment],
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
-    if program
-        .expression_table
-        .name_path_members(path.members)
-        .len()
-        != 1
+    if depth >= MAX_ENTRY_PROVENANCE_DEPTH
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
         || !path.symbol.is_valid()
         || path.head_symbol != path.symbol
     {
@@ -796,17 +820,17 @@ fn entry_operand_name_at(
         .state_local_declaration(state, path.symbol)
         .filter(|&(ordinal, _)| ordinal < before_statement)
     {
-        if !has_stable_observable_contents(program, local.type_reference)
-            || (local.is_mutable
-                && !storage_holds_bound_value(
-                    program,
-                    machine_symbol,
-                    state,
-                    ordinal + 1,
-                    before_statement.saturating_add(1),
-                    local.symbol,
-                    field_path,
-                ))
+        let mutable_storage = observation_requires_write_scan(program, local.type_reference)?;
+        if (local.is_mutable || mutable_storage)
+            && !storage_holds_bound_value(
+                program,
+                machine_symbol,
+                state,
+                ordinal + 1,
+                before_statement.saturating_add(1),
+                local.symbol,
+                field_path,
+            )
         {
             return None;
         }
@@ -819,12 +843,13 @@ fn entry_operand_name_at(
         // exclusive borrow. Every initializer dependency must
         // independently be entry-relative. Decreasing the prefix also
         // prevents recursive aliases.
-        return entry_operand_at(
+        return entry_operand_projected_at(
             program,
             machine_symbol,
             state_symbol,
             ordinal,
             local.initial_value,
+            field_path,
             depth + 1,
         );
     }
@@ -918,13 +943,28 @@ fn builtin_binary_meaning(
     validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
 }
 
+/// A mutable reference can expose an entry observation of stable referent
+/// contents only while the selected storage remains unwritten. Nested loans
+/// and interior mutation still fail the ordinary contents classifier.
+fn observation_requires_write_scan(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<bool> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference {
+            access: language_core::ReferenceAccess::Mutable,
+            referee,
+            ..
+        } => has_stable_observable_contents(program, *referee).then_some(true),
+        _ => has_stable_observable_contents(program, type_reference).then_some(false),
+    }
+}
+
 /// A state parameter's saved actual is whatever every arrival binds to it:
 /// the invocation for the entry state, and each named transition edge into
-/// the state positionally. `-> self` forwards the current values; for an
-/// immutable parameter that is always the bound snapshot, while a mutable
-/// parameter's storage must still be pristine at the edge. A by-name edge
-/// forwarding this same parameter back to its own state is tautological under
-/// the same rule. Every remaining edge must resolve to one identical
+/// the state positionally. An edge forwarding the same immutable parameter
+/// back to its own state is tautological; a mutable parameter's storage must
+/// still be pristine at the edge. Every remaining edge must resolve to one identical
 /// entry-relative operand, or provenance stays unknown rather than picking a
 /// winner. For a mutable parameter the read itself and every self-referential
 /// edge must keep the projected `field_path` pristine — the produced `Member`
@@ -990,21 +1030,21 @@ fn state_parameter_entry_operand(
             u32::try_from(entry_ordinal).ok()?,
         ));
     }
-    if !has_stable_observable_contents(program, parameter.type_reference)
-        || (parameter.is_mutable
-            && !storage_holds_bound_value(
-                program,
-                machine_symbol,
-                state,
-                0,
-                before_statement.saturating_add(1),
-                parameter_symbol,
-                field_path,
-            ))
+    let mutable_storage = observation_requires_write_scan(program, parameter.type_reference)?;
+    let mutable = parameter.is_mutable || mutable_storage;
+    if mutable
+        && !storage_holds_bound_value(
+            program,
+            machine_symbol,
+            state,
+            0,
+            before_statement.saturating_add(1),
+            parameter_symbol,
+            field_path,
+        )
     {
         return None;
     }
-    let mutable = parameter.is_mutable;
     // Transition arguments bind only the non-self parameters, in order.
     let argument_index = parameters[..parameter_ordinal]
         .iter()
@@ -1053,12 +1093,13 @@ fn state_parameter_entry_operand(
             }
             continue;
         }
-        let resolved = entry_operand_at(
+        let resolved = entry_operand_projected_at(
             program,
             machine_symbol,
             source_symbol,
             statement_ordinal,
             argument,
+            field_path,
             depth + 1,
         )?;
         if let Some(existing) = provenance.as_ref() {
@@ -1069,26 +1110,6 @@ fn state_parameter_entry_operand(
             provenance = Some(resolved);
         }
     }
-    if mutable {
-        // `-> self` carries the current storage into the next arrival, so the
-        // bound snapshot survives only while the read projection is still
-        // pristine at every self edge — including the edge's own evaluated
-        // arguments. A sibling field may drift between arrivals; the produced
-        // `Member` operand only asserts the projected field is uniform.
-        for ordinal in mutable::self_target_ordinals(program, state) {
-            if !storage_holds_bound_value(
-                program,
-                machine_symbol,
-                state,
-                0,
-                ordinal.saturating_add(1),
-                parameter_symbol,
-                field_path,
-            ) {
-                return None;
-            }
-        }
-    }
     provenance
 }
 
@@ -1096,7 +1117,7 @@ fn state_parameter_entry_operand(
 /// paired with the source state and the transition's own statement ordinal.
 /// Typed lowering flattens nested transition forms into statements; inspect
 /// ordinary targets and continuation targets, just as the termination graph
-/// does. `-> self` and exits are not named arrivals; an edge short an
+/// does. Exits are not named arrivals; an edge short an
 /// argument contributes an invalid handle that fails resolution above.
 fn named_transition_arguments(
     program: &TypedTrees,

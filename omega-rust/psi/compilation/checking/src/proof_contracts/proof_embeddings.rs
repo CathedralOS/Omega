@@ -528,7 +528,7 @@ fn collect_statement_nodes(
                             collect_expression_nodes(program, *argument, nodes, seen);
                         }
                     }
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
         }

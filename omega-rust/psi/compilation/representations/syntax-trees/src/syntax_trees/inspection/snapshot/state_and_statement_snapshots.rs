@@ -147,7 +147,6 @@ pub enum TransitionTargetSnapshot {
     Value {
         expression: ExpressionSnapshot,
     },
-    SelfTarget,
     Terminal,
 }
 
@@ -457,7 +456,6 @@ fn snapshot_transition_target(
         TransitionTargetNode::Value(expression) => TransitionTargetSnapshot::Value {
             expression: snapshot_expression_handle(syntax_trees, *expression),
         },
-        TransitionTargetNode::SelfTarget => TransitionTargetSnapshot::SelfTarget,
         TransitionTargetNode::Terminal => TransitionTargetSnapshot::Terminal,
     }
 }

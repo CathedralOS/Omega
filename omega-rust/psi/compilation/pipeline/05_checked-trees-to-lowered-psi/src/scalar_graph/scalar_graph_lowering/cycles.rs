@@ -411,14 +411,6 @@ fn validate_rank<'a>(
                 let TransitionTargetNode::Named { path, .. } =
                     checked.statement_table.transition_target(target)
                 else {
-                    if matches!(
-                        checked.statement_table.transition_target(target),
-                        TransitionTargetNode::SelfTarget
-                    ) {
-                        return unsupported(
-                            "scalar natural rank has an implicit unauthored argument roster",
-                        );
-                    }
                     continue;
                 };
                 let normalized = source_custody::successors::normalize_machine_state_target(

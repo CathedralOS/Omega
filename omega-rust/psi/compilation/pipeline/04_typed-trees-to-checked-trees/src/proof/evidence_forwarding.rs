@@ -490,9 +490,6 @@ fn validate_evidence_forwarding_definite_assignment(
                                     );
                                 }
                             }
-                            TransitionTargetNode::SelfTarget => {
-                                work.push_back((entry.symbol, assigned.clone(), known.clone()));
-                            }
                             TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
                                 append_missing_evidence_diagnostics(
                                     program,

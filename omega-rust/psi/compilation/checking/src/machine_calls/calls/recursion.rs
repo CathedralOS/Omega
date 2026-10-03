@@ -88,7 +88,7 @@ pub(crate) fn validate_self_recursive_call_positions(
                     TransitionTargetNode::Value(expression) => {
                         reject_embedded_self_calls(program, machine, *expression, diagnostics);
                     }
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
         }

@@ -116,7 +116,7 @@ pub(crate) fn returned_partition_invocations(
                                 returned.push(invocation);
                             }
                         }
-                        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                        TransitionTargetNode::Terminal => {}
                     }
                 }
             }

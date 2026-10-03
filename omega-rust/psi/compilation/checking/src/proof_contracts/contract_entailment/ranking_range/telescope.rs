@@ -660,8 +660,8 @@ fn unwrapped(program: &TypedTrees, mut expression: ExpressionHandle) -> Expressi
 }
 
 /// Every authored internal arrival: `(source index, destination index,
-/// actuals)` for each named transition target and each implicit self
-/// transition. The state-edge judgment's guarded-edge reader collects the
+/// actuals)` for each named transition target.
+/// The state-edge judgment's guarded-edge reader collects the
 /// same occurrence set; discovery must not enumerate a different one.
 fn state_call_occurrences<'program>(
     program: &'program TypedTrees,
@@ -691,9 +691,6 @@ fn state_call_occurrences<'program>(
                                 program.statement_table.expression_handles(*arguments),
                             ));
                         }
-                    }
-                    TransitionTargetNode::SelfTarget => {
-                        occurrences.push((source_position, source_position, &[]));
                     }
                     TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {}
                 }

@@ -81,7 +81,6 @@ fn field_relation_does_not_turn_membership_into_strict_descent() {
         COUNTDOWN.replace("remaining - amount", "remaining + amount"),
         COUNTDOWN.replace("remaining >= amount", "remaining > 0"),
         COUNTDOWN.replace("remaining >= amount", "remaining < amount"),
-        COUNTDOWN.replace("false -> countdown.remaining", "false -> self"),
         COUNTDOWN.replace(
             "false -> countdown.remaining",
             "false -> walk(countdown, ceiling, amount)",

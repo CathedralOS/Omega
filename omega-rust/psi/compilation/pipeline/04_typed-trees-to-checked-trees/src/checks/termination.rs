@@ -133,7 +133,7 @@ pub(crate) fn check_machine_termination_with_call_frames(
         // call edges and transported ranges, but it never inspects an internal
         // state arrival: it trusts each member's own ranking judgment for the
         // local graph. A member that can still loop internally -- through a
-        // subordinate-state backedge, an implicit self transition, or a call
+        // subordinate-state backedge or a call
         // naming this machine's entry -- must answer to the local-state
         // induction rule for exactly those intra-machine edges. A ranged
         // member with internal arrivals must answer to its state-edge

@@ -288,7 +288,6 @@ pub enum TransitionTargetNode {
         source_span: SourceSpan,
     },
     Value(crate::expression::ExpressionHandle),
-    SelfTarget,
     #[default]
     Terminal,
 }

@@ -450,8 +450,7 @@ fn collect_transition_target_expression_calls(
                 state_to_machine,
             );
         }
-        typed_trees::statement::TransitionTargetNode::SelfTarget
-        | typed_trees::statement::TransitionTargetNode::Terminal => {}
+        typed_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 

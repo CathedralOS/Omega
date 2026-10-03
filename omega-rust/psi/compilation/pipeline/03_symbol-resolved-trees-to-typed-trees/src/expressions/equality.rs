@@ -133,7 +133,7 @@ fn scan_transition_target(
             Ok(())
         }
         TransitionTargetNode::Value(expression) => scan_expression(program, *expression, false),
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => Ok(()),
+        TransitionTargetNode::Terminal => Ok(()),
     }
 }
 

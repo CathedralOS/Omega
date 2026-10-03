@@ -12,7 +12,6 @@ fn field_rank_rejects_zero_steps_weak_guards_and_non_decreasing_continuations() 
         COUNTDOWN.replace("remaining >= amount", "remaining > 0"),
         COUNTDOWN.replace("remaining >= amount", "remaining < amount"),
         COUNTDOWN.replace("remaining - amount", "remaining + amount"),
-        COUNTDOWN.replace("false -> countdown.remaining", "false -> self"),
         COUNTDOWN.replace(
             "false -> countdown.remaining",
             "false -> walk(countdown, amount)",

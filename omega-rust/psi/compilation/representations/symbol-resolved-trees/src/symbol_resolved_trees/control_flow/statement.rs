@@ -221,7 +221,6 @@ pub enum TransitionGuard {
 pub enum TransitionTarget {
     Named(NamedTransitionTarget),
     Value(crate::expression::ExpressionHandle),
-    SelfTarget,
     Terminal,
 }
 
@@ -726,7 +725,6 @@ impl StatementTable {
                     copy_expression_handles,
                 ))
             }
-            TransitionTarget::SelfTarget => TransitionTargetNode::SelfTarget,
             TransitionTarget::Terminal => TransitionTargetNode::Terminal,
         };
 
@@ -895,7 +893,6 @@ pub enum TransitionTargetNode {
         >,
     },
     Value(crate::expression::ExpressionHandle),
-    SelfTarget,
     #[default]
     Terminal,
 }

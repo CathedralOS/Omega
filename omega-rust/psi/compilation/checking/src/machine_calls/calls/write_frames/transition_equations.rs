@@ -39,9 +39,7 @@ pub(super) fn append_cycle_frame_edge(
         return Some(());
     }
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Terminal
-        | TransitionTargetNode::Value(_)
-        | TransitionTargetNode::SelfTarget => Some(()),
+        TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => Some(()),
         TransitionTargetNode::Named {
             path, arguments, ..
         } => {

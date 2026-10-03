@@ -112,18 +112,6 @@ fn collect_state_argument_facts_from_target(
         TransitionTargetNode::Value(value) => {
             collect_state_argument_facts_from_expression(context, facts, *value, collected);
         }
-        TransitionTargetNode::SelfTarget => {
-            collect_state_argument_facts_for_call(
-                program,
-                machine,
-                context.state,
-                facts,
-                context.state.symbol,
-                &[],
-                true,
-                collected,
-            );
-        }
         TransitionTargetNode::Terminal => {}
     }
 }

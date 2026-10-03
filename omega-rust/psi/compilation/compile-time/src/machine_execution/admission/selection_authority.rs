@@ -221,7 +221,7 @@ fn collect_transition_expressions(
                 .copied(),
         ),
         TransitionTargetNode::Value(expression) => expressions.push(*expression),
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+        TransitionTargetNode::Terminal => {}
     }
 }
 

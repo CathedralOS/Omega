@@ -184,7 +184,7 @@ enum SlotExit {
     Return(Vec<StoredLocalOrigins>),
     Edge {
         target: usize,
-        arguments: Option<Vec<ExpressionHandle>>,
+        arguments: Vec<ExpressionHandle>,
         prefix: CollectedStatementPrefix,
     },
 }
@@ -295,15 +295,10 @@ fn solve_state_effects<'program>(
                         }
                         exits.push(SlotExit::Edge {
                             target: target_index,
-                            arguments: Some(arguments.to_vec()),
+                            arguments: arguments.to_vec(),
                             prefix: prefix.clone(),
                         });
                     }
-                    TransitionTargetNode::SelfTarget => exits.push(SlotExit::Edge {
-                        target: index,
-                        arguments: None,
-                        prefix: prefix.clone(),
-                    }),
                     TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
                         exits.push(SlotExit::Return(prefix.stored.clone()))
                     }
@@ -340,20 +335,16 @@ fn solve_state_effects<'program>(
                         let Some(relative) = &known[*target] else {
                             continue;
                         };
-                        let effects = if let Some(arguments) = arguments {
-                            instantiate(
-                                program,
-                                machine,
-                                program.state_parameters(equations[*target].state),
-                                arguments,
-                                relative,
-                                prefix,
-                                symbols,
-                                inference,
-                            )?
-                        } else {
-                            relative.clone()
-                        };
+                        let effects = instantiate(
+                            program,
+                            machine,
+                            program.state_parameters(equations[*target].state),
+                            arguments,
+                            relative,
+                            prefix,
+                            symbols,
+                            inference,
+                        )?;
                         let mut stored = prefix.stored.clone();
                         apply(program, &mut stored, &effects);
                         stored

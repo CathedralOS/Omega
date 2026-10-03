@@ -149,7 +149,7 @@ fn collect_statement(
                     TransitionTargetNode::Value(expression) => {
                         collect_expression(program, expressions, *expression);
                     }
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    TransitionTargetNode::Terminal => {}
                 }
             }
             if let TransitionGuardNode::When(guard) = transition.guard {
