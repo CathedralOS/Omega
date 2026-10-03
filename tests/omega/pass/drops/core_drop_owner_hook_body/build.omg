@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "core_drop_owner_hook_body");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

@@ -748,3 +748,101 @@ fn branch_local_record_cannot_be_read_on_a_bypass_but_unused_record_allows_join(
     module.machines[0].blocks[2].operations.clear();
     validate_module(&module).expect("unused unrestricted record imposes no ownership frontier");
 }
+
+fn record_with_erased_middle_member() -> TerminalModule {
+    let mut module = module();
+    let StructuralTypeShape::Record {
+        fields: declarations,
+    } = &mut module.structural_types[0].shape
+    else {
+        panic!("record");
+    };
+    declarations[1].id = StructuralFieldId::new(3).unwrap();
+    declarations.insert(
+        1,
+        StructuralFieldDeclaration {
+            id: StructuralFieldId::new(2).unwrap(),
+            identity: "proof".into(),
+            relevance: terminal_psi::BindingRelevance::Erased,
+            field_type: StructuralFieldType::Erased {
+                type_identity: "Evidence".into(),
+            },
+        },
+    );
+    fields(&mut module)[1].field = StructuralFieldId::new(3).unwrap();
+    module
+}
+
+#[test]
+fn erased_record_members_keep_semantic_identity_without_runtime_initializers() {
+    let module = record_with_erased_middle_member();
+    validate_module(&module).expect("runtime roster skips erased member without renumbering");
+    reconstruct_terminal_obligations(&module).expect("field facts use the same relevant roster");
+    let mut entirely_erased = module.clone();
+    let StructuralTypeShape::Record {
+        fields: declarations,
+    } = &mut entirely_erased.structural_types[0].shape
+    else {
+        panic!("record");
+    };
+    declarations.retain(|field| field.relevance.is_erased());
+    fields(&mut entirely_erased).clear();
+    validate_module(&entirely_erased).expect("an erased-only record has an empty runtime roster");
+}
+
+#[test]
+fn erased_record_roster_rejects_missing_duplicate_reordered_and_erased_runtime_bindings() {
+    let original = record_with_erased_middle_member();
+    for mutation in [
+        "missing",
+        "duplicate",
+        "reordered",
+        "erased binding",
+        "renumbered",
+    ] {
+        let mut changed = original.clone();
+        let bindings = fields(&mut changed);
+        match mutation {
+            "missing" => {
+                bindings.pop();
+            }
+            "duplicate" => {
+                bindings[1] = bindings[0].clone();
+            }
+            "reordered" => bindings.swap(0, 1),
+            "erased binding" => {
+                let mut erased = bindings[0].clone();
+                erased.field = StructuralFieldId::new(2).unwrap();
+                bindings.insert(1, erased);
+            }
+            "renumbered" => bindings[1].field = StructuralFieldId::new(2).unwrap(),
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&changed).is_err(),
+            "verifier accepted {mutation}"
+        );
+    }
+    for mutation in ["relevant erased carrier", "erased runtime carrier"] {
+        let mut changed = original.clone();
+        let StructuralTypeShape::Record {
+            fields: declarations,
+        } = &mut changed.structural_types[0].shape
+        else {
+            panic!("record");
+        };
+        match mutation {
+            "relevant erased carrier" => {
+                declarations[1].relevance = terminal_psi::BindingRelevance::Relevant
+            }
+            "erased runtime carrier" => {
+                declarations[0].relevance = terminal_psi::BindingRelevance::Erased
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&changed).is_err(),
+            "verifier accepted {mutation}"
+        );
+    }
+}

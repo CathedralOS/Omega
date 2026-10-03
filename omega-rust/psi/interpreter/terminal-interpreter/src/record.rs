@@ -48,7 +48,10 @@ impl TerminalExecution {
         else {
             return Err(invalid());
         };
-        if fields.len() != declarations.len() {
+        let declarations = declarations
+            .iter()
+            .filter(|field| !field.relevance.is_erased());
+        if fields.len() != declarations.clone().count() {
             return Err(invalid());
         }
         let value = TerminalStructuralValue {
@@ -457,6 +460,9 @@ impl TerminalExecution {
             };
             for field in fields {
                 if field.relevance.is_erased() {
+                    if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
+                        continue;
+                    }
                     return false;
                 }
                 match field.field_type {

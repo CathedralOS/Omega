@@ -42,7 +42,10 @@ pub(super) fn establish(
     // the selected payload: the same roster Terminal verification checked.
     // Erased common members hold no storage and take no roster position.
     let declarations: Vec<&StructuralFieldDeclaration> = match (shape, result_case) {
-        (StructuralTypeShape::Record { fields }, None) => fields.iter().collect(),
+        (StructuralTypeShape::Record { fields }, None) => fields
+            .iter()
+            .filter(|field| !field.relevance.is_erased())
+            .collect(),
         // Erased payload members hold no storage and take no roster position.
         (StructuralTypeShape::Sum { cases }, Some(result_case)) => cases
             .iter()

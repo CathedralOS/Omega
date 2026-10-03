@@ -106,10 +106,14 @@ impl emission::Emission<'_, '_, '_> {
                 .position(|candidate| candidate.identity == identity)
                 .ok_or(LoweringError::Unsupported("record field identity missing"))?;
             let target = &shape_fields[position];
-            // Erased members carry no runtime field, so a record literal
-            // cannot establish them; only transfer can deliver one.
-            if matches!(target.field_type, StructuralFieldType::Erased { .. }) {
-                return unsupported("erased record member has no runtime initializer");
+            // Source custody replays every semantic initializer. Erased fields
+            // keep their declaration identity but produce no executable operand,
+            // storage or cleanup, including for nested initializer values.
+            if target.relevance.is_erased() {
+                if !matches!(target.field_type, StructuralFieldType::Erased { .. }) {
+                    return unsupported("erased record field has a runtime carrier");
+                }
+                continue;
             }
             let value = match field.value {
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {

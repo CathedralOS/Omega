@@ -199,7 +199,7 @@ pub(crate) fn fields<'a>(
     module: &'a TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
-) -> Result<&'a [StructuralFieldDeclaration], ModuleError> {
+) -> Result<impl Iterator<Item = &'a StructuralFieldDeclaration> + Clone, ModuleError> {
     let failure = || ModuleError::RecordResultMismatch(operation.id);
     let OperationKind::EstablishRecord { fields } = &operation.kind else {
         return Err(failure());
@@ -235,10 +235,15 @@ pub(crate) fn fields<'a>(
     else {
         return Err(failure());
     };
-    if declarations.len() != fields.len() {
+    // Declaration identity includes erased members, but their subjects have no
+    // runtime initializer. Preserve original IDs and order across those gaps.
+    let declarations = declarations
+        .iter()
+        .filter(|field| !field.relevance.is_erased());
+    if declarations.clone().count() != fields.len() {
         return Err(failure());
     }
-    for (declaration, binding) in declarations.iter().zip(fields) {
+    for (declaration, binding) in declarations.clone().zip(fields) {
         if declaration.id != binding.field {
             return Err(failure());
         }
@@ -450,7 +455,7 @@ pub(super) fn operands(
     let OperationKind::EstablishRecord { fields } = &operation.kind else {
         unreachable!()
     };
-    for (declaration, binding) in declarations.iter().zip(fields) {
+    for (declaration, binding) in declarations.zip(fields) {
         if let RecordFieldValue::Scalar { value, .. } = binding.value {
             super::operations::require_defined(value, value_types, defined)?;
             if declaration.field_type.scalar_type() != value_types.get(&value).copied() {

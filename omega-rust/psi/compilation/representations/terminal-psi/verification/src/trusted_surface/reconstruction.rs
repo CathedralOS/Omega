@@ -350,7 +350,7 @@ static FACT_RECORD_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:record-establishment",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an EstablishRecord operation over a validated record shape",
+    premises: "an EstablishRecord operation over a validated record shape with exactly the relevant field initializers in declaration order and original identity; erased declarations provide no runtime operands",
     conclusion: "the record's field-establishment facts and any declared field obligations; IEEE scalar initializers and copied child fields retain exact-format bit-identity equations, including NaN payloads and signed zero, never IEEE equality or finiteness",
     dependencies: &[
         "fact:semantic-axiom-roster",

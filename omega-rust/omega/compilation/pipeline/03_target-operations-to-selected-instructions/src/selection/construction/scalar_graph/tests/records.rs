@@ -847,3 +847,137 @@ fn record_capture_replays_narrowed_descriptor_type_and_custody() {
         }
     }
 }
+
+#[test]
+fn erased_record_fields_preserve_runtime_offsets_and_exact_initializer_ids() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let baseline = record_fixture(target, 2);
+        let mut source = baseline.clone();
+        let signature = source.structural.as_mut().unwrap();
+        let mut declarations = signature.structural_types.to_vec();
+        let terminal_psi::StructuralTypeShape::Record { fields } = &mut declarations[0].shape
+        else {
+            unreachable!();
+        };
+        let mut first = fields[0].clone();
+        let mut second = fields[1].clone();
+        first.id = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+        second.id = semantic_vocabulary::StructuralFieldId::new(4).unwrap();
+        let erased = |ordinal| terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(ordinal).unwrap(),
+            identity: format!("proof{ordinal}"),
+            relevance: terminal_psi::BindingRelevance::Erased,
+            field_type: terminal_psi::StructuralFieldType::Erased {
+                type_identity: "EvidenceWithNominalCleanup".into(),
+            },
+        };
+        *fields = vec![erased(1), first, erased(3), second, erased(5)];
+        assert_eq!(
+            crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+                declarations[0].id,
+                &declarations,
+            ),
+            crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+                declarations[0].id,
+                &signature.structural_types,
+            ),
+            "erased metadata cannot change owned runtime geometry",
+        );
+        signature.structural_types = declarations.into();
+        let LegalizedScalarInstructionKind::EstablishRecord { fields, .. } =
+            &mut source.blocks[0].instructions[2].kind
+        else {
+            unreachable!();
+        };
+        fields[0].field = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+        fields[1].field = semantic_vocabulary::StructuralFieldId::new(4).unwrap();
+        assert_eq!(
+            crate::selection::record_input::fields(&source, &source.blocks[0].instructions[2]),
+            crate::selection::record_input::fields(&baseline, &baseline.blocks[0].instructions[2]),
+        );
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: Vec::new(),
+        };
+        let select = |source: &LegalizedScalarFunction| {
+            build(
+                0,
+                source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        let selected = select(&source).unwrap();
+        crate::selection::validation::scalar_graph::validate(
+            0,
+            &source,
+            &selected,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let stores = |function: &SelectedFunction| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|row| match row.kind {
+                    SelectedInstructionKind::Store {
+                        byte_offset,
+                        byte_size,
+                    } => Some((byte_offset, byte_size)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            stores(&selected),
+            stores(&select(&baseline).unwrap()),
+            "erased fields emit no initialization stores"
+        );
+        for mutation in ["erased", "missing", "duplicate", "reordered"] {
+            let mut changed = source.clone();
+            let LegalizedScalarInstructionKind::EstablishRecord { fields, .. } =
+                &mut changed.blocks[0].instructions[2].kind
+            else {
+                unreachable!();
+            };
+            match mutation {
+                "erased" => {
+                    fields[0].field = semantic_vocabulary::StructuralFieldId::new(3).unwrap()
+                }
+                "missing" => {
+                    fields.pop();
+                }
+                "duplicate" => fields.push(fields[0].clone()),
+                "reordered" => fields.reverse(),
+                _ => unreachable!(),
+            }
+            assert!(select(&changed).is_err(), "{mutation}");
+            assert!(
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &changed,
+                    &selected,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+                .is_err(),
+                "{mutation}"
+            );
+        }
+    }
+}

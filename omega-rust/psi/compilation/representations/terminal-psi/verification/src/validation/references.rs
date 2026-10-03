@@ -1543,7 +1543,7 @@ fn establish_record(
     }
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
-    for (declaration, field) in declarations.iter().zip(fields) {
+    for (declaration, field) in declarations.zip(fields) {
         let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };

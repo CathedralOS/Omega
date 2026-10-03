@@ -587,39 +587,41 @@ fn plain_field(
     declarations: &[StructuralTypeDeclaration],
     active: &mut Vec<StructuralTypeId>,
 ) -> bool {
-    !field.relevance.is_erased()
-        && match field.field_type {
-            StructuralFieldType::Structural(nested) => {
-                // A reference leaf carries custody metadata, not transported
-                // storage, so it shares the carrier's value layout as an
-                // empty slot.
-                declarations.iter().any(|declaration| {
-                    declaration.id == nested
-                        && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-                }) || plain_aggregate(nested, declarations, active)
-            }
-            StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => {
-                scalar_shape(scalar).is_some()
-            }
-            StructuralFieldType::BoundedInteger(bounds) => {
-                scalar_shape(ScalarType::Integer(bounds.integer_type())).is_some()
-            }
-            StructuralFieldType::RefinedScalar(ref refinement) => {
-                scalar_shape(refinement.carrier()).is_some()
-            }
-            StructuralFieldType::IeeeFloat(format) => {
-                scalar_shape(ScalarType::IeeeFloat(format)).is_some()
-            }
-            StructuralFieldType::ByteSequence(carrier)
-            | StructuralFieldType::PredicateByteSequence { carrier, .. } => matches!(
-                carrier,
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    | terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    }
-            ),
-            StructuralFieldType::Erased { .. } => true,
+    if field.relevance.is_erased() {
+        return matches!(field.field_type, StructuralFieldType::Erased { .. });
+    }
+    match field.field_type {
+        StructuralFieldType::Structural(nested) => {
+            // A reference leaf carries custody metadata, not transported
+            // storage, so it shares the carrier's value layout as an
+            // empty slot.
+            declarations.iter().any(|declaration| {
+                declaration.id == nested
+                    && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+            }) || plain_aggregate(nested, declarations, active)
         }
+        StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => {
+            scalar_shape(scalar).is_some()
+        }
+        StructuralFieldType::BoundedInteger(bounds) => {
+            scalar_shape(ScalarType::Integer(bounds.integer_type())).is_some()
+        }
+        StructuralFieldType::RefinedScalar(ref refinement) => {
+            scalar_shape(refinement.carrier()).is_some()
+        }
+        StructuralFieldType::IeeeFloat(format) => {
+            scalar_shape(ScalarType::IeeeFloat(format)).is_some()
+        }
+        StructuralFieldType::ByteSequence(carrier)
+        | StructuralFieldType::PredicateByteSequence { carrier, .. } => matches!(
+            carrier,
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                | terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                }
+        ),
+        StructuralFieldType::Erased { .. } => false,
+    }
 }
 
 /// Owned arrays retain their full recursive type, including below empty extents.

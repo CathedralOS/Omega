@@ -796,43 +796,30 @@ the complete product bar; focused successes below do not establish that baseline
   Shared-reference copy admission is implemented. **CANARY-CORPUS** retains
   text/domain-provenance work; copies need no restoration window.
 
-- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Complete ordinary
-  consuming `drop<T>` under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
-  Generic selection already admits hooks reading/writing `self` and calling
-  helpers. Preserve that route and reserved `T::drop` authored-call rejection.
+- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Compose contextual nominal
+  cleanup with ordinary consuming `drop<T>` and dying local owners under
+  [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
+  Stage 05's `unit/unit_cleanup.rs::patch_nominal_cleanup_member` still excludes
+  caller/hook prerequisites; stage 04's
+  `execution/terminal_unit/control/checked_machine.rs` declines nominal locals
+  at return. Preserve exact-place premises without inventing caller demands,
+  ordered actions, outgoing result homes and return/successor continuations.
+  **CML4** owns residual partitions and mixed-root order.
 
-  - Carry nominal cleanup through Omega ownership replay and native calls.
-    With macOS ARM64 `ProgramEntry(Main::main)` bindings (e62553b906a),
-    `drops/core_drop_owner_hook_body` stops at `CurrentCleanupMismatch` in
-    canonical abstract optimization; `core_drop_owner_hook` reaches unsupported
-    target control flow. `abstract-operations/optimization-unit/semantics/src/current_ownership/cleanup.rs`
-    excludes runtime receivers/premises, and stage 02's
-    `lowering/control_flow/terminator.rs::plain_home_cleanup` rejects
-    `InvokeNominal`. Preserve receiver, contract, ordered actions, outgoing
-    result homes and continuation through executable calls on return and
-    successor edges. **CML4** owns residual partitions and mixed-root order.
-  - Compose contextual hooks and dying local owners beyond the isolated
-    scalar/Unit cases already encoded and independently verified by
-    `nominal_affine_source::{scalar_returns,unit_cleanup}`.
-    Stage 05's `unit/unit_cleanup.rs::patch_nominal_cleanup_member` excludes
-    caller/hook prerequisites; stage 04's
-    `execution/terminal_unit/control/checked_machine.rs` declines nominal
-    locals at return. Preserve exact-place premises without inventing demands.
-  - Finish erased-bearing construction: `core_drop_explicit_consume` with
-    the same entry stops at "erased record member has no runtime initializer".
-    Stage 05's Unit/scalar record emitters and codec
-    `value_foundations.rs::validate_establish_record` require runtime fields
-    for semantic declarations. Retain erased subjects, multiplicity, proof
-    custody and provenance without storage or disposal.
-    **PROOF-RELEVANCE-MIGRATION** owns erased formal/actual transport;
-    owned dynamic descriptors still clean their hidden runtime payloads.
+  The three `drops/core_drop_*` fixtures now bind executable entries and run
+  through public `omega run --both` on macOS ARM64 with native/interpreter exit
+  0. `drops/erased_record_initializer_exit` independently checks nonadjacent
+  runtime field IDs and reordered initializers through a borrowed scalar call;
+  the native/interpreter corpus agrees at exit 70. Erased initializers retain
+  source replay, semantic type identity and conservation without runtime fields,
+  initializer work or cleanup. **PROOF-RELEVANCE-MIGRATION** owns erased
+  formal/actual transport; owned dynamic descriptors still clean hidden payloads.
 
-  Acceptance: bind entries for those three checked-only fixtures and execute
-  encoded, independently verified Terminal and native artifacts. Observe
-  nonempty hooks exactly once at early disposal and normal scope exit with
-  contextual prerequisites; erased fields cause no runtime cleanup. Reject
-  missing/forged hook identity or premises and duplicate consumption; retain
-  helper-call and reserved-hook selection controls.
+  Remaining acceptance: observe nonempty hooks exactly once at early disposal
+  and normal scope exit with contextual prerequisites through encoded,
+  independently verified Terminal and native artifacts. Reject missing/forged
+  hook identity or premises and duplicate consumption; retain helper-call,
+  reserved-hook selection and erased-field controls.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize outgoing

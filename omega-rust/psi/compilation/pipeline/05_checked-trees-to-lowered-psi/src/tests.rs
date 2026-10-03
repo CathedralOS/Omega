@@ -36,6 +36,7 @@ mod discarded_boundary_results;
 mod dynamic_composed_unit;
 mod element_view_computed_arguments;
 mod entry_receiver_state_loans;
+mod erased_record_fields;
 mod exclusive_loan_locals;
 mod exclusive_state_loan_handoffs;
 mod field_case_payloads;

@@ -326,10 +326,14 @@ impl Preparation<'_> {
                     "scalar record field is absent from its structural declaration",
                 ))?;
             let target = &declared_fields[position];
-            // Erased members carry no runtime field, so a record literal
-            // cannot establish them; only transfer can deliver one.
-            if matches!(target.field_type, StructuralFieldType::Erased { .. }) {
-                return unsupported("erased record member has no runtime initializer");
+            // Source custody replays every semantic initializer. Erased fields
+            // keep their declaration identity but produce no executable operand,
+            // storage or cleanup, including for nested initializer values.
+            if target.relevance.is_erased() {
+                if !matches!(target.field_type, StructuralFieldType::Erased { .. }) {
+                    return unsupported("erased record field has a runtime carrier");
+                }
+                continue;
             }
             let field_value = match field.value {
                 CheckedStructuralRecordFieldValue::Scalar(root) => {
@@ -384,11 +388,14 @@ impl Preparation<'_> {
             initialized.push((position, (target.id, field_value)));
         }
         initialized.sort_by_key(|(position, _)| *position);
-        if initialized.len() != declared_fields.len()
-            || initialized
+        if !initialized
+            .iter()
+            .map(|(position, _)| *position)
+            .eq(declared_fields
                 .iter()
                 .enumerate()
-                .any(|(ordinal, (position, _))| ordinal != *position)
+                .filter(|(_, field)| !field.relevance.is_erased())
+                .map(|(position, _)| position))
         {
             return unsupported("scalar record did not initialize its exact field roster");
         }

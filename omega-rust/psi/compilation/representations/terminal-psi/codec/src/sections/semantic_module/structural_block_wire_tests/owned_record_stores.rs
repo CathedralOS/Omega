@@ -214,3 +214,120 @@ fn bounded_owned_record_store_round_trips_and_requires_exact_obligation_presence
     *range_obligation = None;
     assert!(encode_module(&module).is_err());
 }
+
+fn erased_member_record_module() -> TerminalModule {
+    let mut module = store_module(false);
+    module.machines[0].blocks[0].operations.truncate(1);
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!();
+    };
+    let mut last = fields[0].clone();
+    last.id = id(3);
+    last.identity = "last".into();
+    fields.push(StructuralFieldDeclaration {
+        id: id(2),
+        identity: "evidence".into(),
+        relevance: BindingRelevance::Erased,
+        field_type: StructuralFieldType::Erased {
+            type_identity: "EvidenceWithNominalCleanup".into(),
+        },
+    });
+    fields.push(last);
+    let initializers = record_initializers(&mut module);
+    let mut last = initializers[0].clone();
+    last.field = id(3);
+    initializers.push(last);
+    module
+}
+
+fn record_initializers(module: &mut TerminalModule) -> &mut Vec<RecordFieldInitializer> {
+    let OperationKind::EstablishRecord { fields } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!();
+    };
+    fields
+}
+
+#[test]
+fn erased_record_fields_round_trip_semantic_identity_and_runtime_roster() {
+    let module = erased_member_record_module();
+    let bytes = encode_module(&module).expect("only runtime fields need initializers");
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    let mut changed_identity = module.clone();
+    let StructuralTypeShape::Record { fields } = &mut changed_identity.structural_types[0].shape
+    else {
+        unreachable!();
+    };
+    let StructuralFieldType::Erased { type_identity } = &mut fields[1].field_type else {
+        unreachable!();
+    };
+    *type_identity = "DistinctEvidence".into();
+    assert_ne!(
+        encode_module(&changed_identity).unwrap(),
+        bytes,
+        "erased type identity remains in the canonical semantic bytes"
+    );
+
+    let mut entirely_erased = module;
+    let StructuralTypeShape::Record { fields } = &mut entirely_erased.structural_types[0].shape
+    else {
+        unreachable!();
+    };
+    fields.retain(|field| field.relevance.is_erased());
+    record_initializers(&mut entirely_erased).clear();
+    let bytes = encode_module(&entirely_erased).expect("erased-only record has no runtime fields");
+    assert_eq!(decode_module(&bytes).unwrap(), entirely_erased);
+}
+
+#[test]
+fn erased_record_fields_reject_malformed_runtime_rosters_on_encode_and_decode() {
+    let original = erased_member_record_module();
+    for mutation in [
+        "missing",
+        "duplicate",
+        "reordered",
+        "erased initializer",
+        "renumbered",
+        "relevant erased carrier",
+        "erased runtime carrier",
+    ] {
+        let mut module = original.clone();
+        let initializers = record_initializers(&mut module);
+        match mutation {
+            "missing" => {
+                initializers.pop();
+            }
+            "duplicate" => initializers.push(initializers[0].clone()),
+            "reordered" => initializers.reverse(),
+            "erased initializer" => {
+                let mut erased = initializers[0].clone();
+                erased.field = id(2);
+                initializers.insert(1, erased);
+            }
+            "renumbered" => initializers[1].field = id(2),
+            "relevant erased carrier" | "erased runtime carrier" => {
+                let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape
+                else {
+                    unreachable!();
+                };
+                if mutation == "relevant erased carrier" {
+                    fields[1].relevance = BindingRelevance::Relevant;
+                } else {
+                    fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Boolean);
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            encode_module(&module).is_err(),
+            "writer accepted {mutation}"
+        );
+        let hostile = crate::sections::semantic_module::module_wire::encode_raw(&module)
+            .expect("untrusted wire can encode the malformed roster");
+        assert!(
+            decode_module(&hostile).is_err(),
+            "decoder accepted {mutation}"
+        );
+    }
+}

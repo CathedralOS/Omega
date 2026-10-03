@@ -134,14 +134,13 @@ pub(crate) fn declaration<'a>(
                             .is_ok()
                     })
             });
-    // Establishment already owns the declaration's represented byte predicates.
-    // Resolving its home must retain them, not exclude byte-bearing records or
-    // recover the initializer as if subsequent mutable calls had not happened.
+    // Locate an established owned home, without granting copy or consumption.
+    // Its runtime contents determine storage admission; erased members retain
+    // semantic custody and represented predicates remain on the declaration.
+    // Reference bindings instead belong to retained-carrier or alias replay.
     ((local.initial_value.is_valid() || establishment || primitive_zero)
-        && (validation::has_plain_owned_contents_with_represented_constraints(
-            &checked.typed,
-            local.type_reference,
-        ) || validation::has_owned_or_shared_view_fields(&checked.typed, local.type_reference)))
+        && validation::reference_shell(&checked.typed, local.type_reference).is_none()
+        && validation::has_borrowed_storage_contents(&checked.typed, local.type_reference))
     .then_some((ordinal, local))
 }
 
@@ -408,4 +407,45 @@ fn validate_captured_receiver(
         return unsupported("local receiver lacks its exact captured call receiver");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn owned_home_with_erased_members_does_not_become_a_reference_alias() {
+        let checked = crate::front_end::checked_program(
+            "data Evidence { tag: i32; }
+             data Carrier { value: i32; proof [erased]: Evidence; }
+             machine run() {
+                 let value: Carrier = Carrier { value: 1, proof: Evidence { tag: 9 } };
+                 let shared: &Carrier = &value;
+             }",
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "run")
+            .unwrap();
+        let state = &checked.machine_states(machine)[0];
+        let statements = checked.statement_table.statements(state.statement_nodes);
+        let checked_trees::statement::StatementNode::LocalData(value) = &statements[0] else {
+            panic!("owned local");
+        };
+        let checked_trees::statement::StatementNode::LocalData(shared) = &statements[1] else {
+            panic!("shared local");
+        };
+        assert!(super::declaration(&checked, state, 1, value.symbol).is_some());
+        assert!(
+            super::declaration(&checked, state, 0, value.symbol).is_none(),
+            "storage cannot precede its declaration"
+        );
+        assert!(
+            super::declaration(&checked, state, 2, shared.symbol).is_none(),
+            "a reference binding is not an owned home"
+        );
+        assert!(
+            super::retained_borrowed_carrier(&checked, state, 2, shared.symbol).is_some(),
+            "the reference retains its independent carrier route"
+        );
+    }
 }
