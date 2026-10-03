@@ -185,3 +185,77 @@ fn relational_result_bound_does_not_reuse_a_preceding_argument_snapshot() {
         "{diagnostics:#?}"
     );
 }
+
+#[test]
+fn typed_integer_operands_reject_implicit_carrier_changes() {
+    for source in [
+        "machine unsigned() -> u32 in Wrapping { 7 as u32 in Wrapping }
+         machine combine(value: i32 in Wrapping) -> i32 in Wrapping { value + unsigned() }",
+        "machine small() -> u16 in Wrapping { 7 as u16 in Wrapping }
+         machine combine(value: u32 in Wrapping) -> u16 in Wrapping { small() + value }",
+        "machine combine(value: u32 in Wrapping) -> u32 in Wrapping {
+             value | (3 as u16 in Wrapping)
+         }",
+        "machine combine(value: u32 in Wrapping, small: u16 in Wrapping) -> u32 in Wrapping {
+             value + (small * 2)
+         }",
+    ] {
+        let program = crate::front_end::typed_program(source);
+        let diagnostics = validation::validate_program(&program)
+            .expect_err("a typed operand cannot silently change integer carrier");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.message.contains("different integer types") }),
+            "{source}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn typed_integer_operands_preserve_policy_and_range_obligations() {
+    for (source, expected) in [
+        (
+            "machine exact() -> u32 { 7 }
+             machine combine(value: u32 in Wrapping) -> u32 in Wrapping { value + exact() }",
+            "mixed arithmetic domains",
+        ),
+        (
+            "machine exact(value: u32) -> u32 { value }
+             machine combine(value: u32) -> u32 { exact(value) + 1 }",
+            "may overflow",
+        ),
+    ] {
+        let program = crate::front_end::typed_program(source);
+        let diagnostics = validation::validate_program(&program)
+            .expect_err("operand type compatibility does not discharge policy or range proofs");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{source}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn typed_integer_operands_keep_selected_operator_signatures() {
+    let program = crate::front_end::typed_program(
+        "operator + u8::sum(left: u8, right: u16) -> u64;
+         machine combine(left: u8, right: u16) -> u64 { left + right }",
+    );
+    validation::validate_program(&program)
+        .expect("a declared heterogeneous operator is not builtin integer arithmetic");
+}
+
+#[test]
+fn typed_integer_operands_keep_comparison_and_shift_count_rules() {
+    let program = crate::front_end::typed_program(
+        "machine small() -> i8 { -1i8 }
+         machine count() -> u16 { 7u16 }
+         machine compare(value: u32) -> bool { small() < value }
+         machine shift(value: u32 in Wrapping) -> u32 in Wrapping { value << count() }",
+    );
+    validation::validate_program(&program)
+        .expect("integer comparisons and shift counts do not require matching carriers");
+}

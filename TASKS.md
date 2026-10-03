@@ -4843,19 +4843,16 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   contracts and realization without erasing Saturating/Trapping to silence the
   diagnostic. Preserve two-rounding multiply-then-add, saturation and trap oracles.
 
-  Stores now take an unranged call result's carrier from its result type
-  (`proof_contracts/arithmetic_domains/assignments.rs` `stored_value_carrier`),
-  so `enemy.max_health = 6 + self.rng.range(random, 3)` into an
-  `i32 in Wrapping` field rejects. Binary operands still do not: operand
-  analysis keeps the first typed operand's carrier and treats a plain call
-  result's policy as neutral, so `i32 in Wrapping` plus a `u32` call result, and
-  `u32 in Wrapping` plus an Exact `u32` call result, both check;
-  `samples/cli/games/dungeon_crawler_cli` now spells both. Reject that mixing
-  at operators using the same result-type carrier, without giving range
-  analysis full-range call primitives.
-
   Acceptance: fail fixtures `tests/omega/fail/arithmetic/implicit_store_{conversion,widening,call_result_conversion}_rejected`
-  retain actionable checking errors; explicit exact casts, Wrapping whole-array
+  and `implicit_call_operand_conversion_rejected` retain actionable checking
+  errors. Preserve the shared builtin arithmetic/bitwise carrier check in
+  `proof_contracts/arithmetic_domains/operand_reports.rs`: declared expression
+  types are not inferred range facts. Keep heterogeneous declared operators,
+  mixed-integer comparisons and independently typed shift counts valid.
+  `python3 tools/corpus_gate.py --both --filter runtime_explicit_call_operand_policy_exit,runtime_shift_count_domain_exit,runtime_comparison_signedness_exit,runtime_wrapping_operand_truncation_exit`
+  verifies native/interpreted exit 70 for those four controls on macOS ARM64;
+  the ordinary CLI route separately requires project package acceptance.
+  Explicit exact casts, Wrapping whole-array
   literals and `tests/omega/pass/slices/runtime_saturating_array_element_guard_exit`
   retain their valid behavior. Migrated negative fixtures
   must still reach the intended obligation, as in

@@ -81,7 +81,7 @@ pub use invariant_bounds::{
 };
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub(crate) use operand_reports::{
-    is_arithmetic, report_mismatched_width_operands, report_out_of_range_comparison_literal,
+    is_arithmetic, report_mismatched_integer_operands, report_out_of_range_comparison_literal,
 };
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;

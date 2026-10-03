@@ -1,0 +1,24 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+data Values {}
+machine Values::small() -> u16 in Wrapping {
+    transition { _ -> (7 as u16 in Wrapping) }
+}
+machine Values::exact() -> u32 {
+    transition { _ -> (7) }
+}
+machine Main::main(main: &mut Main) reaches Console {
+    let base: u32 in Wrapping = 63;
+    let sum: u32 in Wrapping = base + (Values::exact() as u32 in Wrapping);
+    let widened: u32 in Wrapping = (Values::small() as u32 in Wrapping) + base;
+    let masked: u32 in Wrapping = sum & (Values::small() as u32 in Wrapping);
+    let shifted: u32 in Wrapping = (1 as u32 in Wrapping) << Values::exact();
+    transition sum == 70 && widened == 70 && masked == 6 && shifted == 128 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
