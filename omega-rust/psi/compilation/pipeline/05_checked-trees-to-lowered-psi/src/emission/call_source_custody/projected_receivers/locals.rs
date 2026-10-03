@@ -134,13 +134,12 @@ pub(crate) fn declaration<'a>(
                             .is_ok()
                     })
             });
-    // Locate an established owned home, without granting copy or consumption.
-    // Its runtime contents determine storage admission; erased members retain
-    // semantic custody and represented predicates remain on the declaration.
-    // Reference bindings instead belong to retained-carrier or alias replay.
+    // Root identity is independent of its contents. A record holding a loan
+    // still owns its carrier storage; recursively classifying its fields here
+    // would confuse that storage with an erased receiver alias. Consumers
+    // separately replay establishment, access and every retained loan.
     ((local.initial_value.is_valid() || establishment || primitive_zero)
-        && validation::reference_shell(&checked.typed, local.type_reference).is_none()
-        && validation::has_borrowed_storage_contents(&checked.typed, local.type_reference))
+        && validation::reference_shell(&checked.typed, local.type_reference).is_none())
     .then_some((ordinal, local))
 }
 

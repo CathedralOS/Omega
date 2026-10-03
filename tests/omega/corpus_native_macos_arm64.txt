@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.84, "load1_start": 7.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.04, "load1_start": 7.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -98,6 +98,7 @@ pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9
 pass/borrows/runtime_whole_referent_scalar_store_exit built 1098ms exit:70 @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
 pass/borrows/static_record_reference_return_exit built 1143ms exit:0 @2816825e8941
+pass/borrows/stored_reference_projection_exit built 1015ms exit:70 @efc0f5f0f7a9+wt
 pass/borrows/transition_shared_borrow_result built 970ms exit:181 @2067346ef4fa+wt
 pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
 pass/borrows/writeonly_record_field_store built 683ms exit:181 @48008365d839
@@ -527,8 +528,7 @@ pass/expressions/arithmetic_domain_requires_proven_exact_exit built 614ms exit:7
 pass/expressions/arithmetic_domain_saturating_signed_exit built 513ms exit:70
 pass/expressions/arithmetic_domain_trapping_overflow built 587ms exit:signal signal:5
 pass/expressions/arithmetic_domain_wrapping_exit built 609ms exit:70
-pass/expressions/borrow_carrying_data_field_exit rejected 984ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural value: reference record loans` (state 0, statement 1)
+pass/expressions/borrow_carrying_data_field_exit built 938ms exit:70 @efc0f5f0f7a9+wt
 pass/expressions/dead_trapping_let_traps built 608ms exit:signal signal:5
 pass/expressions/declared_operator_match_result built 17618ms exit:70 @7c6892099245+wt
 pass/expressions/explicit_scalar_tag_erasure checked 170ms

@@ -27,7 +27,11 @@ pub struct TargetStructuralArgument {
     pub root_structural_type: StructuralTypeId,
     pub structural_type: StructuralTypeId,
     pub shape: ValueShape,
-    /// Checked byte offset of this projected value within `source`.
+    /// Checked byte offset within source storage, or within the referent when
+    /// `path` crosses a Reference. In that case `source` still names the
+    /// carrier: its typed prefix selects the descriptor to load, and this
+    /// offset describes only the suffix after that load. Loan origins are
+    /// authority, not substitute physical addresses.
     pub source_byte_offset: u32,
     /// Root array extent for indexed projection. For a field-only or whole
     /// mutable fixed-u8-array presentation, this instead names the projected

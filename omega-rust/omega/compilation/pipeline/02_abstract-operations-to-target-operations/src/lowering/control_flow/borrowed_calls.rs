@@ -13,9 +13,8 @@ use target_operations::{
 };
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
 
-/// Retain the same primitive referent custody independently of the call result.
-/// A `.., Referent` argument resolves through live reference custody instead
-/// of an owned or borrowed place.
+/// Resolve borrowed storage or an explicit reference crossing independently
+/// of the call result.
 pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -25,8 +24,8 @@ pub(super) fn argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    if matches!(argument.path.last(), Some(StructuralPathSegment::Referent)) {
-        return super::references::referent_argument(
+    if argument.path.contains(&StructuralPathSegment::Referent) {
+        return super::references::reference_call_argument(
             argument,
             declaration,
             destination,
@@ -34,8 +33,7 @@ pub(super) fn argument(
             prepared,
             live,
             types,
-        )?
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine));
+        );
     }
     if live.address_joins.contains(&argument.place)
         || prepared.parameters.iter().any(|source| {

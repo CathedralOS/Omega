@@ -127,10 +127,29 @@ pub(in crate::selection::validation::scalar_graph) fn borrowed_argument(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
     place: semantic_vocabulary::PlaceId,
-    offset: u32,
+    address: crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
-    let home = super::call_pointer(replay, row, place, 0)?;
-    let pointer = load(replay, row, place, home)?;
+    let home = super::call_pointer(replay, row, place, address.descriptor_offset)?;
+    let pointer = result(replay, place, address.descriptor_offset)?;
+    memory(
+        replay,
+        row,
+        place,
+        address.descriptor_offset,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    replay.check_instruction(
+        SelectedInstructionKind::Load64 { byte_offset: 0 },
+        replay
+            .constraints
+            .keys
+            .load64
+            .ok_or_else(|| replay.invalid())?,
+        &[home, pointer],
+        &provenance(row),
+    )?;
+    let offset = address.referent_offset;
     let output = result(replay, place, offset)?;
     replay.check_instruction(
         if offset == 0 {

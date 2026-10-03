@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.84, "load1_start": 7.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.04, "load1_start": 7.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -181,6 +181,8 @@ fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 189ms expected @c5979328a39b+wt
 	state `next` requires a mutable receiver, but its machine's entry receiver is not writable
 	state `write` requires a mutable receiver, but its machine's entry receiver is not writable
+fail/borrows/stored_reference_live_source_write rejected 143ms expected @efc0f5f0f7a9+wt
+	statement 1 mutates `cell.value` while local borrow `envelope` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/whole_mut_receiver_read_under_argument_loan rejected 428ms expected @15bee340123a+wt
 	state `read_through_helper` receives `main.count` as mutable while its mutable receiver reads `main.count`
 	state `read_after` receives `self.count` as mutable while its mutable receiver reads `self.count`
@@ -1299,6 +1301,7 @@ pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read checked 1532ms @a3bac00e54bb+wt
 pass/borrows/static_record_reference_return_exit checked 1105ms @2816825e8941
+pass/borrows/stored_reference_projection_exit checked 836ms @efc0f5f0f7a9+wt
 pass/borrows/transition_shared_borrow_result checked 906ms @2067346ef4fa+wt
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
@@ -1730,8 +1733,7 @@ pass/expressions/arithmetic_domain_requires_proven_exact_exit checked 1261ms @2d
 pass/expressions/arithmetic_domain_saturating_signed_exit checked 1229ms @2d8ed253669f
 pass/expressions/arithmetic_domain_trapping_overflow checked 922ms @2d8ed253669f
 pass/expressions/arithmetic_domain_wrapping_exit checked 943ms @2d8ed253669f
-pass/expressions/borrow_carrying_data_field_exit rejected 1770ms @a6375dd455c+wt
-	terminal-artifact production failed: Lowering(Unsupported("borrowed selection requires a structural continuation"))
+pass/expressions/borrow_carrying_data_field_exit checked 805ms @efc0f5f0f7a9+wt
 pass/expressions/dead_trapping_let_traps checked 739ms @4e4bfed13aee+wt
 pass/expressions/declared_operator_match_result checked 310ms @2d8ed253669f
 pass/expressions/explicit_scalar_tag_erasure checked 292ms @2d8ed253669f

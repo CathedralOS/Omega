@@ -601,6 +601,17 @@ the complete product bar; focused successes below do not establish that baseline
     Preserve erased proof fields and use represented carriers for runtime
     storage.
 
+    Stored reference fields now construct ordinary carriers and lend through
+    the carrier's actual pointer: preserve native/interpreter exit 70 for
+    `expressions/borrow_carrying_data_field_exit` and
+    `borrows/stored_reference_projection_exit`, including nested containment
+    and unrelated intervening computation. Native calls share one typed
+    descriptor-prefix/referent-suffix route rather than rebasing primitive
+    loans to their origins or recognizing returned record producers. Finish
+    additional reference crossings and runtime/case projections through that
+    common path; retain independent source, suspension and transport checks.
+    `fail/borrows/stored_reference_live_source_write` must still reject.
+
     Keep `collections/runtime_whole_array_value_copy_exit` as the qualified
     replacement control: `omega run --both` must preserve independent array
     contents and exit 70 in both engines. Its value identity retains arithmetic

@@ -183,10 +183,11 @@ pub(crate) fn leaf_paths(
     Some(output)
 }
 
-/// A whole-carrier result admits one borrow permission over a primitive
-/// scalar or a plain owned record referent, never ownership of that storage.
-/// Shared, mutable and write-only carriers share the same loan structure; the
-/// access stored on the carrier, not the referent identity, separates them.
+/// A carrier identifies its declared referent, never ownership of that storage.
+/// Shared observation preserves the referent's complete shape, as Terminal
+/// permits; writable references retain the supported primitive/plain-record
+/// storage constraint. Construction, calls and relocation use this same rule.
+/// Loan strength and live backing are checked separately from type identity.
 pub(crate) fn referent(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
@@ -195,9 +196,12 @@ pub(crate) fn referent(
     match declaration.shape {
         terminal_psi::StructuralTypeShape::Reference {
             referent,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        } => types.contains_key(&referent).then_some(referent),
+        terminal_psi::StructuralTypeShape::Reference {
+            referent,
             access:
-                terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
+                terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow,
         } if matches!(
             types.get(&referent).map(|declaration| &declaration.shape),

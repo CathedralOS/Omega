@@ -43,43 +43,12 @@ pub(in crate::legalization) fn argument_at(
     )? {
         return Ok(argument);
     }
-    // A leading `Referent` may dereference a returned mutable-record carrier.
-    // The carrier has no home; custody resolves the selected value back to the
-    // exact original ingress address. Whole primitive referents fall through
-    // to the established route below when record custody does not match.
-    if matches!(
-        semantic.path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
-        let target_caller = native
-            .functions
-            .iter()
-            .find(|function| function.machine == caller.machine)
-            .ok_or(LegalizationError::custody())?;
-        let returned_record_argument = super::reference_custody::returned_record_call_argument(
-            semantic,
-            destination_parameter,
-            call.parameters
-                .get(parameter_ordinal)
-                .ok_or(LegalizationError::custody())?,
-            caller,
-            target_caller,
-            custody,
-            &plan.structural_types,
-        )?;
-        if let Some(returned_record_argument) = returned_record_argument {
-            return Ok(returned_record_argument);
-        }
-        if semantic.path.len() > 1 {
-            return Err(LegalizationError::custody());
-        }
-    }
-    // `.., Referent` spellings resolve through replayed reference custody;
-    // the transported value names the referent root, never the carrier.
-    if matches!(
-        semantic.path.last(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
+    // A reference crossing retains the exact carrier that stores its address.
+    if semantic
+        .path
+        .iter()
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
+    {
         let target_caller = native
             .functions
             .iter()

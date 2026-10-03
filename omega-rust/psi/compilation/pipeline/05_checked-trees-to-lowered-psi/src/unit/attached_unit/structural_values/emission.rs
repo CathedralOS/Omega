@@ -22,6 +22,7 @@ use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 mod completed_storage;
 mod copied_place;
 mod dispatch;
+mod reference;
 
 pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
         &CheckedUnitEffectOperationPlan,
@@ -246,17 +247,6 @@ pub(crate) fn emit(
         published_places: Vec::new(),
     };
     let place = if emission.sources.is_empty()
-        && let CheckedStructuralValueKind::Reference { source } = &checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(*value)
-            .kind
-        && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-    {
-        emission.direct_borrow(source)?
-    } else if emission.sources.is_empty()
         && let Some((source, region, loan)) = match &checked
             .facts
             .values
@@ -276,8 +266,7 @@ pub(crate) fn emit(
                 Some((source, region, LoanAccess::Mutable))
             }
             _ => None,
-        }
-    {
+        } {
         emission.direct_element_view(
             source,
             region,
@@ -823,114 +812,7 @@ impl Emission<'_, '_, '_> {
                     continuation,
                 ),
             CheckedStructuralValueKind::Reference { source } => {
-                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
-                    // A `&T` branch borrows its exact referent place: resolve
-                    // the authored root/path against the current locals and
-                    // signature parameters, then join that shared custody at
-                    // the selection's block parameter. No owner moves and no
-                    // residual custody dies on this edge.
-                    let continuation = continuation.ok_or(LoweringError::Unsupported(
-                        "borrowed selection requires a structural continuation",
-                    ))?;
-                    if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type
-                    {
-                        return unsupported("borrowed selection changed its referent type");
-                    }
-                    let argument = crate::expression_preparation::bindings::ScalarBindings::new(
-                        self.values.iter().map(|value| value.scalar_type),
-                    )
-                    .with_structural_parameters(&self.evaluation.structural_parameters)
-                    .with_structural_locals(&self.evaluation.structural_locals)
-                    .shared_structural_argument(
-                        &source,
-                        crate::expression_preparation::source_custody::authored_state(
-                            self.checked,
-                            self.state,
-                        )?
-                        .0,
-                        self.checked.state_parameters(
-                            crate::expression_preparation::source_custody::authored_state(
-                                self.checked,
-                                self.state,
-                            )?
-                            .1,
-                        ),
-                    )?;
-                    self.complete_loan(argument, continuation, LoanAccess::Shared)?;
-                    return Ok(continuation.place);
-                }
-                let source_place = match source.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index,
-                    } => {
-                        let (_, parameter) = self
-                            .evaluation
-                            .structural_parameters
-                            .get(parameter_index as usize)
-                            .ok_or(LoweringError::Unsupported(
-                                "reference initializer parameter missing",
-                            ))?;
-                        if parameter.access != StructuralAccess::MutableBorrow
-                            || parameter.structural_type
-                                != lookup_type_id(self.type_ids, &source.type_identity)?
-                            || !parameter.qualifications.is_empty()
-                            || !parameter.projected_qualifications.is_empty()
-                        {
-                            return unsupported("reference initializer changes ingress custody");
-                        }
-                        parameter.place
-                    }
-                    // A local-rooted loan mints that local's established place:
-                    // `Indirect { target: &mut owner }` lends `owner`'s own
-                    // storage whole, so the source must name one complete
-                    // owned local and the local's carrier must be the exact
-                    // referent the field declared.
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol,
-                    } => {
-                        let mut locals = self
-                            .evaluation
-                            .structural_locals
-                            .iter()
-                            .filter(|local| local.symbol == symbol);
-                        let local = locals.next().ok_or(LoweringError::Unsupported(
-                            "reference initializer local ingress missing",
-                        ))?;
-                        if locals.next().is_some()
-                            || !local.argument.path.is_empty()
-                            || local.argument.access != StructuralAccess::Owned
-                            || local.structural_type
-                                != lookup_type_id(self.type_ids, &source.type_identity)?
-                        {
-                            return unsupported("reference initializer changes ingress custody");
-                        }
-                        local.argument.place
-                    }
-                    _ => {
-                        return unsupported("reference initializer has no established ingress");
-                    }
-                };
-                if !source.path.is_empty()
-                    || source.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-                {
-                    return unsupported("reference initializer changes ingress custody");
-                }
-                let declaration = super::super::reference_results::emit_carrier(
-                    self.structural_type,
-                    StructuralArgument {
-                        place: source_place,
-                        path: Vec::new(),
-                        access: StructuralAccess::MutableBorrow,
-                    },
-                    self.next_place,
-                    self.operations,
-                )?;
-                let place = declaration.id;
-                self.temporary_places.push(declaration);
-                if let Some(continuation) = continuation {
-                    self.complete_value(place, None, continuation)?;
-                }
-                Ok(place)
+                self.reference_value(&source, continuation)
             }
             CheckedStructuralValueKind::Record { .. } => {
                 let place = self.record(value)?;
@@ -1496,33 +1378,7 @@ impl Emission<'_, '_, '_> {
     /// no residual dies on that edge -- the referent's owner stays live under
     /// the shared loan the joined parameter records, exactly as it does for
     /// every arm of a borrowed selection.
-    fn direct_borrow(
-        &mut self,
-        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    ) -> Result<PlaceId, LoweringError> {
-        if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
-            return unsupported("borrowed establishment changed its referent type");
-        }
-        let argument = crate::expression_preparation::bindings::ScalarBindings::new(
-            self.values.iter().map(|value| value.scalar_type),
-        )
-        .with_structural_parameters(&self.evaluation.structural_parameters)
-        .with_structural_locals(&self.evaluation.structural_locals)
-        .shared_structural_argument(
-            source,
-            crate::expression_preparation::source_custody::authored_state(
-                self.checked,
-                self.state,
-            )?
-            .0,
-            self.checked.state_parameters(
-                crate::expression_preparation::source_custody::authored_state(
-                    self.checked,
-                    self.state,
-                )?
-                .1,
-            ),
-        )?;
+    fn direct_borrow(&mut self, argument: StructuralArgument) -> Result<PlaceId, LoweringError> {
         let join = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         let position = 0u32;

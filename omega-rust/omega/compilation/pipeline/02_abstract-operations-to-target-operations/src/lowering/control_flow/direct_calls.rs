@@ -605,23 +605,8 @@ fn structural_argument(
     )? {
         return Ok(argument);
     }
-    if matches!(argument.path.first(), Some(StructuralPathSegment::Referent)) {
-        if let Some(projected) = super::references::returned_record_call_argument(
-            argument,
-            declaration,
-            destination,
-            function,
-            live,
-            types,
-        )? {
-            return Ok(projected);
-        }
-        if argument.path.len() > 1 {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-    }
-    if matches!(argument.path.last(), Some(StructuralPathSegment::Referent)) {
-        return super::borrowed_calls::argument(
+    if argument.path.contains(&StructuralPathSegment::Referent) {
+        return super::references::reference_call_argument(
             argument,
             declaration,
             destination,

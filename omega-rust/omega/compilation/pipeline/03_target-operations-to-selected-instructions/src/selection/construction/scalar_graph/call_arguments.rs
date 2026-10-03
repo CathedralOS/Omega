@@ -128,23 +128,11 @@ fn argument_pointer(
     target: &target_operations::TargetStructuralArgument,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    // New reference homes retain the carrier identity and load its selected
-    // pointer. Legacy static-root arguments retain their existing address join.
-    let reference_carrier =
-        crate::selection::reference_input::is_reference_type(source, target.root_structural_type);
-    let referent = matches!(
-        semantic.path.last(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) || semantic.path.len() > 1
-        && matches!(
-            semantic.path.first(),
-            Some(terminal_psi::StructuralPathSegment::Referent)
-        );
-    let pointer_place = if referent {
-        target.place
-    } else {
-        semantic.place
-    };
+    let referent = semantic
+        .path
+        .iter()
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent));
+    let pointer_place = semantic.place;
     // Whole and field owners use the same read-only presentation. The exact
     // Placement, block coordinate, or home producer is authenticated by the
     // classifier before this emitter reads the live length word.
@@ -158,7 +146,7 @@ fn argument_pointer(
             target,
         )
     };
-    let pointer = if reference_carrier {
+    let pointer = if referent {
         let offset = crate::selection::reference_input::borrowed_argument(source, semantic, target)
             .filter(|_| indices.is_empty())
             .ok_or_else(|| SelectedInstructionError::custody())?;
