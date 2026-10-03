@@ -15,7 +15,10 @@
 //! row, so the installed candidate's precondition holds at every call. Its
 //! own `ensures` are verified in its body. Every normal guarantee published by
 //! the requirement must occur in that verified roster after positional
-//! substitution; callers import only the requirement's guarantee.
+//! substitution; callers import only the requirement's guarantee. Boundary
+//! lowering splits unconditional conjunctions while ordinary machine contracts
+//! retain their authored grouping, so conformance compares their conjuncts
+//! after exact parameter/result substitution. Grouping grants no new premise.
 //!
 //! Boundary structural `requires` rows are deliberately absent from both
 //! arms: they are caller-admission checks on the structural arguments, not
@@ -29,7 +32,7 @@
 
 use std::collections::BTreeMap;
 
-use semantic_vocabulary::ScalarTerm;
+use semantic_vocabulary::{Proposition, ScalarTerm};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, TerminalMachine, TerminalMachineResult,
 };
@@ -48,8 +51,8 @@ fn entry_claims_bind_parameters(candidate: &TerminalMachine) -> bool {
     })
 }
 
-/// Every candidate `requires` row is one of the declaration's scalar
-/// `requires` rows translated into the candidate's parameters, so callers
+/// Every candidate `requires` conjunct occurs in the declaration's scalar
+/// preconditions translated into the candidate's parameters, so callers
 /// have already proven it. Erased candidate formals have no boundary actual.
 fn candidate_requires_are_declared(
     boundary: &BoundaryMachineDeclaration,
@@ -79,11 +82,7 @@ fn candidate_requires_are_declared(
         .iter()
         .map(|row| substitute_proposition_values(row, &substitutions))
         .collect::<Vec<_>>();
-    candidate
-        .contract
-        .requires
-        .iter()
-        .all(|row| declared.contains(row))
+    contract_rows_cover(declared.iter(), candidate.contract.requires.iter())
 }
 
 /// A checked provider may strengthen a normal guarantee, but every row its
@@ -112,14 +111,47 @@ fn candidate_ensures_are_declared(
         };
         substitutions.insert(formal.id, ScalarTerm::value(actual.id, actual.scalar_type));
     }
-    boundary.scalar_ensures.iter().all(|row| {
-        let expected = substitute_proposition_values(row, &substitutions);
+    let required = boundary
+        .scalar_ensures
+        .iter()
+        .map(|row| substitute_proposition_values(row, &substitutions))
+        .collect::<Vec<_>>();
+    contract_rows_cover(
         candidate
             .contract
             .ensures
             .iter()
-            .any(|clause| clause.proposition == expected)
-    })
+            .map(|clause| &clause.proposition),
+        required.iter(),
+    )
+}
+
+/// Boundary rows and ordinary contracts may group the same guarantees
+/// differently. Only unconditional conjunction introduces independent facts;
+/// truth is vacuous. All other propositions retain their exact substituted
+/// identity, including implications and disjunctions. This is the same
+/// coverage relation for caller-established preconditions and provider-proven
+/// postconditions, with their respective directions chosen by the caller.
+fn contract_rows_cover<'a>(
+    established: impl IntoIterator<Item = &'a Proposition>,
+    required: impl IntoIterator<Item = &'a Proposition>,
+) -> bool {
+    fn conjuncts<'a>(rows: impl IntoIterator<Item = &'a Proposition>) -> Vec<&'a Proposition> {
+        let mut pending = rows.into_iter().collect::<Vec<_>>();
+        let mut output = Vec::new();
+        while let Some(row) = pending.pop() {
+            match row {
+                Proposition::Truth => {}
+                Proposition::Conjunction(members) => pending.extend(members),
+                other => output.push(other),
+            }
+        }
+        output
+    }
+    let established = conjuncts(established);
+    conjuncts(required)
+        .iter()
+        .all(|row| established.contains(row))
 }
 
 pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &TerminalMachine) -> bool {
