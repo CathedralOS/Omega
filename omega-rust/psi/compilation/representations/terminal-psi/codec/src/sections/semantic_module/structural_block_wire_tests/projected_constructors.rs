@@ -71,7 +71,10 @@ fn projected_constructor(case: bool) -> TerminalModule {
     machine.structural_places = vec![
         StructuralPlaceDeclaration {
             id: id(1),
-            kind: StructuralPlaceKind::Parameter { position: 0 },
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
         },
         StructuralPlaceDeclaration {
             id: id(2),
