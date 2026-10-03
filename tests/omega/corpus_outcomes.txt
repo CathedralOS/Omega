@@ -852,6 +852,11 @@ fail/proofs/linear_range_sum_false_twin rejected 244ms expected @2d8ed253669f
 	machine `false_sum_of_bounded` cannot prove ensures contract proof fact `a + b >= 2 && a + b <= 19` from the requires contract
 fail/proofs/machine_parameterized_runtime_data_rejected rejected 245ms expected @2d8ed253669f
 	data `RuntimeCallback` is parameterized by a static machine but has a runtime layout; `<machine ...>` on data is reserved for proof-only families (recursive data has no layout)
+fail/proofs/mutable_ranked_accumulator_wrong_step rejected 149ms expected @580604e70477+wt
+	cannot prove ensures contract for exit from accumulate at statement 3: result == total
+	cannot prove state arrival contract on self-transition in accumulate state `entry` at statement 2: remaining + accumulator == total
+	cannot prove state arrival contract on self-transition in accumulate state `entry` at statement 2: remaining + accumulator == total
+	cannot prove state arrival contract on self-transition in accumulate state `entry` at statement 2: remaining + accumulator == total
 fail/proofs/nat_exact_subtraction_requires_order rejected 676ms expected @2d8ed253669f
 	cannot prove requires contract for call subtract from remaining: used <= total (needs fact `right <= left` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/proofs/nat_metric_false_gap_zero rejected 321ms expected @2d8ed253669f
@@ -2034,6 +2039,7 @@ pass/proofs/runtime_byte_predicate_state_contract_exit checked 724ms @767b982de1
 pass/proofs/runtime_decreases_u64_measure_exit checked 1636ms @2d8ed253669f
 pass/proofs/runtime_inductive_climbing_sum_exit checked 785ms @08b483f23366+wt
 pass/proofs/runtime_inductive_gauss_sum_exit checked 1055ms @b5a937001475+wt
+pass/proofs/runtime_mutable_ranked_accumulator_exit checked 798ms @580604e70477+wt
 pass/proofs/runtime_nat_structural_recursion_exit checked 1175ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_early_exit checked 1867ms @2d8ed253669f
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 1671ms @2d8ed253669f

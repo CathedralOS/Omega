@@ -292,8 +292,8 @@ pub use proof_contracts::contract_entailment::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticBindingValue,
     StrictArithmeticExpressionBinding, StrictArithmeticImplicationJudgment,
-    StrictArithmeticSymbolBinding, scoped_arithmetic_implication, scoped_arithmetic_values_relation,
-    strict_arithmetic_expression_implication,
+    StrictArithmeticSymbolBinding, scoped_arithmetic_implication,
+    scoped_arithmetic_values_relation, strict_arithmetic_expression_implication,
     strict_arithmetic_expression_implication_with_arguments,
 };
 pub use proof_contracts::contract_entailment::{

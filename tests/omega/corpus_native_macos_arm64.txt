@@ -844,6 +844,7 @@ pass/proofs/runtime_byte_predicate_state_contract_exit built 1294ms exit:70 @767
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
 pass/proofs/runtime_inductive_climbing_sum_exit built 932ms exit:70 @08b483f23366+wt
 pass/proofs/runtime_inductive_gauss_sum_exit built 1830ms exit:70 @b5a937001475+wt
+pass/proofs/runtime_mutable_ranked_accumulator_exit built 927ms exit:70 @580604e70477+wt
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70

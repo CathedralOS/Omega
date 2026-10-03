@@ -583,11 +583,15 @@ impl<'program> Engine<'program> {
             }
             ScopedArithmeticValue::Integer(value) => Polynomial::constant(value.clone()),
             ScopedArithmeticValue::Term(term) => {
-                if !self.install_scoped_bindings(&term.bindings) { return None; }
+                if !self.install_scoped_bindings(&term.bindings) {
+                    return None;
+                }
                 self.normalize(term.expression)?
             }
             ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
-                if !self.install_scoped_bindings(&term.bindings) { return None; }
+                if !self.install_scoped_bindings(&term.bindings) {
+                    return None;
+                }
                 self.bind_strict_integer_division(term.expression)?;
                 self.normalize(term.expression)?
             }

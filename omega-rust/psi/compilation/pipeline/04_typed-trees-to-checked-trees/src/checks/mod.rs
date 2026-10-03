@@ -39,9 +39,9 @@
 //! crate.
 
 // Call obligations: contract requirements and guarantees, and borrows.
-pub(crate) mod current_scalar_values;
 mod borrows;
 pub(crate) mod contracts;
+pub(crate) mod current_scalar_values;
 
 // Ownership and custody: linear obligations, retained content, and values
 // live across a suspending call.
