@@ -14,8 +14,6 @@
 use compiler::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::statement::StatementNode;
 
 /// The `Console` operations a program resolves against the selected package's
 /// provider. Each flag admits the terminal-authority class
@@ -79,7 +77,7 @@ pub struct RequiredDangerousServices {
 /// compile tolerates the still-unsettled fields.
 ///
 /// Console and ProcessExit operations are the trait signatures the program's
-/// call statements resolved to — a `Binding<R>` receiver resolves its call
+/// resolved calls select — a `Binding<R>` receiver resolves its call
 /// target to `R`'s signature whatever the receiver's shape — so a fixture that imports a service and never calls
 /// it accepts nothing.
 pub fn required_dangerous_services(
@@ -101,7 +99,7 @@ pub fn required_dangerous_services(
         let schema = provenance.provider.schema.symbol();
         match plan.schema.trait_name.as_str() {
             "Console" if owned_by_package(schema) => {
-                for method in resolved_boundary_call_names(program, schema) {
+                for method in resolved_boundary_call_names(checked, schema) {
                     match method {
                         "exit_process" => console.exit = true,
                         "write" | "write_byte" | "write_line" => console.output = true,
@@ -117,7 +115,7 @@ pub fn required_dangerous_services(
                     .is_some_and(owned_by_package) =>
             {
                 services.process_exit |=
-                    resolved_boundary_call_names(program, schema).contains(&"exit_process");
+                    resolved_boundary_call_names(checked, schema).contains(&"exit_process");
             }
             _ => {}
         }
@@ -149,9 +147,14 @@ pub fn required_dangerous_services(
     services
 }
 
-/// The names of the boundary trait `requirement`'s signatures that the
-/// program's call statements resolved to, one entry per resolved call.
-fn resolved_boundary_call_names(program: &TypedTrees, requirement: SymbolHandle) -> Vec<&str> {
+/// The names of the boundary trait `requirement`'s signatures selected by
+/// resolved calls. The checked occurrence roster covers statements,
+/// expressions and transition targets through the same exact target identity.
+fn resolved_boundary_call_names(
+    checked: &CheckedCompilation,
+    requirement: SymbolHandle,
+) -> Vec<&str> {
+    let program = &checked.typed;
     let Some(definition) = program
         .traits()
         .iter()
@@ -160,21 +163,17 @@ fn resolved_boundary_call_names(program: &TypedTrees, requirement: SymbolHandle)
         return Vec::new();
     };
     let signatures = program.trait_machine_signatures(definition);
-    let mut names = Vec::new();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::Call(call) = statement else {
-                    continue;
-                };
-                if let Some(signature) = signatures
-                    .iter()
-                    .find(|signature| signature.symbol == call.target_symbol)
-                {
-                    names.push(signature.name.as_str());
-                }
-            }
-        }
-    }
-    names
+    checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .filter_map(|(_, call)| {
+            signatures
+                .iter()
+                .find(|signature| signature.symbol == call.target_symbol)
+                .map(|signature| signature.name.as_str())
+        })
+        .collect()
 }
