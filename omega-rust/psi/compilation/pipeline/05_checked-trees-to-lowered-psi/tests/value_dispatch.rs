@@ -16,6 +16,8 @@ use terminal_psi::{OperationKind, TerminalModule};
 mod borrowed_results;
 #[path = "value_dispatch/owned_results.rs"]
 mod owned_results;
+#[path = "value_dispatch/scalar_reference_views.rs"]
+mod scalar_reference_views;
 
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
