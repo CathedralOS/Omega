@@ -2691,15 +2691,6 @@ same flow already performed, not the check itself.
   realization (assert with a counter in a test), and native corpus `--filter
   entry/,providers/` unchanged.
 
-- **BRANCH-RELAXATION-BATCH.** (new-scope) Stage 09's
-  `x86_branch_relaxation/compute/production.rs` loop relaxes one branch per
-  iteration. Each iteration scans every function for the first candidate,
-  re-encodes it, reflows every function and hashes the whole program twice
-  (`revision_identity`). Relax every out-of-range branch found in a sweep,
-  reflow once and hash once per sweep. Acceptance: iteration count is bounded
-  by sweeps rather than relaxed branches, and the relaxed bytes on native
-  corpus `--filter control_flow/` are unchanged.
-
 - **PRE-ALLOCATION-BATCH-COMMIT.** (new-scope) Stage 04's
   `rewrites/pre_allocation/execution.rs` commits the first admissible
   candidate and restarts the whole sweep ("The first admissible candidate

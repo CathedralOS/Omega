@@ -913,3 +913,215 @@ fn corrupted_attempt_outcome_changes_identity_and_is_rejected_by_replay_comparis
         Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
     );
 }
+
+/// `branch_count` blocks each ending in one six-byte near branch to a shared
+/// trailing block, separated from it by `padding_bytes` of filler. Every branch
+/// crosses every later branch, so narrowing any of them moves the others'
+/// displacements: the prospective displacement a sweep measures for the first
+/// branch is eight bytes larger than the displacement it ends up encoding when
+/// three branches narrow together.
+fn branch_chain_function(
+    branch_count: u32,
+    padding_bytes: usize,
+) -> ResolvedSelectedFunctionLayout {
+    let physical = physical();
+    let padding = SelectedBlockId(branch_count);
+    let taken = SelectedBlockId(branch_count + 1);
+    let padding_offset = u64::from(branch_count) * 6;
+    let taken_offset = padding_offset + u64::try_from(padding_bytes).unwrap();
+    let mut blocks = Vec::new();
+    for index in 0..branch_count {
+        let offset = u64::from(index) * 6;
+        let displacement = i64::try_from(taken_offset - offset - 6).unwrap();
+        let near =
+            encode_x86_64_selected_nonzero_branch_form(&physical, alternative(), displacement)
+                .unwrap();
+        let fallthrough = if index + 1 == branch_count {
+            padding
+        } else {
+            SelectedBlockId(index + 1)
+        };
+        blocks.push(ResolvedSelectedBlockLayout {
+            block: SelectedBlockId(index),
+            offset,
+            byte_count: 6,
+            instructions: vec![ResolvedSelectedFormRow {
+                instruction: SelectedInstructionId(index),
+                alternative: alternative(),
+                offset,
+                bytes: near.bytes().to_vec(),
+                branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
+                    machine_code::ResolvedConditionalBranchEvidence {
+                        predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
+                        source_block: SelectedBlockId(index),
+                        when_taken_edge: EdgeId::new(u64::from(index) * 2 + 1).unwrap(),
+                        when_taken_block: taken,
+                        when_taken_offset: taken_offset,
+                        when_fallthrough_edge: EdgeId::new(u64::from(index) * 2 + 2).unwrap(),
+                        when_fallthrough_block: fallthrough,
+                        when_fallthrough_offset: offset + 6,
+                        byte_displacement: displacement,
+                        decoded_register_reads: vec![],
+                        decoded_effects: near.footprint().encoded.clone(),
+                    },
+                ))),
+                internal_machine_fixup: None,
+                normalized_foreign_call_fixup: None,
+                byte_literal_address_fixup: None,
+            }],
+        });
+    }
+    blocks.push(ResolvedSelectedBlockLayout {
+        block: padding,
+        offset: padding_offset,
+        byte_count: u64::try_from(padding_bytes).unwrap(),
+        instructions: vec![ResolvedSelectedFormRow {
+            instruction: SelectedInstructionId(branch_count),
+            alternative: MachineAlternativeKey {
+                family: MachineAlternativeFamily::ReturnScalar,
+                variant: 0,
+            },
+            offset: padding_offset,
+            bytes: vec![0x90; padding_bytes],
+            branch: None,
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
+        }],
+    });
+    blocks.push(ResolvedSelectedBlockLayout {
+        block: taken,
+        offset: taken_offset,
+        byte_count: 1,
+        instructions: vec![ResolvedSelectedFormRow {
+            instruction: SelectedInstructionId(branch_count + 1),
+            alternative: MachineAlternativeKey {
+                family: MachineAlternativeFamily::ReturnScalar,
+                variant: 0,
+            },
+            offset: taken_offset,
+            bytes: vec![0xc3],
+            branch: None,
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
+        }],
+    });
+    ResolvedSelectedFunctionLayout {
+        machine: MachineId::new(1).unwrap(),
+        byte_count: taken_offset + 1,
+        blocks,
+    }
+}
+
+fn sweep_roots() -> RevisionRoots {
+    RevisionRoots {
+        source: ResolvedSelectedFormLayoutIdentity::from_bytes([11; 32]),
+        selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([12; 32]),
+        machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([13; 32]),
+        pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([14; 32]),
+        target: NativeTarget::linux_x64(),
+    }
+}
+
+fn sweep_budget() -> OptimizationWorkBudget {
+    OptimizationWorkBudget::new(1_000, 1_000, 1_000, 1_000, 1_000).unwrap()
+}
+
+/// The narrowed branch bytes in layout order: every conditional row's encoding,
+/// which is what the fixed point decides.
+fn branch_bytes(functions: &[ResolvedSelectedFunctionLayout]) -> String {
+    functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter(|row| row.branch.is_some())
+        .map(|row| {
+            row.bytes
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Run both trace routes over the same roster, require them to agree, and
+/// report the sweep count, the committed branch count and the relaxed bytes.
+fn sweep_report(functions: Vec<ResolvedSelectedFunctionLayout>) -> String {
+    let physical = physical();
+    let production =
+        super::production::compute_trace(sweep_roots(), &functions, &physical, sweep_budget())
+            .unwrap();
+    let replayed =
+        super::replay::replay_trace(sweep_roots(), &functions, &physical, sweep_budget()).unwrap();
+    assert_eq!(production.functions, replayed.functions);
+    assert_eq!(production.usage, replayed.usage);
+    assert_eq!(production.attempts, replayed.attempts);
+    assert_eq!(production.actions, replayed.actions);
+    format!(
+        "sweeps={} commits={} branches={}",
+        production.usage.iterations,
+        production.usage.commits,
+        branch_bytes(&production.functions)
+    )
+}
+
+#[test]
+fn one_sweep_narrows_every_admissible_branch_in_the_chain() {
+    // Prospective displacements 112, 106 and 100 all sit inside rel8 on the
+    // first sweep, so one narrowing sweep plus one declining sweep settles a
+    // three-branch chain that cost four iterations one branch at a time.
+    assert_eq!(
+        sweep_report(vec![branch_chain_function(3, 100)]),
+        "sweeps=2 commits=3 branches=7568 7566 7564"
+    );
+}
+
+#[test]
+fn a_branch_admitted_only_after_the_batch_narrows_in_a_later_sweep() {
+    // The leading branch's prospective displacement is 130 on the first sweep,
+    // outside rel8. The two later branches narrow, which pulls it to 122, and
+    // the second sweep narrows it: the same fixed point one-at-a-time commits
+    // reach, in three sweeps instead of four iterations.
+    assert_eq!(
+        sweep_report(vec![branch_chain_function(3, 118)]),
+        "sweeps=3 commits=3 branches=757a 7578 7576"
+    );
+}
+
+#[test]
+fn a_chain_with_nothing_admissible_costs_one_declining_sweep() {
+    assert_eq!(
+        sweep_report(vec![branch_chain_function(1, 200)]),
+        "sweeps=1 commits=0 branches=0f85c8000000"
+    );
+}
+
+#[test]
+fn a_ten_branch_chain_settles_in_two_sweeps() {
+    // Ten admissible branches cost eleven iterations one branch at a time and
+    // two sweeps batched, for the same ten narrowings and the same bytes.
+    assert_eq!(
+        sweep_report(vec![branch_chain_function(10, 40)]),
+        "sweeps=2 commits=10 branches=753a 7538 7536 7534 7532 7530 752e 752c 752a 7528"
+    );
+}
+
+#[test]
+fn a_mixed_roster_of_every_branch_shape_reaches_one_fixed_point() {
+    // Forward, backward, unsigned, signed, a jump that crosses a narrowing
+    // branch, and a chain, scanned as one roster: nine narrowings that cost ten
+    // iterations one at a time and two sweeps batched.
+    assert_eq!(
+        sweep_report(vec![
+            function(1),
+            less_than_function(1),
+            signed_less_than_function(1),
+            backward_conditional_function(126),
+            jump_across_branch_function(1),
+            branch_chain_function(4, 90),
+        ]),
+        "sweeps=2 commits=9 branches=7501 7201 7c01 7580 e903000000 7501 7560 755e 755c 755a"
+    );
+}

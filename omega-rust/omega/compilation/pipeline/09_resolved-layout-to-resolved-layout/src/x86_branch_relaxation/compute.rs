@@ -21,7 +21,7 @@ use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFo
 
 use super::{
     StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,
-    error::OptimizedX86BranchRelaxationError,
+    error::OptimizedX86BranchRelaxationError, identity::RevisionRoots,
 };
 
 struct RelaxationTrace {
@@ -31,12 +31,26 @@ struct RelaxationTrace {
     functions: Vec<ResolvedSelectedFunctionLayout>,
 }
 
+/// The roots every revision and artifact identity is bound to. Both trace
+/// routes take them as data, so neither driver needs the staged carrier and
+/// both are exercisable on a bare function roster.
+fn revision_roots(source: &StagedOptimizedResolvedSelectedFormLayout) -> RevisionRoots {
+    RevisionRoots {
+        source: source.identity(),
+        selected: source.selected(),
+        machine: source.machine(),
+        pre_layout: source.pre_layout(),
+        target: source.target(),
+    }
+}
+
 pub(super) fn compute_relaxation(
     source: &StagedOptimizedResolvedSelectedFormLayout,
     physical: &ValidatedPhysicalRegisterModel,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
-    let trace = production::compute_trace(source, physical, budget)?;
+    let trace =
+        production::compute_trace(revision_roots(source), source.functions(), physical, budget)?;
     artifact::finish_artifact(source, budget, trace)
 }
 
@@ -45,6 +59,6 @@ pub(super) fn replay_relaxation(
     physical: &ValidatedPhysicalRegisterModel,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
-    let trace = replay::replay_trace(source, physical, budget)?;
+    let trace = replay::replay_trace(revision_roots(source), source.functions(), physical, budget)?;
     artifact::finish_artifact(source, budget, trace)
 }
