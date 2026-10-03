@@ -148,10 +148,15 @@ The rules that touch every edit:
   `codex-swarm`.
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
-raised, `debug = 0` and `opt-level = 1` in dev/test profiles (opt back in
-per-session with `CARGO_PROFILE_DEV_DEBUG=2`, `CARGO_PROFILE_TEST_DEBUG=2`,
-`CARGO_PROFILE_TEST_OPT_LEVEL=0`), and `.gitattributes` forces LF because
-canonical source and evidence identities are byte-sensitive.
+raised and dev/test profiles use `debug = 0`. Tests use `opt-level = 1`;
+ordinary dev builds are unoptimized except `proof-admission`, which uses
+`opt-level = 3`. Check `Cargo.toml` and session overrides before interpreting
+compiler timings. Use `CARGO_PROFILE_DEV_OPT_LEVEL=1` for an optimized dev
+compiler comparison without changing repository defaults. Debug information
+can be restored with `CARGO_PROFILE_DEV_DEBUG=2` or `CARGO_PROFILE_TEST_DEBUG=2`;
+`CARGO_PROFILE_TEST_OPT_LEVEL=0` disables test optimization for a session.
+`.gitattributes` forces LF because canonical source and evidence identities
+are byte-sensitive.
 
 ## Scope and escalation
 
