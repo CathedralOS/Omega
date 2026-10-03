@@ -28,8 +28,8 @@ impl Builder<'_, '_> {
     /// loan -- its owner is this statement's local, its root and projection
     /// name the lent place, and its kind is the view's access -- so the value
     /// rejoins that exact row instead of rediscovering a producer from the
-    /// authored view spelling. A local holding more than one loan, a loan
-    /// formed at another statement, a write-only loan, or a lent place whose
+    /// authored view spelling. Multiple loans for the same formation and slot,
+    /// a loan formed at another statement, a write-only loan, or a lent place whose
     /// elements are not the view's elements has no admitted view here.
     pub(super) fn slice_view_place(
         &mut self,
@@ -122,20 +122,20 @@ impl Builder<'_, '_> {
             .span_or_empty(borrow_state.loans)
             .iter()
             .filter(|loan| {
-                loan.owner_symbol == local.symbol
-                    && match field_symbol {
-                        Some(symbol) => {
-                            self.borrow
-                                .owner_segments
-                                .span_or_empty(loan.owner_path)
-                                .last()
-                                == Some(&checked_trees::BorrowLoanOwnerSegment::Field(symbol))
-                        }
-                        None => true,
-                    }
+                // The state also retains loans installed by later stores and
+                // calls into this same descriptor slot. Only this occurrence
+                // supplies initializer custody; later backing cannot replace
+                // or make ambiguous the value established here. Multiple
+                // possible backings at this occurrence still reject below.
+                loan.statement_index == self.statement_index
+                    && loan.owner_symbol == local.symbol
+                    && self.borrow.owner_segments.span_or_empty(loan.owner_path)
+                        == field_symbol
+                            .map(checked_trees::BorrowLoanOwnerSegment::Field)
+                            .as_slice()
             });
         let loan = loans.next()?;
-        if loans.next().is_some() || loan.statement_index != self.statement_index {
+        if loans.next().is_some() {
             return None;
         }
         // A shared read rejoins whichever access the declared shell spells;
