@@ -203,6 +203,20 @@ execution and native exit/output. A moved refusal is still unfinished work.
   agreement`, so it is not an authoring workaround.
   `calls/nested_call_tail_roots_exit` stops at `InvalidUnitMachinePlan` on
   `Wrap::get_count` after its case payload became `&ItemList`.
+  `run/borrows/shared_record_loan_member_read` stops at
+  `Unsupported("Unit graph local disposition type drifted")` once its entry
+  names its subject and threads it into `done`/`bad` while a `&`-record loan
+  local (`let plain: &Desc = &main.desc`) is live across the guard.
+  `core/task_lifecycle_operations` is omitted through `Main::settle` after its
+  linear subject became by-value `Task<T>`.
+
+  Reading these rows needs care: every one of their golden rows predates the
+  `self` retirement by over 1100 commits, so the gate reports `regressed`
+  against a `checked` row recorded when the receiver still parsed. Measured
+  with the migration stashed, each fixture ALREADY reported `regressed` at this
+  HEAD with the parse refusal as its diagnostic, so the verdict is golden
+  staleness in both directions and the real movement is parse-refusal to
+  lowering.
 
   None of the three is an authoring defect: the authored programs are the
   disjoint-projection forms STATIC-CALL-ARGUMENT-LENT-ROOT requires, and their

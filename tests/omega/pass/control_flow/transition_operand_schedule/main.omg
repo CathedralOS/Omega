@@ -3,15 +3,15 @@ data Main { flag: bool; }
 machine clear(flag: &mut bool) -> bool { flag = false; true }
 
 machine Main::skip_and(main: &mut Main) -> bool
-requires self.flag
-ensures self.flag
+requires main.flag
+ensures main.flag
 {
     transition { _ -> (false && clear(&mut main.flag)) }
 }
 
 machine Main::skip_or(main: &mut Main) -> bool
-requires self.flag
-ensures self.flag
+requires main.flag
+ensures main.flag
 {
     transition { _ -> (true || clear(&mut main.flag)) }
 }
