@@ -41,6 +41,21 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
                         has_non_exact_domain |=
                             *domain != numerics::arithmetic::ArithmeticDomain::Exact;
                     }
+                    // A compiler-known value domain is not a storage
+                    // restriction: `in Finite` names value-domain membership
+                    // the custody channel establishes at construction and
+                    // demands at consumption — the same invariant-window
+                    // discipline `where` facts already ride. Per-store
+                    // refinement would misread transient poison as a
+                    // violation, so the field keeps its scalar carrier here.
+                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                        && domain.subject
+                            == typed_trees::types::DomainConstraintSubject::Value(
+                                language_semantics::value_domain::ValueDomain::Finite,
+                            )
+                    {
+                        continue;
+                    }
                     // A declared domain whose membership is exactly an interval
                     // restricts the field as a bracketed range did: the place
                     // establishes it at every write and every read may assume
