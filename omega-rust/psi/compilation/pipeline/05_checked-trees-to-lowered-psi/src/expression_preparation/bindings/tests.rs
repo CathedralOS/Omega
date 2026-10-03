@@ -975,3 +975,123 @@ fn argument_projection_retains_indexed_scalar_endpoint_and_every_reference_acces
         "an erased field never becomes an executable scalar endpoint"
     );
 }
+
+#[test]
+fn primitive_reference_arguments_keep_the_carrier_and_exact_referent_projection() {
+    use super::StructuralLocalBinding;
+    use checked_trees::{
+        CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    };
+    use semantic_vocabulary::StructuralTypeId;
+    use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
+    let symbol = symbols::SymbolHandle::from_arena_index(1);
+    let place = PlaceId::new(41).unwrap();
+    let scalar_type = terminal_scalar_type(PrimitiveType::U32).unwrap();
+    let primitive = StructuralTypeId::new(2).unwrap();
+    let reference = StructuralTypeId::new(3).unwrap();
+    let types = vec![
+        StructuralTypeDeclaration {
+            id: primitive,
+            identity: "u32".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        },
+        StructuralTypeDeclaration {
+            id: reference,
+            identity: "&u32".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: primitive,
+                access: StructuralAccess::SharedBorrow,
+            },
+        },
+    ];
+    let local = StructuralLocalBinding {
+        symbol,
+        argument: StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        },
+        structural_type: reference,
+    };
+    let argument = CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+        path: vec![CheckedUnitStructuralPathSegment::Referent],
+        type_identity: "u32".into(),
+        access: CheckedStructuralAccess::SharedBorrow,
+    };
+    let bindings = ScalarBindings::new([]).with_structural_locals(std::slice::from_ref(&local));
+    let lowered = bindings
+        .primitive_borrow(&argument, scalar_type, &types)
+        .unwrap();
+    assert_eq!(lowered.place, place);
+    assert_eq!(lowered.path, [StructuralPathSegment::Referent]);
+    assert_eq!(lowered.access, StructuralAccess::SharedBorrow);
+    assert!(
+        bindings
+            .primitive_borrow(
+                &argument,
+                terminal_scalar_type(PrimitiveType::F32).unwrap(),
+                &types
+            )
+            .is_err()
+    );
+    let mut malformed = argument.clone();
+    malformed.path.clear();
+    assert!(
+        bindings
+            .primitive_borrow(&malformed, scalar_type, &types)
+            .is_err()
+    );
+    malformed = argument.clone();
+    malformed.access = CheckedStructuralAccess::MutableBorrow;
+    assert!(
+        bindings
+            .primitive_borrow(&malformed, scalar_type, &types)
+            .is_err()
+    );
+    assert!(
+        bindings
+            .primitive_borrow(&argument, scalar_type, &types[..1])
+            .is_err()
+    );
+    let mut duplicate_types = types.clone();
+    duplicate_types.push(types[1].clone());
+    assert!(
+        bindings
+            .primitive_borrow(&argument, scalar_type, &duplicate_types)
+            .is_err()
+    );
+    assert!(
+        ScalarBindings::new([])
+            .primitive_borrow(&argument, scalar_type, &types)
+            .is_err()
+    );
+    assert!(
+        ScalarBindings::new([])
+            .with_structural_locals(&[local.clone(), local.clone()])
+            .primitive_borrow(&argument, scalar_type, &types)
+            .is_err()
+    );
+    // A shared primitive join still presents its existing primitive home. It
+    // must not manufacture a reference projection from the requested type.
+    let direct = StructuralLocalBinding {
+        structural_type: primitive,
+        ..local
+    };
+    let direct_bindings = ScalarBindings::new([]).with_structural_locals(&[direct]);
+    assert!(
+        direct_bindings
+            .primitive_borrow(&argument, scalar_type, &types)
+            .is_err()
+    );
+    malformed = argument;
+    malformed.path.clear();
+    assert_eq!(
+        direct_bindings
+            .primitive_borrow(&malformed, scalar_type, &types)
+            .unwrap()
+            .path,
+        Vec::<StructuralPathSegment>::new()
+    );
+}
