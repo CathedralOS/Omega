@@ -32,7 +32,7 @@ mod recursive;
 fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -44,7 +44,7 @@ fn typed_generic_fixture(source: &str) -> TypedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let syntax =
         normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 #[test]

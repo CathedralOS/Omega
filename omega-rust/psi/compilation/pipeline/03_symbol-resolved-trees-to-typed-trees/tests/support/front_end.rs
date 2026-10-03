@@ -51,7 +51,7 @@ fn stage<T, E: std::fmt::Debug>(name: &str, source: &str, result: Result<T, E>) 
 pub(crate) fn resolved_program(source: &str) -> SymbolResolvedTrees {
     let tokens = stage("tokenize", source, Lexer::new(source).tokenize());
     let syntax = stage("parse", source, parse_syntax_trees(&tokens));
-    stage("resolve", source, resolve(ResolutionRequest::new(&syntax)))
+    stage("resolve", source, resolve(ResolutionRequest::new(syntax)))
 }
 
 /// Lex and parse `source` as one anonymous source with no source map, close its
@@ -67,7 +67,7 @@ pub(crate) fn resolved_program_with_generic_data(source: &str) -> SymbolResolved
         source,
         normalize_generic_data(GenericDataRequest::new(syntax)),
     );
-    stage("resolve", source, resolve(ResolutionRequest::new(&syntax)))
+    stage("resolve", source, resolve(ResolutionRequest::new(syntax)))
 }
 
 /// Lex, parse, resolve and type `source` as one anonymous source with no
@@ -109,7 +109,7 @@ pub(crate) fn typed_program_from_texts(texts: &[&str]) -> TypedTrees {
             tokens_to_syntax_trees::parse(&mut syntax, SourceId(source_ordinal + 1), &tokens),
         );
     }
-    let resolved = stage("resolve", first, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", first, resolve(ResolutionRequest::new(syntax)));
     stage("type", first, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -123,7 +123,7 @@ pub(crate) fn resolved_program_from_source_map(
     texts: &[(SourceId, &str)],
 ) -> SymbolResolvedTrees {
     let (syntax, program) = parsed_forest(texts);
-    resolved_forest(sources, &syntax, program)
+    resolved_forest(sources, syntax, program)
 }
 
 /// [`resolved_program_from_source_map`] with generic data closed
@@ -138,7 +138,7 @@ pub(crate) fn resolved_program_from_source_map_with_generic_data(
         program,
         normalize_generic_data(GenericDataRequest::new(syntax)),
     );
-    resolved_forest(sources, &syntax, program)
+    resolved_forest(sources, syntax, program)
 }
 
 /// Lex and parse each `(source_id, text)` into its own syntax forest, merge
@@ -160,7 +160,7 @@ pub(crate) fn resolved_program_from_merged_source_map(
         syntax.extend_from(&forest);
         program = text;
     }
-    resolved_forest(sources, &syntax, program)
+    resolved_forest(sources, syntax, program)
 }
 
 /// Lex `text` and parse it under `source_id`, stopping before resolution. The
@@ -197,7 +197,7 @@ fn parsed_forest<'a>(texts: &[(SourceId, &'a str)]) -> (SyntaxTrees, &'a str) {
 }
 
 /// Resolve `syntax` against `sources`.
-fn resolved_forest(sources: SourceMap, syntax: &SyntaxTrees, program: &str) -> SymbolResolvedTrees {
+fn resolved_forest(sources: SourceMap, syntax: SyntaxTrees, program: &str) -> SymbolResolvedTrees {
     stage(
         "resolve",
         program,

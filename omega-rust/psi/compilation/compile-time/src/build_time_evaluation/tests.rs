@@ -153,7 +153,7 @@ fn typed_after_pre_resolution(
     syntax: &syntax_trees::SyntaxTrees,
     sources: Arc<SourceMap>,
 ) -> typed_trees::TypedTrees {
-    let resolved = crate::syntax_probes::resolve(syntax, Some(sources), &[])
+    let resolved = crate::syntax_probes::resolve(syntax.clone(), Some(sources), &[])
         .expect("resolve pre-evaluated syntax");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type pre-evaluated syntax")
@@ -165,7 +165,7 @@ fn package_aware_probe_retains_authored_symbol_ownership() {
     let package = PackageKeyIdentity::from_digest([0x6a; 32]).expect("nonzero package identity");
     let (syntax, sources) = parsed_source(source, package);
 
-    let resolved = crate::syntax_probes::resolve(&syntax, Some(sources), &[])
+    let resolved = crate::syntax_probes::resolve(syntax, Some(sources), &[])
         .expect("package-aware probe resolution");
     let machine = resolved.machines.first().expect("selected machine");
 
@@ -179,7 +179,7 @@ fn package_aware_probe_retains_authored_symbol_ownership() {
 fn generated_cohort_continues_once_and_rejects_a_changed_typed_predecessor() {
     let package = PackageKeyIdentity::from_digest([0x6a; 32]).unwrap();
     let (syntax, sources) = parsed_source("machine authored() -> u64 { 1 }", package);
-    let resolved = crate::syntax_probes::resolve(&syntax, Some(sources.clone()), &[]).unwrap();
+    let resolved = crate::syntax_probes::resolve(syntax, Some(sources.clone()), &[]).unwrap();
     let base =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(resolved)
             .unwrap();
@@ -223,7 +223,7 @@ fn generated_cohort_continues_once_and_rejects_a_changed_typed_predecessor() {
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve_extension(
         syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
             base: resolved_base,
-            syntax: &syntax,
+            syntax,
             sources: extension_sources,
             top_level_bindings: Vec::new(),
         },

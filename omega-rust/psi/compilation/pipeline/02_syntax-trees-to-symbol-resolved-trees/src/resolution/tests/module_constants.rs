@@ -105,7 +105,7 @@ fn normalized_constant_argument_rejects_missing_and_drifted_declaration_custody(
     let original = origin(&syntax);
     for corruption in ["missing", "initializer", "encoding", "duplicate"] {
         let mut program =
-            resolve(ResolutionRequest::new(&syntax)).expect("resolve original custody");
+            resolve(ResolutionRequest::new(syntax.clone())).expect("resolve original custody");
         let mut origin = original.clone();
         match corruption {
             "missing" => origin.declaration = SourceSpan::new(SourceId(9), Span::new(10, 14)),
@@ -166,7 +166,7 @@ fn rewritten_constant_payload_cannot_drift_from_its_origin() {
         );
     }
     assert!(
-        resolve(ResolutionRequest::new(&syntax)).is_err(),
+        resolve(ResolutionRequest::new(syntax)).is_err(),
         "rewritten 3 cannot retain the declaration's exact 2 encoding"
     );
 }
@@ -217,7 +217,7 @@ fn nominal_constant_receiving_slot_rejects_carrier_and_parent_substitution() {
                 })
         })
         .expect("retained nominal occurrence");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve nominal receiving slot");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve nominal receiving slot");
     let (parameter_handle, application) = program
         .tables
         .declarations

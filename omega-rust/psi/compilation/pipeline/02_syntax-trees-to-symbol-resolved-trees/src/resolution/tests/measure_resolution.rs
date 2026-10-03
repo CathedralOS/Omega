@@ -12,7 +12,7 @@ use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 fn resolve(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize measure");
     let syntax = parse_syntax_trees(&tokens).expect("parse measure");
-    crate::resolve(ResolutionRequest::new(&syntax)).expect("resolve measure")
+    crate::resolve(ResolutionRequest::new(syntax)).expect("resolve measure")
 }
 
 fn assert_parameter_forward(program: &SymbolResolvedTrees, measure: &MeasureDefinition) {
@@ -108,7 +108,7 @@ fn seeded_measure_extension_preserves_existing_declarations_and_binders() {
     let base_syntax =
         parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
     let base = crate::resolve(ResolutionRequest {
-        syntax: &base_syntax,
+        syntax: base_syntax,
         sources: Some(Arc::new(sources.clone())),
         top_level_bindings: Vec::new(),
     })
@@ -136,7 +136,7 @@ fn seeded_measure_extension_preserves_existing_declarations_and_binders() {
     .unwrap();
     let program = resolve_extension(ExtensionRequest {
         base,
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })

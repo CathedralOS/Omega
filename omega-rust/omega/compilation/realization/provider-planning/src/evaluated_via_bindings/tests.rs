@@ -64,7 +64,7 @@ fn typed(source: &str) -> TypedTrees {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse evaluated-via replay fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve evaluated-via replay fixture");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -97,7 +97,7 @@ fn product_binding_evaluation_excludes_build_checked_leaves() {
                 tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
             let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
                 syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                    syntax: &syntax,
+                    syntax,
                     sources: Some(std::sync::Arc::new(sources)),
                     top_level_bindings: Vec::new(),
                 },

@@ -88,7 +88,7 @@ pub(crate) fn evaluate(
     let original =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
+                syntax: syntax.clone(),
                 sources: sources.clone(),
                 top_level_bindings: bindings.to_vec(),
             },
@@ -208,7 +208,7 @@ pub(crate) fn evaluate(
     // the invocation guard prevents executing them, including through wrappers.
     let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_numeric_probe(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &probe,
+            syntax: probe,
             sources,
             top_level_bindings: bindings.to_vec(),
         },

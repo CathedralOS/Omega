@@ -25,7 +25,7 @@ const COUNTDOWN_SOURCE: &str = r#"
 fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
     let syntax = parse_syntax_trees(&tokens).expect("parse fixture");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve fixture");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fixture");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check fixture");
     let lowered = checked_trees_to_lowered_psi::lower_machine(

@@ -42,7 +42,7 @@ fn dynamic_unit() -> optimization_unit::PsiOptimizationUnit {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(

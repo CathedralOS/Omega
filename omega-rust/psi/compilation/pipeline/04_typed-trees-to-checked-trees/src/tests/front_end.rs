@@ -34,7 +34,7 @@ fn stage<T, E: std::fmt::Debug>(name: &str, source: &str, result: Result<T, E>) 
 fn resolved_program_result(source: &str) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let tokens = stage("tokenize", source, Lexer::new(source).tokenize());
     let syntax = stage("parse", source, parse_syntax_trees(&tokens));
-    resolve(ResolutionRequest::new(&syntax))
+    resolve(ResolutionRequest::new(syntax))
 }
 
 /// Lex, parse and resolve `source` as one anonymous source with no source
@@ -75,7 +75,7 @@ pub(crate) fn typed_program_with_generic_data_result(
     let tokens = stage("tokenize", source, Lexer::new(source).tokenize());
     let syntax = stage("parse", source, parse_syntax_trees(&tokens));
     let syntax = normalize_generic_data(GenericDataRequest::new(syntax))?;
-    let resolved = resolve(ResolutionRequest::new(&syntax))?;
+    let resolved = resolve(ResolutionRequest::new(syntax))?;
     lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
 }
 
@@ -142,7 +142,7 @@ fn typed_forest(
         "resolve",
         program,
         resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         }),

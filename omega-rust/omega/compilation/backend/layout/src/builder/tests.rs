@@ -12,7 +12,7 @@ use typed_trees::TypedTrees;
 fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 

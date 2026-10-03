@@ -100,7 +100,7 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse adapter ownership fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve adapter ownership fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -202,7 +202,7 @@ fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .expect("parse checked operator adapter fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve checked operator adapter fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -273,7 +273,7 @@ fn syscall_derivation_retains_exact_number_before_range_validation() {
         let syntax =
             tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse syscall leaf");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
         )
         .expect("resolve syscall leaf");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
@@ -343,7 +343,7 @@ fn checked_adapter_rejects_symbol_resolved_service_widening() {
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse provider");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve provider");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

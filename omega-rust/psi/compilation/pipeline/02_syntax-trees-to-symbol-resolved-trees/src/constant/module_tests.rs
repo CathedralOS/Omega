@@ -19,7 +19,7 @@ fn resolve(sources: &[&str]) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
         tokens_to_syntax_trees::parse(&mut syntax, SourceId(ordinal), &tokens)
             .expect("parse module constants");
     }
-    crate::resolve(crate::ResolutionRequest::new(&syntax))
+    crate::resolve(crate::ResolutionRequest::new(syntax))
 }
 
 #[test]
@@ -270,7 +270,7 @@ fn resolve_seeded_with_base(
     tokens_to_syntax_trees::parse(&mut syntax, base_source, &tokens)
         .expect("parse retained constant");
     let mut base = crate::resolve(crate::ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources.clone())),
         top_level_bindings: Vec::new(),
     })
@@ -287,7 +287,7 @@ fn resolve_seeded_with_base(
         .expect("parse constant extension");
     crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
         base,
-        syntax: &syntax,
+        syntax,
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })

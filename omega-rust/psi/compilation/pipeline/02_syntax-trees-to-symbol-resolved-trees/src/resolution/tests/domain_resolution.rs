@@ -11,7 +11,7 @@ fn explicit_domain_subject_renaming_preserves_semantic_identity() {
         let source = format!("domain u64::Positive({subject}) requires {subject} > 0;");
         let tokens = Lexer::new(&source).tokenize().expect("tokenize subject");
         let syntax = parse_syntax_trees(&tokens).expect("parse subject");
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve subject")
+        resolve(ResolutionRequest::new(syntax)).expect("resolve subject")
     };
     let first = resolve_subject("value");
     let renamed = resolve_subject("candidate");
@@ -130,7 +130,7 @@ mod semantic_identity_tests {
             syntax.extend_from(&parsed);
         }
         resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         })
@@ -211,7 +211,7 @@ mod semantic_identity_tests {
         let syntax =
             parse_syntax_trees_with_id(source::SourceId(0), &tokens).expect("parse domain");
         let diagnostics = resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(SourceMap::default())),
             top_level_bindings: Vec::new(),
         })
@@ -289,7 +289,7 @@ fn infers_top_level_operator_home_from_qualified_operands() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(syntax_trees)).expect("lowering should succeed");
     let domain = program
         .domain_definitions
         .iter()
@@ -328,7 +328,7 @@ fn rejects_ambiguous_inferred_domain_operator_home() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostic = resolve(ResolutionRequest::new(&syntax_trees))
+    let diagnostic = resolve(ResolutionRequest::new(syntax_trees))
         .expect_err("competing operand domains must not infer an operator home");
     assert!(
         diagnostic[0]
@@ -358,7 +358,7 @@ fn normalizes_authored_exact_machine_route() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(syntax_trees)).expect("lowering should succeed");
 
     let domain = program
         .domain_definitions
@@ -396,7 +396,7 @@ fn exact_machine_route_rejects_a_machine_without_domain_authority() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostics = resolve(ResolutionRequest::new(&syntax_trees))
+    let diagnostics = resolve(ResolutionRequest::new(syntax_trees))
         .expect_err("a machine route must authorize the domain on its exact result");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -429,7 +429,7 @@ fn establishment_route_rejects_ambiguity_across_declaration_kinds() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let diagnostics = resolve(ResolutionRequest::new(&syntax_trees))
+    let diagnostics = resolve(ResolutionRequest::new(syntax_trees))
         .expect_err("a route naming both a requirement and a machine must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -474,7 +474,7 @@ fn authored_establishment_route_cannot_use_an_extension_only_domain_constraint()
     syntax.extend_from(&extension_syntax);
 
     let diagnostics = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -515,7 +515,7 @@ fn signature_free_route_still_rejects_a_contested_same_package_leaf() {
         tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens).expect("parse");
     }
     let diagnostics = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })

@@ -85,7 +85,7 @@ pub(crate) fn normalize_generic_data(
 }
 
 pub(crate) fn resolve(
-    syntax_trees: &syntax_trees::SyntaxTrees,
+    syntax_trees: syntax_trees::SyntaxTrees,
     sources: Option<Arc<source::SourceMap>>,
     source_scoped_top_level_bindings: &[symbols::SourceScopedTopLevelBinding],
 ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
@@ -117,7 +117,9 @@ mod tests {
              const OTHER: u64 in Small = 7;",
         );
         let arguments = syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&original),
+            &original,
+            None,
+            Vec::new(),
         ).expect("exact domain index discovery");
         assert_eq!(arguments.len(), 1);
         let declarations = original

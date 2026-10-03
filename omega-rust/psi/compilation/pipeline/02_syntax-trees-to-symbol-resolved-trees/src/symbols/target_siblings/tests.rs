@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 fn resolve_source(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    resolve(ResolutionRequest::new(&syntax)).expect("siblings resolve")
+    resolve(ResolutionRequest::new(syntax)).expect("siblings resolve")
 }
 
 fn resolve_sources(sources: &[(&str, &str)]) -> SymbolResolvedTrees {
@@ -39,7 +39,7 @@ fn resolve_sources(sources: &[(&str, &str)]) -> SymbolResolvedTrees {
         }
     }
     resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(std::sync::Arc::new(source_map)),
         top_level_bindings: Vec::new(),
     })
@@ -186,8 +186,7 @@ fn canonical_body_uses_its_authored_target_not_the_callee_familys_canonical_targ
                 .replace_item(handle, syntax_trees::item::Item::Machine(machine));
         }
     }
-    let program =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve target-authored callers");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve target-authored callers");
     let target_helper = program
         .machines
         .iter()

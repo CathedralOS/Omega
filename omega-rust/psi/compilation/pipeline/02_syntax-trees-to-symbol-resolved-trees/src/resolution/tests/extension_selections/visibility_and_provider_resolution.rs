@@ -15,7 +15,7 @@ fn retains_public_data_trait_and_wire_visibility() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize data");
     let syntax = parse_syntax_trees(&tokens).expect("parse data");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve data");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve data");
     let public = program
         .data_definitions
         .iter()
@@ -74,7 +74,7 @@ fn resolves_machine_and_trait_const_parameter_carrier_types() {
         .tokenize()
         .expect("tokenize const parameters");
     let syntax = parse_syntax_trees(&tokens).expect("parse const parameters");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve const parameters");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve const parameters");
     let machine = program
         .machines
         .iter()
@@ -151,7 +151,7 @@ fn authored_build_selection_paths_cannot_fall_back_to_extension_declarations() {
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -260,7 +260,7 @@ fn rejects_unknown_nominal_machine_parameter_paths() {
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let diagnostic =
-            resolve(ResolutionRequest::new(&syntax)).expect_err("unknown path must reject");
+            resolve(ResolutionRequest::new(syntax)).expect_err("unknown path must reject");
         assert!(
             diagnostics::format_diagnostics(&diagnostic).contains(expected),
             "unexpected diagnostic for {path}: {diagnostic:?}"

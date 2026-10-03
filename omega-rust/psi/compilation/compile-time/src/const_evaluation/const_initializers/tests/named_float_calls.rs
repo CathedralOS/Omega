@@ -410,7 +410,7 @@ fn named_nan_dependency_receipt_cannot_change_its_semantic_format() {
             .items
             .replace_item(item, syntax_trees::item::Item::Const(definition));
         assert!(
-            crate::syntax_probes::resolve(&forged, Some(sources.clone()), &[]).is_err(),
+            crate::syntax_probes::resolve(forged, Some(sources.clone()), &[]).is_err(),
             "an alias cannot substitute a semantic receipt or dependency format"
         );
     }

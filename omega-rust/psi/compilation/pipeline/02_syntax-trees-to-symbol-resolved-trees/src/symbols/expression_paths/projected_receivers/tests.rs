@@ -26,7 +26,7 @@ fn payload_program() -> symbol_resolved_trees::SymbolResolvedTrees {
     "#;
     let syntax =
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    resolve(ResolutionRequest::new(&syntax)).expect("resolve")
+    resolve(ResolutionRequest::new(syntax)).expect("resolve")
 }
 
 fn payload_calls(program: &symbol_resolved_trees::SymbolResolvedTrees) -> Vec<TableCallExpression> {
@@ -234,7 +234,7 @@ fn payload_candidates_keep_same_spelled_nominal_owners_in_their_source() {
     let mut syntax = parse_syntax_trees_with_id(extension_id, &tokens).expect("extension syntax");
     syntax.extend_from(&parse_syntax_trees_with_id(base_id, &tokens).expect("base syntax"));
     let program = crate::resolve(crate::ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -362,7 +362,7 @@ fn indexed_candidates_follow_declared_elements_not_index_values() {
         );
         let syntax =
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let program = resolve(ResolutionRequest::new(syntax)).expect("resolve");
         let machine = program
             .machines
             .iter()

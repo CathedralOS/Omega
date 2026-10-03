@@ -29,7 +29,7 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
     )
     .expect("parse base");
     let base = resolve(ResolutionRequest {
-        syntax: &base_syntax,
+        syntax: base_syntax,
         sources: Some(Arc::new(sources.clone())),
         top_level_bindings: Vec::new(),
     })
@@ -59,7 +59,7 @@ fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
 
     let carrier = resolve_extension(ExtensionRequest {
         base,
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
@@ -173,7 +173,7 @@ fn seeded_extension_retains_base_service_ids_and_authored_reach_provenance() {
     let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
     let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base once");
     let base = resolve(ResolutionRequest {
-        syntax: &base_syntax,
+        syntax: base_syntax,
         sources: Some(Arc::new(sources.clone())),
         top_level_bindings: Vec::new(),
     })
@@ -207,7 +207,7 @@ fn seeded_extension_retains_base_service_ids_and_authored_reach_provenance() {
 
     let program = resolve_extension(ExtensionRequest {
         base,
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })
@@ -265,7 +265,7 @@ fn top_level_boundary_requirement_satisfaction_rejects_wrong_kind_and_missing_ta
             .tokenize()
             .expect("tokenize invalid target");
         let syntax = parse_syntax_trees(&tokens).expect("parse invalid target");
-        let diagnostics = resolve(ResolutionRequest::new(&syntax))
+        let diagnostics = resolve(ResolutionRequest::new(syntax))
             .expect_err("invalid satisfaction target must fail symbol assignment");
 
         assert!(
@@ -314,7 +314,7 @@ fn authored_trait_machine_identity_uses_the_exact_base_trait_catalog() {
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -384,7 +384,7 @@ fn authored_quotient_paths_ignore_extension_first_declarations() {
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -458,7 +458,7 @@ fn authored_conformance_result_dispatch_ignores_an_extension_domain_alias() {
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -512,7 +512,7 @@ fn trait_machine_requirement_argument_rejects_non_requirement_and_overload() {
             .expect("tokenize invalid slot");
         let syntax = parse_syntax_trees(&tokens).expect("parse invalid slot");
         let diagnostics =
-            resolve(ResolutionRequest::new(&syntax)).expect_err("invalid slot must fail closed");
+            resolve(ResolutionRequest::new(syntax)).expect_err("invalid slot must fail closed");
         assert!(
             diagnostics
                 .iter()

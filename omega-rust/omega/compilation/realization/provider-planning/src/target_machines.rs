@@ -1085,7 +1085,7 @@ mod tests {
             .expect("distinct target bodies");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &program,
+                syntax: program,
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
             },
@@ -1134,7 +1134,7 @@ mod tests {
                     .expect("foreign families belong to the shared source set");
                 let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
                     syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                        syntax: &program,
+                        syntax: program,
                         sources: Some(std::sync::Arc::new(sources)),
                         top_level_bindings: Vec::new(),
                     },
@@ -1190,7 +1190,7 @@ mod tests {
             prepare_target_machines(&mut program, Some(&sources), None).expect("target families");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &program,
+                syntax: program,
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
             },
@@ -1256,7 +1256,7 @@ mod tests {
                 .expect("retain one foreign family");
             let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
                 syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                    syntax: &program,
+                    syntax: program,
                     sources: Some(std::sync::Arc::new(sources)),
                     top_level_bindings: Vec::new(),
                 },
@@ -1300,7 +1300,7 @@ mod tests {
             .expect("equal names in distinct namespaces are separate families");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &program,
+                syntax: program,
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
             },
@@ -1365,7 +1365,7 @@ mod tests {
             prepare_target_machines(&mut syntax, Some(&sources), None).expect("cohort selects");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
+                syntax,
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
             },

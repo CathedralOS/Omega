@@ -25,7 +25,7 @@ fn signature_free_overload_reports_one_declaration_and_every_affected_use() {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let diagnostics =
-        resolve(ResolutionRequest::new(&syntax)).expect_err("overload must reject every use");
+        resolve(ResolutionRequest::new(syntax)).expect_err("overload must reject every use");
 
     assert_eq!(diagnostics.len(), 3);
     assert!(diagnostics[0].message.contains("declaring trait `Issuer`"));
@@ -72,7 +72,7 @@ fn expands_alias_establishment_routes_to_atomic_domains() {
         .tokenize()
         .expect("tokenize should succeed");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lowering should succeed");
+    let program = resolve(ResolutionRequest::new(syntax_trees)).expect("lowering should succeed");
     let issuer = program
         .traits
         .iter()
@@ -120,7 +120,7 @@ fn classifies_evidence_forwarding_out_of_runtime_statements() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lower");
+    let program = resolve(ResolutionRequest::new(syntax_trees)).expect("lower");
     let [forwarding] = program.evidence_forwardings.as_slice() else {
         panic!("one resolved evidence forwarding expected");
     };
@@ -161,7 +161,7 @@ fn resolves_explicit_evidence_producer_to_exact_subjectless_conformance() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let program = resolve(ResolutionRequest::new(&syntax_trees)).expect("lower");
+    let program = resolve(ResolutionRequest::new(syntax_trees)).expect("lower");
     let [assignment] = program.evidence_forwardings.as_slice() else {
         panic!("one resolved evidence assignment expected");
     };
@@ -234,7 +234,7 @@ fn attached_calls_and_qualified_transitions_obey_resolution_strata() {
     syntax.extend_from(&base_syntax);
 
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -324,7 +324,7 @@ fn source_backed_names_are_used_when_sources_are_available() {
     let syntax_trees =
         parse_syntax_trees_with_id(source_id, &tokens).expect("parse should succeed");
     let program = resolve(ResolutionRequest {
-        syntax: &syntax_trees,
+        syntax: syntax_trees,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -374,7 +374,7 @@ fn trait_operator_requirement_retains_fixed_token_after_resolution() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let program = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     let trait_definition = program.traits.first().expect("Ranked trait");
     let [requirement] = program.trait_machine_signatures(trait_definition.machines) else {
         panic!("one trait operator requirement expected");

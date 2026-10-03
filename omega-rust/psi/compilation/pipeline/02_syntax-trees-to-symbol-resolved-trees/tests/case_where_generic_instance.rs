@@ -36,7 +36,7 @@ fn generic_case_where_naming_a_type_parameter_still_refuses() {
     let syntax =
         normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize Value<i32>");
     let errors = syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -132,7 +132,7 @@ fn resolve(source: &str) -> SymbolResolvedTrees {
     let syntax =
         normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
     syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })

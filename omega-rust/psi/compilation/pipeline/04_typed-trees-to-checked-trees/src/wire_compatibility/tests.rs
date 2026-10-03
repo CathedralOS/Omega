@@ -237,7 +237,7 @@ fn typed_fixture(source_text: &str) -> typed_trees::TypedTrees {
         .expect("tokenize wire fixture");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse wire fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve wire fixture");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

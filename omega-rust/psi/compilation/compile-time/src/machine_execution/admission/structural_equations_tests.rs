@@ -13,7 +13,7 @@ fn provisional_wrapper_cannot_execute_a_specialized_pending_equation() {
         machine independent() -> u64 { ANSWER }";
     let syntax = crate::front_end::syntax_program(source);
     let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_numeric_probe(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .unwrap();
     let typed =

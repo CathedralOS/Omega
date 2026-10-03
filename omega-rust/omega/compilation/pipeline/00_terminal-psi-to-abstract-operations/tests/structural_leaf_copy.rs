@@ -303,7 +303,7 @@ fn case_payload_copy_retains_verified_membership_and_local_identity() {
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .unwrap();
     let typed =
@@ -559,7 +559,7 @@ fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .unwrap();
     let typed =

@@ -1240,7 +1240,7 @@ fn lowered_unit_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOpti
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
         .unwrap_or_else(|error| panic!("parse {label}: {error:?}"));
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .unwrap_or_else(|error| panic!("resolve {label}: {error:?}"));
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)

@@ -10,7 +10,7 @@ fn typed(source: &str) -> TypedTrees {
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .unwrap();
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()

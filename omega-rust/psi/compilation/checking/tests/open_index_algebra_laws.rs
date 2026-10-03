@@ -93,7 +93,7 @@ fn recorded_laws(laws: Laws, index_expression: &str) -> Vec<(bool, bool)> {
 
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     let mut program: TypedTrees = lower_symbol_resolved_trees(&resolved).expect("lower");
     validation::normalize_open_index_expressions(&mut program)
         .expect("a selected index algebra should normalize");

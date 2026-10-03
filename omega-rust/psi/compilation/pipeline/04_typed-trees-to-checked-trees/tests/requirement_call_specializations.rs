@@ -17,7 +17,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
         .unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -63,7 +63,7 @@ fn check_with_service(
     tokens_to_syntax_trees::parse(&mut syntax, user_source_id, &user_tokens).expect("parse");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         },

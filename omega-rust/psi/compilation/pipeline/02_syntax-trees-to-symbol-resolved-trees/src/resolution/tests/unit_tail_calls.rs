@@ -10,7 +10,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 fn resolved(source: &str) -> SymbolResolvedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize tail call");
     let syntax = parse_syntax_trees(&tokens).expect("parse tail call");
-    resolve(ResolutionRequest::new(&syntax)).expect("resolve tail call")
+    resolve(ResolutionRequest::new(syntax)).expect("resolve tail call")
 }
 
 fn statements<'program>(

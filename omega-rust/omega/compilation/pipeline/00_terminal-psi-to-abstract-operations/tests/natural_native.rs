@@ -50,7 +50,7 @@ const WRITER: &str = r#"
 fn writer() -> (TerminalModule, ProofBundle) {
     let tokens = Lexer::new(WRITER).tokenize().expect("tokenize writer");
     let syntax = parse_syntax_trees(&tokens).expect("parse writer");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve writer");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve writer");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type writer");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check writer");
     let lowered = checked_trees_to_lowered_psi::lower_machine(

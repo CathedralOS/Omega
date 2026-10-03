@@ -268,7 +268,7 @@ fn same_leaf_generic_family_contests_the_non_generic_sibling() {
         "the contested membership stays a checked obligation"
     );
     let program = crate::resolve(crate::ResolutionRequest {
-        syntax: &normalized,
+        syntax: normalized,
         sources: Some(sources),
         top_level_bindings: Vec::new(),
     })
@@ -297,7 +297,7 @@ fn module_generic_carrier_arrays_share_the_deferral() {
     let syntax = parse(&[
         "module mine; data Box<T> { value: T; } const BS: [Box<u64>; 2] = [Box { value: 1 }, Box { value: 2 }];",
     ]);
-    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+    let program = crate::resolve(crate::ResolutionRequest::new(syntax))
         .expect("an array of generic-carrier values resolves");
     let declaration = program
         .const_declarations
@@ -342,7 +342,7 @@ fn module_generic_carrier_constants_reject_unselected_or_ineligible_bases() {
         ),
     ] {
         let syntax = parse(sources);
-        let diagnostics = crate::resolve(crate::ResolutionRequest::new(&syntax))
+        let diagnostics = crate::resolve(crate::ResolutionRequest::new(syntax))
             .expect_err("an unselected or ineligible carrier still rejects");
         assert!(
             diagnostics[0].message.contains(fragment),
@@ -361,7 +361,7 @@ fn module_constrained_consts_discharge_domain_facts_at_declaration_site() {
         "module other; domain u64::Pos requires self > 9;",
         "module mine; domain u64::Pos requires self > 0; const X: u64 in u64::Pos = 3;",
     ]);
-    let program = crate::resolve(crate::ResolutionRequest::new(&syntax))
+    let program = crate::resolve(crate::ResolutionRequest::new(syntax))
         .expect("the module-local domain owns and discharges the fact");
     let declaration = program
         .const_declarations

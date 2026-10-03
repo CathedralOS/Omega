@@ -494,7 +494,7 @@ fn concrete_task_start_fixture() -> (
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve");
     let typed =
@@ -603,7 +603,7 @@ fn nested_task_call_fixture() -> (
         .expect("tokenize");
     let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
     )
     .expect("resolve");
     let typed =

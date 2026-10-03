@@ -35,7 +35,7 @@ fn retained_extension_preserves_machine_children_and_appends_selected_inherited_
     let base_syntax =
         parse_syntax_trees_with_id(base_id, &Lexer::new(base_source).tokenize().unwrap()).unwrap();
     let base = resolve(ResolutionRequest {
-        syntax: &base_syntax,
+        syntax: base_syntax,
         sources: Some(Arc::new(sources.clone())),
         top_level_bindings: Vec::new(),
     })
@@ -71,7 +71,7 @@ fn retained_extension_preserves_machine_children_and_appends_selected_inherited_
     .expect("normalize current extension template and its closed application");
     let program = resolve_extension(ExtensionRequest {
         base,
-        syntax: &extension,
+        syntax: extension,
         sources,
         top_level_bindings: Vec::new(),
     })

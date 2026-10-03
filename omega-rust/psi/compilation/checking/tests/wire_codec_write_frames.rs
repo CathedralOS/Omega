@@ -30,7 +30,7 @@ fn codec_program(body: &str) -> TypedTrees {
     );
     let tokens = Lexer::new(&source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
@@ -111,7 +111,7 @@ fn a_codec_in_a_named_state_substitutes_its_transition_actual() {
     fn entry_frame(source: &str) -> Option<Vec<String>> {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let resolved = resolve(ResolutionRequest::new(syntax)).expect("resolve");
         caller_frame(&lower_symbol_resolved_trees(&resolved).expect("type"))
     }
 

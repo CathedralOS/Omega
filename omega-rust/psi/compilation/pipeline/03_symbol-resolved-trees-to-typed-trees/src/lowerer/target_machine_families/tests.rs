@@ -60,7 +60,7 @@ fn copied_target_heads_produce_exact_product_family_handles() {
         syntax.extend_from(&admitted_syntax(source_id, text));
     }
     let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -119,7 +119,7 @@ fn generated_families_append_without_rebuilding_the_retained_prefix() {
         .source_id;
     let syntax = admitted_syntax(base_id, base_text);
     let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources.clone())),
         top_level_bindings: Vec::new(),
     })
@@ -139,7 +139,7 @@ fn generated_families_append_without_rebuilding_the_retained_prefix() {
     let extension_syntax = admitted_syntax(extension_id, extension_text);
     let extension = resolve_extension(ExtensionRequest {
         base: base.resolved_base_for_extension(),
-        syntax: &extension_syntax,
+        syntax: extension_syntax,
         sources: Arc::new(sources),
         top_level_bindings: Vec::new(),
     })

@@ -42,7 +42,7 @@ fn assert_module_reference_symbols(
     let tokens = Lexer::new(source).tokenize().expect("tokenize module");
     let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse module");
     let program = resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: Vec::new(),
     })
@@ -116,7 +116,7 @@ fn lower_multi(sources: &[(&str, &str)]) -> SymbolResolvedTrees {
         tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse");
     }
     resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(map)),
         top_level_bindings: Vec::new(),
     })

@@ -42,7 +42,7 @@ impl PackageFixture {
             tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("syntax");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
+                syntax,
                 sources: Some(std::sync::Arc::new(sources.clone())),
                 top_level_bindings: Vec::new(),
             },

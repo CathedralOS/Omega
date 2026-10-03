@@ -39,7 +39,7 @@ fn lower_multi(sources: &[(&str, &str)]) -> Result<SymbolResolvedTrees, String> 
             .join("\n")
     })?;
     resolve(ResolutionRequest {
-        syntax: &syntax,
+        syntax,
         sources: Some(Arc::new(map)),
         top_level_bindings: Vec::new(),
     })

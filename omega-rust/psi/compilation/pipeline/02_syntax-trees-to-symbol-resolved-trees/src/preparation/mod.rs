@@ -33,15 +33,19 @@ pub(crate) struct Prepared {
 /// Select constants, validate the forest for the requested constant
 /// resolution, and materialize default trait machines. Generic data
 /// normalization is the caller's earlier step, not part of this one.
+///
+/// The forest arrives by value and is rewritten in place. Preparation used to
+/// clone the whole forest it was handed by reference, which charged every
+/// resolution one arena copy of the entire program to reach the same
+/// rewritten syntax the caller then stopped reading.
 pub(crate) fn prepare(
-    syntax: &SyntaxTrees,
+    mut syntax: SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     constants: crate::resolution::lowerer::ConstResolutionMode,
 ) -> Result<Prepared, Vec<Diagnostic>> {
     let constant_selection =
-        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
-    let mut syntax = syntax.clone();
+        declaration_selection::ConstantSelection::new(&syntax, sources, top_level_bindings)?;
     // Initializer-selection probes can arrive before generic synthesis. Their
     // module constant admission needs the same lexical carrier-head binding.
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;

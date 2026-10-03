@@ -31,7 +31,7 @@ fn typed(source: &str) -> TypedTrees {
     })
     .expect("fixture survives pre-resolution evaluation");
     let (syntax, _pre_check) = evaluated.into_syntax_and_pre_check();
-    let resolved = crate::syntax_probes::resolve(&syntax, Some(sources), &[]).expect("resolve");
+    let resolved = crate::syntax_probes::resolve(syntax, Some(sources), &[]).expect("resolve");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 

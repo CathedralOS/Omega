@@ -48,7 +48,7 @@ fn stage<T, E: std::fmt::Debug>(name: &str, source: &str, result: Result<T, E>) 
 pub(crate) fn typed_program(source: &str) -> TypedTrees {
     let tokens = stage("tokenize", source, Lexer::new(source).tokenize());
     let syntax = stage("parse", source, parse_syntax_trees(&tokens));
-    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(syntax)));
     stage("type", source, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -65,7 +65,7 @@ pub(crate) fn typed_program_with_generic_data(source: &str) -> TypedTrees {
         source,
         normalize_generic_data(GenericDataRequest::new(syntax)),
     );
-    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(&syntax)));
+    let resolved = stage("resolve", source, resolve(ResolutionRequest::new(syntax)));
     stage("type", source, lower_symbol_resolved_trees(&resolved))
 }
 
@@ -101,7 +101,7 @@ pub(crate) fn typed_program_from_source_map(
         "resolve",
         program,
         resolve(ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         }),

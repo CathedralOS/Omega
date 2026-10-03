@@ -9,7 +9,7 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 fn resolve_source(source: &str) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    resolve(ResolutionRequest::new(&syntax))
+    resolve(ResolutionRequest::new(syntax))
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn resolve_sealed_core_file(
     let tokens = Lexer::new(source).tokenize().expect("tokens");
     let syntax =
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("syntax");
-    let mut request = ResolutionRequest::new(&syntax);
+    let mut request = ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     resolve(request)
 }
@@ -339,7 +339,7 @@ mod package_ownership {
                 .extend_from(&parse_syntax_trees_with_id(file.source_id, &tokens).expect("syntax"));
         }
         crate::resolve(crate::ResolutionRequest {
-            syntax: &syntax,
+            syntax,
             sources: Some(Arc::new(sources)),
             top_level_bindings: Vec::new(),
         })

@@ -40,7 +40,7 @@ const SOURCE: &str = r#"
 fn artifact(source: &str) -> (terminal_psi::TerminalModule, Vec<u8>, Vec<u8>) {
     let tokens = Lexer::new(source).tokenize().unwrap();
     let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let resolved = resolve(ResolutionRequest::new(syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(

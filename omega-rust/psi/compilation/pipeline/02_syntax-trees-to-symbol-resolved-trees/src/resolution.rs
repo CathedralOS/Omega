@@ -29,17 +29,24 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use syntax_trees::SyntaxTrees;
 
 /// One syntax forest and the custody it resolves under.
-pub struct ResolutionRequest<'a> {
-    pub syntax: &'a SyntaxTrees,
+///
+/// The forest arrives by value, as `GenericDataRequest`'s does: preparation
+/// rewrites syntax to syntax before any symbol exists, and only the rewritten
+/// forest carries the declarations the symbol table assigns identities to.
+/// Taking ownership keeps that rewrite from being paid for with a copy of the
+/// whole program and keeps orchestration code from retaining the unprepared
+/// sibling as if a later stage could still read it.
+pub struct ResolutionRequest {
+    pub syntax: SyntaxTrees,
     /// Source custody for visibility and stratum checks. A source-free forest
     /// has none, and those checks stay permissive for it.
     pub sources: Option<Arc<SourceMap>>,
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 }
 
-impl<'a> ResolutionRequest<'a> {
+impl ResolutionRequest {
     /// A source-free forest with no scoped top-level bindings.
-    pub fn new(syntax: &'a SyntaxTrees) -> Self {
+    pub fn new(syntax: SyntaxTrees) -> Self {
         Self {
             syntax,
             sources: None,
@@ -49,16 +56,16 @@ impl<'a> ResolutionRequest<'a> {
 }
 
 /// A later-stratum forest appended to an exact retained base.
-pub struct ExtensionRequest<'a> {
+pub struct ExtensionRequest {
     pub base: SymbolResolvedTrees,
-    pub syntax: &'a SyntaxTrees,
+    pub syntax: SyntaxTrees,
     /// Must retain the base's exact source frontier.
     pub sources: Arc<SourceMap>,
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 }
 
 /// Resolve every name in the forest to its exact declaration.
-pub fn resolve(request: ResolutionRequest<'_>) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let (syntax, lowerer) = begin_complete(request, None)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
@@ -67,7 +74,7 @@ pub fn resolve(request: ResolutionRequest<'_>) -> Result<SymbolResolvedTrees, Ve
 /// lexical selection. This performs no generic instance synthesis or evaluation;
 /// callers must still admit every selected leaf and checked operator meaning.
 pub fn resolve_const_argument_selection(
-    request: ResolutionRequest<'_>,
+    request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let (syntax, lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
@@ -77,7 +84,7 @@ pub fn resolve_const_argument_selection(
 /// equations as pending execution obligations. Range normalization supplies
 /// inputs to equation completion, so these two phase axes are independent.
 pub fn resolve_numeric_probe(
-    request: ResolutionRequest<'_>,
+    request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
@@ -88,13 +95,16 @@ pub fn resolve_numeric_probe(
 /// with no canonical encoding. Every operator occurrence remains an obligation
 /// for ordinary typed selection, not an assertion of builtin execution meaning.
 pub fn prepare_const_initializer_selection(
-    request: ResolutionRequest<'_>,
+    request: ResolutionRequest,
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
-    let forest = request.syntax;
     let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
     let (trees, selection) = drive(lowerer, &syntax)?;
     let preparation = ConstInitializerSelection { trees, selection };
-    preparation.validate_initializer_leaves(forest)?;
+    // The prepared forest, not an unprepared sibling: preparation rewrites
+    // domain heads and adds trait default machines, and neither touches a
+    // constant's initializer expression or its declaration's source span,
+    // which are the only things leaf validation reads.
+    preparation.validate_initializer_leaves(&syntax)?;
     Ok(preparation)
 }
 
@@ -107,7 +117,7 @@ pub fn prepare_const_initializer_selection(
 /// transactionally rebasing the extension suffix against that phase's exact
 /// retained authored-selection ledger.
 pub fn resolve_extension(
-    request: ExtensionRequest<'_>,
+    request: ExtensionRequest,
 ) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
     let ExtensionRequest {
         base,
@@ -134,7 +144,7 @@ pub fn resolve_extension(
 /// Equation completion uses ordinary selection with identical source and base
 /// custody. Its private links are discarded before the final lowering pass.
 fn begin_complete(
-    request: ResolutionRequest<'_>,
+    request: ResolutionRequest,
     base: Option<SymbolResolvedTrees>,
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let sources = request.sources.clone();
@@ -167,17 +177,22 @@ fn begin_complete(
 /// Prepare the forest under its constant selector and a lowerer that owns the
 /// request's custody.
 fn begin(
-    request: ResolutionRequest<'_>,
+    request: ResolutionRequest,
     constants: ConstResolutionMode,
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+    let ResolutionRequest {
+        syntax,
+        sources,
+        top_level_bindings,
+    } = request;
     let prepared = preparation::prepare(
-        request.syntax,
-        request.sources.clone(),
-        request.top_level_bindings.clone(),
+        syntax,
+        sources.clone(),
+        top_level_bindings.clone(),
         constants,
     )?;
     preparation::machine_equations::validate_declarations(&prepared.syntax)?;
-    let mut lowerer = Lowerer::new(request.sources, request.top_level_bindings);
+    let mut lowerer = Lowerer::new(sources, top_level_bindings);
     lowerer.constant_selection = Some(prepared.constant_selection);
     lowerer.const_resolution_mode = constants;
     Ok((prepared.syntax, lowerer))
