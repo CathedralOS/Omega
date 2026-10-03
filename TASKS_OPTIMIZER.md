@@ -381,11 +381,15 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   Dead-compare removal needs the constant-boolean/branch composition that
   removes flag readers; solo-selection refusal is not a missing executor.
   The `optimizer/*compare_selection_compile` and
-  `constant_branch_selection_compile` corpus fixtures have host entries but no
-  run oracle, and the native golden records only `built`. Extend the relevant
-  witnesses to observe results and establish that the selected rule committed,
-  then replay the published artifact. Building a selected program alone proves
-  neither application nor execution.
+  `constant_branch_selection_compile` fixtures now carry
+  `expected_native_exit.txt` oracles whose `main` traps on a wrong rewrite
+  result, and `driver/tests/selected_rewrite_commitment.rs` proves each named
+  rule committed by rolling it back through the compiler's overlay and
+  comparing the replayed retained artifacts' instruction bytes. The
+  `stored_load_forwarding` and `copied_call_operand` `_exit` fixtures already
+  execute and observe their results; they still lack that commitment leg, as
+  does every other catalog rule whose evidence stops at the receipt or at
+  selected-stage replay — the address-fold coverage gap above included.
 
   [Staged rewrites](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs)
   still have no catalog/execution join for boundary boolean/branch folds or

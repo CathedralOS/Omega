@@ -6,7 +6,7 @@ machine build(builder: &mut Build) {
     Build::application(builder, "checking_assert_app");
     Build::depend(builder, Source::Path { location: "../assert-kit" });
     builder.select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssert>();
-    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+    Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
     Build::exclude_crash(builder, CrashCause::Trap);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

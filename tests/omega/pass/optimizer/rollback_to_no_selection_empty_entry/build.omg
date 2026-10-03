@@ -13,5 +13,8 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);
-    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+    Optimizations::enable(
+        &mut builder.optimizations,
+        Optimization::ControlFlowCleanup,
+    );
 }

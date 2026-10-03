@@ -3,8 +3,12 @@
 // selected `CompareI64`/`ConditionalBranchI64LessThan` pair — no frontend
 // constant sees it — whose branch the constant-branch fold replaces with
 // the decided jump, leaving the compare's publication with no reader on
-// any path. `Main::main` keeps a runtime `==` compare beside it whose
-// flags a live branch reads — a candidate the same pass must decline.
+// any path, so `decide(7i64)` returns 43 through the untaken edge.
+// `main` observes that result: a decided-taken fold or a corrupted
+// removal returns 41 and traps instead of the authored exit 0. The
+// `decided == 43i64` transition keeps a runtime `==` compare beside it
+// whose flags a live branch reads — a candidate the same pass must
+// decline.
 
 machine decide(value: i64) -> i64 {
     transition value < value {
@@ -16,12 +20,13 @@ machine decide(value: i64) -> i64 {
     state untaken() -> i64 { 43i64 }
 }
 
-machine main() {
+machine main() crashes Trap {
     let decided: i64 = decide(7i64);
-    transition decided == 0i64 {
+    transition decided == 43i64 {
         true -> done()
-        _ -> done()
+        _ -> bad()
     }
 
     state done() { }
+    state bad() { crash Trap; }
 }

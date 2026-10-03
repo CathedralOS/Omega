@@ -6,11 +6,18 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 16, "jobs": null, "load1_end": 0.03, "load1_start": 0.03, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 3.33, "load1_start": 3.33, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/contracts/ensures_saturating_field_arithmetic_exit built 1802ms exit:70 interpreter-exit:70 interpreter:agrees @c13c39a874dc+wt
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
 pass/modules/runtime_foreign_generic_scoped_constant_exit built 1465ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @743851d348c6+wt
 pass/operators/crash_routes built 662ms exit:0 interpreter-exit:0 interpreter:agrees @18e5a662881c+wt
+pass/optimizer/constant_branch_selection_compile built 756ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
+pass/optimizer/copied_call_operand_selection_exit built 2139ms exit:70 interpreter-exit:70 interpreter:agrees @f7f623460021+wt
+pass/optimizer/dead_compare_selection_compile built 750ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
+pass/optimizer/equivalent_compare_selection_compile built 761ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
+pass/optimizer/redundant_compare_selection_compile built 769ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
+pass/optimizer/rollback_to_no_selection_empty_entry built 598ms @f7f623460021+wt
+pass/optimizer/stored_load_forwarding_selection_exit built 824ms exit:0 interpreter-exit:0 interpreter:agrees @f7f623460021+wt
 pass/recast/runtime_bool_representation_recast_exit built 2795ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_float_range_representation_recast_exit built 6494ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_integer_bit_view_recast_exit built 3254ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt

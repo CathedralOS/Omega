@@ -100,3 +100,7 @@ path = "tests/rollback_to_identity.rs"
 [[test]]
 name = "composed_rewrites"
 path = "tests/composed_rewrites.rs"
+
+[[test]]
+name = "selected_rewrite_commitment"
+path = "tests/selected_rewrite_commitment.rs"

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 4.58, "load1_start": 2.19, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 16, "jobs": null, "load1_end": 3.78, "load1_start": 3.78, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -636,13 +636,13 @@ pass/operators/runtime_xorshift_prng_exit built 816ms exit:70 @2d8ed253669f+wt
 pass/operators/slice_index_bounds_from_operator_contract checked 292ms @2d8ed253669f+wt
 pass/operators/slice_range_bounds_from_operator_contract checked 290ms @2d8ed253669f+wt
 pass/operators/unary_negation_exit built 812ms exit:70 @2d8ed253669f+wt
-pass/optimizer/constant_branch_selection_compile built 422ms @2d8ed253669f+wt
-pass/optimizer/copied_call_operand_selection_exit built 841ms exit:70 @2d8ed253669f+wt
-pass/optimizer/dead_compare_selection_compile built 423ms @2d8ed253669f+wt
-pass/optimizer/equivalent_compare_selection_compile built 436ms @2d8ed253669f+wt
-pass/optimizer/redundant_compare_selection_compile built 452ms @2d8ed253669f+wt
-pass/optimizer/rollback_to_no_selection_empty_entry built 414ms @2d8ed253669f+wt
-pass/optimizer/stored_load_forwarding_selection_exit built 476ms exit:0 @a65d52709b8a+wt
+pass/optimizer/constant_branch_selection_compile built 604ms exit:0 @f7f623460021+wt
+pass/optimizer/copied_call_operand_selection_exit built 1338ms exit:70 @f7f623460021+wt
+pass/optimizer/dead_compare_selection_compile built 592ms exit:0 @f7f623460021+wt
+pass/optimizer/equivalent_compare_selection_compile built 598ms exit:0 @f7f623460021+wt
+pass/optimizer/redundant_compare_selection_compile built 605ms exit:0 @f7f623460021+wt
+pass/optimizer/rollback_to_no_selection_empty_entry built 565ms @f7f623460021+wt
+pass/optimizer/stored_load_forwarding_selection_exit built 590ms exit:0 @f7f623460021+wt
 pass/ownership/conditional_linear_sum checked 289ms @2d8ed253669f+wt
 pass/ownership/linear_ambiguous_state_result_mapping rejected 345ms @2d8ed253669f+wt
 	entry machine `Main::main` returns a value, but `ProgramEntry` has no result
