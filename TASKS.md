@@ -575,6 +575,10 @@ the complete product bar; focused successes below do not establish that baseline
     owns typed recasts. Preserve
     the local's loan identity and exact backing through every consumer,
     including local-rooted stores and borrowed-record calls followed by reads.
+    Keep `calls/mixed_projection_sources_in_one_call` at native/interpreter
+    exit 0: one call may project distinct parameter and returned-borrow roots,
+    and reference completion joins its produced value without a borrow-spelling
+    gate. Exact source path, access and statement custody must still replay.
     Preserve `calls/scalar_local_record_view_call_exit` at native/interpreter
     exit 70: a scalar helper lends a local record containing an interior view,
     forwards that field through another scalar call, and disposes the record
