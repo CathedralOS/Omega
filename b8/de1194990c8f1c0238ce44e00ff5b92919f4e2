@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: restamp 3 healed native rows (borrow_carrying, tiled, wire_preserving_decode_relay) to built exit:70 measured on tip 176f9a7001a with OMEGA_CORPUS_TIMINGS
+ticket: c62fe1b5e71625e7591871e3235261ca
+published_utc: 2026-10-03T15:56:50.846329+00:00
