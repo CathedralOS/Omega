@@ -22,8 +22,9 @@ use semantic_vocabulary::{
 /// strictly smaller or greater, as `FloatSemantics::minimum`/`maximum` do.
 pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, FusedMultiplyAdd, IsInfinite, IsNan, Maximum,
-        Minimum, Multiply, MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
+        Add, ConvertFormat, DirectedBinary, Divide, FromInteger, FusedMultiplyAdd, IsInfinite,
+        IsNan, Maximum, Minimum, Multiply, MultiplyThenAdd, Negate, SquareRoot, Subtract,
+        TruncateToInteger,
     };
     use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32, U64};
     let left = operands[0];
@@ -84,6 +85,9 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                     FromInteger(U8) => f32::from(left as u8),
                     FromInteger(U16) => f32::from(left as u16),
                     FromInteger(U64) => left as f32,
+                    DirectedBinary { .. } => {
+                        panic!("the host oracle requires nearest-even rounding")
+                    }
                     TruncateToInteger { .. } => unreachable!("integer results return above"),
                 }
                 .to_bits(),
@@ -125,6 +129,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                 FromInteger(U8) => f64::from(left as u8),
                 FromInteger(U16) => f64::from(left as u16),
                 FromInteger(U64) => left as f64,
+                DirectedBinary { .. } => panic!("the host oracle requires nearest-even rounding"),
                 TruncateToInteger { .. } => unreachable!("integer results return above"),
             }
             .to_bits()
@@ -137,8 +142,9 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
 /// minimum/maximum case has a NaN first operand, which yields the second.
 fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, FusedMultiplyAdd, IsInfinite, IsNan, Maximum,
-        Minimum, Multiply, MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
+        Add, ConvertFormat, DirectedBinary, Divide, FromInteger, FusedMultiplyAdd, IsInfinite,
+        IsNan, Maximum, Minimum, Multiply, MultiplyThenAdd, Negate, SquareRoot, Subtract,
+        TruncateToInteger,
     };
     use IeeeFloatFormat::{Binary32, Binary64};
     use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32, U64};
@@ -278,6 +284,7 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
         (Binary32, FromInteger(I16)) => [30_000, 0, 0x46ea_6000],
         (Binary32, FromInteger(U8)) => [200, 0, 0x4348_0000],
         (Binary32, FromInteger(U16)) => [60_000, 0, 0x476a_6000],
+        (_, DirectedBinary { .. }) => panic!("these fixtures specify nearest-even results"),
         (_, TruncateToInteger { .. }) => unreachable!("integer results return above"),
     }
 }
@@ -401,7 +408,7 @@ fn arithmetic_source(
 }
 
 #[test]
-fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() {
+fn nearest_even_forms_select_one_constrained_instruction_and_replay_on_every_target() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -414,7 +421,15 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
         };
-        for form in IeeeFloatArithmeticForm::ALL {
+        // This oracle executes Rust host arithmetic, whose rounding is nearest
+        // even. Directed forms have backend control-restoration/native tests;
+        // they cannot be evaluated by substituting the host's rounding mode.
+        for form in IeeeFloatArithmeticForm::ALL.into_iter().filter(|form| {
+            !matches!(
+                form.operation,
+                IeeeFloatArithmeticOperation::DirectedBinary { .. }
+            )
+        }) {
             if form.operation == IeeeFloatArithmeticOperation::FusedMultiplyAdd
                 && target.architecture == target::Architecture::X86_64
             {
