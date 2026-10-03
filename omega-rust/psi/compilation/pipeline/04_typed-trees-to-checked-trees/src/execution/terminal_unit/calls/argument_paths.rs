@@ -860,9 +860,15 @@ pub(crate) fn ordinary_projected_call_is_supported(
     // A retained result carrier presents its borrowed referent, not a moved
     // aggregate field. Exact producing local/loan custody was rejoined by the
     // shared result argument builder and is independently replayed in lowering.
-    if arguments.iter().all(|argument| {
-        !projected(argument)
-            || (argument
+    //
+    // This is a rule about ONE argument, so it is written as one and applied
+    // per argument below. Asking it of every projected argument at once meant
+    // a call mixing the two projection sources supported neither: in
+    // `RoomEvents::roll_event(&mut builder.events, depth, random, &mut
+    // room.event)` the first is a parameter projection and the last a result
+    // binding's, each disqualifying the other's rule.
+    let retained_result_projection = |argument: &CheckedUnitStructuralArgumentPlan| {
+        argument
                 .source_structural_result_binding_ordinal()
                 .is_some()
                 && (argument.path.split_last().is_some_and(|(last, prefix)| {
@@ -883,8 +889,12 @@ pub(crate) fn ordinary_projected_call_is_supported(
                             )
                         })
                 }))
-                && argument.access == CheckedStructuralAccess::MutableBorrow)
-    }) {
+                && argument.access == CheckedStructuralAccess::MutableBorrow
+    };
+    if arguments
+        .iter()
+        .all(|argument| !projected(argument) || retained_result_projection(argument))
+    {
         return true;
     }
 
@@ -994,6 +1004,13 @@ pub(crate) fn ordinary_projected_call_is_supported(
             .zip(&target_parameters)
             .all(|(argument, target)| {
                 if !projected(argument) {
+                    return true;
+                }
+                // An argument the result-binding rule already admits composes
+                // beside a parameter projection. Requiring every projected
+                // argument to reach THIS rule is what made a mixed call
+                // unsupported even though each of its arguments is supported.
+                if retained_result_projection(argument) {
                     return true;
                 }
                 let Some(source) = argument

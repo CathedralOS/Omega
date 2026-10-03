@@ -1345,6 +1345,8 @@ pass/calls/local_record_record_result_argument_exit checked 1977ms @2d8ed253669f
 pass/calls/local_record_shared_argument_exit checked 1248ms @2d8ed253669f
 pass/calls/local_records_mixed_record_result_arguments_exit checked 2047ms @2d8ed253669f
 pass/calls/machine_self_call_recursion_compile checked 501ms @2d8ed253669f
+pass/calls/mixed_projection_sources_in_one_call rejected 475ms @5ccafc567049+wt
+	terminal-artifact production failed: Lowering(Unsupported("Unit graph reordered a source effect"))
 pass/calls/mutable_output_host_call checked 2341ms @2d8ed253669f
 pass/calls/mutable_receiver_computation_exit checked 1451ms @2d8ed253669f
 pass/calls/mutable_receiver_scalar_destinations_exit checked 1901ms @2d8ed253669f

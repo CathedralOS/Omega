@@ -1,0 +1,50 @@
+// One call supplying TWO projected arguments from DIFFERENT sources: a
+// projection of the caller's own subject, and a projection of a borrow a
+// previous call returned.
+//
+// `&mut builder.events` is reached through a caller parameter;
+// `&mut room.event` is reached through `room`, which is a result binding.
+// Each is supported on its own, by a different rule, and the call plan used
+// to demand that EVERY projected argument satisfy the SAME rule -- so a call
+// mixing the two supported neither and its machine's unit plan was omitted.
+// The rules are about one argument each, so they apply per argument.
+//
+// Spelled with receivers this did not arise: `builder.events.roll(..)` made
+// the first projection the RECEIVER, which is not an argument and never
+// reached the rule at all.
+//
+// Expected exit: 0.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Event { tag: i32; }
+data Room { event: Event; }
+data Level { room: Room; }
+data Events { count: i32 in Wrapping; }
+data Builder { events: Events; }
+
+machine Level::room_mut(level: &mut Level) -> &mut Room {
+    (&mut level.room)
+}
+
+machine Events::roll(events: &mut Events, out: &mut Event) {
+    events.count = 1;
+    out.tag = 7;
+}
+
+machine Builder::carve(builder: &mut Builder, level: &mut Level) {
+    let room: &mut Room = Level::room_mut(level);
+    Events::roll(&mut builder.events, &mut room.event);
+}
+
+data Main {
+    console: Binding<Console>;
+    builder: Builder;
+    level: Level;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    Builder::carve(&mut main.builder, &mut main.level);
+    main.console.exit_process(0);
+}
