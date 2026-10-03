@@ -931,7 +931,16 @@ pub fn reconstruct_structural_call_custody(
     let call = calls
         .next()
         .ok_or("structural call has no exact semantic occurrence")?;
-    if calls.next().is_some() || call.target_symbol != *target_state {
+    // A terminal invocation retains its authored machine symbol. Its executable
+    // destination is that machine's entry, never an arbitrary state it owns.
+    // Keep the authored symbol below when joining the ownership events.
+    let targets_destination = call.target_symbol == *target_state
+        || (call.target_symbol == *target_machine
+            && program
+                .machine_states(target)
+                .first()
+                .is_some_and(|entry| entry.symbol == *target_state));
+    if calls.next().is_some() || !targets_destination {
         return Err("structural call target or occurrence differs from source");
     }
     let transfers = facts
