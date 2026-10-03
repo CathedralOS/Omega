@@ -306,6 +306,28 @@ currently name. Two spellings are available and they are not equivalent:
    alone, and adds one implicitly bound type name to the language -- the thing
    the static contract removed for values.
 
+A second customer shows the question is not only about the subject's
+spelling. `tests/omega/pass/progress/provider_receiver_progress_installation`
+declares `pub boundary trait Scheduler { machine notify(&self, value: i32)
+requires self in SchedulerHandle::WeakFair; ... }`, and its precondition
+asserts DOMAIN MEMBERSHIP of the subject. Its satisfiers already name their
+subject statically (`SchedulerProvider::notify(scheduler_provider:
+&SchedulerProvider, value: i32) satisfies Scheduler::notify`, four target
+legs), so only the requirement blocks. But the call is
+`main.scheduler.notify(65)` through a `Binding<Scheduler>`, which supplies no
+subject: spelling the requirement `(subject: &Self, value: i32)` makes it
+expect 2 arguments and the call site then reports `state notify expects 2
+argument(s), got 1`. A subject-free requirement parses, and then the
+`requires` clause has nothing to name -- the membership is a property of the
+capability the call dispatches through, not of an argument. The sibling
+`machine grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair` in the
+same trait is already subject-free, so the trait mixes both shapes. Note also
+that `SchedulerProvider { grant: addr; notify: addr; }` holds vtable addresses
+and is selected `via ForeignBinding::VtableField`, so its subject is
+load-bearing in the way `provider-private-state-home` (Q1) describes. Whatever
+closes this has to say how a subject-free boundary requirement states a
+precondition about the capability it is reached through.
+
 Measured against spelling (2) on a real customer:
 `tests/omega/pass/proofs/named_witness_static_trait_plural_compile` declares
 `machine Self::produce()` with arity 0, while both of its call sites pass a
