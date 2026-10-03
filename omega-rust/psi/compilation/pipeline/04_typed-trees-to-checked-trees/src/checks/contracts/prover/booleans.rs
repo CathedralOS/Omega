@@ -55,7 +55,8 @@ pub(super) fn semantic_context_proves_boolean_expression(
 
 pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
+    facts: &checked_trees::CheckFacts,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
@@ -64,9 +65,11 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    let semantic = &facts.semantic;
     if direct_context_proves_instantiated_boolean_expression(
         program,
-        semantic,
+        facts,
+        call_frames,
         context,
         contexts,
         caller_state_symbol,
@@ -82,7 +85,8 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
         typed_trees::expression::ExpressionNode::Borrow(inner) => {
             semantic_context_proves_instantiated_boolean_expression(
                 program,
-                semantic,
+                facts,
+                call_frames,
                 context,
                 contexts,
                 caller_state_symbol,
@@ -96,7 +100,8 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
             typed_trees::expression::BinaryOperator::And => {
                 semantic_context_proves_instantiated_boolean_expression(
                     program,
-                    semantic,
+                    facts,
+                    call_frames,
                     context,
                     contexts,
                     caller_state_symbol,
@@ -106,7 +111,8 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                     binary.left,
                 ) && semantic_context_proves_instantiated_boolean_expression(
                     program,
-                    semantic,
+                    facts,
+                    call_frames,
                     context,
                     contexts,
                     caller_state_symbol,
@@ -119,7 +125,8 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
             typed_trees::expression::BinaryOperator::Or => {
                 semantic_context_proves_instantiated_boolean_expression(
                     program,
-                    semantic,
+                    facts,
+                    call_frames,
                     context,
                     contexts,
                     caller_state_symbol,
@@ -129,7 +136,8 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                     binary.left,
                 ) || semantic_context_proves_instantiated_boolean_expression(
                     program,
-                    semantic,
+                    facts,
+                    call_frames,
                     context,
                     contexts,
                     caller_state_symbol,

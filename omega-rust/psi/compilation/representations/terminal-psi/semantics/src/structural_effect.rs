@@ -7,6 +7,8 @@ use semantic_vocabulary::{
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
 mod byte_extent;
+mod byte_predicate;
+pub use byte_predicate::byte_predicate_equation;
 mod element_extent;
 pub use byte_extent::{literal_length_equation, subslice_length_equation};
 pub use element_extent::{

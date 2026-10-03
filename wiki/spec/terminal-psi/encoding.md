@@ -290,6 +290,17 @@ and the proof bundle share this grammar byte for byte.
 | 33 | SaturatingIntegerRemainder | integer type + scalar term + scalar term |
 | 34 | BooleanField | root place id + counted canonical path segments |
 | 35 | IntegerField | root place id + counted canonical path segments + integer type |
+| 36 | ViewExtent | root place id + counted canonical path segments + integer type |
+| 37 | IeeeFloatLiteral | IEEE format tag + exact format-width bits |
+| 38 | IeeeFloatField | root place id + counted canonical path segments + IEEE format |
+| 39 | ByteSequencePredicate | predicate `u8` + root place id + counted canonical path segments |
+
+The byte-predicate tag selects exactly one primitive: `1` is `valid_utf8`, `2`
+is `no_nul`, `4` is `ascii_only`, and `8` is `non_empty`. Other values reject.
+An empty path observes the whole byte descriptor; a nonempty path observes its
+exact byte field. The term has Boolean type and supplies no assertion that its
+predicate holds.
+
 
 ## Integer math terms
 

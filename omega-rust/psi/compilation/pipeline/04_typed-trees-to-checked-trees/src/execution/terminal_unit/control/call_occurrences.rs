@@ -368,6 +368,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     return None;
                 }
                 collect(
+                    program,
                     facts,
                     state.symbol,
                     statement_index,
@@ -409,6 +410,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     return None;
                 }
                 collect(
+                    program,
                     facts,
                     state.symbol,
                     statement_index,
@@ -436,6 +438,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 return None;
             }
             collect(
+                program,
                 facts,
                 state.symbol,
                 statement_index,
@@ -478,6 +481,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 return None;
             }
             collect(
+                program,
                 facts,
                 state.symbol,
                 statement_index,
@@ -535,6 +539,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     return None;
                 }
                 collect(
+                    program,
                     facts,
                     state.symbol,
                     statement_index,
@@ -588,6 +593,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             return None;
         }
         collect(
+            program,
             facts,
             state.symbol,
             statement_index,
@@ -925,6 +931,7 @@ fn collect_argument_calls(
             return None;
         }
         collect(
+            program,
             facts,
             state,
             call.statement_index,
@@ -939,6 +946,7 @@ fn collect_argument_calls(
 }
 
 fn collect(
+    program: &TypedTrees,
     facts: &CheckFacts,
     state: SymbolHandle,
     statement: usize,
@@ -966,6 +974,7 @@ fn collect(
         } => {
             for field in plans.case_fields.span(subject.fields)? {
                 collect(
+                    program,
                     facts,
                     state,
                     statement,
@@ -979,6 +988,7 @@ fn collect(
         }
         CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
             collect(
+                program,
                 facts,
                 state,
                 statement,
@@ -989,6 +999,7 @@ fn collect(
                 consumed,
             )?;
             collect(
+                program,
                 facts,
                 state,
                 statement,
@@ -1003,6 +1014,7 @@ fn collect(
         | CheckedScalarComputationKind::AuthoredCast { operand, .. }
         | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
             collect(
+                program,
                 facts,
                 state,
                 statement,
@@ -1015,6 +1027,7 @@ fn collect(
         }
         CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
             collect(
+                program,
                 facts,
                 state,
                 statement,
@@ -1027,6 +1040,7 @@ fn collect(
             for arm in plans.dispatch_arms.span(*arms)? {
                 if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
                     collect(
+                        program,
                         facts,
                         state,
                         statement,
@@ -1038,6 +1052,7 @@ fn collect(
                     )?;
                 }
                 collect(
+                    program,
                     facts,
                     state,
                     statement,
@@ -1051,8 +1066,43 @@ fn collect(
         }
         CheckedScalarComputationKind::Value(_)
         | CheckedScalarComputationKind::StructuralField { .. }
-        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
-        | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
+        | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. } => {}
+        CheckedScalarComputationKind::ByteSequencePredicate {
+            predicate,
+            source_expression,
+            ..
+        } => {
+            // This selected primitive owns its authored call occurrence even
+            // though execution emits an observation, not a machine invocation.
+            // Join the occurrence here, where every enclosing computation
+            // routes its operands; statement binding shape does not decide it.
+            let (selected, _) =
+                typed_trees::byte_predicates::byte_predicate_call(program, *source_expression)?;
+            if selected != *predicate {
+                return None;
+            }
+            let ExpressionNode::Call(authored) =
+                program.expression_table.expression(*source_expression)
+            else {
+                return None;
+            };
+            let mut occurrences = facts.flow.control.calls.iter().filter(|(_, call)| {
+                call.authored_expression == *source_expression
+                    && calls.iter().any(|candidate| std::ptr::eq(candidate, *call))
+            });
+            if let Some((handle, call)) = occurrences.next() {
+                if occurrences.next().is_some()
+                    || call.statement_index != statement
+                    || call.call_ordinal < minimum_call_ordinal as usize
+                    || call.target_symbol != authored.target_symbol
+                    || consumed.contains(&handle)
+                    || facts.flow.control.is_retired(state, call)
+                {
+                    return None;
+                }
+                consumed.push(handle);
+            }
+        }
         CheckedScalarComputationKind::Call {
             source_call,
             call_ordinal,
@@ -1080,6 +1130,7 @@ fn collect(
             consumed.push(*source_call);
             for operand in plans.operands.span(*arguments)? {
                 collect(
+                    program,
                     facts,
                     state,
                     statement,
@@ -1096,6 +1147,7 @@ fn collect(
                 {
                     for field in plans.case_fields.span(subject.fields)? {
                         collect(
+                            program,
                             facts,
                             state,
                             statement,
@@ -1114,6 +1166,7 @@ fn collect(
                 {
                     for element in plans.operands.span(*elements)? {
                         collect(
+                            program,
                             facts,
                             state,
                             statement,
@@ -1154,6 +1207,7 @@ fn collect(
             consumed.push(*source_call);
             for operand in plans.operands.span(*arguments)? {
                 collect(
+                    program,
                     facts,
                     state,
                     statement,
@@ -1168,6 +1222,7 @@ fn collect(
         CheckedScalarComputationKind::Apply { operands, .. } => {
             for operand in plans.operands.span(*operands)? {
                 collect(
+                    program,
                     facts,
                     state,
                     statement,
@@ -1187,6 +1242,7 @@ fn collect(
         } => {
             for operand in [condition, when_true, when_false] {
                 collect(
+                    program,
                     facts,
                     state,
                     statement,
@@ -1260,5 +1316,101 @@ mod descriptor_result_tests {
             "loan provenance must not erase the helper invocation"
         );
         assert!(calls[0].structural_result().is_some());
+    }
+}
+
+#[cfg(test)]
+mod observation_occurrence_tests {
+    #[test]
+    fn selected_observation_owns_its_exact_flow_occurrence() {
+        let checked = crate::tests::front_end::checked_program(
+            r#"
+            machine validate(bytes: &[u8], expected: bool) {
+                let verdict: bool = valid_utf8(bytes);
+                transition verdict == expected { true -> checked(expected, bytes) _ -> done() }
+                state checked(expected: bool, bytes: &[u8]) requires valid_utf8(bytes) == expected {}
+                state done() {}
+            }
+        "#,
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "validate")
+            .unwrap();
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(machine.symbol)
+                .is_some(),
+            "{:?}",
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .omission_for_machine(machine.symbol)
+        );
+        let state = checked.machine_states(machine)[0].symbol;
+        let (node, source) = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .iter()
+            .find_map(|(handle, node)| {
+                let super::CheckedScalarComputationKind::ByteSequencePredicate {
+                    source_expression,
+                    ..
+                } = node.kind
+                else {
+                    return None;
+                };
+                Some((handle, source_expression))
+            })
+            .unwrap();
+        let (row, call) = checked
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .find(|(_, call)| call.authored_expression == source)
+            .unwrap();
+        let statement = call.statement_index;
+        let checked_trees::CheckedTrees { typed, mut facts } = checked;
+        let collect = |facts: &checked_trees::CheckFacts, consumed: &mut Vec<_>| {
+            super::collect(
+                &typed,
+                facts,
+                state,
+                statement,
+                node,
+                std::slice::from_ref(facts.flow.control.calls.get(row)),
+                0,
+                &mut Vec::new(),
+                consumed,
+            )
+        };
+        let mut consumed = Vec::new();
+        assert_eq!(collect(&facts, &mut consumed), Some(()));
+        assert_eq!(consumed, vec![row]);
+        assert_eq!(
+            collect(&facts, &mut consumed),
+            None,
+            "one occurrence cannot have two owners"
+        );
+        let super::CheckedScalarComputationKind::ByteSequencePredicate { predicate, .. } =
+            &mut facts.values.scalar_computations.nodes.get_mut(node).kind
+        else {
+            unreachable!()
+        };
+        *predicate = language_semantics::byte_predicates::ByteSequencePredicate::AsciiOnly;
+        assert_eq!(
+            collect(&facts, &mut Vec::new()),
+            None,
+            "wrong primitive identity cannot retire the row"
+        );
     }
 }

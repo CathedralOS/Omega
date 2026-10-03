@@ -452,7 +452,7 @@ static FACT_BYTE_READ_CLASS: TrustedSurfaceEntry = TrustedSurfaceEntry {
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/read.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/byte_sequence_predicates.rs",
-        "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs",
+        "omega-rust/psi/foundation/semantic-vocabulary/src/byte_predicates.rs",
     ],
     soundness: TRUSTED,
 };
@@ -485,13 +485,14 @@ static FACT_STRUCTURAL_EFFECT_OBSERVATION: TrustedSurfaceEntry = TrustedSurfaceE
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a structural-effect row's validated observation of storage or an affine event",
-    conclusion: "the row's canonical local equation and, where declared, its canonical derivable obligation",
+    conclusion: "the row's canonical local equation and, where declared, its canonical derivable obligation; a validated byte predicate contributes only its Boolean result equation over the exact observed descriptor and canonical path, never a truth claim from a shared backing",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",
     ],
     implementation: &[
         OPERATION_FACTS,
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/byte_predicate.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/semantic_rows.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect.rs",
     ],

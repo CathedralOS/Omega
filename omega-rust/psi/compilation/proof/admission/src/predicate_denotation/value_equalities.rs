@@ -293,6 +293,7 @@ impl<'input> ValueEqualities<'input> {
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::IeeeFloatField { .. }
             | ScalarTerm::ViewExtent { .. }
+            | ScalarTerm::ByteSequencePredicate { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
             | ScalarTerm::IeeeFloatLiteral(_) => {}

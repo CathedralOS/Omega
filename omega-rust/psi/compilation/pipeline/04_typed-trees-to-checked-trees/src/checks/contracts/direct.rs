@@ -54,7 +54,8 @@ pub(super) fn direct_context_proves_boolean_expression(
 
 pub(super) fn direct_context_proves_instantiated_boolean_expression(
     program: &typed_trees::TypedTrees,
-    semantic: &facts::FactPlan,
+    facts: &checked_trees::CheckFacts,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
@@ -63,6 +64,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    let semantic = &facts.semantic;
     let parameters = target_state.contract_parameters(program);
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
     let substitute = |expression| {
@@ -135,7 +137,30 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
         expression,
     );
 
+    let denotations = guard_values::denotations::Denotations {
+        program,
+        facts,
+        caller_state_symbol,
+        statement_index,
+        call_frames,
+        parameters,
+        arguments,
+    };
     semantic.context_view(context).facts().any(|fact| {
+        if let facts::FactPayload::BooleanValue {
+            expression: guard,
+            value,
+        } = fact.payload
+        {
+            return guard_values::proves_with(
+                program,
+                guard,
+                value,
+                expression,
+                true,
+                &|left, right| denotations.equal(left, right),
+            );
+        }
         let candidate_label = semantic_boolean_fact_label(program, semantic, fact).or_else(|| {
             semantic
                 .proposition_fact_label(program, fact)

@@ -22,6 +22,7 @@ const TS_PBS: &str =
 const TS_PBS_GOAL: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/proof_bearing_scalar/canonical_goal.rs";
 const TS_SE: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect.rs";
+const TS_SE_BYTE_PREDICATE: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/byte_predicate.rs";
 const TS_SE_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/byte_extent.rs";
 const TS_CALLS: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/call_composition.rs";
@@ -645,7 +646,7 @@ static OP_BYTE_SEQUENCE_SUBSLICE: TrustedSurfaceEntry = entry(
 static OP_BYTE_SEQUENCE_PREDICATE: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-predicate",
     "a validated byte-sequence predicate evaluation over the operand's exact live extent",
-    "the operand's own dominating length observation is the read bound, so the observation carries the evaluated predicate and its boolean verdict and owes no index certificate",
+    "the operand's own dominating current length observation is the read bound; the Boolean result equals the content predicate over that exact descriptor root and canonical path, without identifying aliased windows or assuming the predicate is true; the observation owes no index certificate",
     &[
         "fact:structural-effect-observation",
         "formation:operation-validation",
@@ -654,6 +655,7 @@ static OP_BYTE_SEQUENCE_PREDICATE: TrustedSurfaceEntry = entry(
         VOCAB,
         TS_ROWS,
         TS_SE,
+        TS_SE_BYTE_PREDICATE,
         OP_FACTS,
         VAL_OPS,
         VAL_BYTES_PREDICATE,

@@ -36,7 +36,7 @@ pub(super) fn compose_call_operation(
     operation: &Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_types: &BTreeMap<ValueId, ScalarType>,
-    storage: &super::storage_observations::StorageObservations,
+    storage: &super::storage_observations::StorageObservations<'_>,
     capture_snapshots: bool,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
@@ -106,6 +106,15 @@ pub(super) fn compose_call_operation(
                     canonical_certificate: false,
                 });
             }
+            invalidate_mutated_arguments(
+                module,
+                machine,
+                operation,
+                axioms,
+                &[],
+                storage,
+                capture_snapshots,
+            );
             for guarantee in &callee.contract.ensures {
                 push_unique(
                     axioms,
@@ -184,6 +193,7 @@ pub(super) fn compose_call_operation(
             invalidate_mutated_arguments(
                 module,
                 machine,
+                operation,
                 axioms,
                 structural_arguments,
                 storage,
@@ -232,59 +242,8 @@ pub(super) fn compose_call_operation(
                 ..
             },
         ) => {
-            let indirect = module
-                .dynamic_dispatch
-                .indirect_dispatches
-                .iter()
-                .find(|dispatch| {
-                    dispatch.owner == machine.id
-                        && dispatch.operation == operation.id
-                        && dispatch.descriptor_ordinal == *descriptor_ordinal
-                });
-            let stored = module
-                .dynamic_dispatch
-                .stored_dispatches
-                .iter()
-                .find(|dispatch| {
-                    dispatch.owner == machine.id
-                        && dispatch.operation == operation.id
-                        && dispatch.descriptor_ordinal == *descriptor_ordinal
-                });
-            let (realization, selection_ordinal) = match (indirect, stored) {
-                (Some(dispatch), None) => {
-                    let descriptor = module
-                        .dynamic_dispatch
-                        .rebound_descriptors
-                        .iter()
-                        .find(|descriptor| {
-                            descriptor.owner == machine.id
-                                && descriptor.ordinal == *descriptor_ordinal
-                        })
-                        .expect("validated dynamic call has one rebound descriptor row");
-                    (dispatch.realization, descriptor.rebound_selection_ordinal)
-                }
-                (None, Some(dispatch)) => {
-                    let descriptor = module
-                        .dynamic_dispatch
-                        .stored_descriptors
-                        .iter()
-                        .find(|descriptor| {
-                            descriptor.owner == machine.id
-                                && descriptor.ordinal == *descriptor_ordinal
-                        })
-                        .expect("validated dynamic call has one stored descriptor row");
-                    (dispatch.realization, descriptor.selection_ordinal)
-                }
-                _ => unreachable!("validated dynamic call has one dispatch lane"),
-            };
-            let selection = module
-                .dynamic_dispatch
-                .selections
-                .iter()
-                .find(|selection| {
-                    selection.owner == machine.id && selection.ordinal == selection_ordinal
-                })
-                .expect("validated dynamic descriptor has one selected source");
+            let (realization, source) =
+                selected_dynamic_call(module, machine, operation, *descriptor_ordinal);
             let callee = machines
                 .get(&realization)
                 .copied()
@@ -296,7 +255,7 @@ pub(super) fn compose_call_operation(
                 callee,
                 &[],
                 &[],
-                std::slice::from_ref(&selection.source),
+                std::slice::from_ref(source),
                 requirement_obligations,
                 value_types,
                 storage,
@@ -315,6 +274,15 @@ pub(super) fn compose_call_operation(
         ) => {
             debug_assert!(requirement_obligations.is_empty());
             debug_assert!(crash_continuations.is_empty());
+            invalidate_mutated_arguments(
+                module,
+                machine,
+                operation,
+                axioms,
+                &[],
+                storage,
+                capture_snapshots,
+            );
             // The parameter interface fixes the result type and table slot,
             // but no concrete realization is selected until invocation.
             // V1 therefore imports no realization-specific contract axioms.
@@ -337,6 +305,15 @@ pub(super) fn compose_call_operation(
         ) => {
             debug_assert!(requirement_obligations.is_empty());
             debug_assert!(crash_continuations.is_empty());
+            invalidate_mutated_arguments(
+                module,
+                machine,
+                operation,
+                axioms,
+                &[],
+                storage,
+                capture_snapshots,
+            );
             // The admitted Unit descriptor rows have empty contracts. The
             // dynamic catalog independently validates the selected table slot.
         }
@@ -448,6 +425,7 @@ pub(super) fn compose_call_operation(
             invalidate_mutated_arguments(
                 module,
                 machine,
+                operation,
                 axioms,
                 structural_arguments,
                 storage,
@@ -532,6 +510,7 @@ pub(super) fn compose_call_operation(
             invalidate_mutated_arguments(
                 module,
                 machine,
+                operation,
                 axioms,
                 structural_arguments,
                 storage,
@@ -580,7 +559,7 @@ fn compose_structural_scalar_call(
     structural_arguments: &[terminal_psi::StructuralArgument],
     requirement_obligations: &[semantic_vocabulary::ObligationId],
     value_types: &BTreeMap<ValueId, ScalarType>,
-    storage: &super::storage_observations::StorageObservations,
+    storage: &super::storage_observations::StorageObservations<'_>,
     capture_snapshots: bool,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
@@ -641,6 +620,7 @@ fn compose_structural_scalar_call(
     invalidate_mutated_arguments(
         module,
         machine,
+        operation,
         axioms,
         structural_arguments,
         storage,
@@ -853,10 +833,16 @@ fn structural_contract_substitutions(
         let element_view_borrow = !argument.path.is_empty()
             && argument.access != terminal_psi::StructuralAccess::Owned
             && crate::validation::is_static_borrow_path(&argument.path)
-            && crate::validation::element_view::view_loan_result_in_module(module, caller, argument.place).is_some();
-        // A stored shared view field lends its own descriptor: like a
-        // window, it has no owned-field spelling, so an unobserved binder is
-        // omitted. Its declared predicates already cover the formal's.
+            && crate::validation::element_view::view_loan_result_in_module(
+                module,
+                caller,
+                argument.place,
+            )
+            .is_some();
+        // Static stored-view fields were substituted above. A remaining
+        // noncanonical path (for example an indexed view parent) may still
+        // lend a valid descriptor, but cannot rename an observed binder to
+        // its whole backing. Only an unobserved binder can be omitted.
         let stored_view_field =
             caller_place_root_type(caller, argument.place).is_some_and(|root| {
                 terminal_semantics::stored_view_field_presentation(
@@ -896,17 +882,154 @@ fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
     super::substitution::push_unique_fact(propositions, proposition);
 }
 
+/// Reuse the independently validated catalog join for both Unit and scalar
+/// dispatch. The latest selected source, not an initial descriptor value,
+/// carries the receiver's writable storage permission.
+fn selected_dynamic_call<'a>(
+    module: &'a TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    descriptor_ordinal: u32,
+) -> (MachineId, &'a StructuralArgument) {
+    let indirect = module
+        .dynamic_dispatch
+        .indirect_dispatches
+        .iter()
+        .find(|dispatch| {
+            dispatch.owner == machine.id
+                && dispatch.operation == operation.id
+                && dispatch.descriptor_ordinal == descriptor_ordinal
+        });
+    let stored = module
+        .dynamic_dispatch
+        .stored_dispatches
+        .iter()
+        .find(|dispatch| {
+            dispatch.owner == machine.id
+                && dispatch.operation == operation.id
+                && dispatch.descriptor_ordinal == descriptor_ordinal
+        });
+    let (realization, selection_ordinal) = match (indirect, stored) {
+        (Some(dispatch), None) => {
+            let descriptor = module
+                .dynamic_dispatch
+                .rebound_descriptors
+                .iter()
+                .find(|descriptor| {
+                    descriptor.owner == machine.id && descriptor.ordinal == descriptor_ordinal
+                })
+                .expect("validated dynamic call has one rebound descriptor row");
+            (dispatch.realization, descriptor.rebound_selection_ordinal)
+        }
+        (None, Some(dispatch)) => {
+            let descriptor = module
+                .dynamic_dispatch
+                .stored_descriptors
+                .iter()
+                .find(|descriptor| {
+                    descriptor.owner == machine.id && descriptor.ordinal == descriptor_ordinal
+                })
+                .expect("validated dynamic call has one stored descriptor row");
+            (dispatch.realization, descriptor.selection_ordinal)
+        }
+        _ => unreachable!("validated dynamic call has one dispatch lane"),
+    };
+    let selection = module
+        .dynamic_dispatch
+        .selections
+        .iter()
+        .find(|selection| selection.owner == machine.id && selection.ordinal == selection_ordinal)
+        .expect("validated dynamic descriptor has one selected source");
+    (realization, &selection.source)
+}
+
 /// Requirements use the pre-call state; only guarantees may describe a
 /// mutable argument after completion. The validated argument path bounds the
 /// callee's writable subtree without assuming a callee write-frame summary.
 fn invalidate_mutated_arguments(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    operation: &Operation,
     axioms: &mut Vec<Proposition>,
     arguments: &[StructuralArgument],
-    storage: &super::storage_observations::StorageObservations,
+    storage: &super::storage_observations::StorageObservations<'_>,
     capture_snapshots: bool,
 ) {
+    // Descriptor parameters have no caller-local backing identity. A mutable
+    // interface therefore fences all current storage observations; a shared
+    // interface carries no write permission. Copied scalar values survive.
+    let parameter_may_write = |ordinal| {
+        module
+            .dynamic_dispatch
+            .parameters
+            .iter()
+            .find(|parameter| parameter.owner == machine.id && parameter.ordinal == ordinal)
+            .expect("validated dynamic parameter exists")
+            .access
+            == StructuralAccess::MutableBorrow
+    };
+    let selected_source = |ordinal| {
+        &module
+            .dynamic_dispatch
+            .selections
+            .iter()
+            .find(|selection| selection.owner == machine.id && selection.ordinal == ordinal)
+            .expect("validated dynamic source selection exists")
+            .source
+    };
+    let mut arguments = arguments.iter().collect::<Vec<_>>();
+    let mut unknown_write = false;
+    match &operation.kind {
+        OperationKind::CallDynamicScalar {
+            descriptor_ordinal, ..
+        }
+        | OperationKind::CallDynamicUnit {
+            descriptor_ordinal, ..
+        } => {
+            let (_, source) =
+                selected_dynamic_call(module, machine, operation, *descriptor_ordinal);
+            if !arguments.contains(&source) {
+                arguments.push(source);
+            }
+        }
+        OperationKind::CallDynamicParameterScalar {
+            parameter_ordinal, ..
+        }
+        | OperationKind::CallDynamicParameterUnit {
+            parameter_ordinal, ..
+        } => {
+            unknown_write |= parameter_may_write(*parameter_ordinal);
+        }
+        _ => {}
+    }
+    // Ordinary calls can forward a descriptor without a structural argument.
+    // Apply the same fence to that authenticated hidden receiver channel.
+    for argument in module
+        .dynamic_dispatch
+        .arguments
+        .iter()
+        .filter(|argument| argument.owner == machine.id && argument.operation == operation.id)
+    {
+        match argument.source {
+            terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal } => {
+                arguments.push(selected_source(ordinal));
+            }
+            terminal_psi::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+                let descriptor = module
+                    .dynamic_dispatch
+                    .rebound_descriptors
+                    .iter()
+                    .find(|descriptor| {
+                        descriptor.owner == machine.id && descriptor.ordinal == ordinal
+                    })
+                    .expect("validated forwarded rebound descriptor exists");
+                arguments.push(selected_source(descriptor.rebound_selection_ordinal));
+            }
+            terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal } => {
+                unknown_write |= parameter_may_write(ordinal);
+            }
+        }
+    }
     let mut written = arguments
         .iter()
         .filter(|argument| {
@@ -939,21 +1062,15 @@ fn invalidate_mutated_arguments(
             (argument.place, path)
         })
         .collect::<Vec<_>>();
-    if arguments.iter().any(|argument| {
-        crate::validation::argument_owns_references(module, machine, argument)
-            || (argument
-                .path
-                .contains(&terminal_psi::StructuralPathSegment::Referent)
-                && matches!(
-                    argument.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                ))
-    }) {
-        // Moving a reference-bearing owner also lets its recipient write the
-        // captured backing. The carrier ID is not that referent. Until this
-        // consumer uses the reconstructed loan frontier, retain no possibly
-        // aliased storage observation for either a borrowed projection or an
-        // owned carrier transfer. Immutable scalar snapshots remain unchanged.
+    if unknown_write
+        || arguments.iter().any(|argument| {
+            crate::validation::argument_may_write_unbounded_storage(module, machine, argument)
+        })
+    {
+        // The same current-call custody judgment used for descriptor loans
+        // determines whether the selected slot bounds all writable backing.
+        // Unknown nested descriptors/references cannot establish disjointness
+        // from another observed root. Scalar snapshots remain immutable.
         written.extend(
             machine
                 .structural_places

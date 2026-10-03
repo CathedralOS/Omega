@@ -438,6 +438,25 @@ impl ContractPredicates<'_, '_> {
         let program = self.program;
         match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
+            ExpressionNode::Call(_) => {
+                let (predicate, operand) =
+                    typed_trees::byte_predicates::byte_predicate_call(program, expression)?;
+                let (root, path, _) = super::boolean_lowering::comparable_byte_carrier(
+                    program,
+                    self.parameters,
+                    operand,
+                )?;
+                // Contracts observe the exact formal's bytes, never an equally
+                // numbered body-local descriptor. The common carrier query
+                // retains projections and authenticates the readable byte type;
+                // Terminal lowering owns the independent content proposition.
+                root.parameter()?;
+                Some(CheckedBooleanExpression::ByteSequencePredicate {
+                    predicate,
+                    root,
+                    path,
+                })
+            }
             ExpressionNode::Name(_) => {
                 let (position, reference, erased) = self.subject(expression)?;
                 (program.primitive_type_reference(reference) == Some(PrimitiveType::Bool))

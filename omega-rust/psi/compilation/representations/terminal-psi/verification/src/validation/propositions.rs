@@ -39,14 +39,37 @@ pub(crate) fn proposition_observes_write(
 /// observation whose finer structure this judgment cannot yet name.
 pub(crate) type ObservationSite = (PlaceId, Option<Vec<CanonicalStructuralPathSegment>>);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ObservationKind {
+    Storage,
+    ByteContents,
+    Extent,
+}
+
 pub(crate) fn proposition_observation_sites(proposition: &Proposition) -> Vec<ObservationSite> {
-    fn collect_term(term: &ScalarTerm, sites: &mut Vec<ObservationSite>) {
+    storage_observations(proposition)
+        .into_iter()
+        .map(|(site, _)| site)
+        .collect()
+}
+
+/// Metadata extents survive length-preserving element writes. Byte predicates
+/// and equality inspect payload bytes, including backing behind a descriptor.
+pub(crate) fn storage_observations(
+    proposition: &Proposition,
+) -> Vec<(ObservationSite, ObservationKind)> {
+    fn collect_term(term: &ScalarTerm, sites: &mut Vec<(ObservationSite, ObservationKind)>) {
         match term {
             ScalarTerm::BooleanField { root, path }
             | ScalarTerm::IntegerField { root, path, .. }
-            | ScalarTerm::IeeeFloatField { root, path, .. }
-            | ScalarTerm::ViewExtent { root, path, .. } => {
-                sites.push((*root, Some(path.clone())));
+            | ScalarTerm::IeeeFloatField { root, path, .. } => {
+                sites.push(((*root, Some(path.clone())), ObservationKind::Storage))
+            }
+            ScalarTerm::ByteSequencePredicate { root, path, .. } => {
+                sites.push(((*root, Some(path.clone())), ObservationKind::ByteContents))
+            }
+            ScalarTerm::ViewExtent { root, path, .. } => {
+                sites.push(((*root, Some(path.clone())), ObservationKind::Extent))
             }
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
@@ -91,7 +114,7 @@ pub(crate) fn proposition_observation_sites(proposition: &Proposition) -> Vec<Ob
         }
     }
 
-    fn collect(proposition: &Proposition, sites: &mut Vec<ObservationSite>) {
+    fn collect(proposition: &Proposition, sites: &mut Vec<(ObservationSite, ObservationKind)>) {
         match proposition {
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
@@ -101,21 +124,39 @@ pub(crate) fn proposition_observation_sites(proposition: &Proposition) -> Vec<Ob
                 collect_term(right, sites);
             }
             Proposition::IeeeFloatComparison { left, right, .. } => {
-                sites.push((left.root(), Some(left.path().to_vec())));
-                sites.push((right.root(), Some(right.path().to_vec())));
+                sites.push((
+                    (left.root(), Some(left.path().to_vec())),
+                    ObservationKind::Storage,
+                ));
+                sites.push((
+                    (right.root(), Some(right.path().to_vec())),
+                    ObservationKind::Storage,
+                ));
             }
             Proposition::ByteSequenceEqual { left, right } => {
-                sites.push((left.root(), Some(left.path().to_vec())));
-                sites.push((right.root(), Some(right.path().to_vec())));
+                sites.push((
+                    (left.root(), Some(left.path().to_vec())),
+                    ObservationKind::ByteContents,
+                ));
+                sites.push((
+                    (right.root(), Some(right.path().to_vec())),
+                    ObservationKind::ByteContents,
+                ));
             }
             Proposition::StructuralCaseMembership { subject, .. } => {
-                sites.push((subject.root(), Some(subject.path().to_vec())));
+                sites.push((
+                    (subject.root(), Some(subject.path().to_vec())),
+                    ObservationKind::Storage,
+                ));
             }
             Proposition::ContentConservation(conservation) => {
-                fn collect_content(term: &ContentTerm, sites: &mut Vec<ObservationSite>) {
+                fn collect_content(
+                    term: &ContentTerm,
+                    sites: &mut Vec<(ObservationSite, ObservationKind)>,
+                ) {
                     match term {
                         ContentTerm::Projection { subject, .. } => {
-                            sites.push((subject.root, None));
+                            sites.push(((subject.root, None), ObservationKind::Storage));
                         }
                         ContentTerm::Separate(terms) => {
                             for term in terms {

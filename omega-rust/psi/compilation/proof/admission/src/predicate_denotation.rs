@@ -439,6 +439,7 @@ fn boolean_atom(term: &ScalarTerm) -> bool {
             scalar_type: ScalarType::Boolean,
             ..
         } | ScalarTerm::BooleanField { .. }
+            | ScalarTerm::ByteSequencePredicate { .. }
     )
 }
 

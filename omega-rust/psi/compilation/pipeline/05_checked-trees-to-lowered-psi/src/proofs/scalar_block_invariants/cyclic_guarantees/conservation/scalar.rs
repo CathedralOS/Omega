@@ -71,7 +71,8 @@ pub(super) fn discover(
         ScalarTerm::BooleanField { .. }
         | ScalarTerm::IntegerField { .. }
         | ScalarTerm::IeeeFloatField { .. }
-        | ScalarTerm::ViewExtent { .. } => return None,
+        | ScalarTerm::ViewExtent { .. }
+        | ScalarTerm::ByteSequencePredicate { .. } => return None,
         ScalarTerm::BooleanNot { operand } => unary!(BooleanNot, operand),
         ScalarTerm::BooleanEqual { left, right } => binary!(BooleanEqual, left, right),
         ScalarTerm::IntegerEqual {

@@ -104,6 +104,87 @@ fn scalar_state_contract_lands_anonymous_signed_bounds() {
 }
 
 #[test]
+fn state_byte_predicate_contract_retains_its_exact_structural_formal() {
+    let program = typed_program(
+        "machine validate(unrelated: &[u8], input: &[u8]) {
+            transition valid_utf8(input) {
+                true -> consume(0, unrelated, input)
+                _ -> reject()
+            }
+            state consume(tag: u64, other: &[u8], selected: &[u8])
+                requires valid_utf8(selected)
+            {}
+            state reject() {}
+        }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[1];
+    let expression = program
+        .state_contracts(state)
+        .iter()
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .find_map(|fact| match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+            _ => None,
+        })
+        .expect("authored byte-predicate state requirement");
+    let predicate = crate::values::lower_state_scalar_contract_predicate(
+        &program,
+        &CheckedOperatorFacts::default(),
+        machine,
+        state,
+        expression,
+        &mut 4096,
+    )
+    .expect("a byte predicate retains its exact state-entry operand");
+    assert!(matches!(
+        predicate,
+        CheckedBooleanExpression::ByteSequencePredicate {
+            predicate: language_semantics::byte_predicates::ByteSequencePredicate::ValidUtf8,
+            root: checked_trees::CheckedStorageRoot::Parameter { index: 2 },
+            ref path,
+        } if path.is_empty()
+    ));
+}
+
+#[test]
+fn byte_contract_rejects_resolved_lookalikes_and_foreign_subjects() {
+    let program = typed_program(
+        "machine inspect(bytes: &[u8]) requires valid_utf8(bytes) {}
+         machine foreign(bytes: &[u8]) {}",
+    );
+    let root = requirement(&program);
+    assert!(scalar_requirement(&program, root).is_some());
+    let ExpressionNode::Call(call) = program.expression_table.expression(root) else {
+        panic!("byte predicate call");
+    };
+    let argument = program.expression_table.expression_handles(call.arguments)[0];
+    let mut resolved = program.clone();
+    let ExpressionNode::Call(call) = resolved.expression_table.expression_mut(root) else {
+        unreachable!();
+    };
+    call.target_symbol = program.machines()[1].symbol;
+    assert!(
+        scalar_requirement(&resolved, root).is_none(),
+        "a resolved declaration wins over builtin spelling"
+    );
+    let foreign =
+        program.state_parameters(&program.machine_states(&program.machines()[1])[0])[0].symbol;
+    for subject in [symbols::SymbolHandle::invalid(), foreign] {
+        let mut invalid = program.clone();
+        let ExpressionNode::Name(name) = invalid.expression_table.expression_mut(argument) else {
+            panic!("exact formal operand");
+        };
+        name.symbol = subject;
+        name.head_symbol = subject;
+        assert!(
+            scalar_requirement(&invalid, root).is_none(),
+            "spelling does not authenticate a missing or foreign formal"
+        );
+    }
+}
+
+#[test]
 fn scalar_entry_contract_lands_anonymous_arithmetic_at_its_typed_peer() {
     for (predicate, arithmetic) in [
         ("(2 * 3 - 10) <= wide", false),

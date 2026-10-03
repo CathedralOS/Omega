@@ -31,10 +31,15 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
         CheckedBooleanExpression::Parameter { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::Constant(_) => Ok(()),
+        CheckedBooleanExpression::ByteSequencePredicate { root, .. } => root
+            .parameter()
+            .map(|_| ())
+            .ok_or(LoweringError::Unsupported(
+                "closed byte predicate requires a structural formal",
+            )),
         CheckedBooleanExpression::StructuralParameterField { .. }
         | CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
-        | CheckedBooleanExpression::ByteSequencePredicate { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => {
             Err(LoweringError::Unsupported(

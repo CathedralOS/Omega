@@ -145,7 +145,8 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
             ScalarTerm::BooleanField { root, .. }
             | ScalarTerm::IntegerField { root, .. }
             | ScalarTerm::IeeeFloatField { root, .. }
-            | ScalarTerm::ViewExtent { root, .. } => {
+            | ScalarTerm::ViewExtent { root, .. }
+            | ScalarTerm::ByteSequencePredicate { root, .. } => {
                 roots.insert(*root);
             }
             ScalarTerm::BooleanNot { operand }

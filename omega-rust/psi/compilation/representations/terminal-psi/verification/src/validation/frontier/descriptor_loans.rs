@@ -279,3 +279,26 @@ impl DescriptorLoans {
         }
     }
 }
+
+/// Observation invalidation and loan interference use the same current alias
+/// graph. This grants possible overlap, never equality of descriptor contents.
+pub(crate) fn borrowed_observation_aliases(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> AliasSources {
+    aliases::reconstruct(module, machine).aliases
+}
+
+pub(crate) use accesses::observation_projection;
+
+/// A copied unrestricted carrier grants no write, but an exclusive actual
+/// whose selected storage contains borrowed backing cannot bound mutation by
+/// the containing slot. Share the ordinary-call loan judgment here.
+pub(crate) fn argument_may_write_unbounded_storage(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &StructuralArgument,
+) -> bool {
+    accesses::argument(module, machine, argument, (machine.entry, 0)).exclusive
+        && !call_accesses::argument_storage_closed(module, machine, argument)
+}

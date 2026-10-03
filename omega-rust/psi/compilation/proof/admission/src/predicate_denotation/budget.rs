@@ -131,7 +131,8 @@ impl Budget {
             ScalarTerm::BooleanField { path, .. }
             | ScalarTerm::IntegerField { path, .. }
             | ScalarTerm::IeeeFloatField { path, .. }
-            | ScalarTerm::ViewExtent { path, .. } => self.count(path.len())?,
+            | ScalarTerm::ViewExtent { path, .. }
+            | ScalarTerm::ByteSequencePredicate { path, .. } => self.count(path.len())?,
             ScalarTerm::BooleanNot { operand }
             | ScalarTerm::IntegerBitwiseNot { operand, .. }
             | ScalarTerm::IntegerWiden { operand, .. }

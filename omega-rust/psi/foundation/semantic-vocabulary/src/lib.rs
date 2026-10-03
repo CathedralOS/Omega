@@ -19,6 +19,7 @@
 #![forbid(unsafe_code)]
 
 mod bounded_integer_type;
+pub mod byte_predicates;
 mod content;
 mod identity;
 mod ieee_float_comparison_operation;
@@ -30,6 +31,7 @@ pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
 pub use qualified_scalar_type::QualifiedScalarType;
 
 pub use bounded_integer_type::BoundedIntegerType;
+pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 pub use content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,

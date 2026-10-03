@@ -1333,6 +1333,17 @@ pub(super) fn structural_parameter_place(
             _ => None,
         });
     loop {
+        match program.expression_table.expression(authored) {
+            ExpressionNode::Borrow(borrow) => {
+                authored = borrow.target;
+                continue;
+            }
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                authored = cast.value;
+                continue;
+            }
+            _ => {}
+        }
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(authored) {
             let (_, _, collection_type) =
                 structural_parameter_place(program, parameters, indexed.collection)?;
@@ -1394,12 +1405,44 @@ pub(super) fn structural_parameter_place(
     let facts::PlaceRoot::Symbol(_) = root else {
         return None;
     };
-    let parameter_position = parameters.iter().position(|parameter| {
-        crate::flow::normalized_event_place_root(
-            program,
-            facts::PlaceRoot::Symbol(parameter.symbol),
-        ) == root
-    })?;
+    // Canonical-place recovery also serves body storage and can recover a
+    // root from retained path-member symbols. A parameter observation must
+    // authenticate the original occurrence too: stale or foreign head/leaf
+    // symbols cannot acquire a formal's authority from that fallback.
+    let ExpressionNode::Name(name) = program.expression_table.expression(authored) else {
+        return None;
+    };
+    let names = program.expression_table.name_path_members(name.members);
+    let parameter_position = if matches!(names, [spelling] if spelling.is_self_receiver()) {
+        exact_self_parameter(program, parameters, authored)?.0
+    } else {
+        if !name.symbol.is_valid()
+            || !name.head_symbol.is_valid()
+            || program.symbols.get(name.head_symbol).kind != symbols::SymbolKind::Parameter
+            || (names.len() == 1 && name.symbol != name.head_symbol)
+        {
+            return None;
+        }
+        let mut candidates = parameters.iter().enumerate().filter(|(_, parameter)| {
+            parameter.symbol == name.head_symbol
+                && names
+                    .first()
+                    .is_some_and(|spelling| *spelling == parameter.name)
+                && !parameter.is_self
+        });
+        let (position, _) = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        position
+    };
+    if crate::flow::normalized_event_place_root(
+        program,
+        facts::PlaceRoot::Symbol(parameters[parameter_position].symbol),
+    ) != root
+    {
+        return None;
+    }
     let mut path = Vec::new();
     for segment in &place.segments {
         path.push(match segment {

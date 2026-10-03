@@ -820,6 +820,13 @@ fn expression_is_stable_predicate(
                 && expression_is_stable_predicate(program, binary.right)
         }
         ExpressionNode::Borrow(borrow) => expression_is_stable_predicate(program, borrow.target),
+        // A selected primitive observation is repeatable while its operand
+        // storage is preserved. Observation contexts retain those operand
+        // places, so ordinary alias-aware invalidation owns both polarities.
+        ExpressionNode::Call(_) => {
+            typed_trees::byte_predicates::byte_predicate_call(program, expression)
+                .is_some_and(|(_, operand)| expression_is_stable_predicate(program, operand))
+        }
         _ => false,
     }
 }

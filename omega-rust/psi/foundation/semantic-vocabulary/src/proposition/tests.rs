@@ -1142,3 +1142,37 @@ fn address_math_embedding_preserves_exact_context_type() {
     assert!(address_context.validate(&proposition).is_ok());
     assert!(count_context.validate(&proposition).is_err());
 }
+
+#[test]
+fn byte_predicate_observations_retain_exact_subject_without_asserting_truth() {
+    use crate::{
+        ByteSequencePredicate as Predicate, CanonicalStructuralPathSegment as Segment, PlaceId,
+        StructuralFieldId,
+    };
+    let root = PlaceId::new(1).unwrap();
+    let path = vec![
+        Segment::Field(StructuralFieldId::new(2).unwrap()),
+        Segment::FixedIndex(3),
+    ];
+    let term = ScalarTerm::byte_sequence_predicate(Predicate::ValidUtf8, root, path.clone());
+    assert_eq!(term.scalar_type(), ScalarType::Boolean);
+    assert_eq!(term.boolean_value(), None);
+    assert_eq!(term.integer_value(), None);
+    assert_eq!(term.validate(), Ok(()));
+    assert!(!term.any_value_id(|_| true));
+    let proposition = Proposition::Equal(term.clone(), ScalarTerm::boolean(true));
+    assert!(!proposition.visit_value_ids(|_| panic!("byte observation has no scalar ID")));
+    assert_eq!(
+        PropositionContext::default().validate(&proposition),
+        Err(PropositionError::UnknownStructuralPlace(root))
+    );
+    for changed in [
+        ScalarTerm::byte_sequence_predicate(Predicate::NoNul, root, path.clone()),
+        ScalarTerm::byte_sequence_predicate(Predicate::ValidUtf8, PlaceId::new(4).unwrap(), path),
+        ScalarTerm::byte_sequence_predicate(Predicate::ValidUtf8, root, vec![]),
+    ] {
+        assert_ne!(term, changed);
+        assert_eq!(changed.validate(), Ok(()));
+        assert_eq!(changed.boolean_value(), None);
+    }
+}

@@ -203,6 +203,34 @@ pub(crate) fn view_extent_leaf_has_extent(
     }
 }
 
+/// Logical byte predicates require a declared byte endpoint. Runtime reads
+/// separately prove readability, availability and the matching current extent.
+pub(crate) fn byte_predicate_leaf_is_bytes(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> bool {
+    let is_bytes = |structural_type| {
+        module.structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
+        })
+    };
+    if path.is_empty() {
+        return machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == root)
+            .is_some_and(|parameter| is_bytes(parameter.structural_type));
+    }
+    match structural_leaf_type(module, machine, root, path) {
+        Some(field) if field.byte_sequence_carrier().is_some() => true,
+        Some(StructuralFieldType::Structural(structural_type)) => is_bytes(*structural_type),
+        _ => false,
+    }
+}
+
 fn validate_structural_fields(
     structural_type: StructuralTypeId,
     fields: &[terminal_psi::StructuralFieldDeclaration],

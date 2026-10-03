@@ -26,6 +26,10 @@ mod shared_loans;
 mod terminators;
 mod traversal;
 
+pub(crate) use descriptor_loans::{
+    argument_may_write_unbounded_storage, borrowed_observation_aliases, observation_projection,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedLiveClaim {
     pub claim: ClaimId,

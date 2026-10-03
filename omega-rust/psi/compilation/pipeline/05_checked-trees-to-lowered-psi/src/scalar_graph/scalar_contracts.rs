@@ -355,11 +355,80 @@ impl PredicateTerms for ScalarContractTerms<'_> {
     }
 
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
-        crate::proofs::crash_routes::checked_boolean_scalar_term(
-            expression,
-            self.namespace,
-            self.erased,
-        )
+        match expression {
+            CheckedBooleanExpression::ByteSequencePredicate {
+                predicate,
+                root,
+                path,
+            } => {
+                let position = root.parameter().ok_or(LoweringError::Unsupported(
+                    "closed byte predicate requires a structural formal",
+                ))?;
+                let parameters = self.authored_structural_parameters();
+                let parameter = parameters
+                    .iter()
+                    .find(|parameter| parameter.position == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte predicate names a non-structural formal",
+                    ))?;
+                let (root, path, carrier) = if path.is_empty() {
+                    let carrier = self
+                        .views
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == parameter.structural_type)
+                        .and_then(|declaration| match declaration.shape {
+                            terminal_psi::StructuralTypeShape::ByteSequence(carrier) => {
+                                Some(carrier)
+                            }
+                            _ => None,
+                        });
+                    (parameter.place, Vec::new(), carrier)
+                } else {
+                    let (root, path, field) =
+                        crate::proofs::crash_routes::lower_structural_member_path(
+                            position,
+                            path,
+                            &parameters,
+                            self.views.structural_types,
+                        )?;
+                    (root, path, field.byte_sequence_carrier())
+                };
+                let readable = match carrier {
+                    Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => true,
+                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView { access }) => {
+                        matches!(
+                            access.unwrap_or(parameter.access),
+                            terminal_psi::StructuralAccess::SharedBorrow
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        )
+                    }
+                    _ => false,
+                };
+                if !readable || parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+                {
+                    return unsupported("byte predicate formal is not a readable byte carrier");
+                }
+                Ok(ScalarTerm::ByteSequencePredicate {
+                    predicate: *predicate,
+                    root,
+                    path,
+                })
+            }
+            CheckedBooleanExpression::Not(operand) => {
+                ScalarTerm::boolean_not(self.boolean(operand)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
+            CheckedBooleanExpression::Equal { left, right } => {
+                ScalarTerm::boolean_equal(self.boolean(left)?, self.boolean(right)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
+            _ => crate::proofs::crash_routes::checked_boolean_scalar_term(
+                expression,
+                self.namespace,
+                self.erased,
+            ),
+        }
     }
 
     fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
@@ -368,7 +437,24 @@ impl PredicateTerms for ScalarContractTerms<'_> {
 }
 
 impl ScalarContractTerms<'_> {
+    // Checked leaves use authored source positions, while Terminal separates
+    // scalar and structural parameter lanes. Rejoin by the retained source key,
+    // never by a coincidentally equal dense structural ordinal.
+    fn authored_structural_parameters(&self) -> Vec<StructuralParameterDeclaration> {
+        self.views
+            .parameters
+            .iter()
+            .map(|(position, declaration)| StructuralParameterDeclaration {
+                position: *position,
+                ..declaration.clone()
+            })
+            .collect()
+    }
+
     fn leaf(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+        if let CheckedScalarExpression::Boolean(predicate) = expression {
+            return self.boolean(predicate);
+        }
         // Member leaves root at the contract's structural parameters and
         // mint field-rooted scalar terms; the entry namespace carries the
         // declarations and types the path resolves against.
@@ -382,15 +468,7 @@ impl ScalarContractTerms<'_> {
             // position — the coordinate checked member operands name — so the
             // lookup copies carry that position rather than the block-dense
             // one the emitted block parameters use.
-            let parameters: Vec<StructuralParameterDeclaration> = self
-                .views
-                .parameters
-                .iter()
-                .map(|(position, declaration)| StructuralParameterDeclaration {
-                    position: *position,
-                    ..declaration.clone()
-                })
-                .collect();
+            let parameters = self.authored_structural_parameters();
             // IEEE leaves keep their exact format, as entry requirements do.
             return crate::proofs::crash_routes::lower_structural_member_term(
                 *parameter_position,

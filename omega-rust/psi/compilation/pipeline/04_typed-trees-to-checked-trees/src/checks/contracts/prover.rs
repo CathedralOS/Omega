@@ -179,7 +179,8 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
             let context = semantic.contexts.get(*entry_context);
             semantic_context_proves_instantiated_boolean_expression(
                 program,
-                semantic,
+                facts,
+                call_frames,
                 context,
                 entry_contexts,
                 state_flow.state_symbol,
