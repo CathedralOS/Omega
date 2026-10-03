@@ -9,7 +9,6 @@ use crate::current_ownership::mutations::{
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{
     CurrentOwnership, LiveClaim, apply_edge_partial_affine_discards, bind_owned_parameters,
-    validate_partial_continuation_roster,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -767,13 +766,6 @@ pub(super) fn validate_current_ownership_cfg(
                     .operation,
                 O::Jump { .. }
             ) {
-                validate_partial_continuation_roster(
-                    function,
-                    structural_types,
-                    block,
-                    &edge.trivial_affine_discards,
-                    &edge.residual_affine_discards,
-                )?;
                 apply_edge_partial_affine_discards(
                     function,
                     structural_types,

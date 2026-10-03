@@ -80,11 +80,11 @@ fn result_continuation(boundary: bool, empty: bool) -> PsiOptimizationUnit {
 }
 
 #[test]
-fn partial_continuation_rejects_cleanup_delayed_until_successor_return() {
-    reject_successor_cleanup(false);
+fn partial_continuation_carries_custody_until_successor_return() {
+    successor_cleanup(false);
 }
 
-fn reject_successor_cleanup(retain_jump_cleanup: bool) {
+fn successor_cleanup(retain_jump_cleanup: bool) {
     for boundary in [false, true] {
         let mut changed = result_continuation(boundary, false);
         validate_psi_optimization_unit(&changed).expect("the original continuation validates");
@@ -115,15 +115,45 @@ fn reject_successor_cleanup(retain_jump_cleanup: bool) {
             .map(TerminalAffineCleanupAction::DiscardResidual)
             .collect();
         refresh_function_derivatives(&mut changed, 0);
-        let expected_block = changed.functions[0].blocks[usize::from(retain_jump_cleanup)].id;
-        assert_eq!(
-            validate_psi_optimization_unit(&changed),
-            Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
-                machine: changed.functions[0].machine,
-                block: expected_block,
-            }),
-            "boundary={boundary} retain_jump_cleanup={retain_jump_cleanup}",
-        );
+        if retain_jump_cleanup {
+            assert!(
+                validate_psi_optimization_unit(&changed).is_err(),
+                "an already disposed residual cannot be disposed twice"
+            );
+        } else {
+            validate_psi_optimization_unit(&changed)
+                .expect("the exact partial frontier carries to its later complete disposal");
+            let mut omitted = changed.clone();
+            let AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } = &mut omitted.functions[0].blocks[1].nodes[0].operation
+            else {
+                unreachable!()
+            };
+            cleanup_actions.clear();
+            refresh_function_derivatives(&mut omitted, 0);
+            assert!(
+                validate_psi_optimization_unit(&omitted).is_err(),
+                "remaining siblings still owe disposal"
+            );
+            let mut wrong = changed.clone();
+            let AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } = &mut wrong.functions[0].blocks[1].nodes[0].operation
+            else {
+                unreachable!()
+            };
+            let TerminalAffineCleanupAction::DiscardResidual(discard) = &mut cleanup_actions[0]
+            else {
+                unreachable!()
+            };
+            discard.path = vec![field("middle")];
+            refresh_function_derivatives(&mut wrong, 0);
+            assert!(
+                validate_psi_optimization_unit(&wrong).is_err(),
+                "moved storage is not a remaining sibling"
+            );
+        }
     }
 }
 
@@ -145,7 +175,7 @@ fn append_caller_parameter(
 }
 
 #[test]
-fn empty_partial_continuation_rejects_interleaved_whole_cleanup() {
+fn empty_partial_continuation_allows_independent_whole_cleanup() {
     let mut unit = result_continuation(true, true);
     let unrelated = id(70_003, PlaceId::new);
     let mut parameter = unit.functions[1].structural_parameters[0].clone();
@@ -164,14 +194,13 @@ fn empty_partial_continuation_rejects_interleaved_whole_cleanup() {
     };
     trivial_affine_discards.push(unrelated);
     refresh_function_derivatives(&mut unit, 0);
-    assert!(matches!(
-        validate_psi_optimization_unit(&unit),
-        Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
-    ));
+    validate_psi_optimization_unit(&unit).expect(
+        "the consumed projection leaves no debt; the unrelated whole owner is disposed exactly",
+    );
 }
 
 #[test]
-fn empty_partial_continuation_rejects_two_dying_roots() {
+fn empty_partial_continuation_allows_two_fully_consumed_roots() {
     let mut unit = continuation(unit(
         vec![record(1, &[]), array(2, 1, 1)],
         2,
@@ -197,10 +226,8 @@ fn empty_partial_continuation_rejects_two_dying_roots() {
     structural_arguments[0].place = unrelated;
     unit.functions[0].blocks[0].nodes.insert(1, second);
     refresh_function_derivatives(&mut unit, 0);
-    assert!(matches!(
-        validate_psi_optimization_unit(&unit),
-        Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
-    ));
+    validate_psi_optimization_unit(&unit)
+        .expect("both roots have empty complements independently of their shared block");
 }
 
 #[test]
@@ -268,5 +295,129 @@ fn partial_continuation_rejoins_exact_retained_edge_snapshots() {
                 "mutation={mutation}: {result:?}"
             );
         }
+    }
+}
+
+#[test]
+fn partial_continuation_rejects_repeated_residual_disposal() {
+    successor_cleanup(true);
+}
+
+#[test]
+fn partial_continuation_carries_block_parameter_residuals_to_exact_disposal() {
+    let mut candidate = continuation(unit(
+        vec![
+            record(1, &[]),
+            record(2, &[("left", 1), ("middle", 1), ("right", 1)]),
+        ],
+        2,
+        &[(vec![field("middle")], 1)],
+        &[(vec![field("right")], 1), (vec![field("left")], 1)],
+    ));
+    let function = &mut candidate.functions[0];
+    let original = function.structural_parameters[0].clone();
+    let mut parameter = original.clone();
+    parameter.place = id(70_010, PlaceId::new);
+    let target = function.entry;
+    function.blocks[0]
+        .structural_parameters
+        .push(parameter.clone());
+    function.declared_places.insert(parameter.place);
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                block: target,
+                position: parameter.position,
+            },
+        });
+    for node in &mut function.blocks[0].nodes {
+        if let AbstractOperation::CallStructural {
+            structural_arguments,
+            ..
+        } = &mut node.operation
+        {
+            for argument in structural_arguments {
+                if argument.place == original.place {
+                    argument.place = parameter.place;
+                }
+            }
+        }
+    }
+    let AbstractOperation::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut function.blocks[0].nodes.last_mut().unwrap().operation
+    else {
+        unreachable!()
+    };
+    let residuals = std::mem::take(residual_affine_discards)
+        .into_iter()
+        .map(|mut discard| {
+            discard.place = parameter.place;
+            TerminalAffineCleanupAction::DiscardResidual(discard)
+        })
+        .collect();
+    let AbstractOperation::ReturnUnit {
+        cleanup_actions, ..
+    } = &mut function.blocks[1].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    *cleanup_actions = residuals;
+    let mut entry = function.blocks[0].nodes.last().unwrap().clone();
+    entry.operation = AbstractOperation::Jump {
+        psi_edge: id(70_011, EdgeId::new),
+        target,
+        bindings: Vec::new(),
+        structural_bindings: vec![abstract_operations::AbstractStructuralBinding {
+            parameter: parameter.place,
+            argument: terminal_psi::StructuralArgument {
+                place: original.place,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::Owned,
+            },
+        }],
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    function.entry = id(70_012, BlockId::new);
+    function.blocks.push(OptimizationBlock {
+        id: function.entry,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        nodes: vec![entry],
+    });
+    refresh_function_derivatives(&mut candidate, 0);
+    validate_psi_optimization_unit(&candidate)
+        .expect("block parameter custody survives the internal edge");
+    for mutation in 0..3 {
+        let mut changed = candidate.clone();
+        let AbstractOperation::ReturnUnit {
+            cleanup_actions, ..
+        } = &mut changed.functions[0].blocks[1].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => {
+                cleanup_actions.pop();
+            }
+            1 => cleanup_actions.swap(0, 1),
+            2 => {
+                let TerminalAffineCleanupAction::DiscardResidual(discard) = &mut cleanup_actions[0]
+                else {
+                    unreachable!()
+                };
+                discard.place = original.place;
+            }
+            _ => unreachable!(),
+        }
+        refresh_function_derivatives(&mut changed, 0);
+        assert!(
+            validate_psi_optimization_unit(&changed).is_err(),
+            "corrupt carried residual {mutation}"
+        );
     }
 }
