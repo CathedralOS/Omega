@@ -422,11 +422,22 @@ pub(crate) fn parameter_source(
             // A store through the erased carrier is a use, not an escape: the
             // target's root decides whether this statement spends the alias,
             // while its value may not mention the carrier at all. An
-            // unrelated assignment leaves the alias untouched.
-            StatementNode::Assignment(assignment) => (
-                receiver_root(checked, assignment.target)?,
-                std::slice::from_ref(&assignment.value),
-            ),
+            // unrelated assignment leaves the alias untouched. Mentions of
+            // the owner inside the stored value observe the loan exactly as
+            // a local initializer's member reads do — `x = cells[i].f`
+            // reads the referent and carries no alias.
+            StatementNode::Assignment(assignment) => {
+                if !contains_owner(checked, assignment.value, owner) {
+                    (receiver_root(checked, assignment.target)?, &[][..])
+                } else if owner_mentions_are_member_reads(checked, assignment.value, owner) {
+                    (owner, &[][..])
+                } else {
+                    (
+                        receiver_root(checked, assignment.target)?,
+                        std::slice::from_ref(&assignment.value),
+                    )
+                }
+            }
             // The state's own terminator is not a use of the alias unless it
             // names it. A transition that mentions the owner in a target value
             // or successor argument would carry the alias into a successor
