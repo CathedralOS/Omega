@@ -2,8 +2,8 @@
 // The entry binding is load-bearing -- a machine whose plan is never demanded
 // checks vacuously, and this file would then guard nothing.
 machine build(builder: &mut Build) {
-    builder.application("field_subject_named_arm_chain");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "field_subject_named_arm_chain");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

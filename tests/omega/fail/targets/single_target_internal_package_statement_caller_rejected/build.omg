@@ -5,9 +5,9 @@
 // declared by the `paradigm_internals` dependency package, not this root.
 
 machine build(builder: &mut Build) {
-    builder.application("single_target_internal_package_statement_caller_rejected");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
-    builder.depend(Source::Path { location: "../../../../../tests/omega/packages/paradigm-internals" });
+    Build::application(builder, "single_target_internal_package_statement_caller_rejected");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::depend(builder, Source::Path { location: "../../../../../tests/omega/packages/paradigm-internals" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

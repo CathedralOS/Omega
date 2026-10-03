@@ -417,7 +417,7 @@ pub enum ExecutedBehaviorExclusionSite {
 /// The exclusion one evaluated call selected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutedBehaviorExclusionKind {
-    /// `builder.exclude_crash(cause)`: the exact toolchain `CrashCause`
+    /// `Build::exclude_crash(builder, cause)`: the exact toolchain `CrashCause`
     /// variant symbol the evaluated argument carried. The argument is a
     /// value here — a bound local or a computed case selects as much as a
     /// literal spelling.

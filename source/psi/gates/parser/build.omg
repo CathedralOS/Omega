@@ -2,16 +2,16 @@
 // bindings for those profiles, not a source-declared support set.
 
 machine build(builder: &mut Build) {
-    builder.application("psi_parser_gate");
+    Build::application(builder, "psi_parser_gate");
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, ParserHarness::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, ParserHarness::main);
     builder.roots.bind(linux_arm64::ProgramEntry, ParserHarness::main);
     builder.roots.bind(macos_arm64::ProgramEntry, ParserHarness::main);
-    builder.depend(Source::Path {
+    Build::depend(builder, Source::Path {
         location: "../../../library/std"
     });
-    builder.depend_as("psi", Source::Path {
+    Build::depend_as(builder, "psi", Source::Path {
         location: "../.."
     });
 }

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("bundle_smoke");
-    builder.depend(Source::Path { location: @STDLIB@ });
+    Build::application(builder, "bundle_smoke");
+    Build::depend(builder, Source::Path { location: @STDLIB@ });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

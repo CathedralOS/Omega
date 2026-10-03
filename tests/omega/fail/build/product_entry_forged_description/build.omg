@@ -2,7 +2,7 @@
 // it. Only the compiler-issued description carries a selected identity; an
 // authored value of the same declared type selects nothing.
 machine build(builder: &mut Build) {
-    builder.application("product_entry_forged_description");
+    Build::application(builder, "product_entry_forged_description");
     let forged: ProductEntryRef = ProductEntryRef {};
     builder.roots.bind(windows_x86_64::ProgramEntry, forged);
 }

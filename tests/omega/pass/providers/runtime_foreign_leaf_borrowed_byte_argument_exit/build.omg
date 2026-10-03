@@ -1,7 +1,7 @@
 // Darwin-only canary: the leaf binds libSystem's `_strlen`, so only
 // macos_arm64 selects the entry.
 machine build(builder: &mut Build) {
-    builder.application("runtime_foreign_leaf_borrowed_byte_argument_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "runtime_foreign_leaf_borrowed_byte_argument_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

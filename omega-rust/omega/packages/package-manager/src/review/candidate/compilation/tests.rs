@@ -222,7 +222,7 @@ impl SourcePreparationFixture {
         fs::create_dir_all(root.join("package")).unwrap();
         fs::write(
             root.join("package/build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"prepared_package\"); }\n",
+            "machine build(builder: &mut Build) { Build::package(builder, \"prepared_package\"); }\n",
         )
         .unwrap();
         fs::write(root.join("package/main.omg"), main_source).unwrap();
@@ -597,7 +597,7 @@ impl HostedExitApplicationFixture {
         fs::create_dir_all(root.join("application")).unwrap();
         fs::write(
             root.join("console/build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"ordinary_console\"); }\n",
+            "machine build(builder: &mut Build) { Build::package(builder, \"ordinary_console\"); }\n",
         )
         .unwrap();
         fs::write(root.join("console/main.omg"), provider_source).unwrap();
@@ -605,8 +605,8 @@ impl HostedExitApplicationFixture {
             root.join("application/build.omg"),
             format!(
                 r#"machine build(builder: &mut Build) {{
-    builder.application("console_consumer");
-    builder.depend_as("ordinary_console", Source::Path {{ location: "../console" }});
+    Build::application(builder, "console_consumer");
+    Build::depend_as(builder, "ordinary_console", Source::Path {{ location: "../console" }});
     builder.select_provider<{requirement}, ordinary_console::{service}NativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }}
@@ -927,7 +927,7 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     fs::create_dir_all(fixture.0.join("plain")).unwrap();
     fs::write(
         fixture.0.join("plain/build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"plain_marks\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"plain_marks\"); }\n",
     )
     .unwrap();
     fs::write(
@@ -938,7 +938,7 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     let build_path = fixture.0.join("application/build.omg");
     let build = fs::read_to_string(&build_path).unwrap().replace(
         "\n}\n",
-        "    builder.depend_as(\"plain_marks\", Source::Path { location: \"../plain\" });\n}\n",
+        "    Build::depend_as(builder, \"plain_marks\", Source::Path { location: \"../plain\" });\n}\n",
     );
     fs::write(build_path, build).unwrap();
     let closure = fixture.closure();
@@ -1073,8 +1073,8 @@ fn std_importing_application_closure(
         root.join("application/build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("std_check_consumer");
-    builder.depend(Source::Path {{ location: "{}" }});
+    Build::application(builder, "std_check_consumer");
+    Build::depend(builder, Source::Path {{ location: "{}" }});
     builder.roots.bind({entry_contract}, Main::main);
 }}
 "#,
@@ -1438,7 +1438,7 @@ impl IndependentComponentFixture {
         fs::write(
             root.join("pick-component/build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.package("pick_component");
+    Build::package(builder, "pick_component");
     builder.select_provider<Pick, VtablePick>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, ComponentEntry::main);
 }
@@ -1453,8 +1453,8 @@ impl IndependentComponentFixture {
         fs::write(
             root.join("consumer/build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("independent_consumer");
-    builder.depend_as("pick_component", Source::Path { location: "../pick-component" });
+    Build::application(builder, "independent_consumer");
+    Build::depend_as(builder, "pick_component", Source::Path { location: "../pick-component" });
     builder.select_provider<pick_component::Pick, pick_component::PickProvider>(CompositionMode::Independent);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
@@ -1543,15 +1543,15 @@ impl FilesystemApplicationFixture {
         fs::create_dir_all(root.join("application")).unwrap();
         fs::write(
             root.join("filesystem/build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"ordinary_filesystem\"); }\n",
+            "machine build(builder: &mut Build) { Build::package(builder, \"ordinary_filesystem\"); }\n",
         )
         .unwrap();
         fs::write(root.join("filesystem/main.omg"), SET_LEN_FILESYSTEM).unwrap();
         fs::write(
             root.join("application/build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("filesystem_consumer");
-    builder.depend_as("ordinary_filesystem", Source::Path { location: "../filesystem" });
+    Build::application(builder, "filesystem_consumer");
+    Build::depend_as(builder, "ordinary_filesystem", Source::Path { location: "../filesystem" });
     builder.select_provider<ordinary_filesystem::FilesystemHost, ordinary_filesystem::FilesystemProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

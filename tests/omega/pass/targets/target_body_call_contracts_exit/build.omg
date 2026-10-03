@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("target_body_call_contracts_exit");
+    Build::application(builder, "target_body_call_contracts_exit");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

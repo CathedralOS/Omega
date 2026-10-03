@@ -1,8 +1,8 @@
 // Number guess sample build sketch. Needs only stdout + process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("number_guess");
-    builder.depend(Source::Path {
+    Build::application(builder, "number_guess");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

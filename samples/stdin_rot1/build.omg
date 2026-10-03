@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("stdin_rot1");
-    builder.depend(Source::Path {
+    Build::application(builder, "stdin_rot1");
+    Build::depend(builder, Source::Path {
         location: "../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, main);

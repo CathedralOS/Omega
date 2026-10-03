@@ -5,7 +5,7 @@
 use support::configure;
 
 machine build(builder: &mut Build) {
-    builder.application("root_binding_foreign_helper_private_entry");
-    builder.build_depend_as("support", Source::Path { location: "helper" });
+    Build::application(builder, "root_binding_foreign_helper_private_entry");
+    Build::build_depend_as(builder, "support", Source::Path { location: "helper" });
     configure::configure(builder);
 }

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("tic_tac_toe");
-    builder.depend(Source::Path {
+    Build::application(builder, "tic_tac_toe");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

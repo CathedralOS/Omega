@@ -188,7 +188,7 @@ fn offline_checks_unseen_transitive_git_below_local_paths() {
         "offline_checks_unseen_transitive_git_below_local_paths",
         |fixture| {
             fixture.repository();
-            let local = "builder.depend(Source::Path { location: \"../middle\" });";
+            let local = "Build::depend(builder, Source::Path { location: \"../middle\" });";
             fixture.root(local);
             write_package(&fixture.path("middle"), "middle", Some("../leaf"));
             write_package(&fixture.path("leaf"), "leaf", None);
@@ -200,7 +200,7 @@ fn offline_checks_unseen_transitive_git_below_local_paths() {
             std::fs::write(
                 fixture.path("leaf/build.omg"),
                 format!(
-                    "machine build(builder: &mut Build) {{ builder.package(\"leaf\"); {} }}\n",
+                    "machine build(builder: &mut Build) {{ Build::package(builder, \"leaf\"); {} }}\n",
                     dependency("HEAD"),
                 ),
             )
@@ -223,7 +223,7 @@ fn offline_checks_unseen_transitive_git_below_local_paths() {
 #[test]
 fn offline_local_only_closures_use_no_transport() {
     run("offline_local_only_closures_use_no_transport", |fixture| {
-        let local = "builder.depend(Source::Path { location: \"../middle\" });";
+        let local = "Build::depend(builder, Source::Path { location: \"../middle\" });";
         fixture.root(local);
         write_package(&fixture.path("middle"), "middle", Some("../leaf"));
         write_package(&fixture.path("leaf"), "leaf", None);

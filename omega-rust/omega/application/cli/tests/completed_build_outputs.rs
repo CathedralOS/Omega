@@ -23,7 +23,7 @@ impl Project {
         )
         .unwrap();
         let selection = if artifact_only {
-            "builder.artifact_only();"
+            "Build::artifact_only(builder);"
         } else {
             r#"
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
@@ -139,7 +139,7 @@ fn success(output: Output) {
 }
 
 const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("completed_outputs");
+    Build::application(builder, "completed_outputs");
     SELECTION
     let scratch: BuildPath = builder.output.resolve("scratch.txt");
     let temporary: i32 = builder.output.create(scratch, 438);
@@ -330,7 +330,7 @@ fn acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_p
     fs::write(generator.join("main.omg"), ACQUIRED_GENERATOR).unwrap();
     fs::write(
         generator.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"banner_generator\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"banner_generator\"); }\n",
     )
     .unwrap();
     let publication = workspace.0.join("published");
@@ -353,7 +353,7 @@ fn acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_p
         fs::write(project.0.join("templates/banner.txt"), content).unwrap();
         fs::write(project.0.join("undeclared.txt"), "private sibling").unwrap();
         let selection = if artifact_only {
-            "builder.artifact_only();"
+            "Build::artifact_only(builder);"
         } else {
             "builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n\
              builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n\
@@ -363,8 +363,8 @@ fn acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_p
         let build = format!(
             r#"use generator::main;
 machine build(builder: &mut Build) {{
-    builder.application("{name}");
-    builder.build_depend_as("generator", Source::Path {{ location: "../generator" }});
+    Build::application(builder, "{name}");
+    Build::build_depend_as(builder, "generator", Source::Path {{ location: "../generator" }});
     {selection}
     generate(&builder.source, &mut builder.output);
 }}

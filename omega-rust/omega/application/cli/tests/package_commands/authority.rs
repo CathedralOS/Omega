@@ -377,7 +377,7 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
         .replace('"', "\\\"")
         .replace('\n', "\\n");
     let build = GENERATED_BUILD
-        .replace("builder.package(\"generated_table\");", "builder.package(\"generated_table\");\n    builder.depend(Source::Path { location: \"../host-services\" });\n    builder.select_provider<host_services::Console, host_services::ConsoleNativeProvider>();")
+        .replace("Build::package(builder, \"generated_table\");", "Build::package(builder, \"generated_table\");\n    Build::depend(builder, Source::Path { location: \"../host-services\" });\n    builder.select_provider<host_services::Console, host_services::ConsoleNativeProvider>();")
         .replace("pub machine table_size() -> u64 {\\n    3\\n}\\n", &generated_source);
     assert!(build.contains(callable));
     // Imports belong to the pre-build source closure; generation adds the

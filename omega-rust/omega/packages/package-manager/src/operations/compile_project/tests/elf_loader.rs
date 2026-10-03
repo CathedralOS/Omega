@@ -53,7 +53,7 @@ fn compile_dynamic_customer(
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.application("elf_loader_customer");
+    Build::application(builder, "elf_loader_customer");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 {build_statements}
 }}

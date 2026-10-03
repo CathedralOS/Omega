@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("affine_record_state_cycle_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "affine_record_state_cycle_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

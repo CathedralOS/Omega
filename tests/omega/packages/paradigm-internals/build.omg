@@ -2,5 +2,5 @@
 // inert-sibling corpus canaries; no build-host reach.
 
 machine build(builder: &mut Build) {
-    builder.package("paradigm_internals");
+    Build::package(builder, "paradigm_internals");
 }

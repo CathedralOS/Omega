@@ -142,8 +142,8 @@ fn repository_root() -> PathBuf {
 fn producer_build(standard_library: &Path) -> String {
     format!(
         r#"machine build(builder: &mut Build) {{
-    builder.package("opaque_producer");
-    builder.depend(Source::Path {{
+    Build::package(builder, "opaque_producer");
+    Build::depend(builder, Source::Path {{
         location: "{}"
     }});
     builder.select_representation<Token, TokenRepresentation>();
@@ -168,8 +168,8 @@ machine Main::main(&mut self) { }
 "#;
 
 const MATCHING_CONSUMER_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("opaque_consumer");
-    builder.depend_as("producer", Source::Path {
+    Build::application(builder, "opaque_consumer");
+    Build::depend_as(builder, "producer", Source::Path {
         location: "../producer"
     });
     builder.select_representation<Token, TokenRepresentation>();
@@ -195,8 +195,8 @@ machine Main::main(&mut self) { }
 "#;
 
 const MISMATCHING_CONSUMER_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("opaque_consumer");
-    builder.depend_as("producer", Source::Path {
+    Build::application(builder, "opaque_consumer");
+    Build::depend_as(builder, "producer", Source::Path {
         location: "../producer"
     });
     builder.select_representation<Token, OtherRepresentation>();

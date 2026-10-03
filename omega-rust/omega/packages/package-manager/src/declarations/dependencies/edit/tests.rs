@@ -55,7 +55,7 @@ fn fixture_root() -> PathBuf {
 
 fn application_build(statements: &str) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"dependency_edit_probe\");\n{statements}}}\n"
+        "machine build(builder: &mut Build) {{\n    Build::application(builder, \"dependency_edit_probe\");\n{statements}}}\n"
     )
 }
 
@@ -83,9 +83,9 @@ fn adds_after_direct_dependencies_before_entry_transfer_or_nested_states() {
         for newline in ["\n", "\r\n"] {
             let source = format!(
                 r#"machine build(builder: &mut Build) {{
-    builder.application("dependency_edit_probe");
-    builder.depend(Source::Path {{ location: "existing" }});
-    builder.build_depend(Source::Path {{ location: "build-helper" }});
+    Build::application(builder, "dependency_edit_probe");
+    Build::depend(builder, Source::Path {{ location: "existing" }});
+    Build::build_depend(builder, Source::Path {{ location: "build-helper" }});
     // Keep ordinary work, comments, and keyword-like strings intact.
     let label: String = "transition state";
     {entry_tail}
@@ -102,7 +102,7 @@ fn adds_after_direct_dependencies_before_entry_transfer_or_nested_states() {
                 .unwrap_or_else(|error| panic!("{entry_tail}: {error:?}")),
             );
             let inserted =
-                format!("    builder.depend(Source::Path {{ location: \"vendor\" }});{newline}");
+                format!("    Build::depend(builder, Source::Path {{ location: \"vendor\" }});{newline}");
             let expected = source.replacen(
                 &format!("    {}", entry_tail.lines().next().unwrap()),
                 &format!("{inserted}    {}", entry_tail.lines().next().unwrap()),
@@ -124,7 +124,7 @@ fn adds_after_direct_dependencies_before_entry_transfer_or_nested_states() {
 
 #[test]
 fn inline_entry_transfer_requires_manual_placement() {
-    let source = "machine build(builder: &mut Build) {\n    builder.application(\"dependency_edit_probe\"); transition { _ -> done() }\n    state done {}\n}\n";
+    let source = "machine build(builder: &mut Build) {\n    Build::application(builder, \"dependency_edit_probe\"); transition { _ -> done() }\n    state done {}\n}\n";
     let plan = plan_dependency_addition_from_source(
         PathBuf::from("build.omg"),
         source.to_owned(),
@@ -142,7 +142,7 @@ fn inline_entry_transfer_requires_manual_placement() {
 
 #[test]
 fn noncanonical_signature_rejects_before_edit_planning() {
-    let source = "machine build(builder: &mut Build, profile: u32) {\n    builder.application(\"dependency_edit_probe\");\n}\n".to_owned();
+    let source = "machine build(builder: &mut Build, profile: u32) {\n    Build::application(builder, \"dependency_edit_probe\");\n}\n".to_owned();
     assert!(matches!(
         plan_dependency_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor")),
         Err(BuildDependencyEditError::InvalidBuild(
@@ -156,8 +156,8 @@ fn replaces_a_semantically_canonical_row_without_relying_on_formatting() {
     let accepted = git("https://example.test/repo.git", "old");
     let candidate = git("https://example.test/repo.git", "new");
     let source = r#"machine build(builder: &mut Build) {
-    builder.application("dependency_edit_probe");
-    builder.depend(
+    Build::application(builder, "dependency_edit_probe");
+    Build::depend(builder, 
         Source::Git {
             revision: "old",
             repository: "https://example.test/repo.git"
@@ -188,8 +188,8 @@ fn comments_inside_a_replaced_row_force_manual_placement() {
     let accepted = path("vendor");
     let candidate = path("vendor-next");
     let source = r#"machine build(builder: &mut Build) {
-    builder.application("dependency_edit_probe");
-    builder.depend(/* retained intent */ Source::Path { location: "vendor" });
+    Build::application(builder, "dependency_edit_probe");
+    Build::depend(builder, /* retained intent */ Source::Path { location: "vendor" });
 }
 "#
     .to_owned();
@@ -267,7 +267,7 @@ fn public_file_planner_binds_the_expected_digest_without_writing() {
 
 #[test]
 fn replacement_from_unchanged_sources_retains_exact_bytes() {
-    let source = "// retained context: café\r\nmachine build(builder: &mut Build) { builder.application(\"probe\"); }\r\n";
+    let source = "// retained context: café\r\nmachine build(builder: &mut Build) { Build::application(builder, \"probe\"); }\r\n";
     let build_path = PathBuf::from("command-owned/build.omg");
     let replacement =
         BuildFileReplacement::from_sources(build_path.clone(), source, source.to_owned())
@@ -287,7 +287,7 @@ fn replacement_from_sources_rejects_invalid_before_and_proposed() {
     let invalid_sources = [
         String::new(),
         "machine build(".to_owned(),
-        application_build("    builder.depend(Source::Path { location: 42 });\n"),
+        application_build("    Build::depend(builder, Source::Path { location: 42 });\n"),
     ];
     for invalid in invalid_sources {
         let expected = BuildDependencyEditError::InvalidBuild(
@@ -312,7 +312,7 @@ fn replacement_from_sources_hashes_raw_before_context() {
 
     let source = application_build("");
     let proposed =
-        application_build("    builder.depend(Source::Path { location: \"vendor\" });\n");
+        application_build("    Build::depend(builder, Source::Path { location: \"vendor\" });\n");
     let variants = [
         source.clone(),
         source.replace('\n', "\r\n"),
@@ -393,22 +393,22 @@ fn canonical_rows_render_their_authorized_scope() {
     };
     assert_eq!(
         canonical_dependency_statement(DependencyPurpose::Product, &aliased),
-        "builder.depend_as(\"kernels\", Source::Path { location: \"vendor/kernels\" });"
+        "Build::depend_as(builder, \"kernels\", Source::Path { location: \"vendor/kernels\" });"
     );
     assert_eq!(
         canonical_dependency_statement(DependencyPurpose::Build, &aliased),
-        "builder.build_depend_as(\"kernels\", Source::Path { location: \"vendor/kernels\" });"
+        "Build::build_depend_as(builder, \"kernels\", Source::Path { location: \"vendor/kernels\" });"
     );
     assert_eq!(
         canonical_dependency_statement(DependencyPurpose::Build, &path("vendor")),
-        "builder.build_depend(Source::Path { location: \"vendor\" });"
+        "Build::build_depend(builder, Source::Path { location: \"vendor\" });"
     );
 }
 
 #[test]
 fn build_rows_are_recognized_dependency_rows_for_insertion() {
     let source = application_build(
-        "    builder.build_depend_as(\"host\", Source::Path { location: \"host\" });\n",
+        "    Build::build_depend_as(builder, \"host\", Source::Path { location: \"host\" });\n",
     );
     let replacement = automatic(
         plan_dependency_addition_from_source(PathBuf::from("build.omg"), source, &path("../math"))
@@ -441,7 +441,7 @@ fn replacement_selects_only_the_requested_scope() {
         location: "shared-next".to_owned(),
     };
     let source = application_build(
-        "    builder.depend_as(\"kernels\", Source::Path { location: \"shared\" });\n    builder.build_depend_as(\"kernels\", Source::Path { location: \"shared\" });\n",
+        "    Build::depend_as(builder, \"kernels\", Source::Path { location: \"shared\" });\n    Build::build_depend_as(builder, \"kernels\", Source::Path { location: \"shared\" });\n",
     );
 
     // The identical requests in both scopes are not ambiguous: each scope's
@@ -459,7 +459,7 @@ fn replacement_selects_only_the_requested_scope() {
     assert!(
         product
             .replacement_source()
-            .contains("    builder.depend_as(\"kernels\", Source::Path { location: \"shared-next\" });\n    builder.build_depend_as(\"kernels\", Source::Path { location: \"shared\" });"),
+            .contains("    Build::depend_as(builder, \"kernels\", Source::Path { location: \"shared-next\" });\n    Build::build_depend_as(builder, \"kernels\", Source::Path { location: \"shared\" });"),
         "product replacement must retain the untouched build row"
     );
 
@@ -476,7 +476,7 @@ fn replacement_selects_only_the_requested_scope() {
     assert!(
         build
             .replacement_source()
-            .contains("    builder.depend_as(\"kernels\", Source::Path { location: \"shared\" });\n    builder.build_depend_as(\"kernels\", Source::Path { location: \"shared-next\" });"),
+            .contains("    Build::depend_as(builder, \"kernels\", Source::Path { location: \"shared\" });\n    Build::build_depend_as(builder, \"kernels\", Source::Path { location: \"shared-next\" });"),
         "build replacement must retain the untouched product row"
     );
 }

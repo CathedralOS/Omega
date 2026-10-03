@@ -14,7 +14,7 @@ fn empty_package(tree: &Tree, directory: &str, name: &str, dependencies: &[(&str
         .iter()
         .map(|(alias, location)| {
             format!(
-                " builder.depend_as(\"{alias}\", Source::Path {{ location: \"../{location}\" }});\n"
+                " Build::depend_as(builder, \"{alias}\", Source::Path {{ location: \"../{location}\" }});\n"
             )
         })
         .collect();

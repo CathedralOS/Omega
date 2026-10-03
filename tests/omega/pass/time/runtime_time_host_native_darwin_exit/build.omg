@@ -1,8 +1,8 @@
 // Darwin time-host canary: select only the target whose calibration it asserts.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime_time_host_native_darwin_exit");
-    builder.depend(Source::Path {
+    Build::application(builder, "runtime_time_host_native_darwin_exit");
+    Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

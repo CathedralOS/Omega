@@ -2,7 +2,7 @@
 // path is exercised only once an entry is established and the provider
 // machine's Unit plan is demanded.
 machine build(builder: &mut Build) {
-    builder.application("bare_byte_array_boundary_argument");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "bare_byte_array_boundary_argument");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

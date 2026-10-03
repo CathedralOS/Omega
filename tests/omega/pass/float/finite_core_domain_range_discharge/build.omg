@@ -1,8 +1,8 @@
 // Deployable Finite-domain canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("finite_core_domain_range_discharge");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "finite_core_domain_range_discharge");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

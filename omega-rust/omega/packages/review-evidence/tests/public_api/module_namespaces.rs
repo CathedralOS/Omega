@@ -6,7 +6,7 @@ fn module_nominals_have_distinct_canonical_rows_across_package_relocation() {
     let project = |package: &TempPackage| {
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+            "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
         );
         package.write("main.omg", "use combat; use rooms;");
         for module in ["combat", "rooms"] {

@@ -1,8 +1,8 @@
 // Every hosted target selects the digit-row canary's exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("nested_loop_digit_bytes_keep_utf8_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "nested_loop_digit_bytes_keep_utf8_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

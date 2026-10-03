@@ -131,7 +131,7 @@ fn removed_package_choices_resolve_without_its_old_source_or_cache() {
     source(
         &tree,
         "pub const VALUE: u64 = 7;\n",
-        " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
+        " Build::depend_as(builder, \"dependency\", Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "removed_package", "");
     fs::write(tree.path("sources/old/main.omg"), ASSUMPTIONS).unwrap();
@@ -207,7 +207,7 @@ fn root_role_choices_are_required_in_both_directions_and_sort_before_rows() {
         tree.path("sources/root/build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.application(\"policy_fixture\");\n",
+            " Build::application(builder, \"policy_fixture\");\n",
             " builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}\n",
         ),
     )

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("transition_shared_borrow_result");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "transition_shared_borrow_result");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

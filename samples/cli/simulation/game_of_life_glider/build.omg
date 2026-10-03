@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("game_of_life_glider");
-    builder.depend(Source::Path {
+    Build::application(builder, "game_of_life_glider");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

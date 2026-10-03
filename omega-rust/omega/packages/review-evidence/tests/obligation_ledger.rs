@@ -22,7 +22,7 @@ fn accepted_claim_results_join_encoded_keys_without_reordering_callables() {
     package.write("main.omg", "boundary machine aa() -> u64 ensures result == 0;\nboundary machine z() -> u64 ensures result == 1;\n");
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -90,7 +90,7 @@ pub machine expose() reaches Console + FilesystemHost {}
     package.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.select_provider<Console, ConsoleNativeProvider>();
 }
 "#,
@@ -174,7 +174,7 @@ fn ordinary_package_obligation_ledger_requires_exact_local_reconstruction() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     let original = TempPackage::new();
     original.write(
@@ -358,7 +358,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     };
     let source = "pub data Token { value: i64; }\n";
     let changed_source = "// source-only change\npub data Token { value: i64; }\n";
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
 
     let first = TempPackage::new();
@@ -1057,7 +1057,7 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
     // substituted arm — closure legs reject at the dependency-closure
     // comparison and row legs at the first diverging row — instead of every
     // leg stopping at a closure that could never match.
-    let build = "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n";
+    let build = "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n";
     let root_package = TempPackage::new();
     root_package.write("main.omg", "pub data Token { value: u64; }\n");
     root_package.write("build.omg", build);

@@ -1,8 +1,8 @@
 // array_index_from_call build file.
 
 machine build(builder: &mut Build) {
-    builder.application("array_index_from_call");
-    builder.depend(Source::Path {
+    Build::application(builder, "array_index_from_call");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

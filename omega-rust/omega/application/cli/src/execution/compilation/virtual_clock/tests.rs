@@ -87,7 +87,7 @@ machine main() reaches Pacing { _ = Wait::pause(123, 0, 40); }
         directory.path().join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("virtual_clock_selection");
+    Build::application(builder, "virtual_clock_selection");
     builder.select_provider<Wait::pause, Selected>();
     builder.roots.bind(macos_arm64::ProgramEntry, main);
 }
@@ -230,7 +230,7 @@ machine main() reaches Pacing {{ Pacing::sleep({duration}); }}
             directory.path().join("build.omg"),
             r#"
 machine build(builder: &mut Build) {
-    builder.application("virtual_clock_windows");
+    Build::application(builder, "virtual_clock_windows");
     builder.select_provider<Pacing, Host>();
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
 }

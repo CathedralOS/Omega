@@ -1,8 +1,8 @@
 // Windows raw-filesystem breadth proof: select the exact Windows entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows_raw_breadth_exit");
-    builder.depend(Source::Path {
+    Build::application(builder, "windows_raw_breadth_exit");
+    Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

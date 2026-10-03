@@ -16,8 +16,8 @@ fn two_named_packages_share_one_exact_git_acquisition() {
         repository.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.member("packages/first");
-    builder.member("packages/second");
+    Build::member(builder, "packages/first");
+    Build::member(builder, "packages/second");
 }
 "#,
     )

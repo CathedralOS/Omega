@@ -88,11 +88,11 @@ use topology::policies;
 use build_support::configuration;
 
 machine build(builder: &mut Build) {
-    builder.application("payments");
-    builder.build_depend_as("topology", Source::Path {
+    Build::application(builder, "payments");
+    Build::build_depend_as(builder, "topology", Source::Path {
         location: "../topology"
     });
-    builder.depend_as("protocol", Source::Path {
+    Build::depend_as(builder, "protocol", Source::Path {
         location: "../payment-protocol"
     });
     configure_products(builder);
@@ -552,7 +552,7 @@ to exist in a previous output folder. Per-target children retain independent
 outcomes; failure of one child is not hidden by another child's successful set.
 
 An application build may publish companion artifacts. Select
-`builder.artifact_only()` as an optional direct unconditional declaration in the
+`Build::artifact_only(builder)` as an optional direct unconditional declaration in the
 root build entry, extracted with project role before execution. It is valid once
 for an application, invalid for a workspace/package declaration, and cannot be
 introduced by a helper, alias, conditional, or generated code. No fourth project

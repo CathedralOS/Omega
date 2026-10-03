@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("runtime_machine_entry_view_requires_index_exit");
-    builder.depend(
+    Build::application(builder, "runtime_machine_entry_view_requires_index_exit");
+    Build::depend(builder, 
         Source::Path { location: "../../../../../source/library/std" }
     );
     builder.roots.bind(

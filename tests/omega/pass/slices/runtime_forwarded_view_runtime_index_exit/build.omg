@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("runtime_forwarded_view_runtime_index_exit");
-    builder.depend(Source::Path { location: "/home/ubuntu/.swarm/trees/write-through-rehearse/source/library/std" });
+    Build::application(builder, "runtime_forwarded_view_runtime_index_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

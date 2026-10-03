@@ -2,8 +2,8 @@
 // including macOS x86-64, whose image an Apple-silicon host runs under Rosetta.
 
 machine build(builder: &mut Build) {
-    builder.application("view_field_literal_store_outlives_helper_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "view_field_literal_store_outlives_helper_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

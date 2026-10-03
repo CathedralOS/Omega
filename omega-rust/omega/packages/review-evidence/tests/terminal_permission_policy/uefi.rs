@@ -31,7 +31,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
     root.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("review_fixture");
+    Build::application(builder, "review_fixture");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);

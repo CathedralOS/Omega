@@ -4,7 +4,7 @@
 // runtime rows on any hosted target without settling a dependency graph.
 
 machine build(builder: &mut Build) {
-    builder.application("wrapping_collatz_max");
+    Build::application(builder, "wrapping_collatz_max");
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);

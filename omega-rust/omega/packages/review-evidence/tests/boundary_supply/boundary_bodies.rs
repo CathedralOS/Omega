@@ -21,7 +21,7 @@ pub machine caller() reaches FilesystemHost {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -78,7 +78,7 @@ fn package_review_rejects_impossible_supply_body_combinations() {
     package.write("main.omg", "pub machine api() { }\n");
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

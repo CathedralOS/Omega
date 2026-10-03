@@ -1,8 +1,8 @@
 // Deployable linear transfer-and-consume probe: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("linear_transfer_and_consume");
-    builder.depend(Source::Path {
+    Build::application(builder, "linear_transfer_and_consume");
+    Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

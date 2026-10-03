@@ -14,7 +14,7 @@ requires valid_utf8({expression})
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     compile_review_fixture(CheckedCompileRequest {

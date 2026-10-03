@@ -26,9 +26,9 @@ fn rejects_explicit_alias_reuse_anywhere_in_the_set() {
     let dependencies = projection(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("explicit_alias_conflict");
-            builder.depend_as("shared", Source::Path { location: "../first" });
-            builder.depend_as("shared", Source::Path { location: "../second" });
+            Build::package(builder, "explicit_alias_conflict");
+            Build::depend_as(builder, "shared", Source::Path { location: "../first" });
+            Build::depend_as(builder, "shared", Source::Path { location: "../second" });
         }
         "#,
     );
@@ -48,9 +48,9 @@ fn rejects_default_alias_collisions_after_package_selection() {
     let dependencies = projection(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("default_alias_conflict");
-            builder.depend(Source::Path { location: "../first" });
-            builder.depend(Source::Path { location: "../second" });
+            Build::package(builder, "default_alias_conflict");
+            Build::depend(builder, Source::Path { location: "../first" });
+            Build::depend(builder, Source::Path { location: "../second" });
         }
         "#,
     );
@@ -70,9 +70,9 @@ fn rejects_a_duplicate_alias_inside_the_build_scope() {
     let fixture = PackageFixture::with_source(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("build_alias_conflict");
-            builder.build_depend_as("tool", Source::Path { location: "../first" });
-            builder.build_depend_as("tool", Source::Path { location: "../second" });
+            Build::package(builder, "build_alias_conflict");
+            Build::build_depend_as(builder, "tool", Source::Path { location: "../first" });
+            Build::build_depend_as(builder, "tool", Source::Path { location: "../second" });
         }
         "#,
     );
@@ -102,9 +102,9 @@ fn rejects_an_incomplete_selected_package_roster() {
     let dependencies = projection(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("alias_roster");
-            builder.depend(Source::Path { location: "../first" });
-            builder.depend(Source::Path { location: "../second" });
+            Build::package(builder, "alias_roster");
+            Build::depend(builder, Source::Path { location: "../first" });
+            Build::depend(builder, Source::Path { location: "../second" });
         }
         "#,
     );

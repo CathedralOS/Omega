@@ -12,7 +12,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     source(
         &tree,
         "boundary machine CHANGED() -> u64 ensures result == 1;\nboundary machine REMOVED() -> u64 ensures result == 1;\n",
-        " builder.depend_as(\"dependency\", Source::Path { location: \"../old\" });\n",
+        " Build::depend_as(builder, \"dependency\", Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "same_name", "");
     fs::write(
@@ -50,7 +50,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     source(
         &tree,
         "boundary machine CHANGED() -> u64 ensures result == 2;\nboundary machine ADDED() -> u64 ensures result == 1;\n",
-        " builder.depend_as(\"dependency\", Source::Path { location: \"../new\" });\n",
+        " Build::depend_as(builder, \"dependency\", Source::Path { location: \"../new\" });\n",
     );
     package(&tree.path("sources/new"), "same_name", "");
     let (closure, reviews) = candidate(&tree, "candidate");
@@ -222,7 +222,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     source(
         &tree,
         "// implementation source changed\nboundary machine CHANGED() -> u64 ensures result == 2;\nboundary machine ADDED() -> u64 ensures result == 1;\n",
-        " builder.depend_as(\"renamed\", Source::Path { location: \"../new\" });\n",
+        " Build::depend_as(builder, \"renamed\", Source::Path { location: \"../new\" });\n",
     );
     let (alias_sources, alias_reviews) = candidate(&tree, "alias");
     let alias_changes = compare_package_policy_changes(

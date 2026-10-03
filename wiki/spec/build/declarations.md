@@ -19,9 +19,9 @@ A selected `build.omg` has exactly one free
 
 | Direct root declaration | Role |
 | --- | --- |
-| `builder.package("name")` | Package |
-| `builder.application("name")` | Application |
-| One or more `builder.member("path")` calls | Workspace |
+| `Build::package(builder, "name")` | Package |
+| `Build::application(builder, "name")` | Application |
+| One or more `Build::member(builder, "path")` calls | Workspace |
 
 Within a selected authored build file, exactly one package/application
 declaration or the workspace member set is required. Mixed, missing, duplicate,
@@ -62,7 +62,7 @@ a missing edge. [Scoped execution](scoped_execution.md#two-checked-contexts)
 defines purpose-specific scheduling, acquisition reuse, provenance, and migration.
 
 Applications default to executable output. The optional direct unconditional
-`builder.artifact_only()` declaration is valid once in an application root, never
+`Build::artifact_only(builder)` declaration is valid once in an application root, never
 in a package/workspace or helper. It requires at least one completed required
 artifact and rejects executable root/provider selections. It is not a new role
 or target profile. [Staged products](scoped_execution.md#staged-products-and-failure)

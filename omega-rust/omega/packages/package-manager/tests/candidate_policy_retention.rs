@@ -77,13 +77,13 @@ fn exact_package_and_target_policies_recover_without_the_source_or_review_set() 
             "root",
             "policy_root",
             7,
-            "builder.depend_as(\"dependency\", Source::Path { location: \"../dependency\" });",
+            "Build::depend_as(builder, \"dependency\", Source::Path { location: \"../dependency\" });",
         ),
         ("dependency", "policy_dependency", 11, ""),
     ] {
         let root = tree.path(&format!("source/{member}"));
         fs::create_dir_all(&root).unwrap();
-        fs::write(root.join("build.omg"), format!("machine build(builder: &mut Build) {{ builder.package(\"{name}\"); {dependencies} }}\n")).unwrap();
+        fs::write(root.join("build.omg"), format!("machine build(builder: &mut Build) {{ Build::package(builder, \"{name}\"); {dependencies} }}\n")).unwrap();
         fs::write(
             root.join("main.omg"),
             format!("pub const VALUE: u64 = {value};\n"),

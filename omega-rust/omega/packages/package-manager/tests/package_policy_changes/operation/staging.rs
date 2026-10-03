@@ -173,7 +173,7 @@ fn planned_source_replacement_reviews_candidate_when_old_checkout_is_unavailable
     source(
         &tree,
         PURE,
-        " builder.depend(Source::Path { location: \"../old\" });\n",
+        " Build::depend(builder, Source::Path { location: \"../old\" });\n",
     );
     package(&tree.path("sources/old"), "arithmetic_kernels", "");
     package(&tree.path("sources/new"), "arithmetic_kernels", "");

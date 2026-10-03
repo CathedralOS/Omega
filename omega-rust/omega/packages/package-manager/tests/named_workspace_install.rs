@@ -67,7 +67,7 @@ pub(crate) mod local {
             self.write(
                 &format!("{path}/build.omg"),
                 &format!(
-                    "machine build(builder: &mut Build) {{\n builder.package(\"{name}\");\n{dependencies}}}\n"
+                    "machine build(builder: &mut Build) {{\n Build::package(builder, \"{name}\");\n{dependencies}}}\n"
                 ),
             );
             self.write(&format!("{path}/main.omg"), PURE);

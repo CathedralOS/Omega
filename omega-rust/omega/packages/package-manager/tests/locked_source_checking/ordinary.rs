@@ -36,8 +36,8 @@ fn fixture(tree: &Tree) -> (PackageLock, PackageRootSourceRequest) {
         &tree.path("sources/root"),
         "checking_root",
         concat!(
-            " builder.depend_as(\"first\", Source::Path { location: \"../first\" });\n",
-            " builder.depend_as(\"second\", Source::Path { location: \"../second\" });\n",
+            " Build::depend_as(builder, \"first\", Source::Path { location: \"../first\" });\n",
+            " Build::depend_as(builder, \"second\", Source::Path { location: \"../second\" });\n",
         ),
     );
     for directory in ["first", "second"] {

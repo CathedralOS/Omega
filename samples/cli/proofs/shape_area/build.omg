@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("shape_area");
-    builder.depend(Source::Path {
+    Build::application(builder, "shape_area");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

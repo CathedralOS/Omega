@@ -4,8 +4,8 @@
 // each module's own provider for its own `Sink`.
 
 machine build(builder: &mut Build) {
-    builder.application("same_name_requirement_field_calls_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "same_name_requirement_field_calls_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.select_provider<left::Sink, left::Provider>();
     builder.select_provider<right::Sink, right::Provider>();
     builder.roots.bind(macos_arm64::ProgramEntry, choose(builder, "macos_arm64::ProgramEntry"));

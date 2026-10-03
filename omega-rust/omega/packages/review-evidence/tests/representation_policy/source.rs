@@ -127,7 +127,7 @@ impl Fixture {
             &format!(
                 r#"{prefix}{}
 machine build(builder: &mut Build) {{
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     {}
 }}
 "#,

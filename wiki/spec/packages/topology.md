@@ -116,11 +116,11 @@ Illustrative root `build.omg` (schematic APIs and abbreviated error handling):
 use build_support::deployment;
 
 machine build(builder: &mut Build) {
-    builder.application("payments_deployment");
-    builder.build_depend_as("topology", Source::Path {
+    Build::application(builder, "payments_deployment");
+    Build::build_depend_as(builder, "topology", Source::Path {
         location: "../topology"
     });
-    builder.artifact_only();
+    Build::artifact_only(builder);
 
     let inputs = deployment_inputs(&mut builder.source);
     let output = builder.output.require("payments.plan");

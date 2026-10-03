@@ -127,7 +127,7 @@ fn claim_free_review_fixture(
     std::fs::create_dir_all(&root).expect("create claim-free review root");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"association_canary\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"association_canary\"); }\n",
     )
     .expect("write package declaration");
     std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")

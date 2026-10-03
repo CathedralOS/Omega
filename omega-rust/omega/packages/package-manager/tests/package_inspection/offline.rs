@@ -7,7 +7,7 @@ fn offline_locked_inspection_checks_edited_root_without_refreshing_git() {
             fixture.package(
                 "repository/modules/selected",
                 "exact_math",
-                " builder.depend(Source::Path { location: \"../other\" });\n",
+                " Build::depend(builder, Source::Path { location: \"../other\" });\n",
             );
             let accepted = fixture.commit();
             assert_eq!(

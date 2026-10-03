@@ -28,7 +28,7 @@ pub data CompositionMode [copy] {
     case Independent;
 }
 // Compiler-owned crash-cause vocabulary for build behavior exclusions
-// (wiki/spec/build/behavior_exclusions.md). `builder.exclude_crash(case)`
+// (wiki/spec/build/behavior_exclusions.md). `Build::exclude_crash(builder, case)`
 // selects a product-admission requirement over the exact selected executable
 // composition; it never masks effects on ordinary callable contracts.
 pub data CrashCause [copy] {

@@ -34,7 +34,7 @@ impl Fixture {
         let root = self.0.join(name);
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("build.omg"), format!(
-            "machine build(builder: &mut Build) {{ builder.package(\"{name}\"); {dependencies} }}\n"
+            "machine build(builder: &mut Build) {{ Build::package(builder, \"{name}\"); {dependencies} }}\n"
         )).unwrap();
         std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n").unwrap();
     }
@@ -118,18 +118,18 @@ fn shared_product_graph_and_single_emission_preserve_reference_bytes_and_limits(
     fixture.package(
         "root",
         concat!(
-            "builder.depend(Source::Path { location: \"../left\" });",
-            "builder.depend_as(\"right_branch\", Source::Path { location: \"../right\" });",
-            "builder.build_depend_as(\"left\", Source::Path { location: \"../tool\" });",
+            "Build::depend(builder, Source::Path { location: \"../left\" });",
+            "Build::depend_as(builder, \"right_branch\", Source::Path { location: \"../right\" });",
+            "Build::build_depend_as(builder, \"left\", Source::Path { location: \"../tool\" });",
         ),
     );
     fixture.package(
         "left",
-        "builder.depend(Source::Path { location: \"../shared\" });",
+        "Build::depend(builder, Source::Path { location: \"../shared\" });",
     );
     fixture.package(
         "right",
-        "builder.depend_as(\"shared_override\", Source::Path { location: \"../shared\" });",
+        "Build::depend_as(builder, \"shared_override\", Source::Path { location: \"../shared\" });",
     );
     fixture.package("shared", "");
     fixture.package("tool", "");
@@ -282,13 +282,13 @@ fn dual_role_questions_keep_exact_context_and_reject_substitutions() {
     fixture.package(
         "root",
         concat!(
-            "builder.depend_as(\"shared_product\", Source::Path { location: \"../shared\" });",
-            "builder.build_depend_as(\"shared_build\", Source::Path { location: \"../shared\" });",
+            "Build::depend_as(builder, \"shared_product\", Source::Path { location: \"../shared\" });",
+            "Build::build_depend_as(builder, \"shared_build\", Source::Path { location: \"../shared\" });",
         ),
     );
     fixture.package(
         "shared",
-        "builder.depend(Source::Path { location: \"../leaf\" });",
+        "Build::depend(builder, Source::Path { location: \"../leaf\" });",
     );
     fixture.package("leaf", "");
     let storage =

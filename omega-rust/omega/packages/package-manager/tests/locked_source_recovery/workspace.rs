@@ -15,10 +15,10 @@ fn workspace(
     escaping: bool,
 ) -> ResolvedPackageSourceClosure {
     let mut dependencies =
-        String::from(" builder.depend_as(\"sibling\", Source::Path { location: \"../peer\" });\n");
+        String::from(" Build::depend_as(builder, \"sibling\", Source::Path { location: \"../peer\" });\n");
     if escaping {
         dependencies.push_str(
-            " builder.depend_as(\"outside\", Source::Path { location: \"../../outside\" });\n",
+            " Build::depend_as(builder, \"outside\", Source::Path { location: \"../../outside\" });\n",
         );
         package(&tree.path("outside"), "outside", "");
     }

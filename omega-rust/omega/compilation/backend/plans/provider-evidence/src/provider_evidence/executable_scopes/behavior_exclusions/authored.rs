@@ -15,13 +15,13 @@ use terminal_psi::{CrashCause, TerminalModule};
 /// rows at the product-admission join, once selected service identities exist.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredBehaviorExclusionKind {
-    /// `builder.exclude_crash(CrashCause::X)`: the terminal crash cause plus
+    /// `Build::exclude_crash(builder, CrashCause::X)`: the terminal crash cause plus
     /// the exact toolchain `CrashCause` case symbol the authored value named.
     CrashCause {
         cause: CrashCause,
         case_symbol: SymbolHandle,
     },
-    /// Exact toolchain case selected by `builder.exclude_physical_authority`.
+    /// Exact toolchain case selected by `Build::exclude_physical_authority`.
     PhysicalAuthorityClass {
         class: TerminalAuthorityClass,
         case_symbol: SymbolHandle,

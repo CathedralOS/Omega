@@ -3,8 +3,8 @@
 // never a declaration path re-resolved at the bind site.
 
 machine build(builder: &mut Build) {
-    builder.application("described_runner_entry_left_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "described_runner_entry_left_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, choose(builder, "macos_arm64::ProgramEntry"));
     builder.roots.bind(linux_arm64::ProgramEntry, choose(builder, "linux_arm64::ProgramEntry"));
     builder.roots.bind(linux_x86_64::ProgramEntry, choose(builder, "linux_x86_64::ProgramEntry"));

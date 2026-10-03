@@ -6,7 +6,7 @@
 // crossings is still the toolchain's next edge.
 
 machine build(builder: &mut Build) {
-    builder.application("device_extent_access");
+    Build::application(builder, "device_extent_access");
     builder.accept_boundary<DeviceLoanProvider>();
     builder.select_representation<DeviceLoan, DeviceLoanRepresentation>();
     builder.select_representation<DeviceOrderingEvent, DeviceOrderingEventRepresentation>();

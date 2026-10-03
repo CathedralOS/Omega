@@ -68,10 +68,10 @@ fn seal_input(_root: &Path, _sealed: bool) {}
 const ROOT_BUILD: &str = r#"use first::main;
 use second::main;
 machine build(builder: &mut Build) {
-    builder.application("named_input_consumer");
-    builder.artifact_only();
-    builder.build_depend_as("first", Source::Path { location: "../first" });
-    builder.build_depend_as("second", Source::Path { location: "../second" });
+    Build::application(builder, "named_input_consumer");
+    Build::artifact_only(builder);
+    Build::build_depend_as(builder, "first", Source::Path { location: "../first" });
+    Build::build_depend_as(builder, "second", Source::Path { location: "../second" });
     let left: u8 = first_byte();
     let right: u8 = second_byte();
     let bytes: [u8; 2] = [left, right];
@@ -110,7 +110,7 @@ fn prepare(
             &format!("workspace/{name}/build.omg"),
             format!(
                 r#"machine build(builder: &mut Build) {{
-    builder.package("{name}_generator");
+    Build::package(builder, "{name}_generator");
     let input: BuildSource = builder.inputs.get("template");
     let path: BuildPath = input.resolve("source.omg");
     let descriptor: i32 = input.open(path, 0);
@@ -329,10 +329,10 @@ fn shared_dependency_activation_requires_equal_complete_input_assignments() {
         fixture.write(
             "workspace/consumer/build.omg",
             r#"machine build(builder: &mut Build) {
-    builder.application("shared_input_consumer");
-    builder.artifact_only();
-    builder.build_depend_as("first", Source::Path { location: "../shared" });
-    builder.build_depend_as("second", Source::Path { location: "../shared" });
+    Build::application(builder, "shared_input_consumer");
+    Build::artifact_only(builder);
+    Build::build_depend_as(builder, "first", Source::Path { location: "../shared" });
+    Build::build_depend_as(builder, "second", Source::Path { location: "../shared" });
     let required: RequiredOutput = builder.output.require("result.txt");
     let path: BuildPath = builder.output.resolve("result.txt");
     let descriptor: i32 = builder.output.create(path, 438);
@@ -346,7 +346,7 @@ fn shared_dependency_activation_requires_equal_complete_input_assignments() {
         fixture.write(
             "workspace/shared/build.omg",
             r#"machine build(builder: &mut Build) {
-    builder.package("shared_generator");
+    Build::package(builder, "shared_generator");
     let input: BuildSource = builder.inputs.get("template");
 }
 "#,

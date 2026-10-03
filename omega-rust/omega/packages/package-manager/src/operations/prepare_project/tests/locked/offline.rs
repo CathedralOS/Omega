@@ -104,7 +104,7 @@ fn offline_git_preparation_keeps_exact_pins_and_never_calls_transport() {
     };
     commit();
     let locator = "git@offline-preparation.invalid:dependency.git";
-    fs::write(project.root().join("build.omg"), format!("machine build(builder: &mut Build) {{ builder.package(\"root\"); builder.depend(Source::Git {{ repository: \"{locator}\", revision: \"HEAD\" }}); }}\n")).unwrap();
+    fs::write(project.root().join("build.omg"), format!("machine build(builder: &mut Build) {{ Build::package(builder, \"root\"); Build::depend(builder, Source::Git {{ repository: \"{locator}\", revision: \"HEAD\" }}); }}\n")).unwrap();
     let initial = project.prepare().unwrap().unwrap();
     let lock = project.lock_closure(&initial.source_closure);
     drop(initial);

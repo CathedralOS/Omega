@@ -3,7 +3,7 @@
 // complete slot signature before issuing a description, so discarding or
 // delegating the description cannot bypass it.
 machine build(builder: &mut Build) {
-    builder.application("product_entry_query_incompatible_signature");
+    Build::application(builder, "product_entry_query_incompatible_signature");
     let entry: ProductEntryRef = builder.product.entry("launch", "windows_x86_64::ProgramEntry");
     builder.roots.bind(windows_x86_64::ProgramEntry, entry);
 }

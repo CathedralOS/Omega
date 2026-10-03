@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("callback_direct_install_compile");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "callback_direct_install_compile");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
 }

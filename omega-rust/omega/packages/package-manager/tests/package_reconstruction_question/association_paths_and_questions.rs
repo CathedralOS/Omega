@@ -313,7 +313,7 @@ fn fresh_closure_without_blockers_requires_and_reuses_project_acceptance() {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("claim_free");
+    Build::package(builder, "claim_free");
 }
 "#,
     )
@@ -410,7 +410,7 @@ fn accepted_evidence_rechecks_live_source_custody_after_review() {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("custody_canary");
+    Build::package(builder, "custody_canary");
 }
 "#,
     )

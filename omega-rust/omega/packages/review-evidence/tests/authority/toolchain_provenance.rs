@@ -23,7 +23,7 @@ pub CopyTokenRepresentation:
     package.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.select_representation<CopyToken, CopyTokenRepresentation>();
 }
 "#,
@@ -209,7 +209,7 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
     package.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.select_representation<TransferToken, TransferTokenRepresentation>();
 }
 "#,
@@ -358,7 +358,7 @@ fn dependency_owned_opaque_copy_receipt_belongs_to_the_selecting_package() {
         "build.omg",
         r#"use carrier::types;
 machine build(builder: &mut Build) {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.select_representation<CopyToken, CopyTokenRepresentation>();
 }
 "#,

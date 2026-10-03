@@ -30,8 +30,8 @@ impl EntryConsumer {
             root.join("application/build.omg"),
             format!(
                 r#"machine build(builder: &mut Build) {{
-    builder.application("entry_candidate_consumer");
-    builder.depend(Source::Path {{ location: "{}" }});
+    Build::application(builder, "entry_candidate_consumer");
+    Build::depend(builder, Source::Path {{ location: "{}" }});
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }}
 "#,

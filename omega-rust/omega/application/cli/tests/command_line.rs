@@ -97,22 +97,22 @@ fn canonical_package_names_keep_default_and_explicit_aliases() {
     std::fs::create_dir_all(&project).unwrap();
     std::fs::write(
         dependency.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"arithmetic_kernels\"); }",
+        "machine build(builder: &mut Build) { Build::package(builder, \"arithmetic_kernels\"); }",
     )
     .unwrap();
     std::fs::write(dependency.join("main.omg"), "pub const VALUE: u64 = 7;").unwrap();
     for (alias, declaration) in [
         (
             "arithmetic_kernels",
-            "builder.depend(Source::Path { location: \"../different-directory\" });",
+            "Build::depend(builder, Source::Path { location: \"../different-directory\" });",
         ),
         (
             "renamed_math",
-            "builder.depend_as(\"renamed_math\", Source::Path { location: \"../different-directory\" });",
+            "Build::depend_as(builder, \"renamed_math\", Source::Path { location: \"../different-directory\" });",
         ),
     ] {
         std::fs::write(project.join("build.omg"), format!(
-            "machine build(builder: &mut Build) {{ builder.application(\"alias_customer\"); {declaration} }}",
+            "machine build(builder: &mut Build) {{ Build::application(builder, \"alias_customer\"); {declaration} }}",
         )).unwrap();
         std::fs::write(
             project.join("main.omg"),
@@ -142,7 +142,7 @@ fn check_leaves_no_directory_beside_the_root() {
         (
             "packaged",
             Some(
-                "machine build(builder: &mut Build) { builder.application(\"check_leaves_nothing\"); }\n",
+                "machine build(builder: &mut Build) { Build::application(builder, \"check_leaves_nothing\"); }\n",
             ),
         ),
     ] {
@@ -209,7 +209,7 @@ fn unprofiled_host_reports_targetless_invocations_without_panicking() {
         .expect("write unprofiled-host entry");
     std::fs::write(
         project.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.application(\"unprofiled_host\"); }\n",
+        "machine build(builder: &mut Build) { Build::application(builder, \"unprofiled_host\"); }\n",
     )
     .expect("write unprofiled-host build declaration");
     let assert_reported = |output: &Output, invocation: &str, code: i32| {
@@ -314,7 +314,7 @@ fn dependency_free_build_project_still_enters_reconciled_source_custody() {
     std::fs::create_dir(&project).expect("create dependency-free project");
     std::fs::write(
         project.join("build.omg"),
-        b"machine build(builder: &mut Build) { builder.application(\"zero_dependency\"); }\n",
+        b"machine build(builder: &mut Build) { Build::application(builder, \"zero_dependency\"); }\n",
     )
     .expect("write project build root");
     std::fs::write(project.join("main.omg"), b"machine main() {}\n").expect("write project entry");
@@ -404,7 +404,7 @@ fn accepted_claim_application() -> PathBuf {
         project.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("accepted_claim_app");
+    Build::application(builder, "accepted_claim_app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

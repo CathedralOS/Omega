@@ -115,7 +115,7 @@ impl Project {
         let root = self.0.join(directory);
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("build.omg"), format!(
-            "machine build(builder: &mut Build) {{ builder.package(\"{name}\"); {dependencies} }}\n"
+            "machine build(builder: &mut Build) {{ Build::package(builder, \"{name}\"); {dependencies} }}\n"
         )).unwrap();
         fs::write(root.join("main.omg"), main).unwrap();
     }
@@ -449,9 +449,9 @@ fn benign_execution_context_change_is_visible_without_new_consent() {
 fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_approval() {
     let project = Project::new();
     let dependencies = concat!(
-        "builder.depend_as(\"left\", Source::Path { location: \"../left\" });",
-        "builder.depend_as(\"right\", Source::Path { location: \"../right\" });",
-        "builder.depend_as(\"again\", Source::Path { location: \"../left\" });",
+        "Build::depend_as(builder, \"left\", Source::Path { location: \"../left\" });",
+        "Build::depend_as(builder, \"right\", Source::Path { location: \"../right\" });",
+        "Build::depend_as(builder, \"again\", Source::Path { location: \"../left\" });",
     );
     project.package(
         "root",
@@ -462,7 +462,7 @@ fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_ap
     project.package(
         "left",
         "shared_name",
-        "builder.depend_as(\"transitive\", Source::Path { location: \"../right\" });",
+        "Build::depend_as(builder, \"transitive\", Source::Path { location: \"../right\" });",
         "pub const LEFT: u64 = 1;\n",
     );
     project.package("right", "shared_name", "", "pub const RIGHT: u64 = 2;\n");
@@ -592,7 +592,7 @@ fn pure_two_package_summary_is_bounded_and_details_append_complete_policy() {
     project.package(
         "root",
         "inspection",
-        "builder.depend_as(\"math\", Source::Path { location: \"../math\" });",
+        "Build::depend_as(builder, \"math\", Source::Path { location: \"../math\" });",
         "pub machine value() -> u64 { 7 }\n",
     );
     project.package("math", "arithmetic", "", "pub machine sum() -> u64 { 8 }\n");

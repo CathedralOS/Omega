@@ -4,6 +4,6 @@
 // directory, so reading the Build back rejects it for the named target row
 // whether or not that target's output ever links dynamically.
 machine build(builder: &mut Build) {
-    builder.application("elf_interpreter_relative_path");
+    Build::application(builder, "elf_interpreter_relative_path");
     builder.elf_interpreter.linux_x86_64 = "lib64/ld-linux-x86-64.so.2";
 }

@@ -2,8 +2,8 @@
 // target, not only the compiler host.
 
 machine build(builder: &mut Build) {
-    builder.application("float_operator_identities");
-    builder.depend(Source::Path {
+    Build::application(builder, "float_operator_identities");
+    Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

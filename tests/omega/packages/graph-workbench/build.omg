@@ -1,11 +1,11 @@
 // package-manager fixture root.
 
 machine build(builder: &mut Build) {
-    builder.package("graph_workbench");
-    builder.depend(Source::Path {
+    Build::package(builder, "graph_workbench");
+    Build::depend(builder, Source::Path {
         location: "../arithmetic-kernels"
     });
-    builder.depend(Source::Path {
+    Build::depend(builder, Source::Path {
         location: "../file-journal"
     });
 }

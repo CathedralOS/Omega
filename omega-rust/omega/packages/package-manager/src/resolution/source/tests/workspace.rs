@@ -25,8 +25,8 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
         member.join("build.omg"),
         r#"
             machine build(builder: &mut Build) {
-                builder.package("arithmetic_kernels");
-                builder.depend(Source::Git {
+                Build::package(builder, "arithmetic_kernels");
+                Build::depend(builder, Source::Git {
                     repository: "https://github.com/CathedralOS/exact-math.git",
                     revision: "main"
                 });

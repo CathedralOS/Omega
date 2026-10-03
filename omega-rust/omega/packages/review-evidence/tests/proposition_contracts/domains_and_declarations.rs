@@ -24,7 +24,7 @@ requires equivalent<Compared>(left, right)
 { }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -89,7 +89,7 @@ fn review_projects_unused_public_consts_with_exact_type_and_value_identity() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     let project = |source: &str| {
         let package = TempPackage::new();

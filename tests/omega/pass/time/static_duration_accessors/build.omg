@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("static_duration_accessors");
-    builder.depend(Source::Path {
+    Build::application(builder, "static_duration_accessors");
+    Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, main);

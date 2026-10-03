@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("runtime_static_entry_context_exit");
+    Build::application(builder, "runtime_static_entry_context_exit");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(macos_x86_64::ProgramEntry, main);

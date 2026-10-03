@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("external_leaf_binding_forms");
+    Build::application(builder, "external_leaf_binding_forms");
     builder.roots.bind(macos_arm64::ProgramEntry, main);
 }

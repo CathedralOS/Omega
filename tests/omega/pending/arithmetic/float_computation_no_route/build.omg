@@ -3,8 +3,8 @@
 // invisible to a targetless check — it appears only once an entry is
 // established and the Unit plan is demanded.
 machine build(builder: &mut Build) {
-    builder.application("float_computation_no_route");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "float_computation_no_route");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

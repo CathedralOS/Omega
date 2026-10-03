@@ -22,12 +22,12 @@ fn unresolved_contracts_reject_for_the_root_and_transitive_packages() {
             source(
                 &tree,
                 PURE,
-                " builder.depend(Source::Path { location: \"../middle\" });\n",
+                " Build::depend(builder, Source::Path { location: \"../middle\" });\n",
             );
             package(
                 &tree.path("sources/middle"),
                 "middle",
-                " builder.depend(Source::Path { location: \"../leaf\" });\n",
+                " Build::depend(builder, Source::Path { location: \"../leaf\" });\n",
             );
             package(&tree.path("sources/leaf"), "unresolved_leaf", "");
             fs::write(tree.path("sources/leaf/main.omg"), OPEN_CONTRACT).unwrap();

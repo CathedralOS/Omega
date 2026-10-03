@@ -24,7 +24,7 @@ impl Project {
                 "project",
                 "root",
                 role,
-                " builder.depend_as(\"dependency\", Source::Path { location: \"../dependency\" });\n",
+                " Build::depend_as(builder, \"dependency\", Source::Path { location: \"../dependency\" });\n",
             ),
             ("dependency", "dependency", "package", ""),
         ] {

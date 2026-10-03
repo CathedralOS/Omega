@@ -1,8 +1,8 @@
 // Logger sample build sketch. Needs only stdout + process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("logger");
-    builder.depend(Source::Path {
+    Build::application(builder, "logger");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

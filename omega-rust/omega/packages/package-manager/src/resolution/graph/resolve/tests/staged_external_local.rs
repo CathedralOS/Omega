@@ -87,7 +87,7 @@ fn live_and_staged_options_validate_pin_root_and_context_before_acquisition() {
     let storage =
         SourceResolver::for_hardened_base(fixture.path("cache"), PrimaryGitChoices::default())
             .unwrap();
-    let proposed = "machine build(builder: &mut Build) { builder.application(\"consumer\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
+    let proposed = "machine build(builder: &mut Build) { Build::application(builder, \"consumer\"); Build::depend(builder, Source::Path { location: \"../dependency\" }); }\n";
     let stage = fixture.stage(&storage, proposed);
     let context = ExternalSourceContext::derive(b"offline-options-root-request");
     let original = resolve_external_local_project_closure(
@@ -185,7 +185,7 @@ fn staged_project_adds_relative_and_nested_path_dependencies_from_live_directori
         SourceResolver::for_hardened_base(fixture.path("cache"), PrimaryGitChoices::default())
             .unwrap();
     let context = ExternalSourceContext::derive(b"staged-closure-context");
-    let proposed = "machine build(builder: &mut Build) {\n    builder.application(\"staged_app\");\n    builder.depend(Source::Path { location: \"../middle\" });\n    builder.depend(Source::Path { location: \"./nested\" });\n}\n";
+    let proposed = "machine build(builder: &mut Build) {\n    Build::application(builder, \"staged_app\");\n    Build::depend(builder, Source::Path { location: \"../middle\" });\n    Build::depend(builder, Source::Path { location: \"./nested\" });\n}\n";
     let stage = fixture.stage(&storage, proposed);
     let original = resolve_external_local_project_closure(
         stage.requested_root(),
@@ -300,7 +300,7 @@ fn staged_project_rejects_stale_live_root_before_dependency_acquisition() {
     let storage =
         SourceResolver::for_hardened_base(fixture.path("cache"), PrimaryGitChoices::default())
             .unwrap();
-    let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { builder.package(\"staged_root\"); builder.depend(Source::Path { location: \"../missing\" }); }\n");
+    let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { Build::package(builder, \"staged_root\"); Build::depend(builder, Source::Path { location: \"../missing\" }); }\n");
     std::fs::write(fixture.path("root/main.omg"), "machine changed() {}\n").unwrap();
     let error = resolve_staged_external_local_project_closure(
         &stage,
@@ -327,7 +327,7 @@ fn staged_project_preserves_closure_limits_and_package_only_dependencies() {
     let storage =
         SourceResolver::for_hardened_base(fixture.path("cache"), PrimaryGitChoices::default())
             .unwrap();
-    let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { builder.package(\"staged_root\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n");
+    let stage = fixture.stage(&storage, "machine build(builder: &mut Build) { Build::package(builder, \"staged_root\"); Build::depend(builder, Source::Path { location: \"../dependency\" }); }\n");
     let context = ExternalSourceContext::derive(b"staged-closure-limits");
     let error = resolve_staged_external_local_project_closure(
         &stage,
@@ -381,7 +381,7 @@ fn staged_pin_policy_keeps_local_lookup_and_rejects_another_root_request() {
     let storage =
         SourceResolver::for_hardened_base(fixture.path("cache"), PrimaryGitChoices::default())
             .unwrap();
-    let proposed = "machine build(builder: &mut Build) { builder.application(\"staged_app\"); builder.depend(Source::Path { location: \"../dependency\" }); }\n";
+    let proposed = "machine build(builder: &mut Build) { Build::application(builder, \"staged_app\"); Build::depend(builder, Source::Path { location: \"../dependency\" }); }\n";
     let stage = fixture.stage(&storage, proposed);
     let context = ExternalSourceContext::derive(b"staged-pin-policy");
     let original = resolve_external_local_project_closure(

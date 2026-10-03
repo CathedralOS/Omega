@@ -1,7 +1,7 @@
 // Darwin-only canary: `darwin_clock_ns` is a macos_arm64 foreign leaf, so
 // only that target selects the entry.
 machine build(builder: &mut Build) {
-    builder.application("static_foreign_scalar_result_locals_exit");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "static_foreign_scalar_result_locals_exit");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

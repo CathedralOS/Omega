@@ -3,6 +3,6 @@
 use token;
 
 machine build(builder: &mut Build) {
-    builder.application("opaque_copy_selected");
+    Build::application(builder, "opaque_copy_selected");
     builder.select_representation<Token, TokenRepresentation>();
 }

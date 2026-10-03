@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("component_owner_provider_override_compile");
+    Build::application(builder, "component_owner_provider_override_compile");
     builder.select_provider<Pick, SecondProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_x86_64::ProgramEntry, main);

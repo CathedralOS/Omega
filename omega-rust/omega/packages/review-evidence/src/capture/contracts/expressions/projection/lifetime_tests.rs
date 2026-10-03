@@ -42,7 +42,7 @@ requires tag<View<'a, u64>>() == tag<View<'a, u64>>()
     .unwrap();
     std::fs::write(
         source.0.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     )
     .unwrap();
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([41; 32]).unwrap();

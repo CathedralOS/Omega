@@ -28,7 +28,7 @@ impl Fixture {
     fn new(source: &str, foreign: Option<(&str, PackageKeyIdentity)>) -> Self {
         Self::with_build_and_foreign(
             source,
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+            "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
             foreign,
         )
     }

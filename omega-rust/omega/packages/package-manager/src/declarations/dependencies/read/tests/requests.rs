@@ -9,15 +9,15 @@ fn rejects_wrong_receiver_and_dependency_argument_shapes() {
             "receiver",
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.depend("alias", Source::Path { location: "x" }); }"#,
+            r#"machine build(builder: &mut Build) { Build::depend(builder, "alias", Source::Path { location: "x" }); }"#,
             "arguments",
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.depend_as(Source::Path { location: "x" }); }"#,
+            r#"machine build(builder: &mut Build) { Build::depend_as(builder, Source::Path { location: "x" }); }"#,
             "arguments",
         ),
         (
-            r#"machine build(builder: &mut Build) { builder.depend_as("alias", Source::Path { location: "x" }, "extra"); }"#,
+            r#"machine build(builder: &mut Build) { Build::depend_as(builder, "alias", Source::Path { location: "x" }, "extra"); }"#,
             "arguments",
         ),
     ];
@@ -43,7 +43,7 @@ fn rejects_wrong_receiver_and_dependency_argument_shapes() {
 #[test]
 fn rejects_nonliteral_non_utf8_and_invalid_explicit_aliases() {
     let nonliteral = PackageFixture::with_source(
-        r#"machine build(builder: &mut Build) { builder.depend_as(alias, Source::Path { location: "x" }); }"#,
+        r#"machine build(builder: &mut Build) { Build::depend_as(builder, alias, Source::Path { location: "x" }); }"#,
     );
     assert_eq!(
         nonliteral.extract().unwrap_err(),
@@ -51,7 +51,7 @@ fn rejects_nonliteral_non_utf8_and_invalid_explicit_aliases() {
     );
 
     let non_utf8 = PackageFixture::with_source(
-        r#"machine build(builder: &mut Build) { builder.depend_as("\xff", Source::Path { location: "x" }); }"#,
+        r#"machine build(builder: &mut Build) { Build::depend_as(builder, "\xff", Source::Path { location: "x" }); }"#,
     );
     assert_eq!(
         non_utf8.extract().unwrap_err(),
@@ -60,7 +60,7 @@ fn rejects_nonliteral_non_utf8_and_invalid_explicit_aliases() {
 
     for alias in ["BadAlias", "bad-alias", "_bad", "bad__alias", "bad_"] {
         let fixture = PackageFixture::with_source(&format!(
-            r#"machine build(builder: &mut Build) {{ builder.depend_as("{alias}", Source::Path {{ location: "x" }}); }}"#,
+            r#"machine build(builder: &mut Build) {{ Build::depend_as(builder, "{alias}", Source::Path {{ location: "x" }}); }}"#,
         ));
         assert_eq!(
             fixture.extract().unwrap_err(),
@@ -100,7 +100,7 @@ fn rejects_nonliteral_wrong_type_missing_and_unknown_source_cases() {
     ];
     for (source, expected) in cases {
         let fixture = PackageFixture::with_source(&format!(
-            "machine build(builder: &mut Build) {{ builder.depend({source}); }}"
+            "machine build(builder: &mut Build) {{ Build::depend(builder, {source}); }}"
         ));
         assert_eq!(fixture.extract().unwrap_err(), expected);
     }
@@ -117,7 +117,7 @@ fn rejects_missing_extra_duplicate_and_nonliteral_source_fields() {
         r#"Source::Git { repository: "x", revision: "y", revision: "z" }"#,
     ] {
         let fixture = PackageFixture::with_source(&format!(
-            "machine build(builder: &mut Build) {{ builder.depend({source}); }}"
+            "machine build(builder: &mut Build) {{ Build::depend(builder, {source}); }}"
         ));
         assert!(matches!(
             fixture.extract(),
@@ -126,14 +126,14 @@ fn rejects_missing_extra_duplicate_and_nonliteral_source_fields() {
     }
 
     let nonliteral = PackageFixture::with_source(
-        "machine build(builder: &mut Build) { builder.depend(Source::Path { location: path }); }",
+        "machine build(builder: &mut Build) { Build::depend(builder, Source::Path { location: path }); }",
     );
     assert!(matches!(
         nonliteral.extract(),
         Err(DependencyProjectionError::SourceFieldNotString { .. })
     ));
     let non_utf8 = PackageFixture::with_source(
-        r#"machine build(builder: &mut Build) { builder.depend(Source::Path { location: "\xff" }); }"#,
+        r#"machine build(builder: &mut Build) { Build::depend(builder, Source::Path { location: "\xff" }); }"#,
     );
     assert!(matches!(
         non_utf8.extract(),
@@ -184,7 +184,7 @@ fn rejects_noncanonical_git_package_selections() {
     ];
     for (selection, expected) in cases {
         let fixture = PackageFixture::with_source(&format!(
-            "machine build(builder: &mut Build) {{ builder.depend(Source::Git {{ repository: \"https://example.invalid/repo.git\", revision: \"main\", selection: {selection} }}); }}"
+            "machine build(builder: &mut Build) {{ Build::depend(builder, Source::Git {{ repository: \"https://example.invalid/repo.git\", revision: \"main\", selection: {selection} }}); }}"
         ));
         assert_eq!(fixture.extract().unwrap_err(), expected);
     }

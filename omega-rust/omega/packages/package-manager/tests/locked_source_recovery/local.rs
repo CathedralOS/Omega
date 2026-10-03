@@ -18,8 +18,8 @@ fn diamond(tree: &Tree, storage: &SourceResolver) -> ResolvedPackageSourceClosur
         &tree.path("sources/root"),
         "root",
         concat!(
-            " builder.depend_as(\"left_branch\", Source::Path { location: \"../left\" });\n",
-            " builder.depend_as(\"right_branch\", Source::Path { location: \"../right\" });\n",
+            " Build::depend_as(builder, \"left_branch\", Source::Path { location: \"../left\" });\n",
+            " Build::depend_as(builder, \"right_branch\", Source::Path { location: \"../right\" });\n",
         ),
     );
     for (directory, alias) in [("left", "shared_left"), ("right", "shared_right")] {
@@ -27,7 +27,7 @@ fn diamond(tree: &Tree, storage: &SourceResolver) -> ResolvedPackageSourceClosur
             &tree.path(&format!("sources/{directory}")),
             "same_name",
             &format!(
-                " builder.depend_as(\"{alias}\", Source::Path {{ location: \"../shared\" }});\n"
+                " Build::depend_as(builder, \"{alias}\", Source::Path {{ location: \"../shared\" }});\n"
             ),
         );
     }

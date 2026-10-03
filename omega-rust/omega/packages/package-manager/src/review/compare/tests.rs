@@ -133,12 +133,12 @@ fn temp_root(name: &str) -> PathBuf {
 fn write_package(root: &Path, name: &str, dependency: Option<&str>) {
     std::fs::create_dir_all(root).expect("create package root");
     let dependency = dependency.map_or_else(String::new, |location| {
-        format!("    builder.depend(Source::Path {{\n        location: \"{location}\"\n    }});\n")
+        format!("    Build::depend(builder, Source::Path {{\n        location: \"{location}\"\n    }});\n")
     });
     std::fs::write(
             root.join("build.omg"),
             format!(
-                "machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n{dependency}}}\n"
+                "machine build(builder: &mut Build) {{\n    Build::package(builder, \"{name}\");\n{dependency}}}\n"
             ),
         )
         .expect("write package build declaration");
@@ -328,8 +328,8 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         baseline_root.join("build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            "    builder.package(\"baseline_root\");\n",
-            "    builder.depend(Source::Path { location: \"../../dep\" });\n",
+            "    Build::package(builder, \"baseline_root\");\n",
+            "    Build::depend(builder, Source::Path { location: \"../../dep\" });\n",
             "}\n"
         ),
     )
@@ -344,8 +344,8 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         candidate_root.join("build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            "    builder.package(\"candidate_root\");\n",
-            "    builder.build_depend_as(\"dep_build\", Source::Path { location: \"../../dep\" });\n",
+            "    Build::package(builder, \"candidate_root\");\n",
+            "    Build::build_depend_as(builder, \"dep_build\", Source::Path { location: \"../../dep\" });\n",
             "}\n"
         ),
     )

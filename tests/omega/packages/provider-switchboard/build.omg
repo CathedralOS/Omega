@@ -1,6 +1,6 @@
 // package-manager fixture: exact build-owned provider selection.
 
 machine build(builder: &mut Build) {
-    builder.package("provider_switchboard");
+    Build::package(builder, "provider_switchboard");
     builder.select_provider<ClockHost, MonotonicClock>();
 }

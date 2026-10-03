@@ -24,7 +24,7 @@ invokes Host;
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -139,7 +139,7 @@ where machine Work()
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -258,7 +258,7 @@ fn propagated_public_service_reach_rejects_tampered_published_row() {
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -310,7 +310,7 @@ invokes Host;
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

@@ -7,8 +7,8 @@
 use support::setup;
 
 machine build(builder: &mut Build) {
-    builder.application("product_entry_query_build_scope_alias");
-    builder.build_depend_as("support", Source::Path { location: "helper" });
+    Build::application(builder, "product_entry_query_build_scope_alias");
+    Build::build_depend_as(builder, "support", Source::Path { location: "helper" });
     let entry: ProductEntryRef = builder.product.entry("support::setup::launch", "windows_x86_64::ProgramEntry");
     builder.roots.bind(windows_x86_64::ProgramEntry, entry);
 }

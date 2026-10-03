@@ -93,7 +93,7 @@ fn dependency_content_and_root_declaration_changes_require_update() {
             .unwrap(),
             "dependency-declaration" => fs::write(
                 project.0.join("dependency/build.omg"),
-                "machine build(builder: &mut Build) { builder.package(\"renamed\"); }\n",
+                "machine build(builder: &mut Build) { Build::package(builder, \"renamed\"); }\n",
             )
             .unwrap(),
             _ => {
@@ -102,8 +102,8 @@ fn dependency_content_and_root_declaration_changes_require_update() {
                 let after = match change {
                     "root-request" => before.replace("\"dependency\", Source", "\"renamed\", Source"),
                     "root-name" => before.replace("\"root\"", "\"renamed\""),
-                    "root-role" => before.replace("builder.package", "builder.application"),
-                    "new-request" => before.replace("\n}", "\n builder.depend_as(\"missing\", Source::Path { location: \"../missing\" });\n}"),
+                    "root-role" => before.replace("Build::package", "Build::application"),
+                    "new-request" => before.replace("\n}", "\n Build::depend_as(builder, \"missing\", Source::Path { location: \"../missing\" });\n}"),
                     _ => unreachable!(),
                 };
                 assert_ne!(before, after);

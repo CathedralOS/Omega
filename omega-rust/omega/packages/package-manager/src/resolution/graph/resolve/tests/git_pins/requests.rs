@@ -114,13 +114,13 @@ fn resolve_dependencies(
 fn write_dependencies(root: &Fixture, dependencies: &[(&str, &Fixture)]) {
     let declarations = dependencies.iter().map(|(alias, fixture)| {
         format!(
-            "    builder.depend_as(\"{alias}\", Source::Git {{ repository: \"{}\", revision: \"main\", selection: PackageSelection::Root {{}} }});\n",
+            "    Build::depend_as(builder, \"{alias}\", Source::Git {{ repository: \"{}\", revision: \"main\", selection: PackageSelection::Root {{}} }});\n",
             fixture.locator,
         )
     }).collect::<String>();
     std::fs::write(
         root.repository.join("build.omg"),
-        format!("machine build(builder: &mut Build) {{\n    builder.package(\"consumer\");\n{declarations}}}\n"),
+        format!("machine build(builder: &mut Build) {{\n    Build::package(builder, \"consumer\");\n{declarations}}}\n"),
     )
     .unwrap();
     root.commit();

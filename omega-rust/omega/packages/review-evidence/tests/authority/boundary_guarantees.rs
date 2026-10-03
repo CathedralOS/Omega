@@ -8,7 +8,7 @@ fn review_projects_exact_outcome_specific_guarantees() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+            r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
         );
         compile_review_fixture(CheckedCompileRequest {

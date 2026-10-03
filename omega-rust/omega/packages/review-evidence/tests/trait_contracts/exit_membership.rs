@@ -24,7 +24,7 @@ fn exit_membership_discharge_replays_custody_and_keeps_persisted_rows_inert() {
     package.write("main.omg", SOURCE);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }"#,
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }"#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -138,7 +138,7 @@ fn exit_membership_cannot_recover_after_an_alias_invalidates_the_subject() {
     ));
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }"#,
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }"#,
     );
     let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -177,7 +177,7 @@ fn scalar_post_state_guarantees_close_by_exit_evidence_at_every_exit() {
     package.write("main.omg", SCALAR_POST_STATE_SOURCE);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }"#,
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }"#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -292,7 +292,7 @@ ensures
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }"#,
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }"#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),

@@ -16,7 +16,7 @@ fn compile_source(source: &str, digest: u8) -> (TempPackage, ReviewFixture) {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     );
     let identity = PackageKeyIdentity::from_digest([digest; 32]).unwrap();
     let inputs = PackageCompilationInputs::new_package(

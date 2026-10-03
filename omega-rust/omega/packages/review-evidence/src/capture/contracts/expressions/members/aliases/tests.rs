@@ -36,7 +36,7 @@ pub machine Other::check(&self) {}
     .unwrap();
     std::fs::write(
         directory.0.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
     )
     .unwrap();
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([41; 32]).unwrap();

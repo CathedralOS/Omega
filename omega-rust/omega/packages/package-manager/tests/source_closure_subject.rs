@@ -50,7 +50,7 @@ fn write_package(root: &Path, name: &str, dependency_statements: &str) {
     fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n{dependency_statements}}}\n"
+            "machine build(builder: &mut Build) {{\n    Build::package(builder, \"{name}\");\n{dependency_statements}}}\n"
         ),
     )
     .expect("write package build declaration");
@@ -63,19 +63,19 @@ fn write_diamond(tree: &TempTree) -> PathBuf {
         &sources.join("root"),
         "root_package",
         concat!(
-            "    builder.depend(Source::Path { location: \"../left\" });\n",
-            "    builder.depend_as(\"right_branch\", Source::Path { location: \"../right\" });\n",
+            "    Build::depend(builder, Source::Path { location: \"../left\" });\n",
+            "    Build::depend_as(builder, \"right_branch\", Source::Path { location: \"../right\" });\n",
         ),
     );
     write_package(
         &sources.join("left"),
         "left_package",
-        "    builder.depend(Source::Path { location: \"../shared\" });\n",
+        "    Build::depend(builder, Source::Path { location: \"../shared\" });\n",
     );
     write_package(
         &sources.join("right"),
         "right_package",
-        "    builder.depend_as(\"shared_override\", Source::Path { location: \"../right/../shared\" });\n",
+        "    Build::depend_as(builder, \"shared_override\", Source::Path { location: \"../right/../shared\" });\n",
     );
     write_package(&sources.join("shared"), "shared_package", "");
     sources.join("root")
@@ -400,7 +400,7 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
     write_package(
         &workspace.join("root"),
         "workspace_root",
-        "    builder.depend(Source::Path { location: \"../child\" });\n",
+        "    Build::depend(builder, Source::Path { location: \"../child\" });\n",
     );
     write_package(&workspace.join("child"), "workspace_child", "");
     let workspace_source =

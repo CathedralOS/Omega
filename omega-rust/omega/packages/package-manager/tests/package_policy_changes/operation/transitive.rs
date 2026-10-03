@@ -8,12 +8,12 @@ pub(super) fn source_chain(tree: &Tree, leaf_name: &str, leaf_source: &str) {
     source(
         tree,
         PURE,
-        " builder.depend_as(\"middle_api\", Source::Path { location: \"../middle\" });\n",
+        " Build::depend_as(builder, \"middle_api\", Source::Path { location: \"../middle\" });\n",
     );
     package(
         &tree.path("sources/middle"),
         "middle",
-        " builder.depend_as(\"leaf_api\", Source::Path { location: \"../leaf\" });\n",
+        " Build::depend_as(builder, \"leaf_api\", Source::Path { location: \"../leaf\" });\n",
     );
     package(&tree.path("sources/leaf"), leaf_name, "");
     fs::write(tree.path("sources/leaf/main.omg"), leaf_source).unwrap();

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("rank_range_state_call");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "rank_range_state_call");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, RankExample::run);
     builder.roots.bind(linux_x86_64::ProgramEntry, RankExample::run);
     builder.roots.bind(linux_arm64::ProgramEntry, RankExample::run);

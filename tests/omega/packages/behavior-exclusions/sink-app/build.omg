@@ -2,8 +2,8 @@
 // silent provider for a real Sink invocation; the exclusion must reject.
 
 machine build(builder: &mut Build) {
-    builder.application("sink_app");
-    builder.depend(Source::Path { location: "../logger-kit" });
+    Build::application(builder, "sink_app");
+    Build::depend(builder, Source::Path { location: "../logger-kit" });
     builder.select_provider<logger_kit::main::Sink, logger_kit::main::QuietSink>();
     builder.exclude_service<Sink>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

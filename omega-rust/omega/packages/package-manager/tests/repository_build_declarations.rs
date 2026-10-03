@@ -410,7 +410,7 @@ fn collect_case_member_sources(directory: &Path, sources: &mut Vec<PathBuf>) {
 /// carries an unused edge. Cases without the edge either use no std or stay on
 /// the bundled toolchain libraries (`pass/memory/interrupt_table_canary`), and
 /// package-mode cases such as `pass/proofs/quotient_define_managed_compile`
-/// carry package identity through `builder.package`.
+/// carry package identity through `Build::package`.
 #[test]
 fn omega_cases_declare_a_standard_library_edge_exactly_when_they_use_it() {
     let standard_library = repository_root()
@@ -457,7 +457,7 @@ fn omega_cases_declare_a_standard_library_edge_exactly_when_they_use_it() {
 
 /// A case that declares an application names it after its directory, so its
 /// products and diagnostics identify the case; package-mode cases and nested
-/// member packages declare `builder.package` with a valid package name.
+/// member packages declare `Build::package` with a valid package name.
 #[test]
 fn omega_case_applications_are_named_after_their_case() {
     for root in omega_case_roots(&["pass", "run"]) {

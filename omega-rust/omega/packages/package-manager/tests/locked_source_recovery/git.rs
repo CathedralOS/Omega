@@ -35,7 +35,7 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
             &selected,
             "locked_git",
             if named {
-                " builder.depend_as(\"sibling\", Source::Path { location: \"../sibling\" });\n"
+                " Build::depend_as(builder, \"sibling\", Source::Path { location: \"../sibling\" });\n"
             } else {
                 ""
             },
@@ -46,8 +46,8 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
                 repository.join("build.omg"),
                 concat!(
                     "machine build(builder: &mut Build) {\n",
-                    " builder.member(\"packages/member\");\n",
-                    " builder.member(\"packages/sibling\");\n",
+                    " Build::member(builder, \"packages/member\");\n",
+                    " Build::member(builder, \"packages/sibling\");\n",
                     "}\n",
                 ),
             )
@@ -100,7 +100,7 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
             .unwrap();
             fs::write(
                 repository.join("build.omg"),
-                "machine build(builder: &mut Build) { builder.member(\"packages/replaced\"); }\n",
+                "machine build(builder: &mut Build) { Build::member(builder, \"packages/replaced\"); }\n",
             )
             .unwrap();
         }

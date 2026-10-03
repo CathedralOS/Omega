@@ -14,7 +14,7 @@ fn named_member_uses_declared_default_alias_and_member_relative_dependencies() {
             fixture.package(
                 "repository/modules/selected",
                 "exact_math",
-                " builder.depend(Source::Path { location: \"../other\" });\n",
+                " Build::depend(builder, Source::Path { location: \"../other\" });\n",
             );
             fixture.write(
                 "repository/modules/selected/main.omg",
@@ -256,7 +256,7 @@ fn selected_member_update_moves_reachable_members_but_preserves_unrelated_pins()
             fixture.package(
                 "repository/modules/selected",
                 "exact_math",
-                " builder.depend(Source::Path { location: \"../other\" });\n",
+                " Build::depend(builder, Source::Path { location: \"../other\" });\n",
             );
             let original = fixture.commit();
             assert_eq!(

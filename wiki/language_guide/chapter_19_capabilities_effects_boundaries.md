@@ -207,7 +207,7 @@ explicitly assume a relationship between two compatible boundary contracts:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.application("memory_editor");
+    Build::application(builder, "memory_editor");
     builder.select_provider<RangeSupplier, EchoSupplier>();
     builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
 }

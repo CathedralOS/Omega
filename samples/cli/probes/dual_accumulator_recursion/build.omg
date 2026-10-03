@@ -1,8 +1,8 @@
 // dual_accumulator_recursion build file.
 
 machine build(builder: &mut Build) {
-    builder.application("dual_accumulator_recursion");
-    builder.depend(Source::Path {
+    Build::application(builder, "dual_accumulator_recursion");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

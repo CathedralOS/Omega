@@ -3,7 +3,7 @@ use compiler::CheckedCompileRequest;
 use target::TargetProfile;
 
 pub(super) const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
 }
 "#;
 
@@ -164,7 +164,7 @@ satisfies CheckedMath::convert { input }
 "#;
 
 pub(super) const FAMILY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("review_fixture");
+    Build::package(builder, "review_fixture");
     builder.select_provider<CheckedMath::convert, ConvertProvider>();
 }
 "#;

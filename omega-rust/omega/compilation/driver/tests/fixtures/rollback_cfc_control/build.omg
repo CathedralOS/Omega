@@ -1,7 +1,7 @@
 // The same source with no rule selected: the route a rolled-back selection
 // must rejoin exactly.
 machine build(builder: &mut Build) {
-    builder.application("rollback_cfc_control");
+    Build::application(builder, "rollback_cfc_control");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);

@@ -74,7 +74,7 @@ fn writable(path: &Path) {
 
 pub(crate) fn package(path: &Path, name: &str, dependencies: &str) {
     fs::create_dir_all(path).unwrap();
-    fs::write(path.join("build.omg"), format!("machine build(builder: &mut Build) {{\n builder.package(\"{name}\");\n{dependencies}}}\n")).unwrap();
+    fs::write(path.join("build.omg"), format!("machine build(builder: &mut Build) {{\n Build::package(builder, \"{name}\");\n{dependencies}}}\n")).unwrap();
     fs::write(path.join("main.omg"), "pub machine value() -> u64 { 7 }\n").unwrap();
 }
 

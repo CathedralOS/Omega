@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
-    builder.application("prime_sieve");
-    builder.depend(Source::Path {
+    Build::application(builder, "prime_sieve");
+    Build::depend(builder, Source::Path {
         location: "../../../../source/library/std"
     });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

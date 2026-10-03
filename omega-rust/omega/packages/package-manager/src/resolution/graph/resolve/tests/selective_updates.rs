@@ -46,7 +46,7 @@ impl Project {
         let root = self.directory.join(name);
         write_package(&root, name, None);
         std::fs::write(root.join("build.omg"), format!(
-            "machine build(builder: &mut Build) {{ builder.package(\"{name}\"); {dependencies} }}\n"
+            "machine build(builder: &mut Build) {{ Build::package(builder, \"{name}\"); {dependencies} }}\n"
         )).unwrap();
         run_test_git(&root, ["init", "--quiet"]);
         run_test_git(&root, ["config", "user.email", "omega@example.invalid"]);
@@ -71,7 +71,7 @@ impl Project {
 
     fn build(dependencies: &str) -> String {
         format!(
-            "machine build(builder: &mut Build) {{ builder.application(\"application\"); {dependencies} }}\n"
+            "machine build(builder: &mut Build) {{ Build::application(builder, \"application\"); {dependencies} }}\n"
         )
     }
 
@@ -191,7 +191,7 @@ impl Drop for Project {
 
 fn dependency(name: &str) -> String {
     format!(
-        "builder.depend(Source::Git {{ repository: \"https://github.com/CathedralOS/{name}.git\", revision: \"HEAD\" }});"
+        "Build::depend(builder, Source::Git {{ repository: \"https://github.com/CathedralOS/{name}.git\", revision: \"HEAD\" }});"
     )
 }
 
@@ -262,7 +262,7 @@ fn install_preserves_old_git_pins_while_resolving_new_dependencies() {
     let pins =
         GitDependencyPins::new(&baseline, &[], GitExactRevisionAcquisition::Offline).unwrap();
     // Reverse placement and change the alias: neither edits the source request.
-    let renamed = original.replace("builder.depend(", "builder.depend_as(\"renamed\", ");
+    let renamed = original.replace("Build::depend(builder, ", "Build::depend_as(builder, \"renamed\", ");
     let after = project.resolve(
         Some(&format!("{} {renamed}", dependency("added"))),
         Some(pins),

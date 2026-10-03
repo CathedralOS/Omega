@@ -20,7 +20,7 @@ where Element satisfies Good::Primary
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -100,7 +100,7 @@ where Element satisfies Card::FullEncoding<'view, Card, Message, 7>
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -171,7 +171,7 @@ where Element satisfies Card::Encoding<Output, Rank>
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -229,7 +229,7 @@ pub machine Main::inspect(&self) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 

@@ -32,7 +32,7 @@ impl Fixture {
         write_package(&repository.join("packages/third"), "third", None);
         std::fs::write(
             repository.join("build.omg"),
-            "machine build(builder: &mut Build) {\n    builder.member(\"packages/first\");\n    builder.member(\"packages/second\");\n    builder.member(\"packages/third\");\n}\n",
+            "machine build(builder: &mut Build) {\n    Build::member(builder, \"packages/first\");\n    Build::member(builder, \"packages/second\");\n    Build::member(builder, \"packages/third\");\n}\n",
         )
         .unwrap();
         run_test_git(&repository, ["init", "--quiet"]);

@@ -14,7 +14,7 @@ fn public_domain_shape_changes_change_comparison_encoding() {
         "main.omg",
         "pub data Packet { value: u32; }\npub domain Packet::Prepared;\n",
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -53,7 +53,7 @@ pub operator + add(
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -149,7 +149,7 @@ pub boundary trait SchedulerAdmission {
 }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     classified.write("build.omg", build);
     routed.write("build.omg", build);
@@ -229,7 +229,7 @@ pub boundary trait BackupAdmission {{
         "main.omg",
         &source("BackupAdmission::grant, PrimaryAdmission::grant"),
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -273,7 +273,7 @@ pub domain Socket::Usable = Socket::Trusted & Socket::Connected;
 pub domain u64::Portable = Carry::Portable;
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+    let build = r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -353,7 +353,7 @@ fn public_exact_machine_issuer_routes_capture_checked_wrappers() {
         ));
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+            "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -498,7 +498,7 @@ fn public_exact_machine_issuer_order_is_canonical_and_predicates_remain_obligati
         ));
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+            "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -518,7 +518,7 @@ fn public_exact_machine_issuer_order_is_canonical_and_predicates_remain_obligati
     invalid.write("main.omg", "module issuance; pub domain u64::Issued requires self > 0; established by issuance::issue; pub machine issue() -> u64 in Issued { 0 }");
     invalid.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
     );
     let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&invalid.0)),
@@ -539,7 +539,7 @@ fn public_domain_private_machine_catalog_preserves_wrapper_and_review_identity()
     package.write("main.omg", "module issuance; pub domain u64::Issued requires self > 0; established by issue; machine issue() -> u64 in Issued { 7 } pub machine forward() -> u64 in Issued { issue() }");
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -623,7 +623,7 @@ fn public_domain_private_catalogs_retain_requirement_and_attached_identities() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+            "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -675,7 +675,7 @@ fn private_boundary_issuer_remains_an_explicit_review_assumption() {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+        "machine build(builder: &mut Build) { Build::package(builder, \"review_fixture\"); }",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),

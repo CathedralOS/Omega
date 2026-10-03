@@ -11,7 +11,7 @@ native/installed-product boundary.
 
 Concrete macOS assembly belongs to post-compilation product publication, not
 Psi, instruction lowering, a plugin registry, or a generic packaging framework.
-`builder.application(...)` supplies the name. GUI intent, currently spelled
+`Build::application(builder, ...)` supplies the name. GUI intent, currently spelled
 `builder.subsystem = Subsystem::Gui`, is the opt-in; there is no second bundle
 flag. Complete selected macOS GUI application output requires a bundle.
 

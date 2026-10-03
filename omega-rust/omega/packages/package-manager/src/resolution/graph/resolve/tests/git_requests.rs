@@ -136,7 +136,7 @@ fn named_git_selection_resolves_only_the_declared_matching_member() {
         repository.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.member("packages/matrix");
+    Build::member(builder, "packages/matrix");
 }
 "#,
     )
@@ -213,8 +213,8 @@ fn named_git_project_selects_an_application_from_a_mixed_workspace() {
         repository.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.member("projects/console");
-    builder.member("projects/protocol");
+    Build::member(builder, "projects/console");
+    Build::member(builder, "projects/protocol");
 }
 "#,
     )
@@ -288,8 +288,8 @@ fn named_git_member_path_dependencies_keep_repository_custody() {
         repository.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.member("packages/left");
-    builder.member("packages/right");
+    Build::member(builder, "packages/left");
+    Build::member(builder, "packages/right");
 }
 "#,
     )
@@ -390,7 +390,7 @@ fn git_member_path_dependency_rejects_an_undeclared_directory() {
         repository.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.member("packages/left");
+    Build::member(builder, "packages/left");
 }
 "#,
     )

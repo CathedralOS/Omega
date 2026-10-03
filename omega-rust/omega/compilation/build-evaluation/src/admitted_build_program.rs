@@ -20,7 +20,7 @@ pub(crate) struct AdmittedBuildProgram {
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
-    /// The validated `builder.artifact_only()` application modifier. An
+    /// The validated `Build::artifact_only(builder)` application modifier. An
     /// artifact-only activation publishes retained outputs only: it may not
     /// bind executable roots or select boundary providers, and it must
     /// complete at least one required-output obligation.

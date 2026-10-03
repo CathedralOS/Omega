@@ -38,7 +38,7 @@ fn missing_target_precedes_git_acquisition_even_when_the_recorded_selector_moved
     git(&repository, &["commit", "--quiet", "-m", "accepted"]);
     git(&repository, &["branch", "-M", "main"]);
     let locator = "https://github.com/CathedralOS/locked-preparation-fixture.git";
-    fs::write(project.root().join("build.omg"), format!("machine build(builder: &mut Build) {{ builder.package(\"root\"); builder.depend_as(\"dependency\", Source::Git {{ repository: \"{locator}\", revision: \"main\" }}); }}\n")).unwrap();
+    fs::write(project.root().join("build.omg"), format!("machine build(builder: &mut Build) {{ Build::package(builder, \"root\"); Build::depend_as(builder, \"dependency\", Source::Git {{ repository: \"{locator}\", revision: \"main\" }}); }}\n")).unwrap();
     let storage = project.storage();
     let context = ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT);
     let root_path = project.root().canonicalize().unwrap();

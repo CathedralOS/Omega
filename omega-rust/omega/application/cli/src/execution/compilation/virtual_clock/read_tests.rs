@@ -66,7 +66,7 @@ fn checked_clock(source: &str) -> (TemporaryDirectory, compiler::CheckedCompilat
         directory.path().join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("virtual_clock_read");
+    Build::application(builder, "virtual_clock_read");
     builder.roots.bind(macos_arm64::ProgramEntry, main);
 }
 "#,

@@ -33,7 +33,7 @@ fn dependency_open_claims_require_exact_fresh_root_policy() {
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("claim_dependency");
+    Build::package(builder, "claim_dependency");
 }
 "#,
     )
@@ -49,8 +49,8 @@ ensures result == 0;
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("claim_consumer");
-    builder.depend(Source::Path {
+    Build::package(builder, "claim_consumer");
+    Build::depend(builder, Source::Path {
         location: "../dependency"
     });
 }
@@ -289,7 +289,7 @@ fn dependency_external_executable_supply_requires_exact_fresh_root_policy() {
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("foreign_surface");
+    Build::package(builder, "foreign_surface");
 }
 "#,
     )
@@ -319,8 +319,8 @@ pub windows_x86_64 machine invoke_leaf()
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("foreign_consumer");
-    builder.depend(Source::Path {
+    Build::package(builder, "foreign_consumer");
+    Build::depend(builder, Source::Path {
         location: "../dependency"
     });
 }
@@ -448,7 +448,7 @@ fn dependency_contract_entailment_stand_down_propagates_but_cannot_be_admitted()
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract_surface");
+    Build::package(builder, "contract_surface");
 }
 "#,
     )
@@ -475,8 +475,8 @@ ensures
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract_consumer");
-    builder.depend(Source::Path {
+    Build::package(builder, "contract_consumer");
+    Build::depend(builder, Source::Path {
         location: "../dependency"
     });
 }
@@ -602,7 +602,7 @@ fn dependency_contract_assumption_certificate_closes_the_later_discharge() {
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract_surface");
+    Build::package(builder, "contract_surface");
 }
 "#,
     )
@@ -625,8 +625,8 @@ ensures
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract_consumer");
-    builder.depend(Source::Path {
+    Build::package(builder, "contract_consumer");
+    Build::depend(builder, Source::Path {
         location: "../dependency"
     });
 }

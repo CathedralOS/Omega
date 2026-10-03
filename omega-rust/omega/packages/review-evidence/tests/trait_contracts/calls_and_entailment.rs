@@ -39,7 +39,7 @@ pub trait Worker {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -86,7 +86,7 @@ pub trait Worker {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -142,7 +142,7 @@ ensures
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -285,7 +285,7 @@ ensures
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
 
@@ -548,7 +548,7 @@ fn assumption_discharge_batch_preserves_exact_rows_and_remaining_order() {
     package.write("main.omg", &source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -689,7 +689,7 @@ ensures
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+            r#"machine build(builder: &mut Build) { Build::package(builder, "review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {

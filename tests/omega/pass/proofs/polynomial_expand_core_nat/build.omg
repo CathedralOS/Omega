@@ -1,8 +1,8 @@
 // Deployable proof canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("polynomial_expand_core_nat");
-    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    Build::application(builder, "polynomial_expand_core_nat");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

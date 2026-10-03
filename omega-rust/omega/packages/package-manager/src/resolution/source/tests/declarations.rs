@@ -38,7 +38,7 @@ fn application_role_cannot_be_bound_as_a_package_source() {
     std::fs::create_dir_all(&root).expect("create source");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"artifact_root\");\n}\n",
+        "machine build(builder: &mut Build) {\n    Build::application(builder, \"artifact_root\");\n}\n",
     )
     .expect("write application declaration");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
@@ -72,9 +72,9 @@ fn source_custody_projects_only_canonical_dependency_rows() {
         root.join("build.omg"),
         r#"
             machine build(builder: &mut Build) {
-                builder.package("application");
-                builder.depend(Source::Path { location: "../local-library" });
-                builder.depend(Source::Git {
+                Build::package(builder, "application");
+                Build::depend(builder, Source::Path { location: "../local-library" });
+                Build::depend(builder, Source::Git {
                     repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
                     revision: "main"
                 });
@@ -121,10 +121,10 @@ fn source_custody_rejects_hidden_dependency_requests() {
         root.join("build.omg"),
         r#"
             machine helper(builder: &mut Build) {
-                builder.depend(Source::Path { location: "../hidden" });
+                Build::depend(builder, Source::Path { location: "../hidden" });
             }
             machine build(builder: &mut Build) {
-                builder.package("application");
+                Build::package(builder, "application");
                 helper(builder);
             }
             "#,
