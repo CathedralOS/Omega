@@ -92,8 +92,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call built 2259ms exit:0 @bd26d
 pass/calls/cyclic_projected_borrow_call_exit built 1085ms exit:70 @2d8ed253669f+wt
 pass/calls/cyclic_scalar_query_reborrow_exit built 1231ms exit:70 @2d8ed253669f+wt
 pass/calls/field_path_byte_subslice_exit built 975ms exit:70 @2d8ed253669f+wt
-pass/calls/generic_reference_forwarding_exit rejected 517ms @655eb1d82b+wt
-	machine argument `Counter::increment` for `nominal_forward` does not refine `Increment`: parameter 0 expects `&mut Self`, got `&mut Counter`
+pass/calls/generic_reference_forwarding_exit checked 1806ms @c00769b616a+wt
 pass/calls/guard_call_scalar_argument_exit built 1664ms exit:70 @9baafc0ace88
 pass/calls/guarded_value_call_arm_exit built 1036ms exit:70 @2d8ed253669f+wt
 pass/calls/local_after_call_result_store_exit built 1168ms exit:70 @2d8ed253669f+wt
@@ -957,10 +956,8 @@ pass/traits/equatable_string_field_equality_exit rejected 1699ms @2d8ed253669f+w
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
 pass/traits/generic_reference_forwarding_exit checked 2922ms @655eb1d82b+wt
 pass/traits/generic_trait_parent_binds_requirement checked 703ms @2d8ed253669f+wt
-pass/traits/nominal_generic_reference_forwarding_exit rejected 439ms @655eb1d82b+wt
-	machine argument `Counter::increment` for `forward` does not refine `Increment`: parameter 0 expects `&mut Self`, got `&mut Counter`
-pass/traits/nominal_machine_binder_static_dispatch rejected 524ms @655eb1d82b+wt
-	machine argument `Counter::increment` for `step` does not refine `Increment`: parameter 0 expects `&mut Self`, got `&mut Counter`
+pass/traits/nominal_generic_reference_forwarding_exit checked 1790ms @c00769b616a+wt
+pass/traits/nominal_machine_binder_static_dispatch checked 1768ms @c00769b616a+wt
 pass/traits/ring_requirement_satisfies_exit built 2576ms exit:70 @2d8ed253669f+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)

@@ -22,9 +22,14 @@ pub(super) fn validate_machine_parameter_arguments(
     let authored = program.state_signature_parameters(signature);
     let subject = authored
         .iter()
-        .position(|parameter| parameter.is_self)
+        .position(|parameter| {
+            crate::declarations::traits::required_is_subject_parameter(program, parameter)
+        })
         .and_then(|position| arguments.get(position))
         .and_then(|argument| declared_place_type(program, machine, state, *argument))
+        .and_then(|carrier| {
+            crate::value_custody::places::unwrapped_type_reference(program, carrier)
+        })
         .unwrap_or_else(TypeReferenceHandle::invalid);
     let mut explicit = authored.to_vec();
     for parameter in &mut explicit {

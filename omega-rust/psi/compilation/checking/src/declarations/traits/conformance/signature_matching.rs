@@ -1166,6 +1166,19 @@ pub(crate) fn required_is_self_type(program: &TypedTrees, required: TypeReferenc
     )
 }
 
+/// A requirement's subject position: a `self` receiver, or under named
+/// subjects the parameter whose unwrapped type is the trait's `Self`
+/// placeholder. This only locates the position; the carrier identity comes
+/// from the conforming declaration it is compared against.
+pub(crate) fn required_is_subject_parameter(
+    program: &TypedTrees,
+    required: &typed_trees::signature::StateParameter,
+) -> bool {
+    required.is_self
+        || crate::value_custody::places::unwrapped_type_reference(program, required.type_reference)
+            .is_some_and(|carrier| required_is_self_type(program, carrier))
+}
+
 pub(crate) fn required_trait_type_parameter<'program>(
     program: &'program TypedTrees,
     required: TypeReferenceHandle,
