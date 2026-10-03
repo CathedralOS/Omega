@@ -1,4 +1,9 @@
 //! Input-only custody for ordinary ordered scalar graphs. No legalized output is built here.
+//!
+//! Matching retains the source-derived block custody it already reconstructed.
+//! Construction and replay consume that invocation's snapshots instead of
+//! repeating dominance and loan reconstruction over unchanged inputs. Replay
+//! still matches the source independently; no producer snapshot crosses into it.
 use super::LegalizationError;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
@@ -233,6 +238,18 @@ pub(super) fn i32_type() -> IntegerType {
 pub(super) fn u64_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 64).expect("U64")
 }
+
+pub(super) type BlockEntryCustody =
+    std::collections::BTreeMap<semantic_vocabulary::BlockId, reference_custody::Custody>;
+
+/// Input facts retained only for the immediately following construction or
+/// replay. These snapshots describe the source, not a proposed legalized plan.
+#[derive(Debug)]
+pub(super) struct MatchedScalarGraph {
+    pub(super) call_plan: CallPlan,
+    pub(super) custody_entries: BlockEntryCustody,
+}
+
 pub(super) fn match_input(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -240,7 +257,7 @@ pub(super) fn match_input(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Result<CallPlan, LegalizationError> {
+) -> Result<MatchedScalarGraph, LegalizationError> {
     primitive_locals::validate(optimized, &unit.structural_types)?;
     let call_plan = if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -570,8 +587,11 @@ pub(super) fn match_input(
     }
     // Complete-unit custody admits cycles only after independent source proof
     // replay. Per-function matching below retains every executable edge.
-    validate_target(target, abstracted, optimized, native, plan, unit)?;
-    Ok(call_plan)
+    let custody_entries = validate_target(target, abstracted, optimized, native, plan, unit)?;
+    Ok(MatchedScalarGraph {
+        call_plan,
+        custody_entries,
+    })
 }
 pub(super) fn callee_plan(
     callee: MachineId,

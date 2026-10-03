@@ -31,7 +31,7 @@ pub(super) fn validate(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Result<(), LegalizationError> {
+) -> Result<super::super::BlockEntryCustody, LegalizationError> {
     if function.attachment != optimized.attachment
         || graph.structural_types != plan.structural_types
         || graph.structural_types != unit.structural_types
@@ -445,7 +445,7 @@ pub(super) fn validate(
             return Err(LegalizationError::custody());
         }
     }
-    Ok(())
+    Ok(block_entries)
 }
 
 fn successor_matches(

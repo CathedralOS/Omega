@@ -138,6 +138,7 @@ fn check(
         plan,
         unit,
     )
+    .map(|_| ())
 }
 
 #[test]
