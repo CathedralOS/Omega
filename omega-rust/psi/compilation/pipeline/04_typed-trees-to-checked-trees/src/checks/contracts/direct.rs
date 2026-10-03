@@ -8,6 +8,7 @@ use crate::labels::semantic_boolean_fact_label;
 
 mod guard_values;
 mod match_patterns;
+pub(super) use guard_values::proves_with as guard_value_proves_with;
 
 pub(super) fn direct_context_proves_boolean_expression(
     program: &typed_trees::TypedTrees,

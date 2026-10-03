@@ -1,5 +1,44 @@
 use crate::tests::front_end::checked_program_result;
 
+#[test]
+fn boolean_guard_polarity_preserves_exact_arrival_field_identity() {
+    for (guard, selected_arm, accepted) in [
+        ("!cell.flag", "false", true),
+        ("!cell.flag", "true", false),
+        ("cell.flag == false", "false", true),
+        ("false == !cell.flag", "true", true),
+        ("!!cell.flag", "true", true),
+        ("!cell.other", "false", false),
+        ("!other.flag", "false", false),
+    ] {
+        let source = format!(
+            r#"
+            data Cell {{ flag: bool; other: bool; }}
+            machine caller(cell: &Cell, other: &Cell) {{
+                transition {guard} {{
+                    {selected_arm} -> selected(cell)
+                    _ -> done()
+                }}
+                state selected(target: &Cell) requires target.flag {{}}
+                state done() {{}}
+            }}
+            "#
+        );
+        match checked_program_result(&source) {
+            Ok(_) => assert!(accepted, "wrong polarity or field accepted: {source}"),
+            Err(diagnostics) => {
+                assert!(!accepted, "{source}: {diagnostics:#?}");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("cannot prove requires contract for call selected")),
+                    "{diagnostics:#?}"
+                );
+            }
+        }
+    }
+}
+
 fn source(access: &str, argument: &str, requirement: &str, before: &str, after: &str) -> String {
     let body = if access == "&" {
         ""
