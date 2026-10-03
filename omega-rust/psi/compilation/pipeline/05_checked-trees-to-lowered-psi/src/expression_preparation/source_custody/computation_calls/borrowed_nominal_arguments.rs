@@ -44,16 +44,11 @@ pub(super) fn validate(
     call: &BorrowCallFact,
     occurrence: ArgumentOccurrence<'_>,
 ) -> Result<(), LoweringError> {
-    let TypeReferenceNode::Reference {
-        access: target_access @ (ReferenceAccess::Shared | ReferenceAccess::Mutable),
-        referee,
-        ..
-    } = checked
-        .type_reference_table
-        .type_reference(target.type_reference)
-    else {
-        return unsupported("record operand requires a readable reference formal");
-    };
+    let shell = validation::reference_shell(&checked.typed, target.type_reference).ok_or(
+        LoweringError::Unsupported("record operand requires a readable reference formal"),
+    )?;
+    let target_access = shell.access;
+    let referee = validation::peel_declared_constraints(&checked.typed, shell.referee);
     let (expected_access, expected_kind) = match target_access {
         ReferenceAccess::Shared => (
             CheckedStructuralAccess::SharedBorrow,
@@ -72,7 +67,7 @@ pub(super) fn validate(
     }
     let table = &checked.expression_table;
     let named = match table.expression(expression) {
-        ExpressionNode::Borrow(borrow) if borrow.access == *target_access => borrow.target,
+        ExpressionNode::Borrow(borrow) if borrow.access == target_access => borrow.target,
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             expression
         }
@@ -121,23 +116,22 @@ pub(super) fn validate(
             // shared-borrow local carries that loan itself, so the carrier the
             // callee observes is the referent it dereferences to — the same
             // rule a shared-borrow parameter follows.
-            match checked
-                .type_reference_table
-                .type_reference(local.type_reference)
-            {
+            match checked.type_reference_table.type_reference(
+                validation::peel_declared_constraints(&checked.typed, local.type_reference),
+            ) {
                 TypeReferenceNode::Reference {
                     access, referee, ..
                 } if !local.is_mutable
                     && (*access == ReferenceAccess::Mutable
                         || (*access == ReferenceAccess::Shared
-                            && *target_access == ReferenceAccess::Shared)) =>
+                            && target_access == ReferenceAccess::Shared)) =>
                 {
                     *referee
                 }
                 // Lending exclusive receiver custody follows the ordinary
                 // receiver lane's mutable-local requirement.
                 TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
-                    if *target_access == ReferenceAccess::Shared || local.is_mutable =>
+                    if target_access == ReferenceAccess::Shared || local.is_mutable =>
                 {
                     local.type_reference
                 }
@@ -157,20 +151,19 @@ pub(super) fn validate(
             {
                 return unsupported("record operand substituted its source parameter");
             }
-            let reference = match checked
-                .type_reference_table
-                .type_reference(source.type_reference)
-            {
+            let reference = match checked.type_reference_table.type_reference(
+                validation::peel_declared_constraints(&checked.typed, source.type_reference),
+            ) {
                 TypeReferenceNode::Reference {
                     access, referee, ..
                 } if *access == ReferenceAccess::Mutable
                     || (*access == ReferenceAccess::Shared
-                        && *target_access == ReferenceAccess::Shared) =>
+                        && target_access == ReferenceAccess::Shared) =>
                 {
                     *referee
                 }
                 TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
-                    if *target_access == ReferenceAccess::Shared
+                    if target_access == ReferenceAccess::Shared
                         || source.is_mutable
                         || source.is_self =>
                 {
@@ -214,7 +207,16 @@ pub(super) fn validate(
             LoweringError::Unsupported("record projection lost its declared type"),
         )?
     };
-    match checked.type_reference_table.type_reference(reference) {
+    let carrier = validation::peel_declared_constraints(&checked.typed, reference);
+    if carrier != reference
+        && !validation::has_plain_owned_contents_with_represented_constraints(
+            &checked.typed,
+            reference,
+        )
+    {
+        return unsupported("borrowed operand has unrepresented source constraints");
+    }
+    match checked.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { .. } => {}
         TypeReferenceNode::Named { symbol, .. } => {
             let declaration = checked
@@ -257,18 +259,19 @@ pub(super) fn validate(
     // from the exact authored formal, not the producer's requested identity.
     // The source/formal referee equality and occurrence checks below still own
     // the storage identity and loan authority; signature replay owns its shape.
-    let presentation = if !target.is_self
-        && matches!(
-            checked.type_reference_table.type_reference(*referee),
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length: checked_trees::types::FixedArrayLength::Literal(_),
-            } if checked.primitive_type_reference(*element_type)
-                == Some(checked_trees::types::PrimitiveType::U8)
-        ) {
-        target.type_reference
+    let presentation = if target.is_self {
+        carrier
     } else {
-        reference
+        match validation::byte_sequence_carrier(&checked.typed, target.type_reference, &[]) {
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }) => {
+                target.type_reference
+            }
+            // A qualified bounded owner retains its live extent. Borrowing it
+            // presents the same storage carrier, not the reference's spelling;
+            // signature and Terminal argument checks retain its predicates.
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) | None => carrier,
+            _ => return unsupported("aggregate operand changed its byte carrier"),
+        }
     };
     if checked.normalized_type_identity(presentation).as_str() != argument.type_identity {
         return unsupported("record operand changed its declared referent type");
@@ -289,7 +292,7 @@ pub(super) fn validate(
         let TypeReferenceNode::Named {
             symbol: self_symbol,
             ..
-        } = checked.type_reference_table.type_reference(*referee)
+        } = checked.type_reference_table.type_reference(referee)
         else {
             return unsupported("record receiver lost its self referent");
         };
@@ -343,8 +346,7 @@ pub(super) fn validate(
         let ArgumentOccurrence::Explicit(position) = occurrence else {
             return unsupported("record argument lost its observation position");
         };
-        if checked.normalized_type_identity(*referee) != checked.normalized_type_identity(reference)
-        {
+        if checked.normalized_type_identity(referee) != checked.normalized_type_identity(carrier) {
             return unsupported("record argument differs from its exact formal referent");
         }
         super::borrow_rows::validate_place_argument_at(
@@ -356,4 +358,105 @@ pub(super) fn validate(
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+
+    #[test]
+    fn qualified_byte_field_computation_replays_exact_path_access_and_carrier() {
+        let checked = crate::front_end::checked_program(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/omega/pass/domains/mutable_receiver_declared_field_exit/main.omg"
+        )));
+        crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
+            .expect("qualified field computations lower through their real caller");
+
+        let observe = checked
+            .machines()
+            .iter()
+            .find(|owner| owner.name.as_str() == "observe")
+            .unwrap()
+            .symbol;
+        let mut changed = checked.clone();
+        let effects = &mut changed.facts.flow.terminal_unit_effects;
+        let parameter = effects
+            .machines
+            .iter_mut()
+            .filter(|plan| plan.machine == observe)
+            .flat_map(|plan| &mut plan.structural_parameters)
+            .chain(
+                effects
+                    .composed_machines
+                    .iter_mut()
+                    .filter(|plan| plan.machine == observe)
+                    .flat_map(|plan| &mut plan.states)
+                    .flat_map(|state| &mut state.structural_parameters),
+            )
+            .find(|parameter| !parameter.qualifications.is_empty())
+            .expect("observe retains its declared byte qualification");
+        parameter.qualifications.clear();
+        assert!(
+            crate::lower_machine(&changed, crate::TerminalMachineSelection::Name("main")).is_err(),
+            "borrow binding cannot erase the callee's authored qualification"
+        );
+        for name in ["replace", "Packet::replace"] {
+            let owner = checked
+                .machines()
+                .iter()
+                .find(|owner| owner.name.as_str() == name)
+                .unwrap();
+            let state = &checked.machine_states(owner)[0];
+            let plans = &checked.facts.values.scalar_computations;
+            let root = plans
+                .root_at(state.symbol, 2, CheckedScalarExpressionRole::Return)
+                .expect("qualified field call keeps its return computation")
+                .clone();
+            let expression = plans.nodes.get(root.root).authored_root;
+            let replay = |candidate: &checked_trees::CheckedTrees| {
+                super::super::validate_computation_calls(
+                    candidate,
+                    root.machine,
+                    root.state,
+                    root.statement_ordinal,
+                    root.root,
+                    expression,
+                )
+            };
+            replay(&checked).expect("qualified field borrow replays independently");
+            let CheckedScalarComputationKind::Select { when_true, .. } =
+                plans.nodes.get(root.root).kind
+            else {
+                panic!("short-circuit return");
+            };
+            let CheckedScalarComputationKind::Call {
+                structural_arguments,
+                ..
+            } = plans.nodes.get(when_true).kind
+            else {
+                panic!("selected observe call");
+            };
+            for mutation in 0..3 {
+                let mut candidate = checked.clone();
+                let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+                    candidate
+                        .facts
+                        .values
+                        .scalar_computations
+                        .structural_arguments
+                        .get_mut(structural_arguments.start())
+                else {
+                    panic!("projected field operand");
+                };
+                match mutation {
+                    0 => argument.path.clear(),
+                    1 => argument.access = checked_trees::CheckedStructuralAccess::MutableBorrow,
+                    2 => argument.type_identity.push_str("-substituted"),
+                    _ => unreachable!(),
+                }
+                assert!(replay(&candidate).is_err(), "{name}, mutation {mutation}");
+            }
+        }
+    }
 }

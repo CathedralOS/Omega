@@ -29,6 +29,115 @@ machine enter(limits: Limits, marker: u64) -> u64 {
 "#;
 
 #[test]
+fn qualified_byte_field_calls_retain_their_short_circuit_return_owner() {
+    let checked = checked(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/omega/pass/domains/mutable_receiver_declared_field_exit/main.omg"
+    )));
+    for name in ["replace", "Packet::replace"] {
+        let owner = machine(&checked.typed, name);
+        let state = &checked.machine_states(owner)[0];
+        let plans = &checked.facts.values.scalar_computations;
+        let root = plans
+            .root_at(state.symbol, 2, CheckedScalarExpressionRole::Return)
+            .expect("qualified field call belongs to the scalar return computation");
+        let checked_trees::CheckedScalarComputationKind::Select { when_true, .. } =
+            plans.nodes.get(root.root).kind
+        else {
+            panic!("the return retains its short-circuit selection");
+        };
+        let checked_trees::CheckedScalarComputationKind::Call {
+            source_call,
+            structural_arguments,
+            ..
+        } = plans.nodes.get(when_true).kind
+        else {
+            panic!("the selected branch owns observe");
+        };
+        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+            .structural_arguments
+            .span(structural_arguments)
+            .unwrap()
+        else {
+            panic!("one projected structural operand");
+        };
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        assert!(matches!(
+            argument.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0
+            }
+        ));
+        assert_eq!(argument.path.len(), 2);
+        assert!(argument.path.iter().all(|segment| matches!(
+            segment,
+            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+        )));
+        let call = checked.facts.flow.control.calls.get(source_call);
+        assert_eq!(call.statement_index, 2);
+        assert_eq!(call.call_ordinal, 0);
+        let target = machine(&checked.typed, "observe");
+        let parameter = &checked.state_parameters(&checked.machine_states(target)[0])[0];
+        assert_eq!(
+            argument.type_identity,
+            super::super::super::types::byte_sequence_type_identity(
+                &checked.typed,
+                parameter.type_reference,
+                &[],
+                &[],
+            )
+            .unwrap()
+        );
+    }
+}
+
+#[test]
+fn qualified_byte_owner_arguments_share_parameter_and_local_borrow_admission() {
+    let checked = checked(
+        r#"
+        domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+        machine observe(bytes: &[u8; 8] in NonEmpty) -> bool { bytes.len > 0 }
+        machine forwarded(flag: bool, bytes: &[u8; 8] in NonEmpty) -> bool {
+            flag && observe(bytes)
+        }
+        machine local(flag: bool) -> bool {
+            let bytes: [u8; 8] in NonEmpty = "ready";
+            flag && observe(&bytes)
+        }
+        "#,
+    );
+    for (name, statement) in [("forwarded", 0), ("local", 1)] {
+        let owner = machine(&checked.typed, name);
+        let state = &checked.machine_states(owner)[0];
+        let plans = &checked.facts.values.scalar_computations;
+        let root = plans
+            .root_at(state.symbol, statement, CheckedScalarExpressionRole::Return)
+            .expect("whole qualified byte owner keeps its computation");
+        let checked_trees::CheckedScalarComputationKind::Select { when_true, .. } =
+            plans.nodes.get(root.root).kind
+        else {
+            panic!("short-circuit return");
+        };
+        let checked_trees::CheckedScalarComputationKind::Call {
+            structural_arguments,
+            ..
+        } = plans.nodes.get(when_true).kind
+        else {
+            panic!("selected observe call");
+        };
+        let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+            .structural_arguments
+            .span(structural_arguments)
+            .unwrap()
+        else {
+            panic!("one whole storage loan");
+        };
+        assert!(argument.path.is_empty());
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+    }
+}
+
+#[test]
 fn mutable_copy_operands_observe_storage_without_reading_static_qualifiers() {
     let checked = checked(
         r#"

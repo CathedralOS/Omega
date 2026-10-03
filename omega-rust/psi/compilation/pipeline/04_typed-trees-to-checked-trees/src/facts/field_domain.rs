@@ -285,26 +285,7 @@ pub(crate) fn readable_nominal_definition(
     reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let reference = readable_type_reference(program, reference)?;
-    let symbol = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } if arguments.is_empty() => *base_symbol,
-        _ => return None,
-    };
-    // The memoized lookup answers the first definition with this symbol. When
-    // that one is generic, a later duplicate may still be the first non-generic
-    // match, so only then scan the table.
-    let first = crate::lookup::data_definition_by_symbol(program, symbol)?;
-    if first.type_parameters.is_empty() {
-        return Some(first);
-    }
-    program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol && data.type_parameters.is_empty())
+    owned_nominal_data_definition(program, reference)
 }
 
 /// The non-generic nominal data definition an OWNED value of `type_reference`
@@ -327,6 +308,18 @@ pub(crate) fn owned_nominal_data_definition(
         } if arguments.is_empty() => *base_symbol,
         _ => return None,
     };
+    // Resolved `Self` names the attached machine. Its retained data symbol is
+    // the nominal storage identity, for both input and result declarations.
+    // Normalize that relation here rather than giving receiver obligations a
+    // different meaning. An absent attachment never resolves by spelling.
+    let symbol = program
+        .machine_by_symbol(symbol)
+        .map_or(symbol, |machine| machine.attached_data_symbol);
+    let first = crate::lookup::data_definition_by_symbol(program, symbol)?;
+    if first.type_parameters.is_empty() {
+        return Some(first);
+    }
+    // A later concrete declaration may share the symbol with its template.
     program
         .data_definitions()
         .iter()
@@ -396,7 +389,8 @@ fn field_domain_freshness(program: &typed_trees::TypedTrees) -> (u64, u64) {
         // Root spans can be re-pointed in place without touching an arena's
         // revision; start/count carry the visible roster.
         .wrapping_add(roster_marker(program.roots.data_definitions))
-        .wrapping_add(roster_marker(program.roots.domain_definitions));
+        .wrapping_add(roster_marker(program.roots.domain_definitions))
+        .wrapping_add(roster_marker(program.roots.machines));
     (program.identity.get(), revision)
 }
 

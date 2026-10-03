@@ -11,14 +11,8 @@ use facts::{
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Owner {
-    Parameter(SymbolHandle),
-    Machine(SymbolHandle),
-}
-
 pub(super) struct DeclaredFieldRequirements {
-    rows: Vec<(Owner, Vec<FieldRequirement>)>,
+    rows: Vec<(SymbolHandle, Vec<FieldRequirement>)>,
 }
 
 type FieldRequirement = (
@@ -29,7 +23,7 @@ type FieldRequirement = (
 
 impl DeclaredFieldRequirements {
     pub(super) fn new(semantic: &FactPlan) -> Self {
-        let mut rows: Vec<(Owner, Vec<FieldRequirement>)> = Vec::new();
+        let mut rows: Vec<(SymbolHandle, Vec<FieldRequirement>)> = Vec::new();
         for (_, fact) in semantic.facts.iter() {
             let FactPayload::DomainMembership {
                 domain_symbol,
@@ -59,12 +53,7 @@ impl DeclaredFieldRequirements {
                     let PlaceRoot::Symbol(symbol) = place.root else {
                         continue;
                     };
-                    Owner::Parameter(symbol)
-                }
-                FactOrigin::MachineFieldDomain { machine_symbol }
-                    if fact.point == (ProgramPoint::Machine { machine_symbol }) =>
-                {
-                    Owner::Machine(machine_symbol)
+                    symbol
                 }
                 _ => continue,
             };
@@ -89,30 +78,12 @@ impl DeclaredFieldRequirements {
         Self { rows }
     }
 
-    fn requirements(&self, owner: Owner) -> &[FieldRequirement] {
+    fn requirements(&self, owner: SymbolHandle) -> &[FieldRequirement] {
         self.rows
             .iter()
             .find(|(candidate, _)| *candidate == owner)
             .map_or(&[], |(_, rows)| rows)
     }
-}
-
-/// The place root of the caller's own subject, when its state threads one.
-///
-/// This is what makes an explicit subject argument distinguishable from any
-/// other value of the same type: the caller is handing on the very record its
-/// own activation received, whose domains its own entry already established.
-fn caller_subject_root(
-    program: &TypedTrees,
-    state: &FlowStateFact,
-) -> Option<facts::PlaceRoot> {
-    let machine = crate::lookup::machine_by_symbol(program, state.machine_symbol)?;
-    let caller = crate::semantic::calls::find_state(program, state.state_symbol)?;
-    let subject = program.data_binding_parameter(machine, program.state_parameters(caller))?;
-    subject
-        .symbol
-        .is_valid()
-        .then(|| facts::PlaceRoot::Symbol(subject.symbol))
 }
 
 pub(super) fn check(
@@ -140,11 +111,6 @@ pub(super) fn check(
         return;
     };
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    let target_machine =
-        crate::lookup::machine_by_symbol(program, call.target_symbol).or_else(|| {
-            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
-                .map(|(machine, _)| machine)
-        });
     let mut argument_index = 0;
     for parameter in parameters {
         let argument = if parameter.is_self {
@@ -172,34 +138,12 @@ pub(super) fn check(
                 )
             })
         };
-        // A receiver's data is ESTABLISHED: the machine's own record was
-        // constructed and every write maintains its declared domains, so the
-        // requirements that apply are the machine's. An ordinary parameter is
-        // an arbitrary incoming value that may not be established yet, so it
-        // owes its type's domain requirements outright.
-        //
-        // An explicit subject threaded from the caller's own data is the first
-        // kind, not the second. Both halves are required: the parameter must be
-        // the CALLEE's subject, and the argument must be the CALLER's own
-        // subject supplied whole. A different record of the same type, or a
-        // projection of one, keeps the ordinary parameter obligation -- it is
-        // exactly the value whose establishment is unknown here.
-        let threaded_subject = !parameter.is_self
-            && target_machine.is_some_and(|machine| {
-                program
-                    .data_binding_parameter(machine, parameters)
-                    .is_some_and(|subject| subject.symbol == parameter.symbol)
-            })
-            && actual.as_ref().is_some_and(|place| {
-                place.segments.is_empty()
-                    && caller_subject_root(program, state).is_some_and(|root| root == place.root)
-            });
-        let owner = if parameter.is_self || threaded_subject {
-            Owner::Machine(target_machine.map_or(SymbolHandle::invalid(), |machine| machine.symbol))
-        } else {
-            Owner::Parameter(parameter.symbol)
-        };
-        for (segments, domain_symbol, semantic_domain) in requirements.requirements(owner) {
+        // Receiver syntax only selects the actual place. Every formal owes the
+        // same declared fields, including a subject forwarded from the caller.
+        // Its nominal type cannot restore evidence invalidated by a write.
+        for (segments, domain_symbol, semantic_domain) in
+            requirements.requirements(parameter.symbol)
+        {
             if argument.is_some_and(|argument| {
                 crate::flow::literal_value_path_is_inactive(
                     program,

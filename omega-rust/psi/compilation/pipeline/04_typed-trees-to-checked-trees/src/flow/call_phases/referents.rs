@@ -52,14 +52,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     ) else {
         return;
     };
-    let target_machine = build
-        .machine_index(program, borrow_call.target_symbol)
-        .or_else(|| {
-            build
-                .state_location(program, borrow_call.target_symbol)
-                .map(|(machine_index, _)| machine_index)
-        })
-        .map(|machine_index| &program.machines()[machine_index]);
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let mut rows: Vec<(crate::flow::CanonicalPlace, Vec<PlaceSegment>, SymbolHandle)> = Vec::new();
     let mut argument_index = 0usize;
@@ -77,65 +69,36 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         ) {
             continue;
         }
-        let paths: std::rc::Rc<Vec<(Vec<PlaceSegment>, SymbolHandle)>> = if parameter.is_self {
-            // The callee re-proves its seeded machine field facts at every
-            // return; the receiver gets exactly those rows back.
-            let Some(target_machine) = target_machine else {
-                continue;
-            };
-            build
-                .machine_field_rows
-                .entry(target_machine.symbol)
-                .or_insert_with(|| {
-                    std::rc::Rc::new(
-                        machine_field_domain_rows(semantic, target_machine.symbol)
-                            .into_iter()
-                            .filter(|(_, domain_symbol)| {
-                                crate::checks::contracts::value_provable_domain(
-                                    program,
-                                    *domain_symbol,
-                                )
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                })
-                .clone()
-        } else {
-            // The callee re-proves its parameter's declared field facts,
-            // which mirror the referent type's declared paths exactly.
-            let Some(paths) = build
-                .referent_type_paths
-                .entry(parameter.type_reference)
-                .or_insert_with(|| {
-                    let paths: Vec<(Vec<PlaceSegment>, SymbolHandle)> =
-                        crate::facts::field_domain::declared_result_field_domain_paths(
+        // Every readable mutable formal, including a receiver, restores its
+        // declared fields. Receiver syntax does not change return obligations.
+        let Some(paths) = build
+            .referent_type_paths
+            .entry(parameter.type_reference)
+            .or_insert_with(|| {
+                let paths: Vec<(Vec<PlaceSegment>, SymbolHandle)> =
+                    crate::facts::field_domain::declared_result_field_domain_paths(
+                        program,
+                        crate::checks::contracts::result_domain_type(
                             program,
-                            crate::checks::contracts::result_domain_type(
-                                program,
-                                parameter.type_reference,
-                            ),
-                        );
-                    let paths = paths
-                        .into_iter()
-                        .filter(|(_, domain_symbol)| {
-                            crate::checks::contracts::value_provable_domain(program, *domain_symbol)
-                        })
-                        .collect::<Vec<_>>();
-                    if paths.is_empty() {
-                        None
-                    } else {
-                        Some(std::rc::Rc::new(paths))
-                    }
-                })
-                .clone()
-            else {
-                continue;
-            };
-            paths
-        };
-        if paths.is_empty() {
+                            parameter.type_reference,
+                        ),
+                    );
+                let paths = paths
+                    .into_iter()
+                    .filter(|(_, domain_symbol)| {
+                        crate::checks::contracts::value_provable_domain(program, *domain_symbol)
+                    })
+                    .collect::<Vec<_>>();
+                if paths.is_empty() {
+                    None
+                } else {
+                    Some(std::rc::Rc::new(paths))
+                }
+            })
+            .clone()
+        else {
             continue;
-        }
+        };
         let actual = if parameter.is_self {
             crate::flow::canonical_receiver_place_for_call_site(
                 program,
@@ -313,45 +276,4 @@ fn row_was_live(
                 .context_view(semantic.contexts.get(reference.context))
                 .proves_place_domain_membership_in_program(program, place, domain_symbol)
         })
-}
-
-/// The `(field path, domain)` rows of a machine's seeded `MachineFieldDomain`
-/// facts, relative to its `self` root.
-fn machine_field_domain_rows(
-    semantic: &FactPlan,
-    machine_symbol: SymbolHandle,
-) -> Vec<(Vec<PlaceSegment>, SymbolHandle)> {
-    let mut rows = Vec::new();
-    for context in semantic.contexts_at_point(ProgramPoint::Machine { machine_symbol }) {
-        for fact in context.facts() {
-            let FactOrigin::MachineFieldDomain {
-                machine_symbol: origin,
-            } = fact.origin
-            else {
-                continue;
-            };
-            if origin != machine_symbol {
-                continue;
-            }
-            let (FactPlace::Place(place), FactPayload::DomainMembership { domain_symbol, .. }) =
-                (fact.place, fact.payload)
-            else {
-                continue;
-            };
-            let place = semantic.places.get(place);
-            if !matches!(place.root, PlaceRoot::Symbol(_)) {
-                continue;
-            }
-            let segments = semantic
-                .place_segments
-                .span_or_empty(place.segments)
-                .to_vec();
-            if !rows.iter().any(|(candidate, candidate_domain)| {
-                *candidate == segments && *candidate_domain == domain_symbol
-            }) {
-                rows.push((segments, domain_symbol));
-            }
-        }
-    }
-    rows
 }

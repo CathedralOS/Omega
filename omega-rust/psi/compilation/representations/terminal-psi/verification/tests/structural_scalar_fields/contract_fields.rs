@@ -403,15 +403,11 @@ fn qualified_byte_declarations_preserve_access_relevance_and_initialization_fenc
         },
         ByteSequenceCarrier::BoundedOwned { capacity: 8 },
     ] {
-        let mut invalid = original.clone();
-        field_mut(&mut invalid).field_type = StructuralFieldType::PredicateByteSequence {
+        let mut incoming = original.clone();
+        field_mut(&mut incoming).field_type = StructuralFieldType::PredicateByteSequence {
             carrier,
             predicates: nonempty,
         };
-        assert_eq!(
-            validate_module(&invalid).err(),
-            expected,
-            "zero-initialized nested attachment storage cannot promise nonempty bytes: {carrier:?}"
-        );
+        validate_module(&incoming).expect("a nominal attachment does not zero the incoming borrow");
     }
 }

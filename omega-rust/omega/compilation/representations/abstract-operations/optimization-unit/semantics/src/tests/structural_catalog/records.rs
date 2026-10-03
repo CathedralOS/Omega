@@ -194,7 +194,7 @@ fn zeroed_record_replays_zero_validity_from_the_current_type_catalog() {
         .map(|declaration| (declaration.id, declaration))
         .collect();
     assert!(zeroed_establishment_matches(function, operation, &types));
-    for mutation in 0..3 {
+    for mutation in 0..4 {
         let mut declarations = original.structural_types.to_vec();
         let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
             panic!("child record");
@@ -215,6 +215,14 @@ fn zeroed_record_replays_zero_validity_from_the_current_type_catalog() {
             1 => StructuralFieldType::Structural(id(999, StructuralTypeId::new)),
             // Recursive containment cannot be initialized by a finite zero fill.
             2 => StructuralFieldType::Structural(id(901, StructuralTypeId::new)),
+            3 => {
+                let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                predicates.insert(terminal_psi::ByteSequencePredicate::NonEmpty);
+                StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                    predicates,
+                }
+            }
             _ => unreachable!(),
         };
         let types = declarations

@@ -46,15 +46,22 @@ fn qualified_owner_call() -> TerminalModule {
 
 #[test]
 fn qualified_owner_call_verifies_canonical_field_contract_transport() {
-    let module = qualified_owner_call();
     // Full verification traverses contract substitutions even for an empty body;
     // declaration validation alone misses an unsupported canonical leaf path.
-    verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("qualified inline owner retains its exact field through call composition");
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut module = qualified_owner_call();
+        module.machines[1].structural_parameters[0].access = access;
+        call_arguments(&mut module)[0].access = access;
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("qualified inline owner retains its exact field through call composition");
+    }
 }
 
 #[test]

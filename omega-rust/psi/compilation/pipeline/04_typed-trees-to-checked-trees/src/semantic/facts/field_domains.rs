@@ -3,8 +3,8 @@
 //! not restore them. Call and state-arrival checks require the same field
 //! obligations over the current incoming values before reusing an entry fact.
 //!
-//! Machine storage additionally requires its ZII value to satisfy the domain.
-//! Nominal input storage instead relies on the checked incoming argument.
+//! Zero-initialized storage requires its ZII value to satisfy the domain.
+//! Nominal input storage, including `self`, relies on the checked incoming argument.
 //! Write-only input views supply no facts read from incoming contents, but
 //! they do carry the caller's declared field invariants as entry premises —
 //! the same rows a readable borrow gets, since every admitted write through
@@ -75,64 +75,9 @@ const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
     end: usize::MAX,
 };
 
-pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
-    for machine in program.machines() {
-        let Some(attached) = machine.attached_data.as_ref() else {
-            continue;
-        };
-        let Some(self_symbol) = machine_self_parameter_symbol(program, machine) else {
-            continue;
-        };
-        let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == attached.as_str())
-        else {
-            continue;
-        };
-
-        let mut refs = arena::HandleSpan::empty();
-        append_data_field_domain_facts(
-            program,
-            facts,
-            self_symbol,
-            ProgramPoint::Machine {
-                machine_symbol: machine.symbol,
-            },
-            FactOrigin::MachineFieldDomain {
-                machine_symbol: machine.symbol,
-            },
-            QualificationEvidence::from_origin(
-                language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                machine.symbol,
-            ),
-            data,
-            &[],
-            &[data.name.as_str()],
-            &mut refs,
-        );
-
-        if refs.is_empty() {
-            continue;
-        }
-        append_independent_place_contexts(
-            facts,
-            ProgramPoint::Machine {
-                machine_symbol: machine.symbol,
-            },
-            refs,
-        );
-    }
-}
-
-/// Seed the entry-invariant `self.a.b…c in Domain` fact for every domained field
-/// reachable through the attached data -- ONE level or NESTED. `prefix` is the
-/// place segment chain from `self` to `data`; `visited` is the data-type names
-/// on the current path (a cycle guard for self-referential data). Mirrors the
-/// nested resolution in `field_domain::attached_data_field_type`: the read trust
-/// seeded here is sound because every write to such a field (one-level or nested)
-/// is domain-enforced through the SAME multi-level resolver, and each field is
-/// gated on its ZII/empty value satisfying the domain.
+/// Seed only domains established by a local's zero initialization. Incoming
+/// nominal values use the declared parameter obligations instead: zero validity
+/// says nothing about an established argument, regardless of receiver spelling.
 ///
 /// Fixed-array fields additionally enumerate every element at its exact
 /// `FixedIndex` place: `self.rows[i].label` is live evidence for the single
@@ -142,13 +87,11 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
 /// runtime selector or a slice view. Coverage is never encoded at an
 /// unresolved `Index` -- a runtime selector cannot be a fact place.
 ///
-/// `point`, `origin`, and `evidence` describe WHO is seeding: machine entry
-/// invariants use `ProgramPoint::Machine`/`MachineFieldDomain`, while
-/// zero-initialized locals reuse the same walker under
+/// Zero-initialized locals use this walker under
 /// `ProgramPoint::State`/`StatementTransfer` (their binding statement's
 /// zeroed storage is the evidence -- see `append_local_zii_field_domain_facts`).
 #[allow(clippy::too_many_arguments)]
-fn append_data_field_domain_facts(
+fn append_zero_initialized_field_domain_facts(
     program: &TypedTrees,
     facts: &mut FactPlan,
     root_symbol: symbols::SymbolHandle,
@@ -179,8 +122,7 @@ fn append_data_field_domain_facts(
                 crate::facts::field_domain::domain_admits_empty_byte_sequence(program, *symbol)
             })
         {
-            // Place `<root>.<prefix…>.<field>`: root the owning symbol (`self`
-            // for machine storage, the local for ZII locals) + the segment
+            // Place `<root>.<prefix…>.<field>`: root the local symbol + the segment
             // chain, so the canonical label matches a `root.a.b` read exactly
             // where the nested write established it.
             let place = facts.append_symbol_place(root_symbol);
@@ -212,7 +154,7 @@ fn append_data_field_domain_facts(
         {
             let mut next_visited = visited.to_vec();
             next_visited.push(nested.name.as_str());
-            append_data_field_domain_facts(
+            append_zero_initialized_field_domain_facts(
                 program,
                 facts,
                 root_symbol,
@@ -236,7 +178,7 @@ fn append_data_field_domain_facts(
             next_visited.push(nested.name.as_str());
             let mut element_path = field_path.clone();
             element_path.push(WHOLE_ELEMENT_EXTENT);
-            append_data_field_domain_facts(
+            append_zero_initialized_field_domain_facts(
                 program,
                 facts,
                 root_symbol,
@@ -273,7 +215,7 @@ fn append_data_field_domain_facts(
         for index in 0..length {
             let mut element_path = field_path.clone();
             element_path.push(PlaceSegment::FixedIndex { index });
-            append_data_field_domain_facts(
+            append_zero_initialized_field_domain_facts(
                 program,
                 facts,
                 root_symbol,
@@ -288,7 +230,7 @@ fn append_data_field_domain_facts(
         }
         let mut element_path = field_path.clone();
         element_path.push(WHOLE_ELEMENT_EXTENT);
-        append_data_field_domain_facts(
+        append_zero_initialized_field_domain_facts(
             program,
             facts,
             root_symbol,
@@ -328,9 +270,6 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
         for state in program.machine_states(machine) {
             let mut refs = arena::HandleSpan::empty();
             for parameter in program.state_parameters(state) {
-                if parameter.is_self {
-                    continue;
-                }
                 let obligation_origin = FactOrigin::StateParameterDomain {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
@@ -922,8 +861,7 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
 /// zero-initializability is a storage representation guarantee). When `T`'s
 /// declared field domains admit the zero/empty byte sequence, that zero value
 /// already satisfies each such field, so `value.<field> in D` is live evidence
-/// from the binding onward -- the same gate machine storage uses for its
-/// entry invariants. Seeded at `ProgramPoint::State` with the
+/// from the binding onward. Seeded at `ProgramPoint::State` with the
 /// `StatementTransfer` origin: the binding statement is the formation point,
 /// and the symbol cannot resolve before its declaration, so folding the rows
 /// into state entry is exact. Ordinary mutation invalidation retires every
@@ -992,7 +930,7 @@ pub(super) fn append_local_zii_field_domain_facts(program: &TypedTrees, facts: &
                 ) else {
                     continue;
                 };
-                append_data_field_domain_facts(
+                append_zero_initialized_field_domain_facts(
                     program,
                     facts,
                     local_data.symbol,
@@ -1019,22 +957,6 @@ pub(super) fn append_local_zii_field_domain_facts(program: &TypedTrees, facts: &
             );
         }
     }
-}
-
-/// A symbol named `self` for the machine's receiver -- the `is_self` parameter
-/// of any of its states (all spelled `self`, so the canonical label is identical
-/// regardless of which state's receiver symbol is used).
-fn machine_self_parameter_symbol(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Option<SymbolHandle> {
-    program.machine_states(machine).iter().find_map(|state| {
-        program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .map(|parameter| parameter.symbol)
-    })
 }
 
 /// Every normalized predicate-domain symbol on a field type, looking through a

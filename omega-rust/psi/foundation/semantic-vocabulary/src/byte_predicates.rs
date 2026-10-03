@@ -162,13 +162,25 @@ impl ByteSequencePredicateSet {
         result
     }
 
+    /// Whole-sequence validity requires both operands. Nonemptiness instead
+    /// needs one witness: appending any bytes cannot remove an existing byte.
+    /// Unknown operands supply no additional predicates.
     pub fn concatenation(self, right: Self) -> Self {
         let mut result = Self::EMPTY;
         for predicate in ByteSequencePredicate::ALL {
             let mut required = Self::EMPTY;
             required.insert(predicate);
-            if predicate.is_concat_preserving() && self.implies(required) && right.implies(required)
-            {
+            let established = match predicate {
+                ByteSequencePredicate::NonEmpty => {
+                    self.implies(required) || right.implies(required)
+                }
+                _ => {
+                    predicate.is_concat_preserving()
+                        && self.implies(required)
+                        && right.implies(required)
+                }
+            };
+            if established {
                 result.insert(predicate);
             }
         }
@@ -179,6 +191,59 @@ impl ByteSequencePredicateSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn concatenation_predicates_hold_for_the_completed_bytes() {
+        let samples = [b"".as_slice(), b"alpha", b"\0", &[0xff], "é".as_bytes()];
+        let predicates_for = |bytes: &[u8]| {
+            let mut predicates = ByteSequencePredicateSet::EMPTY;
+            for predicate in ByteSequencePredicate::ALL {
+                if predicate.holds_for(bytes) {
+                    predicates.insert(predicate);
+                }
+            }
+            predicates
+        };
+        for left in samples {
+            for right in samples {
+                let completed = [left, right].concat();
+                assert!(
+                    predicates_for(left)
+                        .concatenation(predicates_for(right))
+                        .holds_for(&completed)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn concatenation_preserves_nonempty_from_either_operand() {
+        let mut nonempty = ByteSequencePredicateSet::EMPTY;
+        nonempty.insert(ByteSequencePredicate::NonEmpty);
+        for (left, right, expected) in [
+            (nonempty, ByteSequencePredicateSet::EMPTY, true),
+            (ByteSequencePredicateSet::EMPTY, nonempty, true),
+            (nonempty, nonempty, true),
+            (
+                ByteSequencePredicateSet::EMPTY,
+                ByteSequencePredicateSet::EMPTY,
+                false,
+            ),
+        ] {
+            assert_eq!(left.concatenation(right).implies(nonempty), expected);
+        }
+        // One nonempty side says nothing about the bytes on either side.
+        for predicate in [
+            ByteSequencePredicate::ValidUtf8,
+            ByteSequencePredicate::NoNul,
+            ByteSequencePredicate::AsciiOnly,
+        ] {
+            let mut required = ByteSequencePredicateSet::EMPTY;
+            required.insert(predicate);
+            assert!(!required.concatenation(nonempty).implies(required));
+            assert!(!nonempty.concatenation(required).implies(required));
+        }
+    }
 
     #[test]
     fn subslice_predicates_hold_for_every_window_including_empty_and_split_utf8() {

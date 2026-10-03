@@ -52,8 +52,7 @@ pub(super) fn register_structural_types(
             } = field.field_type
                 && (field.relevance.is_erased()
                     || predicates.is_empty()
-                    || !carrier.supports_field_predicates()
-                    || (attachment_storage.contains(&declaration.id) && !predicates.holds_for(&[])))
+                    || !carrier.supports_field_predicates())
             {
                 return Err(ModuleError::InvalidStructuralFieldIdentity {
                     structural_type: declaration.id,
@@ -61,6 +60,10 @@ pub(super) fn register_structural_types(
                 });
             }
         }
+        // Attachment is nominal context metadata, not a storage establishment.
+        // Incoming borrows may carry domains that reject zero. Actual zeroing
+        // is checked at EstablishZeroedStructural and entry provisioning; doing
+        // it here would reject the same established value only for methods.
         // A bounded sequence may be a completed owned concatenation result.
         // The establishing operation and every reader still validate custody;
         // admitting its type does not turn it into a borrowed view.

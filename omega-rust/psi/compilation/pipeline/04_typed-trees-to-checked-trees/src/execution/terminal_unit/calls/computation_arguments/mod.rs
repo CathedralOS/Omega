@@ -43,13 +43,8 @@ pub(crate) fn structural_computation_argument(
     let target_access = structural_access_for_type_reference(program, target.type_reference)?;
     let named = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(argument) => {
-            let TypeReferenceNode::Reference { access, .. } = program
-                .type_reference_table
-                .type_reference(target.type_reference)
-            else {
-                return None;
-            };
-            if argument.access != *access {
+            let shell = validation::reference_shell(program, target.type_reference)?;
+            if argument.access != shell.access {
                 return None;
             }
             argument.target
@@ -355,17 +350,9 @@ pub(crate) fn borrowed_nominal_argument(
     // A borrowed formal retains the selected record at its existing root/path.
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
-    let TypeReferenceNode::Reference {
-        access: target_reference_access,
-        referee,
-        ..
-    } = program
-        .type_reference_table
-        .type_reference(target.type_reference)
-    else {
-        return None;
-    };
-    let target_access = match target_reference_access {
+    let target_shell = validation::reference_shell(program, target.type_reference)?;
+    let referee = validation::peel_declared_constraints(program, target_shell.referee);
+    let target_access = match target_shell.access {
         language_semantics::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
         language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
         _ => return None,
@@ -376,7 +363,7 @@ pub(crate) fn borrowed_nominal_argument(
     // Fixed arrays use the same established storage loan. Shape collection and
     // the exact source/formal identity below retain their element and length.
     if !matches!(
-        program.type_reference_table.type_reference(*referee),
+        program.type_reference_table.type_reference(referee),
         TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::FixedArray { .. }
@@ -393,7 +380,7 @@ pub(crate) fn borrowed_nominal_argument(
             .find_named_type_reference(owner.attached_data_symbol)?;
         base_type_identity(program, reference, &[])?
     } else {
-        base_type_identity(program, *referee, &[])?
+        base_type_identity(program, referee, &[])?
     };
     let mut receiver_argument = false;
     let parameters = program.state_parameters(state);
@@ -405,10 +392,9 @@ pub(crate) fn borrowed_nominal_argument(
         if parameter.is_const {
             return None;
         }
-        let mut reference = match program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
+        let mut reference = match program.type_reference_table.type_reference(
+            validation::peel_declared_constraints(program, parameter.type_reference),
+        ) {
             TypeReferenceNode::Reference {
                 access, referee, ..
             } if matches!(
@@ -471,12 +457,7 @@ pub(crate) fn borrowed_nominal_argument(
         let parameter_index = dense_structural_index(program, parameters, position)?;
         (
             reference,
-            matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                TypeReferenceNode::Reference { .. }
-            ),
+            validation::reference_shell(program, parameter.type_reference).is_some(),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         )
     } else {
@@ -497,10 +478,9 @@ pub(crate) fn borrowed_nominal_argument(
         // referent into a fabricated place. A fixed-array local is the same
         // kind of established home: its bounds come from the literal length
         // when a segment projects inside it.
-        let (reference, carrier) = match program
-            .type_reference_table
-            .type_reference(local.type_reference)
-        {
+        let (reference, carrier) = match program.type_reference_table.type_reference(
+            validation::peel_declared_constraints(program, local.type_reference),
+        ) {
             TypeReferenceNode::Reference {
                 access, referee, ..
             } if matches!(
@@ -545,7 +525,9 @@ pub(crate) fn borrowed_nominal_argument(
         }
     } else if whole_storage
         && (!matches!(
-            program.type_reference_table.type_reference(reference),
+            program
+                .type_reference_table
+                .type_reference(validation::peel_declared_constraints(program, reference)),
             TypeReferenceNode::Named { .. }
                 | TypeReferenceNode::Generic { .. }
                 | TypeReferenceNode::FixedArray { .. }
@@ -624,6 +606,9 @@ pub(crate) fn borrowed_nominal_argument(
                 | CheckedUnitStructuralTypeShape::Mixed { .. }
                 | CheckedUnitStructuralTypeShape::Record { .. }
                 | CheckedUnitStructuralTypeShape::FixedArray { .. }
+                | CheckedUnitStructuralTypeShape::ByteSequence(
+                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                )
         )
     });
     // A projected receiver still loans the complete selected referent. Its
@@ -684,8 +669,15 @@ pub(crate) fn borrowed_nominal_argument(
     // reading the field closure. The is_self tail below still verifies the
     // authored receiver place and rules out an overlapping exclusive actual;
     // other loans retain the supported closure checked above.
+    // Constraints qualify the established endpoint without changing its loan.
+    // Only represented value constraints enter this route; the formal retains
+    // its qualifications and Terminal independently proves them from the exact
+    // source field or parameter. No predicate is minted by this carrier join.
     if identity != target_identity
-        || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
+        || (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
+            && !validation::has_plain_owned_contents_with_represented_constraints(
+                program, reference,
+            ))
         || (!receiver_argument
             && !structural_referent
             && !whole_primitive_scalar

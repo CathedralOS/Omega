@@ -6,6 +6,40 @@ use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 
 #[test]
+fn attached_and_named_inputs_retain_established_nonempty_fields() {
+    for attached in [false, true] {
+        let mut candidate = structural_call_unit();
+        let structural_type = candidate.structural_types[0].id;
+        let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+        predicates.insert(terminal_psi::ByteSequencePredicate::NonEmpty);
+        candidate.structural_types.make_mut()[0].shape =
+            terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: id(4_712, semantic_vocabulary::StructuralFieldId::new),
+                    identity: "established-text".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::PredicateByteSequence {
+                        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                        predicates,
+                    },
+                }],
+            };
+        if attached {
+            candidate.functions[0].attachment = Some(structural_type);
+            candidate.functions[0].structural_parameters[0].is_self = true;
+            let StructuralPlaceKind::Parameter { is_self, .. } =
+                &mut candidate.functions[0].structural_places[0].kind
+            else {
+                panic!("parameter root");
+            };
+            *is_self = true;
+        }
+        refresh_identity(&mut candidate);
+        assert_eq!(validate_psi_optimization_unit(&candidate), Ok(()));
+    }
+}
+
+#[test]
 fn structural_signatures_replay_attachment_and_unique_self_legality() {
     let mut attached = structural_call_unit();
     let structural_type = attached.structural_types[0].id;

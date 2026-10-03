@@ -1140,11 +1140,7 @@ mod tests {
         };
         let (module, eligible) = produce_run(&check_source(&source("valid_utf8"))).unwrap();
         assert!(eligible, "zero view storage is the empty, valid UTF-8 view");
-        assert_zero_invalid_storage_refused(
-            &source("non_empty"),
-            &module,
-            "InvalidStructuralFieldIdentity",
-        );
+        assert_zero_invalid_storage_not_provisioned(&source("non_empty"), &module, None);
     }
 
     #[test]
@@ -1323,20 +1319,26 @@ mod tests {
         Ok((module, eligible))
     }
 
-    /// Zero-initialized attachment storage requires every contained byte
-    /// field predicate to hold for the empty sequence
-    /// (`wiki/spec/terminal-psi/structural_access.md`), so production refuses
-    /// a receiver whose storage holds a predicate empty bytes violate before
-    /// any receipt exists. The receipt's own judgment still refuses that
-    /// source when it is joined to storage produced for a zero-valid sibling.
-    fn assert_zero_invalid_storage_refused(
+    /// An established borrowed receiver can be produced without granting a
+    /// zero-initialized entry context. Unrepresentable fields still refuse
+    /// production; neither route may acquire eligibility through substitution
+    /// of a zero-valid sibling's module.
+    fn assert_zero_invalid_storage_not_provisioned(
         source: &str,
         module: &terminal_psi::TerminalModule,
-        refusal: &str,
+        production_refusal: Option<&str>,
     ) {
         let checked = check_source(source);
-        let error = produce_run(&checked).expect_err(source);
-        assert!(error.contains(refusal), "{source}: {error}");
+        if let Some(refusal) = production_refusal {
+            let error = produce_run(&checked).expect_err(source);
+            assert!(error.contains(refusal), "{source}: {error}");
+        } else {
+            let (_, eligible) = produce_run(&checked).expect("established incoming receiver");
+            assert!(
+                !eligible,
+                "nonzero-valid incoming storage is not provisioned: {source}"
+            );
+        }
         let selection = checked_trees_to_lowered_psi::select_terminal_machine(
             &checked,
             TerminalMachineSelection::Name("Main::run"),
@@ -1365,22 +1367,26 @@ mod tests {
             (
                 "domain [u8; 3]::First requires non_empty(self);",
                 "First",
-                "InvalidStructuralFieldIdentity",
+                None,
             ),
             (
                 "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires non_empty(self);",
                 "First & Second",
-                "InvalidStructuralFieldIdentity",
+                None,
             ),
             // Two facts do not reduce to one recognized byte predicate, so the
             // field has no Terminal type and the receiver signature declines.
             (
                 "domain [u8; 3]::Extra requires valid_utf8(self); non_empty(self);",
                 "Extra",
-                "local construction stopped at signature",
+                Some("local construction stopped at signature"),
             ),
         ] {
-            assert_zero_invalid_storage_refused(&source(domains, constraint), &module, refusal);
+            assert_zero_invalid_storage_not_provisioned(
+                &source(domains, constraint),
+                &module,
+                refusal,
+            );
         }
     }
 
@@ -1579,11 +1585,7 @@ mod tests {
         };
         let (module, eligible) = produce_run(&check_source(&element_source("valid_utf8"))).unwrap();
         assert!(eligible, "an empty element field is valid UTF-8");
-        assert_zero_invalid_storage_refused(
-            &element_source("non_empty"),
-            &module,
-            "InvalidStructuralFieldIdentity",
-        );
+        assert_zero_invalid_storage_not_provisioned(&element_source("non_empty"), &module, None);
     }
 
     #[test]
@@ -1596,11 +1598,7 @@ mod tests {
         };
         let (module, eligible) = produce_run(&check_source(&payload_source("valid_utf8"))).unwrap();
         assert!(eligible, "an empty first-case payload is valid UTF-8");
-        assert_zero_invalid_storage_refused(
-            &payload_source("non_empty"),
-            &module,
-            "InvalidStructuralFieldIdentity",
-        );
+        assert_zero_invalid_storage_not_provisioned(&payload_source("non_empty"), &module, None);
         for source in [
             // An exclusive view payload would alias storage provisioning cannot
             // supply; a zero shared view is the empty view instead.

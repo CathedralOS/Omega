@@ -159,7 +159,6 @@ pub(super) fn lower(
                             Multiplicity::Affine
                         )
                 )
-                || !parameter.qualifications.is_empty()
                 || parameter.fused_service_erasure.is_some()
             {
                 return unsupported("computed borrow disagrees with its callee referent custody");
@@ -175,7 +174,8 @@ pub(super) fn lower(
                     checked,
                     source_parameter.type_reference,
                 );
-                if source_parameter.is_mutable
+                if !parameter.qualifications.is_empty()
+                    || source_parameter.is_mutable
                     || (!primitive_array
                         && !matches!(
                             checked
@@ -197,13 +197,22 @@ pub(super) fn lower(
                     .owned_argument(argument)
                     .and_then(PreparedStructuralArgument::from_static);
             }
-            let checked_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
-                .type_reference_table
-                .type_reference(source_parameter.type_reference)
-            else {
-                return unsupported("computed structural operand is not a reference");
+            let (referee, access, qualifications) =
+                crate::expression_preparation::source_custody::borrowed_parameter_custody(
+                    checked,
+                    source_parameter.type_reference,
+                )?;
+            let access = match access {
+                language_core::ReferenceAccess::Shared => checked_trees::CheckedStructuralAccess::SharedBorrow,
+                language_core::ReferenceAccess::Mutable => checked_trees::CheckedStructuralAccess::MutableBorrow,
+                language_core::ReferenceAccess::WriteOnly => checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
             };
-            if checked.primitive_type_reference(*referee).is_none() {
+            if parameter.access != access
+                || parameter.qualifications != qualifications
+            {
+                return unsupported("computed borrow changed its authored access or qualifications");
+            }
+            if checked.primitive_type_reference(referee).is_none() {
                 if let Some(range) = subslices::range(argument) {
                     let access = match argument.access {
                         checked_trees::CheckedStructuralAccess::SharedBorrow => {
@@ -277,14 +286,14 @@ pub(super) fn lower(
                 });
             }
             if !matches!(
-                checked.type_reference_table.type_reference(*referee),
+                checked.type_reference_table.type_reference(referee),
                 checked_trees::types::TypeReferenceNode::Named { .. }
             ) {
                 return unsupported("computed primitive borrow requires an unqualified referent");
             }
             let primitive =
                 checked
-                    .primitive_type_reference(*referee)
+                    .primitive_type_reference(referee)
                     .ok_or(LoweringError::Unsupported(
                         "computed borrow referent is not primitive",
                     ))?;
