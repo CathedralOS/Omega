@@ -726,6 +726,21 @@ pub(crate) fn collection_view_geometry(
     view_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<CollectionViewGeometry> {
+    collection_view_region_geometry(
+        source,
+        argument,
+        view_type,
+        declarations,
+        terminal_psi::ElementViewRegion::WholeCollection,
+    )
+}
+pub(crate) fn collection_view_region_geometry(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+    region: terminal_psi::ElementViewRegion,
+) -> Option<CollectionViewGeometry> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     if source.place != argument.place
         || !matches!(
@@ -789,9 +804,40 @@ pub(crate) fn collection_view_geometry(
             })
         })
     })?;
-    let backing = terminal_semantics::collection_backing(declarations.iter(), tip, element)?;
+    let geometry = terminal_semantics::element_view_region_geometry(
+        declarations.iter(),
+        tip,
+        element,
+        region,
+    )?;
+    let (backing, representation) = match geometry {
+        terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => (backing, None),
+        terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
+            byte_extent,
+            element: layout,
+        } => {
+            if byte_window.is_some() {
+                return None;
+            }
+            let storage = if matches!(
+                declarations.iter().find(|row| row.id == tip)?.shape,
+                StructuralTypeShape::ByteSequence(_)
+            ) {
+                terminal_semantics::CollectionStorage::Borrowed
+            } else {
+                terminal_semantics::CollectionStorage::Inline
+            };
+            (
+                terminal_semantics::CollectionBacking {
+                    length: byte_extent,
+                    storage,
+                },
+                Some(layout),
+            )
+        }
+    };
     if backing.storage == terminal_semantics::CollectionStorage::Borrowed
-        && (byte_window.is_some() || view_element.is_some())
+        && (byte_window.is_some() || (view_element.is_some() && representation.is_none()))
     {
         return None;
     }
@@ -800,6 +846,18 @@ pub(crate) fn collection_view_geometry(
         shape(element, declarations)?.byte_size,
         shape(element, declarations)?.alignment,
     )?;
+    if let Some(layout) = &representation {
+        if layout.size != u64::from(element_stride)
+            || layout.alignment != u64::from(shape(element, declarations)?.alignment)
+            || layout.leaves.iter().any(|leaf| {
+                primitive_geometry(element, &leaf.path, leaf.scalar_type, declarations).is_none_or(
+                    |(offset, _, indices)| u64::from(offset) != leaf.offset || !indices.is_empty(),
+                )
+            })
+        {
+            return None;
+        }
+    }
     let (window_offset, element_count) = match byte_window {
         Some((start, end)) if start <= end && end <= length => {
             let byte_offset = start.checked_mul(u64::from(element_stride))?;
@@ -811,7 +869,11 @@ pub(crate) fn collection_view_geometry(
     let offset = offset.checked_add(window_offset)?;
     let storage_size = match backing.storage {
         terminal_semantics::CollectionStorage::Inline => {
-            element_count.checked_mul(u64::from(element_stride))?
+            if representation.is_some() {
+                element_count
+            } else {
+                element_count.checked_mul(u64::from(element_stride))?
+            }
         }
         terminal_semantics::CollectionStorage::Borrowed => 8,
     };

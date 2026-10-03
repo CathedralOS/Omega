@@ -146,6 +146,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             destination,
             source,
             element,
+            region,
         } => {
             bytes.u8(85);
             bytes.id(*psi_operation);
@@ -153,6 +154,19 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*destination);
             encode_structural_argument(bytes, source);
             bytes.id(*element);
+            match region {
+                terminal_psi::ElementViewRegion::WholeCollection => bytes.u8(0),
+                terminal_psi::ElementViewRegion::RepresentationBytes {
+                    start,
+                    end,
+                    obligation,
+                } => {
+                    bytes.u8(1);
+                    bytes.id(*start);
+                    bytes.id(*end);
+                    bytes.id(*obligation);
+                }
+            }
         }
         O::WriteOnlyPrimitiveStore {
             psi_operation,

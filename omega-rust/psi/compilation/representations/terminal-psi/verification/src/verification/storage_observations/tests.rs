@@ -198,6 +198,7 @@ fn add_view(machine: &mut TerminalMachine, source: PlaceId, result: PlaceId, arr
         }),
         kind: if array {
             OperationKind::EstablishElementView {
+                region: terminal_psi::ElementViewRegion::WholeCollection,
                 destination: result,
                 source: StructuralArgument {
                     place: source,

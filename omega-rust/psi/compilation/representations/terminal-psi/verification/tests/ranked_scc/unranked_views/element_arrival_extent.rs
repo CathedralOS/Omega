@@ -89,6 +89,7 @@ fn establishment() -> Operation {
             claims: Vec::new(),
         }),
         kind: OperationKind::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             destination: id(PRODUCED, PlaceId::new),
             source: view_argument(ARRAY_PLACE, StructuralAccess::SharedBorrow),
             element: id(ELEMENT, StructuralTypeId::new),

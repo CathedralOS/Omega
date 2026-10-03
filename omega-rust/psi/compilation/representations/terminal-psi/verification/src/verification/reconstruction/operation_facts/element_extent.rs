@@ -85,12 +85,76 @@ fn source_root_type(
         })
 }
 
+/// Exact byte-region operands and reconstructed geometry of its formation.
+pub(super) fn representation_region(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Option<(
+    semantic_vocabulary::ValueId,
+    semantic_vocabulary::ValueId,
+    semantic_vocabulary::ObligationId,
+    u64,
+    u64,
+)> {
+    let (source, element, region) = match &operation.kind {
+        OperationKind::EstablishElementView {
+            source,
+            element,
+            region,
+            ..
+        }
+        | OperationKind::EstablishMutableElementView {
+            source,
+            element,
+            region,
+            ..
+        } => (source, *element, *region),
+        _ => return None,
+    };
+    let terminal_psi::ElementViewRegion::RepresentationBytes {
+        start,
+        end,
+        obligation,
+    } = region
+    else {
+        return None;
+    };
+    let root = source_root_type(machine, source.place)?;
+    let collection = path_end_type(module, root, &source.path)?;
+    let terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
+        byte_extent,
+        element,
+    } = terminal_semantics::element_view_region_geometry(
+        module.structural_types.iter(),
+        collection,
+        element,
+        region,
+    )?
+    else {
+        return None;
+    };
+    Some((start, end, obligation, byte_extent, element.size))
+}
+
 /// The declared element count of the fixed collection an establishment names.
 pub(super) fn establishment_collection_length(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Option<u64> {
+    if matches!(
+        operation.kind,
+        OperationKind::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+            ..
+        } | OperationKind::EstablishMutableElementView {
+            region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+            ..
+        }
+    ) {
+        return None;
+    }
     let (source, element) = match &operation.kind {
         OperationKind::EstablishElementView {
             source, element, ..
@@ -229,6 +293,25 @@ fn producer_length_equation(
     operation: &Operation,
     observation: &StructuralEffectObservation,
 ) -> Result<Option<Proposition>, ModuleError> {
+    if let Some((start, end, _, _, stride)) = representation_region(module, machine, operation) {
+        let StructuralEffectObservation::ElementViewLengthRead { source, result } = observation
+        else {
+            return Ok(None);
+        };
+        if operation.result.structural().map(|row| row.place) != Some(*source) {
+            return Ok(None);
+        }
+        let length = terminal_semantics::representation_region_length(start, end, stride)
+            .ok_or(ModuleError::InvalidElementViewEstablishment(operation.id))?;
+        let scalar = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64"),
+        );
+        return Ok(Some(Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::value(*result, scalar),
+            length,
+        )));
+    }
     let Some(producer_observation) = structural_effect_leaf_observation(operation)
         .map_err(ModuleError::OperationSemanticSchema)?
     else {

@@ -198,10 +198,17 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
-            | LegalizedScalarInstructionKind::EstablishElementView { .. }
             | LegalizedScalarInstructionKind::ElementViewLength { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_)
             | LegalizedScalarInstructionKind::DynamicParameterCall(_) => {}
+            LegalizedScalarInstructionKind::EstablishElementView { region, .. } => {
+                if let terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } =
+                    region
+                {
+                    visit(*start);
+                    visit(*end);
+                }
+            }
             LegalizedScalarInstructionKind::AtomicAccess { event, .. } => {
                 event.operands().into_iter().for_each(visit);
             }
@@ -577,6 +584,8 @@ pub enum LegalizedScalarInstructionKind {
         destination: semantic_vocabulary::PlaceId,
         source: terminal_psi::StructuralArgument,
         element: semantic_vocabulary::StructuralTypeId,
+        region: terminal_psi::ElementViewRegion,
+        accepted_fact: Option<optimization_core::AcceptedObligationFactIdentity>,
     },
     /// Store one scalar element through the exact current exclusive element
     /// view, retaining its bounds fact. `destination` is the view place: an

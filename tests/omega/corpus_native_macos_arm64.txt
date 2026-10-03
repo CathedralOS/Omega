@@ -895,8 +895,7 @@ pass/recast/runtime_bool_representation_recast_exit built 874ms exit:70 @43d1481
 pass/recast/runtime_float_range_representation_recast_exit built 1687ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def922
 pass/recast/runtime_integer_bit_view_recast_exit built 1515ms exit:70 @48008365d839
-pass/recast/runtime_interior_slice_congruent_offset_exit rejected 730ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/recast/runtime_interior_slice_congruent_offset_exit built 1004ms exit:70 @57fc72937714+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 736ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit built 1530ms exit:70 @fb2178def922

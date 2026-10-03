@@ -612,12 +612,34 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     destination,
                     source,
                     element,
+                    region,
+                    accepted_fact,
                 } => {
                     bytes.push(40);
                     super::structural_result::encode_operation_result(bytes, result);
                     bytes.extend_from_slice(&destination.get().to_le_bytes());
                     super::structural_types::encode_structural_argument(bytes, source);
                     bytes.extend_from_slice(&element.get().to_le_bytes());
+                    match region {
+                        terminal_psi::ElementViewRegion::WholeCollection => bytes.push(0),
+                        terminal_psi::ElementViewRegion::RepresentationBytes {
+                            start,
+                            end,
+                            obligation,
+                        } => {
+                            bytes.push(1);
+                            for id in [start.get(), end.get(), obligation.get()] {
+                                bytes.extend_from_slice(&id.to_le_bytes());
+                            }
+                        }
+                    }
+                    match accepted_fact {
+                        Some(fact) => {
+                            bytes.push(1);
+                            bytes.extend_from_slice(&fact.bytes());
+                        }
+                        None => bytes.push(0),
+                    }
                 }
                 LegalizedScalarInstructionKind::ElementViewWrite {
                     destination,

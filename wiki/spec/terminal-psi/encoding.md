@@ -461,7 +461,8 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 75 | StructuralScalarFieldStore | destination place id + structural path + field id + value id + obligation id; range-checked form |
 | 77 | MoveStructuralField | source place id + structural path + field id |
 | 78 | StoreStructuralField | destination place id + structural path + field id + structural argument |
-| 79 | EstablishElementView | destination place id + source place id + element type id |
+| 79 | EstablishElementView | destination place id + source structural argument + element type id + element-view region |
+| 98 | EstablishMutableElementView | destination place id + source structural argument + element type id + element-view region |
 | 80 | ElementViewLength | source place id |
 | 81 | ElementViewRead | source place id + index value id + length value id + obligation id |
 | 82 | ElementViewSubslice | source place id + start value id + end value id + length value id + obligation id |
@@ -565,7 +566,15 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 114 + `u16` vocabulary
+An element-view region is a required `u8` tag: `0` means the whole
+same-element collection and carries no payload; `1` means a representation byte
+region and carries start value id, end value id, and obligation id, in that order.
+Unknown tags and truncated payloads reject. The source structural argument
+encodes place id, structural access, and counted structural path before the
+element type id. Neither bounds nor target stride is a producer-supplied wire
+constant; the verifier reconstructs them from the exact source and element.
+
+Module bytes are `PSITERM\0` + `u16` format marker 115 + `u16` vocabulary
 marker 116 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
@@ -1743,7 +1752,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 114 | yes |
+| semantic module | `PSITERM\0` | 115 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

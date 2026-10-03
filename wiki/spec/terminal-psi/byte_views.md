@@ -242,7 +242,7 @@ source-chain access.
 contiguous collection through its exact declared source path. A `u8` collection
 produces its borrowed byte descriptor; another element type produces an
 `ElementView` with that element identity. Both operations check the same
-collection/result correspondence. The shared operation requires shared source
+collection/result correspondence for `WholeCollection`. The shared operation requires shared source
 access and an unrestricted result; the mutable operation requires mutable
 source access and an affine result. A borrowed byte result must name the exact
 `u8` element declaration and cannot substitute an owned byte carrier.
@@ -253,8 +253,8 @@ Establishment loads that backing pointer and forms the ordinary borrowed byte
 descriptor; it does not treat pointer storage as inline elements or use its
 physical size as capacity. The same narrowing operation then applies to direct
 arguments, named locals and state transfers, including empty windows. A bounded
-byte reference cannot establish an element-family descriptor or grant access
-beyond its incoming loan.
+byte reference under `WholeCollection` cannot establish an element-family
+descriptor or grant access beyond its incoming loan.
 
 The original backing and captured window survive local binding, subslicing,
 helper calls and state forwarding. Byte zero of a narrowed view denotes its
@@ -262,6 +262,32 @@ captured start in that backing. Writes update that original storage; descriptor
 cleanup never consumes it. This is collection borrowing, not conversion between
 byte and element descriptors. Ownership of a collection's storage does not
 remove the access checks on references within the source path.
+
+The same establishment operations also carry `RepresentationBytes { start,
+end, obligation }`. This region borrows initialized fixed byte backing through
+its exact source path and produces an element descriptor. Both endpoint values
+are captured at formation and have the exact `u64` carrier. The verifier
+reconstructs the ordered obligation `start <= end`, `end <= source_extent`, and
+`(end - start) % element_stride == 0`; zero stride cannot establish a view.
+Length observations retain `(end - start) / element_stride` as the descriptor's
+exact count. A later mutation of the source offset variable cannot change it.
+
+Element layout is independently reconstructed from normalized declarations.
+Every leaf must accept every stored bit pattern: fixed-width integers and IEEE
+floats, or recursively fact-free records and fixed arrays of those leaves.
+Boolean, bounded, address, reference and descriptor carriers require validity
+that this operation does not grant. The source's fixed declared byte extent is
+not an owned buffer's capacity or a descriptor's physical size. Mutable
+formation is an exclusive loan birth; lifetime and source authority remain
+independent of the arithmetic proof.
+
+Only the selected region must tile. An odd byte start can describe a valid
+suffix even when the whole buffer cannot tile; start congruence alone would
+also not prove the backing address aligned. Target realization checks its
+layout against the portable layout and preserves unaligned access semantics.
+The descriptor uses the ordinary call, state-transfer, subslice and cleanup
+paths. Typed descendant indices are not byte indices: alias replay retains the
+full byte backing conservatively when it cannot express that coordinate change.
 
 ## Element-typed slice views
 

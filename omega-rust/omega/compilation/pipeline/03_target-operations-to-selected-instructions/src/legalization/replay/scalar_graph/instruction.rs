@@ -640,12 +640,15 @@ pub(super) fn validate(
                 destination,
                 source,
                 element,
+                region,
+                accepted_fact,
             },
             AbstractOperation::EstablishElementView {
                 result: expected_result,
                 destination: expected_destination,
                 source: expected_source,
                 element: expected_element,
+                region: expected_region,
                 ..
             },
         ) => {
@@ -653,6 +656,18 @@ pub(super) fn validate(
                 || destination != expected_destination
                 || source != expected_source
                 || element != expected_element
+                || region != expected_region
+                || match region {
+                    terminal_psi::ElementViewRegion::WholeCollection => accepted_fact.is_some(),
+                    terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => {
+                        !unit.accepted_obligation_facts.iter().any(|fact| {
+                            fact.machine == optimized.machine
+                                && fact.operation == operation
+                                && fact.obligation == *obligation
+                                && Some(fact.identity) == *accepted_fact
+                        })
+                    }
+                }
             {
                 return Err(invalid);
             }

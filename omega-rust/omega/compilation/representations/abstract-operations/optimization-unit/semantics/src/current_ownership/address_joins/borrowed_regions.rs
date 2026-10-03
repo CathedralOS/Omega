@@ -266,11 +266,22 @@ impl BorrowedRegions {
             for (index, node) in block.nodes.iter().enumerate() {
                 let position = (block.id, index as u32);
                 let descriptor = match &node.operation {
-                    O::EstablishElementView { result, source, .. } => Some((
-                        result.place,
-                        source.place,
-                        Projection::new(&source.path).at(position),
-                    )),
+                    O::EstablishElementView {
+                        result,
+                        source,
+                        region,
+                        ..
+                    } => {
+                        let mut projection = Projection::new(&source.path).at(position);
+                        // Descendant indices use target-element units, not source bytes.
+                        if matches!(
+                            region,
+                            terminal_psi::ElementViewRegion::RepresentationBytes { .. }
+                        ) {
+                            projection.exact = false;
+                        }
+                        Some((result.place, source.place, projection))
+                    }
                     O::ElementViewSubslice {
                         result,
                         source,

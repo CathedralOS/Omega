@@ -1,0 +1,1 @@
+as mutable while its mutable receiver reads `main.bytes[4]`

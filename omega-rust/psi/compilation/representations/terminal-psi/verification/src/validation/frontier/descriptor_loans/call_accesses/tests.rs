@@ -305,6 +305,7 @@ fn captured_byte_window_allows_descriptor_copy_but_pins_original_backing() {
         })
     };
     let mut establish = operation(OperationKind::EstablishElementView {
+        region: terminal_psi::ElementViewRegion::WholeCollection,
         destination: descriptor,
         source: StructuralArgument {
             place: root,

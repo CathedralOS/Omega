@@ -3519,17 +3519,19 @@ completion syntax or other terminal service is a prerequisite.
   - Typed-record and slice views stop at `attached data shape`
     (`runtime_mutable_equivalent_record_recast_exit`,
     `runtime_shared_record_float_range_weakening_exit`), `parameter transfer`
-    (`runtime_aggregate_slice_representation_recast_exit`;
-    `runtime_interior_slice_view_mutable_write_exit` and
-    `runtime_interior_slice_congruent_offset_exit` at `conditional successors:
-    parameter transfer`, state 0 statement 2). Their `&mut place as &mut [T]`
-    locals are exclusive place-loan carriers that establish no view, so there is
-    no binding to forward. Terminal has no operation for either view: a mutable
-    byte window at a runtime offset over a fixed `[u8; N]` field
-    (`ByteSequenceSubslice` and `ElementViewSubslice` produce immutable windows
-    only), or a byte-to-element re-view (`EstablishElementView` and
-    `EstablishMutableElementView` require the collection's own element type).
-    That vocabulary and its verifier rules are a trusted-surface dependency.
+    (`runtime_aggregate_slice_representation_recast_exit` and the byte-family
+    portion of `runtime_interior_slice_view_mutable_write_exit`). Finish the
+    source-to-descriptor route for whole typed-array recasts, preserving their
+    leaf validity relations, and runtime byte-family slice formation. The
+    existing `EstablishElementView` / `EstablishMutableElementView` region
+    contract now carries captured byte endpoints with independently checked
+    bounds, exact tiling, full-bit element validity and loan lifetime; extend
+    the owning source/descriptor paths rather than adding recast-specific
+    operations. Keep `runtime_interior_slice_congruent_offset_exit` as an
+    exit-70 native/interpreter control. Its readback drops the mutable slice on
+    a state edge first; `interior_slice_exclusive_backing_read` rejects direct
+    backing access while the view remains held. Apply that same loan boundary
+    to the remaining interior byte/record canary before claiming execution.
     Record views share referee-record declaration minting.
 
   `nested_operand_view_compile` checks without an executable entry. Immutable

@@ -144,6 +144,69 @@ fn validate_structural_field_range_authority(
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         match &node.operation {
+            O::EstablishElementView {
+                psi_operation,
+                source,
+                element,
+                region:
+                    terminal_psi::ElementViewRegion::RepresentationBytes {
+                        start,
+                        end,
+                        obligation,
+                    },
+                ..
+            } => {
+                let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                let root = super::operation_contracts::structural_source_contract(
+                    function,
+                    source.place,
+                    false,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let collection = terminal_semantics::runtime_structural_path_tip(
+                    types.values().copied(),
+                    root.structural_type,
+                    &source.path,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let extent = terminal_semantics::representation_byte_extent(
+                    types.values().copied(),
+                    collection.id,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let layout = terminal_semantics::representation_element_layout(
+                    types.values().copied(),
+                    *element,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let goal = terminal_semantics::representation_region_goal(
+                    *start,
+                    *end,
+                    extent,
+                    layout.size,
+                )
+                .ok_or_else(|| invalid.clone())?;
+                let proposition = terminal_codec::canonical_proposition_order_key(&goal)
+                    .map_err(|_| invalid.clone())?;
+                // Rewrites retain the accepted bounds and tiling fact only
+                // when it still proves this operation's exact current region.
+                if unit
+                    .accepted_obligation_facts
+                    .iter()
+                    .filter(|fact| {
+                        fact.machine == function.machine
+                            && fact.operation == *psi_operation
+                            && fact.obligation == *obligation
+                            && fact.proposition == proposition
+                            && fact.psi == unit.psi
+                            && fact.has_canonical_identity()
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(invalid);
+                }
+            }
             O::ByteSequenceWrite {
                 psi_operation,
                 index,

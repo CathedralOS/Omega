@@ -167,8 +167,12 @@ fn body_inputs<'input>(
                 match &plans.nodes.get(value).kind {
                     CheckedStructuralValueKind::Place(argument)
                     | CheckedStructuralValueKind::Reference { source: argument }
-                    | CheckedStructuralValueKind::BorrowedSliceView { source: argument }
-                    | CheckedStructuralValueKind::MutableSliceView { source: argument }
+                    | CheckedStructuralValueKind::BorrowedSliceView {
+                        source: argument, ..
+                    }
+                    | CheckedStructuralValueKind::MutableSliceView {
+                        source: argument, ..
+                    }
                     | CheckedStructuralValueKind::ScalarCasePlace {
                         source: argument, ..
                     }
@@ -754,8 +758,8 @@ pub(super) fn view_backing(
             })?;
     let nodes = &checked.facts.values.structural_values.nodes;
     let lent = match &nodes.get(nodes.is_valid(value).then_some(value)?).kind {
-        checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
-        | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => source,
+        checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+        | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => source,
         _ => return None,
     };
     match lent.source {

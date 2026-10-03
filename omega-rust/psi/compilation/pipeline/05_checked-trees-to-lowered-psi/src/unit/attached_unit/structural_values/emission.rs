@@ -12,7 +12,9 @@ use super::super::{
 use super::CheckedTrees;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, emit_direct_expression, emit_scalar_leaf,
+};
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::source_custody::structural as source_custody;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
@@ -255,7 +257,7 @@ pub(crate) fn emit(
     {
         emission.direct_borrow(source)?
     } else if emission.sources.is_empty()
-        && let Some((source, loan)) = match &checked
+        && let Some((source, region, loan)) = match &checked
             .facts
             .values
             .structural_values
@@ -263,20 +265,31 @@ pub(crate) fn emit(
             .get(*value)
             .kind
         {
-            CheckedStructuralValueKind::BorrowedSliceView { source }
+            CheckedStructuralValueKind::BorrowedSliceView { source, region }
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
             {
-                Some((source, LoanAccess::Shared))
+                Some((source, region, LoanAccess::Shared))
             }
-            CheckedStructuralValueKind::MutableSliceView { source }
+            CheckedStructuralValueKind::MutableSliceView { source, region }
                 if source.access == checked_trees::CheckedStructuralAccess::MutableBorrow =>
             {
-                Some((source, LoanAccess::Mutable))
+                Some((source, region, LoanAccess::Mutable))
             }
             _ => None,
         }
     {
-        emission.direct_element_view(source, loan)?
+        emission.direct_element_view(
+            source,
+            region,
+            checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(*value)
+                .expression,
+            loan,
+        )?
     } else {
         let place = emission.value(*value, None)?;
         // A moved place is materialized into the result binding; a copied
@@ -793,12 +806,22 @@ impl Emission<'_, '_, '_> {
             // argument resolves against the current locals and signature
             // parameters exactly as a `&T` leaf does, and the fresh view result
             // joins the selection's block parameter under the view's loan.
-            CheckedStructuralValueKind::BorrowedSliceView { source } => {
-                self.joined_element_view(&source, LoanAccess::Shared, continuation)
-            }
-            CheckedStructuralValueKind::MutableSliceView { source } => {
-                self.joined_element_view(&source, LoanAccess::Mutable, continuation)
-            }
+            CheckedStructuralValueKind::BorrowedSliceView { source, region } => self
+                .joined_element_view(
+                    &source,
+                    &region,
+                    node.expression,
+                    LoanAccess::Shared,
+                    continuation,
+                ),
+            CheckedStructuralValueKind::MutableSliceView { source, region } => self
+                .joined_element_view(
+                    &source,
+                    &region,
+                    node.expression,
+                    LoanAccess::Mutable,
+                    continuation,
+                ),
             CheckedStructuralValueKind::Reference { source } => {
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` branch borrows its exact referent place: resolve
@@ -1547,13 +1570,15 @@ impl Emission<'_, '_, '_> {
     fn direct_element_view(
         &mut self,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        region: &checked_trees::CheckedElementViewRegion,
+        expression: checked_trees::expression::ExpressionHandle,
         loan: LoanAccess,
     ) -> Result<PlaceId, LoweringError> {
         let multiplicity = match loan {
             LoanAccess::Shared => StructuralMultiplicity::Unrestricted,
             LoanAccess::Mutable => self.multiplicity,
         };
-        self.establish_element_view(source, loan, multiplicity)
+        self.establish_element_view(source, region, expression, loan, multiplicity)
     }
 
     /// Establish one element view inside a selection: the fresh `Unrestricted`
@@ -1562,6 +1587,8 @@ impl Emission<'_, '_, '_> {
     fn joined_element_view(
         &mut self,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        region: &checked_trees::CheckedElementViewRegion,
+        expression: checked_trees::expression::ExpressionHandle,
         loan: LoanAccess,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
@@ -1571,10 +1598,15 @@ impl Emission<'_, '_, '_> {
         // caller already repointed `structural_type` and `multiplicity` at the
         // field's declared custody.
         let Some(continuation) = continuation else {
-            return self.direct_element_view(source, loan);
+            return self.direct_element_view(source, region, expression, loan);
         };
-        let place =
-            self.establish_element_view(source, loan, StructuralMultiplicity::Unrestricted)?;
+        let place = self.establish_element_view(
+            source,
+            region,
+            expression,
+            loan,
+            StructuralMultiplicity::Unrestricted,
+        )?;
         self.complete_loan(
             StructuralArgument {
                 place,
@@ -1595,6 +1627,8 @@ impl Emission<'_, '_, '_> {
     fn establish_element_view(
         &mut self,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        region: &checked_trees::CheckedElementViewRegion,
+        expression: checked_trees::expression::ExpressionHandle,
         loan: LoanAccess,
         multiplicity: StructuralMultiplicity,
     ) -> Result<PlaceId, LoweringError> {
@@ -1641,18 +1675,69 @@ impl Emission<'_, '_, '_> {
                 bindings.borrowed_structural_argument(source, machine, parameters)?
             }
         };
+        // The descriptor captures the byte endpoints now. Later field writes
+        // and state transfers keep this formed region; they never reread the
+        // authored selector to reconstruct a different borrowed window.
+        let endpoints = match region {
+            checked_trees::CheckedElementViewRegion::WholeCollection => None,
+            checked_trees::CheckedElementViewRegion::RepresentationBytes { start, end } => {
+                let start = self.scalar(
+                    CheckedScalarExpressionRole::RepresentationViewOffset { expression },
+                    *start,
+                    self.sources.len(),
+                )?;
+                let index = crate::expression_preparation::prepare_expression::exact_u64_index(
+                    LoweredDirectExpression::Parameter {
+                        position: 0,
+                        scalar_type: start.scalar_type,
+                    },
+                )?;
+                let start = emit_direct_expression(
+                    &index,
+                    std::slice::from_ref(&start),
+                    self.next_value,
+                    self.operations,
+                );
+                let end = emit_direct_expression(
+                    &LoweredDirectExpression::IntegerLiteral {
+                        value: semantic_vocabulary::IntegerValue::Unsigned((*end).into()),
+                        scalar_type: crate::emission::scalar_types::terminal_scalar_type(
+                            checked_trees::types::PrimitiveType::U64,
+                        )?,
+                    },
+                    &[],
+                    self.next_value,
+                    self.operations,
+                );
+                Some((start, end))
+            }
+        };
         let id = self.operations.allocate();
+        let region = match endpoints {
+            None => terminal_psi::ElementViewRegion::WholeCollection,
+            Some((start, end)) => terminal_psi::ElementViewRegion::RepresentationBytes {
+                start,
+                end,
+                obligation: crate::terminal_identities::obligation_id(
+                    id.get().checked_add(1).ok_or(LoweringError::Unsupported(
+                        "representation view obligation identity overflows",
+                    ))?,
+                ),
+            },
+        };
         let place = place_id(allocate_dense(self.next_place)?);
         let kind = match loan {
             LoanAccess::Shared => OperationKind::EstablishElementView {
                 destination: place,
                 source: argument,
                 element,
+                region,
             },
             LoanAccess::Mutable => OperationKind::EstablishMutableElementView {
                 destination: place,
                 source: argument,
                 element,
+                region,
             },
         };
         self.operations.push(Operation {

@@ -22,6 +22,8 @@ pub(super) fn establish(
         destination,
         source,
         element,
+        region,
+        accepted_fact,
     } = &row.kind
     else {
         return Err(replay.invalid());
@@ -126,11 +128,12 @@ pub(super) fn establish(
         return Err(replay.invalid());
     };
     let Some(geometry) =
-        crate::structural_inputs::structural_reference_input::collection_view_geometry(
+        crate::structural_inputs::structural_reference_input::collection_view_region_geometry(
             root,
             source,
             view.structural_type,
             signature.structural_types.as_slice(),
+            *region,
         )
     else {
         return Err(replay.invalid());
@@ -140,7 +143,9 @@ pub(super) fn establish(
     // An empty view has no dereferenceable payload. Keep its independently
     // checked backing identity, but do not require a slot for a zero-byte
     // array or invent dummy storage. Its descriptor is the empty (0, 0) view.
-    let base = if element_count == 0 {
+    let base = if element_count == 0
+        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+    {
         constant(replay, row, *destination, 0, 0)?
     } else if parameter.is_some() {
         let Some(base) = replay
@@ -182,7 +187,9 @@ pub(super) fn establish(
         byte_size: 16,
         alignment: 8,
     });
-    let backing = if element_count == 0 {
+    let backing = if element_count == 0
+        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+    {
         base
     } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
         let pointer = result(replay, *destination, 0)?;
@@ -220,8 +227,78 @@ pub(super) fn establish(
         )?;
         backing
     };
+    let (backing, length) = match region {
+        terminal_psi::ElementViewRegion::WholeCollection => {
+            if accepted_fact.is_some() {
+                return Err(replay.invalid());
+            }
+            (
+                backing,
+                constant(replay, row, *destination, 8, element_count)?,
+            )
+        }
+        terminal_psi::ElementViewRegion::RepresentationBytes {
+            start,
+            end,
+            obligation,
+        } => {
+            let fact = accepted_fact.ok_or_else(|| replay.invalid())?;
+            let (_, start_register, _, start_type) =
+                replay.resolve(*start).ok_or_else(|| replay.invalid())?;
+            let (_, end_register, _, end_type) =
+                replay.resolve(*end).ok_or_else(|| replay.invalid())?;
+            let word = semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .map_err(|_| replay.invalid())?,
+            );
+            if start_type != word || end_type != word || geometry.stride == 0 {
+                return Err(replay.invalid());
+            }
+            let region_provenance = selected_instructions::SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![*start, *end],
+                obligations: vec![*obligation],
+                ..Default::default()
+            };
+            let selected_backing = result(replay, *destination, 0)?;
+            replay.check_instruction(
+                SelectedInstructionKind::ByteViewAddress,
+                replay.constraints.keys.add_i64,
+                &[backing, start_register, selected_backing],
+                &region_provenance,
+            )?;
+            let bytes = result(replay, *destination, 8)?;
+            replay.check_instruction(
+                SelectedInstructionKind::ExactSubtractI64 {
+                    obligation: *obligation,
+                    accepted_fact: fact,
+                },
+                replay.constraints.keys.subtract_i64,
+                &[end_register, start_register, bytes],
+                &region_provenance,
+            )?;
+            let stride = constant(replay, row, *destination, 8, u64::from(geometry.stride))?;
+            let length = result(replay, *destination, 8)?;
+            let mut operands = vec![bytes, stride, length];
+            if replay.environment.target().architecture == target::Architecture::X86_64 {
+                operands.push(super::super::integer_arithmetic::division_scratch(replay)?);
+            }
+            replay.check_instruction(
+                SelectedInstructionKind::ExactDivideU64 {
+                    obligation: *obligation,
+                    accepted_fact: fact,
+                },
+                replay.constraints.keys.divide_u64,
+                &operands,
+                &region_provenance,
+            )?;
+            (selected_backing, length)
+        }
+    };
     store(replay, row, slot, 0, backing)?;
-    let length = constant(replay, row, *destination, 8, element_count)?;
     store(replay, row, slot, 8, length)?;
     let descriptor = address(replay, row, slot, 0, 16, true)?;
     replay.transport.pointers.push((*destination, descriptor));

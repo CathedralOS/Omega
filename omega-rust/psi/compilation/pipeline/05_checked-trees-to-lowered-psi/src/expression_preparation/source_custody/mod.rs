@@ -204,7 +204,8 @@ pub(crate) fn locate(
             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
             | CheckedScalarExpressionRole::RecordField { .. }
             | CheckedScalarExpressionRole::StructuralArrayElement { .. }
-            | CheckedScalarExpressionRole::StructuralValueField { .. },
+            | CheckedScalarExpressionRole::StructuralValueField { .. }
+            | CheckedScalarExpressionRole::RepresentationViewOffset { .. },
         ) => {
             let (expression, primitive) =
                 crate::expression_preparation::source_custody::structural::operand_source(

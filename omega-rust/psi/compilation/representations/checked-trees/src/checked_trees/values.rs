@@ -42,9 +42,9 @@ pub use proof_terms::{
 };
 mod structural_values;
 pub use structural_values::{
-    CheckedStructuralDispatchArm, CheckedStructuralRecordField, CheckedStructuralRecordFieldValue,
-    CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
-    CheckedStructuralValuePlans, CheckedStructuralValueRoot,
+    CheckedElementViewRegion, CheckedStructuralDispatchArm, CheckedStructuralRecordField,
+    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
+    CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
 };
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;
@@ -258,6 +258,10 @@ pub struct CheckedLocatedScalarExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedScalarExpressionRole {
+    /// Captured byte coordinate of this representation view occurrence.
+    RepresentationViewOffset {
+        expression: ExpressionHandle,
+    },
     /// One scalar field of an exact case leaf, including inside a selected arm.
     StructuralValueField {
         expression: ExpressionHandle,

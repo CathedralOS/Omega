@@ -37,6 +37,7 @@ pub enum TargetElementView {
         root_structural_type: StructuralTypeId,
         source_byte_offset: u32,
         extent: u64,
+        region: TargetElementViewRegion,
         element_stride: u32,
         source: TargetStructuralArgumentSource,
     },
@@ -50,6 +51,17 @@ pub enum TargetElementView {
         start: Box<TargetIntegerExpression>,
         end: Box<TargetIntegerExpression>,
         length: ValueId,
+        obligation: ObligationId,
+    },
+}
+
+/// Exact retained region operands; geometry does not authorize their bounds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetElementViewRegion {
+    WholeCollection,
+    RepresentationBytes {
+        start: Box<TargetIntegerExpression>,
+        end: Box<TargetIntegerExpression>,
         obligation: ObligationId,
     },
 }

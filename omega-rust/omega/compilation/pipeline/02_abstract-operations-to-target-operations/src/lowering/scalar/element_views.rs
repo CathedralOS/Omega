@@ -355,6 +355,7 @@ pub(in crate::lowering) fn resolve_element_view(
         result,
         source,
         element,
+        region,
         ..
     }) = function.operations.iter().find(|operation| {
         matches!(operation,
@@ -403,7 +404,37 @@ pub(in crate::lowering) fn resolve_element_view(
                 backings,
                 source,
                 *element,
+                *region,
             )?;
+        let region = match region {
+            terminal_psi::ElementViewRegion::WholeCollection => {
+                target_operations::TargetElementViewRegion::WholeCollection
+            }
+            terminal_psi::ElementViewRegion::RepresentationBytes {
+                start,
+                end,
+                obligation,
+            } => {
+                let endpoint = |value: ValueId| {
+                    let Some(KnownScalar::Integer {
+                        scalar_type,
+                        value: known,
+                    }) = values.get(&value)
+                    else {
+                        return Err(invalid());
+                    };
+                    if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+                        return Err(invalid());
+                    }
+                    Ok(Box::new(known.clone().into_expression(value)))
+                };
+                target_operations::TargetElementViewRegion::RepresentationBytes {
+                    start: endpoint(*start)?,
+                    end: endpoint(*end)?,
+                    obligation: *obligation,
+                }
+            }
+        };
         return Ok((
             TargetElementView::Established {
                 psi_operation: *psi_operation,
@@ -413,6 +444,7 @@ pub(in crate::lowering) fn resolve_element_view(
                 root_structural_type,
                 source_byte_offset,
                 extent,
+                region,
                 element_stride,
                 source: source_home,
             },
@@ -593,6 +625,7 @@ fn established_source(
     backings: ElementViewBackings<'_>,
     source: &StructuralArgument,
     element: StructuralTypeId,
+    region: terminal_psi::ElementViewRegion,
 ) -> Result<
     (
         StructuralTypeId,
@@ -668,13 +701,35 @@ fn established_source(
         &mut shape_cache,
         &mut active,
     )?;
-    let collection = terminal_semantics::collection_backing(
+    let geometry = terminal_semantics::element_view_region_geometry(
         structural_types.values().copied(),
         projected_type,
         element,
+        region,
     )
     .ok_or_else(invalid)?;
-    let length = collection.length;
+    let (length, storage, representation) = match geometry {
+        terminal_semantics::ElementViewRegionGeometry::WholeCollection(collection) => {
+            (collection.length, collection.storage, None)
+        }
+        terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
+            byte_extent,
+            element: layout,
+        } => {
+            if byte_window.is_some() {
+                return Err(invalid());
+            }
+            let storage = if matches!(
+                structural_types.get(&projected_type).map(|row| &row.shape),
+                Some(StructuralTypeShape::ByteSequence(_))
+            ) {
+                terminal_semantics::CollectionStorage::Borrowed
+            } else {
+                terminal_semantics::CollectionStorage::Inline
+            };
+            (byte_extent, storage, Some(layout))
+        }
+    };
     let element_shape = crate::lowering::structural_layout::structural_shape(
         element,
         structural_types,
@@ -687,10 +742,13 @@ fn established_source(
     )
     .ok_or_else(invalid)?;
     if element_stride == 0
-        || match collection.storage {
+        || match storage {
             terminal_semantics::CollectionStorage::Inline => {
-                u64::from(element_stride).checked_mul(length)
-                    != Some(u64::from(projected_shape.byte_size))
+                (if representation.is_some() {
+                    Some(length)
+                } else {
+                    u64::from(element_stride).checked_mul(length)
+                }) != Some(u64::from(projected_shape.byte_size))
             }
             // The carrier contains one pointer, not capacity bytes. Dynamic
             // narrowing is a following subslice over the established descriptor.
@@ -700,6 +758,25 @@ fn established_source(
         }
     {
         return Err(invalid());
+    }
+    if let Some(layout) = representation {
+        if layout.size != u64::from(element_stride)
+            || layout.alignment != u64::from(element_shape.alignment)
+            || layout.leaves.iter().any(|leaf| {
+                crate::lowering::structural_layout::primitive_leaf_projection(
+                    element,
+                    &leaf.path,
+                    structural_types,
+                )
+                .is_none_or(|(scalar, offset, indices)| {
+                    scalar != leaf.scalar_type
+                        || u64::from(offset) != leaf.offset
+                        || !indices.is_empty()
+                })
+            })
+        {
+            return Err(invalid());
+        }
     }
     let (window_offset, extent) = match byte_window {
         Some((start, end)) if start <= end && end <= length => (
@@ -860,22 +937,58 @@ mod tests {
             TargetStructuralArgumentSource::BlockParameter { block, place },
         );
         assert_eq!(
-            established_source(&function, &types, &[], backings, &argument, element).unwrap(),
+            established_source(
+                &function,
+                &types,
+                &[],
+                backings,
+                &argument,
+                element,
+                terminal_psi::ElementViewRegion::WholeCollection
+            )
+            .unwrap(),
             expected
         );
         argument.access = StructuralAccess::SharedBorrow;
         assert_eq!(
-            established_source(&function, &types, &[], backings, &argument, element).unwrap(),
+            established_source(
+                &function,
+                &types,
+                &[],
+                backings,
+                &argument,
+                element,
+                terminal_psi::ElementViewRegion::WholeCollection
+            )
+            .unwrap(),
             expected
         );
         function.block_entries[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
         assert_eq!(
-            established_source(&function, &types, &[], backings, &argument, element).unwrap(),
+            established_source(
+                &function,
+                &types,
+                &[],
+                backings,
+                &argument,
+                element,
+                terminal_psi::ElementViewRegion::WholeCollection
+            )
+            .unwrap(),
             expected
         );
         argument.access = StructuralAccess::MutableBorrow;
         assert!(
-            established_source(&function, &types, &[], backings, &argument, element).is_err(),
+            established_source(
+                &function,
+                &types,
+                &[],
+                backings,
+                &argument,
+                element,
+                terminal_psi::ElementViewRegion::WholeCollection
+            )
+            .is_err(),
             "a shared arrival cannot authorize a mutable collection view"
         );
         argument.access = StructuralAccess::SharedBorrow;
@@ -894,7 +1007,16 @@ mod tests {
         );
         function.block_entries[0].structural_parameters[0].structural_type = element;
         assert!(
-            established_source(&function, &types, &[], backings, &argument, element).is_err(),
+            established_source(
+                &function,
+                &types,
+                &[],
+                backings,
+                &argument,
+                element,
+                terminal_psi::ElementViewRegion::WholeCollection
+            )
+            .is_err(),
             "a same-address scalar cannot impersonate the declared array"
         );
     }

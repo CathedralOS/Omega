@@ -352,6 +352,7 @@ fn window_result_query_distinguishes_owned_carriers_from_storage_loans() {
         let mut source = source.clone();
         source.access = access;
         let view = O::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             psi_operation: *psi_operation,
             result: result.clone(),
             destination: result.place,

@@ -105,9 +105,26 @@ pub(super) fn reconstruct_in(
                 }
             }
             let descriptor = match &operation.kind {
-                OperationKind::EstablishElementView { source, .. }
-                | OperationKind::EstablishMutableElementView { source, .. }
-                | OperationKind::EstablishReference { source } => Some((
+                OperationKind::EstablishElementView { source, region, .. }
+                | OperationKind::EstablishMutableElementView { source, region, .. } => {
+                    let mut projection = accesses::projection(
+                        module,
+                        machine,
+                        source.place,
+                        &source.path,
+                        None,
+                        position,
+                    );
+                    // Child element indices and source octet indices use different units.
+                    if matches!(
+                        region,
+                        terminal_psi::ElementViewRegion::RepresentationBytes { .. }
+                    ) {
+                        projection.exact = false;
+                    }
+                    Some((source.place, projection))
+                }
+                OperationKind::EstablishReference { source } => Some((
                     source.place,
                     accesses::projection(
                         module,
@@ -155,6 +172,15 @@ pub(super) fn reconstruct_in(
                 // parent capability; its narrowed child owns the live loan.
                 // Shared establishment itself must keep its backing stable.
                 let is_birth = matches!(
+                    operation.kind,
+                    OperationKind::EstablishElementView {
+                        region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+                        ..
+                    } | OperationKind::EstablishMutableElementView {
+                        region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+                        ..
+                    }
+                ) || matches!(
                     operation.kind,
                     OperationKind::ElementViewSubslice { .. }
                         | OperationKind::ByteSequenceSubslice { .. }

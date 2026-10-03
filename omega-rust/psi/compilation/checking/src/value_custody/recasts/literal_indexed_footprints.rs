@@ -46,8 +46,10 @@ impl ValidatedLiteralIndexedRecastFootprint {
 /// Replay the canonical recast judgment and retain one exact literal-index
 /// byte footprint for borrow overlap.
 ///
-/// This deliberately excludes runtime or singleton-range offsets, slices, and
-/// whole-array sources. Aggregate targets are limited to one closed,
+/// This excludes runtime or singleton-range offsets and whole-array sources.
+/// An interior slice covers the complete literal suffix of its byte collection;
+/// its element layout and exact tiling are checked by the ordinary recast
+/// judgment. Aggregate targets are limited to one closed,
 /// recursively fact-free fixed record or recursively nonzero literal fixed
 /// arrays ending in either an exact primitive or that same closed-record
 /// subset. Other shapes remain under their existing conservative loan fence
@@ -102,8 +104,26 @@ pub fn validate_literal_indexed_recast_footprint(
         return None;
     };
     let start = usize::try_from(offset.value_i64()?).ok()?;
-    let target_size = literal_indexed_recast_target_size(program, cast.target_type)?;
-    let end = start.checked_add(target_size)?;
+    let end = if matches!(
+        program
+            .type_reference_table
+            .type_reference(cast.target_type),
+        TypeReferenceNode::Slice { .. }
+    ) {
+        let region = super::slice_recast_byte_region(program, machine, state, local.initial_value)?;
+        if region.source != source
+            || region.collection != indexed.collection
+            || region.start != indexed.index
+        {
+            return None;
+        }
+        usize::try_from(region.extent).ok()?
+    } else {
+        start.checked_add(literal_indexed_recast_target_size(
+            program,
+            cast.target_type,
+        )?)?
+    };
 
     let InteriorByteRegion::Bounded {
         offset,
@@ -125,12 +145,12 @@ pub fn validate_literal_indexed_recast_footprint(
 
 /// Admission for the runtime-indexed sibling of the literal footprint.
 ///
-/// The preamble replays the same recast judgment and admits the same target
-/// subset as `validate_literal_indexed_recast_footprint`; the offset is
-/// proven by the interior byte-region bounds walk rather than a literal, so
-/// `high(index) + size(target) <= region_length` is the footprint check.
-/// Returns the indexed source expression whose collection place carries the
-/// conservative `Index` loan. `None` keeps the source under its historical
+/// The preamble replays the same recast judgment as the literal footprint.
+/// Fixed targets owe `high(index) + size(target) <= region_length` and retain
+/// their conservative indexed source. An unsized slice instead covers all
+/// remaining bytes; its validated collection is returned as a whole-place loan.
+/// This deliberately overapproximates the dynamic suffix so an unknown offset
+/// cannot grant access to another byte inside that suffix. `None` keeps the source under its historical
 /// no-loan fence: unbounded offsets, non-byte interiors, and unsupported
 /// target shapes mint no loan at all.
 pub fn validate_runtime_indexed_recast_source(
@@ -186,6 +206,25 @@ pub fn validate_runtime_indexed_recast_source(
         ExpressionNode::Integer(_)
     ) {
         return None;
+    }
+
+    if matches!(
+        program
+            .type_reference_table
+            .type_reference(cast.target_type),
+        TypeReferenceNode::Slice { .. }
+    ) {
+        // The judgment above independently checks bounds and exact tiling of
+        // this complete suffix. Source syntax identifies its backing, not a
+        // guessed one-element footprint or a newly assumed representation.
+        let region = super::slice_recast_byte_region(program, machine, state, local.initial_value)?;
+        if region.source != source
+            || region.collection != indexed.collection
+            || region.start != indexed.index
+        {
+            return None;
+        }
+        return Some(region.collection);
     }
 
     let target_size = i64::try_from(literal_indexed_recast_target_size(
@@ -287,5 +326,87 @@ fn literal_fixed_array_target_terminal(
             literal_fixed_array_target_terminal(program, *element_type)
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn region_source(extent: u32, offset: &str, target: &str) -> TypedTrees {
+        crate::front_end::typed_program(&format!(
+            "data Storage where k <= 3 {{ bytes: [u8; {extent}]; k: u32; }}
+             machine run(storage: &mut Storage) {{
+                 let view: &mut [{target}] = &mut storage.bytes[{offset}] as &mut [{target}];
+             }}"
+        ))
+    }
+
+    fn local(
+        program: &TypedTrees,
+    ) -> (
+        &typed_trees::machine::Machine,
+        &typed_trees::state::State,
+        &typed_trees::statement::TableLocalData,
+    ) {
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("source loan declaration");
+        };
+        (machine, state, local)
+    }
+
+    #[test]
+    fn interior_slice_loans_cover_exact_literal_suffix_and_conservative_runtime_backing() {
+        let program = region_source(7, "1", "u16");
+        let (machine, state, local) = local(&program);
+        let region =
+            super::super::slice_recast_byte_region(&program, machine, state, local.initial_value)
+                .unwrap();
+        let footprint = validate_literal_indexed_recast_footprint(&program, machine, state, local)
+            .expect("six suffix bytes tile three u16 elements");
+        assert_eq!(footprint.collection(), region.collection);
+        assert_eq!((footprint.start(), footprint.end()), (1, 7));
+        assert!(validate_runtime_indexed_recast_source(&program, machine, state, local).is_none());
+
+        let program = region_source(8, "storage.k * 2", "u16");
+        let (machine, state, local) = self::local(&program);
+        let region =
+            super::super::slice_recast_byte_region(&program, machine, state, local.initial_value)
+                .unwrap();
+        assert_eq!(
+            validate_runtime_indexed_recast_source(&program, machine, state, local),
+            Some(region.collection)
+        );
+        assert_ne!(
+            region.collection, region.source,
+            "the loan covers the collection, not one selected byte"
+        );
+        assert!(
+            validate_literal_indexed_recast_footprint(&program, machine, state, local).is_none()
+        );
+    }
+
+    #[test]
+    fn interior_slice_loans_require_independent_extent_tiling_and_validity() {
+        for (extent, offset, target) in [
+            (7, "2", "u16"),
+            (7, "storage.k * 2", "u16"),
+            (8, "storage.k * 4", "u16"),
+            (8, "storage.k * 2", "bool"),
+        ] {
+            let program = region_source(extent, offset, target);
+            let (machine, state, local) = local(&program);
+            assert!(
+                validate_literal_indexed_recast_footprint(&program, machine, state, local)
+                    .is_none()
+            );
+            assert!(
+                validate_runtime_indexed_recast_source(&program, machine, state, local).is_none()
+            );
+        }
     }
 }

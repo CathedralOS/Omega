@@ -207,11 +207,19 @@ pub(super) fn register_custody_operation(
         return Ok(true);
     }
     if let OperationKind::EstablishElementView {
+        region,
         destination,
         source,
         element,
     } = &operation.kind
     {
+        if let terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } = region {
+            insert_unique(
+                &mut registry.obligations,
+                *obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
         super::super::element_view::establishment::validate_establishment(
             module,
             machine,
@@ -223,11 +231,19 @@ pub(super) fn register_custody_operation(
         return Ok(true);
     }
     if let OperationKind::EstablishMutableElementView {
+        region,
         destination,
         source,
         element,
     } = &operation.kind
     {
+        if let terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } = region {
+            insert_unique(
+                &mut registry.obligations,
+                *obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
         super::super::element_view::mutable_establishment::validate_establishment(
             module,
             machine,

@@ -42,6 +42,7 @@ const OP_FACTS_POLARITY: &str = "omega-rust/psi/compilation/representations/term
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_ELEMENT_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs";
 const TS_SE_ELEMENT_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/element_extent.rs";
+const TS_REPRESENTATION_REGIONS: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/representation_regions.rs";
 const TS_COLLECTION_BACKING: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/collection_backing.rs";
 const VAL_ELEMENTS_ESTABLISH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/establishment.rs";
@@ -693,8 +694,8 @@ static OP_BYTE_SEQUENCE_EQUAL: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
     "operation:establish-element-view",
-    "a validated element-view establishment over a contiguous collection",
-    "the establishment observation; it invalidates nothing and publishes no scalar equation",
+    "a validated shared element-view establishment over an exact-element collection or a total normalized representation region of original fixed byte backing",
+    "the establishment observation; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
     EFFECT_DEPS,
     &[
         VOCAB,
@@ -704,12 +705,14 @@ static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_ELEMENTS_ESTABLISH,
         TS_COLLECTION_BACKING,
+        TS_REPRESENTATION_REGIONS,
+        OP_FACTS_ELEMENT_EXTENT,
     ],
 );
 static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
     "operation:establish-mutable-element-view",
-    "a validated mutable element-view establishment over a contiguous collection",
-    "the establishment observation; it invalidates nothing and publishes no scalar equation",
+    "a validated mutable element-view establishment over an exact-element collection or a total normalized representation region of original fixed byte backing",
+    "the establishment observation; a representation region independently requires ordered u64 start <= end <= backing extent and exact suffix tiling by the reconstructed nonzero element stride; no host alignment or backing ownership follows",
     EFFECT_DEPS,
     &[
         VOCAB,
@@ -720,6 +723,8 @@ static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         VAL_ELEMENTS_MUTABLE_ESTABLISH,
         VAL_ELEMENTS_ESTABLISH,
         TS_COLLECTION_BACKING,
+        TS_REPRESENTATION_REGIONS,
+        OP_FACTS_ELEMENT_EXTENT,
     ],
 );
 static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(
@@ -736,6 +741,7 @@ static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(
         TS_ROWS,
         TS_SE,
         TS_SE_ELEMENT_EXTENT,
+        TS_REPRESENTATION_REGIONS,
         OP_FACTS,
         OP_FACTS_ELEMENT_EXTENT,
         VAL_OPS,

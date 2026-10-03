@@ -681,6 +681,7 @@ fn local_byte_field_length_expires_after_mutation_through_element_view() {
                     claims: Vec::new(),
                 }),
                 kind: OperationKind::EstablishMutableElementView {
+                    region: terminal_psi::ElementViewRegion::WholeCollection,
                     destination: id(4, PlaceId::new),
                     element: cell(),
                     source: StructuralArgument {

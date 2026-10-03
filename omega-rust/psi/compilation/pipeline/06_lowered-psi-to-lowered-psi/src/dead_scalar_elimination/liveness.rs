@@ -248,8 +248,6 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::StructuralLeafCopy { .. }
         | O::StructuralCaseLeafCopy { .. }
         | O::EstablishByteSequenceLiteral { .. }
-        | O::EstablishElementView { .. }
-        | O::EstablishMutableElementView { .. }
         | O::ElementViewLength { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
@@ -257,6 +255,14 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::PortWrite { .. } => {}
+        O::EstablishElementView { region, .. }
+        | O::EstablishMutableElementView { region, .. } => {
+            // Formation consumes the captured byte endpoints even when no
+            // later scalar observes them outside the structural descriptor.
+            if let terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } = region {
+                values.extend([*start, *end]);
+            }
+        }
         O::EstablishScalarCase { fields, .. } => {
             values.extend(fields.iter().map(|field| field.value));
         }

@@ -335,13 +335,19 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             &qualifications,
         )?,
         OperationKind::EstablishElementView {
+            region,
             destination,
             source,
             element,
-        } => {
-            storage_operations::encode_establish_element_view(writer, destination, source, element)?
-        }
+        } => storage_operations::encode_establish_element_view(
+            writer,
+            destination,
+            source,
+            element,
+            region,
+        )?,
         OperationKind::EstablishMutableElementView {
+            region,
             destination,
             source,
             element,
@@ -350,6 +356,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             destination,
             source,
             element,
+            region,
         )?,
         OperationKind::ElementViewLength { source } => {
             storage_operations::encode_element_view_length(writer, source)?
@@ -2101,6 +2108,7 @@ mod tests {
                     claims: Vec::new(),
                 }),
                 kind: OperationKind::EstablishMutableElementView {
+                    region: terminal_psi::ElementViewRegion::WholeCollection,
                     destination: id::<PlaceId>(3),
                     source: StructuralArgument {
                         place: id::<PlaceId>(4),

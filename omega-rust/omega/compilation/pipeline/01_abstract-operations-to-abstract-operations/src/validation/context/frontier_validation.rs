@@ -405,6 +405,7 @@ fn validate_surviving_byte_operations(
                     destination,
                     source,
                     element,
+                    region,
                     ..
                 } => {
                     // The shared abstract establishment respells either
@@ -416,12 +417,14 @@ fn validate_surviving_byte_operations(
                                 destination: *destination,
                                 source: source.clone(),
                                 element: *element,
+                                region: *region,
                             }
                         }
                         _ => terminal_psi::OperationKind::EstablishElementView {
                             destination: *destination,
                             source: source.clone(),
                             element: *element,
+                            region: *region,
                         },
                     };
                     (

@@ -1230,6 +1230,7 @@ fn repeated_owner_home_establishment_preserves_stored_view_loans() {
                     access: StructuralAccess::SharedBorrow,
                 },
                 element: ty(4),
+                region: terminal_psi::ElementViewRegion::WholeCollection,
             },
             O::StructuralByteViewFieldStore {
                 psi_operation: instruction(13),
@@ -1498,6 +1499,175 @@ fn byte_operand_observations_preserve_disjoint_fields_and_reject_overlap() {
                     .is_some(),
                 selected == "right",
                 "byte operand must observe only its selected field"
+            );
+        }
+    }
+}
+
+#[test]
+fn scalar_descriptor_write_ends_at_its_last_observation() {
+    for element_view in [false, true] {
+        for later_observation in [false, true] {
+            let child_write = if element_view {
+                O::ElementViewWrite {
+                    psi_operation: instruction(2),
+                    destination: place(1),
+                    index: value(1),
+                    value: value(2),
+                    length: value(3),
+                    obligation: ObligationId::new(3).unwrap(),
+                }
+            } else {
+                O::ByteSequenceWrite {
+                    psi_operation: instruction(2),
+                    destination: place(1),
+                    index: value(1),
+                    value: value(2),
+                    length: value(3),
+                    obligation: ObligationId::new(3).unwrap(),
+                }
+            };
+            let mut function = receiver_fixture(child_write, later_observation);
+            let O::ByteSequenceSubslice {
+                psi_operation,
+                result,
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            } = function.blocks[0].nodes[0].operation.clone()
+            else {
+                unreachable!()
+            };
+            let result = terminal_psi::StructuralOperationResult {
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                ..result
+            };
+            function.blocks[0].nodes[0].operation = if element_view {
+                O::ElementViewSubslice {
+                    psi_operation,
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                }
+            } else {
+                O::ByteSequenceSubslice {
+                    psi_operation,
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                }
+            };
+            if element_view {
+                let O::ByteSequenceWrite {
+                    psi_operation,
+                    destination,
+                    index,
+                    value,
+                    length,
+                    obligation,
+                } = function.blocks[0].nodes[2].operation.clone()
+                else {
+                    unreachable!()
+                };
+                function.blocks[0].nodes[2].operation = O::ElementViewWrite {
+                    psi_operation,
+                    destination,
+                    index,
+                    value,
+                    length,
+                    obligation,
+                };
+            }
+            if element_view && later_observation {
+                function.blocks[0].nodes[3].operation = O::ElementViewLength {
+                    psi_operation: instruction(4),
+                    source: place(1),
+                    result: abstract_operations::AbstractResult {
+                        value: value(4),
+                        scalar_type: ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .unwrap(),
+                        ),
+                    },
+                };
+            }
+            function
+                .structural_parameters
+                .push(terminal_psi::StructuralParameterDeclaration {
+                    place: place(9),
+                    position: 0,
+                    is_self: false,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+            function
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: place(9),
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                });
+            let declarations = [
+                StructuralTypeDeclaration {
+                    id: StructuralTypeId::new(1).unwrap(),
+                    identity: "View".into(),
+                    shape: if element_view {
+                        StructuralTypeShape::ElementView {
+                            element: StructuralTypeId::new(2).unwrap(),
+                        }
+                    } else {
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                        )
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: StructuralTypeId::new(2).unwrap(),
+                    identity: "Byte".into(),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            8,
+                        )
+                        .unwrap(),
+                    )),
+                },
+            ];
+            let types = declarations.iter().map(|row| (row.id, row)).collect();
+            let regions = BorrowedRegions::new(
+                &function,
+                &BTreeMap::new(),
+                &types,
+                &crate::current_ownership::CallAccesses::default(),
+            );
+            let loans = DescriptorLoans::new(&function, &regions, &types);
+            assert_eq!(loans.loans.len(), 1);
+            assert_eq!(
+                loans.conflicted_operation(
+                    &regions,
+                    position(2).0,
+                    2,
+                    &function.blocks[0].nodes[2].operation,
+                    &[]
+                ),
+                later_observation.then_some(place(9)),
+                "scalar write is a use, not an escape; element={element_view}, retained={later_observation}"
             );
         }
     }

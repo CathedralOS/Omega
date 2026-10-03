@@ -363,12 +363,14 @@ pub(crate) fn establish(
                 destination: view.place,
                 source: view.source.clone(),
                 element: view.element,
+                region: terminal_psi::ElementViewRegion::WholeCollection,
             }
         } else {
             terminal_psi::OperationKind::EstablishElementView {
                 destination: view.place,
                 source: view.source.clone(),
                 element: view.element,
+                region: terminal_psi::ElementViewRegion::WholeCollection,
             }
         },
     });

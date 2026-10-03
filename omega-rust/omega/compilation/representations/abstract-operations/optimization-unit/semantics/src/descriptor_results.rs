@@ -237,6 +237,22 @@ fn adapt(
                 | O::EstablishReference { result, source, .. } => {
                     let destination = DescriptorLocation::whole(result.place);
                     if let Some(source) = location(source.place, &source.path, None) {
+                        if matches!(
+                            operation,
+                            O::EstablishElementView {
+                                region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+                                ..
+                            }
+                        ) {
+                            // Location owns the source prefix. Later target-element
+                            // coordinates must not refine this byte-backed region.
+                            let mut projection = Projection::new(&[]);
+                            projection.exact = false;
+                            graph.projections.insert(
+                                (position, source.clone(), destination.clone()),
+                                projection,
+                            );
+                        }
                         step.derivations.push((source, destination.clone()));
                     } else {
                         step.may_escape = true;

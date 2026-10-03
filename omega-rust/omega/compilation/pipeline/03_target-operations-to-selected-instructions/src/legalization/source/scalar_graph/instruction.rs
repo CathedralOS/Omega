@@ -405,17 +405,36 @@ pub(super) fn project(
             storage_instructions::project_element_view_subslice(node, optimized, unit)?
         }
         AbstractOperation::EstablishElementView {
+            psi_operation,
             result,
             destination,
             source,
             element,
-            ..
-        } => LegalizedScalarInstructionKind::EstablishElementView {
-            result: result.clone(),
-            destination: *destination,
-            source: source.clone(),
-            element: *element,
-        },
+            region,
+        } => {
+            let accepted_fact = match region {
+                terminal_psi::ElementViewRegion::WholeCollection => None,
+                terminal_psi::ElementViewRegion::RepresentationBytes { obligation, .. } => Some(
+                    unit.accepted_obligation_facts
+                        .iter()
+                        .find(|fact| {
+                            fact.machine == optimized.machine
+                                && fact.operation == *psi_operation
+                                && fact.obligation == *obligation
+                        })
+                        .ok_or(Error::custody())?
+                        .identity,
+                ),
+            };
+            LegalizedScalarInstructionKind::EstablishElementView {
+                result: result.clone(),
+                destination: *destination,
+                source: source.clone(),
+                element: *element,
+                region: *region,
+                accepted_fact,
+            }
+        }
         AbstractOperation::BooleanNot { operand, .. } => {
             LegalizedScalarInstructionKind::BooleanNot { operand: *operand }
         }

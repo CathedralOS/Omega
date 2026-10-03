@@ -331,6 +331,7 @@ pub(super) fn lower(
             destination,
             source,
             element,
+            region,
         } => {
             let result = operation
                 .result
@@ -346,6 +347,7 @@ pub(super) fn lower(
                 destination: *destination,
                 source: source.clone(),
                 element: *element,
+                region: *region,
             })
         }
         OperationKind::ElementViewLength { source } => {
@@ -394,6 +396,7 @@ pub(super) fn lower(
             destination,
             source,
             element,
+            region,
         } => {
             // A mutable establishment is the same descriptor derivation; the
             // argument's `MutableBorrow` access keeps the exclusive-loan
@@ -412,6 +415,7 @@ pub(super) fn lower(
                 destination: *destination,
                 source: source.clone(),
                 element: *element,
+                region: *region,
             })
         }
         OperationKind::ElementViewWrite {

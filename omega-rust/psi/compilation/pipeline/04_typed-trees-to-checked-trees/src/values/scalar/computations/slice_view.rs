@@ -6,8 +6,12 @@
 //! admission recorded instead of producing a call result. The loan's access
 //! is the view's access: a shared read makes a `BorrowedSliceView`, an
 //! exclusive `Mutable` loan a `MutableSliceView`. The declared view's element
-//! must be exactly the lent collection's element — an equal-shaped or
-//! same-named collection supplies no view custody.
+//! equals the lent collection's element for an ordinary collection opener.
+//! A representation view instead retains its authored byte start and source
+//! extent: the existing recast judgment admits the relation, and Terminal
+//! independently proves the emitted region's bounds and exact target tiling.
+//! Reinterpreting the entire buffer before slicing is not equivalent: the
+//! suffix can tile even when the whole source cannot.
 use super::{
     Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceNode, TypedTrees,
     structural_values::canonical_place_is_borrowable,
@@ -28,7 +32,7 @@ impl Builder<'_, '_> {
     /// formed at another statement, a write-only loan, or a lent place whose
     /// elements are not the view's elements has no admitted view here.
     pub(super) fn slice_view_place(
-        &self,
+        &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
@@ -159,6 +163,42 @@ impl Builder<'_, '_> {
             self.state,
             &mut place,
         );
+        let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+        let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
+        if let Some(region) = recast {
+            if region.access != view.access
+                || self.program.normalized_type_identity(region.element)
+                    != self.program.normalized_type_identity(view.element)
+            {
+                return None;
+            }
+            let mut collection =
+                crate::flow::canonical_place_from_expression(self.program, region.collection)?;
+            crate::flow::normalize_attached_place_root(
+                self.program,
+                self.machine,
+                self.state,
+                &mut collection,
+            );
+            // Literal suffixes have an exact range loan. A runtime suffix
+            // borrows the whole byte backing conservatively; its captured
+            // endpoints, rather than an element-sized loan, narrow the view.
+            let mut authored_loan = collection.clone();
+            if let ExpressionNode::Integer(offset) =
+                self.program.expression_table.expression(region.start)
+            {
+                authored_loan
+                    .segments
+                    .push(facts::PlaceSegment::FixedRange {
+                        start: usize::try_from(offset.value_i64()?).ok()?,
+                        end: usize::try_from(region.extent).ok()?,
+                    });
+            }
+            if authored_loan != place {
+                return None;
+            }
+            place = collection;
+        }
         // A view's lent window is a `FixedRange` segment — the range is the
         // view's own extent, so the borrowable walk admits it beside the
         // static leaf segments for primitive-scalar elements. Wider elements
@@ -347,11 +387,43 @@ impl Builder<'_, '_> {
         let Some(lent) = lent_collection_element(self.program, projected) else {
             return None;
         };
-        if self.program.normalized_type_identity(lent)
-            != self.program.normalized_type_identity(view.element)
+        if recast.is_none()
+            && self.program.normalized_type_identity(lent)
+                != self.program.normalized_type_identity(view.element)
         {
             return None;
         }
+        let region = if let Some(region) = recast {
+            let primitive =
+                super::semantic_casts::result_type(self.program, self.state, region.start)
+                    .and_then(|reference| self.program.primitive_type_reference(reference))
+                    .or_else(|| {
+                        matches!(
+                            self.program.expression_table.expression(region.start),
+                            ExpressionNode::Integer(_)
+                        )
+                        .then_some(typed_trees::types::PrimitiveType::U64)
+                    })?;
+            let start = self.expression(region.start, primitive)?;
+            self.plans.nodes.get_mut(start).authored_root = region.start;
+            self.plans
+                .roots
+                .append(checked_trees::CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    role: checked_trees::CheckedScalarExpressionRole::RepresentationViewOffset {
+                        expression,
+                    },
+                    root: start,
+                });
+            checked_trees::CheckedElementViewRegion::RepresentationBytes {
+                start,
+                end: region.extent,
+            }
+        } else {
+            checked_trees::CheckedElementViewRegion::WholeCollection
+        };
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path,
@@ -359,9 +431,9 @@ impl Builder<'_, '_> {
             access,
         };
         Some(if access == CheckedStructuralAccess::SharedBorrow {
-            CheckedStructuralValueKind::BorrowedSliceView { source }
+            CheckedStructuralValueKind::BorrowedSliceView { source, region }
         } else {
-            CheckedStructuralValueKind::MutableSliceView { source }
+            CheckedStructuralValueKind::MutableSliceView { source, region }
         })
     }
 
@@ -561,9 +633,15 @@ impl Builder<'_, '_> {
             access,
         };
         Some(if access == CheckedStructuralAccess::SharedBorrow {
-            CheckedStructuralValueKind::BorrowedSliceView { source }
+            CheckedStructuralValueKind::BorrowedSliceView {
+                source,
+                region: checked_trees::CheckedElementViewRegion::WholeCollection,
+            }
         } else {
-            CheckedStructuralValueKind::MutableSliceView { source }
+            CheckedStructuralValueKind::MutableSliceView {
+                source,
+                region: checked_trees::CheckedElementViewRegion::WholeCollection,
+            }
         })
     }
 }

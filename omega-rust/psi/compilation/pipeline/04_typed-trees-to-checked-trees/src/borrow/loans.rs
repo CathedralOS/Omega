@@ -581,9 +581,10 @@ fn literal_indexed_recast_borrow_place(
 
 /// The runtime-indexed sibling of `literal_indexed_recast_borrow_place`:
 /// `validate_runtime_indexed_recast_source` replays the recast judgment and
-/// bounds the offset through the interior byte-region walk, then the loan
-/// keeps the same conservative `Index` coverage the ordinary borrow place
-/// derives. Unadmitted recast sources mint no loan, restoring the fence the
+/// bounds the offset through the interior byte-region walk. Fixed targets
+/// keep conservative `Index` coverage; an unsized suffix retains its entire
+/// byte collection because one selected byte does not cover the suffix.
+/// Unadmitted recast sources mint no loan, restoring the fence the
 /// broader recast vocabulary kept before this arm existed.
 fn runtime_indexed_recast_borrow_place(
     program: &typed_trees::TypedTrees,

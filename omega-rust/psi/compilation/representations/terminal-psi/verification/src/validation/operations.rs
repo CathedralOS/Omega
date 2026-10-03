@@ -24,6 +24,24 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::EstablishElementView { region, .. }
+    | OperationKind::EstablishMutableElementView { region, .. } = operation.kind
+        && let terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } = region
+    {
+        for value in [start, end] {
+            require_defined(value, value_types, defined)?;
+            let expected = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64"),
+            );
+            if value_types.get(&value) != Some(&expected) {
+                return Err(ModuleError::InvalidElementViewEstablishment(operation.id));
+            }
+        }
+    }
     // Ordinary and boundary calls carry complete owned array values. Their
     // exact producer supplies initialized payload, rather than opaque place
     // metadata. Existing borrowed fixed-array backing is separate.

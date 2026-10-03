@@ -245,10 +245,11 @@ pub use value_custody::places::{
 };
 pub use value_custody::recasts::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
-    RecastScalarLayout, RecastScalarProjection, ValidatedLiteralIndexedRecastFootprint,
-    recast_record_source_leaf, recast_scalar_layout, recast_scalar_path_geometry,
-    recast_scalar_path_projection, recast_scalar_projection,
-    validate_literal_indexed_recast_footprint, validate_runtime_indexed_recast_source,
+    RecastScalarLayout, RecastScalarProjection, SliceRecastByteRegion,
+    ValidatedLiteralIndexedRecastFootprint, recast_record_source_leaf, recast_scalar_layout,
+    recast_scalar_path_geometry, recast_scalar_path_projection, recast_scalar_projection,
+    slice_recast_byte_region, validate_literal_indexed_recast_footprint,
+    validate_runtime_indexed_recast_source,
 };
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{

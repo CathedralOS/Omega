@@ -104,10 +104,11 @@ impl Checker<'_> {
                 root_structural_type,
                 source_byte_offset,
                 extent,
+                region,
                 element_stride,
                 source: established_source,
             } => {
-                let Some(argument) = self
+                let Some((argument, expected_region)) = self
                     .optimized
                     .blocks
                     .iter()
@@ -119,6 +120,7 @@ impl Checker<'_> {
                             destination,
                             source: argument,
                             element: expected_element,
+                            region: expected_region,
                         } = &node.operation
                         else {
                             return None;
@@ -137,7 +139,7 @@ impl Checker<'_> {
                             && result.claims.is_empty()
                             && *destination == *place
                             && *expected_element == *element)
-                            .then_some(argument)
+                            .then_some((argument,*expected_region))
                     })
                 else {
                     return false;
@@ -186,6 +188,11 @@ impl Checker<'_> {
                 *place == source
                     && access(argument.access)
                     && backing
+                    && match (region,expected_region) {
+                        (target_operations::TargetElementViewRegion::WholeCollection,terminal_psi::ElementViewRegion::WholeCollection)=>true,
+                        (target_operations::TargetElementViewRegion::RepresentationBytes {start,end,obligation},terminal_psi::ElementViewRegion::RepresentationBytes {start:expected_start,end:expected_end,obligation:expected_obligation})=>*obligation==expected_obligation && self.integer_source(start,expected_start,aliases) && self.integer_source(end,expected_end,aliases),
+                        _=>false,
+                    }
                     && self.established_element_window(
                         *root_structural_type,
                         &argument.path,
@@ -193,6 +200,7 @@ impl Checker<'_> {
                         *source_byte_offset,
                         *extent,
                         *element_stride,
+                        expected_region,
                     )
             }
             TargetElementView::Subslice {
@@ -388,6 +396,7 @@ impl Checker<'_> {
         source_byte_offset: u32,
         extent: u64,
         element_stride: u32,
+        region: terminal_psi::ElementViewRegion,
     ) -> bool {
         // A borrowed byte view carries a `FixedByteRange` window over the
         // fixed array its collection path names: the window bounds the array and
@@ -409,11 +418,45 @@ impl Checker<'_> {
         else {
             return false;
         };
-        let Some(backing) =
-            terminal_semantics::collection_backing(self.types.iter(), collection, element)
-        else {
+        let Some(geometry) = terminal_semantics::element_view_region_geometry(
+            self.types.iter(),
+            collection,
+            element,
+            region,
+        ) else {
             return false;
         };
+        let backing =
+            match geometry {
+                terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => backing,
+                terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
+                    byte_extent,
+                    element: layout,
+                } => {
+                    if byte_window.is_some()
+                        || layout.size != u64::from(element_stride)
+                        || crate::structural_inputs::structural_reference_input::shape(
+                            element, self.types,
+                        )
+                        .is_none_or(|shape| {
+                            u64::from(shape.byte_size) != layout.size
+                                || u64::from(shape.alignment) != layout.alignment
+                        }) || layout.leaves.iter().any(|leaf| {
+                        crate::structural_inputs::structural_reference_input::primitive_geometry(
+                            element,
+                            &leaf.path,
+                            leaf.scalar_type,
+                            self.types,
+                        )
+                        .is_none_or(|(offset, _, indices)| {
+                            u64::from(offset) != leaf.offset || !indices.is_empty()
+                        })
+                    }) {
+                        return false;
+                    }
+                    return byte_extent == extent && offset == source_byte_offset;
+                }
+            };
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed
             && byte_window.is_some()
         {

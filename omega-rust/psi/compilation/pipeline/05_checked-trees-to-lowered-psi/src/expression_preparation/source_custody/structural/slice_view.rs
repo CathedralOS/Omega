@@ -37,24 +37,68 @@ pub(super) fn validate(
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
     loan: LoanAccess,
+    region: checked_trees::CheckedElementViewRegion,
 ) -> Result<(), LoweringError> {
     // A view is spelled `.as_slice()` over a whole collection, or as a range
     // index `collection[a..b]` — the byte-view arm mints this selection
     // without an authored call. The range replays as a `FixedByteRange`
     // path suffix over the collection the index names.
-    let (receiver, window) = match checked.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => {
-            if !call.arguments.is_empty() {
-                return unsupported(refusal!(loan, "call gained arguments"));
-            }
-            (call.receiver, None)
+    let authored_region =
+        validation::slice_recast_byte_region(&checked.typed, machine, authored, expression);
+    let (receiver, window) = if let checked_trees::CheckedElementViewRegion::RepresentationBytes {
+        start,
+        end,
+    } = region
+    {
+        let source = authored_region.ok_or(LoweringError::Unsupported(refusal!(
+            loan,
+            "byte region lost its authored recast"
+        )))?;
+        let access = match loan {
+            LoanAccess::Shared => language_semantics::ReferenceAccess::Shared,
+            LoanAccess::Mutable => language_semantics::ReferenceAccess::Mutable,
+        };
+        if source.extent != end || source.access != access {
+            return unsupported(refusal!(loan, "byte region changed its extent or access"));
         }
-        ExpressionNode::Indexed(indexed) => {
-            let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index)
-            else {
-                return unsupported(refusal!(loan, "lost its authored view call"));
-            };
-            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        let role =
+            checked_trees::CheckedScalarExpressionRole::RepresentationViewOffset { expression };
+        let (offset, primitive) = super::operand_source(checked, authored.symbol, statement, role)?;
+        if offset != source.start
+            || super::validate_operand(
+                checked,
+                machine.symbol,
+                authored.symbol,
+                statement,
+                role,
+                start,
+                source.start,
+            )? != primitive
+        {
+            return unsupported(refusal!(loan, "byte region changed its offset computation"));
+        }
+        (source.collection, None)
+    } else {
+        if authored_region.is_some() {
+            return unsupported(refusal!(
+                loan,
+                "byte region lost its representation contract"
+            ));
+        }
+        match checked.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                if !call.arguments.is_empty() {
+                    return unsupported(refusal!(loan, "call gained arguments"));
+                }
+                (call.receiver, None)
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let ExpressionNode::Range(range) =
+                    checked.expression_table.expression(indexed.index)
+                else {
+                    return unsupported(refusal!(loan, "lost its authored view call"));
+                };
+                if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 start,
                 end,
                 ..
@@ -143,8 +187,9 @@ pub(super) fn validate(
                 };
                 (indexed.collection, Some(window))
             }
+            }
+            _ => return unsupported(refusal!(loan, "lost its authored view call")),
         }
-        _ => return unsupported(refusal!(loan, "lost its authored view call")),
     };
     if argument.access != loan.planned_access() {
         return unsupported(refusal!(loan, "changed its planned access"));
