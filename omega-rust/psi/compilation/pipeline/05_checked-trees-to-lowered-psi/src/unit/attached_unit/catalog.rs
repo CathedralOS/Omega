@@ -354,6 +354,13 @@ pub(super) fn lower_unit_structural_types_including(
         }
         for operation in body.operations() {
             match operation {
+                // A local reference can be the sole use of both its original
+                // backing carrier and its viewed reference carrier. Neither
+                // identity need occur in a function signature.
+                CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+                    roots.push(result.type_identity.clone());
+                    roots.push(source.type_identity.clone());
+                }
                 // A view subslice's result can be the body's only owner of
                 // its view type: a range over a fixed-array field narrows a
                 // view no earlier binding or parameter declared.
