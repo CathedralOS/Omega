@@ -637,6 +637,18 @@ impl Emission<'_, '_, '_> {
         let mut completed = None;
         for step in schedule {
             let (index, staged) = match step {
+                Step::CaptureBefore(statement) => {
+                    self.evaluation.capture_record_coordinates_before(
+                        statement,
+                        self.structural_types,
+                        self.values,
+                        self.next_place,
+                        self.next_value,
+                        self.operations,
+                        self.temporary_places,
+                    )?;
+                    continue;
+                }
                 Step::Begin => {
                     if source_count.replace(self.values.len()).is_some() {
                         return unsupported("structural operand argument group is already active");

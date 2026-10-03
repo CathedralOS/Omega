@@ -239,6 +239,18 @@ pub(super) fn emit_call_operations(
     let mut staged_ranges = vec![Vec::new(); planned_operations.len()];
     while let Some(step) = schedule.next() {
         let (operation_index, staged) = match *step {
+            Step::CaptureBefore(statement) => {
+                evaluation.capture_record_coordinates_before(
+                    statement,
+                    &catalogs.structural_types,
+                    values,
+                    &mut catalogs.next_place,
+                    next_value,
+                    operations,
+                    &mut catalogs.temporary_places,
+                )?;
+                continue;
+            }
             Step::Begin => {
                 if retained_source_count.replace(values.len()).is_some() {
                     return unsupported("composed argument group was already active");

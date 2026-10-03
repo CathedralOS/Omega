@@ -743,6 +743,34 @@ impl ScalarBindings {
         self
     }
 
+    /// Captured coordinates are private scalar homes, never authored local slots.
+    pub(crate) fn byte_record_coordinate(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Result<LoweredDirectExpression, LoweringError> {
+        let mut matching = self
+            .byte_record_loans
+            .iter()
+            .filter(|loan| loan.symbol == symbol);
+        let loan = matching.next().ok_or(LoweringError::Unsupported(
+            "record loan has no captured coordinate",
+        ))?;
+        if !symbol.is_valid() || matching.next().is_some() {
+            return unsupported("record loan coordinate has ambiguous identity");
+        }
+        let capture = loan.capture.as_ref().map_err(Clone::clone)?;
+        let source = capture.coordinate.ok_or(LoweringError::Unsupported(
+            "record loan coordinate was not captured at formation",
+        ))?;
+        Ok(LoweredDirectExpression::PrimitiveRead {
+            source: crate::emission::operation_emission::expressions::PrimitiveReadSource::Place(
+                source,
+            ),
+            path: Vec::new(),
+            scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+        })
+    }
+
     /// Resolve the backing at the observation, without establishing a second
     /// place for a recast marker or granting a read through write-only custody.
     pub(crate) fn byte_record_backing(

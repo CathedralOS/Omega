@@ -14,6 +14,7 @@ use checked_trees::{
     CheckedUnitStructuralResultBindingPlan,
 };
 pub(super) enum Step {
+    CaptureBefore(u32),
     Ordinary(usize),
     Begin,
     Argument { operation: usize, ordinal: usize },
@@ -64,7 +65,18 @@ pub(super) fn build(
     plan: &CheckedUnitEffectMachinePlan,
 ) -> Result<Vec<Step>, LoweringError> {
     let operations = &plan.operations[..plan.operations.len() - 1];
-    build_operations(checked, plan.machine, plan.state, operations)
+    let mut steps = build_operations(checked, plan.machine, plan.state, operations)?;
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+    let end = u32::try_from(
+        checked
+            .statement_table
+            .statements(authored.statement_nodes)
+            .len(),
+    )
+    .map_err(|_| LoweringError::Unsupported("record loan capture statement extent overflow"))?;
+    steps.push(Step::CaptureBefore(end));
+    Ok(steps)
 }
 
 /// Both straight-line machines and composed states retain the same authored
@@ -79,6 +91,9 @@ pub(super) fn build_operations(
     let mut steps = Vec::new();
     let mut index = 0;
     while index < operations.len() {
+        if let Some(statement) = super::scalar_arrays::source_statement(&operations[index]) {
+            steps.push(Step::CaptureBefore(statement));
+        }
         // A nested boundary structural result joins its argument group below.
         if byte_subslices::contains(&operations[index])
             && !operations[index].call().is_some_and(|call| {
