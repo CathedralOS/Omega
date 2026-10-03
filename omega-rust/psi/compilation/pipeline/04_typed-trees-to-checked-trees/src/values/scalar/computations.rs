@@ -717,25 +717,16 @@ pub(crate) fn build_checked_value_computation_plans(
                         else {
                             continue;
                         };
-                        // A free machine name retains its head symbol; an
-                        // attached call can retain its entry state. Both are
-                        // invocations with the same formal-directed operands.
-                        let Some((owner, _)) =
-                            crate::semantic::calls::find_machine_head(program, call.target_symbol)
-                                .or_else(|| {
-                                    crate::semantic::calls::find_state_with_machine(
-                                        program,
-                                        call.target_symbol,
-                                    )
-                                })
-                        else {
-                            continue;
-                        };
-                        // A machine-head target owned by this activation re-enters
-                        // its entry state, exactly like a named sibling edge. Its
-                        // operands belong to the transition roles below, never
-                        // simultaneously to a call's argument roster.
-                        if owner.symbol == machine.symbol {
+                        // The exact callable contract owns argument roles for
+                        // bodies and requirements alike. Current-activation
+                        // state edges keep the transition roles below.
+                        if crate::semantic::calls::terminal_callable_target(
+                            program,
+                            machine,
+                            call.target_symbol,
+                        )
+                        .is_none()
+                        {
                             continue;
                         }
                         let Ok(call_ordinal) = u32::try_from(call.call_ordinal) else {

@@ -55,29 +55,11 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     else {
         return None;
     };
-    let (_, return_type) = terminal_callable_target(program, machine, path.symbol)?;
+    let (_, return_type) =
+        crate::semantic::calls::terminal_callable_target(program, machine, path.symbol)?;
     (program.normalized_type_identity(return_type)
         == program.normalized_type_identity(state.return_type))
     .then_some(path.symbol)
-}
-
-/// Resolve one exact call destination and its result contract. A stored
-/// body contributes its executable state; a requirement contributes its
-/// declaration. States owned by this activation remain internal control edges,
-/// including a machine-named re-entry of this activation's entry state.
-pub(in crate::execution::terminal_unit) fn terminal_callable_target(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    target: SymbolHandle,
-) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
-    if let Some(owner) = program.machine_by_symbol(target) {
-        let entry = program.machine_states(owner).first()?;
-        return (owner.symbol != machine.symbol).then_some((entry.symbol, entry.return_type));
-    }
-    if let Some((owner, state)) = crate::semantic::calls::find_state_with_machine(program, target) {
-        return (owner.symbol != machine.symbol).then_some((state.symbol, state.return_type));
-    }
-    crate::flow::call_target_return_type(program, target).map(|return_type| (target, return_type))
 }
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(

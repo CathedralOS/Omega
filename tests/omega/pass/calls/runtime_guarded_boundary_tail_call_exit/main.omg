@@ -1,0 +1,21 @@
+use omega_language_std::console;
+pub data Value {}
+pub boundary requirement Value::read(value: i32) -> i32;
+data ValueProvider {}
+machine ValueProvider::read(value: i32) -> i32 satisfies Value::read { (value) }
+machine forward(value: i32) -> i32 {
+    transition value == 70 {
+        true -> Value::read(value)
+        _ -> Value::read(71)
+    }
+}
+machine main() reaches Console {
+    let selected: i32 = forward(70);
+    let fallback: i32 = forward(0);
+    transition selected == 70 && fallback == 71 {
+        true -> good()
+        _ -> bad()
+    }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(74); }
+}
