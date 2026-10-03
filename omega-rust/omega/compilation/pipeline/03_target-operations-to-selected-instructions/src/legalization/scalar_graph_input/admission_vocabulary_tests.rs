@@ -149,6 +149,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BoundaryCall { .. }
         | AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::ByteSequencePredicate { .. }
         | AbstractOperation::ByteSequenceRead { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceWrite { .. }
