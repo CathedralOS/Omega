@@ -948,7 +948,8 @@ fn case_literal_field_store(
     if !closed_sum(field_data, program) {
         return None;
     }
-    let constructor = validation::structural_case_constructor(program, assignment.value)?;
+    let constructor =
+        validation::structural_case_constructor(program, assignment.value, field.type_reference)?;
     if program.normalized_type_identity(constructor.type_reference)
         != program.normalized_type_identity(field.type_reference)
     {

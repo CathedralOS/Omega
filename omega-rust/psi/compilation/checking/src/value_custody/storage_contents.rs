@@ -453,21 +453,24 @@ fn resolve(
             )?)))
         }
         // A shared view of slice or named shape is a member's terminal
-        // descriptor leaf under `OwnedOrSharedView` — the same shape
-        // [`has_owned_or_shared_view_fields`] admits one record deep. The
-        // referee's declared storage stays its owner's custody, so it is
-        // never resolved here. `&mut` and `&T` scalar loans do not match.
+        // descriptor leaf — the same shape [`has_owned_or_shared_view_fields`]
+        // admits one record deep. The referee's declared storage stays its
+        // owner's custody, so it is never resolved here; the loan's custody
+        // remains the caller's obligation. `&mut` and `&T` scalar loans do not
+        // match.
         TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
             referee,
             ..
-        } if matches!(requirement, ContentsRequirement::OwnedOrSharedView)
-            && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(peeled_referee(program, *referee,)),
-                TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
-            ) =>
+        } if matches!(
+            requirement,
+            ContentsRequirement::OwnedOrSharedView | ContentsRequirement::StructuralConstruction
+        ) && matches!(
+            program
+                .type_reference_table
+                .type_reference(peeled_referee(program, *referee,)),
+            TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
+        ) =>
         {
             Some(ContentType::View)
         }

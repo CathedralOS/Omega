@@ -485,10 +485,11 @@ pub(super) fn validate_successor(
                 && (super::structural::result_contracts::has_plain_owned_shape(
                     module,
                     expected.structural_type,
-                ) || super::structural::leaf_copy::copied_return_source(
+                ) || super::structural::leaf_copy::copied_result_source(
                     machine,
                     argument.place,
-                ))
+                )
+                .is_some())
                 && machine.blocks.iter().any(|block| {
                     dominators.dominates(block.id, source_block)
                         && block.operations.iter().any(|operation| {
@@ -643,27 +644,36 @@ fn shared_loan_root(
             .then_some(structural_type);
     }
     if argument.path.is_empty() {
-        return super::byte_sequence::subslice::borrowed_result_in_module(module, machine, argument.place)
-            .or_else(|| super::element_view::subslice::borrowed_result_in_module(module, machine, argument.place))
-            .or_else(|| {
-                super::structural::leaf_copy::copied_return_source(machine, argument.place)
-                    .then_some(argument.place)
-                    .and_then(|place| {
-                        machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.operations)
-                            .find_map(|operation| {
-                                operation.result.structural().filter(|result| {
-                                    result.place == place
-                                        && result.multiplicity
-                                            == StructuralMultiplicity::Unrestricted
-                                })
+        return super::byte_sequence::subslice::borrowed_result_in_module(
+            module,
+            machine,
+            argument.place,
+        )
+        .or_else(|| {
+            super::element_view::subslice::borrowed_result_in_module(
+                module,
+                machine,
+                argument.place,
+            )
+        })
+        .or_else(|| {
+            super::structural::leaf_copy::copied_return_source(machine, argument.place)
+                .then_some(argument.place)
+                .and_then(|place| {
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .find_map(|operation| {
+                            operation.result.structural().filter(|result| {
+                                result.place == place
+                                    && result.multiplicity == StructuralMultiplicity::Unrestricted
                             })
-                    })
-            })
-            .filter(|_| available.contains(&argument.place))
-            .map(|result| result.structural_type);
+                        })
+                })
+        })
+        .filter(|_| available.contains(&argument.place))
+        .map(|result| result.structural_type);
     }
     // An element view's elements are structural storage: a projected shared
     // loan (`&cells[i]`) roots at the view place and resolves its path into
@@ -893,7 +903,8 @@ pub(super) fn mutable_availability(
                                 && parameter.access == StructuralAccess::SharedBorrow
                                 && (self::parameter(machine, argument.place).is_some_and(
                                     |source| source.access == StructuralAccess::MutableBorrow,
-                                ) || mutable_view_result(module, machine, argument.place).is_some())))
+                                ) || mutable_view_result(module, machine, argument.place)
+                                    .is_some())))
                     {
                         incoming.remove(&argument.place);
                     }

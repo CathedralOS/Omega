@@ -195,10 +195,14 @@ pub(crate) fn validate(
             }
         }
         CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(store) => {
-            let constructor =
-                validation::structural_case_constructor(&checked.typed, assignment.value).ok_or(
-                    LoweringError::Unsupported("case field store has no authored constructor"),
-                )?;
+            let constructor = validation::structural_case_constructor(
+                &checked.typed,
+                assignment.value,
+                reference,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "case field store has no authored constructor",
+            ))?;
             let variant = checked
                 .data_members(data)
                 .iter()

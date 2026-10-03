@@ -89,7 +89,7 @@ fn validate(
             && (!(validation::has_plain_owned_contents_with_represented_constraints(
                 program,
                 local.type_reference,
-            ) || validation::has_owned_or_shared_view_fields(
+            ) || validation::has_owned_or_shared_view_contents(
                 program,
                 local.type_reference,
             )) || type_graph_requires_nominal_drop(program, local.type_reference)))

@@ -349,17 +349,17 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 source.type_reference,
                             )?,
                         )
-                        // A `[copy]` record of plain fields and shared views
-                        // arrives as a whole copy; its views keep their
-                        // source loans' lineage and gain no predicate.
-                        && !(parameter.multiplicity == Multiplicity::Unrestricted
-                            && validation::has_owned_or_shared_view_fields(
-                                &checked.typed,
-                                crate::unit::attached_unit::parameters::structural_carrier_type(
-                                    checked,
-                                    source.type_reference,
-                                )?,
-                            )))
+                        // A carrier of plain fields and shared views arrives
+                        // whole — a move under the edge's own transfer for an
+                        // affine descriptor, a copy for an unrestricted one —
+                        // and its views keep their source loans' lineage.
+                        && !validation::has_owned_or_shared_view_contents(
+                            &checked.typed,
+                            crate::unit::attached_unit::parameters::structural_carrier_type(
+                                checked,
+                                source.type_reference,
+                            )?,
+                        ))
                 {
                     return unsupported(
                         "Unit graph owned parameter differs from exact source custody",

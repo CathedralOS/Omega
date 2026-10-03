@@ -7,9 +7,9 @@
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
+use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub struct ScalarCaseConstructor {
     pub type_reference: TypeReferenceHandle,
@@ -119,9 +119,64 @@ pub fn scalar_case_value_source(
 /// field authored exactly once. The resolver reports each field's declared
 /// type; the payload route — scalar operands or structural field values —
 /// decides what each caller may do with it.
+/// The `(formal parameter symbol, argument reference)` pairs an instantiated
+/// `reference` supplies for `owner`'s type parameters — `None` when the
+/// reference does not name `owner` or its argument count disagrees.
+pub fn member_type_substitutions(
+    program: &TypedTrees,
+    owner: &DataDefinition,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+    let arguments = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } if *symbol == owner.symbol => Vec::new(),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if *base_symbol == owner.symbol => program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .to_vec(),
+        _ => return None,
+    };
+    let parameters = program.data_type_parameters(owner);
+    (parameters.len() == arguments.len()).then(|| {
+        parameters
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .zip(arguments)
+            .collect()
+    })
+}
+
+/// `declared` with the owner's instantiated parameters answered by their
+/// argument references. A bare parameter name swaps to its argument handle;
+/// arguments nested deeper in the declared type stay in declared form, which
+/// the checked route declines downstream.
+pub fn substituted_member_reference(
+    program: &TypedTrees,
+    declared: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> TypeReferenceHandle {
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(declared)
+        && let Some((_, actual)) = substitutions.iter().find(|(formal, _)| formal == symbol)
+    {
+        return *actual;
+    }
+    declared
+}
+
+/// The constructor parts a case literal carries, in authored order. `expected`
+/// is the construction's destination type: when it instantiates the owner's
+/// type parameters the returned `type_reference` is that instantiation and
+/// every returned `declared` type is answered under its substitutions. Without
+/// it the owner must be a closed data definition, matching the previous
+/// bare-named lookup.
 fn case_constructor_parts(
     program: &TypedTrees,
     expression: ExpressionHandle,
+    expected: Option<TypeReferenceHandle>,
     erased_member_owner: bool,
 ) -> Option<(
     TypeReferenceHandle,
@@ -147,9 +202,24 @@ fn case_constructor_parts(
         ),
         _ => return None,
     };
-    let reference = program
-        .type_reference_table
-        .find_named_type_reference(owner.symbol)?;
+    let (reference, substitutions) = match expected {
+        Some(expected) => {
+            let reference = crate::unwrapped_type_reference(program, expected)?;
+            let substitutions = member_type_substitutions(program, owner, reference)?;
+            (reference, substitutions)
+        }
+        None => {
+            if !owner.type_parameters.is_empty() {
+                return None;
+            }
+            (
+                program
+                    .type_reference_table
+                    .find_named_type_reference(owner.symbol)?,
+                Vec::new(),
+            )
+        }
+    };
     // A scalar construction needs numeric-owned contents throughout; the
     // structural route may stand a union whose only non-variant members are
     // `[erased]` -- cleanup-owned contents admit them because they never
@@ -171,8 +241,7 @@ fn case_constructor_parts(
                     .primitive_type_reference(field.type_reference)
                     .is_some())
     };
-    if !owner.type_parameters.is_empty()
-        || !contents
+    if !contents
         || program
             .data_members(owner)
             .iter()
@@ -229,15 +298,19 @@ fn case_constructor_parts(
                 }
                 _ => None,
             });
-        let declared = match common {
-            Some(common) => common.type_reference,
-            None => {
-                declarations
-                    .iter()
-                    .find(|declaration| declaration.symbol == field.field_symbol)?
-                    .type_reference
-            }
-        };
+        let declared = substituted_member_reference(
+            program,
+            match common {
+                Some(common) => common.type_reference,
+                None => {
+                    declarations
+                        .iter()
+                        .find(|declaration| declaration.symbol == field.field_symbol)?
+                        .type_reference
+                }
+            },
+            &substitutions,
+        );
         if !field.field_symbol.is_valid()
             || operands
                 .iter()
@@ -277,7 +350,7 @@ pub fn scalar_case_constructor(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<ScalarCaseConstructor> {
-    let (reference, selected, operands) = case_constructor_parts(program, expression, false)?;
+    let (reference, selected, operands) = case_constructor_parts(program, expression, None, false)?;
     let mut fields = Vec::with_capacity(operands.len());
     for (symbol, value, declared, ..) in operands {
         fields.push((symbol, value, program.primitive_type_reference(declared)?));
@@ -297,8 +370,10 @@ pub fn scalar_case_constructor(
 pub fn structural_case_constructor(
     program: &TypedTrees,
     expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
 ) -> Option<StructuralCaseConstructor> {
-    let (reference, selected, operands) = case_constructor_parts(program, expression, true)?;
+    let (reference, selected, operands) =
+        case_constructor_parts(program, expression, Some(expected), true)?;
     let mut fields = Vec::with_capacity(operands.len());
     for (symbol, value, declared, erased) in operands {
         if erased {

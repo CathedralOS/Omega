@@ -65,7 +65,8 @@ pub use value_custody::reference_shells::{
 };
 pub use value_custody::scalar_case_constructor::{
     ScalarCaseConstructor, StructuralCaseConstructor, is_scalar_case_value,
-    scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
+    member_type_substitutions, scalar_case_constructor, scalar_case_value_source,
+    structural_case_constructor, substituted_member_reference,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::storage_contents::{

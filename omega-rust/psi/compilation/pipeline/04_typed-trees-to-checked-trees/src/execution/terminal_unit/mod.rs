@@ -345,10 +345,19 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     // body exists. Resolve builder overlap before closure, never retry another
     // body after a selected candidate loses a required dependency.
     candidates.retain(|plan| {
-        !(composed_machines
-            .iter()
-            .any(|graph| graph.machine == plan.machine)
-            && plan.structural_result.is_some())
+        !composed_machines.iter().any(|graph| {
+            graph.machine == plan.machine
+                && (plan.structural_result.is_some()
+                    // A guarded value-returning tail leaves the ordinary
+                    // catalog's structural result unminted: the graph's
+                    // `Structural` result is the sole description of that
+                    // body, so the degenerate plan competes rather than
+                    // supplements.
+                    || matches!(
+                        graph.result,
+                        checked_trees::CheckedControlResultPlan::Structural(_)
+                    ))
+        })
     });
     composed_machines.retain(|graph| {
         !candidates.iter().any(|plan| {

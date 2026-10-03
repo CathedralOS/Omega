@@ -178,7 +178,7 @@ pub(super) fn signature_matches(
                     || validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     carrier,
-                ) || validation::has_owned_or_shared_view_fields(&checked.typed, carrier))
+                ) || validation::has_owned_or_shared_view_contents(&checked.typed, carrier))
         }
     }
 }

@@ -54,25 +54,95 @@ pub(super) fn validate(
             else {
                 return unsupported(refusal!(loan, "lost its authored view call"));
             };
-            let window = (|| {
-                if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
-                    return None;
+            if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                start,
+                end,
+                ..
+            }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                start,
+                end,
+                ..
+            } = &argument.source
+            {
+                // A range-source plan carries its window as recorded scalar
+                // rows instead of a `FixedByteRange` path segment: replay
+                // each authored bound through the row the scalar planner
+                // bound at this occurrence's site and require the recorded
+                // value. Literal bounds replay identically to computed ones,
+                // so the window's extent never enters the path.
+                let site = if let Some(StatementNode::LocalData(local)) = checked
+                    .statement_table
+                    .statements(authored.statement_nodes)
+                    .get(statement as usize)
+                    && local.initial_value == expression
+                {
+                    checked_trees::CheckedSubsliceSite::LocalBinding
+                } else {
+                    checked_trees::CheckedSubsliceSite::Expression { expression }
+                };
+                for (authored_endpoint, role, recorded) in [
+                    (
+                        range.start,
+                        checked_trees::CheckedScalarExpressionRole::SubsliceStart { site },
+                        start,
+                    ),
+                    (
+                        range.end,
+                        checked_trees::CheckedScalarExpressionRole::SubsliceEnd { site },
+                        end,
+                    ),
+                ] {
+                    if !authored_endpoint.is_valid() {
+                        if recorded.is_some() {
+                            return unsupported(refusal!(loan, "window endpoint presence changed"));
+                        }
+                        continue;
+                    }
+                    let (binding, selected) = checked
+                        .facts
+                        .values
+                        .scalar_expressions
+                        .bound_expression_at(authored.symbol, statement, role)
+                        .ok_or(LoweringError::Unsupported(refusal!(
+                            loan,
+                            "window endpoint lost its source-bound plan"
+                        )))?;
+                    if binding.expression != authored_endpoint
+                        || binding.destination.is_valid()
+                        || selected.primitive_type()
+                            != Some(checked_trees::types::PrimitiveType::U64)
+                        || recorded.as_ref() != Some(selected)
+                    {
+                        return unsupported(refusal!(
+                            loan,
+                            "window endpoint differs from its recorded plan"
+                        ));
+                    }
                 }
-                let start = usize::try_from(
-                    checked
-                        .expression_table
-                        .constant_integer_value(range.start)?,
-                )
-                .ok()?;
-                let end =
-                    usize::try_from(checked.expression_table.constant_integer_value(range.end)?)
-                        .ok()?;
-                Some((start, end))
-            })();
-            let Some(window) = window else {
-                return unsupported(refusal!(loan, "lost its authored view call"));
-            };
-            (indexed.collection, Some(window))
+                (indexed.collection, None)
+            } else {
+                let window = (|| {
+                    if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
+                        return None;
+                    }
+                    let start = usize::try_from(
+                        checked
+                            .expression_table
+                            .constant_integer_value(range.start)?,
+                    )
+                    .ok()?;
+                    let end = usize::try_from(
+                        checked.expression_table.constant_integer_value(range.end)?,
+                    )
+                    .ok()?;
+                    Some((start, end))
+                })();
+                let Some(window) = window else {
+                    return unsupported(refusal!(loan, "lost its authored view call"));
+                };
+                (indexed.collection, Some(window))
+            }
         }
         _ => return unsupported(refusal!(loan, "lost its authored view call")),
     };
@@ -81,37 +151,14 @@ pub(super) fn validate(
     }
     let (root, mut checked_path) = authored_collection_path(checked, machine, authored, receiver)?;
     if let Some((start, end)) = window {
-        // A byte view records its window as a `FixedByteRange` path segment;
-        // a wider scalar element's window rides on the source plan's literal
-        // element ordinals — the recorded path stays the collection's.
-        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            start: source_start,
-            end: source_end,
-            ..
-        } = &argument.source
-        {
-            let endpoint = |endpoint: &Option<checked_trees::CheckedScalarExpression>,
-                            expected: i64| {
-                matches!(
-                    endpoint,
-                    Some(checked_trees::CheckedScalarExpression::IntegerLiteral { literal })
-                        if *literal == numerics::literals::IntegerLiteral::from_value(expected)
-                )
-            };
-            let (Ok(start), Ok(end)) = (i64::try_from(start), i64::try_from(end)) else {
-                return unsupported(refusal!(loan, "lost its authored view call"));
-            };
-            if !(endpoint(source_start, start) && endpoint(source_end, end)) {
-                return unsupported(refusal!(loan, "window does not match its element subslice"));
-            }
-        } else {
-            let (Ok(start), Ok(end)) = (u64::try_from(start), u64::try_from(end)) else {
-                return unsupported(refusal!(loan, "lost its authored view call"));
-            };
-            checked_path.push(
-                checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
-            );
-        }
+        // A byte view records its window as a `FixedByteRange` path segment —
+        // the range sources replayed above keep their bounds on the source
+        // plan instead, so only whole-place borrow paths reach this arm.
+        let (Ok(start), Ok(end)) = (u64::try_from(start), u64::try_from(end)) else {
+            return unsupported(refusal!(loan, "lost its authored view call"));
+        };
+        checked_path
+            .push(checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end });
     }
     if checked_path != argument.path {
         return unsupported(refusal!(loan, "path does not match its projected path"));
@@ -146,6 +193,24 @@ pub(super) fn validate(
             }
         ) {
             return unsupported(refusal!(loan, "element view is not a fixed-array window"));
+        }
+    } else if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        ..
+    } = argument.source
+    {
+        // The collection of a byte-window source is itself an established
+        // byte view: the recorded identity is the view's peeled carrier
+        // spelling, not the reference shell's nominal one.
+        let mut view = leaf;
+        while let TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } = checked.type_reference_table.type_reference(view)
+        {
+            view = *base_type;
+        }
+        if checked.normalized_type_identity(view).as_str() != argument.type_identity {
+            return unsupported(refusal!(loan, "byte window is not a byte-view subslice"));
         }
     } else if checked.normalized_type_identity(leaf).as_str() != argument.type_identity {
         return unsupported(refusal!(loan, "does not project its collection"));

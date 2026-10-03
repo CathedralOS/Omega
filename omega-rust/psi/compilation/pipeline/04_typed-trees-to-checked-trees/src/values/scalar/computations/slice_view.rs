@@ -364,6 +364,208 @@ impl Builder<'_, '_> {
             CheckedStructuralValueKind::MutableSliceView { source }
         })
     }
+
+    /// One `collection[start..end]` range at a bare expression occurrence —
+    /// a transition target's record field, a computation operand — narrows
+    /// an established view the way a call argument's range does. Its source
+    /// is the collection's own view place projected through the same path
+    /// operation, and its present endpoints are the rows checked scalar
+    /// planning bound under the occurrence's `Expression` site. Sources are
+    /// established views only: an owned collection's window needs the loan
+    /// custody the `let` and call lanes separately adjudicate, so a
+    /// fixed-array collection keeps declining here.
+    pub(super) fn subslice_view_place(
+        &self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        let operation = validation::subslice_expression(self.program, expression)?;
+        // Only the builtin exclusive range narrows a view; an authored
+        // operator overload on the same spelling owns its own semantics.
+        if self
+            .operators
+            .expression_use(operation)
+            .is_some_and(|selected| {
+                selected.spelling != language_core::OperatorSpelling::Range
+                    || selected.selected_operator_symbol.is_valid()
+                    || selected.candidate_count != 0
+                    || !matches!(
+                        selected.status,
+                        checked_trees::CheckedOperatorResolutionStatus::Missing
+                            | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    )
+            })
+        {
+            return None;
+        }
+        let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(operation)
+        else {
+            return None;
+        };
+        let ExpressionNode::Range(range) = self.program.expression_table.expression(indexed.index)
+        else {
+            return None;
+        };
+        let shell = validation::reference_shell(self.program, expected)?;
+        let access: CheckedStructuralAccess = shell.access.into();
+        if !matches!(
+            access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        ) {
+            return None;
+        }
+        let bytes = matches!(
+            crate::execution::terminal_unit::types::byte_sequence_carrier(
+                self.program,
+                expected,
+                &[],
+            ),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+        );
+        let type_identity = if bytes {
+            crate::execution::terminal_unit::types::byte_sequence_type_identity(
+                self.program,
+                expected,
+                &[],
+                &[],
+            )?
+        } else {
+            if validation::slice_view_shell(self.program, expected, &[]).is_none() {
+                return None;
+            }
+            crate::execution::terminal_unit::types::borrowed_slice_view_type_identity(
+                self.program,
+                expected,
+                &[],
+                &[],
+            )
+        };
+        let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
+        let state = crate::semantic::calls::find_state(self.program, self.state)?;
+        if !validation::has_builtin_subslice_meaning(self.program, machine, Some(state), operation)
+        {
+            return None;
+        }
+        let mut place =
+            crate::flow::canonical_place_from_expression(self.program, indexed.collection)?;
+        crate::flow::normalize_attached_place_root(
+            self.program,
+            self.machine,
+            self.state,
+            &mut place,
+        );
+        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+            return None;
+        };
+        let Some((projected, path)) =
+            crate::execution::terminal_unit::calls::projected_argument_path(
+                self.program,
+                self.state,
+                self.statement_index,
+                &place,
+            )
+        else {
+            return None;
+        };
+        // The narrowed view re-slices an established view: the collection's
+        // projected type spells the same view family and identity, and a
+        // reference root carries exactly this range's access. Owned storage
+        // names no established view and keeps declining.
+        if bytes {
+            if !matches!(
+                crate::execution::terminal_unit::types::byte_sequence_carrier(
+                    self.program,
+                    projected,
+                    &[],
+                ),
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+            ) {
+                return None;
+            }
+            if crate::execution::terminal_unit::types::byte_sequence_type_identity(
+                self.program,
+                projected,
+                &[],
+                &[],
+            )? != type_identity
+            {
+                return None;
+            }
+        } else {
+            if validation::slice_view_shell(self.program, projected, &[]).is_none() {
+                return None;
+            }
+            if crate::execution::terminal_unit::types::borrowed_slice_view_type_identity(
+                self.program,
+                projected,
+                &[],
+                &[],
+            ) != type_identity
+            {
+                return None;
+            }
+        }
+        // A parameter root numbers into the dense structural parameter list;
+        // local collections have no established-view row at this planning
+        // point and keep declining beside owned storage.
+        let index = self
+            .authored_parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)
+            .and_then(|position| self.dense_structural_parameter_index(position))?;
+        let root = checked_trees::CheckedStorageRoot::Parameter { index };
+        // The scalar planner bound each present endpoint under the
+        // occurrence's `Expression` site; replay the exact row only when it
+        // names this range's authored endpoint as a `u64` value.
+        let statement_ordinal = u32::try_from(self.statement_index).ok()?;
+        let site = checked_trees::CheckedSubsliceSite::Expression { expression };
+        let endpoint = |endpoint: ExpressionHandle, role| {
+            if !endpoint.is_valid() {
+                return Some(None);
+            }
+            let (binding, value) =
+                self.pure
+                    .bound_expression_at(self.state, statement_ordinal, role)?;
+            (binding.expression == endpoint
+                && !binding.destination.is_valid()
+                && value.primitive_type() == Some(typed_trees::types::PrimitiveType::U64))
+            .then(|| Some(value.clone()))
+        };
+        let start = endpoint(
+            range.start,
+            checked_trees::CheckedScalarExpressionRole::SubsliceStart { site },
+        )?;
+        let end = endpoint(
+            range.end,
+            checked_trees::CheckedScalarExpressionRole::SubsliceEnd { site },
+        )?;
+        let source = if bytes {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                root,
+                expression,
+                start,
+                end,
+            }
+        } else {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                root,
+                expression,
+                start,
+                end,
+            }
+        };
+        let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            source,
+            path,
+            type_identity,
+            access,
+        };
+        Some(if access == CheckedStructuralAccess::SharedBorrow {
+            CheckedStructuralValueKind::BorrowedSliceView { source }
+        } else {
+            CheckedStructuralValueKind::MutableSliceView { source }
+        })
+    }
 }
 
 /// The element type of an owned or borrowed contiguous collection place.

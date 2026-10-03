@@ -248,6 +248,10 @@ pub(super) fn build(
                         )
                     }))
                 || argument.byte_sequence_literal().is_some()
+                // A range descriptor over an established caller view was
+                // admitted by the same storage judgment every other call
+                // form uses; its root names adjudicated caller storage.
+                || super::view_subslice::is_view_subslice(argument)
                 || matches!(
                     argument.source,
                     CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }

@@ -1143,13 +1143,17 @@ pub(in crate::execution::terminal_unit) fn build(
 }
 
 /// Share scalar exit discovery while leaving operation storage with its sequence.
-pub(in crate::execution::terminal_unit) fn scalar_control(
+/// The retained tail, when the state's statements end in control that returns
+/// the machine result — independent of what the result's carrier is. The
+/// scalar-control plan wraps the same terminator with its primitive carrier;
+/// structural result machines ask the predicate directly so a transition-only
+/// body counts as producing its result at the terminator.
+pub(in crate::execution::terminal_unit) fn returning_terminator(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
-    let primitive_type = program.primitive_type_reference(state.return_type)?;
+) -> Option<(checked_trees::CheckedScalarStateTerminator, usize)> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix_count = statements
         .iter()
@@ -1238,9 +1242,17 @@ pub(in crate::execution::terminal_unit) fn scalar_control(
         checked_trees::CheckedScalarStateTerminator::Crash { .. } => true,
         _ => false,
     };
-    if !returning_tail {
-        return None;
-    }
+    returning_tail.then_some((terminator, prefix_count))
+}
+
+pub(in crate::execution::terminal_unit) fn scalar_control(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Option<(checked_trees::CheckedUnitScalarControlPlan, usize)> {
+    let primitive_type = program.primitive_type_reference(state.return_type)?;
+    let (terminator, prefix_count) = returning_terminator(program, facts, machine, state)?;
     Some((
         checked_trees::CheckedUnitScalarControlPlan {
             primitive_type,
