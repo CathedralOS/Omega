@@ -41,6 +41,6 @@ machine Main::main(main: &mut Main) reaches Console {
         }
     }
 
-    state good(main: &mut Main) { main.console.exit_process(70); }
-    state bad(main: &mut Main) { main.console.exit_process(71); }
+    state good(main: &mut Main) { Console::exit_process(70); }
+    state bad(main: &mut Main) { Console::exit_process(71); }
 }
