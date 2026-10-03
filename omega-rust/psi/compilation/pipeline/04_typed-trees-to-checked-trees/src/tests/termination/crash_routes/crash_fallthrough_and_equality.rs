@@ -551,6 +551,7 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
             | CheckedBooleanExpression::StructuralParameterField { .. }
             | CheckedBooleanExpression::IeeeFloatComparison { .. }
             | CheckedBooleanExpression::ByteSequenceEqual { .. }
+            | CheckedBooleanExpression::ByteSequencePredicate { .. }
             | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {}
         }
     }
