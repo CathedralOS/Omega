@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 6.26, "load1_start": 6.26, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 13.75, "load1_start": 13.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -902,8 +902,7 @@ pass/recast/runtime_mutable_equivalent_range_recast_exit built 1178ms exit:70 @4
 pass/recast/runtime_mutable_equivalent_record_recast_exit built 2362ms exit:70 @a2c11620030e
 pass/recast/runtime_nested_record_byte_store_exit built 975ms exit:70 @2517a050d7b4+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1791ms exit:70 @48008365d839
-pass/recast/runtime_record_array_view_mutable_write_exit rejected 728ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_record_array_view_mutable_write_exit built 3951ms exit:70 @06ca7704be0a
 pass/recast/runtime_scalar_parameter_shared_views_exit built 990ms exit:70 @7e0a52664189
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922
 pass/recast/runtime_shared_record_float_range_weakening_exit built 2419ms exit:70 @f3aa5908ce43

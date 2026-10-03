@@ -3568,7 +3568,8 @@ completion syntax or other terminal service is a prerequisite.
   interpreter exit 70. The public
   `omega run --both tests/omega/pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit/main.omg`
   stops at missing package-review acceptance (exit 200); review approval remains
-  separate from compiler acceptance. Full value replay needs local-root projection semantics
+  separate from compiler acceptance. Full value replay needs local-root
+  projection semantics
   in `source_custody/value_correspondence/mod.rs` (currently requires a parameter
   root for nested element suffixes); coordinate with its live static-text owner.
   Carry the captured-loan context through remaining structural/literal operand
@@ -3595,7 +3596,8 @@ completion syntax or other terminal service is a prerequisite.
     write each footprint byte with its own index obligation.
   - Typed-record and slice views stop at `attached data shape`
     (`runtime_mutable_equivalent_record_recast_exit`,
-    `runtime_shared_record_float_range_weakening_exit`), `parameter transfer` (`runtime_aggregate_slice_representation_recast_exit`;
+    `runtime_shared_record_float_range_weakening_exit`), `parameter transfer`
+    (`runtime_aggregate_slice_representation_recast_exit`;
     `runtime_interior_slice_view_mutable_write_exit` and
     `runtime_interior_slice_congruent_offset_exit` at `conditional successors:
     parameter transfer`, state 0 statement 2). Their `&mut place as &mut [T]`

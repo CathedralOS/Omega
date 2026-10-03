@@ -16,7 +16,10 @@ views to their existing captured-loan route. Shared normalized geometry retains
 each runtime array coordinate, stride and declared extent. Each coordinate
 proves its dimension bound independently from each emitted byte's backing bound.
 The loan's outer offset is captured at formation in private primitive storage;
-subsequent field writes cannot move that loan.
+subsequent field writes cannot move that loan. A variation that sets `main.k = 0`
+immediately after forming the view also returns 70 in both engines. The focused
+`runtime_byte_overlay_never_reloads_a_changed_selector` regression retains the
+changed-field case and rejects an artifact with its capture producer removed.
 
 Run ordinary `omega update --project <fixture-directory> --target macos_arm64`
 and accept the local package review before the first run. Package review is
