@@ -18,7 +18,7 @@ import uuid
 
 from recovery_state import Store, RecoveryError, read_json
 from recovery import identifier, fingerprint
-from completion import require, sha, validate, git, inputs, artifact
+from completion import require, sha, validate, git, inputs, artifact, program_failed
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import claims
@@ -60,14 +60,17 @@ def admit(record, manifest, snapshot):
     identifier(manifest["id"])
     require(manifest["id"] not in cloud["batches"], "batch already admitted")
     size = manifest["size"]
-    require(type(size) is int and size in {2, 5, 10}, "bounded 2/5/10 batch required")
+    mode = manifest.get("mode", "staged")
+    require(mode in {"staged", "non-promoting-pilot"}, "explicit supported batch mode required")
+    require(type(size) is int and (size in {2, 5, 10} if mode == "staged" else size == 1),
+            "bounded 2/5/10 batch or explicit non-promoting pilot required")
     require(len(manifest["assignments"]) == size, "batch size differs from assignments")
     require(manifest.get("dependency_review") and manifest.get("publication") == "serialized-landing",
             "complete producer/consumer and shared-file review plus serialized landing required")
     require(fresh(snapshot) and snapshot.get("evidence") and snapshot.get("state") != "unavailable"
             and isinstance(snapshot.get("claims"), list), "fresh actual claims snapshot required")
     previous = manifest.get("previous")
-    if size != 2:
+    if mode == "staged" and size != 2:
         require(previous in cloud["batches"] and cloud["batches"][previous]["manifest"]["size"] == {5: 2, 10: 5}[size],
                 "previous staged batch missing")
         require(batch_complete(record, previous), "previous batch has not completed without user rescue")
@@ -78,6 +81,8 @@ def admit(record, manifest, snapshot):
     require(len({row["outcome"] for row in rows.values()}) == size, "each session needs a disjoint real outcome")
     for row in rows.values():
         row.pop("binding", None)  # Session provenance enters only through a verified binding.
+        for field in ("source_revision", "revisions", "preflight_history", "scouting", "readiness"):
+            row.pop(field, None)
         identifier(row["id"])
         sha(row["base"])
         require(row.get("item") and row.get("owner") and row.get("outcome") and row.get("dependency_review") and row.get("acceptance"), "incomplete assignment")
@@ -150,7 +155,7 @@ def admit(record, manifest, snapshot):
                         require(any(d["producer"] == first["id"] and d["consumer"] == second["id"]
                                     and any(claims.paths_overlap(write, p) and claims.paths_overlap(read, p)
                                             for p in d["paths"]) for d in dependencies), "undeclared producer/consumer dependency")
-    require(all(batch_complete(record, batch) for batch in cloud["batches"]),
+    require(all(batch_settled(record, batch) for batch in cloud["batches"]),
             "unfinished batch remains; do not overlap staged batches")
     cloud["batches"][manifest["id"]] = dict(manifest=copy.deepcopy(manifest), admitted_utc=now(), claims=snapshot)
     for row in rows.values():
@@ -201,10 +206,15 @@ def ownership(record, assignment, snapshot):
     row["ownership_receipt"] = snapshot
 
 
+def source_revision(row):
+    return row.get("source_revision", row["base"])
+
+
 def readiness_contract(record, assignment):
     row = record["cloud"]["assignments"][assignment]
     return dict({key: row[key] for key in
                  ("base", "outcome", "writes", "reads", "acceptance", "dependency_review")},
+                source_revision=source_revision(row),
                 dependencies=[d for d in record["cloud"]["batches"][row["batch"]]["manifest"]["dependencies"]
                               if assignment in {d["producer"], d["consumer"]}])
 
@@ -304,11 +314,7 @@ def readiness(record, assignment, value, repository, root):
         artifact(root, before["artifact"])
         require(before.get("classification") in {"valid-should-work", "invalid-source", "pending-approval", "compile-only"},
                 "classify actual program validity and execution route")
-        failed = (before.get("failure_kind") == "compile" and before["exit"] != oracle["exit"]
-                  or before.get("failure_kind") == "run"
-                  and isinstance(before.get("program_result"), dict)
-                  and (before["exit"] != oracle["exit"]
-                       or before["program_result"] != oracle["expected_result"]))
+        failed = program_failed(before, oracle)
         status = "ready" if before["classification"] == "valid-should-work" and failed else "not-reproduced"
         reason = before["classification"] if status != "ready" else "reproduced"
     # This checks known dependencies, not automatic semantic discovery.
@@ -320,7 +326,7 @@ def readiness(record, assignment, value, repository, root):
         status, reason = "stale", "changed-or-stale-inputs"
     require(git(repository, "rev-parse", "HEAD") == current, "current source must match inspected checkout")
     # An unrelated source advance is neutral only when every reviewed input is unchanged.
-    if (inputs(repository, row["base"], reviewed_paths) != inputs(repository, current, reviewed_paths)
+    if (inputs(repository, source_revision(row), reviewed_paths) != inputs(repository, current, reviewed_paths)
             or git(repository, "status", "--porcelain", "--untracked-files=all", "--", *reviewed_paths)):
         status, reason = "stale", "assignment-inputs-changed"
     prerequisites = dict(mapping=[row["thread"], row["environment"], row["generation"]], preflight=row.get("preflight"),
@@ -351,7 +357,7 @@ def preflight(record, assignment, value):
             == (row["thread"], row["environment"], row["generation"]) and row["thread"],
             "preflight runtime mapping mismatch")
     require(value.get("repository") == "CathedralOS/Omega" and value.get("base") == row["base"]
-            and value.get("source_revision") == row["base"] and value.get("toolchain")
+            and value.get("source_revision") == source_revision(row) and value.get("toolchain")
             and value.get("execution_route") and value.get("evidence")
             and value.get("doctor_exit") == 0 and type(value.get("doctor_exit")) is int,
             "complete checkout/toolchain/approval preflight required")
@@ -454,9 +460,11 @@ def intent(record, assignment, action, operation, parameters):
                    action=action, tool=cloud["capabilities"]["tools"][action], thread=row["thread"],
                    environment=row["environment"], generation=row["generation"], parameters=parameters,
                    contract=dict({key: row[key] for key in ("id", "base", "owner", "item", "outcome", "writes", "reads", "acceptance", "dependency_review")},
-                                 board=row.get("board"), claim_ticket=row.get("claim_ticket"),
+                                 board=row.get("board"), claim_ticket=row.get("claim_ticket"), source_revision=source_revision(row),
                                  retry_budget=row["retry_budget"], max_continuations=row["max_continuations"]),
                    readiness_contract=fingerprint(readiness_contract(record, assignment)),
+                   readiness_gate=copy.deepcopy(row.get("readiness")) if action == "follow_up"
+                       and parameters.get("phase") == "implementation" else None,
                    dependencies=dependencies(record, assignment),
                    reporting=cloud["capabilities"]["reporting"], created_utc=now())
     cloud["operations"][operation] = dict(request=request, assignment=assignment, effect="unknown", result=None)
@@ -488,6 +496,8 @@ def ingest(record, envelope):
         if row["thread"]:
             require((result.get("thread"), result.get("environment"), result.get("generation"))
                     == (row["thread"], row["environment"], row["generation"]), "stale runtime mapping")
+        if row["thread"]:
+            mapping(record, row, result)
         row["runtime"] = result["runtime"]
         row["observation"] = dict(result, observed_utc=envelope["observed_utc"])
         for name, proof in result.get("effects", {}).items():
@@ -504,7 +514,7 @@ def ingest(record, envelope):
                 require((result.get("thread"), result.get("environment"), result.get("generation"))
                         == (proof.get("thread"), proof.get("environment"), proof.get("generation")),
                         "reconciled create differs from runtime observation")
-                mapping(row, proof)
+                mapping(record, row, proof)
         for acknowledgment in result.get("acknowledgments", []):
             acknowledged = cloud["operations"][acknowledgment["operation"]]
             require(acknowledged["assignment"] == row["id"]
@@ -527,7 +537,7 @@ def ingest(record, envelope):
             row["report_sequence"] = report["sequence"]
             row["report_receipt"] = report
     elif request["action"] == "create" and effect == "applied":
-        mapping(row, result)
+        mapping(record, row, result)
     # A late unknown client result cannot undo a reconciled effect.
     if op["effect"] != "unknown":
         require(effect in {"unknown", op["effect"]}, "conflicting reconciled result")
@@ -561,6 +571,59 @@ def binding_evidence(root, value):
     packet = read_json(Path(root) / value["artifact"]["path"])
     require(packet.get("normalized") == {k: v for k, v in value.items() if k != "artifact"}
             and packet.get("raw_result"), "binding evidence differs from normalized host/pool receipt")
+
+
+def review_revision(record, assignment, value, repository, root):
+    row = record["cloud"]["assignments"][assignment]
+    identifier(value["id"])
+    artifact(root, value["artifact"])
+    old = record["cloud"]["operations"].get(value["id"])
+    if old:
+        require(old["request"]["action"] == "review-revision" and old["assignment"] == assignment
+                and old["result"] == value, "conflicting reviewed revision operation")
+        return
+    require(value.get("schema") == 1 and value.get("assignment") == assignment and fresh(value)
+            and value.get("reason") and value.get("assumptions"), "fresh concrete revision review required")
+    require(not row["accepted"] and not row.get("approval_required")
+            and (row.get("checkpoint") or {}).get("phase") != "required_approval", "accepted/approval revision blocker")
+    require((value.get("thread"), value.get("environment"), value.get("generation"))
+            == (row["thread"], row["environment"], row["generation"]) and row["thread"], "revision runtime mapping mismatch")
+    require(row.get("observation") and fresh(row["observation"])
+            and row["runtime"] in {"idle", "completed", "stopped"}
+            and row["observation"].get("processes_stopped") is True, "settled revision read required")
+    require(not any(o["assignment"] == assignment and (o["effect"] == "unknown"
+                    or o["request"]["action"] in {"create", "follow_up"} and o["effect"] == "applied"
+                    and not o.get("acknowledgment")) for o in record["cloud"]["operations"].values()),
+            "revision operations/acknowledgments not reconciled")
+    recovery_clear(record, row, row["observation"])
+    require(row.get("ownership_receipt") and fresh(row["ownership_receipt"]), "fresh revision ownership required")
+    require(value.get("scope") == readiness_contract(record, assignment), "revision scope differs from reviewed contract")
+    previous, target = sha(value["from_revision"]), sha(value["to_revision"])
+    require(previous == source_revision(row) and previous != target
+            and git(repository, "rev-parse", "HEAD") == target, "revision source/head mismatch")
+    git(repository, "merge-base", "--is-ancestor", previous, target)
+    required = row["writes"] + row["reads"] + [p for r in row["acceptance"] for p in r["inputs"]]
+    reviewed = paths(value["inputs"])
+    require(reviewed and all(any(p == r or p.startswith(r + "/") for r in reviewed) for p in required),
+            "revision review misses input closure")
+    require(not git(repository, "status", "--porcelain", "--untracked-files=all", "--", *reviewed),
+            "revision checkout inputs are dirty")
+    changed = git(repository, "diff", "--name-only", previous, target, "--", *reviewed).splitlines()
+    require(sorted(paths(value["changed_paths"])) == sorted(changed), "revision changed paths differ from actual diff")
+    edges = dependencies(record, assignment)
+    require(value.get("dependencies") == {d["id"]: record["cloud"]["handoffs"].get(d["id"], {}).get("candidate")
+                                         for d in edges}
+            and all(d["id"] in record["cloud"]["handoffs"] for d in edges), "reviewed bilateral dependencies missing")
+    for candidate in value["dependencies"].values():
+        git(repository, "merge-base", "--is-ancestor", sha(candidate), target)
+    row.setdefault("revisions", []).append(copy.deepcopy(value))
+    if row.get("preflight"):
+        row.setdefault("preflight_history", []).append(copy.deepcopy(row["preflight"]))
+    row["preflight"] = None
+    row["source_revision"] = target
+    row.pop("cleanup_review", None)
+    record["cloud"]["operations"][value["id"]] = dict(assignment=assignment, effect="applied", result=copy.deepcopy(value),
+        request=dict(action="review-revision", assignment=assignment, operation=value["id"], created_utc=now()))
 
 
 def bind_existing(record, value):
@@ -665,7 +728,7 @@ def bind_existing(record, value):
         require(other.get("thread") != observed["thread"] and other.get("environment") != observed["environment"]
                 and bound.get("executor") != observed["executor"] and bound.get("source") != source
                 and other["outcome"] != row["outcome"], "duplicate live session/slot/executor/outcome binding")
-    mapping(row, observed)
+    mapping(record, row, observed)
     # Keep the prior recovery identity until the first bounded preflight establishes
     # the new child lane. Implementation and acceptance never use that exemption.
     row.update(runtime=observed["runtime"], observation=dict(observed),
@@ -677,11 +740,23 @@ def bind_existing(record, value):
         receipt_artifact=copy.deepcopy(value["receipt_artifact"]))
 
 
-def mapping(row, result):
+def mapping(record, row, result):
     require(result.get("thread") and result.get("environment") and result.get("generation"), "actual dispatch mapping required")
+    for other in record["cloud"]["assignments"].values():
+        if other["id"] == row["id"] or other.get("accepted"):
+            continue
+        require(other.get("thread") != result.get("thread")
+                and other.get("environment") != result.get("environment")
+                and (not result.get("executor") or result["executor"] !=
+                     (other.get("executor") or (other.get("binding") or {}).get("executor"))),
+                "duplicate live session/environment/executor mapping")
     require(row["thread"] is None or (row["thread"], row["environment"], row["generation"])
             == (result["thread"], result["environment"], result["generation"]), "conflicting dispatch mapping")
+    require(not row.get("executor") or not result.get("executor") or row["executor"] == result["executor"],
+            "conflicting executor mapping")
     row.update(thread=result["thread"], environment=result["environment"], generation=result["generation"])
+    if result.get("executor"):
+        row["executor"] = result["executor"]
 
 
 def recovery_clear(record, row, observation, allow_prior=False):
@@ -702,7 +777,47 @@ def recovery_clear(record, row, observation, allow_prior=False):
                     "matching local recovery operations/build slot not reconciled")
 
 
-def accept(record, assignment, manifest, observation, repository, root, cleanup_review=False):
+def managed_audit(record, row, repository):
+    assignment = row["id"]
+    contract = readiness_contract(record, assignment)
+    digest = fingerprint(contract)
+    identity = (row["thread"], row["environment"], row["generation"])
+    operations = [o for o in record["cloud"]["operations"].values()
+                  if o["assignment"] == assignment and o["effect"] == "applied"]
+    origin = False
+    for operation in operations:
+        action = operation["request"]["action"]
+        result = operation.get("reconciliation") or operation.get("result") or {}
+        if action == "bind-existing":
+            result = result.get("observation", {})
+        if action in {"create", "bind-existing"}:
+            origin |= tuple(result.get(k) for k in ("thread", "environment", "generation")) == identity
+    require(origin, "managed completion lacks correlated create/binding provenance")
+    prerequisites = fingerprint(dict(mapping=list(identity), preflight=row["preflight"],
+        handoffs={d["id"]: record["cloud"]["handoffs"].get(d["id"]) for d in dependencies(record, assignment)}))
+    for operation in operations:
+        request = operation["request"]
+        gate = request.get("readiness_gate")
+        if (request["action"] != "follow_up" or request.get("parameters", {}).get("phase") != "implementation"
+                or operation.get("acknowledgment", {}).get("status") != "completed"
+                or not isinstance(gate, dict) or gate.get("status") != "ready"
+                or request.get("readiness_contract") != digest or gate.get("contract") != digest
+                or gate.get("prerequisites") != prerequisites):
+            continue
+        receipt = gate["receipt"]
+        before = receipt["before"]
+        oracle = next((r for r in row["acceptance"] if r["kind"] == before["kind"]
+                       and r["command"] == before["command"]), None)
+        if (receipt.get("scope") == contract and oracle and program_failed(before, oracle)
+                and fresh(receipt, datetime.fromisoformat(request["created_utc"]))
+                and any(e["receipt"] == receipt and e["status"] == "ready" for e in row.get("scouting", []))
+                and inputs(repository, receipt["source_revision"], receipt["inputs"])
+                    == inputs(repository, source_revision(row), receipt["inputs"])):
+            return
+    raise RecoveryError("managed completion requires acknowledged implementation and recorded readiness audit trail")
+
+
+def accept(record, assignment, manifest, observation, repository, root, cleanup_review=False, import_receipt=None):
     row = record["cloud"]["assignments"][assignment]
     require(fresh(observation) and observation.get("revision") == record["revision"], "fresh final observation required")
     require((observation.get("thread"), observation.get("environment"), observation.get("generation"))
@@ -722,21 +837,46 @@ def accept(record, assignment, manifest, observation, repository, root, cleanup_
     for dependency in dependencies(record, assignment):
         git(repository, "merge-base", "--is-ancestor", record["cloud"]["handoffs"][dependency["id"]]["candidate"],
             sha(manifest["candidate"]))
+    git(repository, "merge-base", "--is-ancestor", source_revision(row), sha(manifest["base"]))
+    if import_receipt is None:
+        managed_audit(record, row, repository)
+        credit = "managed"
+    else:
+        require(import_receipt.get("schema") == 1 and import_receipt.get("assignment") == assignment
+                and import_receipt.get("candidate") == manifest["candidate"] and fresh(import_receipt)
+                and import_receipt.get("source") and import_receipt.get("reason"), "explicit reviewed completion import required")
+        binding_evidence(root, import_receipt)
+        credit = "imported"
     result = validate(repository, root, row, manifest, observation, cleanup_required=not cleanup_review)
     result["manifest_digest"] = fingerprint(manifest)
+    result["credit"] = credit
     if cleanup_review:
         row["cleanup_review"] = dict(candidate=result["candidate"], manifest_digest=result["manifest_digest"],
-                                     observed_utc=observation["observed_utc"], action="review_owned_cleanup")
+                                     observed_utc=observation["observed_utc"], action="review_owned_cleanup", credit=credit)
         return
-    require(row["accepted"] is None or row["accepted"] == result, "conflicting final acceptance")
+    previous = row["accepted"]
+    require(previous is None or previous == result or credit == "imported" and "credit" not in previous
+            and dict(previous, credit="imported") == result, "conflicting final acceptance")
+    if import_receipt is not None:
+        old_import = row.get("completion_import")
+        require(old_import is None or old_import["receipt"] == import_receipt, "conflicting completion import review")
+        if old_import is None:
+            row["completion_import"] = dict(receipt=copy.deepcopy(import_receipt), previous_acceptance=previous)
     row["accepted"] = result
 
 
-def batch_complete(record, batch):
+def batch_settled(record, batch):
     rows = record["cloud"]["batches"][batch]["manifest"]["assignments"]
     return all((record["cloud"]["assignments"][r["id"]]["accepted"] or {}).get("result") == "landed"
                and record["cloud"]["assignments"][r["id"]]["accepted"].get("user_rescue") is False
                and record["cloud"]["assignments"][r["id"]]["accepted"].get("cleanup") == "completed" for r in rows)
+
+
+def batch_complete(record, batch):
+    manifest = record["cloud"]["batches"][batch]["manifest"]
+    return manifest.get("mode", "staged") == "staged" and batch_settled(record, batch) and all(
+        record["cloud"]["assignments"][r["id"]]["accepted"].get("credit") == "managed"
+        for r in manifest["assignments"])
 
 
 def plan(record):
@@ -750,7 +890,7 @@ def plan(record):
                           and op["effect"] == "applied" and not op.get("acknowledgment")]
         phase = (row["checkpoint"] or {}).get("phase", "preflight")
         if row["accepted"]:
-            action = "verified_complete"
+            action = "verified_complete" if row["accepted"].get("credit") == "managed" else "verified_import" if row["accepted"].get("credit") == "imported" else "audit_completion_credit"
         elif row.get("approval_required") or phase == "required_approval":
             action = "required_approval"
         elif pending or unacknowledged:
@@ -779,7 +919,8 @@ def plan(record):
                          readiness=readiness_state(record, name), scouting_attempts=len(row.get("scouting", [])),
                          scouting_seconds=sum(e["elapsed_seconds"] for e in row.get("scouting", []))))
     return dict(revision=record["revision"], assignments=rows,
-                batches={b: dict(size=v["manifest"]["size"], complete=batch_complete(record, b)) for b, v in cloud["batches"].items()},
+                batches={b: dict(size=v["manifest"]["size"], mode=v["manifest"].get("mode", "staged"),
+                                settled=batch_settled(record, b), complete=batch_complete(record, b)) for b, v in cloud["batches"].items()},
                 executes_remote_actions=False)
 
 
@@ -789,7 +930,7 @@ def main(argv=None):
     parser.add_argument("--revision", type=int)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
-    for name in ("init", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "approval", "intent", "ingest", "cleanup-review", "accept"):
+    for name in ("init", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "review-revision", "import-completion", "approval", "intent", "ingest", "cleanup-review", "accept"):
         command = commands.add_parser(name)
         command.add_argument("--input", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -811,10 +952,12 @@ def main(argv=None):
                 elif args.command == "preflight": preflight(record, value["assignment"], value["receipt"])
                 elif args.command == "readiness": readiness(record, value["assignment"], value["receipt"], value["repository"], value["evidence_root"])
                 elif args.command == "bind-existing": bind_existing(record, value)
+                elif args.command == "review-revision": review_revision(record, value["assignment"], value["receipt"], value["repository"], value["evidence_root"])
                 elif args.command == "approval": approval(record, value["assignment"], value["receipt"])
                 elif args.command == "intent": request.append(intent(record, value["assignment"], value["action"], value["operation"], value.get("parameters", {})))
                 elif args.command == "ingest": ingest(record, value)
-                elif args.command in {"accept", "cleanup-review"}: accept(record, value["assignment"], value["manifest"], value["observation"], value["repository"], value["evidence_root"], cleanup_review=args.command == "cleanup-review")
+                elif args.command in {"accept", "cleanup-review", "import-completion"}: accept(record, value["assignment"], value["manifest"], value["observation"], value["repository"], value["evidence_root"], cleanup_review=args.command == "cleanup-review",
+                    import_receipt=value["import_receipt"] if args.command == "import-completion" else value.get("import_receipt") if args.command == "cleanup-review" else None)
             updated = store.update(args.revision, change)
             result = dict(revision=updated["revision"], request=request[0]) if request else plan(updated)
         print(json.dumps(result, indent=2))

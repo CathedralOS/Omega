@@ -51,6 +51,23 @@ def artifact(root, value):
             "evidence artifact digest mismatch")
 
 
+def program_failed(before, requirement):
+    """A failed label alone is not a failed authored execution."""
+    if (type(before.get("exit")) is not int
+            or before.get("classification", "valid-should-work") != "valid-should-work"
+            or before.get("expected_result", requirement["expected_result"]) != requirement["expected_result"]):
+        return False
+    if before.get("failure_kind") == "compile":
+        return before["exit"] != 0
+    actual = before.get("program_result")
+    expected = requirement["expected_result"]
+    return (before.get("failure_kind") == "run" and isinstance(actual, dict)
+            and set(expected) <= set(actual) and type(actual.get("exit")) is int
+            and ("stdout_sha256" not in expected or isinstance(actual.get("stdout_sha256"), str)
+                 and re.fullmatch(r"[0-9a-f]{64}", actual["stdout_sha256"]) is not None)
+            and (before["exit"] != requirement["exit"] or any(actual[k] != expected[k] for k in expected)))
+
+
 def validate(repository, root, assignment, manifest, observation, cleanup_required=True):
     require(manifest.get("schema") == 1 and manifest.get("assignment") == assignment["id"],
             "acceptance assignment/schema mismatch")
@@ -136,6 +153,8 @@ def validate(repository, root, assignment, manifest, observation, cleanup_requir
             and any(requirement["kind"] == before["kind"] and requirement["command"] == before["command"]
                     for requirement in expected), "before failure must be a program observation on the recorded host")
     artifact(root, before["artifact"])
+    oracle = next(r for r in expected if r["kind"] == before["kind"] and r["command"] == before["command"])
+    require(program_failed(before, oracle), "before evidence does not establish a meaningful program failure")
     require({r["kind"] for r in expected} >= {"native", "interpreter", "tests", "negative"},
             "program, scoped tests and negatives required")
     return dict(candidate=candidate, remote_main=manifest["remote_main"], result="landed",
