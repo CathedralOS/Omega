@@ -4,7 +4,7 @@
 use crate::common;
 
 use common::{block_id, copy_fixture, dead_scalar_fixture, operation_id, value};
-use lowered_psi_to_lowered_psi::run_psi_optimization;
+use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{OperationKind, Terminator};
 use terminal_verifier::{DeadScalarRewriteError, validate_dead_scalar_elimination};
@@ -37,6 +37,57 @@ fn execution_is_deterministic_across_runs() {
     let first = run_psi_optimization(dead_scalar_fixture(), selections()).unwrap();
     let second = run_psi_optimization(dead_scalar_fixture(), selections()).unwrap();
     assert_eq!(first, second);
+}
+
+#[test]
+fn structurally_invalid_inputs_fail_before_rewrite() {
+    // Corruption coverage: each malformed carrier fails closed at the
+    // module-validation gate before any rewrite decision.
+    let mut no_machines = dead_scalar_fixture();
+    no_machines.semantic_module.machines.clear();
+    assert!(matches!(
+        run_psi_optimization(no_machines, selections()),
+        Err(PsiOptimizationStageError::InvalidModule(
+            terminal_verifier::ModuleError::EmptyModule
+        ))
+    ));
+
+    let mut bad_target = dead_scalar_fixture();
+    let Terminator::Jump { target, .. } =
+        &mut bad_target.semantic_module.machines[0].blocks[1].terminator
+    else {
+        panic!("b2 is a jump")
+    };
+    *target = block_id(99);
+    assert!(matches!(
+        run_psi_optimization(bad_target, selections()),
+        Err(PsiOptimizationStageError::InvalidModule(_))
+    ));
+
+    let mut bad_arity = dead_scalar_fixture();
+    let Terminator::Jump { arguments, .. } =
+        &mut bad_arity.semantic_module.machines[0].blocks[1].terminator
+    else {
+        panic!("b2 is a jump")
+    };
+    arguments.pop();
+    assert!(matches!(
+        run_psi_optimization(bad_arity, selections()),
+        Err(PsiOptimizationStageError::InvalidModule(_))
+    ));
+
+    let mut bad_debug = dead_scalar_fixture();
+    common::with_debug_sites(&mut bad_debug, &[]);
+    bad_debug
+        .debug_map
+        .as_mut()
+        .unwrap()
+        .semantic
+        .program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([0xff; 32]);
+    assert!(matches!(
+        run_psi_optimization(bad_debug, selections()),
+        Err(PsiOptimizationStageError::InvalidDebugMap(_))
+    ));
 }
 
 #[test]

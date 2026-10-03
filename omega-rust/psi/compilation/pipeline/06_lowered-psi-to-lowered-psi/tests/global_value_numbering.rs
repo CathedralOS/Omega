@@ -10,7 +10,7 @@ use common::{
     operation_id, return_value, successor, value, with_debug_sites,
 };
 use lowered_psi::LoweredPsi;
-use lowered_psi_to_lowered_psi::run_psi_optimization;
+use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{DebugSubject, OperationKind, TerminalMachineResult, Terminator};
 use terminal_verifier::{GlobalValueNumberingRewriteError, validate_global_value_numbering};
@@ -335,6 +335,57 @@ fn execution_is_deterministic_across_runs() {
     let first = run_psi_optimization(gvn_fixture(), selections()).unwrap();
     let second = run_psi_optimization(gvn_fixture(), selections()).unwrap();
     assert_eq!(first, second, "identical input and selection must agree");
+}
+
+#[test]
+fn structurally_invalid_inputs_fail_before_rewrite() {
+    // Corruption coverage: each malformed carrier fails closed at the
+    // module-validation gate before any rewrite decision.
+    let mut no_machines = gvn_fixture();
+    no_machines.semantic_module.machines.clear();
+    assert!(matches!(
+        run_psi_optimization(no_machines, selections()),
+        Err(PsiOptimizationStageError::InvalidModule(
+            terminal_verifier::ModuleError::EmptyModule
+        ))
+    ));
+
+    let mut bad_target = gvn_fixture();
+    let Terminator::Jump { target, .. } =
+        &mut bad_target.semantic_module.machines[0].blocks[1].terminator
+    else {
+        panic!("b2 is a jump")
+    };
+    *target = block_id(99);
+    assert!(matches!(
+        run_psi_optimization(bad_target, selections()),
+        Err(PsiOptimizationStageError::InvalidModule(_))
+    ));
+
+    let mut bad_arity = gvn_fixture();
+    let Terminator::Jump { arguments, .. } =
+        &mut bad_arity.semantic_module.machines[0].blocks[1].terminator
+    else {
+        panic!("b2 is a jump")
+    };
+    arguments.pop();
+    assert!(matches!(
+        run_psi_optimization(bad_arity, selections()),
+        Err(PsiOptimizationStageError::InvalidModule(_))
+    ));
+
+    let mut bad_debug = gvn_fixture();
+    with_debug_sites(&mut bad_debug, &[]);
+    bad_debug
+        .debug_map
+        .as_mut()
+        .unwrap()
+        .semantic
+        .program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([0xff; 32]);
+    assert!(matches!(
+        run_psi_optimization(bad_debug, selections()),
+        Err(PsiOptimizationStageError::InvalidDebugMap(_))
+    ));
 }
 
 #[test]
