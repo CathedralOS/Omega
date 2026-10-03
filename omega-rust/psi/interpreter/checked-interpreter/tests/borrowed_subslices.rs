@@ -171,23 +171,46 @@ fn inline_const_generic_selectors_execute_distinct_inferred_extents() {
         [("..", "", 2, 3), ("", "..", 2, 1), ("..=", "", 3, 4)]
     {
         assert_seven(&format!("data Main {{}}
-            machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64 [0..=3]
+            machine Main::endpoint<const N: u64>(witness: &[u8; N]) -> u64
             requires N <= 3
+            ensures result <= 3
             {{
                 N
             }}
-            machine Main::window(&self, items: &[i32; 4]) -> i32 {{
+            machine Main::window(items: &[i32; 4]) -> i32 {{
                 let pair: [u8; 2] = [0, 0];
                 let triple: [u8; 3] = [0, 0, 0];
-                let pair_view: &[i32] = items[{before_endpoint}self.endpoint(&pair){after_endpoint}];
-                let triple_view: &[i32] = items[{before_endpoint}self.endpoint(&triple){after_endpoint}];
+                let pair_view: &[i32] = items[{before_endpoint}Main::endpoint(&pair){after_endpoint}];
+                let triple_view: &[i32] = items[{before_endpoint}Main::endpoint(&triple){after_endpoint}];
                 transition pair_view.len == {pair_length} && triple_view.len == {triple_length} {{ true -> 7 false -> 0 }}
             }}
             machine main() -> i32 {{
-                let selector: Main = Main {{}};
                 let values: [i32; 4] = [11, 7, 6, 22];
-                selector.window(&values)
+                Main::window(&values)
             }}"));
+    }
+}
+
+#[test]
+fn selector_result_contracts_must_establish_the_actual_window_bounds() {
+    for (carrier, contract, returned) in [
+        ("u64", "ensures result <= 5", "5"),
+        ("u64", "", "2"),
+        ("i32", "ensures result <= 3", "-1"),
+    ] {
+        let source = format!(
+            "machine endpoint() -> {carrier} {contract} {{ {returned} }}
+             machine main() -> u64 {{
+                 let values: [u8; 4] = [0, 0, 0, 0];
+                 let view: &[u8] = &values[..endpoint()];
+                 view.len
+             }}"
+        );
+        let diagnostics = try_checked(&source).expect_err("unproven window must reject");
+        assert!(
+            diagnostics.contains("subslice range"),
+            "{source}: {diagnostics}"
+        );
     }
 }
 
@@ -195,15 +218,18 @@ fn inline_const_generic_selectors_execute_distinct_inferred_extents() {
 fn inferred_endpoint_extent_must_satisfy_the_generic_requirement() {
     let diagnostics = try_checked(
         "data Main {}
-         machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64
+         machine Main::endpoint<const N: u64>(witness: &[u8; N]) -> u64
          requires N <= 3
          { N }
          machine main() -> u64 {
-             let selector: Main = Main {};
              let oversized: [u8; 4] = [0, 0, 0, 0];
-             selector.endpoint(&oversized)
+             Main::endpoint(&oversized)
          }",
     )
     .expect_err("inference cannot discard the endpoint's declared requirement");
-    assert!(diagnostics.contains("requires"), "{diagnostics}");
+    assert!(
+        diagnostics.contains("required fact `N <= 3`"),
+        "{diagnostics}"
+    );
+    assert!(diagnostics.contains("4 <= 3"), "{diagnostics}");
 }

@@ -39,20 +39,6 @@ impl<'program> MachineSymbols<'program> {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Self {
         let machine_symbol = retained_machine_symbol(program, machine);
-        // One child index per machine build: a fresh `find_child_by_name`
-        // walk per member is O(children) each, so member lookups composed to
-        // O(members * children). First match wins, matching that lookup.
-        let mut children_by_name: symbols::SymbolKeyMap<&str, SymbolHandle> =
-            symbols::SymbolKeyMap::default();
-        if machine_symbol.is_valid()
-            && let Some(children) = program.symbols.child_handles(machine_symbol)
-        {
-            for child in children {
-                children_by_name
-                    .entry(program.symbols.name(child))
-                    .or_insert(child);
-            }
-        }
         // Duplicate verdicts read whether a same-named earlier member carries
         // a valid symbol, so the seen maps store name -> symbol.is_valid()
         // rather than the names alone.
@@ -76,37 +62,6 @@ impl<'program> MachineSymbols<'program> {
                 let DataMember::Field(field) = member else {
                     continue;
                 };
-
-                if member_verdicts
-                    .get(field.name.as_str())
-                    .copied()
-                    .unwrap_or(false)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` has duplicate member `{}`",
-                        machine.name, field.name
-                    )));
-                    continue;
-                }
-
-                let symbol = children_by_name
-                    .get(field.name.as_str())
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid);
-                member_verdicts
-                    .entry(field.name.as_str())
-                    .or_insert(symbol.is_valid());
-                owned_data_verdicts
-                    .entry(field.name.as_str())
-                    .or_insert(symbol.is_valid());
-                symbols.member_symbols.push(MemberSymbol {
-                    name: field.name.as_str(),
-                    symbol,
-                });
-                symbols.owned_data_symbols.push(MemberSymbol {
-                    name: field.name.as_str(),
-                    symbol,
-                });
 
                 if let Some(type_name) = callable_receiver_type_name(program, field.type_reference)
                 {

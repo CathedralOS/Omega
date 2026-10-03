@@ -10,10 +10,8 @@ fn interpreter_writes_non_utf8_literal_bytes_exactly() {
             machine write_line(text: &[u8]);
         }
 
-        data Main<'s> { console: &'s mut Console; }
-
-        machine Main::main(&mut self) reaches Console {
-            self.console.write_line("\x80A");
+        machine Main::main() reaches Console {
+            Console::write_line("\x80A");
         }
         "#,
     )

@@ -18,31 +18,32 @@ fn execute_entry(source: &str, entry: &str) -> checked_interpreter::InterpretOut
 }
 
 #[test]
-fn indexed_attached_field_replays_the_captured_subject() {
-    // `self.values[Count]` under `requires Count <= 7`: the write lands at the
+fn indexed_local_record_replays_the_captured_subject() {
+    // `context.values[Count]` under `requires Count <= 7`: the write lands at the
     // runtime-selected slot and the read returns it. `n` is reassigned between
     // calls, a second subject `m` shares the one specialized body, and a
     // static `<3>` argument reads the slot the first call wrote.
     let outcome = execute_entry(
         "data Main { values: [u32; 8]; } \
-         machine Main::at<Count: u32>(&self) -> u32
+         machine Main::at<Count: u32>(context: &Main) -> u32
          requires
              Count <= 7;
-         { self.values[Count] } \
-         machine Main::put<Count: u32>(&mut self, v: u32)
+         { context.values[Count] } \
+         machine Main::put<Count: u32>(context: &mut Main, value: u32)
          requires
              Count <= 7;
-         { self.values[Count] = v; } \
-         machine Main::main(&mut self) -> i64 { \
+         { context.values[Count] = value; } \
+         machine Main::main() -> i64 { \
+             let mut context: Main; \
              let mut n: u32 = 3; \
-             self.put<n>(10); \
+             Main::put<n>(&mut context, 10); \
              n = 5; \
-             self.put<n>(20); \
-             let a: u32 = self.at<n>(); \
+             Main::put<n>(&mut context, 20); \
+             let a: u32 = Main::at<n>(&context); \
              let m: u32 = 4; \
-             self.put<m>(7); \
-             let b: u32 = self.at<m>(); \
-             let c: u32 = self.at<3>(); \
+             Main::put<m>(&mut context, 7); \
+             let b: u32 = Main::at<m>(&context); \
+             let c: u32 = Main::at<3>(&context); \
              (a as i64) + (b as i64) + (c as i64) \
          }",
         "Main::main",

@@ -140,12 +140,13 @@ fn trapping_address_conversion_checks_dynamic_input_before_narrowing() {
 }
 
 #[test]
-fn casts_retain_unsigned_attached_field_carriers() {
-    for field in ["maximum", "self.maximum"] {
+fn casts_retain_unsigned_local_and_field_carriers() {
+    for field in ["maximum", "context.maximum"] {
         let source = format!(
             "data Main {{ maximum: u64; }}
-             machine Main::main(&mut self) -> i32 {{
-                 self.maximum = 18446744073709551615;
+             machine Main::main() -> i32 {{
+                 let maximum: u64 = 18446744073709551615;
+                 let context: Main = Main {{ maximum: maximum }};
                  let value: u64 = {field} as u64;
                  transition value == 18446744073709551615u64 {{ true -> 70 false -> 71 }}
              }}"

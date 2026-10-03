@@ -23,16 +23,16 @@ fn structured_const_instances_execute_distinct_integer_and_boolean_fields() {
         data Witness<const N: Config> { case Only; }
         data Scenario { first: Witness<Values::FIRST>; second: Witness<Values::SECOND>; }
         machine value<const N: Config>(witness: &Witness<N>) -> Config { N }
-        machine Scenario::run(&self) -> i32 {
-            let first_value: Config = value(&self.first);
-            let second_value: Config = value(&self.second);
+        machine Scenario::run(scenario: &Scenario) -> i32 {
+            let first_value: Config = value(&scenario.first);
+            let second_value: Config = value(&scenario.second);
             transition first_value.count == 2 && first_value.enabled && second_value.count == 3 && !second_value.enabled {
                 true -> 7 false -> 0
             }
         }
         machine main() -> i32 {
             let scenario: Scenario = Scenario { first: Witness::Only, second: Witness::Only };
-            scenario.run()
+            Scenario::run(&scenario)
         }");
 }
 

@@ -42,18 +42,18 @@ fn mutable_slice_view_writethrough_parameter_root() {
 }
 
 #[test]
-fn mutable_slice_view_writethrough_self_root() {
+fn mutable_slice_view_writethrough_nested_local_record() {
     assert_seven(
         "data Main { bag: Bag; }
         data Bag { cells: [i32; 4]; }
-        machine Main::sow(&mut self) {
-            let cells: &mut [i32] = self.bag.cells.as_mut_slice();
+        machine Main::sow(context: &mut Main) {
+            let cells: &mut [i32] = context.bag.cells.as_mut_slice();
             cells[2] = 7;
         }
         machine main() -> i32 {
-            let mut m: Main = Main { bag: Bag { cells: [0, 0, 0, 0] } };
-            m.sow();
-            transition m.bag.cells[2] == 7 { true -> 7 false -> 0 }
+            let mut context: Main = Main { bag: Bag { cells: [0, 0, 0, 0] } };
+            Main::sow(&mut context);
+            transition context.bag.cells[2] == 7 { true -> 7 false -> 0 }
         }",
     );
 }

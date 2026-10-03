@@ -118,8 +118,9 @@ pub(super) fn expression_is_slice(
 ///
 /// Every store into an Exact ranged place is range-checked (the narrowing
 /// keystone) and ZII requires 0 in range, so the declared interval holds at
-/// every read. An exactly selected ordinary call may contribute its literal
-/// return interval; checking the callee's return remains an independent duty.
+/// every read. An exactly selected ordinary call contributes its declared
+/// return interval and enforced result contract, intersected with its carrier.
+/// Checking the callee's return remains an independent duty.
 pub(in crate::checks) fn expression_enforced_declared_range(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
@@ -157,7 +158,7 @@ pub(in crate::checks) fn expression_enforced_declared_range(
     ) {
         return None;
     }
-    enforced_range_of_type_reference(program, type_reference).or_else(|| {
+    let declared = enforced_range_of_type_reference(program, type_reference).or_else(|| {
         // `self.count` in a callee result is not the caller's same-named field.
         // Relational call-entry substitution belongs to the call proof owner.
         if is_call_result {
@@ -165,7 +166,29 @@ pub(in crate::checks) fn expression_enforced_declared_range(
         } else {
             dependent_range_substituted(program, machine, type_reference)
         }
-    })
+    });
+    let Some((low, high)) = super::expressions::ensured_call_result_bounds(program, expression)
+    else {
+        return declared;
+    };
+    let minimum = declared.map(|(minimum, _)| minimum).or_else(|| {
+        expression_integer_carrier_minimum(program, machine, state, expression)?.to_i64()
+    });
+    let maximum = declared.map(|(_, maximum)| maximum).or_else(|| {
+        i64::try_from(expression_integer_carrier_maximum(
+            program, machine, state, expression,
+        )?)
+        .ok()
+    });
+    let minimum = match (minimum, low) {
+        (Some(carrier), Some(ensured)) => Some(carrier.max(ensured)),
+        (carrier, ensured) => carrier.or(ensured),
+    }?;
+    let maximum = match (maximum, high) {
+        (Some(carrier), Some(ensured)) => Some(carrier.min(ensured)),
+        (carrier, ensured) => carrier.or(ensured),
+    }?;
+    (minimum <= maximum).then_some((minimum, maximum))
 }
 
 /// R1 dependent range (`i: u32 [0..=self.count]`): the SUBSTITUTED literal
