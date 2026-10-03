@@ -88,7 +88,8 @@ fn collection_premises_prove_exit(
 /// contexts prove the predicate, or the exit's exact return and live place
 /// values evaluate it. These are the two live-context routes
 /// `check_exit_ensures` offers a Boolean fact; package exit evidence replays
-/// exactly them, never an assumption, entailment or header route.
+/// these alongside the separately rechecked component-induction route. This
+/// helper itself grants no assumption, entailment or invariant authority.
 pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
     program: &'program typed_trees::TypedTrees,
     facts: &CheckFacts,

@@ -1,7 +1,8 @@
 //! Bridge the arithmetic entailment engine's postcondition stand-downs to the
 //! flow checker's existing live-context judgment: a membership's exact subject
 //! and domain, or a scalar predicate proved by the entry contexts or the exit's
-//! exact return and live place values. Every normal exit is derived from the
+//! exact return and live place values, or the shared all-arrival component
+//! induction judgment. Every normal exit is derived from the
 //! checked flow, rather than supplied by the certificate. An authored
 //! postcondition, an entry annotation, or a partial exit roster is not proof,
 //! and a predicate its own `requires` discharges keeps that certificate.
@@ -23,9 +24,18 @@ pub fn derive_contract_entailment_exit_membership_discharges(
     facts: &CheckFacts,
 ) -> Vec<CheckedContractEntailmentExitMembershipDischarge> {
     let call_frames = validation::CallFrameResolver::new(program);
+    let mut cyclic_headers = super::exits::CyclicHeaderInvariants::new();
     validation::collect_contract_entailment_stand_downs(program)
         .into_iter()
-        .filter_map(|stand_down| reconstruct(program, facts, call_frames.as_ref(), stand_down))
+        .filter_map(|stand_down| {
+            reconstruct(
+                program,
+                facts,
+                call_frames.as_ref(),
+                &mut cyclic_headers,
+                stand_down,
+            )
+        })
         .collect()
 }
 
@@ -79,6 +89,7 @@ fn reconstruct<'program>(
     program: &'program TypedTrees,
     facts: &CheckFacts,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
+    cyclic_headers: &mut super::exits::CyclicHeaderInvariants,
     stand_down: ContractEntailmentStandDown,
 ) -> Option<CheckedContractEntailmentExitMembershipDischarge> {
     let machine = program.machines().iter().find(|machine| {
@@ -132,20 +143,16 @@ fn reconstruct<'program>(
         .filter(|(_, state)| state.machine_symbol == machine.symbol)
     {
         for exit in facts.flow.control.exits.span_or_empty(state.exits) {
-            if exit.machine_symbol != machine.symbol
-                || exit.state_symbol != state.state_symbol
-                || facts
-                    .flow
-                    .control
-                    .exit_parameter_origins
-                    .span_or_empty(exit.parameter_origins)
-                    .iter()
-                    .any(|origin| {
-                        origin.contract == source_fact && !origin.state_parameter.is_valid()
-                    })
-            {
+            if exit.machine_symbol != machine.symbol || exit.state_symbol != state.state_symbol {
                 return None;
             }
+            let exact_origins = !facts
+                .flow
+                .control
+                .exit_parameter_origins
+                .span_or_empty(exit.parameter_origins)
+                .iter()
+                .any(|origin| origin.contract == source_fact && !origin.state_parameter.is_valid());
             let entry_contexts: Vec<_> = facts
                 .flow
                 .contexts
@@ -188,22 +195,31 @@ fn reconstruct<'program>(
                         matched = true;
                         let proved = match goal {
                             ExitGoal::Membership(_) => {
-                                super::prover::semantic_contexts_prove_contract_fact(
-                                    program,
-                                    &facts.semantic,
-                                    &entry_contexts,
-                                    fact,
-                                )
+                                exact_origins
+                                    && super::prover::semantic_contexts_prove_contract_fact(
+                                        program,
+                                        &facts.semantic,
+                                        &entry_contexts,
+                                        fact,
+                                    )
                             }
                             ExitGoal::Predicate => {
-                                super::exits::live_contexts_prove_scalar_postcondition(
-                                    program,
-                                    facts,
-                                    exit,
-                                    &entry_contexts,
-                                    fact,
-                                    call_frames,
-                                )
+                                // Induction proves the invocation-relative
+                                // predicate without pretending the drifting
+                                // state parameters have exact incoming origins.
+                                // It rechecks the same complete component used
+                                // by ordinary exit checking, never the mere
+                                // presence of an authored guarantee or rank.
+                                (exact_origins
+                                    && super::exits::live_contexts_prove_scalar_postcondition(
+                                        program,
+                                        facts,
+                                        exit,
+                                        &entry_contexts,
+                                        fact,
+                                        call_frames,
+                                    ))
+                                    || cyclic_headers.proves(program, facts, exit, fact)
                             }
                         };
                         if !proved {

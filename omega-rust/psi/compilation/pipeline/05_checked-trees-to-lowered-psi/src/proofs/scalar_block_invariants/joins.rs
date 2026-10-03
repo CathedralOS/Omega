@@ -49,6 +49,8 @@ use terminal_psi::{
 };
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
+mod alternatives;
+
 pub(super) fn candidates(
     module: &TerminalModule,
     questions: &ReconstructedTerminalObligationSet,
@@ -728,7 +730,19 @@ impl<'input> ArrivalEquations<'input> {
         if axioms.len() > *remaining {
             return None;
         }
-        let mut pending = axioms.iter().collect::<Vec<_>>();
+        Self::from_facts(axioms.iter().collect(), remaining)
+    }
+
+    /// Conditional equations can suggest demands in separate contexts. They
+    /// never enter the unconditional index or a proof's ambient premises.
+    pub(super) fn alternatives(axioms: &'input [Proposition], remaining: &mut usize) -> Vec<Self> {
+        alternatives::contexts(axioms, remaining)
+            .into_iter()
+            .filter_map(|facts| Self::from_facts(facts, remaining))
+            .collect()
+    }
+
+    fn from_facts(mut pending: Vec<&'input Proposition>, remaining: &mut usize) -> Option<Self> {
         let mut definitions = BTreeMap::new();
         let mut reversed = BTreeMap::new();
         while let Some(fact) = pending.pop() {

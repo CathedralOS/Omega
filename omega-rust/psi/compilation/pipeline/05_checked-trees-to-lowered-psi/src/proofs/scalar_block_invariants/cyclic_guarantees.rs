@@ -290,20 +290,23 @@ fn header_candidates(
             return candidates;
         };
         *remaining = next;
-        let Some(equations) = ArrivalEquations::new(&site.semantic_axioms, remaining) else {
-            continue;
-        };
-        if let Some(predicate) = scoped_goal(
-            &site.obligation.proposition,
-            &equations,
-            &header_scope,
-            &scope,
-            context,
-            None,
-            remaining,
-        ) && uses_header(&predicate, header)
-        {
-            propose(predicate);
+        // Normal-return reconstruction retains distinct alternatives when
+        // exits bind the result differently. Each alternative suggests its
+        // own header demand; none of its equations become invariant facts.
+        // The common roster proves every proposed demand on every arrival.
+        for equations in ArrivalEquations::alternatives(&site.semantic_axioms, remaining) {
+            if let Some(predicate) = scoped_goal(
+                &site.obligation.proposition,
+                &equations,
+                &header_scope,
+                &scope,
+                context,
+                None,
+                remaining,
+            ) && uses_header(&predicate, header)
+            {
+                propose(predicate);
+            }
         }
     }
     candidates

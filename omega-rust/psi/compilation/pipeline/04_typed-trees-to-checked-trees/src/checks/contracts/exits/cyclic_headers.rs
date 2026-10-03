@@ -1,37 +1,22 @@
 //! Header invariants for a cyclic machine whose guarantee relates the value
 //! it returns to an invocation formal.
 //!
-//! A machine state re-entered by a named backedge is its own loop header. Its
-//! `ensures` speaks about the invocation formals, but a re-entered parameter
-//! has no exact incoming origin, so no exit route can read the guarantee at
-//! all. The producer already strengthens the Terminal header with the
-//! guarantee transported through the exit's exact equations; this is the
-//! source analog. For every exit returning `e` and every guarantee `G(result,
-//! formals)` it proposes the header conjunct `G(e(header), formals)`, proves
-//! it at every arrival — the invocation itself when the header is the entry
-//! state, and every named transition into the header from any state — and only
-//! then discharges each exit guarantee by the conjunct that is literally that
-//! guarantee at the header. An arrival whose caller is the header is an
-//! induction step: it is proved from the proposed conjunction at the current
-//! header, the entry requirements when that state is the entry (its own
-//! arrival contract, re-proved at every machine-name edge by the
-//! call-requirement check), and that arm's guard facts, under the arrival's
-//! simultaneous parameter-to-argument substitution. An arrival from another
-//! state is a base edge: the conjunction is not assumed there — its frame is
-//! not live — and the goal stands on the ambient entry requirements over the
-//! immutable formals plus the caller's own guard facts at the call. A
-//! uniformly forwarded parameter keeps its exact origin through the flow. No
-//! prefix fact and no ranking premise is used: the claim is checked against
-//! the loop, never inherited from a termination certificate, and a failed
-//! arrival discards every proposal so the existing diagnostic stays exactly
-//! as it was. Search is incomplete by design.
+//! Each state in a cyclic transition component has its own current parameter
+//! frame; the invocation formals are a separate immutable frame even when the
+//! entry state is reentered. For every exit returning `e`, propose its guarantee
+//! with `result` replaced by `e` in that state's frame. The component owns the
+//! conjunction of these state-local candidates. Every incoming edge proves the
+//! destination conjunction under simultaneous actual-argument substitution.
+//! An internal edge may assume only its caller's conjunction, while an external
+//! edge must establish the destination without it. Invocation is an additional
+//! initial arrival when the entry belongs to the component.
 //!
-//! A machine may carry several states, but only one of them may be cyclic:
-//! the header is the unique state a named transition re-enters — its own name
-//! for a self-loop, or the machine's name for an entry-state backedge — and
-//! two such states, or none, retire the proposal as before. Arrivals into any
-//! other cycle are not modeled, and an edge that cannot be read fails the
-//! whole machine's proposals closed.
+//! Only after the entire component's arrivals check do its candidates discharge
+//! their exits. Current state requirements and arm guards remain local to the
+//! caller; invocation requirements remain about the immutable formals. Neither
+//! ranking nor prefix facts grant an invariant. Unsupported substitutions and
+//! any failed arrival retire the whole component proposal. Candidate discovery
+//! remains incomplete: a state without an admitted exit contributes no conjunct.
 //!
 //! The binders are the state's immutable fixed-integer parameters in either
 //! readable arithmetic domain. `Exact` terms read as mathematical integers
@@ -64,6 +49,8 @@ use validation::{
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     scoped_arithmetic_implication,
 };
+
+mod components;
 
 use super::super::prover::has_builtin_operators;
 use super::super::return_values::{exit_return_expression, is_result_reference};
@@ -112,9 +99,7 @@ impl CyclicHeaderInvariants {
             .unwrap_or_else(|| {
                 self.machines.push(MachineHeaderInvariants {
                     machine: exit.machine_symbol,
-                    admitted: Header::new(program, facts, exit.machine_symbol)
-                        .map(|header| header.admitted())
-                        .unwrap_or_default(),
+                    admitted: components::admitted(program, facts, exit.machine_symbol),
                 });
                 self.machines.len() - 1
             });
@@ -137,13 +122,10 @@ struct Candidate {
     returned: ExpressionHandle,
 }
 
-/// One named transition into the header: the caller state, its simultaneous
-/// arguments, and the facts alive at that arm, each with the polarity the arm
-/// established. `inductive` marks a backedge — the caller is the header, so
-/// the proposed conjunction is available as a hypothesis; a base edge from
-/// another state proves the goal without it.
+/// One named arrival, retaining its caller identity and exact simultaneous
+/// arguments. Component membership decides whether a caller invariant is live.
 struct Arrival {
-    inductive: bool,
+    caller: SymbolHandle,
     caller_atoms: Vec<ScopedArithmeticBinding>,
     arguments: Vec<ExpressionHandle>,
     hypotheses: Vec<(ExpressionHandle, bool)>,
@@ -160,7 +142,7 @@ struct Header<'program, 'facts> {
     program: &'program TypedTrees,
     facts: &'facts CheckFacts,
     machine: &'program Machine,
-    /// The cyclic header: the unique state a named transition re-enters.
+    /// The destination state whose local invariant is being proposed.
     header: &'program State,
     /// The entry state; its parameters are the invocation formals.
     entry: &'program State,
@@ -179,79 +161,19 @@ struct Header<'program, 'facts> {
     /// `result` may denote, with its domain.
     result: Option<(TypeReferenceHandle, ArithmeticDomain)>,
     requires: Vec<ExpressionHandle>,
+    entry_is_reentered: bool,
 }
 
 impl<'program, 'facts> Header<'program, 'facts> {
     fn new(
         program: &'program TypedTrees,
         facts: &'facts CheckFacts,
-        machine_symbol: SymbolHandle,
+        machine: &'program Machine,
+        header: &'program State,
+        entry_is_reentered: bool,
     ) -> Option<Self> {
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)?;
         let states = program.machine_states(machine);
         let entry = states.first()?;
-        // The cyclic header is the unique state a named transition re-enters:
-        // a self-loop spelled by the state's own name, or the machine's name
-        // for the entry state. Two cyclic states, or none, retire the
-        // proposal — the conjunct discipline here covers one induction.
-        let header = if let [single] = states {
-            single
-        } else {
-            let mut cyclic = Vec::new();
-            for state in states {
-                let caller_flow = Self::state_flow(facts, machine, state)?;
-                if Self::has_self_reentry(program, facts, machine, entry, state, caller_flow) {
-                    cyclic.push(state);
-                }
-            }
-            let [header] = cyclic[..] else {
-                return None;
-            };
-            // A named-state header only admits machines whose entry frame is
-            // exactly the invocation frame: an edge re-entering the entry —
-            // the machine's own name or a path into it — would rebind the
-            // formal scope mid-run, which the fixed invocation atoms cannot
-            // distinguish.
-            if header.symbol != entry.symbol
-                && states.iter().any(|state| {
-                    Self::state_flow(facts, machine, state).is_some_and(|caller_flow| {
-                        facts
-                            .flow
-                            .control
-                            .calls
-                            .span_or_empty(caller_flow.calls)
-                            .iter()
-                            .any(|call| {
-                                let Some(site) = crate::semantic::calls::find_call_site(
-                                    program,
-                                    machine.symbol,
-                                    state.symbol,
-                                    call.statement_index,
-                                    call.call_ordinal,
-                                ) else {
-                                    return false;
-                                };
-                                let crate::semantic::calls::CallSite::TransitionNamed {
-                                    path, ..
-                                } = &site
-                                else {
-                                    return false;
-                                };
-                                path.symbol == machine.symbol
-                                    || path.symbol == entry.symbol
-                                    || call.target_symbol == machine.symbol
-                                    || call.target_symbol == entry.symbol
-                            })
-                    })
-                })
-            {
-                return None;
-            }
-            header
-        };
         let state_flow = Self::state_flow(facts, machine, header)?;
         let params_of = |state: &State| {
             program
@@ -305,6 +227,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             terms,
             result,
             requires,
+            entry_is_reentered,
         })
     }
 
@@ -324,40 +247,6 @@ impl<'program, 'facts> Header<'program, 'facts> {
             .map(|(_, flow)| flow)
     }
 
-    /// One edge of `state`'s flow that names a re-entry: the state's own name
-    /// for a self-loop, or the machine's name for an entry backedge.
-    fn has_self_reentry(
-        program: &TypedTrees,
-        facts: &CheckFacts,
-        machine: &Machine,
-        entry: &State,
-        state: &State,
-        caller_flow: &FlowStateFact,
-    ) -> bool {
-        facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(caller_flow.calls)
-            .iter()
-            .any(|call| {
-                let Some(site) = crate::semantic::calls::find_call_site(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                ) else {
-                    return false;
-                };
-                let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = &site else {
-                    return false;
-                };
-                Self::target_is_header(machine, entry, state, path.symbol)
-                    || Self::target_is_header(machine, entry, state, call.target_symbol)
-            })
-    }
-
     /// A spelled or resolved target enters `header`: the header's own symbol
     /// for a named state, or the machine's symbol for an entry backedge.
     fn target_is_header(
@@ -369,74 +258,14 @@ impl<'program, 'facts> Header<'program, 'facts> {
         symbol == header.symbol || (header.symbol == entry.symbol && symbol == machine.symbol)
     }
 
-    /// The exit guarantees the proved header conjunction discharges: all of
-    /// the transported candidates, or none.
-    fn admitted(&self) -> Vec<AdmittedGuarantee> {
-        let candidates = self.candidates();
-        if candidates.is_empty() {
-            return Vec::new();
-        }
-        let Some(arrivals) = self.arrivals() else {
-            return Vec::new();
-        };
-        if arrivals.is_empty() {
-            return Vec::new();
-        }
-        let is_entry_header = self.header.symbol == self.entry.symbol;
-        let requires = |roster: &dyn Fn() -> Vec<ScopedArithmeticBinding>| {
-            self.requires
-                .iter()
-                .filter(|expression| self.hypothesis_is_admitted(**expression))
-                .map(|expression| self.hypothesis(*expression, roster(), true))
-                .collect::<Vec<_>>()
-        };
-        let conjuncts = candidates
+    fn requirements(
+        &self,
+        bindings: Vec<ScopedArithmeticBinding>,
+    ) -> Vec<ScopedArithmeticHypothesis> {
+        self.requires
             .iter()
-            .map(|candidate| ScopedArithmeticHypothesis {
-                proposition: self.transported(candidate, self.header_roster()),
-                holds: true,
-            })
-            .collect::<Vec<_>>();
-        for arrival in &arrivals {
-            // The machine's requirements over the immutable invocation
-            // formals hold at every point of the run.
-            let mut hypotheses = requires(&|| self.formal_roster());
-            if arrival.inductive {
-                // A backedge's caller is the header itself: the conjunction
-                // is the induction hypothesis, and when the header is the
-                // entry state the machine-name call re-establishes the
-                // requirements over the newly bound header parameters.
-                hypotheses.extend(conjuncts.iter().cloned());
-                if is_entry_header {
-                    hypotheses.extend(requires(&|| self.header_roster()));
-                }
-            }
-            hypotheses.extend(arrival.hypotheses.iter().map(|(expression, holds)| {
-                self.hypothesis(*expression, arrival.caller_atoms.clone(), *holds)
-            }));
-            let bindings = self.arrival_roster(&arrival.arguments, arrival.caller_atoms.clone());
-            for candidate in &candidates {
-                let goal = self.transported(candidate, bindings.clone());
-                if !self.proves(&hypotheses, &goal) {
-                    return Vec::new();
-                }
-            }
-        }
-        if is_entry_header {
-            // Establishment: the invocation binds every header parameter from
-            // its formal, so the conjunct is read with both rosters
-            // coinciding.
-            let invocation = requires(&|| self.formal_roster());
-            for candidate in &candidates {
-                let goal = self.transported(candidate, self.formal_roster());
-                if !self.proves(&invocation, &goal) {
-                    return Vec::new();
-                }
-            }
-        }
-        candidates
-            .into_iter()
-            .map(|candidate| candidate.exit)
+            .filter(|expression| self.hypothesis_is_admitted(**expression))
+            .map(|expression| self.hypothesis(*expression, bindings.clone(), true))
             .collect()
     }
 
@@ -580,7 +409,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                     })
                     .collect();
                 arrivals.push(Arrival {
-                    inductive: caller.symbol == self.header.symbol,
+                    caller: caller.symbol,
                     caller_atoms: self.caller_atoms(caller),
                     arguments: arguments.to_vec(),
                     hypotheses,
@@ -660,14 +489,6 @@ impl<'program, 'facts> Header<'program, 'facts> {
         self.atoms_of(&self.formals, "invocation".to_string())
     }
 
-    /// The values bound at the current header arrival, together with the
-    /// invocation formals — an expression in the header's scope may name
-    /// either (a no-op union when the header is the entry state, whose
-    /// parameters are the formals).
-    fn header_roster(&self) -> Vec<ScopedArithmeticBinding> {
-        self.with_formals(self.atoms_of(&self.roster, "header".to_string()))
-    }
-
     /// `bindings` plus an invocation-atom binding for every formal symbol the
     /// scope does not already bind: formals are immutable machine-level
     /// binders, visible inside every state.
@@ -688,15 +509,11 @@ impl<'program, 'facts> Header<'program, 'facts> {
         bindings
     }
 
-    /// The scope an edge's arguments and arm facts are read in: the header's
-    /// own for a backedge, the invocation's for an edge leaving the entry
-    /// state (whose parameters are the formals), and a per-caller scope —
-    /// plus the ambient formals — for any other state.
+    /// Every current state has a distinct frame. Only an entry that cannot be
+    /// reentered may use invocation atoms directly. The component hypotheses
+    /// use this same caller frame, never the destination's freshly bound one.
     fn caller_atoms(&self, caller: &State) -> Vec<ScopedArithmeticBinding> {
-        if caller.symbol == self.header.symbol {
-            return self.header_roster();
-        }
-        if caller.symbol == self.entry.symbol {
+        if caller.symbol == self.entry.symbol && !self.entry_is_reentered {
             return self.formal_roster();
         }
         let parameters = self
@@ -1068,9 +885,10 @@ ensures result <= previous
     }
 
     #[test]
-    fn two_cyclic_states_retire_the_proposal() {
-        // The conjunction covers one induction: a machine whose entry state
-        // also re-enters itself by the machine's name admits nothing.
+    fn an_external_cyclic_frame_is_not_the_invocation() {
+        // Separate components cannot assume each other's proposals. In
+        // particular, the first component's current entry parameters cannot
+        // be identified with the invocation when proving the second's base.
         let source = r#"
 machine descend(n: u64 [0..=1000], previous: u64 [0..=1000]) -> u64
 terminates by n -> Nat::Descending;
@@ -1088,7 +906,8 @@ ensures result <= previous
     }
 }
 "#;
-        let diagnostics = check(source).expect_err("two cyclic headers must retire the proposal");
+        let diagnostics =
+            check(source).expect_err("an external cyclic frame needs its own established relation");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic.message
                 == "cannot prove ensures contract for exit from descend at statement 1: result <= previous; no exact incoming reference origin for previous"),
@@ -1096,3 +915,6 @@ ensures result <= previous
         );
     }
 }
+
+#[cfg(test)]
+mod component_tests;
