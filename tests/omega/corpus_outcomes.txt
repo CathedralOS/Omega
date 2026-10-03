@@ -1564,8 +1564,8 @@ pass/control_flow/element_view_enum_equality_exit checked 1671ms @27950676fa31+w
 pass/control_flow/explicit_state_value_frontier checked 306ms @2d8ed253669f
 pass/control_flow/field_subject_named_arm_chain checked 1463ms @2d8ed253669f
 pass/control_flow/field_view_transfer_exit checked 1421ms @2d8ed253669f
-pass/control_flow/guarded_jump_field_view_forward rejected 149ms @882f6744a121+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: result-local transfer, state 0, statement 4)") })
+pass/control_flow/guarded_jump_field_view_forward rejected 427ms @a6375dd455c+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: state signature: parameter signature: attached data shape, state 0)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 357ms @2d8ed253669f
 pass/control_flow/guarded_mid_arm_return checked 1679ms @2d8ed253669f
 pass/control_flow/guarded_transition_dispatch_exit checked 1028ms @765e6c51624f+wt
@@ -1722,8 +1722,8 @@ pass/expressions/arithmetic_domain_requires_proven_exact_exit checked 1261ms @2d
 pass/expressions/arithmetic_domain_saturating_signed_exit checked 1229ms @2d8ed253669f
 pass/expressions/arithmetic_domain_trapping_overflow checked 922ms @2d8ed253669f
 pass/expressions/arithmetic_domain_wrapping_exit checked 943ms @2d8ed253669f
-pass/expressions/borrow_carrying_data_field_exit rejected 738ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural value: reference record loans` (state 0, statement 1)
+pass/expressions/borrow_carrying_data_field_exit rejected 1770ms @a6375dd455c+wt
+	terminal-artifact production failed: Lowering(Unsupported("borrowed selection requires a structural continuation"))
 pass/expressions/dead_trapping_let_traps checked 739ms @4e4bfed13aee+wt
 pass/expressions/declared_operator_match_result checked 310ms @2d8ed253669f
 pass/expressions/explicit_scalar_tag_erasure checked 292ms @2d8ed253669f
