@@ -226,9 +226,10 @@ pub(crate) struct Frame {
     /// false -> b }` into one guard per arm, each holding a COPY of the subject call, so
     /// a later arm must reuse the first arm's result (matching the native lowering)
     /// instead of re-running the callee's side effects. Copies have distinct handles, so
-    /// lookups compare structurally. The frame is rebuilt for every state (re)entry, so
-    /// loops re-evaluate naturally. Destructure-marked case payload projections
-    /// reuse this subject too; separately authored successor calls do not.
+    /// lookups compare structurally. Named arrivals rebuild the frame; self arrivals
+    /// clear this cache while retaining current binding homes. Destructure-marked
+    /// case payload projections reuse this subject too; separately authored
+    /// successor calls do not.
     guard_call_results: Vec<(ExpressionHandle, Value)>,
 }
 
