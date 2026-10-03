@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 5.6, "load1_start": 5.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 3.6, "load1_start": 3.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/borrows/returned_record_field_read_exit built 1319ms exit:70 interpreter-exit:70 interpreter:agrees @2816825e8941
 pass/borrows/static_record_reference_return_exit built 1196ms exit:0 interpreter-exit:0 interpreter:agrees @2816825e8941
@@ -28,6 +28,7 @@ pass/recast/runtime_interior_slice_view_mutable_write_exit built 1567ms exit:70 
 pass/recast/runtime_recast_record_view_indexed_write_exit built 2185ms exit:70 interpreter-exit:70 interpreter:agrees @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit built 4386ms exit:70 interpreter-exit:70 interpreter:agrees @06ca7704be0a
 pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1625ms exit:3 interpreter-exit:3 interpreter:agrees @0bc11b9b33e8
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt
 pass/text/declared_record_view_field_fill_exit built 1235ms exit:70 interpreter-exit:70 interpreter:agrees @20ff4f468d4e+wt
