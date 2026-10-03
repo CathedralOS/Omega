@@ -51,5 +51,5 @@ machine Loader::drive(loader: &mut Loader)
     invokes UefiBootServices;
     invokes UefiOsHandoffTermination;
 {
-    Loader::run(&mut loader.cycle);
+    UefiOsHandoffCycle::run(&mut loader.cycle);
 }
