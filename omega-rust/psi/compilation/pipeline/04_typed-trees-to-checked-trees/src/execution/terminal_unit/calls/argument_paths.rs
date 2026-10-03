@@ -291,6 +291,30 @@ fn projected_argument_path_impl(
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
     let mut path = Vec::with_capacity(place.segments.len());
+    // A borrowed root's own declared reference shells denote storage the
+    // rooted subject already names — a `&`-parameter's member projection
+    // does not re-cross them. Case segments leave the root's type intact,
+    // so while the prefix has only selected cases, every shell the
+    // container reports is the root's own. Once a member, element, or
+    // window descend has projected a new leaf type, any shell it carries
+    // belongs to a stored reference the path actually crossed.
+    let inherited_crossings = {
+        let mut reference = crate::flow::canonical_place_type_reference(
+            program,
+            state_symbol,
+            statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?;
+        let mut count = 0usize;
+        while let Some(shell) = validation::reference_shell(program, reference) {
+            count += 1;
+            reference = shell.referee;
+        }
+        count
+    };
     let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
         // Parameters already denote their borrowed storage. Below that root,
@@ -308,9 +332,18 @@ fn projected_argument_path_impl(
                 statement_index,
                 &container,
             )?;
+            let mut crossings = 0usize;
             while let Some(shell) = validation::reference_shell(program, reference) {
-                path.push(CheckedUnitStructuralPathSegment::Referent);
+                crossings += 1;
                 reference = shell.referee;
+            }
+            let inherited = place.segments[..position]
+                .iter()
+                .all(|prefix| matches!(prefix, facts::PlaceSegment::Case { .. }))
+                .then_some(inherited_crossings)
+                .unwrap_or(0);
+            for _ in 0..crossings.saturating_sub(inherited) {
+                path.push(CheckedUnitStructuralPathSegment::Referent);
             }
         }
         match segment {
