@@ -10,8 +10,9 @@
 //! in that state's frame. The component owns the
 //! conjunction of these state-local candidates. Every incoming edge proves the
 //! destination conjunction under simultaneous actual-argument substitution.
-//! An internal edge may assume only its caller's conjunction, while an external
-//! edge must establish the destination without it. Invocation is an additional
+//! An internal edge may assume only its caller's conjunction. An external edge
+//! can use a preceding component's relation only after that component's complete
+//! induction has checked. Invocation is an additional
 //! initial arrival when the entry belongs to the component.
 //!
 //! Only after the entire component's arrivals check do its candidates discharge
@@ -19,7 +20,9 @@
 //! caller; invocation requirements remain about the immutable formals. Neither
 //! ranking nor prefix facts grant an invariant. Unsupported substitutions and
 //! any failed arrival retire the whole component proposal. Candidate discovery
-//! remains incomplete: a state without an admitted exit contributes no conjunct.
+//! remains incomplete: demands propagate backwards through the component DAG,
+//! including acyclic bridges and components without their own exit, but internal
+//! cycle edges are not unrolled to invent further predicates.
 //!
 //! The binders are the state's immutable fixed-integer parameters in either
 //! readable arithmetic domain. `Exact` terms read as mathematical integers
@@ -54,6 +57,7 @@ use validation::{
 };
 
 mod components;
+mod demands;
 
 use super::super::prover::has_builtin_operators;
 use super::super::return_values::{exit_return_expression, is_result_reference};
@@ -512,6 +516,17 @@ impl<'program, 'facts> Header<'program, 'facts> {
         bindings
     }
 
+    /// Template placeholders for this state's current values. Keep these
+    /// distinct even when exact origins later identify a parameter with an
+    /// invocation value: only a proof-site instantiation applies that equality.
+    fn current_atoms(&self) -> Vec<ScopedArithmeticBinding> {
+        self.atoms_of(&self.roster, format!("arrival:{:?}", self.header.symbol))
+    }
+
+    fn current_roster(&self) -> Vec<ScopedArithmeticBinding> {
+        self.with_formals(self.current_atoms())
+    }
+
     /// Current parameters start with fresh atoms. The flow owner's exact
     /// all-path origin solution can identify one immutable scalar with its
     /// invocation value independently of other parameters drifting. Missing,
@@ -953,3 +968,6 @@ mod component_tests;
 
 #[cfg(test)]
 mod origin_tests;
+
+#[cfg(test)]
+mod relational_tests;
