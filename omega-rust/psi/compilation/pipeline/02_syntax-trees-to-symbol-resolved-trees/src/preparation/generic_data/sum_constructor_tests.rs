@@ -13,6 +13,71 @@ use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn borrowed_sum_membership_uses_each_subjects_exact_application() {
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::statement::StatementNode;
+    let source = "data Choice<T> { case Empty; case Full(value: T); }
+        data Other<T> { case Empty; case Full(value: T); }
+        machine left(subject: &Choice<u8>) -> bool { subject in Choice::Full }
+        machine right(subject: &mut Choice<u16>) -> bool { subject in Choice::Full }
+        machine wrong(subject: &Other<u8>) -> bool { subject in Choice::Full }";
+    let mut syntax = SyntaxTrees::new(SourceId::default());
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    tokens_to_syntax_trees::parse(&mut syntax, SourceId(1), &tokens).unwrap();
+    let syntax = normalize_generic_data(GenericDataRequest::new(syntax)).unwrap();
+    let mut selected_owners = Vec::new();
+    for machine in syntax.root_items().filter_map(|item| match item {
+        Item::Machine(machine) => Some(machine),
+        _ => None,
+    }) {
+        let state = syntax
+            .items
+            .state(syntax.items.state_handles(machine.states)[0]);
+        let parameter = syntax
+            .items
+            .state_parameter(syntax.items.state_parameters(state.parameters)[0]);
+        let TypeReferenceNode::Reference { referee, .. } = syntax
+            .type_references
+            .type_reference(parameter.type_reference)
+        else {
+            panic!("borrowed subject");
+        };
+        let TypeReferenceNode::Named(owner) = syntax.type_references.type_reference(*referee)
+        else {
+            panic!("closed subject");
+        };
+        let StatementNode::Expression(expression) = syntax
+            .statements
+            .statement(syntax.items.statements(state.statements)[0])
+        else {
+            panic!("membership expression");
+        };
+        let ExpressionNode::Membership(membership) = syntax.expressions.expression(*expression)
+        else {
+            panic!("membership");
+        };
+        let path = syntax
+            .expressions
+            .identifier_path_members(membership.domain);
+        assert_eq!(path.len(), 2);
+        assert_eq!(path[1].as_str(), "Full");
+        if machine.name.as_str() == "wrong" {
+            assert_eq!(
+                path[0].as_str(),
+                "Choice",
+                "a foreign subject must not retarget the authored case owner"
+            );
+            assert_ne!(path[0].as_str(), owner.as_str());
+        } else {
+            assert_eq!(path[0].as_str(), owner.as_str());
+            selected_owners.push(owner.as_str().to_owned());
+        }
+    }
+    assert_eq!(selected_owners.len(), 2);
+    assert_ne!(selected_owners[0], selected_owners[1]);
+}
+
+#[test]
 fn copied_nested_sum_context_uses_retained_application_not_generated_spelling() {
     let mut syntax = SyntaxTrees::new(SourceId::default());
     let tokens = Lexer::new("data Choice<T> { case Empty; case Full(value: T); } data Holder { value: Choice<Choice<u64>>; }").tokenize().unwrap();
@@ -94,7 +159,7 @@ fn copied_nested_sum_context_uses_retained_application_not_generated_spelling() 
 fn attached_machine_substitution_retains_previously_closed_sum_argument() {
     let source = "data Choice<T> { case Empty; case Full(value: T); }
         data Cell<T> { value: T; }
-        machine Cell::make<T>(&self) -> T { Choice::Empty }
+        machine Cell::make<T>(cell: &Cell<T>) -> T { Choice::Empty }
         data Outer<T> { value: Cell<T>; }
         data Holder { value: Outer<Choice<u64>>; }";
     let mut syntax = SyntaxTrees::new(SourceId::default());

@@ -112,7 +112,16 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                     }
                     _ => return None,
                 };
-                let instance = expected_instance(syntax, instances, selection, *closed)?;
+                // Membership observes the referent's case, not the reference
+                // carrier. Keep constructor expected types strict; only this
+                // observation peels access and qualification shells before
+                // selecting the retained generic application. Counting other
+                // instances cannot supply this subject's identity.
+                let closed = membership_subject_type(syntax, *closed);
+                if !closed.is_valid() {
+                    return None;
+                }
+                let instance = expected_instance(syntax, instances, selection, closed)?;
                 // Destructure lowering currently retains the two-part case path.
                 let [_, _] = syntax
                     .expressions
@@ -147,6 +156,23 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
             );
         }
     }
+}
+
+fn membership_subject_type(
+    syntax: &SyntaxTrees,
+    mut reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    for _ in 0..syntax.type_references.type_reference_count() {
+        if !reference.is_valid() {
+            return reference;
+        }
+        reference = match syntax.type_references.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => *base_type,
+            _ => return reference,
+        };
+    }
+    TypeReferenceHandle::default()
 }
 
 pub(in crate::preparation::generic_data) fn named_type_name(
