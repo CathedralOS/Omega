@@ -447,3 +447,86 @@ fn concatenated_live_length_sum_uses_only_cited_integer_equations() {
     };
     assert_eq!(*left, embedded(1));
 }
+
+#[test]
+fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
+    use semantic_vocabulary::IntegerMathTerm;
+    let (context, _, _) = fixture();
+    let embedded = |identity| IntegerMathTerm::MathValue {
+        source_type: integer_type(),
+        value: ValueId::new(identity).unwrap(),
+    };
+    let original = Proposition::IntegerMathLessOrEqual(
+        embedded(1),
+        IntegerMathTerm::literal(IntegerValue::Signed(100)),
+    );
+    let expected = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(Box::new(embedded(2)), Box::new(embedded(3))),
+        IntegerMathTerm::literal(IntegerValue::Signed(100)),
+    );
+    let exact = Proposition::Equal(
+        value(1),
+        ScalarTerm::exact_integer_add(integer_type(), value(2), value(3)).unwrap(),
+    );
+    assert_eq!(
+        super::check_value_equality_denotation(&context, &original, [&exact]).unwrap(),
+        expected,
+    );
+    let transport = |equation: &Proposition| ProofNode {
+        conclusion: expected.clone(),
+        rule: ProofRule::ValueEqualityTransport {
+            premise: Box::new(ProofNode {
+                conclusion: original.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            equalities: vec![ProofNode {
+                conclusion: equation.clone(),
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            }],
+        },
+    };
+    crate::accept_certificate(
+        &context,
+        &expected,
+        &[original.clone()],
+        &[exact.clone()],
+        &transport(&exact),
+    )
+    .expect("exact scalar definition and mathematical order share checked denotation");
+
+    for changed in [
+        Proposition::Equal(
+            value(1),
+            ScalarTerm::exact_integer_add(integer_type(), value(2), value(4)).unwrap(),
+        ),
+        Proposition::Equal(
+            value(1),
+            ScalarTerm::wrapping_integer_add(integer_type(), value(2), value(3)).unwrap(),
+        ),
+        Proposition::Equal(
+            value(1),
+            ScalarTerm::saturating_integer_add(integer_type(), value(2), value(3)).unwrap(),
+        ),
+    ] {
+        assert_ne!(
+            super::check_value_equality_denotation(&context, &original, [&changed]).unwrap(),
+            expected,
+        );
+        // Rebind the citation itself to the current equation. Rejection must
+        // come from the attempted semantic transport, not stale proof bytes.
+        assert!(
+            crate::accept_certificate(
+                &context,
+                &expected,
+                &[original.clone()],
+                &[changed.clone()],
+                &transport(&changed),
+            )
+            .is_err()
+        );
+    }
+    assert!(
+        crate::accept_certificate(&context, &expected, &[original.clone()], &[], &transport(&exact),)
+            .is_err()
+    );
+}

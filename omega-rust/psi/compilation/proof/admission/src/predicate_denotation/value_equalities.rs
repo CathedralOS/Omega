@@ -91,24 +91,29 @@ impl<'input> ValueEqualities<'input> {
             Proposition::IntegerMathEqual(left, right)
             | Proposition::IntegerMathLessThan(left, right)
             | Proposition::IntegerMathLessOrEqual(left, right) => {
-                // Mathematical constructors preserve exact integer denotation.
-                // Substitute only cited typed values beneath them, without
-                // reinterpreting wrapped or otherwise partial scalar images.
-                if matches!(
-                    left,
-                    IntegerMathTerm::Add(..)
-                        | IntegerMathTerm::Subtract(..)
-                        | IntegerMathTerm::Multiply(..)
-                        | IntegerMathTerm::ShiftLeft { .. }
-                ) || matches!(
-                    right,
-                    IntegerMathTerm::Add(..)
-                        | IntegerMathTerm::Subtract(..)
-                        | IntegerMathTerm::Multiply(..)
-                        | IntegerMathTerm::ShiftLeft { .. }
-                ) {
-                    *left = self.mathematical(left, budget, depth + 1)?;
-                    *right = self.mathematical(right, budget, depth + 1)?;
+                // A cited exact scalar definition can introduce mathematical
+                // constructors even when this comparison originally names only
+                // values. Use the same transport for both forms. Opaque policy
+                // images remain typed scalar values; field observations below
+                // retain their existing scalar comparison vocabulary.
+                let expanded_left = self.mathematical(left, budget, depth + 1)?;
+                let expanded_right = self.mathematical(right, budget, depth + 1)?;
+                let is_operation = |term: &IntegerMathTerm| {
+                    matches!(
+                        term,
+                        IntegerMathTerm::Add(..)
+                            | IntegerMathTerm::Subtract(..)
+                            | IntegerMathTerm::Multiply(..)
+                            | IntegerMathTerm::ShiftLeft { .. }
+                    )
+                };
+                if is_operation(left)
+                    || is_operation(right)
+                    || is_operation(&expanded_left)
+                    || is_operation(&expanded_right)
+                {
+                    *left = expanded_left;
+                    *right = expanded_right;
                     return Ok(transported);
                 }
                 // Leaf comparisons can also rejoin scalar field observations.
