@@ -68,7 +68,7 @@ pub(crate) use result_contract::{
 };
 pub(crate) use scalar_lowering::{
     landed_for_primitive, lower_state_scalar_expression, lower_unit_scalar_argument,
-    unit_scalar_binding_symbols,
+    lower_unit_scalar_argument_with_places, unit_scalar_binding_symbols,
 };
 pub(crate) use structural_fields::{
     exclusive_reference, resolve_structural_parameter_path, structural_data,

@@ -138,18 +138,21 @@ pub data Guard [linear] {
 pub domain Guard::Active
 established by MaskControl::save;
 
+pub data MaskState { enabled: bool; }
+
 pub boundary trait MaskControl {
-    machine save(&mut self) -> Guard in Active
+    machine save(subject: &mut MaskState) -> Guard in Active
     ensures
         result in Guard::Active;
 }
 
 data Main {
     control: Binding<MaskControl>;
+    mask: MaskState;
 }
 
-machine Main::run(&mut self) -> Guard in Active reaches MaskControl {
-    self.control.save()
+machine Main::run(main: &mut Main) -> Guard in Active reaches MaskControl {
+    main.control.save(&mut main.mask)
 }
 "#;
 

@@ -542,7 +542,7 @@ fn generic_boundary_carriers_still_fail_closed() {
 #[test]
 fn boundary_receiver_cyclic_constraints_remain_opaque() {
     let program = crate::front_end::typed_program(
-        "boundary trait Sink { machine touch(); } data Main { sink: Sink; } machine Main::inspect(&mut self) { self.sink.touch(); }",
+        "boundary trait Sink { machine touch(); } data Main { sink: Sink; } machine Main::inspect(main: &mut Main) { main.sink.touch(); }",
     );
     for cycle_length in [1, 2] {
         let mut invalid = program.clone();

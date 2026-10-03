@@ -19,6 +19,48 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// Resolve retained receiver members against their actual declarations. The
+/// caller authenticates the root declaration; this owner authenticates every
+/// field and the final retained symbol, sharing one path with boundary lookup.
+/// Resolving a type does not prove that a stored reference still denotes the
+/// same storage; origin consumers separately validate those crossings.
+pub(super) fn retained_receiver_projection<'name>(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    root: symbols::SymbolHandle,
+    leaf: symbols::SymbolHandle,
+    fields: impl IntoIterator<Item = &'name str>,
+) -> Option<(Vec<PlaceSegment>, TypeReferenceHandle)> {
+    if !root.is_valid() || !leaf.is_valid() {
+        return None;
+    }
+    let mut selected = root;
+    let mut segments = Vec::new();
+    for name in fields {
+        let definition =
+            crate::value_custody::places::data_definition_for_type(program, reference)?;
+        let mut candidates = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(field)
+                }
+                _ => None,
+            });
+        let field = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        selected = field.symbol;
+        reference = field.type_reference;
+        segments.push(PlaceSegment::Field {
+            symbol: field.symbol,
+        });
+    }
+    (selected == leaf).then_some((segments, reference))
+}
+
 /// Receiver lookup spelling and storage precision travel together. A proven
 /// computed origin is storage evidence, not authority for lookup by name.
 ///

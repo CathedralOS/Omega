@@ -89,7 +89,10 @@ fn invocation_contexts_at_referents(
 /// referents transport the facts live on that storage at invocation; anything
 /// the contents classifier cannot prove stable, or whose referent could not
 /// be resolved exactly, keeps the capture ∩ invocation intersection.
-fn operand_binds_stable_copy(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
+pub(crate) fn operand_binds_stable_copy(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> bool {
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
@@ -148,3 +151,70 @@ pub(crate) fn entry_origin_is_stable(
                 })
             })
 }
+
+/// Within one invocation, unknown observations may share a place identity only while its contents
+/// agree at both capture points. Prefix spans can be copied by arena growth;
+/// compare their exact rows, then inspect intervening writes. Final values and
+/// equal rendered paths cannot erase an intermediate write.
+pub(crate) fn operand_observations_agree(
+    program: &TypedTrees,
+    flow: &FlowFacts,
+    first: &FlowOperandFact,
+    second: &FlowOperandFact,
+    place: &crate::flow::CanonicalPlace,
+) -> bool {
+    if std::ptr::eq(first, second) {
+        return true;
+    }
+    if first.entry_origin_unknown_write || second.entry_origin_unknown_write {
+        return false;
+    }
+    let Some(first) = flow
+        .control
+        .operand_origin_writes
+        .span(first.entry_origin_writes)
+    else {
+        return false;
+    };
+    let Some(second) = flow
+        .control
+        .operand_origin_writes
+        .span(second.entry_origin_writes)
+    else {
+        return false;
+    };
+    let (prefix, extended) = if first.len() <= second.len() {
+        (first, second)
+    } else {
+        (second, first)
+    };
+    if !prefix.iter().zip(extended).all(|(left, right)| {
+        left.root == right.root
+            && flow
+                .control
+                .operand_referent_segments
+                .span(left.segments)
+                .zip(flow.control.operand_referent_segments.span(right.segments))
+                .is_some_and(|(left, right)| left == right)
+    }) {
+        return false;
+    }
+    extended[prefix.len()..].iter().all(|write| {
+        crate::flow::normalized_event_place_root(program, place.root)
+            != crate::flow::normalized_event_place_root(program, write.root)
+            || flow
+                .control
+                .operand_referent_segments
+                .span(write.segments)
+                .is_some_and(|segments| {
+                    !crate::flow::canonical_place_segments_may_overlap(
+                        program,
+                        &place.segments,
+                        segments,
+                    )
+                })
+    })
+}
+
+#[cfg(test)]
+mod tests;

@@ -3353,35 +3353,35 @@ unchanged, except for intended deletions, which its commit lists.
   cleanup prerequisites and mathematical proofs distinct from primitive
   operation conditions during this transition.
 
-  The local candidate checks runtime division/remainder with the shared policy
+  The local candidate checks runtime division/remainder with shared policy
   rules and retains selected disequalities through writes, joins and named-state
-  transport. Ordinary call-result inference preserves immutable actual bounds,
-  including clamp then widening. Exact scalar `IntegerAt` assignments and
-  normalized constructors retain successful source decisions in `CheckFacts`.
-  Constructors use bounds at each field's evaluation occurrence; scalar loans
-  retain every possible encoded origin, while aggregate field declarations
-  determine their own layout even after a cyclic reference-returning helper.
-  Scalar fields, nested arrays and scalar match arms share operation checking
-  at their evaluation occurrences, retaining guard and local assignment facts.
-  After synchronization onto `d9720a4fa4`, 87 focused arithmetic, construction
-  and physical-boundary tests pass. Public
-  `omega --check tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg`
-  rejects 128 into signed eight-bit storage at checking. On macOS ARM64,
-  `omega run --both tests/omega/pass/layouts/runtime_plan_laid_integer_at_proved_write_exit/main.omg`
-  produced the authored native/interpreter exit 72 after synchronization onto
-  `d9720a4fa4`. Both upstream terminal guard/operand-order fixtures also run
-  with exit 0 in both engines. The six-fixture constructor/match/storage check
-  retains all expected outcomes; three new constructor failures are recorded.
+  transport. Immutable call actuals retain their bounds, including clamp then
+  widening. Assignments, scalar loans and normalized constructors share physical
+  integer fit checking and the occurrence-keyed `CheckFacts::stored_integer_writes`
+  table. Scalar fields, nested arrays and scalar match arms retain arithmetic
+  diagnostics at their evaluation occurrences. The 87 focused arithmetic,
+  construction and physical-boundary tests pass. Six constructor/match/storage
+  corpus cases retain their expected verdicts; three new failures are recorded.
+  At `229377b754`, the proved layout write returns 72 in both engines and both
+  upstream terminal guard/operand-order fixtures return 0 on macOS ARM64.
 
-  Remaining: discharge every callee write and retain/consume all other operation
-  decisions before deleting any late gate. Existing mutation summaries retain
-  destinations, not intermediate written values; a final-value summary cannot
-  justify an earlier out-of-range store. Reuse the source scalar expression
-  reader, exact call-operand snapshots and formal/actual path substitution to
-  check every performed write, including nested calls and abrupt completion.
-  Preserve valid logical-field borrows without inventing public caller
-  requirements. Public layout literals are not yet spellable; constructor
-  checks cover normalized trees and do not claim that separate syntax work.
+  Private mutation facts now retain every direct integer assignment separately,
+  including overwritten values and writes before a crash, with source coordinates,
+  bounds, entry-value provenance and guards. Shared call-value binding preserves
+  completed operands and refuses to merge unknown observations across intervening
+  writes. Typed call-origin queries preserve all alternatives and representation
+  coordinates; missing projected receiver identities and effect-obscured origins
+  remain unknown. The 28 focused evidence/receiver controls pass.
+
+  Remaining: compose those write occurrences through every call and named-state
+  path, authenticate destinations against captured origins, and discharge each
+  caller's physical width. A partial row inventory is not a complete transitive
+  effect; final values cannot justify earlier invalid stores. Preserve valid
+  logical-field borrows without inventing public caller requirements. Retain and
+  consume all other operation decisions before deleting any late gate. Public
+  layout literals remain unspellable; normalized constructor checks do not claim
+  that separate syntax work. The call-write admission consumer and replacement
+  cleanup execution path remain unfinished and unpublished.
 
   Boolean recast admission already enforces the exact representation set
   (shared implication, mutable equivalence), and source checking already owns

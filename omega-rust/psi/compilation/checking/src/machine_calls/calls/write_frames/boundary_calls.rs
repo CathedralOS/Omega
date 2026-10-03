@@ -465,26 +465,14 @@ fn parameter_boundary_receiver_type(
     if !root.is_valid() || !leaf.is_valid() || fields.is_empty() {
         return None;
     }
-    let mut reference = parameter.type_reference;
-    let mut selected = root;
-    for name in fields {
-        let definition =
-            crate::value_custody::places::data_definition_for_type(program, reference)?;
-        let mut candidates = program
-            .data_members(definition)
-            .iter()
-            .filter_map(|member| match member {
-                DataMember::Field(field) if field.name.as_str() == name => Some(field),
-                _ => None,
-            });
-        let field = candidates.next()?;
-        if candidates.next().is_some() {
-            return None;
-        }
-        selected = field.symbol;
-        reference = field.type_reference;
-    }
-    (selected == leaf).then_some(reference)
+    super::reference_origins::retained_receiver_projection(
+        program,
+        parameter.type_reference,
+        root,
+        leaf,
+        fields.iter().map(String::as_str),
+    )
+    .map(|(_, reference)| reference)
 }
 
 /// The call's retained receiver and target identities at this write site. A

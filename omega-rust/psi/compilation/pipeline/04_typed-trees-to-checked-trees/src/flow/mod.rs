@@ -45,7 +45,8 @@ mod expression;
 mod operand_contexts;
 mod operator_calls;
 pub(crate) use operand_contexts::{
-    entry_origin_is_stable, operand_contexts, operand_entry_origin_is_stable,
+    entry_origin_is_stable, operand_binds_stable_copy, operand_contexts,
+    operand_entry_origin_is_stable, operand_observations_agree,
 };
 mod state;
 mod statements;

@@ -4,6 +4,8 @@
 //! complete-or-opaque summaries to its parent frame engine. It does not own
 //! call validation, alias-origin inference, or transition fixed points.
 
+mod call_origins;
+
 use super::boundary_calls::receiver_requires_boundary_frame;
 use super::caller_aliases::{
     AssignmentWriteTarget, LocalWriteOrigin, assignment_write_target,

@@ -29,6 +29,7 @@ mod declaration_requirement_tests;
 mod dynamic_conformance;
 pub(crate) mod field_domain;
 pub(crate) mod index_compatibility;
+mod integer_writes;
 mod machine_facts;
 pub(crate) mod operator_crashes;
 mod placed_views_and_uses;
@@ -319,7 +320,16 @@ pub(crate) fn build_check_facts(
     let service_reaches = build_service_reach_facts(program, service_reach_inference);
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
-    let mutation = build_mutation_facts(program, call_frames.as_ref());
+    let mut mutation = build_mutation_facts(program, call_frames.as_ref());
+    integer_writes::retain(
+        program,
+        &operators,
+        &values,
+        &flow,
+        &semantic,
+        call_frames.as_ref(),
+        &mut mutation,
+    );
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
     let contract_plans = build_contract_plans(

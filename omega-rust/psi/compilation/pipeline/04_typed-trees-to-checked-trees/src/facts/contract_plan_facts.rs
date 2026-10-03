@@ -370,7 +370,10 @@ pub(crate) fn build_mutation_facts(
             }
         })
         .collect();
-    checked_trees::MutationFacts { machines }
+    checked_trees::MutationFacts {
+        machines,
+        ..Default::default()
+    }
 }
 
 pub(crate) fn build_closed_scalar_value_contract_plan(

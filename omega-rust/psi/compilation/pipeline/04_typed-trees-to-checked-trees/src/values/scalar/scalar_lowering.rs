@@ -113,6 +113,65 @@ pub(crate) fn lower_unit_scalar_argument(
     )
 }
 
+/// Lower the ordinary scalar algebra, then bind each storage observation in
+/// that exact state namespace. The binder supplies its own custody policy;
+/// local reads stay reads of the local value rather than its initializer.
+pub(crate) fn lower_unit_scalar_argument_with_places(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+    expression: ExpressionHandle,
+    expected_type: PrimitiveType,
+    mut bind: impl FnMut(&crate::flow::CanonicalPlace, PrimitiveType) -> Option<CheckedScalarExpression>,
+) -> Option<CheckedScalarExpression> {
+    let mut value = lower_unit_scalar_argument(
+        program,
+        operators,
+        state,
+        before_statement,
+        expression,
+        expected_type,
+    )?;
+    let symbols = unit_scalar_binding_symbols(program, state, before_statement)?;
+    crate::facts::boolean_predicates::map_scalar(&mut value, &mut |operand| {
+        let primitive = operand.primitive_type()?;
+        let place = match operand {
+            CheckedScalarExpression::Parameter { position, .. }
+            | CheckedScalarExpression::Local { position, .. } => {
+                crate::flow::canonical_place_from_symbol(*symbols.get(*position)?)?
+            }
+            CheckedScalarExpression::StorageRead { symbol, .. } => {
+                crate::flow::canonical_place_from_symbol(*symbol)?
+            }
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position,
+                path,
+                ..
+            } => {
+                let (root, segments, _, _) = crate::values::resolve_structural_parameter_path(
+                    program,
+                    program.state_parameters(state),
+                    *parameter_position,
+                    path,
+                )?;
+                crate::flow::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(root),
+                    segments,
+                }
+            }
+            _ => return None,
+        };
+        let bound = bind(&place, primitive)?;
+        if bound.primitive_type()? != primitive {
+            return None;
+        }
+        *operand = bound;
+        Some(())
+    })?;
+    Some(value)
+}
+
 fn unit_scalar_context(
     program: &TypedTrees,
     state: &typed_trees::state::State,

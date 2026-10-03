@@ -15,6 +15,8 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[cfg(test)]
+mod scalar_subjects_tests;
+#[cfg(test)]
 mod tests;
 
 pub(crate) fn lower_machine_entry_crash_contract_expression(
@@ -74,20 +76,37 @@ pub(crate) fn lower_entry_predicate_with_subjects(
         .then_some(predicate)
 }
 
-/// Scalar actuals use the same authenticated subjects and selected meaning as
-/// Boolean predicates. This does not replay stored initializer expressions.
+/// Scalar actuals use the ordinary checked algebra with observations rebound
+/// to authenticated invocation-entry subjects. This does not replay stored
+/// initializer expressions or establish arithmetic safety by itself.
 pub(crate) fn lower_entry_scalar_with_subjects(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     machine: &Machine,
     state: &typed_trees::state::State,
+    before_statement: usize,
     expression: ExpressionHandle,
     primitive_type: PrimitiveType,
-    subjects: &EntrySubjectResolver<'_>,
+    subjects: &impl Fn(
+        &crate::flow::CanonicalPlace,
+    ) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)>,
 ) -> Option<CheckedScalarExpression> {
     if primitive_type == PrimitiveType::Bool {
         return lower_entry_predicate_with_subjects(
-            program, operators, machine, state, expression, subjects,
+            program,
+            operators,
+            machine,
+            state,
+            expression,
+            &|leaf| {
+                let place = crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    before_statement,
+                    leaf,
+                )?;
+                subjects(&place)
+            },
         )
         .map(|value| CheckedScalarExpression::Boolean(Box::new(value)));
     }
@@ -102,39 +121,50 @@ pub(crate) fn lower_entry_scalar_with_subjects(
         owner: machine.symbol,
         parameters: super::authored_entry_parameters(program, machine)?,
         remaining: 4096,
-        subjects: Some(subjects),
+        subjects: None,
     };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            let subject = reader.subject(expression, 0)?;
-            if reader.primitive(subject.type_reference, 0)??.0 != primitive_type {
+    crate::values::lower_unit_scalar_argument_with_places(
+        program,
+        operators,
+        state,
+        before_statement,
+        expression,
+        primitive_type,
+        |place, primitive| {
+            let (position, path) = subjects(place)?;
+            let parameter_position = usize::try_from(position).ok()?;
+            let parameter = reader.parameters.get(parameter_position)?;
+            if parameter.is_const || parameter.relevance.is_erased() {
                 return None;
             }
-            Some(if subject.path.is_empty() {
+            let (_, _, type_reference, _) = crate::values::resolve_structural_parameter_path(
+                program,
+                reader.parameters,
+                position,
+                &path,
+            )?;
+            if reader.primitive(type_reference, 0)??.0 != primitive {
+                return None;
+            }
+            Some(if path.is_empty() {
                 CheckedScalarExpression::Parameter {
-                    position: reader.scalar_position(subject.parameter_position, 0)?,
-                    primitive_type,
+                    position: reader.parameters[..parameter_position]
+                        .iter()
+                        .filter(|parameter| {
+                            crate::values::scalar::occupies_scalar_position(program, parameter)
+                        })
+                        .count(),
+                    primitive_type: primitive,
                 }
             } else {
                 CheckedScalarExpression::StructuralParameterField {
-                    parameter_position: u32::try_from(subject.parameter_position).ok()?,
-                    path: subject.path,
-                    primitive_type,
+                    parameter_position: position,
+                    path,
+                    primitive_type: primitive,
                 }
             })
-        }
-        ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
-            crate::values::lower_unit_scalar_argument(
-                program,
-                operators,
-                state,
-                0,
-                expression,
-                primitive_type,
-            )
-        }
-        _ => None,
-    }
+        },
+    )
 }
 
 struct Reader<'program> {

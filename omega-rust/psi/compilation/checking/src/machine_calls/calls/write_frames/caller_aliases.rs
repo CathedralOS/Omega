@@ -114,6 +114,15 @@ pub struct LocalWriteOrigin {
     pub source: Option<LocalWriteSource>,
 }
 
+/// Storage captured by one exact invocation. Each operand keeps all possible
+/// origins; `None` is unknown and `Some([])` means no caller storage. These
+/// coordinates do not grant permission to access the referents.
+#[derive(Clone)]
+pub struct CallWriteOrigins {
+    pub receiver: Option<Vec<LocalWriteSource>>,
+    pub arguments: Vec<Option<Vec<LocalWriteSource>>>,
+}
+
 /// Proven referent of a local reference leaf. Coarse storage paths cannot
 /// acquire a field or index suffix when a consumer transports a write.
 #[derive(Clone)]
@@ -497,14 +506,42 @@ pub(super) fn with_caller_origins(
     >,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<Vec<String>>,
 ) -> Option<Vec<String>> {
+    with_caller_origin_context(
+        program,
+        machine,
+        symbols,
+        site,
+        collections,
+        |inference, prefix| {
+            let written = resolve(inference, prefix)?;
+            close_over_origins(written, prefix.aliases, prefix.divergent, prefix.stored)
+        },
+    )
+}
+
+/// Typed and footprint consumers share the same retained caller prefix. Only
+/// the footprint wrapper performs rendered-path closure afterward.
+pub(super) fn with_caller_origin_context<T>(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    site: CallerWriteSite<'_>,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+    resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
+) -> Option<T> {
     let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
     let mut inference = FrameInference::default();
     for local in &evidence.stored {
         inference.record_local(local);
     }
     let prefix = CallOriginContext {
+        // The no-local-origins shortcut skips alias replay, not the current
+        // state's formal storage. Typed actuals still denote those parameters.
         parameters: evidence
             .state
+            .or_else(|| caller_statement_owner(program, machine, site).map(|(state, _, _)| state))
             .map(|state| program.state_parameters(state))
             .unwrap_or(&[]),
         isolated_locals: &[],
@@ -512,13 +549,7 @@ pub(super) fn with_caller_origins(
         divergent: &evidence.divergent,
         stored: &evidence.stored,
     };
-    let written = resolve(&mut inference, &prefix)?;
-    close_over_origins(
-        written,
-        &evidence.aliases,
-        &evidence.divergent,
-        &evidence.stored,
-    )
+    resolve(&mut inference, &prefix)
 }
 
 fn close_over_origins(

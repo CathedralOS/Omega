@@ -86,7 +86,9 @@ pub use dynamic_conformances::{
 pub use index_compatibility::{
     IndexCompatibilityDischarge, IndexCompatibilityFact, IndexCompatibilityFacts,
 };
-pub use mutation::{MachineMutationFact, MutationFacts, StateWriteFramePlan};
+pub use mutation::{
+    MachineMutationFact, MutationFacts, PerformedIntegerWrite, StateWriteFramePlan,
+};
 pub use nominal_machine_uses::{
     CheckedCallbackPlacementIdentity, CheckedCallbackResourceReceipt,
     CheckedMachineContractEnvelopeIdentity, CheckedMachineContractRefinement,

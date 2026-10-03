@@ -125,7 +125,7 @@ pub use crate::machine_calls::call_cycles::{
     validated_runtime_natural_components, validated_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
-    AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, LocalWriteSource,
+    AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
     frame_paths_overlap, generic_bound_call_requirement, generic_bound_value_call_requirement,
     operand_call_plans, state_reference_parameter_binding_is_stable,
 };

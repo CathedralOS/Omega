@@ -1,0 +1,286 @@
+//! Typed invocation storage, using the same caller prefix as write frames.
+use super::super::caller_aliases::{
+    CallWriteOrigins, CallerWriteSite, LocalWriteSource, caller_statement_owner,
+    with_caller_origin_context,
+};
+use super::{CallFrameResolver, ExpressionHandle, ExpressionNode, Machine, TableCall};
+use crate::machine_calls::calls::write_frames as frames;
+
+#[cfg(test)]
+mod tests;
+
+impl<'program> CallFrameResolver<'program> {
+    pub fn call_write_origins(
+        &self,
+        machine: &'program Machine,
+        call: &'program TableCall,
+    ) -> Option<CallWriteOrigins> {
+        self.invocation_write_origins(machine, CallerWriteSite::Call(call))
+    }
+
+    pub fn expression_call_write_origins(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+    ) -> Option<CallWriteOrigins> {
+        self.invocation_write_origins(machine, CallerWriteSite::Expression(expression))
+    }
+
+    fn invocation_write_origins(
+        &self,
+        machine: &'program Machine,
+        site: CallerWriteSite<'_>,
+    ) -> Option<CallWriteOrigins> {
+        let program = self.program;
+        let machine_symbols = self.machine_symbols(machine)?;
+        // Unlike a footprint's untracked shortcut, a public typed query must
+        // establish that this is a real occurrence in the selected owner.
+        let (state, statement, _) = caller_statement_owner(program, machine, site)?;
+        let (target, name, receiver_expression, receiver_members, arguments) = match site {
+            CallerWriteSite::Call(call) => (
+                call.target_symbol,
+                call.target.as_str(),
+                ExpressionHandle::invalid(),
+                program
+                    .statement_table
+                    .name_path_members(call.receiver)
+                    .iter()
+                    .map(|member| member.as_str().to_owned())
+                    .collect::<Vec<_>>(),
+                program.statement_table.expression_handles(call.arguments),
+            ),
+            CallerWriteSite::Expression(expression) => {
+                let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                (
+                    call.target_symbol,
+                    call.target.as_str(),
+                    call.receiver,
+                    frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
+                    program.expression_table.expression_handles(call.arguments),
+                )
+            }
+            _ => return None,
+        };
+        let argument_types = frames::call_targets::call_argument_types(
+            program,
+            machine,
+            target,
+            name,
+            &receiver_members,
+            site,
+            &self.symbols,
+        );
+        with_caller_origin_context(
+            program,
+            machine,
+            &self.symbols,
+            site,
+            &self.caches.state_write_collections,
+            |inference, prefix| {
+                // A missing result in one operand does not erase known siblings.
+                let mut result = CallWriteOrigins {
+                    receiver: Some(Vec::new()),
+                    arguments: Vec::new(),
+                };
+                let has_receiver =
+                    frames::machine_state_by_symbol(program, target).map(|(_, entry)| {
+                        program
+                            .state_parameters(entry)
+                            .iter()
+                            .any(|parameter| parameter.is_self)
+                    });
+                // A nested call can follow effects in an enclosing operand. The
+                // prefix owner has not captured those substatement updates.
+                // Reuse its expression inventory and frame query; do not
+                // rediscover an evaluation order from rendered paths.
+                let nested_effect = match site {
+                    CallerWriteSite::Expression(expression) => {
+                        let roots = frames::statement_value_expression_roots(program, statement);
+                        !roots.contains(&expression)
+                            && !self
+                                .statement_value_may_write_paths(machine, statement)
+                                .is_some_and(|paths| paths.is_empty())
+                    }
+                    _ => false,
+                };
+                let mut preceding_effect = nested_effect
+                    || (receiver_expression.is_valid()
+                        && self.operand_may_change_origins(machine, receiver_expression));
+                if has_receiver != Some(false)
+                    && (!receiver_members.is_empty() || receiver_expression.is_valid())
+                {
+                    result.receiver = if receiver_expression.is_valid() {
+                        if preceding_effect {
+                            None
+                        } else {
+                            prefix
+                                .argument_origins(
+                                    program,
+                                    machine,
+                                    &machine_symbols,
+                                    &self.symbols,
+                                    inference,
+                                    &[receiver_expression],
+                                    &[],
+                                )
+                                .and_then(|mut origins| origins.pop().flatten())
+                                .map(|origins| {
+                                    origins.into_iter().map(LocalWriteSource::from).collect()
+                                })
+                        }
+                    } else if let CallerWriteSite::Call(call) = site {
+                        self.statement_receiver_origins(machine, state, statement, call)
+                    } else {
+                        None
+                    };
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    let changes_origins = self.operand_may_change_origins(machine, *argument);
+                    let reference = argument_types.get(index).copied();
+                    let detached = reference.is_some_and(|reference| {
+                        frames::type_is_caller_isolated_local(program, reference)
+                            && !frames::type_reference_is_reference(program, reference)
+                    });
+                    let origins = if detached {
+                        Some(Vec::new())
+                    } else if preceding_effect || changes_origins {
+                        // The prefix predates operand execution. Never pretend
+                        // a later operand still sees that prefix after a write.
+                        // Earlier captured referents remain unchanged.
+                        None
+                    } else {
+                        prefix
+                            .argument_origins(
+                                program,
+                                machine,
+                                &machine_symbols,
+                                &self.symbols,
+                                inference,
+                                &[*argument],
+                                &reference.into_iter().collect::<Vec<_>>(),
+                            )
+                            .and_then(|mut origins| origins.pop().flatten())
+                            .map(|origins| {
+                                origins.into_iter().map(LocalWriteSource::from).collect()
+                            })
+                    };
+                    result.arguments.push(origins);
+                    preceding_effect |= changes_origins;
+                }
+                Some(result)
+            },
+        )
+    }
+
+    fn operand_may_change_origins(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+    ) -> bool {
+        !self
+            .expression_write_frame(machine, expression)
+            .into_complete_paths()
+            .is_some_and(|paths| paths.is_empty())
+    }
+
+    fn statement_receiver_origins(
+        &self,
+        machine: &Machine,
+        state: &typed_trees::state::State,
+        statement: &typed_trees::statement::StatementNode,
+        call: &TableCall,
+    ) -> Option<Vec<LocalWriteSource>> {
+        let program = self.program;
+        let members = program.statement_table.name_path_members(call.receiver);
+        let root = call.receiver_root_symbol;
+        let root_reference = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| {
+                parameter.symbol == root || (root == machine.symbol && parameter.is_self)
+            })
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                program
+                    .state_local_declaration(state, root)
+                    .map(|(_, local)| local.type_reference)
+            })?;
+        let (segments, _) = frames::reference_origins::retained_receiver_projection(
+            program,
+            root_reference,
+            root,
+            call.receiver_symbol,
+            members.get(1..)?.iter().map(|member| member.as_str()),
+        )?;
+        let inventory = self.local_write_origins_before_statement(machine, statement)?;
+        let longest = inventory
+            .iter()
+            .filter(|origin| {
+                origin.local_symbol == root && segments.starts_with(&origin.local_segments)
+            })
+            .map(|origin| origin.local_segments.len())
+            .max();
+        if let Some(longest) = longest {
+            let mut sources = Vec::new();
+            for origin in inventory.iter().filter(|origin| {
+                origin.local_symbol == root
+                    && origin.local_segments.len() == longest
+                    && segments.starts_with(&origin.local_segments)
+            }) {
+                let mut source = origin.source.clone()?;
+                let suffix = &segments[longest..];
+                let carrier = crate::value_custody::places::unwrapped_type_reference(
+                    program,
+                    root_reference,
+                )?;
+                let slot = frames::stored_origins::projected_storage_type(
+                    program,
+                    carrier,
+                    &segments[..longest],
+                )?;
+                frames::reference_subjects::validate_owned_projection(program, slot, suffix)?;
+                if source.collection_coarse && !suffix.is_empty() {
+                    return None;
+                }
+                source.segments.extend_from_slice(suffix);
+                let suffix_names = members
+                    .get(longest + 1..)?
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join(".");
+                if !suffix_names.is_empty() {
+                    source.path =
+                        frames::append_place_suffix(&source.path, &format!(".{suffix_names}"));
+                }
+                if let Some((_, path)) = &mut source.representation {
+                    path.extend_from_slice(suffix);
+                }
+                sources.push(source);
+            }
+            return Some(sources);
+        }
+        if program.state_local_declaration(state, root).is_some()
+            && frames::type_reference_is_reference(program, root_reference)
+        {
+            return None;
+        }
+        // This validates every selected declaration and refuses crossing a
+        // stored reference without its retained origin.
+        frames::reference_subjects::validate_owned_projection(program, root_reference, &segments)?;
+        Some(vec![LocalWriteSource {
+            root,
+            segments,
+            representation: None,
+            collection_coarse: false,
+            path: members
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("."),
+        }])
+    }
+}

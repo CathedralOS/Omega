@@ -57,6 +57,7 @@ pub(crate) use prover::boolean_value_at_place;
 
 // Provers the call requirement and exit checks consult directly.
 mod call_bounds;
+pub(crate) mod call_values;
 mod content_preservation;
 mod current_values;
 mod entailment;
