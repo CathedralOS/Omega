@@ -6,7 +6,7 @@
 // `requires` holds a recast outside every executable statement root.
 data Main { bits: i32; }
 machine Main::main(main: &mut Main)
-requires (&self.bits as &u32) == 0u32
+requires (&main.bits as &u32) == 0u32
 {
     main.bits = 0;
 }

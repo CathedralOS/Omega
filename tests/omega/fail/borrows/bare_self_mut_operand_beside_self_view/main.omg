@@ -1,8 +1,8 @@
-// A bare `self` operand forwards the receiver binding's `&mut` loan to the
-// `main` formal and holds it for the whole call, while the next operand lends
-// a shared view of `self.arr`: `take` would overwrite `arr[0]` through `main`
-// while reading it through `sub`. The named-binding spelling
-// `Main::take(main, main.arr[0..2])` is rejected the same way.
+// The subject operand forwards the binding's `&mut` loan to the `main` formal
+// and holds it for the whole call, while the next operand lends a shared view
+// of `main.arr`: `take` would overwrite `arr[0]` through its own subject while
+// reading it through `sub`. The named-binding spelling
+// `Main::take(main, main.arr[0..2])` is rejected for that pair of operands.
 
 data Main { arr: [i32; 5]; }
 
@@ -11,7 +11,7 @@ machine Main::take(main: &mut Main, sub: &[i32]) -> i32 {
     transition sub.len >= 1 { true -> (sub[0]) false -> 0 }
 }
 
-machine Main::main(&mut self) -> i32 {
-    let seen: i32 = Main::take(self, self.arr[0..2]);
+machine Main::main(main: &mut Main) -> i32 {
+    let seen: i32 = Main::take(main, main.arr[0..2]);
     (seen)
 }

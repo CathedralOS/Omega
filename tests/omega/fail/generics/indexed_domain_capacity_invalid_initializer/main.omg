@@ -1,5 +1,5 @@
 // Matching a capacity does not establish the constructor's length qualification.
-domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
 data DomainBytes<Length, const Capacity: u64>
 where Length == u64::AtMost<Capacity>
 {
