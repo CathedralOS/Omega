@@ -150,11 +150,15 @@ impl<'a> IndexedWriteLeaf<'a> {
         }
     }
 
+    /// The bound-row role the authored target's own indexed step mints, or
+    /// `None` when an element-view write rejoins a `&mut collection[index]`
+    /// view local's establishment — that selector carries no authored target
+    /// coordinate, so the caller checks the coordinate itself instead.
     pub(crate) fn index_role(
         self,
         checked: &CheckedTrees,
         state: SymbolHandle,
-    ) -> Result<CheckedScalarExpressionRole, LoweringError> {
+    ) -> Result<Option<CheckedScalarExpressionRole>, LoweringError> {
         let (_, authored) = source_custody::authored_state(checked, state)?;
         let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
             .statement_table
@@ -167,15 +171,21 @@ impl<'a> IndexedWriteLeaf<'a> {
         let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(target) else {
             return unsupported(self.wording().lost_index);
         };
-        let depth = validation::assignment_target_selectors(&checked.typed, assignment.target)
-            .iter()
-            .position(|selector| *selector == indexed.index)
-            .and_then(|depth| u32::try_from(depth).ok())
-            .ok_or(LoweringError::Unsupported(self.wording().lost_operand))?;
-        Ok(CheckedScalarExpressionRole::AssignmentIndex { depth })
+        let Some(depth) =
+            validation::assignment_target_selectors(&checked.typed, assignment.target)
+                .iter()
+                .position(|selector| *selector == indexed.index)
+                .and_then(|depth| u32::try_from(depth).ok())
+        else {
+            return match self {
+                Self::ElementView(_) => Ok(None),
+                _ => unsupported(self.wording().lost_operand),
+            };
+        };
+        Ok(Some(CheckedScalarExpressionRole::AssignmentIndex { depth }))
     }
 
-    fn index(self) -> &'a CheckedScalarExpression {
+    pub(crate) fn index(self) -> &'a CheckedScalarExpression {
         match self {
             Self::ByteView(write) => &write.index,
             Self::ByteField(store) => &store.index,
@@ -332,7 +342,115 @@ fn indexed_target(
             _ => return unsupported("element-view write changed its authored element projection"),
         }
     }
+    // A `&mut collection[index]` element view local carries no indexed step
+    // in this target — `target.field = value` — so the rejoin continues at
+    // its establishment, whose authored indexed expression is the selector.
+    if let ExpressionNode::Name(name) = checked.expression_table.expression(target)
+        && let Some(indexed) = element_view_local_indexed(checked, state, name.symbol)
+    {
+        return Ok(indexed);
+    }
     Ok(target)
+}
+
+/// The authored `collection[index]` a `&mut T` element view local borrowed at
+/// its establishment. A `local.field = value` store through that view writes
+/// the borrowed element, and its checked plan's index coordinate rejoins this
+/// indexed expression's selector.
+fn element_view_local_indexed(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    symbol: SymbolHandle,
+) -> Option<checked_trees::expression::ExpressionHandle> {
+    let local = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
+                Some(local)
+            }
+            _ => None,
+        })?;
+    let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    matches!(borrow.access, language_core::ReferenceAccess::Mutable).then_some(borrow.target)
+}
+
+/// The index coordinate a `&mut collection[index]` establishment names,
+/// resolved the way the checker folded the same selector: a literal or
+/// constant local is a fixed integer, a parameter or pure field selector is
+/// its runtime coordinate. The plan's scalar expression must name the same
+/// coordinate — nothing else was offered to the write.
+fn element_view_local_coordinate(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    expression: checked_trees::expression::ExpressionHandle,
+    actual: &checked_trees::CheckedScalarExpression,
+) -> Result<(), LoweringError> {
+    let folded = checked
+        .expression_table
+        .constant_integer_value(expression)
+        .or_else(|| {
+            let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
+                return None;
+            };
+            crate::expression_preparation::source_custody::structural_places::constant_local_index(
+                checked,
+                state,
+                name.symbol,
+            )
+            .and_then(|index| i64::try_from(index).ok())
+        });
+    if let Some(index) = folded {
+        let valid = matches!(
+            actual,
+            checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
+            if literal.value_bignum().and_then(|value| value.to_i64()) == Some(index)
+        );
+        return valid.then_some(()).ok_or(LoweringError::Unsupported(
+            "element-view write substituted its view local index",
+        ));
+    }
+    let selector =
+        crate::expression_preparation::source_custody::structural_places::runtime_index_selector(
+            checked, machine, state, expression,
+        )?;
+    if same_index_coordinate(actual, &selector) {
+        return Ok(());
+    }
+    unsupported("element-view write substituted its view local index")
+}
+
+/// One runtime index coordinate spelled in the checked plan's scalar
+/// vocabulary and the selector vocabulary share a position and path — the
+/// leaf types either side resolved identically at mint time.
+fn same_index_coordinate(
+    expression: &checked_trees::CheckedScalarExpression,
+    selector: &checked_trees::CheckedRuntimeIndex,
+) -> bool {
+    match (expression, selector) {
+        (
+            checked_trees::CheckedScalarExpression::Parameter { position, .. },
+            checked_trees::CheckedRuntimeIndex::Parameter { position: expected },
+        )
+        | (
+            checked_trees::CheckedScalarExpression::Local { position, .. },
+            checked_trees::CheckedRuntimeIndex::Local { position: expected },
+        ) => usize::try_from(*expected).ok() == Some(*position),
+        (
+            checked_trees::CheckedScalarExpression::StructuralParameterField {
+                parameter_position,
+                path,
+                ..
+            },
+            checked_trees::CheckedRuntimeIndex::StructuralField(field),
+        ) => *parameter_position == field.parameter_position && *path == field.path,
+        _ => false,
+    }
 }
 
 /// Rejoin one indexed write's checked plan to its authored assignment. Each
@@ -511,24 +629,27 @@ pub(crate) fn validate_assignment(
         }
     }
     let statement_index = leaf.statement_index();
-    let index_role = leaf.index_role(checked, state_symbol)?;
-    let (binding, expression) = checked
-        .facts
-        .values
-        .scalar_expressions
-        .bound_expression_at(state_symbol, statement_index, index_role)
-        .ok_or(LoweringError::Unsupported(wording.lost_operand))?;
-    if binding.expression != indexed.index || expression != leaf.index() {
-        return unsupported(wording.substituted_operand);
+    if let Some(index_role) = leaf.index_role(checked, state_symbol)? {
+        let (binding, expression) = checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state_symbol, statement_index, index_role)
+            .ok_or(LoweringError::Unsupported(wording.lost_operand))?;
+        if binding.expression != indexed.index || expression != leaf.index() {
+            return unsupported(wording.substituted_operand);
+        }
+        source_custody::validate_pure(
+            checked,
+            binding,
+            terminal_scalar_type(
+                source_custody::locate(checked, state_symbol, statement_index, index_role)?
+                    .primitive_type,
+            )?,
+        )?;
+    } else {
+        element_view_local_coordinate(checked, owner, state, indexed.index, leaf.index())?;
     }
-    source_custody::validate_pure(
-        checked,
-        binding,
-        terminal_scalar_type(
-            source_custody::locate(checked, state_symbol, statement_index, index_role)?
-                .primitive_type,
-        )?,
-    )?;
     match leaf.value() {
         // A store reading its own statement's call result has no authored
         // scalar expression to select: the right-hand side is the call. The
