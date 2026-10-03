@@ -58,6 +58,17 @@ stored bits and applies only the result carrier's register normalization.
 Reads through an immutable `&mut` place-loan local re-evaluate the loaned place
 like shared loan locals do.
 
+Shared primitive loans passed to helpers retain an `EstablishReference` carrier
+and an explicit `Referent` call projection. The backing declaration and viewed
+referent are separate catalog roots, retained through both checked planning and
+lowering. Immutable scalar ingress receives one original storage home reused by
+its views; mutable local storage already has a home. Declaration-level total
+views use this route. A view justified only by contextual facts, such as a
+`u8` constrained to 0/1 and observed as `bool`, keeps its proved scalar
+observation instead of claiming that every source-carrier representation is
+valid at the target. The source recast fact owner makes that distinction;
+Terminal independently reconstructs the total carrier relation.
+
 A record-as-record view retains its source leaf at Terminal: stage 05 reads
 each view field at the same offset under the source's declaration
 (`recast_record_source_leaf`), which the identical-geometry judgment makes

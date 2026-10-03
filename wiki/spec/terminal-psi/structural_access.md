@@ -40,6 +40,21 @@ the explicit `Referent` path segment crosses the borrowed boundary. Owned
 transfer, claims, and referent cleanup cannot cross that segment. Exclusive
 carriers have affine custody even when their referent is unrestricted.
 
+A shared primitive reference may expose a different primitive carrier when
+independent verification establishes a total representation view: every bit
+pattern admitted by the source carrier is valid under the viewed carrier.
+The source place retains its original type and storage; the reference declares
+the observation type. Width equality alone grants no authority. Address
+carriers do not become integers, and an integer-to-Boolean view requiring a
+proved 0/1 landing stays on the scalar observation route. Aggregate and
+exclusive reference formation retain exact referent identity.
+
+A scalar ingress that needs addressable storage receives one home for its
+original value. Multiple shared views borrow that same home. Helper arguments
+retain the reference carrier and explicit `Referent` projection, so neither
+native execution nor interpretation stages a copy of the viewed bits. The
+ordinary live-loan, access, release and local-escape checks still apply.
+
 Structural result signatures bind each returned reference leaf to a nonempty,
 ordered set of possible formal ingress sources. Independent verification
 reconstructs actual origins from establishments and call substitution, rejects
@@ -113,8 +128,8 @@ and an untouched third record.
 Reference-valued entry parameters or host-entry results, reference projections
 into host-boundary calls, write-only returned record carriers, runtime-indexed
 result paths and alternative roots from different formals remain explicit
-implementation limits. The Terminal interpreter still limits reference execution
-to mutable primitive referents and declines alternative-origin result signatures;
+implementation limits. The Terminal interpreter supports primitive referents, including total shared
+representation views, and declines alternative-origin result signatures;
 native address transport and checked interpretation do not implement that route.
 Ordinary calls may temporarily attenuate a mutable carrier to shared or write-only
 access without creating such a carrier. None of the unsupported forms gains
