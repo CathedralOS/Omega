@@ -7,7 +7,7 @@ use crate::values::StructuralRuntimePlace;
 use crate::values::StructuralScalarRuntimeField;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::OperationKind;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralAffineDiscard;
