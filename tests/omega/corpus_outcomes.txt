@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.18, "load1_start": 6.18, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.71, "load1_start": 7.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -552,7 +552,8 @@ fail/domains/call_requires_unproven rejected 219ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call heal from Main::main: main.player in Player::Valid
 fail/domains/capacity_specializations_disagree_in_one_owner rejected 275ms expected @2d8ed253669f
 	domain `[u8; N]::Utf8` is declared more than once with different normalized semantics; repeated capacity specializations may share a name only when their semantic identities are equal
-fail/domains/case_payload_predicate_invalid_literal rejected 135ms expected @2efb222df04d
+fail/domains/case_payload_predicate_invalid_literal rejected 143ms expected @c15189f4e04b
+	cannot prove default-domain field requirement for return from Main::main at statement 1: main.divisor::By.amount requires i32::NonZero
 	construction of `Divisor` field `amount` is not proven in domain `i32::NonZero`; a field declared `in i32::NonZero` requires every construction value to be established in that domain (construct with a literal its byte-predicate fact accepts, or a value already proven in the domain)
 fail/domains/domain_alias_cycle rejected 277ms expected @2d8ed253669f
 	public interface selects private data `Socket`
@@ -1674,6 +1675,7 @@ pass/domains/bodyless_owner_establishment checked 299ms @2d8ed253669f
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 285ms @2d8ed253669f
 pass/domains/call_requires_domain_intersection_preserved checked 293ms @2d8ed253669f
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 285ms @4e4bfed13aee+wt
+pass/domains/case_payload_call_restore_exit checked 877ms @c15189f4e04b
 pass/domains/case_payload_predicate_domain_member_exit checked 764ms @2efb222df04d
 pass/domains/domain_operator_requires_discharged checked 295ms @2d8ed253669f
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 289ms @2d8ed253669f
@@ -2183,9 +2185,7 @@ pass/storage/runtime_parameter_slice_forward_exit checked 806ms @94e7af7e4175+wt
 pass/storage/runtime_primitive_local_literal_composition_exit checked 1234ms @2d8ed253669f
 pass/structs/affine_record_state_clone checked 1482ms @922ccf420927+wt
 pass/structs/affine_result_constructor checked 514ms @4b33596b9ee1+wt
-pass/structs/case_field_type_store_shapes rejected 746ms @40866b59e47
-	cannot prove default-domain field requirement for call local_value from Main::check_interval_member::through_local: parameter main.level::Lit.amount requires i32::Ten
-	cannot prove default-domain field requirement for call fail from Main::check_interval_member::through_local: parameter main.level::Lit.amount requires i32::Ten
+pass/structs/case_field_type_store_shapes checked 2540ms @c15189f4e04b
 pass/structs/copied_array_field_shared_record checked 1310ms @2d8ed253669f
 pass/structs/deep_nested_write_paths_exit checked 1238ms @4e4bfed13aee+wt
 pass/structs/mutable_array_record_state_transfer checked 1502ms @2d8ed253669f
