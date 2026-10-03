@@ -1,5 +1,6 @@
 //! Fixtures shared by the borrow check tests.
 
+mod explicit_call_live_loans;
 mod lifetime_results;
 mod mutable_overlaps;
 mod persistent_storage;
@@ -7,7 +8,6 @@ mod premised_disjoint_writes;
 mod receiver_argument_loans;
 mod receiver_argument_reads;
 mod receiver_jump_loans;
-mod receiver_live_loan_reads;
 mod self_operand_loans;
 mod stored_call_loans;
 mod view_returns;

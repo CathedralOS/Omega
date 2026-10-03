@@ -397,7 +397,7 @@ pub(super) fn check_statement_borrows<'p>(
 /// live borrowed view).
 ///
 /// A mutating call through an owner -- e.g. `Vec::push`/`Vec::index_mut` or any
-/// `&mut self` boundary/state call that reallocates or writes the owner -- may
+/// explicit mutable-argument call that reallocates or writes the owner -- may
 /// invalidate a borrowed slice/string view (`&[T]`/`&mut [T]`/`&string`) taken
 /// from that owner. The owner-write rule already rejects this for *assignment*
 /// statements; this extends the same conflict to *call* statements, whose
@@ -414,10 +414,6 @@ pub(super) fn check_statement_borrows<'p>(
 /// instead follows its remaining successor lifetime. Guard/argument calls and
 /// unclosed or stored carriers retain the full run; a syntactic jump alone is
 /// not release evidence.
-///
-/// The same live loans bound what a returning whole `&mut` receiver call
-/// reads through `self`: a live exclusive loan suspends its storage for the
-/// callee as well (`check_receiver_reads_against_live_loans`).
 fn check_call_mutation_borrows<'p>(
     program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -448,19 +444,12 @@ fn check_call_mutation_borrows<'p>(
             .span_or_empty(borrow_call.accesses)
             .iter()
             .any(|argument| argument.kind.is_exclusive() && argument.end_before_access.is_none());
-        // Or storage a live exclusive loan suspends.
-        let reads_through_receiver =
-            super::calls::returns_through_mutable_receiver(program, borrow_call);
-        let live_loans = if mutated_places.is_empty() && !reads_through_receiver {
+        let live_loans = if mutated_places.is_empty() {
             Vec::new()
         } else {
             loans_live_at_call(program, facts, state_flow, borrow_call)
         };
-        let reads_under_exclusive_loan = reads_through_receiver
-            && live_loans
-                .iter()
-                .any(|loan| facts.borrow.loans.get(*loan).kind.is_exclusive());
-        if mutated_places.is_empty() && !retains_exclusive_argument && !reads_under_exclusive_loan {
+        if mutated_places.is_empty() && !retains_exclusive_argument {
             continue;
         }
         let mut available_premises = stated_premises.to_vec();
@@ -492,12 +481,10 @@ fn check_call_mutation_borrows<'p>(
             bound_lookup,
         );
 
-        // One diagnostic per (call, loan) is enough: a loan the callee's
-        // writes already conflict with is not judged again for its reads.
+        // Report at most one mutation conflict per call and live loan.
         let exiting_source = local_jump(program, state_flow, borrow_call).and_then(|_| {
             find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
         });
-        let mut unreported_loans = Vec::with_capacity(live_loans.len());
         for &loan_handle in &live_loans {
             let loan = facts.borrow.loans.get(loan_handle);
             // A local jump may carry this child beyond the source binding's
@@ -536,7 +523,6 @@ fn check_call_mutation_borrows<'p>(
                         Some(&captured),
                     )
                 });
-            let mut reported = false;
             for mutated_place in held_writes.as_ref().unwrap_or(&mutated_places) {
                 if canonical_place_loan_compatibility(
                     program,
@@ -563,24 +549,9 @@ fn check_call_mutation_borrows<'p>(
                     )
                     .unwrap_or_else(|| format!("borrowed at statement {}", loan.statement_index)),
                 )));
-                reported = true;
                 break;
             }
-            if !reported {
-                unreported_loans.push(loan_handle);
-            }
         }
-        super::calls::check_receiver_reads_against_live_loans(
-            program,
-            facts,
-            state_flow,
-            borrow_call,
-            &unreported_loans,
-            stated_premises,
-            receiver_reads,
-            diagnostics,
-            bound_lookup,
-        );
     }
 }
 

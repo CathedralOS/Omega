@@ -1,5 +1,5 @@
-//! Borrow compatibility at each call: every argument access and the implicit
-//! receiver against the loans active at the call, and the writability of
+//! Borrow compatibility at each call: every explicit argument access
+//! against the loans active at the call, and the writability of
 //! each `&mut` argument. Each comparison is recorded as a call compatibility
 //! certificate in the borrow facts.
 //!
@@ -15,11 +15,10 @@
 //! matches the state's entry loans (`correspondence`) and gathers the
 //! state's stated ordering premises (`borrows::overlap`); for each call it
 //! adds the call's premises and runs `check_call_borrows`: argument accesses
-//! against active loans (`conflicts`), the implicit receiver (`receiver`),
-//! then mutable argument writability (`writability`). `evidence` records the
+//! against active loans (`conflicts`), then mutable argument writability
+//! (`writability`). `evidence` records the
 //! comparisons. `receiver::check_exclusive_place_use`,
-//! `receiver::check_receiver_footprint_against_argument_loans` and
-//! `receiver::check_receiver_reads_against_live_loans` are also used by
+//! `receiver::check_receiver_footprint_against_argument_loans` are also used by
 //! `borrows::statements`.
 
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
@@ -35,7 +34,6 @@ mod writability;
 
 pub(super) use receiver::{
     ReceiverSummaries, check_exclusive_place_use, check_receiver_footprint_against_argument_loans,
-    check_receiver_reads_against_live_loans, returns_through_mutable_receiver,
 };
 
 use self::conflicts::check_call_access_conflicts;
@@ -228,19 +226,6 @@ fn check_call_borrows<'p>(
         recording,
         bound_lookup,
     );
-    receiver::check_receiver_conflicts(
-        program,
-        facts,
-        state_flow,
-        borrow_call,
-        entry_constraints,
-        &target_name,
-        stated_premises,
-        diagnostics,
-        recording,
-        bound_lookup,
-    );
-
     check_mutable_argument_writability(
         program,
         facts,
