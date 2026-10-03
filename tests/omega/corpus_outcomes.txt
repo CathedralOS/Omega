@@ -1461,8 +1461,8 @@ pass/capabilities/transitive_effect_inference checked 291ms @2d8ed253669f
 pass/capabilities/uses_caller_folder checked 281ms @2d8ed253669f
 pass/capabilities/win64_large_aggregate_result_import_compile rejected 742ms @2d8ed253669f
 	native artifact target lowering failed: BoundaryRealizationMismatch(BoundaryMachineId(1))
-pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 739ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary claim transfers`
+pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 849ms @921839635ad
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `completion`
 pass/capabilities/windows_provides_import_exit checked 2179ms @8778c440081
 pass/collections/array_local_control checked 316ms @2d8ed253669f
 pass/collections/case_array_computed_index_match_exit checked 2057ms @2d8ed253669f
@@ -1833,7 +1833,7 @@ pass/float/nearest_even_binary_arithmetic_exit checked 5916ms @2d8ed253669f
 pass/float/nested_float_operator_applications_exit checked 9657ms @2d8ed253669f
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 4633ms @2d8ed253669f
 pass/float/runtime_float_to_integer_policy_casts_exit checked 4840ms @2d8ed253669f
-pass/float/runtime_named_float_to_integer_conversion_exit checked 5157ms @2d8ed253669f
+pass/float/runtime_named_float_to_integer_conversion_exit checked 6246ms @921839635ad
 pass/float/runtime_named_fma_sequence_exit checked 16819ms @2d8ed253669f
 pass/float/runtime_named_format_conversion_exit checked 6217ms @2d8ed253669f
 pass/float/runtime_std_is_finite_exit checked 5045ms @2d8ed253669f
@@ -1843,8 +1843,8 @@ pass/float/scalar_helper_boundary_sequence_exit checked 4671ms @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms @163770eba39c
 pass/float/x86_fma_plan_association rejected 4263ms @2d8ed253669f
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
-pass/generics/closed_indexed_quantity rejected 4342ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("embedded scalar qualifications require the enclosing catalog namespace"))
+pass/generics/closed_indexed_quantity rejected 5735ms @921839635ad
+	terminal-artifact production failed: Lowering(Unsupported("same-carrier authored cast requires an explicit qualification edge"))
 pass/generics/closed_sum_case_membership checked 292ms @2d8ed253669f
 pass/generics/const_data_param checked 288ms @2d8ed253669f
 pass/generics/declared_range_endpoint_inference checked 3910ms @2d8ed253669f
@@ -1854,7 +1854,7 @@ pass/generics/machine_bound_satisfied_at_call checked 303ms @2d8ed253669f
 pass/generics/machine_type_equations checked 343ms @2d8ed253669f
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 293ms @2d8ed253669f
 pass/generics/omitted_data_binder_range_equation checked 1106ms @f64782b89114+wt
-pass/generics/open_computed_quantity_result rejected 1309ms @2d8ed253669f
+pass/generics/open_computed_quantity_result rejected 1295ms @921839635ad
 	terminal-artifact production failed: Lowering(Unsupported("scalar qualification changed its normalized result carrier"))
 pass/generics/ranged_const_parameter_attached_shape checked 1334ms @2d8ed253669f
 pass/generics/runtime_const_container_methods_exit checked 678ms @ca8c127c90c5
