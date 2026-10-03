@@ -15,38 +15,38 @@ data Main {
     suffix: [u8; 16] in Utf8;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.line = "";
-    self.suffix = "omega";
+machine Main::main(main: &mut Main) reaches Console {
+    main.line = "";
+    main.suffix = "omega";
 
-    transition self.suffix {
-        _ -> write_line(&mut self.line, self.suffix)
+    transition main.suffix {
+        _ -> write_line(main, &mut main.line, main.suffix)
     }
 
     state write_line(
-        &mut self,
+        main: &mut Main,
         out_line: &mut [u8; 32] in Utf8,
         suffix: [u8; 16] in Utf8
     ) {
         out_line = "prefix " + suffix;
-        self.console.write_line(out_line);
+        main.console.write_line(out_line);
 
-        // `out_line` holds `self.line` exclusively until this state ends.
-        transition { _ -> verify() }
+        // `out_line` holds `main.line` exclusively until this state ends.
+        transition { _ -> verify(main) }
     }
 
-    state verify(&mut self) {
-        transition self.line == "prefix omega" {
-            true -> good()
-            false -> bad()
+    state verify(main: &mut Main) {
+        transition main.line == "prefix omega" {
+            true -> good(main)
+            false -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(77);
+    state good(main: &mut Main) {
+        main.console.exit_process(77);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(78);
+    state bad(main: &mut Main) {
+        main.console.exit_process(78);
     }
 }

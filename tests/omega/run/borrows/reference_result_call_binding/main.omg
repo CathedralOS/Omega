@@ -50,13 +50,13 @@ data Main {
     count: u32;
 }
 
-machine Main::borrow_count(&self) -> &u32 {
-    transition { _ -> out() }
-    state out(&self) -> &u32 { &self.count }
+machine Main::borrow_count(main: &Main) -> &u32 {
+    transition { _ -> out(main) }
+    state out(main: &Main) -> &u32 { &main.count }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.count = 3;
-    let borrowed: &u32 = self.borrow_count();
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    main.count = 3;
+    let borrowed: &u32 = Main::borrow_count(main);
+    main.console.exit_process(0);
 }

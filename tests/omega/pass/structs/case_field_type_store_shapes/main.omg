@@ -73,282 +73,282 @@ data Main {
     level: Level;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.check_common_fields();
-    self.check_closed_payloads();
-    self.check_local_stores();
-    self.check_erased_member();
-    self.check_interval_member();
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    Main::check_common_fields(main);
+    Main::check_closed_payloads(main);
+    Main::check_local_stores(main);
+    Main::check_erased_member(main);
+    Main::check_interval_member(main);
+    main.console.exit_process(70);
 }
 
-machine Main::check_common_fields(&mut self) reaches Console {
-    self.event = Event::Treasure { consumed: true, gold: 50 };
-    transition self.event.consumed {
-        true -> unnamed_common_zero()
-        false -> fail(1)
+machine Main::check_common_fields(main: &mut Main) reaches Console {
+    main.event = Event::Treasure { consumed: true, gold: 50 };
+    transition main.event.consumed {
+        true -> unnamed_common_zero(main)
+        false -> fail(main, 1)
     }
 
-    state unnamed_common_zero(&mut self) {
-        transition self.event.bonus == 0 {
-            true -> payload_beside_common()
-            false -> fail(2)
+    state unnamed_common_zero(main: &mut Main) {
+        transition main.event.bonus == 0 {
+            true -> payload_beside_common(main)
+            false -> fail(main, 2)
         }
     }
 
-    state payload_beside_common(&mut self) {
-        transition self.event {
-            Event::Treasure { gold } -> treasure_gold(gold)
-            _ -> fail(3)
+    state payload_beside_common(main: &mut Main) {
+        transition main.event {
+            Event::Treasure { gold } -> treasure_gold(main, gold)
+            _ -> fail(main, 3)
         }
     }
 
-    state treasure_gold(&mut self, gold: i32) {
+    state treasure_gold(main: &mut Main, gold: i32) {
         transition gold == 50 {
-            true -> store_common()
-            false -> fail(4)
+            true -> store_common(main)
+            false -> fail(main, 4)
         }
     }
 
-    state store_common(&mut self) {
-        self.event.bonus = 9;
-        transition self.event {
-            Event::Treasure { gold } -> stored_common(gold)
-            _ -> fail(5)
+    state store_common(main: &mut Main) {
+        main.event.bonus = 9;
+        transition main.event {
+            Event::Treasure { gold } -> stored_common(main, gold)
+            _ -> fail(main, 5)
         }
     }
 
-    state stored_common(&mut self, gold: i32) {
-        transition gold == 50 && self.event.bonus == 9 && self.event.consumed {
-            true -> replace_case()
-            false -> fail(6)
+    state stored_common(main: &mut Main, gold: i32) {
+        transition gold == 50 && main.event.bonus == 9 && main.event.consumed {
+            true -> replace_case(main)
+            false -> fail(main, 6)
         }
     }
 
     // The replacement names no common field: both read zero afterwards.
-    state replace_case(&mut self) {
-        self.event = Event::Fight { strength: 3, speed: 4 };
-        transition self.event.bonus == 0 && !self.event.consumed {
-            true -> fight_payload()
-            false -> fail(7)
+    state replace_case(main: &mut Main) {
+        main.event = Event::Fight { strength: 3, speed: 4 };
+        transition main.event.bonus == 0 && !main.event.consumed {
+            true -> fight_payload(main)
+            false -> fail(main, 7)
         }
     }
 
-    state fight_payload(&mut self) {
-        transition self.event {
-            Event::Fight { strength, speed } -> fight_values(strength, speed)
-            _ -> fail(8)
+    state fight_payload(main: &mut Main) {
+        transition main.event {
+            Event::Fight { strength, speed } -> fight_values(main, strength, speed)
+            _ -> fail(main, 8)
         }
     }
 
-    state fight_values(&mut self, strength: i32, speed: i32) {
+    state fight_values(main: &mut Main, strength: i32, speed: i32) {
         transition strength == 3 && speed == 4 {
-            true -> payload_free_bare()
-            false -> fail(8)
+            true -> payload_free_bare(main)
+            false -> fail(main, 8)
         }
     }
 
-    state payload_free_bare(&mut self) {
-        self.event = Event::Nothing;
-        transition self.event {
-            Event::Nothing -> payload_free_named()
-            _ -> fail(9)
+    state payload_free_bare(main: &mut Main) {
+        main.event = Event::Nothing;
+        transition main.event {
+            Event::Nothing -> payload_free_named(main)
+            _ -> fail(main, 9)
         }
     }
 
-    state payload_free_named(&mut self) {
-        self.event = Event::Nothing { bonus: 12 };
-        transition self.event {
-            Event::Nothing -> payload_free_common(self.event.bonus)
-            _ -> fail(10)
+    state payload_free_named(main: &mut Main) {
+        main.event = Event::Nothing { bonus: 12 };
+        transition main.event {
+            Event::Nothing -> payload_free_common(main, main.event.bonus)
+            _ -> fail(main, 10)
         }
     }
 
-    state payload_free_common(&mut self, bonus: i32) {
+    state payload_free_common(main: &mut Main, bonus: i32) {
         transition bonus == 12 {
             true -> done()
-            false -> fail(10)
+            false -> fail(main, 10)
         }
     }
 
-    state done(&mut self) {}
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state done() {}
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
-machine Main::check_closed_payloads(&mut self) reaches Console {
-    self.command = Command::Dim { amount: 7 };
-    transition self.command {
-        Command::Dim { amount } -> scalar_value(amount)
-        _ -> fail(11)
+machine Main::check_closed_payloads(main: &mut Main) reaches Console {
+    main.command = Command::Dim { amount: 7 };
+    transition main.command {
+        Command::Dim { amount } -> scalar_value(main, amount)
+        _ -> fail(main, 11)
     }
 
-    state scalar_value(&mut self, amount: i32) {
+    state scalar_value(main: &mut Main, amount: i32) {
         transition amount == 7 {
-            true -> payload_free()
-            false -> fail(11)
+            true -> payload_free(main)
+            false -> fail(main, 11)
         }
     }
 
-    state payload_free(&mut self) {
-        self.command = Command::Off;
-        transition self.command {
-            Command::Off -> multiple()
-            _ -> fail(12)
+    state payload_free(main: &mut Main) {
+        main.command = Command::Off;
+        transition main.command {
+            Command::Off -> multiple(main)
+            _ -> fail(main, 12)
         }
     }
 
-    state multiple(&mut self) {
-        self.command = Command::Pair { low: 1, high: 2 };
-        transition self.command {
-            Command::Pair { low, high } -> multiple_values(low, high)
-            _ -> fail(13)
+    state multiple(main: &mut Main) {
+        main.command = Command::Pair { low: 1, high: 2 };
+        transition main.command {
+            Command::Pair { low, high } -> multiple_values(main, low, high)
+            _ -> fail(main, 13)
         }
     }
 
-    state multiple_values(&mut self, low: i32, high: i32) {
+    state multiple_values(main: &mut Main, low: i32, high: i32) {
         transition low == 1 && high == 2 {
-            true -> record()
-            false -> fail(13)
+            true -> record(main)
+            false -> fail(main, 13)
         }
     }
 
-    state record(&mut self) {
-        self.command = Command::Place { at: Point { x: 5, y: 6 } };
-        transition self.command {
-            Command::Place { at } -> record_values(at)
-            _ -> fail(14)
+    state record(main: &mut Main) {
+        main.command = Command::Place { at: Point { x: 5, y: 6 } };
+        transition main.command {
+            Command::Place { at } -> record_values(main, at)
+            _ -> fail(main, 14)
         }
     }
 
-    state record_values(&mut self, at: Point) {
+    state record_values(main: &mut Main, at: Point) {
         transition at.x == 5 && at.y == 6 {
             true -> done()
-            false -> fail(15)
+            false -> fail(main, 15)
         }
     }
 
-    state done(&mut self) {}
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state done() {}
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
-machine Main::store_local_event(&mut self) {
+machine Main::store_local_event(main: &mut Main) {
     let replacement: Event = Event::Treasure { consumed: true, bonus: 3, gold: 8 };
-    self.event = replacement;
+    main.event = replacement;
 }
 
-machine Main::store_local_dim(&mut self) {
+machine Main::store_local_dim(main: &mut Main) {
     let dimmed: Command = Command::Dim { amount: 21 };
-    self.command = dimmed;
+    main.command = dimmed;
 }
 
-machine Main::store_local_pair(&mut self) {
+machine Main::store_local_pair(main: &mut Main) {
     let paired: Command = Command::Pair { low: 30, high: 40 };
-    self.command = paired;
+    main.command = paired;
 }
 
-machine Main::store_local_level(&mut self) {
+machine Main::store_local_level(main: &mut Main) {
     let lit: Level = Level::Lit { amount: 4 };
-    self.level = lit;
+    main.level = lit;
 }
 
-machine Main::check_local_stores(&mut self) reaches Console {
-    self.store_local_event();
-    transition self.event {
-        Event::Treasure { gold } -> mixed_values(gold)
-        _ -> fail(16)
+machine Main::check_local_stores(main: &mut Main) reaches Console {
+    Main::store_local_event(main);
+    transition main.event {
+        Event::Treasure { gold } -> mixed_values(main, gold)
+        _ -> fail(main, 16)
     }
 
-    state mixed_values(&mut self, gold: i32) {
-        transition gold == 8 && self.event.bonus == 3 && self.event.consumed {
-            true -> closed_scalar()
-            false -> fail(17)
+    state mixed_values(main: &mut Main, gold: i32) {
+        transition gold == 8 && main.event.bonus == 3 && main.event.consumed {
+            true -> closed_scalar(main)
+            false -> fail(main, 17)
         }
     }
 
-    state closed_scalar(&mut self) {
-        self.store_local_dim();
-        transition self.command {
-            Command::Dim { amount } -> closed_value(amount)
-            _ -> fail(18)
+    state closed_scalar(main: &mut Main) {
+        Main::store_local_dim(main);
+        transition main.command {
+            Command::Dim { amount } -> closed_value(main, amount)
+            _ -> fail(main, 18)
         }
     }
 
-    state closed_value(&mut self, amount: i32) {
+    state closed_value(main: &mut Main, amount: i32) {
         transition amount == 21 {
-            true -> closed_multiple()
-            false -> fail(18)
+            true -> closed_multiple(main)
+            false -> fail(main, 18)
         }
     }
 
-    state closed_multiple(&mut self) {
-        self.store_local_pair();
-        transition self.command {
-            Command::Pair { low, high } -> multiple_values(low, high)
-            _ -> fail(19)
+    state closed_multiple(main: &mut Main) {
+        Main::store_local_pair(main);
+        transition main.command {
+            Command::Pair { low, high } -> multiple_values(main, low, high)
+            _ -> fail(main, 19)
         }
     }
 
-    state multiple_values(&mut self, low: i32, high: i32) {
+    state multiple_values(main: &mut Main, low: i32, high: i32) {
         transition low == 30 && high == 40 {
             true -> done()
-            false -> fail(19)
+            false -> fail(main, 19)
         }
     }
 
-    state done(&mut self) {}
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state done() {}
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
-machine Main::check_erased_member(&mut self) reaches Console {
-    self.certified = Certified::Proven { value: 44 };
-    transition self.certified {
-        Certified::Proven { value, proof as _ } -> erased_value(value)
-        Certified::Pending -> fail(20)
+machine Main::check_erased_member(main: &mut Main) reaches Console {
+    main.certified = Certified::Proven { value: 44 };
+    transition main.certified {
+        Certified::Proven { value, proof as _ } -> erased_value(main, value)
+        Certified::Pending -> fail(main, 20)
     }
 
-    state erased_value(&mut self, value: i32) {
+    state erased_value(main: &mut Main, value: i32) {
         transition value == 44 {
             true -> done()
-            false -> fail(20)
+            false -> fail(main, 20)
         }
     }
 
-    state done(&mut self) {}
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state done() {}
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }
 
-machine Main::check_interval_member(&mut self) reaches Console {
-    self.level = Level::Lit { amount: 7 };
-    transition self.level {
-        Level::Lit { amount } -> scale(amount)
-        Level::Dark -> fail(21)
+machine Main::check_interval_member(main: &mut Main) reaches Console {
+    main.level = Level::Lit { amount: 7 };
+    transition main.level {
+        Level::Lit { amount } -> scale(main, amount)
+        Level::Dark -> fail(main, 21)
     }
 
     // `amount` reaches `scale` through its payload domain alone: no guard
     // bounds it, so the requires is discharged by `Ten` membership.
-    state scale(&mut self, amount: i32) requires amount >= 0 && amount <= 10 {
+    state scale(main: &mut Main, amount: i32) requires amount >= 0 && amount <= 10 {
         let scaled: i32 = amount * 10;
         transition scaled == 70 {
-            true -> through_local()
-            false -> fail(22)
+            true -> through_local(main)
+            false -> fail(main, 22)
         }
     }
 
-    state through_local(&mut self) {
-        self.store_local_level();
-        transition self.level {
-            Level::Lit { amount } -> local_value(amount)
-            Level::Dark -> fail(23)
+    state through_local(main: &mut Main) {
+        Main::store_local_level(main);
+        transition main.level {
+            Level::Lit { amount } -> local_value(main, amount)
+            Level::Dark -> fail(main, 23)
         }
     }
 
-    state local_value(&mut self, amount: i32) {
+    state local_value(main: &mut Main, amount: i32) {
         transition amount == 4 {
             true -> done()
-            false -> fail(23)
+            false -> fail(main, 23)
         }
     }
 
-    state done(&mut self) {}
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state done() {}
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

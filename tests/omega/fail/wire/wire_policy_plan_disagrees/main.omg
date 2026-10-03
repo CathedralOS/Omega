@@ -23,32 +23,32 @@ data CompactBinary {
     index: u64 in Wrapping;
     tag: u64;
 }
-machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
-    self.evaluate(schema, 96)
+machine CompactBinary::plan(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
+    CompactBinary::evaluate(compact_binary, schema, 96)
 }
 
-machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64 [1..=96]) -> Plan
+machine CompactBinary::evaluate(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64 [1..=96]) -> Plan
 terminates by fuel;
 {
-    self.index = 0;
-    transition { _ -> fill(schema, fuel) }
+    compact_binary.index = 0;
+    transition { _ -> fill(compact_binary, schema, fuel) }
 
-    state fill(&mut self, schema: Schema, fuel: u64 [1..=96]) {
-        transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
-            true -> put_wrong(schema, fuel - 1)
-            _ -> done(schema)
+    state fill(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64 [1..=96]) {
+        transition fuel > 1 && compact_binary.index < 32 && compact_binary.index < schema.field_count {
+            true -> put_wrong(compact_binary, schema, fuel - 1)
+            _ -> done(compact_binary, schema)
         }
     }
-    state put_wrong(&mut self, schema: Schema, fuel: u64 [1..=96]) {
-        self.tag = schema.fields[self.index].number as u64 in Wrapping;
+    state put_wrong(compact_binary: &mut CompactBinary, schema: Schema, fuel: u64 [1..=96]) {
+        compact_binary.tag = schema.fields[compact_binary.index].number as u64 in Wrapping;
         // WRONG on purpose: scalars must be Varint.
-        self.plans[self.index] = FieldPlan::LengthPrefixed { tag: self.tag };
-        self.index = self.index + 1;
-        transition fuel > 1 { true -> fill(schema, fuel - 1) _ -> done(schema) }
+        compact_binary.plans[compact_binary.index] = FieldPlan::LengthPrefixed { tag: compact_binary.tag };
+        compact_binary.index = compact_binary.index + 1;
+        transition fuel > 1 { true -> fill(compact_binary, schema, fuel - 1) _ -> done(compact_binary, schema) }
     }
-    state done(&mut self, schema: Schema) -> Plan {
+    state done(compact_binary: &mut CompactBinary, schema: Schema) -> Plan {
         Plan {
-            fields: self.plans,
+            fields: compact_binary.plans,
             entry_count: schema.field_count,
             size_fixed: 0,
             size_is_dynamic: true,

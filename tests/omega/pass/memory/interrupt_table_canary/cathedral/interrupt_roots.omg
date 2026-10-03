@@ -278,6 +278,6 @@ pub data InterruptMaskProvider {
 }
 pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptMaskControl;
 
-machine InterruptMaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
+machine InterruptMaskProvider::save_and_mask(interrupt_mask_provider: &mut InterruptMaskProvider) -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
     via ForeignBinding::CompilerIntrinsic;
