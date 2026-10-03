@@ -1239,14 +1239,15 @@ the complete product bar; focused successes below do not establish that baseline
   overflow freedom or identity. The independent interval-only fallback still
   requires one state; it cannot bypass arrival proofs.
 
-  Recover executable customers from `rank_remainder_endpoints` and
-  `rank_endpoint_borrows` (deleted in `c60792d7bdd`) as ordinary corpus entries:
-  a named-state countdown with reordered, preserved `cap % divisor` endpoints,
-  and a countdown whose bound is reached through a stored exclusive reference.
-  Require checking, interpretation and native result 0, including loops whose
-  header differs from entry and projected/borrowed ranks beside other work.
-  Checked fixtures and the deleted direct-recursive native test do not establish
-  those outcomes. **STATE-LOCAL-VALUE-FRONTIER** owns general realization gaps.
+  Both executable customers deleted in `c60792d7bdd` are recovered as ordinary
+  corpus entries: `runtime_named_state_remainder_endpoint_exit` (recorded at
+  `2d8ed2536`, a named-state countdown with reordered, preserved `cap %
+  divisor` endpoints, a loop header differing from entry, and unrelated work
+  beside the ranked call) and `rank_endpoint_borrows_recovery` (`90f497eb65`, a
+  countdown whose bound is reached through a stored exclusive reference carried
+  by an owned record across every recursive edge). Each checks, interprets and
+  executes natively with result 0. **STATE-LOCAL-VALUE-FRONTIER** owns general
+  realization gaps.
 
   Preserve selected-signature write frames for boundary/requirement/admitted/
   external calls, and disjoint-frame checks for direct, nested and composed
