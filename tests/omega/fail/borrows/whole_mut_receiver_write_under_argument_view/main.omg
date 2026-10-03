@@ -1,20 +1,20 @@
 // A whole `&mut` receiver writes the element its own call's argument view
-// lends: the callee would overwrite `arr[0]` through `self` while reading it
+// lends: the callee would overwrite `arr[0]` through `main` while reading it
 // through the shared view `sub`, which freezes that storage for the call.
 
 data Main { arr: [i32; 5]; }
 
-machine Main::overwrite_then_read(&mut self, sub: &[i32]) -> i32 {
-    self.arr[0] = 7;
+machine Main::overwrite_then_read(main: &mut Main, sub: &[i32]) -> i32 {
+    main.arr[0] = 7;
     transition sub.len >= 1 { true -> (sub[0]) false -> 0 }
 }
 
 machine Main::value_receiver_form(main: &mut Main) -> i32 {
-    let seen: i32 = main.overwrite_then_read(main.arr[0..2]);
+    let seen: i32 = Main::overwrite_then_read(main, main.arr[0..2]);
     (seen)
 }
 
-machine Main::main(&mut self) -> i32 {
-    let seen: i32 = self.overwrite_then_read(self.arr[0..2]);
+machine Main::main(main: &mut Main) -> i32 {
+    let seen: i32 = Main::overwrite_then_read(main, main.arr[0..2]);
     (seen)
 }

@@ -1,1 +1,2 @@
-receives `self.count` as mutable while its mutable receiver reads `self.count`
+state `read_through_helper` receives `main` as mutable more than once
+state `read_after` receives `main` as mutable more than once

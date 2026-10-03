@@ -1,27 +1,27 @@
 // A machine's states share the receiver authority its entry received. `run`
-// enters through `&self`, so no state may claim `&mut self`: the jump into
+// enters through `&Main`, so no state may claim `&mut Main`: the jump into
 // `next` would let it write storage the caller lent only for observation.
-// The complement, a `&self` state of a `&mut self` machine jumping into a
-// `&mut self` sibling, stays accepted because that machine's entry holds the
+// The complement, a `&Main` state of a `&mut Main` machine jumping into a
+// `&mut Main` sibling, stays accepted because that machine's entry holds the
 // exclusive authority.
 
 data Main { count: u64; other: u64; }
 
-machine Main::run(&self) -> u64 {
-    transition { _ -> next() }
-    state next(&mut self) -> u64 {
-        self.count = 4;
-        (self.count)
+machine Main::run(main: &Main) -> u64 {
+    transition { _ -> next(main) }
+    state next(main: &mut Main) -> u64 {
+        main.count = 4;
+        (main.count)
     }
 }
 
-machine Main::through_shared_state(&self) -> u64 {
-    transition { _ -> look() }
-    state look(&self) -> u64 {
-        transition { _ -> write() }
+machine Main::through_shared_state(main: &Main) -> u64 {
+    transition { _ -> look(main) }
+    state look(main: &Main) -> u64 {
+        transition { _ -> write(main) }
     }
-    state write(&mut self) -> u64 {
-        self.other = 5;
-        (self.other)
+    state write(main: &mut Main) -> u64 {
+        main.other = 5;
+        (main.other)
     }
 }

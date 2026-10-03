@@ -1,16 +1,16 @@
 trait LeftReset {
-    machine set(&mut self, value: i32);
+    machine set(subject: &mut Self, value: i32);
 
-    machine reset(&mut self) {
-        self.set(10);
+    machine reset(subject: &mut Self) {
+        set(&mut subject, 10);
     }
 }
 
 trait RightReset {
-    machine set(&mut self, value: i32);
+    machine set(subject: &mut Self, value: i32);
 
-    machine reset(&mut self) {
-        self.set(20);
+    machine reset(subject: &mut Self) {
+        set(&mut subject, 20);
     }
 }
 

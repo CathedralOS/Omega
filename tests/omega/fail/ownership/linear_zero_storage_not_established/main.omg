@@ -4,7 +4,7 @@ data Receipt [linear] {
     code: i32;
 }
 
-boundary requirement Receipt::ack(self);
+boundary requirement Receipt::ack(receipt: Receipt);
 
 data Main {}
 
