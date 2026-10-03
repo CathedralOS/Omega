@@ -6,9 +6,10 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 5, "jobs": "1", "load1_end": 0.39, "load1_start": 0.39, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": null, "load1_end": 4.69, "load1_start": 4.69, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/contracts/ensures_saturating_field_arithmetic_exit built 1802ms exit:70 interpreter-exit:70 interpreter:agrees @c13c39a874dc+wt
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
+pass/modules/runtime_foreign_generic_scoped_constant_exit built 1465ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @743851d348c6+wt
 pass/recast/runtime_bool_representation_recast_exit built 2795ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_float_range_representation_recast_exit built 6494ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_integer_bit_view_recast_exit built 3254ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt

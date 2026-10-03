@@ -79,8 +79,11 @@ pub(crate) fn finalize_const_declarations(
     // outranks imported and unmoduled candidates, an exact import exposes a
     // foreign-module carrier — and the authored selection is retained before
     // the scope token is erased. A constant's own visibility cannot authorize
-    // naming a private carrier in another package, and generic carriers still
-    // need their complete normalization owners.
+    // naming a private carrier in another package. The scope selects a declaration,
+    // not the constant value's type: a generic template owns the name while the
+    // declared value type independently closes through ordinary normalization.
+    // Retaining the template symbol keeps attachment custody distinct from the
+    // specialized instance used for value checking and materialization.
     for (declaration, constant_symbol) in pending.iter().zip(&const_symbols) {
         let module = program.symbols.symbol_module(*constant_symbol);
         if declaration.scope.as_str().is_empty() || !module.is_valid() {
@@ -106,23 +109,23 @@ pub(crate) fn finalize_const_declarations(
             }
             symbols::SymbolLookup::NotFound => {
                 return Err(Diagnostic::error(
-                    "module type-scoped constants require an exact nongeneric data carrier selected in their declaring source",
+                    "module type-scoped constants require an exact accessible data carrier selected in their declaring source",
                 ).with_source_span(declaration.scope.source_span()));
             }
         };
         // The resolved carrier claims the scope name; ineligible candidates do
-        // not shadow it away to a fallback. A generic carrier, or a private
-        // declaration in another package, keeps the attachment unproved.
+        // not shadow it away to a fallback. A private declaration in another
+        // package keeps the attachment unproved; generic parameters do not
+        // change the selected declaration's authority to own a constant name.
         if !program.data_definitions.iter().any(|definition| {
             definition.symbol == carrier
-                && definition.type_parameters.is_empty()
                 && (definition.is_public
                     || program
                         .symbols
                         .same_symbol_source_package(carrier, *constant_symbol))
         }) {
             return Err(Diagnostic::error(
-                "module type-scoped constants require an exact nongeneric data carrier selected in their declaring source",
+                "module type-scoped constants require an exact accessible data carrier selected in their declaring source",
             ).with_source_span(declaration.scope.source_span()));
         }
         let exposure = if declaration.is_public {

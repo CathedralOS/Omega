@@ -154,34 +154,36 @@ fn scoped_attachment_rejects_ambiguous_or_colliding_foreign_carriers() {
 }
 
 #[test]
-fn scoped_array_attachment_cannot_borrow_a_generic_or_absent_owner() {
-    for (sources, expected) in [
-        (
-            vec!["module settings; data Sizes<T> {} const Sizes::SIZE: [u8; 1] = [1];"],
-            "exact nongeneric data carrier",
-        ),
-        (
-            // The module-local generic carrier claims `Sizes`; the scope
-            // head cannot shadow it away to the imported nongeneric owner.
-            vec![
-                "module other; data Sizes {}",
-                "module settings; data Sizes<T> {} use other::Sizes; const Sizes::SIZE: [u8; 1] = [1];",
-            ],
-            "exact nongeneric data carrier",
-        ),
-        (
-            vec!["module settings; const Sizes::SIZE: [u8; 1] = [1];"],
-            "exact nongeneric data carrier",
-        ),
+fn scoped_array_attachment_selects_generic_owner_before_imported_carrier() {
+    for sources in [
+        vec!["module settings; data Sizes<T> {} const Sizes::SIZE: [u8; 1] = [1];"],
+        vec![
+            "module other; data Sizes {}",
+            "module settings; data Sizes<T> {} use other::Sizes; const Sizes::SIZE: [u8; 1] = [1];",
+        ],
     ] {
-        let diagnostics = resolve(&sources).expect_err("attachment normalization is incomplete");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(expected)),
-            "{diagnostics:?}"
-        );
+        let program = resolve(&sources).expect("generic declarations own scoped constant names");
+        let carrier = program
+            .data_definitions
+            .iter()
+            .find(|definition| !definition.type_parameters.is_empty())
+            .expect("generic module-local owner");
+        assert!(program.authored_declaration_selections().iter().any(|selection| {
+            matches!(selection.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) if selected.selected_symbol() == carrier.symbol)
+        }), "the attachment must retain the template rather than its same-spelled import");
     }
+}
+
+#[test]
+fn scoped_array_attachment_rejects_absent_owner() {
+    let diagnostics = resolve(&["module settings; const Sizes::SIZE: [u8; 1] = [1];"])
+        .expect_err("an absent owner cannot acquire attachment authority");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("exact accessible data carrier") }),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]

@@ -1,0 +1,4 @@
+module settings;
+pub data Holder<T [copy]> [copy] { value: T; }
+pub data Other [copy] { value: u32; }
+pub const Holder::VALUE: Holder<u32> = Other { value: 7u32 };

@@ -7,8 +7,10 @@
 //! canonicalizer, including unused private declarations: unused initializers
 //! never reach destination checking. Array leaves
 //! therefore stay within its canonical integer/Boolean subset. Scoped literals
-//! additionally retain their exact nongeneric module-local carrier at constant
-//! finalization, where complete symbols exist. Scalar substitution then uses
+//! additionally retain their exact module-local or imported owner declaration
+//! at constant finalization, where complete symbols exist. The attachment owner
+//! may be generic; value-carrier normalization independently closes the declared
+//! type without replacing the owner's identity. Scalar substitution then uses
 //! resolved declaration identity and the declared numeric landing, just as for
 //! unscoped constants. Primitive arrays use this same selection for body copies,
 //! preserving their declared element landings and full array type at destinations.

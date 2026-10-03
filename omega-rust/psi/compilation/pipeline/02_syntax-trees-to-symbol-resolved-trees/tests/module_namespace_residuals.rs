@@ -89,6 +89,43 @@ fn specialized_foreign_template_const_attachment() {
 }
 
 #[test]
+fn scoped_constant_retains_template_owner_and_closed_value_carrier() {
+    let owner_source = "module values; pub data Holder<T [copy]> [copy] { value: T; } pub const Holder::VALUE: Holder<u32> = Holder { value: 7u32 };";
+    let scope_start = owner_source.find("const Holder::VALUE").expect("scope") + "const ".len();
+    let program = lower_multi(&[
+        ("values.omg", owner_source),
+        (
+            "reader.omg",
+            "use values::Holder; machine read() -> u32 { values::Holder::VALUE.value }",
+        ),
+    ])
+    .expect("generic owner and closed constant value resolve separately");
+    let owner = program
+        .data_definitions
+        .iter()
+        .find(|definition| !definition.type_parameters.is_empty())
+        .expect("retained template");
+    assert!(program.authored_declaration_selections().iter().any(|selection| {
+        selection.source_span().source_id == source::SourceId(0)
+            && selection.source_span().span.start == scope_start
+            && matches!(selection.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) if selected.selected_symbol() == owner.symbol)
+    }), "the original scope occurrence must select the template");
+    let declaration = program.const_declarations.iter().next().expect("constant");
+    let symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+        declaration.declared_type
+    else {
+        panic!("the value carrier must be closed before resolution");
+    };
+    assert_ne!(symbol, owner.symbol);
+    assert!(
+        program.data_definitions.iter().any(|definition| {
+            definition.symbol == symbol && definition.generic_instance.is_some()
+        }),
+        "the value retains the specialized carrier independently"
+    );
+}
+
+#[test]
 fn domain_and_case_same_leaf_contest_rejects_ambiguous() {
     // `Choice::Some` is both a domain leaf and a case leaf on the same
     // carrier. Membership cannot decide between the two declared roles, so
