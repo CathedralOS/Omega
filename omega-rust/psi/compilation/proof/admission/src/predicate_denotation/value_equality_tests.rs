@@ -526,7 +526,13 @@ fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
         );
     }
     assert!(
-        crate::accept_certificate(&context, &expected, &[original.clone()], &[], &transport(&exact),)
-            .is_err()
+        crate::accept_certificate(
+            &context,
+            &expected,
+            &[original.clone()],
+            &[],
+            &transport(&exact),
+        )
+        .is_err()
     );
 }

@@ -3751,20 +3751,11 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `checks/contracts/exits/cyclic_headers.rs` caches only admitted exits;
   stage 05's `proofs/scalar_block_invariants/cyclic_guarantees.rs` searches again.
 
-  Finish invariant discovery and ranking for storage-changing `self`
-  transitions. Updating mutable counter and accumulator parameters before
-  `-> self` loses the relation between their current values: the maintained
-  immutable-parameter header roster does not establish the next arrival's
-  invariant or strict rank. Carry post-assignment values through the existing
-  write invalidation and arrival checks; mutable storage is not an invocation
-  snapshot. Preserve establishment, every arrival's simultaneous substitution,
-  and exact source/Terminal scope. An authored state edge cannot borrow the
-  preserving implementation-edge exception to strict ranking.
-
   Retain the native `runtime_ranked_accumulator_guarantee_exit`,
   `runtime_two_state_accumulator_exit`, `runtime_sequential_ranked_components_exit`,
   `runtime_sequential_relational_accumulator_exit`,
   `runtime_ranked_intermediary_accumulator_exit`,
+  `runtime_mutable_ranked_accumulator_exit`,
   `runtime_inductive_climbing_sum_exit`, and `runtime_inductive_gauss_sum_exit`
   controls. Their guarantees survive
   package review, serialization, independent verification,
@@ -3772,6 +3763,8 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   each additive ranking step's independently proved no-wrap condition. Wrong
   accumulator arrivals must reject while the same cycle certificate remains
   valid; weakening the decrement guard must reject that cycle certificate.
+  Mutable arrivals retain current storage values and exact invocation origins,
+  with the same write invalidation and simultaneous substitution as other edges.
   PROOF-KERNEL-CORE and PCC-CANONICAL-SEMANTIC-LEDGER own the licensed
   arithmetic derivation, without per-loop axioms or residue order assumptions.
 
