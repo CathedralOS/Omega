@@ -132,7 +132,7 @@ pub(crate) fn partial_affine_root_type(
                 result,
                 ..
             }
-            | O::EstablishStructuralCase {
+            | O::EstablishCase {
                 psi_operation,
                 result,
                 ..
@@ -206,9 +206,7 @@ pub(super) fn constructor_arguments(
     operation: &O,
 ) -> impl Iterator<Item = &terminal_psi::StructuralArgument> {
     let fields = match operation {
-        O::EstablishCase { fields, .. }
-        | O::EstablishRecord { fields, .. }
-        | O::EstablishStructuralCase { fields, .. } => fields.as_slice(),
+        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields.as_slice(),
         _ => &[],
     };
     fields

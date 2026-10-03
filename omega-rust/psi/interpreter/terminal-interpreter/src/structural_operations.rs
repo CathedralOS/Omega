@@ -13,7 +13,7 @@ use crate::values::{ScalarFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
