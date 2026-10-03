@@ -1856,6 +1856,7 @@ pass/generics/runtime_const_data_multiple_instances_exit checked 1230ms @2d8ed25
 pass/generics/runtime_const_data_symbolic_expression_exit checked 1300ms @2d8ed253669f
 pass/generics/runtime_const_data_where_fact_exit checked 1270ms @2d8ed253669f
 pass/generics/runtime_container_setter_matrix_exit checked 1388ms @2d8ed253669f
+pass/generics/runtime_forwarded_value_contract_exit checked 507ms @fbbbc025398+wt
 pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms @2d8ed253669f
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms @ca8c127c90c5
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms @2d8ed253669f

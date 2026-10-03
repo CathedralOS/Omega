@@ -668,6 +668,7 @@ pass/generics/runtime_const_data_multiple_instances_exit built 590ms exit:70
 pass/generics/runtime_const_data_symbolic_expression_exit built 580ms exit:70
 pass/generics/runtime_const_data_where_fact_exit built 2044ms exit:70 @fb2178def922
 pass/generics/runtime_container_setter_matrix_exit built 754ms exit:1
+pass/generics/runtime_forwarded_value_contract_exit built 528ms exit:0 @fbbbc025398+wt
 pass/generics/runtime_generic_multiple_specializations_exit built 1743ms exit:14 @fb2178def922
 pass/generics/runtime_mixed_generic_erased_sum_exit built 2260ms exit:70 @fb2178def922
 pass/generics/runtime_nested_generic_instantiations_exit built 628ms exit:30
