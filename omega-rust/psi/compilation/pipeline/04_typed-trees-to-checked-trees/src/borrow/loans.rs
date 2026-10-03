@@ -590,12 +590,26 @@ fn literal_indexed_recast_borrow_place(
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
 ) -> Option<accesses::BorrowAccessPlace> {
+    let typed_trees::types::TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program
+        .type_reference_table
+        .type_reference(local_data.type_reference)
+    else {
+        return None;
+    };
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)?;
-    let footprint =
-        validation::validate_literal_indexed_recast_footprint(program, machine, state, local_data)?;
+    let footprint = validation::validate_literal_indexed_recast_footprint(
+        program,
+        machine,
+        state,
+        local_data.initial_value,
+        *referee,
+        *access,
+    )?;
     let mut place = borrow_access_place(
         program,
         state.symbol,
@@ -624,12 +638,26 @@ fn runtime_indexed_recast_borrow_place(
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
 ) -> Option<accesses::BorrowAccessPlace> {
+    let typed_trees::types::TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program
+        .type_reference_table
+        .type_reference(local_data.type_reference)
+    else {
+        return None;
+    };
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)?;
-    let source =
-        validation::validate_runtime_indexed_recast_source(program, machine, state, local_data)?;
+    let source = validation::validate_runtime_indexed_recast_source(
+        program,
+        machine,
+        state,
+        local_data.initial_value,
+        *referee,
+        *access,
+    )?;
     borrow_access_place(
         program,
         state.symbol,

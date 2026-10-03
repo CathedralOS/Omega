@@ -877,6 +877,9 @@ pub(crate) fn build_checked_value_computation_plans(
                                     program,
                                     *argument,
                                     parameter.type_reference,
+                                ) || structural_values::is_borrowed_slice_view_value(
+                                    program,
+                                    parameter.type_reference,
                                 ) || structural_values::is_structural_case_value(
                                     program,
                                     *argument,

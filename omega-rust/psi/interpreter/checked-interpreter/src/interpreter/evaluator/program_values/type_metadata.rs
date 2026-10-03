@@ -16,7 +16,7 @@ impl<'program> Evaluator<'program> {
         destination: TypeReferenceHandle,
         frame: &mut Frame,
     ) -> EvalResult<EvaluatedArgument> {
-        let initializer = self.mutable_scalar_recast_initializer(argument, frame)?;
+        let initializer = self.reference_recast_initializer(argument, frame)?;
         if let Some((source, recast)) = initializer {
             return Ok(EvaluatedArgument {
                 cell: self.allocate_cell(Value::Ref(source))?,

@@ -40,6 +40,7 @@ use std::fmt;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -231,6 +232,22 @@ fn argument_matches_type_reference_using(
                 correspondence,
                 required_substitutions,
             );
+    }
+
+    // A recast states its viewed carrier explicitly. The enclosing Borrow
+    // above retains the reference access; representation and loan validation
+    // independently judge whether the source can supply this view. Comparing
+    // the stated type here must neither infer a conversion from the destination
+    // nor erase qualifications. Required bindings are simultaneous: a selected
+    // caller type must not be rebound by another callee formal.
+    if let ExpressionNode::Cast(cast) = program.expression_table.expression(argument)
+        && cast.form.is_recast()
+    {
+        return program.type_identity(TypeIdentityRequest::ordinary(cast.target_type))
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(type_reference)
+            });
     }
 
     // A resolved reference result has a declared referee carrier. Do not let the

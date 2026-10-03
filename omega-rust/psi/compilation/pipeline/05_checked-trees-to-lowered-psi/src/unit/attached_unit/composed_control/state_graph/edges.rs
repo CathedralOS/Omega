@@ -509,8 +509,8 @@ pub(super) fn validate_bindings(
             // is fresh destination storage, not a transfer of source custody.
             // The edge's
             // establishment is an ordinary one at the transition's own
-            // coordinate, producing exactly the target's type and
-            // multiplicity, and replays as a `let` initializer's does,
+            // coordinate, producing the target's carrier under its exact
+            // owned or borrowed custody, and replays as a `let` initializer's does,
             // embedded calls included.
             let result =
                 establishment
@@ -531,17 +531,51 @@ pub(super) fn validate_bindings(
             ) else {
                 return unsupported("Unit graph established argument lost its registration");
             };
+            // A borrowed formal receives descriptor access, not ownership of
+            // the descriptor carrier. Its mutable producer retains affine
+            // disposal debt while the formal itself is unrestricted. The
+            // common construction replay below independently checks this
+            // producer against the exact authored transition operand/formal.
+            let custody_matches = match target.access {
+                checked_trees::CheckedStructuralAccess::Owned => {
+                    result.multiplicity == target.multiplicity
+                        && checked
+                            .normalized_type_identity(root.type_reference)
+                            .as_str()
+                            == target.type_identity
+                }
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                    validation::slice_view_shell(&checked.typed, root.type_reference, &[])
+                        .is_some_and(|view| {
+                            let access: checked_trees::CheckedStructuralAccess = view.access.into();
+                            let multiplicity = if access
+                                == checked_trees::CheckedStructuralAccess::MutableBorrow
+                            {
+                                Multiplicity::Affine
+                            } else {
+                                Multiplicity::Unrestricted
+                            };
+                            access == target.access
+                                && target.multiplicity == Multiplicity::Unrestricted
+                                && result.multiplicity == multiplicity
+                                && crate::unit::attached_unit::structural_carrier_type(
+                                    checked, view.slice,
+                                )
+                                .is_ok_and(|carrier| {
+                                    checked.normalized_type_identity(carrier).as_str()
+                                        == target.type_identity
+                                })
+                        })
+                }
+                _ => false,
+            };
             if root.machine != plan.machine
                 || result.statement_index != edge.statement_ordinal
                 || result.type_identity != target.type_identity
-                || result.multiplicity != target.multiplicity
                 || transfer.target_parameter_index as usize != position
                 || target.is_self
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
-                || checked
-                    .normalized_type_identity(root.type_reference)
-                    .into_string()
-                    != target.type_identity
+                || !custody_matches
             {
                 return unsupported("Unit graph established argument custody drifted");
             }

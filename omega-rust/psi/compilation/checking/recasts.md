@@ -37,6 +37,20 @@ arguments and nested operands. Inline casts use their stated target type;
 contract-only positions remain fenced because they establish no runtime
 borrow. A mismatched bare borrow cannot bypass the recast judgment.
 
+Slice construction retains its exact formation occurrence. A local rejoins
+its original loan at the declaration and destination slot; later replacement
+loans cannot substitute for that origin. An inline state argument instead
+rejoins the named transition's canonical call ordinal, exact argument and
+complete ordered borrow-access roster. Both use ordinary structural value
+construction. The selected edge evaluates an inline descriptor before lending
+it to the successor; a mutable descriptor retains its affine disposal debt
+while the receiving reference formal remains unrestricted. Writable arguments
+use the same canonical backing place as borrow admission, including validated
+indexed recast footprints. Indexed record-field observations replay the exact
+view root, field path and selectors independently of the storage-read inventory;
+a literal selector does not make the root or field identity redundant. Slice
+bounds remain separate proof obligations derived from the live descriptor.
+
 Every recast-path diagnostic attaches the authored source span of the
 offending `as` expression (the stray cast itself for the positional sweep, the
 let's initializer for the unspelled reference pun), so fenced positions and
@@ -91,6 +105,10 @@ selectors remain ordinary observation or assignment operands. Exact source
 replay, loan access and scalar carrier checks remain independent of geometry.
 
 Native and interpreter projection/state forwarding preserve backing identity.
+The interpreter retains the same reference-recast descriptor for shared and
+mutable locals and arguments: original cells and captured coordinates stay
+separate from the checked reference access. Shared record views therefore read
+the original backing rather than an assembled copy.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
 cannot replace the placement access plan. Focused source cases live in
 `tests/omega/{pass,fail}/recast/`. Representation judgments are tested beside

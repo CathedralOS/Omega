@@ -1,4 +1,4 @@
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
@@ -35,19 +35,42 @@ pub(super) fn check_mutable_argument_writability(
             continue;
         }
 
-        let Some(root_name) = mutable_argument_root_name(program, inner_expression.target) else {
+        // Recast operands lend their validated backing place. Resolve the same
+        // place as borrow admission, rather than recognizing a second set of
+        // source spellings or granting writability to the viewed type.
+        let Some(place) = crate::borrow::accesses::borrow_access_place(
+            program,
+            state_flow.state_symbol,
+            borrow_call.statement_index,
+            *argument,
+            state_flow.machine_symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "mutable argument for state `{target_name}` must be a named place"
             )));
             continue;
         };
 
+        let root_symbol =
+            if place.root_symbol == state_flow.machine_symbol && place.segments.is_empty() {
+                crate::semantic::calls::find_state(program, state_flow.state_symbol)
+                    .and_then(|state| {
+                        program
+                            .state_parameters(state)
+                            .iter()
+                            .find(|parameter| parameter.is_self)
+                    })
+                    .map_or(place.root_symbol, |parameter| parameter.symbol)
+            } else {
+                place.root_symbol
+            };
+        let root_name = program.symbols.name(root_symbol);
         let root_is_writable = facts
             .flow
             .borrow_writable_root_constraints(entry_constraints)
             .any(|root| {
                 let root = facts.borrow.writable_roots.get(root);
-                program.symbols.name(root.symbol) == root_name.as_str()
+                root.symbol == root_symbol
             });
         if !root_is_writable {
             diagnostics.push(Diagnostic::error(format!(
@@ -69,11 +92,12 @@ pub(super) fn check_mutable_argument_writability(
             language_semantics::ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
             language_semantics::ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
         };
-        if let Some(parent_access) = borrow_target_reference_access(
+        if let Some(parent_access) = binding_reference_access(
             program,
-            state_flow,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
             borrow_call.statement_index,
-            inner_expression.target,
+            root_symbol,
         ) && parent_access
             .direct_reborrow_effect(&child_access)
             .is_none()
@@ -86,73 +110,63 @@ pub(super) fn check_mutable_argument_writability(
     }
 }
 
-/// The declared reference access of the parameter or local that an exclusive
-/// argument borrow's target place resolves to, when it does. The place's root
-/// is what `&mut`/`&write` actually reborrows through, so this answers the
-/// parent side of the reborrow access-pair rule for transient arguments.
-fn borrow_target_reference_access(
-    program: &typed_trees::TypedTrees,
-    state_flow: &FlowStateFact,
-    statement_index: usize,
-    target: ExpressionHandle,
-) -> Option<BorrowAccessKind> {
-    let place = crate::borrow::accesses::borrow_access_place(
-        program,
-        state_flow.state_symbol,
-        statement_index,
-        target,
-        state_flow.machine_symbol,
-    )?;
-    binding_reference_access(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        statement_index,
-        place.root_symbol,
-    )
-}
+#[cfg(test)]
+mod tests {
+    use crate::tests::front_end::checked_program_result;
 
-fn mutable_argument_root_name(
-    program: &typed_trees::TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<String> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Indexed(indexed) => mutable_argument_root_name(program, indexed.collection),
-        ExpressionNode::Range(_) => None,
-        ExpressionNode::Member(member) => {
-            if let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
-            {
-                let members = program.expression_table.name_path_members(path.members);
-                if members
-                    .first()
-                    .is_some_and(|member_name| member_name.is_self_receiver())
-                {
-                    return Some(member.member.as_str().to_owned());
-                }
+    const INLINE_SUFFIX: &str = r#"
+        data Buffer { bytes: [u8; 8]; }
+        machine enter(root: &mut Buffer, index: u32 [0..=4]) {
+            transition true {
+                true -> consume(&mut root.bytes[index] as &mut [u8])
             }
-            mutable_argument_root_name(program, member.receiver)
+            state consume(window: &mut [u8]) {}
         }
-        ExpressionNode::Borrow(inner_expression) => {
-            mutable_argument_root_name(program, inner_expression.target)
+    "#;
+
+    #[test]
+    fn inline_recast_writability_uses_the_validated_backing_root() {
+        for source in [
+            INLINE_SUFFIX.to_owned(),
+            INLINE_SUFFIX.replace("bytes[index]", "bytes[1]"),
+            INLINE_SUFFIX.replace("machine enter(", "machine Buffer::enter("),
+            INLINE_SUFFIX
+                .replace("machine enter(", "machine Buffer::enter(")
+                .replace(
+                    "&mut root.bytes[index] as &mut [u8]",
+                    "&mut root.bytes[index]",
+                )
+                .replace("window: &mut [u8]", "window: &mut u8"),
+        ] {
+            checked_program_result(&source)
+                .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}\n{source}"));
         }
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .first()
-            .map(|member| member.as_str().to_owned()),
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Match(_)
-        | ExpressionNode::Atomic(_)
-        | ExpressionNode::Binary(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Call(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Unary(_)
-        | ExpressionNode::ZeroValue(_) => None,
+    }
+
+    #[test]
+    fn inline_recast_writability_cannot_escalate_a_shared_backing_root() {
+        let shared = INLINE_SUFFIX.replace("root: &mut Buffer", "root: &Buffer");
+        for source in [
+            shared.clone(),
+            shared.replace("machine enter(", "machine Buffer::enter("),
+            shared
+                .replace("machine enter(", "machine Buffer::enter(")
+                .replace(
+                    "&mut root.bytes[index] as &mut [u8]",
+                    "&mut root.bytes[index]",
+                )
+                .replace("window: &mut [u8]", "window: &mut u8"),
+        ] {
+            let diagnostics = checked_program_result(&source)
+                .expect_err("a mutable result view cannot authorize a shared source");
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains("not writable")
+                        || diagnostic.message.contains("mutable")
+                        || diagnostic.message.contains("exclusive")
+                }),
+                "{diagnostics:#?}\n{source}"
+            );
+        }
     }
 }

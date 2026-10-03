@@ -1020,73 +1020,23 @@ fn rejoin_computation_accesses(
     state: SymbolHandle,
     source: &checked_trees::FlowCallFact,
 ) -> Option<()> {
-    let mut states = borrow
-        .states
+    if !matches!(
+        crate::borrow::accesses::rejoin_call_accesses(program, borrow, machine, state, source,)?,
+        crate::semantic::calls::CallSite::Expression { .. }
+    ) {
+        return None;
+    }
+    for (access_ordinal, actual) in borrow
+        .argument_accesses
+        .span_or_empty(source.accesses)
         .iter()
-        .map(|(_, row)| row)
-        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
-    let state_row = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
-    let mut calls = borrow.calls.span(state_row.calls)?.iter().filter(|call| {
-        call.statement_index == source.statement_index && call.call_ordinal == source.call_ordinal
-    });
-    let call = calls.next()?;
-    if calls.next().is_some()
-        || call.target_symbol != source.target_symbol
-        || call.accesses != source.accesses
-        || call.has_receiver != source.has_receiver
-        || call.receiver_symbol != source.receiver_symbol
-        || !program
-            .expression_table
-            .expression_is_valid(source.authored_expression)
+        .enumerate()
     {
-        return None;
-    }
-    let ExpressionNode::Call(authored) = program
-        .expression_table
-        .expression(source.authored_expression)
-    else {
-        return None;
-    };
-    let arguments = program
-        .expression_table
-        .expression_handles(authored.arguments);
-    if arguments.len() != authored.arguments.count() as usize {
-        return None;
-    }
-    let mut expected_segments = arena::Arena::new();
-    let mut expected_accesses = arena::Arena::new();
-    let expected = crate::borrow::accesses::collect_call_argument_accesses(
-        program,
-        &mut expected_segments,
-        &mut expected_accesses,
-        arguments,
-        state,
-        source.statement_index,
-        machine,
-        call.target_symbol,
-    );
-    let expected = expected_accesses.span(expected)?;
-    let actual = borrow.argument_accesses.span(call.accesses)?;
-    if expected.len() != actual.len() {
-        return None;
-    }
-    for (access_ordinal, (expected, actual)) in expected.iter().zip(actual).enumerate() {
-        if expected.root_symbol != actual.root_symbol
-            || expected.kind != actual.kind
-            || expected.end_before_access != actual.end_before_access
-            || expected_segments.span(expected.segments)?
-                != borrow.access_segments.span(actual.segments)?
-        {
-            return None;
-        }
         if actual.kind.is_exclusive()
             && actual.end_before_access.is_none()
             && borrow
                 .argument_accesses
-                .span(call.accesses)?
+                .span_or_empty(source.accesses)
                 .iter()
                 .filter(|candidate| {
                     candidate.root_symbol == actual.root_symbol

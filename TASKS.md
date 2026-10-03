@@ -571,7 +571,8 @@ the complete product bar; focused successes below do not establish that baseline
 
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns shared/exclusive local establishment, reads, returned references and
-    state forwarding; **RECAST-SOURCE-POSITIONS** owns typed recasts. Preserve
+    state forwarding; [representation-view checking](omega-rust/psi/compilation/checking/recasts.md)
+    owns typed recasts. Preserve
     the local's loan identity and exact backing through every consumer,
     including local-rooted stores and borrowed-record calls followed by reads.
     `structural_values::is_record_value` still gates on StructLiteral/Match
@@ -1505,8 +1506,9 @@ the complete product bar; focused successes below do not establish that baseline
   - Carry field/case propositions through construction, nonliteral and indexed
     writes, reads/index proofs, calls, state joins, mutable recasts and returns.
     Preserve exact subjects, invalidation and invariant-window closure.
-    **NOMINAL-FIELD-FLOW**, **RECAST-SOURCE-POSITIONS** and
-    **STATE-LOCAL-VALUE-FRONTIER** own the respective transport/execution.
+    **NOMINAL-FIELD-FLOW** and **STATE-LOCAL-VALUE-FRONTIER** own the
+    remaining transport/execution; mutable recasts retain the
+    [representation judgment](omega-rust/psi/compilation/checking/recasts.md).
     Re-drive the canonical forms of `core/zii_default_composite_exit`,
     `collections/runtime_dutch_flag_partition_exit`,
     `calls/runtime_mutable_call_before_transition_args_exit` and the
@@ -1937,7 +1939,8 @@ crash and native exit behavior. Use affected check/native corpus slices under
   acceptance. Continue with the remaining producer/read/state compositions.
   Descriptor cleanup remains separate from backing permission; returned shared
   views cannot grant mutation authority or escape activation-owned storage.
-  Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
+  Keep record re-views under the
+  [representation judgment](omega-rust/psi/compilation/checking/recasts.md).
 
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70
@@ -3480,55 +3483,6 @@ completion syntax or other terminal service is a prerequisite.
   **WRITE-ONLY-BORROW** and **STRUCTURAL-BORROW-IDENTITY** own general source
   loan admission; **TERMINAL-SLICE-VIEW-VOCABULARY** owns broader view bounds;
   **PLAN-LAID-VIEWS** owns provider-backed establishment and access plans.
-
-- **RECAST-SOURCE-POSITIONS.** Finish the remaining source-to-execution
-  representation views under the [recast contract](wiki/spec/layouts/recasts.md).
-  Preserve source storage, access and lifetime; shared views require validity
-  implication and mutable views require both directions. The owning source
-  judgment and supported positions are documented in
-  [checking/recasts.md](omega-rust/psi/compilation/checking/recasts.md).
-
-  On macOS ARM64, with this change on base `e2c0e9d0e62`, ordinary package
-  preparation followed by `omega run --both` executes
-  `runtime_interior_slice_view_mutable_write_exit` with native/interpreter exit
-  **70**. A runtime-offset byte descriptor survives state forwarding; projected
-  record writes update the original byte backing. Each loan ends before the
-  receiver checks its backing. Whole typed-array recasts retain their distinct
-  field identities, bounded/Boolean validity and padded stride in
-  `runtime_aggregate_slice_representation_recast_exit`, also **70** in both
-  engines. `runtime_interior_slice_congruent_offset_exit` remains the
-  multi-byte captured-region control.
-
-  The recast differential gate now has 16 executable fixtures returning **70**
-  in both engines, one Linux-only fixture that builds, and one intentionally
-  compile-only fixture. Keep the independent extent, tiling, access and backing
-  loan checks; `interior_slice_exclusive_backing_read` must still reject.
-
-  Remaining first frontier: the inline state-argument equivalent of the
-  interior byte fixture, passing
-  `&mut main.tail_bytes[main.k] as &mut [u8]` directly to `write_tail`, rejects
-  with `argument tail for state write_tail expects &mut [u8], got cast
-  expression`. Argument correspondence must use the recast's exact declared
-  target, including generic substitutions, while retaining the independent
-  recast and borrow judgments. Stage 04 then needs the same view construction
-  under its exact transition operand rather than only a `LocalData` owner.
-  Reuse `EstablishedValue { operands, establishment }` after edge selection;
-  preserve an affine descriptor producer separately from its borrowed formal.
-  Stage 05 must replay that same source occurrence and custody. No new
-  representation or special pipeline entry is needed.
-
-  `runtime_recast_record_view_indexed_write_exit` binds only Linux x86-64;
-  retain its native exit-70 acceptance on that host. `nested_operand_view_compile`
-  intentionally has no executable entry. Shared and mutable typed views must
-  preserve source qualifications; equal leaf layouts alone cannot preserve an
-  arbitrary relational domain across mutation.
-
-  Acceptance: let-bound and inline equivalents execute with writes visible
-  through the original backing. Run the recast native gate on matching hosts
-  and require authored results. Incompatible geometry/validity, access
-  escalation and conflicting backing access reject at their source locations.
-  Keep proof-only and placed-storage recasts fenced, with precise symbolic and
-  boundary-witness refusals.
 
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
   preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),
@@ -6164,8 +6118,8 @@ but report the missing runtime leg explicitly; it does not close that host row.
     survives and includes native-image replay checks. Image validation alone
     does not prove execution of the callback.
 
-  - **Foreign-domain mutable recasts:** **MODULE-NAMESPACE-RESOLUTION** /
-    **RECAST-SOURCE-POSITIONS** must preserve a qualification when declaration
+  - **Foreign-domain mutable recasts:** **MODULE-NAMESPACE-RESOLUTION**
+    must preserve a qualification when declaration
     and mutable view name the same exact foreign package domain, and reject
     exchange between different packages' same-named domains. The maintained
     `tests/omega/pass/recast/runtime_mutable_equivalent_domain_recast_exit`

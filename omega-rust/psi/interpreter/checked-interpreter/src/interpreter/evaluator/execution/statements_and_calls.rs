@@ -211,13 +211,12 @@ impl<'program> Evaluator<'program> {
                 Ok(())
             }
             StatementNode::LocalData(local) => {
-                // A mutable scalar recast is an ALIAS, not a snapshot. Preserve
-                // the source cell and remember the two scalar interpretations;
-                // eval_name performs source -> view reads, while assignment
-                // performs view -> source writes before touching the cell.
+                // Reference recasts retain their original cells and captured
+                // view coordinates. Reads use the stated representation;
+                // checked mutable views also write through the same descriptor.
                 if local.initial_value.is_valid()
                     && let Some((source, recast)) =
-                        self.mutable_scalar_recast_initializer(local.initial_value, frame)?
+                        self.reference_recast_initializer(local.initial_value, frame)?
                 {
                     frame.bind(FrameLocal {
                         symbol: local.symbol,

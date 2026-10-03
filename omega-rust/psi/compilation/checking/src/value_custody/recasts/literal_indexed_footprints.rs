@@ -20,7 +20,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// The collection expression names the fixed byte-array place. `start..end`
 /// is the complete validated target footprint in byte ordinals. This carrier
 /// is produced only by replaying the ordinary recast judgment for a direct
-/// reference-local initializer; consumers must not reconstruct it from cast
+/// authored borrow occurrence; consumers must not reconstruct it from cast
 /// syntax alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValidatedLiteralIndexedRecastFootprint {
@@ -58,21 +58,15 @@ pub fn validate_literal_indexed_recast_footprint(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    local: &typed_trees::statement::TableLocalData,
+    expression: ExpressionHandle,
+    viewed_type: TypeReferenceHandle,
+    access: language_core::ReferenceAccess,
 ) -> Option<ValidatedLiteralIndexedRecastFootprint> {
-    let TypeReferenceNode::Reference {
-        referee, access, ..
-    } = program
-        .type_reference_table
-        .type_reference(local.type_reference)
-    else {
-        return None;
-    };
-    let spelled_borrow_exclusive = match program.expression_table.expression(local.initial_value) {
+    let spelled_borrow_exclusive = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
         _ => None,
     };
-    let initializer = strip_mutable(program, local.initial_value);
+    let initializer = strip_mutable(program, expression);
     let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
         return None;
     };
@@ -87,7 +81,7 @@ pub fn validate_literal_indexed_recast_footprint(
         state,
         cast,
         initializer,
-        *referee,
+        viewed_type,
         access.is_exclusive(),
         spelled_borrow_exclusive,
         &mut diagnostics,
@@ -110,7 +104,7 @@ pub fn validate_literal_indexed_recast_footprint(
             .type_reference(cast.target_type),
         TypeReferenceNode::Slice { .. }
     ) {
-        let region = super::slice_recast_byte_region(program, machine, state, local.initial_value)?;
+        let region = super::slice_recast_byte_region(program, machine, state, expression)?;
         if region.source != source
             || region.collection != indexed.collection
             || region.start != indexed.index
@@ -157,21 +151,15 @@ pub fn validate_runtime_indexed_recast_source(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    local: &typed_trees::statement::TableLocalData,
+    expression: ExpressionHandle,
+    viewed_type: TypeReferenceHandle,
+    access: language_core::ReferenceAccess,
 ) -> Option<ExpressionHandle> {
-    let TypeReferenceNode::Reference {
-        referee, access, ..
-    } = program
-        .type_reference_table
-        .type_reference(local.type_reference)
-    else {
-        return None;
-    };
-    let spelled_borrow_exclusive = match program.expression_table.expression(local.initial_value) {
+    let spelled_borrow_exclusive = match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
         _ => None,
     };
-    let initializer = strip_mutable(program, local.initial_value);
+    let initializer = strip_mutable(program, expression);
     let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
         return None;
     };
@@ -186,7 +174,7 @@ pub fn validate_runtime_indexed_recast_source(
         state,
         cast,
         initializer,
-        *referee,
+        viewed_type,
         access.is_exclusive(),
         spelled_borrow_exclusive,
         &mut diagnostics,
@@ -217,7 +205,7 @@ pub fn validate_runtime_indexed_recast_source(
         // The judgment above independently checks bounds and exact tiling of
         // this complete suffix. Source syntax identifies its backing, not a
         // guessed one-element footprint or a newly assumed representation.
-        let region = super::slice_recast_byte_region(program, machine, state, local.initial_value)?;
+        let region = super::slice_recast_byte_region(program, machine, state, expression)?;
         if region.source != source
             || region.collection != indexed.collection
             || region.start != indexed.index
@@ -331,6 +319,53 @@ fn literal_fixed_array_target_terminal(
 
 #[cfg(test)]
 mod tests {
+    fn literal_footprint(
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        local: &typed_trees::statement::TableLocalData,
+    ) -> Option<super::ValidatedLiteralIndexedRecastFootprint> {
+        let typed_trees::types::TypeReferenceNode::Reference {
+            referee, access, ..
+        } = program
+            .type_reference_table
+            .type_reference(local.type_reference)
+        else {
+            return None;
+        };
+        super::validate_literal_indexed_recast_footprint(
+            program,
+            machine,
+            state,
+            local.initial_value,
+            *referee,
+            *access,
+        )
+    }
+    fn runtime_source(
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        local: &typed_trees::statement::TableLocalData,
+    ) -> Option<typed_trees::expression::ExpressionHandle> {
+        let typed_trees::types::TypeReferenceNode::Reference {
+            referee, access, ..
+        } = program
+            .type_reference_table
+            .type_reference(local.type_reference)
+        else {
+            return None;
+        };
+        super::validate_runtime_indexed_recast_source(
+            program,
+            machine,
+            state,
+            local.initial_value,
+            *referee,
+            *access,
+        )
+    }
+
     use super::*;
 
     fn region_source(extent: u32, offset: &str, target: &str) -> TypedTrees {
@@ -366,11 +401,11 @@ mod tests {
         let region =
             super::super::slice_recast_byte_region(&program, machine, state, local.initial_value)
                 .unwrap();
-        let footprint = validate_literal_indexed_recast_footprint(&program, machine, state, local)
+        let footprint = literal_footprint(&program, machine, state, local)
             .expect("six suffix bytes tile three u16 elements");
         assert_eq!(footprint.collection(), region.collection);
         assert_eq!((footprint.start(), footprint.end()), (1, 7));
-        assert!(validate_runtime_indexed_recast_source(&program, machine, state, local).is_none());
+        assert!(runtime_source(&program, machine, state, local).is_none());
 
         let program = region_source(8, "storage.k * 2", "u16");
         let (machine, state, local) = self::local(&program);
@@ -378,16 +413,14 @@ mod tests {
             super::super::slice_recast_byte_region(&program, machine, state, local.initial_value)
                 .unwrap();
         assert_eq!(
-            validate_runtime_indexed_recast_source(&program, machine, state, local),
+            runtime_source(&program, machine, state, local),
             Some(region.collection)
         );
         assert_ne!(
             region.collection, region.source,
             "the loan covers the collection, not one selected byte"
         );
-        assert!(
-            validate_literal_indexed_recast_footprint(&program, machine, state, local).is_none()
-        );
+        assert!(literal_footprint(&program, machine, state, local).is_none());
     }
 
     #[test]
@@ -400,13 +433,8 @@ mod tests {
         ] {
             let program = region_source(extent, offset, target);
             let (machine, state, local) = local(&program);
-            assert!(
-                validate_literal_indexed_recast_footprint(&program, machine, state, local)
-                    .is_none()
-            );
-            assert!(
-                validate_runtime_indexed_recast_source(&program, machine, state, local).is_none()
-            );
+            assert!(literal_footprint(&program, machine, state, local).is_none());
+            assert!(runtime_source(&program, machine, state, local).is_none());
         }
     }
 }

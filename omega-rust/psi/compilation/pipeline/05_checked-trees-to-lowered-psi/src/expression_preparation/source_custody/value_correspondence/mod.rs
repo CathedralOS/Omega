@@ -791,7 +791,11 @@ impl Context<'_> {
                         machine,
                         state,
                         source,
-                        false,
+                        // This is an indexed read, whose emitted operation
+                        // independently proves each selector against the live
+                        // view extent. The place walk reconstructs coordinates;
+                        // it must not require a fixed-array declaration here.
+                        true,
                     ) else {
                         return false;
                     };
