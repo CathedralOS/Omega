@@ -77,7 +77,7 @@ pub(crate) fn transport(
         return None;
     };
     let Some((referent, byte_offset)) =
-        crate::structural_inputs::structural_reference_input::project(
+        crate::structural_inputs::structural_reference_input::leaf_copy_projection(
             root,
             &argument.path,
             &signature.structural_types,

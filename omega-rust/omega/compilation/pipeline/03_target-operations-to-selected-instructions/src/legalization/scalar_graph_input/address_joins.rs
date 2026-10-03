@@ -224,16 +224,41 @@ pub(in crate::legalization) fn edge_bindings(
                     declaration,
                     &plan.structural_types,
                 ) {
+                    // A whole argument keeps the identical-declaration
+                    // forward; a static projection names the declared byte
+                    // leaf whose carrier is the loan's referent — the same
+                    // storage either spelling reaches.
                     return binding.parameter == declaration.place
                         && binding.argument.access == declaration.access
-                        && binding.argument.path.is_empty()
-                        && forwarded_owner_loan(
-                            function,
-                            source_block,
-                            binding.argument.place,
-                            declaration,
-                            plan,
-                        );
+                        && if binding.argument.path.is_empty() {
+                            forwarded_owner_loan(
+                                function,
+                                source_block,
+                                binding.argument.place,
+                                declaration,
+                                plan,
+                            )
+                        } else {
+                            abstract_operations::control_flow::address_joins::is_static_projection(
+                                &binding.argument.path,
+                            ) && root_type(
+                                function,
+                                source_block,
+                                binding.argument.place,
+                                declaration.access,
+                                plan,
+                            )
+                            .and_then(|root| {
+                                crate::structural_inputs::structural_reference_input::leaf_copy_projection(
+                                    root,
+                                    &binding.argument.path,
+                                    &plan.structural_types,
+                                )
+                            })
+                            .is_some_and(|(referent, _)| {
+                                referent == declaration.structural_type
+                            })
+                        };
                 }
                 binding.parameter == declaration.place
                     && binding.argument.access == declaration.access

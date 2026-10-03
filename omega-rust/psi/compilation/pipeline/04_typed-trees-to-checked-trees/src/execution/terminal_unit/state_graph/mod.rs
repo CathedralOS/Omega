@@ -1173,12 +1173,12 @@ fn forwards_qualified_parameter(
                 .all(|successor| {
                     successor.transfers.iter().any(|transfer| {
                         transfer.target_parameter_index as usize == parameter_index
-                            && match transfer.source {
+                            && match &transfer.source {
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
                                     literal_establishes_qualifications
                                 }
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                                    source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
+                                    source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
                                         !forwarded.is_self
                                             && forwarded.type_identity == parameter.type_identity
                                             && forwarded.access == parameter.access
@@ -1187,6 +1187,17 @@ fn forwards_qualified_parameter(
                                             && forwarded.projected_qualifications
                                                 == parameter.projected_qualifications
                                     })
+                                }
+                                // A projected loan or copy forwards custody of
+                                // storage declared under the same base identity
+                                // and access: the subject's admission already
+                                // proved the declared type match, and byte-
+                                // predicate qualifications re-verify on the
+                                // storage at the edge either way.
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
+                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { subject } => {
+                                    subject.type_identity == parameter.type_identity
+                                        && subject.access == parameter.access
                                 }
                                 _ => false,
                             }
@@ -2521,17 +2532,23 @@ fn successor_bindings(
                                 // reference shell representing the parameter's
                                 // loan. References stored inside the referent
                                 // still make it ineligible for this transfer.
+                                // The shape table keys storage identities, so
+                                // an owned projection names its peeled base.
                                 let identity = match source_parameter.access {
                                     CheckedStructuralAccess::SharedBorrow
                                     | CheckedStructuralAccess::MutableBorrow
                                     | CheckedStructuralAccess::WriteOnlyBorrow => {
-                                        source_parameter.type_identity.clone()
+                                        Some(source_parameter.type_identity.clone())
                                     }
-                                    _ => program
-                                        .normalized_type_identity(projected_type)
-                                        .into_string(),
+                                    _ => super::types::base_type_identity(
+                                        program,
+                                        projected_type,
+                                        &[],
+                                    ),
                                 };
-                                !declared_contains_reference(shapes, &identity)
+                                identity.is_some_and(|identity| {
+                                    !declared_contains_reference(shapes, &identity)
+                                })
                             }
                         {
                             let carrier_identity = if path.is_empty() {
@@ -2605,12 +2622,14 @@ fn successor_bindings(
                                 &target.type_identity,
                                 &[],
                             )
-                            && !declared_contains_reference(
-                                shapes,
-                                &program
-                                    .normalized_type_identity(projected_type)
-                                    .into_string(),
+                            && super::types::base_type_identity(
+                                program,
+                                projected_type,
+                                &[],
                             )
+                            .is_some_and(|identity| {
+                                !declared_contains_reference(shapes, &identity)
+                            })
                         {
                             let carrier_identity = if path.is_empty() {
                                 String::new()
@@ -2863,17 +2882,12 @@ fn projected_copy_subject(
                 program,
                 projected_type,
             ))
-        || {
-            // A borrowed target names its referent, so the leaf matches
-            // the target when the leaf's own referent does.
-            let identity = match validation::reference_shell(program, projected_type) {
-                Some(shell) => program.normalized_type_identity(shell.referee).into_string(),
-                None => program
-                    .normalized_type_identity(projected_type)
-                    .into_string(),
-            };
-            identity != target.type_identity
-        }
+        // The signature's structural identities are storage identities:
+        // domain constraints and reference shells peel, so a borrowed leaf
+        // matches its referent and a `T in D` leaf matches `T`'s base —
+        // the same base-identity convention argument presentation uses.
+        || super::types::base_type_identity(program, projected_type, &[])
+            .is_none_or(|identity| identity != target.type_identity)
     {
         return None;
     }
@@ -2957,7 +2971,12 @@ fn case_payload_transfer(
     // same loan transfers (loan->loan). A view parameter's declared
     // identity is its referent's, so the referee's normalized identity is
     // what the target compares against.
-    let normalized = |reference| program.normalized_type_identity(reference).into_string();
+    let normalized = |reference| {
+        // The signature's structural identities are storage identities:
+        // domain constraints and reference shells peel, so the comparison
+        // uses the same base-identity convention argument presentation does.
+        super::types::base_type_identity(program, reference, &[])
+    };
     let shared_referee = {
         let mut cursor = field.type_reference;
         loop {
@@ -2981,12 +3000,15 @@ fn case_payload_transfer(
             program,
             field.type_reference,
         ) || validation::has_owned_or_shared_view_contents(program, field.type_reference))
-            && normalized(field.type_reference) == target.type_identity
+            && normalized(field.type_reference)
+                .is_some_and(|identity| identity == target.type_identity)
     } else {
         target.access == CheckedStructuralAccess::SharedBorrow
             && super::types::structural_access_for_type_reference(program, field.type_reference)
                 == Some(CheckedStructuralAccess::SharedBorrow)
-            && shared_referee.is_some_and(|referee| normalized(referee) == target.type_identity)
+            && shared_referee.is_some_and(|referee| {
+                normalized(referee).is_some_and(|identity| identity == target.type_identity)
+            })
     };
     if !admitted_shape || program.type_multiplicity(field.type_reference) != target.multiplicity {
         return None;
@@ -3081,15 +3103,7 @@ fn case_payload_transfer(
     let subject_identity = if path.is_empty() {
         root_identity
     } else {
-        let mut leaf_type = subject_type;
-        while let TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } = program.type_reference_table.type_reference(leaf_type)
-        {
-            leaf_type = *base_type;
-        }
-        normalized(leaf_type)
+        normalized(subject_type)?
     };
     Some(
         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {

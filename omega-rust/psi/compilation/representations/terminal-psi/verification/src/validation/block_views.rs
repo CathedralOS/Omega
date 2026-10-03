@@ -12,10 +12,61 @@
 use super::{
     BTreeMap, BTreeSet, BlockId, EdgeId, ModuleError, OperationKind, PlaceId, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
-    Terminator,
+    StructuralPathSegment, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalModule, Terminator,
 };
 pub(super) mod mutable_records;
+
+/// The declared byte evidence a projected path ends at: its last segment
+/// names a field of the resolved parent whose byte carrier is the expected
+/// parameter's carrier and whose declared predicates imply the parameter's
+/// roster — the same storage facts a forwarded declaration states inline.
+fn byte_leaf_predicates(
+    module: &TerminalModule,
+    root_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    expected: &StructuralParameterDeclaration,
+) -> bool {
+    let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
+        return false;
+    };
+    let field = super::foundation::resolve_structural_path(module, root_type, prefix)
+        .and_then(|parent| {
+            module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parent)
+        })
+        .and_then(|declaration| match &declaration.shape {
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+                fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())
+            }
+            _ => None,
+        });
+    let Some(field) = field else {
+        return false;
+    };
+    field
+        .field_type
+        .byte_sequence_carrier()
+        .is_some_and(|carrier| {
+            module.structural_types.iter().any(|declaration| {
+                declaration.id == expected.structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(declared) if declared == carrier
+                    )
+            })
+        })
+        && terminal_semantics::byte_qualification_predicates_in(
+            module.structural_domains.iter(),
+            expected.structural_type,
+            &expected.qualifications,
+        )
+        .is_some_and(|required| field.field_type.byte_predicates().implies(required))
+}
 
 fn exclusive_access(access: StructuralAccess) -> bool {
     matches!(
@@ -320,8 +371,73 @@ pub(super) fn validate_successor(
                         && source.multiplicity == StructuralMultiplicity::Unrestricted
                         && source.qualifications == expected.qualifications
                         && source.projected_qualifications.is_empty()
+                })
+                // A whole leaf copy names the same evidence through its
+                // producer: the copied value's storage is the parameter's
+                // carrier, and the leaf it copied declares the parameter's
+                // predicates. The result itself spells only storage; the
+                // copy's recorded path is the qualification's provenance.
+                || (argument.access == StructuralAccess::Owned
+                    && argument.path.is_empty()
+                    && machine.blocks.iter().flat_map(|block| &block.operations).any(
+                        |operation| {
+                            let OperationKind::StructuralLeafCopy { source, path } =
+                                &operation.kind
+                            else {
+                                return false;
+                            };
+                            operation.result.structural().is_some_and(|result| {
+                                result.place == argument.place
+                                    && result.structural_type == expected.structural_type
+                                    && result.multiplicity
+                                        == StructuralMultiplicity::Unrestricted
+                                    && result.claims.is_empty()
+                            }) && terminal_semantics::arrival_parameter(machine, *source)
+                                .is_some_and(|root| {
+                                    byte_leaf_predicates(
+                                        module,
+                                        root.structural_type,
+                                        path,
+                                        expected,
+                                    )
+                                })
+                        },
+                    ));
+            // A projected argument binds one qualified byte subtree of a root
+            // the edge's authority already holds: the path ends at a declared
+            // field whose carrier is the parameter's declared carrier and
+            // whose declared predicates imply the parameter's own — the same
+            // storage evidence a whole forwarded name's declaration already
+            // states.
+            let root_type = match argument.access {
+                StructuralAccess::MutableBorrow => {
+                    mutable_loan_root(module, machine, argument, available)
+                }
+                StructuralAccess::SharedBorrow => {
+                    shared_loan_root(module, machine, argument, available)
+                }
+                StructuralAccess::Owned => machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == argument.place)
+                    .or_else(|| {
+                        parameter(machine, argument.place)
+                            .filter(|_| available.contains(&argument.place))
+                    })
+                    .map(|parameter| parameter.structural_type)
+                    .or_else(|| {
+                        super::partial_affine::partial_affine_root_type(machine, argument.place)
+                    }),
+                _ => None,
+            };
+            let projected = !argument.path.is_empty()
+                && argument.access == expected.access
+                && root_type.is_some_and(|root| {
+                    byte_leaf_predicates(module, root, &argument.path, expected)
                 });
-            if !argument.path.is_empty() || argument.access != expected.access || !forwarded {
+            if argument.access != expected.access
+                || !(argument.path.is_empty() && forwarded || projected)
+            {
                 return Err(ModuleError::InvalidStructuralSuccessorArgument {
                     edge,
                     place: argument.place,

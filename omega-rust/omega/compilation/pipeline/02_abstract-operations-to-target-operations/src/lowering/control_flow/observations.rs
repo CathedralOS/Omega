@@ -12,7 +12,7 @@ use abstract_operations::{
     IntegerOverflowPolicy,
 };
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerSign, PlaceId, ScalarType, ValueId};
 use std::collections::BTreeMap;
 use target_operations::{
     ScalarAbiValue, TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
@@ -39,28 +39,13 @@ pub(super) fn lower(
             // A live byte-owner address join observes its own storage. The
             // semantic operation, not the pointer layout, determines whether
             // this is a metadata or payload observation.
-            let owner_join = live.address_joins.contains(source)
-                && super::transfers::address_parameter(function, live, *source).is_some_and(
-                    |parameter| {
-                        structural_types
-                            .get(&parameter.structural_type)
-                            .is_some_and(|declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                    )
-                                )
-                            })
-                    },
-                );
             if !prepared
                 .parameters
                 .iter()
                 .any(|parameter| parameter.place == *source)
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
-                && !owner_join
+                && !bounded_owner_storage(function, structural_types, live, *source)
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -698,6 +683,37 @@ pub(super) fn scalar_values(
     Ok(values)
 }
 
+/// Whether one place's own storage is a bounded byte owner: a live owner
+/// address join, or an owned `{length, bytes}` home of the same carrier.
+/// The semantic operation, not the pointer layout, determines whether an
+/// observation of that storage is metadata or payload.
+pub(super) fn bounded_owner_storage(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    source: PlaceId,
+) -> bool {
+    let bounded_owner = |structural_type| {
+        structural_types
+            .get(&structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+            })
+    };
+    (live.address_joins.contains(&source)
+        && super::transfers::address_parameter(function, live, source)
+            .is_some_and(|parameter| bounded_owner(parameter.structural_type)))
+        || live
+            .structural_homes
+            .get(&source)
+            .is_some_and(|home| bounded_owner(home.structural_type()))
+}
+
 /// The readable-view and measured-length gates every byte-sequence operand
 /// asks: a whole-sequence source must be a prepared parameter or a locally
 /// tracked view (or an owner address join), exactly the live-view gate a
@@ -713,28 +729,13 @@ fn byte_sequence_operand_gate(
 ) -> Result<(), LoweringError> {
     match operand {
         terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            let owner_join = live.address_joins.contains(source)
-                && super::transfers::address_parameter(function, live, *source).is_some_and(
-                    |parameter| {
-                        structural_types
-                            .get(&parameter.structural_type)
-                            .is_some_and(|declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                    )
-                                )
-                            })
-                    },
-                );
             if !prepared
                 .parameters
                 .iter()
                 .any(|parameter| parameter.place == *source)
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
-                && !owner_join
+                && !bounded_owner_storage(function, structural_types, live, *source)
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }

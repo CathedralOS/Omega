@@ -121,26 +121,28 @@ pub(super) fn index_structural_types(
             ));
         }
         // A borrow carrier is one borrow permission over one referent: a
-        // primitive scalar leaf or a whole plain aggregate, whose address
-        // transports the storage like the scalar leaf. A service binding is
-        // also a referent: lending a binding field (`&mut main.console`) to a
-        // state declares the carrier type, while checking keeps every routed
-        // binding out of reference locals, so no carrier holds its address.
+        // primitive scalar leaf, a whole plain aggregate, a view, or a byte
+        // sequence, whose address transports the storage like the scalar
+        // leaf. A service binding is also a referent: lending a binding field
+        // (`&mut main.console`) to a state declares the carrier type, while
+        // checking keeps every routed binding out of reference locals, so no
+        // carrier holds its address. Only a nested reference is excluded — a
+        // `ref` over a reference would carry a second custody tier, matching
+        // the terminal module's storable-referent rule.
         if let terminal_psi::StructuralTypeShape::Reference {
             referent, access, ..
         } = &declaration.shape
         {
             let admissible = match access {
                 terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::SharedBorrow => matches!(
-                    types.get(referent).map(|referent| &referent.shape),
-                    Some(
-                        terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                            | terminal_psi::StructuralTypeShape::Record { .. }
-                            | terminal_psi::StructuralTypeShape::Sum { .. }
-                            | terminal_psi::StructuralTypeShape::FusedServiceBinding
-                    )
-                ),
+                | terminal_psi::StructuralAccess::SharedBorrow => {
+                    types.get(referent).is_some_and(|referent| {
+                        !matches!(
+                            referent.shape,
+                            terminal_psi::StructuralTypeShape::Reference { .. }
+                        )
+                    })
+                }
                 terminal_psi::StructuralAccess::WriteOnlyBorrow => matches!(
                     types.get(referent).map(|referent| &referent.shape),
                     Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))

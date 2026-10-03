@@ -58,7 +58,10 @@ pub(super) fn lower(
                         || prepared
                             .parameters
                             .iter()
-                            .any(|parameter| parameter.place == *source))
+                            .any(|parameter| parameter.place == *source)
+                        || super::observations::bounded_owner_storage(
+                            function, types, live, *source,
+                        ))
                 {
                     return Err(invalid());
                 }

@@ -1117,8 +1117,16 @@ pub(super) fn validate_bindings(
             // their source loans. A shared-view leaf copies only its
             // descriptor — the view's loan keeps its lineage through the
             // projection's root — so it compares its referee's identity to the
-            // target's declared identity the way the subject's mint did.
-            let normalized = |reference| checked.normalized_type_identity(reference).into_string();
+            // target's declared identity the way the subject's mint did. The
+            // signature's structural identities are storage identities: the
+            // domain shell peels before the compare.
+            let normalized = |reference| {
+                let reference = crate::unit::attached_unit::parameters::structural_carrier_type(
+                    checked, reference,
+                )
+                .unwrap_or(reference);
+                checked.normalized_type_identity(reference).into_string()
+            };
             let leaf_copyable = path_matches
                 && checked.type_multiplicity(reference) == Multiplicity::Unrestricted
                 && match subject.access {

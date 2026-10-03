@@ -1572,12 +1572,12 @@ fn forwards_qualified_parameter(
                 .all(|successor| {
                     successor.transfers.iter().any(|transfer| {
                         transfer.target_parameter_index as usize == parameter_index
-                            && match transfer.source {
+                            && match &transfer.source {
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
                                     literal_establishes_qualifications
                                 }
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                                    source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
+                                    source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
                                         !forwarded.is_self
                                             && forwarded.type_identity == parameter.type_identity
                                             && forwarded.access == parameter.access
@@ -1586,6 +1586,17 @@ fn forwards_qualified_parameter(
                                             && forwarded.projected_qualifications
                                                 == parameter.projected_qualifications
                                     })
+                                }
+                                // A projected loan or copy forwards custody of
+                                // storage declared under the same base identity
+                                // and access: the subject's admission already
+                                // proved the declared type match, and byte-
+                                // predicate qualifications re-verify on the
+                                // storage at the edge either way.
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
+                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { subject } => {
+                                    subject.type_identity == parameter.type_identity
+                                        && subject.access == parameter.access
                                 }
                                 _ => false,
                             }
