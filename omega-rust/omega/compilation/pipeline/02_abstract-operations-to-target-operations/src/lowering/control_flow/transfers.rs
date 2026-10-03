@@ -227,13 +227,13 @@ fn loan_access_permitted(
     source: terminal_psi::StructuralAccess,
     destination: terminal_psi::StructuralAccess,
 ) -> bool {
-    use terminal_psi::StructuralAccess::{MutableBorrow, SharedBorrow, WriteOnlyBorrow};
+    use terminal_psi::StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
     matches!(
         (source, destination),
         (
             MutableBorrow,
             SharedBorrow | MutableBorrow | WriteOnlyBorrow
-        ) | (SharedBorrow, SharedBorrow)
+        ) | (Owned | SharedBorrow, SharedBorrow)
             | (WriteOnlyBorrow, WriteOnlyBorrow)
     )
 }

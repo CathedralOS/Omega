@@ -6,8 +6,8 @@
 //! reconstructs both from the optimized function alone, without reading the
 //! target's classification:
 //!
-//! - every edge into the join lends a readable, non-linear, unqualified root
-//!   whose owner dominates the edge (a local producer, an owned block arrival,
+//! - every edge into the join lends a non-linear, unqualified root at exactly
+//!   the permitted access, whose owner dominates the edge (a local producer, an owned block arrival,
 //!   a machine parameter or an earlier address join), through a static
 //!   projection naming exactly the join's referent type;
 //! - a call argument projects from the joined referent, without widening
@@ -15,7 +15,7 @@
 //!   borrowed shape and with available runtime selectors.
 //!
 //! Loan duration is not decided here: the unit's current-ownership replay pins
-//! each lending root while a join can observe it.
+//! each lending root while a join can access it, including write-only loans.
 
 use super::{AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction};
 use crate::LegalizationError;
@@ -54,7 +54,7 @@ pub(in crate::legalization) fn parameter<'a>(
     .then_some((block, parameter))
 }
 
-/// Rejoin a shared or mutable projection lent by an address join.
+/// Rejoin a borrowed projection lent by an address join without widening access.
 /// Semantic call admission has already checked the formal's qualifications;
 /// replay reconstructs its original address, projection and ABI placement.
 pub(in crate::legalization) fn call_argument(
@@ -287,20 +287,21 @@ fn forwarded_owner_loan(
         .is_some_and(|(owner, source)| identical(source) && dominates(function, owner, block))
 }
 
-/// The readable, non-linear, unqualified root type `place` names on an edge
-/// leaving `block`, when its owner dominates that edge.
+/// Permission attenuation for an address supplied by an entry or prior join.
 fn loan_access_permitted(source: StructuralAccess, destination: StructuralAccess) -> bool {
     use StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
     matches!(
         (source, destination),
         (
-            Owned | MutableBorrow,
+            MutableBorrow,
             SharedBorrow | MutableBorrow | WriteOnlyBorrow
-        ) | (SharedBorrow, SharedBorrow)
+        ) | (Owned | SharedBorrow, SharedBorrow)
             | (WriteOnlyBorrow, WriteOnlyBorrow)
     )
 }
 
+/// The non-linear, unqualified root type `place` names on an edge leaving
+/// `block`, with sufficient access and an owner that dominates that edge.
 fn root_type(
     function: &PsiOptimizationFunction,
     block: BlockId,

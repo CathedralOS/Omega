@@ -3898,22 +3898,24 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   Owners: checked execution, checked-to-lowered publication and native reference
   preparation.
 
-  First carry write-only calls through composed control in
-  `execution/terminal_unit/state_graph/`:
-  `operation_custody.rs` excludes write-only arguments, and `mod.rs` excludes
-  write-only state parameters. A caller invoking
-  `forward(&write self.value, 42)` loses its plan at `unit call arguments`;
-  an otherwise identical mutable-borrow program executes with correct caller
-  writeback. The same comparison holds for `values[position + 1] = value`.
-  Preserve loan/restoration evidence through composition, not just admission.
+  Plain scalar and record loans now retain write-only authority through state
+  edges and ordinary calls using the shared address-join route. On macOS ARM64,
+  `python3 tools/corpus_gate.py --both --filter write_only/state_forwarded_scalar_store_exit,borrow/write_only_composed_forward_exit`
+  executes both programs with native and interpreter exit **70**: caller
+  writeback, an untouched neighbor, opposite branches and projected record
+  subloans. Receiving checks reject readable widening, retired names and reads
+  of backing storage still pinned by an exclusive loan. This is not closure of
+  aggregate replacement or the other host executions. The public `omega run
+  --both` command still requires ordinary package review in this checkout.
 
   Remaining: general aggregate and `[copy]` sum replacement beyond scalar-field
   record literals; runtime domain-qualified byte-field replacement with encoding
   evidence. Verify computed IEEE store/readback through FLOAT-PROVIDERS; the
   mutable controls stop in caller guard planning. Checking already admits
   closed copy sums; computed integer selectors and
-  scalar-computation store sources already have plans. Reuse them. The
-  `write_only` corpus's two passing fixtures only check source.
+  scalar-computation store sources already have plans. Reuse them. Carry
+  computed-index writes and local affine backing through the complete state
+  and cleanup route without losing loan/restoration evidence.
 
   Coordinate sequencing with STATE-LOCAL-VALUE-FRONTIER, reference identity with
   STRUCTURAL-BORROW-IDENTITY, mutable dynamic dispatch with FINITE-GENERIC-DISPATCH,
