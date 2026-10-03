@@ -56,22 +56,35 @@ impl TypedTrees {
         }
 
         let parameters = self.state_signature_parameters(requirement);
-        let receivers = parameters
+        // The subject reaches a dynamic surface under either spelling. `self`
+        // set `is_self` and meant "my type is Self"; a static requirement says
+        // the same thing in its parameter type, as
+        // `machine code(shape: &Self) -> i32` does. So the receiver is the one
+        // parameter whose type names `Self`, found by POSITION rather than by
+        // the retired flag -- which keeps the `Self`-outside-receiver check
+        // below exact instead of letting it re-match the subject itself.
+        let receiver_positions = parameters
             .iter()
-            .filter(|parameter| parameter.is_self)
+            .enumerate()
+            .filter(|(_, parameter)| {
+                parameter.is_self || type_reference_contains_self(self, parameter.type_reference)
+            })
+            .map(|(position, _)| position)
             .collect::<Vec<_>>();
-        let receiver = match receivers.as_slice() {
-            [receiver] => *receiver,
+        let receiver_position = match receiver_positions.as_slice() {
+            [position] => *position,
             [] => return Err(DynamicSignatureIneligibility::MissingBorrowedReceiver),
             _ => return Err(DynamicSignatureIneligibility::MultipleReceivers),
         };
+        let receiver = &parameters[receiver_position];
         if !is_reference_to_self(self, receiver.type_reference) {
             return Err(DynamicSignatureIneligibility::ByValueReceiver);
         }
         if parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
-            .any(|parameter| type_reference_contains_self(self, parameter.type_reference))
+            .enumerate()
+            .filter(|(position, _)| *position != receiver_position)
+            .any(|(_, parameter)| type_reference_contains_self(self, parameter.type_reference))
         {
             return Err(DynamicSignatureIneligibility::SelfOutsideReceiver);
         }
