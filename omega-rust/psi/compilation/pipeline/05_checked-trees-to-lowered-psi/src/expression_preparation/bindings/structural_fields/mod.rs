@@ -776,8 +776,8 @@ pub(crate) fn resolve_nested_indexed_array(
 /// read's source, the array prefix, the leaf route — a flat element path or
 /// the hoist a bounded leaf needs — and the field's scalar type.
 pub(crate) fn resolve_indexed_element_field(
-    fields: &[StructuralScalarFieldBinding],
-    position: u32,
+    fields: &StructuralFieldBindings,
+    root: checked_trees::CheckedStorageRoot,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<
@@ -789,15 +789,7 @@ pub(crate) fn resolve_indexed_element_field(
     ),
     LoweringError,
 > {
-    let mut matching = fields
-        .iter()
-        .filter(|field| field.source_position == position);
-    let binding = matching.next().ok_or(LoweringError::Unsupported(
-        "indexed element field read has no readable binding",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("indexed element field read has ambiguous bindings");
-    }
+    let (source, structural_type) = fields.observation_source(root)?;
     let static_segments = |path: &[checked_trees::CheckedStructuralPredicatePathSegment]| {
         path.iter()
             .map(|segment| match segment {
@@ -813,12 +805,12 @@ pub(crate) fn resolve_indexed_element_field(
     };
     let (path, leaf, scalar_type) =
         crate::emission::primitive_store::lower_indexed_element_field_path(
-            binding.structural_type,
+            structural_type,
             &static_segments(path)?,
             &static_segments(element_path)?,
-            &binding.declarations,
+            fields.declarations(),
         )?;
-    Ok((binding.source, path, leaf, scalar_type))
+    Ok((source, path, leaf, scalar_type))
 }
 
 /// A member element read whose element path carries a runtime selector —

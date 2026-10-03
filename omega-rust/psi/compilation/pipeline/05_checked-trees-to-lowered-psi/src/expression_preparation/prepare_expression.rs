@@ -171,6 +171,56 @@ fn owned_local_observation(
     Ok(source.place)
 }
 
+fn lower_indexed_field_observation(
+    fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
+    root: checked_trees::CheckedStorageRoot,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    index: LoweredDirectExpression,
+    expected: ScalarType,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let (source, path, leaf, scalar_type) =
+        crate::expression_preparation::bindings::structural_fields::resolve_indexed_element_field(
+            fields,
+            root,
+            path,
+            element_path,
+        )?;
+    if scalar_type != expected {
+        return unsupported("indexed element field read drifted from its field type");
+    }
+    use crate::emission::primitive_store::IndexedElementLeaf;
+    Ok(match leaf {
+        IndexedElementLeaf::Flat(element_path) => LoweredDirectExpression::IndexedPrimitiveRead {
+            source,
+            path,
+            index: Box::new(index),
+            inner_indexes: Vec::new(),
+            element_path: element_path
+                .into_iter()
+                .map(LoweredElementPathSegment::Static)
+                .collect(),
+            scalar_type,
+        },
+        IndexedElementLeaf::Hoist {
+            element,
+            carrier,
+            field,
+        } => LoweredDirectExpression::IndexedElementFieldRead {
+            source,
+            path,
+            index: Box::new(index),
+            element,
+            carrier,
+            field,
+            scalar_type,
+        },
+        IndexedElementLeaf::RuntimeTail { .. } => {
+            return unsupported("static element path minted a runtime tail");
+        }
+    })
+}
+
 pub(crate) fn lower_checked_scalar_expression_with_parameters(
     expression: &CheckedScalarExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
@@ -636,6 +686,36 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 });
             }
             if let checked_trees::CheckedStorageRoot::OwnedLocal { symbol } = *root {
+                let source = owned_local_observation(structural_locals, symbol)?;
+                let index = lower_checked_scalar_expression_with_parameters(
+                    index,
+                    structural_parameters,
+                    structural_fields,
+                    structural_cases,
+                    primitive_storage,
+                    element_views,
+                    view_locals,
+                    structural_locals,
+                    scalar_bindings,
+                )?;
+                if matches!(
+                    element_path.last(),
+                    Some(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                        _
+                    ))
+                ) {
+                    if structural_fields.observation_source(*root)?.0 != source {
+                        return unsupported("indexed local field changed its established source");
+                    }
+                    return lower_indexed_field_observation(
+                        structural_fields,
+                        *root,
+                        path,
+                        element_path,
+                        exact_u64_index(index)?,
+                        terminal_scalar_type(*primitive_type)?,
+                    );
+                }
                 // A raw array uses its declared extent. A bounded byte owner
                 // instead observes its live length, which may be less than
                 // capacity; the established carrier below selects the rule.
@@ -653,11 +733,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         }
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                // A scalar member of a record element (`rooms[i].exits`)
-                // follows the selector with its static member steps, exactly
-                // as a parameter array's flat element read does. Terminal
-                // verification resolves the leaf's type from the local's own
-                // declaration and checks it against the read.
+                // A path ending at an inline primitive array element keeps
+                // its static tail. Declared fields already used the common
+                // field resolver above, including their restriction evidence.
                 let element_path = element_path
                     .iter()
                     .map(|segment| match segment {
@@ -674,18 +752,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         _ => unsupported("an owned local element path takes static members only"),
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let source = owned_local_observation(structural_locals, symbol)?;
-                let index = lower_checked_scalar_expression_with_parameters(
-                    index,
-                    structural_parameters,
-                    structural_fields,
-                    structural_cases,
-                    primitive_storage,
-                    element_views,
-                    view_locals,
-                    structural_locals,
-                    scalar_bindings,
-                )?;
                 if view_locals.iter().any(|local| local.symbol == symbol) {
                     let local = crate::expression_preparation::bindings::view_locals::resolve(
                         view_locals,
@@ -845,52 +911,14 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             });
                         }
                         if !element_path.is_empty() {
-                            let (source, path, leaf, scalar_type) =
-                                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element_field(
-                                    structural_fields,
-                                    parameter_position,
-                                    path,
-                                    element_path,
-                                )?;
-                            if scalar_type != terminal_scalar_type(*primitive_type)? {
-                                return unsupported(
-                                    "indexed element field read drifted from its field type",
-                                );
-                            }
-                            use crate::emission::primitive_store::IndexedElementLeaf;
-                            return Ok(match leaf {
-                                IndexedElementLeaf::Flat(element_path) => {
-                                    LoweredDirectExpression::IndexedPrimitiveRead {
-                                        source,
-                                        path,
-                                        index: Box::new(index),
-                                        inner_indexes: Vec::new(),
-                                        element_path: element_path
-                                            .into_iter()
-                                            .map(LoweredElementPathSegment::Static)
-                                            .collect(),
-                                        scalar_type,
-                                    }
-                                }
-                                IndexedElementLeaf::Hoist {
-                                    element,
-                                    carrier,
-                                    field,
-                                } => LoweredDirectExpression::IndexedElementFieldRead {
-                                    source,
-                                    path,
-                                    index: Box::new(index),
-                                    element,
-                                    carrier,
-                                    field,
-                                    scalar_type,
-                                },
-                                IndexedElementLeaf::RuntimeTail { .. } => {
-                                    return unsupported(
-                                        "static element path minted a runtime tail",
-                                    );
-                                }
-                            });
+                            return lower_indexed_field_observation(
+                                structural_fields,
+                                *root,
+                                path,
+                                element_path,
+                                index,
+                                terminal_scalar_type(*primitive_type)?,
+                            );
                         }
                         // A path ending at a fixed array declares its extent
                         // on the type, so the element read needs no length
