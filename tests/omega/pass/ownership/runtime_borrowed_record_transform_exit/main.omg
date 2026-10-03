@@ -3,8 +3,8 @@ use omega::language::core::binding;
 
 data Inventory { slots: i32; }
 
-machine Inventory::bump(self) -> Inventory {
-    Inventory { slots: ((self.slots as i32 in Wrapping) + 1) as i32 }
+machine Inventory::bump(inventory: Inventory) -> Inventory {
+    Inventory { slots: ((inventory.slots as i32 in Wrapping) + 1) as i32 }
 }
 
 data Main {
@@ -12,9 +12,11 @@ data Main {
     inventory: Inventory;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.inventory.slots = 41;
-    let taken: Inventory = self.inventory;
-    self.inventory = move taken.bump();
-    self.console.exit_process(self.inventory.slots);
+machine Main::main(main: &mut Main) reaches Console {
+    main.inventory.slots = 41;
+    let taken: Inventory = main.inventory;
+    // `bump` takes its subject BY VALUE, so the call consumes `taken` and
+    // carries no `&`; the result restores the owner the move emptied.
+    main.inventory = move Inventory::bump(taken);
+    main.console.exit_process(main.inventory.slots);
 }
