@@ -21,10 +21,9 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitClaimTransferPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, PrimitiveType, StatementNode, SymbolHandle, TypedTrees, is_reference,
-    strips_erased_parameter,
+    CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
+    StatementNode, SymbolHandle, TypedTrees, is_reference, strips_erased_parameter,
 };
 
 pub(crate) fn structural_call_arguments(
@@ -888,6 +887,11 @@ pub(crate) fn exact_structural_borrow_access(
     })
 }
 
+/// Join owned arguments to the call's complete linear permission-event set.
+/// Argument preparation already checks each source, path and loan. A loan
+/// never transfers its backing's claim, independently of whether it comes
+/// from a parameter, local, projection or computed result. Event coverage
+/// below still refuses a purported owned transfer with no owned argument.
 pub(crate) fn call_claim_transfers(
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -897,7 +901,6 @@ pub(crate) fn call_claim_transfers(
     entry_claims: &[CheckedUnitEntryClaimPlan],
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     arguments: &[CheckedUnitStructuralArgumentPlan],
-    kind: PermissionEventKind,
 ) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
     let events = facts
         .flow
@@ -913,15 +916,15 @@ pub(crate) fn call_claim_transfers(
                         call_ordinal: call.call_ordinal,
                         target_symbol: call.target_symbol,
                     }
-                // A checked-body callee receives the claim either as an
-                // ordinary transfer or, when its by-value `self` is the
-                // language's terminal consumer, as the consumption the
-                // checker judged; both leave the caller through this call's
-                // argument position, and the callee's entry roster owns
-                // whatever happens to the claim afterwards.
-                && (event.kind == kind
-                    || (kind == PermissionEventKind::Transfer
-                        && event.kind == PermissionEventKind::Consume))
+                // Both events move custody out of the caller. Whether the
+                // destination is a checked body or a boundary does not change
+                // the explicit argument's ownership judgment. The call route
+                // decides whether these rows become ingress transfers or
+                // normal-completion receipts.
+                && matches!(
+                    event.kind,
+                    PermissionEventKind::Transfer | PermissionEventKind::Consume
+                )
                 && event.access == PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Linear
                 && event.obligation_live
@@ -931,61 +934,26 @@ pub(crate) fn call_claim_transfers(
     let mut output = Vec::new();
     let mut accounted = 0usize;
     for (argument_index, argument) in arguments.iter().enumerate() {
+        if argument.access != CheckedStructuralAccess::Owned {
+            continue;
+        }
         if matches!(
             argument.source,
             CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-        ) {
-            if !argument.path.is_empty() || argument.access == CheckedStructuralAccess::Owned {
-                return None;
-            }
-            continue;
+        ) || view_subslice::is_view_subslice(argument)
+        {
+            return None;
         }
         if argument.byte_sequence_literal().is_some() {
-            // Literal admission reconstructs either an immutable shared view
-            // or a fresh unrestricted bounded owner with plain byte domains.
-            if !argument.path.is_empty()
-                || !matches!(
-                    argument.access,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::Owned
-                )
-            {
-                return None;
-            }
-            continue;
-        }
-        if view_subslice::is_view_subslice(argument) {
-            // Range admission already authenticates the borrowed backing and
-            // requested access. Exclusive descriptor custody is not an owned
-            // backing claim. Every actual linear transfer must still occur in
-            // the complete event roster accounted for below.
-            if !matches!(
-                argument.access,
-                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-            ) {
+            // An owned literal is a fresh unrestricted bounded owner.
+            if !argument.path.is_empty() {
                 return None;
             }
             continue;
         }
         let source_parameter_index = argument.source_parameter_index();
-        if argument
-            .source_structural_result_binding_ordinal()
-            .is_some()
-            && argument.path.last() == Some(&CheckedUnitStructuralPathSegment::Referent)
-            && argument.path[..argument.path.len() - 1]
-                .iter()
-                .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-            && argument.access == CheckedStructuralAccess::MutableBorrow
-        {
-            // Whole and record-leaf references already rejoined their exact
-            // active source loan in result argument preparation. Neither
-            // transfers an owned referent claim to the callee.
-            continue;
-        }
         if source_parameter_index.is_none() {
-            // A projection roots only at a result binding: an owned move of
-            // its subtree, or a shared, mutable or write-only loan of it.
-            // None of those loans carries a claim; owned moves are joined
-            // to their producer's claims below.
+            // Join an owned local/result move to its producing storage.
             if (argument.source_local_declaration_ordinal().is_none()
                 && argument
                     .source_structural_result_binding_ordinal()
@@ -994,16 +962,6 @@ pub(crate) fn call_claim_transfers(
                     && argument
                         .source_structural_result_binding_ordinal()
                         .is_none())
-                || (argument.access != CheckedStructuralAccess::Owned
-                    && !(argument
-                        .source_structural_result_binding_ordinal()
-                        .is_some()
-                        && matches!(
-                            argument.access,
-                            CheckedStructuralAccess::SharedBorrow
-                                | CheckedStructuralAccess::MutableBorrow
-                                | CheckedStructuralAccess::WriteOnlyBorrow
-                        )))
             {
                 return None;
             }
@@ -1011,9 +969,7 @@ pub(crate) fn call_claim_transfers(
             // producer's live claim, not an entry claim: its transfer events
             // root at the local the producing statement bound. Publish one
             // receipt per event so the call's outbound claim set stays exact.
-            if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal()
-                && argument.access == CheckedStructuralAccess::Owned
-            {
+            if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
                 let (_, root) = caller_structural_results
                     .iter()
                     .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
@@ -1165,18 +1121,12 @@ mod range_claim_tests {
                         &[],
                         &[],
                         std::slice::from_ref(&argument),
-                        PermissionEventKind::Transfer,
                     )
                 };
                 let mut facts = CheckFacts::default();
                 assert_eq!(
                     transfers(&facts),
-                    matches!(
-                        access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                    )
-                    .then(Vec::new),
+                    (access != CheckedStructuralAccess::Owned).then(Vec::new),
                     "range family bytes={bytes}, access={access:?}",
                 );
                 facts

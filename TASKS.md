@@ -300,15 +300,22 @@ execution and native exit/output. A moved refusal is still unfinished work.
 
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Remaining customer: `tests/omega/pass/core/task_lifecycle_operations`.
-  On the case-loan candidate based on `b03305417fb` (macOS ARM64),
-  `python3 tools/corpus_gate.py --filter core/task_lifecycle_operations`
-  still rejects during terminal production: `Main::main` calls `Main::settle`,
-  whose checked plan stops at `call operation: claim transfers, statement 0`
-  after the linear subject became by-value `Task<T>`. The owning frontier is
-  Stage 04's checked call claim-transfer construction and Stage 05's replay,
-  not parsing or a new source form. Acceptance is that this unchanged customer
-  checks and produces a terminal artifact through the public compiler route.
-  Preserve linear custody; do not close this by deforming the fixture.
+  On the access-based claim-transfer candidate based on `315de85658`
+  (macOS ARM64), `omega run --both
+  tests/omega/pass/core/task_lifecycle_operations/main.omg` gets past the
+  borrowed `Task::observe_claim` but rejects at `Main::settle` statement 1,
+  `call operation: claim-free affine result`. Stage 04's
+  `calls/structural_result_call.rs` and checking's
+  `machine_calls/structural_call_custody.rs` still conflate input transfers
+  with returned claims: consuming a linear Task and returning an affine
+  TaskOutcome requires an ordinary call, not a claim-free-input classifier.
+  The Terminal verifier repeats that restriction in
+  `structural/operations/unit_operation/structural_calls.rs`; do not extend
+  it under the PCC-removal ruling. Coordinate the remaining general custody
+  repair with **OMEGA-READS-TERMINAL-UNVERIFIED**. Acceptance remains this
+  unchanged customer checking and producing a terminal artifact through the
+  public compiler route. Native execution additionally needs a selected
+  `Task::finish` provider; source declarations alone do not supply one.
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the

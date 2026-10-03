@@ -5,9 +5,8 @@
 //! replays every retained operation and its authored source custody.
 use super::{
     CarryPolicy, CheckFacts, CheckedStructuralScalarReturnMachinePlan,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode,
-    PermissionEventKind, PrimitiveType, SignatureContractKind, SymbolHandle, TypeReferenceNode,
-    TypedTrees, is_reference, returns,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode, PrimitiveType,
+    SignatureContractKind, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, returns,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
@@ -605,7 +604,6 @@ pub(super) fn available_target(
             caller.entry_claims,
             &caller_structural_results,
             structural_arguments,
-            PermissionEventKind::Transfer,
         )
         .as_deref()
             != Some(claim_transfers)

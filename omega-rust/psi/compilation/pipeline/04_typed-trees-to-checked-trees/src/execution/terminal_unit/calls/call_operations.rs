@@ -20,8 +20,7 @@ use crate::execution::terminal_unit::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
-    Multiplicity, PermissionEventKind, PrimitiveType, SymbolHandle, TypedTrees, is_reference,
-    strips_erased_parameter,
+    Multiplicity, PrimitiveType, SymbolHandle, TypedTrees, is_reference, strips_erased_parameter,
 };
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -533,11 +532,6 @@ pub(in crate::execution) fn build_call_operation(
         entry_claims,
         caller_structural_results,
         &structural_arguments,
-        if boundary {
-            PermissionEventKind::Consume
-        } else {
-            PermissionEventKind::Transfer
-        },
     )?;
 
     if boundary {

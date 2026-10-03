@@ -5,6 +5,130 @@ use crate::tests::flow::terminal_unit::{
 use checked_trees::CheckedUnitCallResult;
 
 #[test]
+fn loans_retain_linear_claims_until_the_owned_call() {
+    let original = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        boundary requirement Receipt::settle(receipt: Receipt);
+        machine Receipt::observe(receipt: &Receipt) {}
+        machine Receipt::edit(receipt: &mut Receipt) {}
+        machine Receipt::forward(receipt: Receipt) {
+            Receipt::settle(receipt);
+        }
+        machine enter(mut receipt: Receipt) {
+            Receipt::observe(&receipt);
+            Receipt::edit(&mut receipt);
+            Receipt::observe(&receipt);
+            Receipt::forward(receipt);
+        }
+        "#,
+    );
+    let symbol = machine_named(&original, "enter");
+    let plan = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(symbol)
+        .unwrap_or_else(|| {
+            panic!(
+                "loans followed by an owned transfer retain a complete plan: {:?}",
+                original
+                    .machines()
+                    .iter()
+                    .map(|machine| (
+                        &machine.name,
+                        original
+                            .facts
+                            .flow
+                            .terminal_unit_effects
+                            .omission_for_machine(machine.symbol)
+                    ))
+                    .collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(plan.entry_claims.len(), 1);
+    let calls = plan
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 4);
+    for call in &calls[..3] {
+        assert!(call.claim_transfers().is_empty());
+    }
+    assert_eq!(calls[3].claim_transfers().len(), 1);
+    assert_eq!(
+        calls[3].claim_transfers()[0].claim_identity,
+        plan.entry_claims[0].claim_identity
+    );
+    assert_eq!(calls[3].claim_transfers()[0].argument_index, 0);
+
+    // Moving the real transfer event onto the loan must not make the loan
+    // consume its backing. The join still requires complete event coverage.
+    let mut changed = original.clone();
+    let transfer = changed
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find_map(|(handle, event)| {
+            (event.machine_symbol == symbol
+                && event.kind == language_semantics::PermissionEventKind::Transfer
+                && event.access == language_semantics::PermissionAccess::Owned)
+                .then_some(handle)
+        })
+        .expect("owned call transfer event");
+    let loan_call = changed
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find_map(|(_, call)| {
+            (call.target_symbol == calls[0].target.state && call.statement_index == 0)
+                .then_some(call)
+        })
+        .expect("first borrowed call");
+    changed
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(transfer)
+        .source = language_semantics::PermissionEventSource::Call {
+        statement_index: loan_call.statement_index,
+        call_ordinal: loan_call.call_ordinal,
+        target_symbol: loan_call.target_symbol,
+    };
+    let plans = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &changed.typed,
+        &changed.facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(plans.for_machine(symbol).is_none());
+}
+
+#[test]
+fn loan_after_linear_transfer_is_rejected() {
+    let result = crate::tests::front_end::checked_program_result(
+        r#"
+        data Receipt [linear] { code: i32; }
+        boundary requirement Receipt::settle(receipt: Receipt);
+        machine Receipt::observe(receipt: &Receipt) {}
+        machine enter(receipt: Receipt) {
+            Receipt::settle(receipt);
+            Receipt::observe(&receipt);
+        }
+        "#,
+    );
+    assert!(result.is_err(), "a loan cannot revive a consumed claim");
+}
+
+#[test]
 fn static_boundary_reaches_keep_every_direct_intrinsic_and_requirement_call() {
     // The requirement calls are direct: since c5843e4c43 a nominal binder
     // call (`Selected(0)` under `where machine Selected satisfies
