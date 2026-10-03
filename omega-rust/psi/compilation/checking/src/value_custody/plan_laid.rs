@@ -1,4 +1,10 @@
-//! Independent identity replay for compiler-derived plan-laid value types.
+//! Formation and storage obligations of compiler-derived plan-laid value types.
+//! Declaration checking validates layout identity and geometry; assignment
+//! checking proves the concrete value fits when the semantic carrier is wider
+//! than storage. Borrowing or recasting the destination does not change that law.
+
+mod stored_integer_writes;
+pub(crate) use stored_integer_writes::validate_stored_integer_write;
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -337,14 +343,24 @@ fn stored_integer_write_is_total(
                 (0, (1i128 << width) - 1)
             }
         };
-    let (stored_minimum, stored_maximum) = match interpretation {
+    let (stored_minimum, stored_maximum) = stored_integer_bounds(stored_width, interpretation)?;
+    Some(admitted_minimum >= stored_minimum && admitted_maximum <= stored_maximum)
+}
+
+fn stored_integer_bounds(
+    stored_width: u64,
+    interpretation: layout_plans::IntegerInterpretation,
+) -> Option<(i128, i128)> {
+    if !(1..=64).contains(&stored_width) {
+        return None;
+    }
+    Some(match interpretation {
         layout_plans::IntegerInterpretation::Signed => (
             -(1i128 << (stored_width - 1)),
             (1i128 << (stored_width - 1)) - 1,
         ),
         layout_plans::IntegerInterpretation::Unsigned => (0, (1i128 << stored_width) - 1),
-    };
-    Some(admitted_minimum >= stored_minimum && admitted_maximum <= stored_maximum)
+    })
 }
 
 fn geometry_matches(

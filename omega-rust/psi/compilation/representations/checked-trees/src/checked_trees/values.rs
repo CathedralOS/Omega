@@ -134,6 +134,8 @@ pub struct CheckedValueFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedValueFacts {
     pub values: Arena<CheckedValueFact>,
+    /// Concrete writes whose values checking proved fit their physical integer slots.
+    pub stored_integer_writes: Arena<CheckedStoredIntegerWrite>,
     pub scalar_expressions: CheckedScalarExpressionPlans,
     pub scalar_computations: CheckedScalarComputationPlans,
     pub structural_values: CheckedStructuralValuePlans,
@@ -146,6 +148,7 @@ impl CheckedValueFacts {
     pub fn with_roots(values: Arena<CheckedValueFact>) -> Self {
         Self {
             values,
+            stored_integer_writes: Arena::new(),
             scalar_expressions: CheckedScalarExpressionPlans::default(),
             scalar_computations: CheckedScalarComputationPlans::default(),
             structural_values: CheckedStructuralValuePlans::default(),
@@ -161,6 +164,18 @@ impl CheckedValueFacts {
             .iter()
             .filter(move |(_, value)| value.expression == expression)
     }
+}
+
+/// A source assignment admitted against its plan-laid destination's physical
+/// bounds, independently of the wider semantic integer carrier. Expression
+/// handles identify the exact use, so later writes cannot inherit this fact.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedStoredIntegerWrite {
+    pub target: ExpressionHandle,
+    pub value: ExpressionHandle,
+    pub field: SymbolHandle,
+    pub minimum: i128,
+    pub maximum: i128,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

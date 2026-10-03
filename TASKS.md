@@ -3307,6 +3307,21 @@ unchanged, except for intended deletions, which its commit lists.
   rejects from `omega --check` with a checking diagnostic, and the check
   corpus is otherwise unchanged.
 
+  Current frontier: ordinary assignment checking now discharges plan-laid
+  `IntegerAt` storage fit using the destination field identity and pre-store
+  value interval, retaining accepted writes in `CheckFacts::values`.
+  On macOS ARM64, `omega --check
+  tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg`
+  rejects the signed-byte write of 128; ordinary-field and unbounded-source
+  variations also reject, while -128 and 127 check. The proved-write positive
+  `pass/layouts/runtime_plan_laid_integer_at_proved_write_exit` still runs
+  natively and interpreted with exit 72. The 17-fixture layout corpus changes
+  only that negative's diagnostic. Remaining: discharge the other operation
+  conditions and other bounded-store forms, consume checker judgments in
+  lowering, and remove Stage 05 proof search. This prerequisite is not closed
+  merely because the only currently recorded `OperationProofUnavailable`
+  negative now rejects earlier.
+
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate
   production and transport in one commit:

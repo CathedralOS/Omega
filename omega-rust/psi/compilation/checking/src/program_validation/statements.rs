@@ -39,6 +39,8 @@ pub(super) struct StatementScope<'a> {
 pub(super) struct StatementOutputs<'a> {
     pub(super) value_environment: &'a mut arithmetic_domains::ValueEnvironment,
     pub(super) exact_integer_casts: &'a mut Vec<ExactIntegerCastFact>,
+    pub(super) stored_integer_writes:
+        &'a mut arena::Arena<checked_trees::values::CheckedStoredIntegerWrite>,
     pub(super) boundary_operator_applications: &'a mut Vec<ValidatedBoundaryOperatorApplication>,
     pub(super) diagnostics: &'a mut Vec<Diagnostic>,
 }
@@ -57,6 +59,7 @@ pub(super) fn validate_state_statement_node<'p>(
     transition_values: &transitions::TransitionValueEnvironments,
     direct_written: Option<Vec<String>>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
+    stored_integer_writes: &mut arena::Arena<checked_trees::values::CheckedStoredIntegerWrite>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
     bound_lookup: &mut (
         &'p TypedTrees,
@@ -80,6 +83,7 @@ pub(super) fn validate_state_statement_node<'p>(
     let mut outputs = StatementOutputs {
         value_environment,
         exact_integer_casts,
+        stored_integer_writes,
         boundary_operator_applications,
         diagnostics,
     };
