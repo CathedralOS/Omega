@@ -73,18 +73,27 @@ fn a_reference_argument_requires_its_fact_to_survive_later_operands() {
     // change(context))` is a borrow conflict, not a lost fact. The claim is
     // still checked after every operand rather than at the argument's own
     // evaluation. An opaque call may replace the carrier's reference slot;
-    // complete empty and disjoint write frames instead preserve its origin.
-    for (operand, preserved) in [
-        ("0", true),
-        ("bump(&mut carrier.count)", true),
-        ("carrier.touch()", true),
-        ("host.expose(&mut carrier)", false),
+    // empty and disjoint write frames preserve its origin. An exclusive loan
+    // of the whole carrier still conflicts, even when the callee writes nothing.
+    for (operand, rejection) in [
+        ("0", None),
+        ("quiet()", None),
+        ("bump(&mut carrier.count)", None),
+        (
+            "Carrier::touch(&mut carrier)",
+            Some("receives `carrier` as both mutable and read-only"),
+        ),
+        (
+            "host.expose(&mut carrier)",
+            Some("cannot prove requires contract for call borrowed"),
+        ),
     ] {
         let fixture = source(&format!(
             r#"
             pub data Carrier {{ context: &Context; count: u64; }}
             pub boundary trait Host {{ machine expose(carrier: &mut Carrier) -> u64; }}
-            machine Carrier::touch(&mut self) -> u64 {{ 0 }}
+            machine Carrier::touch(carrier: &mut Carrier) -> u64 {{ 0 }}
+            machine quiet() -> u64 {{ 0 }}
             machine bump(count: &mut u64) -> u64 {{ count = 1; 0 }}
             machine route(host: Binding<Host>, mut carrier: Carrier) -> u64 reaches Host
             requires carrier.context.scheduler in WeakFair
@@ -97,13 +106,13 @@ fn a_reference_argument_requires_its_fact_to_survive_later_operands() {
         let mut typed = crate::tests::front_end::typed_program_with_core_service(&fixture);
         crate::tests::bind_fixture_fused_service_erasures(&mut typed);
         match lower_typed_trees(typed, &CheckingRequest::settled()) {
-            Ok(_) => assert!(preserved, "opaque write must retire the reference origin"),
+            Ok(_) => assert!(rejection.is_none(), "{operand} must reject: {rejection:?}"),
             Err(diagnostics) => {
-                assert!(!preserved, "{operand}: {diagnostics:#?}");
+                let expected = rejection.unwrap_or_else(|| panic!("{operand}: {diagnostics:#?}"));
                 assert!(
-                    diagnostics.iter().any(|diagnostic| diagnostic
-                        .message
-                        .contains("cannot prove requires contract for call borrowed")),
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains(expected)),
                     "{diagnostics:#?}"
                 );
             }

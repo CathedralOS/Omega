@@ -1133,9 +1133,9 @@ mod tests {
         // every predicate the source domain names, not only the Terminal set.
         let source = |predicate: &str| {
             format!(
-                "domain [u8]::Text requires {predicate}(self);
+                "domain [u8]::Text(bytes) requires {predicate}(bytes);
                  data Main {{ value: i32; plain: &[u8]; text: &[u8] in Text; }}
-                 machine Main::run(&mut self) {{ self.value = 7; }}"
+                 machine Main::run(main: &mut Main) {{ main.value = 7; }}"
             )
         };
         let (module, eligible) = produce_run(&check_source(&source("valid_utf8"))).unwrap();
@@ -1354,30 +1354,30 @@ mod tests {
                 "{domains}
                  data Child {{ bytes: [u8; 3] in {constraint}; }}
                  data Main {{ value: i32; child: Child; }}
-                 machine Main::run(&mut self) {{ self.value = 7; }}"
+                 machine Main::run(main: &mut Main) {{ main.value = 7; }}"
             )
         };
         let (module, eligible) = produce_run(&check_source(&source(
-            "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires no_nul(self);",
+            "domain [u8; 3]::First(bytes) requires valid_utf8(bytes); domain [u8; 3]::Second(bytes) requires no_nul(bytes);",
             "First & Second",
         )))
         .unwrap();
         assert!(eligible, "every predicate holds for the empty sequence");
         for (domains, constraint, refusal) in [
             (
-                "domain [u8; 3]::First requires non_empty(self);",
+                "domain [u8; 3]::First(bytes) requires non_empty(bytes);",
                 "First",
                 None,
             ),
             (
-                "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires non_empty(self);",
+                "domain [u8; 3]::First(bytes) requires valid_utf8(bytes); domain [u8; 3]::Second(bytes) requires non_empty(bytes);",
                 "First & Second",
                 None,
             ),
             // Two facts do not reduce to one recognized byte predicate, so the
             // field has no Terminal type and the receiver signature declines.
             (
-                "domain [u8; 3]::Extra requires valid_utf8(self); non_empty(self);",
+                "domain [u8; 3]::Extra(bytes) requires valid_utf8(bytes); non_empty(bytes);",
                 "Extra",
                 Some("local construction stopped at signature"),
             ),
@@ -1552,8 +1552,8 @@ mod tests {
         // transitive storage is zero-valid; the element judgment follows the
         // complete chain through every dimension.
         for source in [
-            "data Pair { first: i32; second: i32; } data Main { value: i32; grid: [Pair; 2]; } machine Main::run(&mut self) { self.value = 7; }",
-            "data Pair { first: i32; second: i32; } data Main { value: i32; grid: [[Pair; 2]; 3]; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Pair { first: i32; second: i32; } data Main { value: i32; grid: [Pair; 2]; } machine Main::run(main: &mut Main) { main.value = 7; }",
+            "data Pair { first: i32; second: i32; } data Main { value: i32; grid: [[Pair; 2]; 3]; } machine Main::run(main: &mut Main) { main.value = 7; }",
         ] {
             let checked = check_source(source);
             let produced = TerminalProductionRequest::new(
@@ -1580,7 +1580,7 @@ mod tests {
         // rejects through the same element chain.
         let element_source = |domain: &str| {
             format!(
-                "domain [u8; 3]::Text requires {domain}(self); data Pair {{ bytes: [u8; 3] in Text; }} data Main {{ value: i32; grid: [Pair; 2]; }} machine Main::run(&mut self) {{ self.value = 7; }}"
+                "domain [u8; 3]::Text(bytes) requires {domain}(bytes); data Pair {{ bytes: [u8; 3] in Text; }} data Main {{ value: i32; grid: [Pair; 2]; }} machine Main::run(main: &mut Main) {{ main.value = 7; }}"
             )
         };
         let (module, eligible) = produce_run(&check_source(&element_source("valid_utf8"))).unwrap();
@@ -1593,7 +1593,7 @@ mod tests {
         // A byte domain that refuses the empty carrier beneath the zero tag.
         let payload_source = |domain: &str| {
             format!(
-                "domain [u8; 3]::Text requires {domain}(self); data Event {{ case Say(text: [u8; 3] in Text); case Quiet; }} data Main {{ value: i32; event: Event; }} machine Main::run(&mut self) {{ self.value = 7; }}"
+                "domain [u8; 3]::Text(bytes) requires {domain}(bytes); data Event {{ case Say(text: [u8; 3] in Text); case Quiet; }} data Main {{ value: i32; event: Event; }} machine Main::run(main: &mut Main) {{ main.value = 7; }}"
             )
         };
         let (module, eligible) = produce_run(&check_source(&payload_source("valid_utf8"))).unwrap();
@@ -1602,10 +1602,10 @@ mod tests {
         for source in [
             // An exclusive view payload would alias storage provisioning cannot
             // supply; a zero shared view is the empty view instead.
-            "data Event { case Say(text: &mut [u8]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Event { case Say(text: &mut [u8]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(main: &mut Main) { main.value = 7; }",
             // A range-gated payload beneath the zero tag is not an established
             // value; the same source gate also rejects this receiver earlier.
-            "data Event { case Loud(gain: i32 [1..=9]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
+            "data Event { case Loud(gain: i32 [1..=9]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(main: &mut Main) { main.value = 7; }",
         ] {
             let checked = check_source(source);
             let produced = TerminalProductionRequest::new(

@@ -259,19 +259,19 @@ pub(super) fn validate(
     // from the exact authored formal, not the producer's requested identity.
     // The source/formal referee equality and occurrence checks below still own
     // the storage identity and loan authority; signature replay owns its shape.
-    let presentation = if target.is_self {
-        carrier
-    } else {
-        match validation::byte_sequence_carrier(&checked.typed, target.type_reference, &[]) {
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }) => {
-                target.type_reference
-            }
-            // A qualified bounded owner retains its live extent. Borrowing it
-            // presents the same storage carrier, not the reference's spelling;
-            // signature and Terminal argument checks retain its predicates.
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) | None => carrier,
-            _ => return unsupported("aggregate operand changed its byte carrier"),
+    let presentation = match validation::byte_sequence_carrier(
+        &checked.typed,
+        target.type_reference,
+        &[],
+    ) {
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }) => {
+            target.type_reference
         }
+        // A qualified bounded owner retains its live extent. Borrowing it
+        // presents the same storage carrier, not the reference's spelling;
+        // signature and Terminal argument checks retain its predicates.
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) | None => carrier,
+        _ => return unsupported("aggregate operand changed its byte carrier"),
     };
     if checked.normalized_type_identity(presentation).as_str() != argument.type_identity {
         return unsupported("record operand changed its declared referent type");
@@ -368,7 +368,7 @@ mod tests {
     fn qualified_byte_field_computation_replays_exact_path_access_and_carrier() {
         let checked = crate::front_end::checked_program(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../tests/omega/pass/domains/mutable_receiver_declared_field_exit/main.omg"
+            "/../../../../../tests/omega/pass/domains/qualified_mutable_field_exit/main.omg"
         )));
         crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("main"))
             .expect("qualified field computations lower through their real caller");

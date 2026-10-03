@@ -8,7 +8,7 @@ use crate::semantic::facts::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
 
 const DEFINITIONS: &str = r#"
-    domain [u8; 4]::Utf8 requires valid_utf8(self);
+    domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
     data Text { bytes: [u8; 4] in Utf8; }
     data Packet { payload: Text; tag: u64; }
 "#;
@@ -57,15 +57,10 @@ fn boundary_write_preserves_disjoint_declared_field_domains() {
 }
 
 #[test]
-fn receiver_and_named_inputs_share_nonzero_nested_field_obligations() {
-    for (signature, subject, next_signature, next_call) in [
-        ("Packet::touch(&mut self)", "self", "&mut self", "next()"),
-        (
-            "touch(packet: &mut Packet)",
-            "packet",
-            "packet: &mut Packet",
-            "next(packet)",
-        ),
+fn qualified_and_free_inputs_share_nonzero_nested_field_obligations() {
+    for signature in [
+        "Packet::touch(packet: &mut Packet)",
+        "touch(packet: &mut Packet)",
     ] {
         let source = format!(
             r#"
@@ -74,10 +69,10 @@ fn receiver_and_named_inputs_share_nonzero_nested_field_obligations() {
             data Packet {{ label: Label; }}
             machine observe(text: &[u8; 8] in NonEmpty) {{}}
             machine {signature} {{
-                observe(&{subject}.label.text);
-                {subject}.label.text = "changed";
-                transition {{ _ -> {next_call} }}
-                state next({next_signature}) {{ observe(&{subject}.label.text); }}
+                observe(&packet.label.text);
+                packet.label.text = "changed";
+                transition {{ _ -> next(packet) }}
+                state next(packet: &mut Packet) {{ observe(&packet.label.text); }}
             }}
         "#
         );
@@ -87,19 +82,26 @@ fn receiver_and_named_inputs_share_nonzero_nested_field_obligations() {
 }
 
 #[test]
-fn receiver_and_named_inputs_reject_unrestored_mutation() {
-    for (signature, subject) in [
-        ("Packet::touch(&mut self)", "self"),
-        ("touch(packet: &mut Packet)", "packet"),
+fn qualified_and_free_inputs_reject_unrestored_mutation() {
+    for signature in [
+        "Packet::touch(packet: &mut Packet)",
+        "touch(packet: &mut Packet)",
     ] {
-        for continuation in ["", "transition { _ -> self }"] {
+        for body in [
+            "clear(&mut packet.label.text);",
+            "transition { _ -> repeat(packet) }
+             state repeat(packet: &mut Packet) {
+                 clear(&mut packet.label.text);
+                 transition { _ -> repeat(packet) }
+             }",
+        ] {
             let source = format!(
                 r#"
                 domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
                 data Label {{ text: [u8; 8] in NonEmpty; }}
                 data Packet {{ label: Label; }}
                 machine clear(text: &mut [u8; 8]) {{ text = ""; }}
-                machine {signature} {{ clear(&mut {subject}.label.text); {continuation} }}
+                machine {signature} {{ {body} }}
             "#
             );
             let diagnostics =
@@ -116,51 +118,28 @@ fn receiver_and_named_inputs_reject_unrestored_mutation() {
 }
 
 #[test]
-fn receiver_and_named_input_requires_are_not_implicit_postconditions() {
-    for (signature, subject) in [
-        ("Packet::clear(&mut self)", "self"),
-        ("clear(packet: &mut Packet)", "packet"),
+fn qualified_and_free_input_requires_are_not_implicit_postconditions() {
+    for signature in [
+        "Packet::clear(packet: &mut Packet)",
+        "clear(packet: &mut Packet)",
     ] {
         let source = format!(
             r#"
             domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
             data Packet {{ text: [u8; 8]; }}
-            machine {signature} requires {subject}.text in NonEmpty {{ {subject}.text = ""; }}
-            "#
+            machine {signature} requires packet.text in NonEmpty {{ packet.text = ""; }}
+        "#
         );
         lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .expect("extra input requirements are not declared field invariants");
     }
 }
 
-fn check_nominal_self_edge(source: &str, accepted: bool) {
-    let typed = parse_typed_trees(source);
-    check_typed_nominal_self_edge(typed, source, accepted);
-}
-
-fn check_typed_nominal_self_edge(typed: typed_trees::TypedTrees, source: &str, accepted: bool) {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
-    assert!(
-        typed.machines().iter().any(|machine| {
-            typed.machine_states(machine).iter().any(|state| {
-                typed
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .any(|statement| {
-                        matches!(statement, StatementNode::Transition(transition)
-                    if [transition.target, transition.continuation].into_iter().any(|target|
-                        target.is_valid() && matches!(typed.statement_table.transition_target(target),
-                            TransitionTargetNode::SelfTarget)))
-                    })
-            })
-        }),
-        "the regression must exercise an actual SelfTarget, not a named call"
-    );
-    match lower_typed_trees(typed, &CheckingRequest::settled()) {
+fn check_nominal_back_edge(source: &str, accepted: bool, rejection: &str) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(
             accepted,
-            "a corrupted default field crossed SelfTarget: {source}"
+            "an invalid field crossed the named back-edge: {source}"
         ),
         Err(diagnostics) => {
             assert!(
@@ -168,120 +147,53 @@ fn check_typed_nominal_self_edge(typed: typed_trees::TypedTrees, source: &str, a
                 "a restored field should satisfy its back-edge: {diagnostics:#?}\n{source}"
             );
             assert!(
-                diagnostics.iter().any(|diagnostic| diagnostic
-                    .message
-                    .contains("cannot prove state arrival contract on self-transition")),
-                "the self-edge obligation must reject the corrupted field: {diagnostics:#?}"
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(rejection)),
+                "the named arrival obligation must reject the invalid field: {diagnostics:#?}"
             );
         }
     }
 }
 
 #[test]
-fn nominal_self_edge_uses_only_its_own_guard_polarity() {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
-    for (guard, self_arm, accepted) in [
-        ("self.flag", "true", true),
-        ("self.flag", "false", false),
-        ("!self.flag", "false", true),
-        ("!self.flag", "true", false),
+fn nominal_named_back_edge_uses_only_its_own_guard_polarity() {
+    for (guard, back_edge_arm, accepted) in [
+        ("main.flag", "true", true),
+        ("main.flag", "false", false),
+        ("!main.flag", "false", true),
+        ("!main.flag", "true", false),
     ] {
-        let (true_target, false_target) = if self_arm == "true" {
-            ("self", "done()")
+        let (true_target, false_target) = if back_edge_arm == "true" {
+            ("waiting(main)", "done(main)")
         } else {
-            ("done()", "self")
+            ("done(main)", "waiting(main)")
         };
         let source = format!(
             r#"
             data Main {{ flag: bool; }}
-            machine Main::run(&mut self) {{
-                transition self.flag {{ true -> waiting() false -> done() }}
-                state waiting(&mut self)
-                requires self.flag;
+            machine Main::run(main: &mut Main) {{
+                transition main.flag {{ true -> waiting(main) false -> done(main) }}
+                state waiting(main: &mut Main)
+                requires main.flag;
                 {{
-                    self.flag = false;
+                    main.flag = false;
                     transition {guard} {{ true -> {true_target} false -> {false_target} }}
                 }}
-                state done(&mut self) {{}}
+                state done(main: &mut Main) {{}}
             }}
         "#
         );
-        let original = parse_typed_trees(&source);
-        for combined in [false, true] {
-            let mut typed = original.clone();
-            if combined {
-                let machine = typed
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.name.as_str() == "Main::run")
-                    .expect("run")
-                    .clone();
-                let state_index = typed
-                    .machine_states(&machine)
-                    .iter()
-                    .position(|state| state.name.as_str() == "waiting")
-                    .expect("waiting");
-                let nodes = typed.machine_states(&machine)[state_index].statement_nodes;
-                let transitions = typed
-                    .statement_table
-                    .statements(nodes)
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, statement)| {
-                        matches!(statement, StatementNode::Transition(_)).then_some(index)
-                    })
-                    .collect::<Vec<_>>();
-                let first_index = transitions[0];
-                if let [first, second] = transitions.as_slice() {
-                    assert_eq!(*first + 1, *second);
-                    assert_eq!(*second + 1, nodes.count() as usize);
-                    let StatementNode::Transition(second_transition) =
-                        &typed.statement_table.statements(nodes)[*second]
-                    else {
-                        unreachable!();
-                    };
-                    let continuation = second_transition.target;
-                    let StatementNode::Transition(first_transition) =
-                        &mut typed.statement_table.statements_mut(nodes)[*first]
-                    else {
-                        unreachable!();
-                    };
-                    assert!(!first_transition.continuation.is_valid());
-                    first_transition.continuation = continuation;
-                    typed.machine_states_mut(&machine)[state_index].statement_nodes =
-                        arena::HandleSpan::from_parts(nodes.start(), nodes.count() - 1);
-                } else {
-                    assert_eq!(transitions.len(), 1);
-                }
-                let StatementNode::Transition(transition) =
-                    &typed.statement_table.statements(nodes)[first_index]
-                else {
-                    unreachable!();
-                };
-                assert!(transition.continuation.is_valid());
-                if self_arm == "false" {
-                    assert!(
-                        matches!(
-                            typed
-                                .statement_table
-                                .transition_target(transition.continuation),
-                            TransitionTargetNode::SelfTarget
-                        ),
-                        "the false arm must be represented by an actual continuation SelfTarget"
-                    );
-                }
-            }
-            check_typed_nominal_self_edge(
-                typed,
-                &format!("combined={combined}\n{source}"),
-                accepted,
-            );
-        }
+        check_nominal_back_edge(
+            &source,
+            accepted,
+            "cannot prove requires contract for call waiting",
+        );
     }
 }
 
 #[test]
-fn nominal_self_edge_checks_fields_after_guard_call_effects() {
+fn nominal_named_back_edge_checks_fields_after_guard_call_effects() {
     for (effect, contract, accepted) in [
         ("", "", true),
         ("bytes = \"okay\";", "ensures bytes in Utf8", true),
@@ -291,23 +203,30 @@ fn nominal_self_edge_checks_fields_after_guard_call_effects() {
             r#"{DEFINITIONS}
             data Main {{ packet: Packet; }}
             machine decide(bytes: &mut [u8; 4]) -> bool {contract} {{ {effect} true }}
-            machine Main::run(&mut self) {{
-                transition decide(&mut self.packet.payload.bytes) {{
-                    true -> self
-                    false -> done()
+            machine Main::run(main: &mut Main) {{
+                transition {{ _ -> repeat(main) }}
+                state repeat(main: &mut Main) {{
+                    transition decide(&mut main.packet.payload.bytes) {{
+                        true -> repeat(main)
+                        false -> done(main)
+                    }}
                 }}
-                state done(&mut self) {{}}
+                state done(main: &mut Main) {{}}
             }}
         "#
         );
-        check_nominal_self_edge(&source, accepted);
+        check_nominal_back_edge(
+            &source,
+            accepted,
+            "cannot prove default-domain field requirement for call",
+        );
     }
 }
 
 #[test]
 fn constructed_values_do_not_publish_snapshots_at_mutable_indices() {
     let source = r#"
-        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        domain [u8; 4]::Utf8(bytes) requires valid_utf8(bytes);
         data Row { bytes: [u8; 4] in Utf8; }
         machine consume(row: Row) ensures row.bytes in Utf8 { }
         machine invalid(rows: &mut [Row; 2], mut index: u64) {
