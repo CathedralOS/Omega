@@ -1,0 +1,22 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: i32; }
+data View { cell: &mut Cell; }
+data Main { console: Binding<Console>; }
+
+machine forward(view: View) -> View { view }
+machine replace(cell: &mut Cell) { cell.value = 70; }
+machine exercise() -> i32 {
+    let mut owner: Cell = Cell { value: 12 };
+    let borrowed: &mut Cell = &mut owner;
+    let held: View = View { cell: borrowed };
+    let forwarded: View = forward(held);
+    replace(forwarded.cell);
+    owner.value
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i32 = exercise();
+    main.console.exit_process(result);
+}

@@ -21,8 +21,14 @@ pub(super) fn reconstruct(
     mut reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     primitive: PrimitiveType,
+    stated: Option<(Option<i64>, Option<i64>)>,
 ) -> Option<CheckedUnitStructuralFieldType> {
-    let mut bounds: Option<(BigInt, BigInt)> = None;
+    let mut bounds: Option<(BigInt, BigInt)> = stated.map(|(lower, upper)| {
+        (
+            lower.map_or_else(|| BigInt::from_i128(i128::MIN), BigInt::from_i64),
+            upper.map_or_else(|| BigInt::from_u128(u128::MAX), BigInt::from_i64),
+        )
+    });
     let mut non_exact = false;
     let mut predicate = None;
     let mut visited = Vec::new();

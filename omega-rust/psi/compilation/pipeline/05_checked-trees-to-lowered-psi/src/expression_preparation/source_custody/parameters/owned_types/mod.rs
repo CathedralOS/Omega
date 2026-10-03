@@ -247,17 +247,23 @@ impl SourceTypes<'_> {
         let checked = self.checked;
         let mut fields = Vec::new();
         let mut cases = Vec::new();
+        let intervals =
+            validation::data_where_field_intervals(&checked.typed, data).unwrap_or_default();
         for member in checked.data_members(data) {
             match member {
-                DataMember::Field(field) => fields.push(self.field(field, substitutions)?),
+                DataMember::Field(field) => {
+                    fields.push(self.field(field, substitutions, &intervals)?)
+                }
                 DataMember::Variant(variant) => {
                     let mut payload = Vec::new();
+                    let intervals = validation::case_where_field_intervals(&checked.typed, variant)
+                        .unwrap_or_default();
                     let source_fields = checked.data_payload_fields(variant);
                     if source_fields.len() != variant.payload.count() as usize {
                         return unsupported("owned type custody has a stale source case payload");
                     }
                     for field in source_fields {
-                        payload.push(self.field(field, substitutions)?);
+                        payload.push(self.field(field, substitutions, &intervals)?);
                     }
                     cases.push(CheckedUnitStructuralCasePlan {
                         identity: variant.path_identity(),
@@ -279,6 +285,7 @@ impl SourceTypes<'_> {
         &mut self,
         field: &DataField,
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        intervals: &[(SymbolHandle, Option<i64>, Option<i64>)],
     ) -> Result<CheckedUnitStructuralFieldPlan, LoweringError> {
         let reference = resolve(self.checked, field.type_reference, substitutions)?;
         let field_type = if field.relevance.is_erased() {
@@ -320,10 +327,23 @@ impl SourceTypes<'_> {
                 }
             }
         } else if let Some(primitive) = self.checked.primitive_type_reference(reference) {
-            scalar_fields::reconstruct(self.checked, field.type_reference, substitutions, primitive)
-                .ok_or(LoweringError::Unsupported(
-                    "owned scalar field has unsupported source restrictions",
-                ))?
+            // A declaration-level interval restricts the same field as an
+            // inline range. Reconstruct it from the owning declaration, not
+            // from the retained catalog being checked.
+            let stated = intervals
+                .iter()
+                .find(|(symbol, _, _)| *symbol == field.symbol)
+                .map(|(_, lower, upper)| (*lower, *upper));
+            scalar_fields::reconstruct(
+                self.checked,
+                field.type_reference,
+                substitutions,
+                primitive,
+                stated,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "owned scalar field has unsupported source restrictions",
+            ))?
         } else {
             CheckedUnitStructuralFieldType::Structural {
                 type_identity: self.validate_type(field.type_reference, substitutions)?,

@@ -727,6 +727,7 @@ fn validate_scalar_cleanup_actions(
         if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
             return Err(mismatch());
         }
+        super::references::discard_owned(module, machine, &mut frontier.references, place)?;
         frontier.owned_places.remove(&place);
     }
 
@@ -772,7 +773,18 @@ fn validate_scalar_cleanup_actions(
                 return Err(mismatch());
             };
             match action {
-                TerminalAffineCleanupAction::DiscardRoot(place) if *place == parameter.place => {}
+                TerminalAffineCleanupAction::DiscardRoot(place) if *place == parameter.place => {
+                    // Whole-owner disposal has the same reference effect for
+                    // an incoming parameter as for a constructed result.
+                    // The shared check still refuses live descendants and
+                    // requires every contained loan before releasing any.
+                    super::references::discard_owned(
+                        module,
+                        machine,
+                        &mut frontier.references,
+                        *place,
+                    )?;
+                }
                 TerminalAffineCleanupAction::InvokeNominal(cleanup)
                     if cleanup.place == parameter.place
                         && cleanup.structural_type == parameter.structural_type

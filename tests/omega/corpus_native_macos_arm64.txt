@@ -67,6 +67,7 @@ pass/borrows/case_payload_state_loan_exit built 1589ms exit:70 @b9ead894da43+wt
 pass/borrows/enum_selected_view_reference_exit built 1258ms exit:70 @011fd400e8c1+wt
 pass/borrows/indexed_record_field_replacement_exit built 1785ms exit:70 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @63377f7122bb+wt
+pass/borrows/local_reference_record_transfer_exit built 1613ms exit:70 @82ec69a91ceb+wt
 pass/borrows/loop_descriptor_reformation_exit built 1933ms exit:70 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit built 2311ms exit:9 @af9f91f2fb06+wt
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
@@ -1102,8 +1103,7 @@ pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
 pass/termination/runtime_shrinking_slice_recursion_exit built 873ms exit:70 @2f8006be6cc9+wt
-pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1360ms @48008365d839
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
+pass/termination/runtime_stored_exclusive_endpoint_exit built 1525ms exit:0 @82ec69a91ceb+wt
 pass/termination/stored_reference_endpoint_arrivals checked 195ms
 pass/termination/symbolic_quotient_endpoints checked 224ms
 pass/termination/unsigned_identity_measure_rank_range checked 217ms

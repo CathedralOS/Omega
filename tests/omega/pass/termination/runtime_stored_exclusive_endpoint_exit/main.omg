@@ -8,13 +8,9 @@
 // (c60792d7bdd); the check-only `stored_reference_endpoint_arrivals` twin
 // carries a shared `&Wrap` and never executes.
 //
-// The `&mut`-field record reaches `run` as a call result: `lend` packs the
-// caller's exclusive borrow into `Indirect`, so no local construction mints
-// the borrow inside a record literal (`statement sequence: local data:
-// structural call binding` still omits that unit plan; STATE-LOCAL-VALUE-
-// FRONTIER owns the general realization gap). The ranked evidence this
-// fixture pins -- the endpoint bound read through the stored loan across
-// the whole recursion -- is identical either way.
+// Ordinary record construction transfers the earlier local's exclusive loan.
+// The countdown preserves that loan's endpoint through recursive calls and
+// disposes its carrier on normal completion.
 //
 // exit 0 = the countdown reached `n == 0` and returned it;
 // exit 1 = any other outcome.
