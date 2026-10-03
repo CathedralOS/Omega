@@ -6,10 +6,10 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
-use crate::unit::{allocate_dense, place_id};
+use crate::unit::{StructuralPlaceKind, allocate_dense, place_id};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape,
+    StructuralPlaceDeclaration, StructuralTypeShape,
 };
 
 impl Evaluation {

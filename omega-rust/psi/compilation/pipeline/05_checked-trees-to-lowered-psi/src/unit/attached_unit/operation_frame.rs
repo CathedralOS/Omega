@@ -1335,12 +1335,17 @@ impl OperationFrame<'_, '_> {
             LoanedSource::Local(symbol) => self.local_store_root(symbol)?,
         };
         let captured_index = if loan.byte_overlay.is_some()
-            && matches!(loan.path.last(), Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
-        {
+            && matches!(
+                loan.path.last(),
+                Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_))
+            ) {
             let bindings = self.dense_assignment_namespace();
             let coordinate = bindings.byte_record_coordinate(loan.symbol)?;
             Some(crate::emission::operation_emission::emit_direct_expression(
-                &coordinate, self.values, self.next_value, self.operations,
+                &coordinate,
+                self.values,
+                self.next_value,
+                self.operations,
             ))
         } else {
             None
