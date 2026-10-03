@@ -133,7 +133,9 @@ pub(super) fn statement_borrow_loans(
                     loan_trackers,
                 );
             }
-            if !is_reference_type(program, local_data.type_reference) {
+            if !is_reference_type(program, local_data.type_reference)
+                && !element_view_local_binding(program, state, machine_symbol, local_data)
+            {
                 return Vec::new();
             }
 
@@ -261,6 +263,31 @@ fn assignment_borrow_loans(
         .collect()
 }
 
+/// Whether a non-reference-typed `let` binds a view anyway: an immutable
+/// element-spelling subslice binding (`let v: u8 = arr[a..b]`) binds the
+/// view its initializer's own result type names, lending the range
+/// read-only exactly as its `&[u8]` spelling does.
+fn element_view_local_binding(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+) -> bool {
+    if local_data.is_mutable {
+        return false;
+    }
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return false;
+    };
+    validation::expression_result_type_reference(program, machine, state, local_data.initial_value)
+        .and_then(|result| validation::slice_view_shell(program, result, &[]))
+        .is_some()
+}
+
 fn reference_local_borrow_loans(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
@@ -271,6 +298,10 @@ fn reference_local_borrow_loans(
     allow_direct_reborrow_lineage: bool,
 ) -> Vec<StatementBorrowLoan> {
     let Some(local_access) = reference_borrow_access_kind(program, local_data.type_reference)
+        .or_else(|| {
+            element_view_local_binding(program, state, machine_symbol, local_data)
+                .then_some(checked_trees::BorrowAccessKind::Read)
+        })
     else {
         return Vec::new();
     };

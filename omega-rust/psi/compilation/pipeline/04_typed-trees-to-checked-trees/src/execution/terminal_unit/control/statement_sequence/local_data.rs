@@ -277,13 +277,35 @@ pub(super) fn plan(
     // The result retains its checked access in the structural namespace, so
     // edges, calls and observations read it as any view local.
     local_phase("statement sequence: local data: view subslice");
+    // The declaration names the narrowed view (`let v: &[u8]`) or only
+    // its element (`let v: u8 = main.bytes[0..2]`): the binding's target
+    // is the subslice's own result type in both spellings, and the
+    // element spelling must agree with the view's element below.
+    let declared_is_view = crate::execution::terminal_unit::calls::view_subslice::view_kind(
+        program,
+        local.type_reference,
+    )
+    .is_some()
+        || crate::execution::terminal_unit::types::borrowed_slice_view_element(
+            program,
+            local.type_reference,
+            &[],
+        )
+        .is_some();
+    let subslice_target = if declared_is_view {
+        local.type_reference
+    } else {
+        validation::expression_result_type_reference(program, machine, state, local.initial_value)
+            .filter(|result| validation::slice_view_shell(program, *result, &[]).is_some())
+            .unwrap_or(local.type_reference)
+    };
     if let Some(subslice) = crate::execution::terminal_unit::calls::view_subslice::admit(
         program,
         facts,
         machine,
         state,
         structural_parameters,
-        local.type_reference,
+        subslice_target,
         local.initial_value,
         index,
         checked_trees::CheckedSubsliceSite::LocalBinding,
@@ -293,8 +315,15 @@ pub(super) fn plan(
         {
             return None;
         }
-        let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
+        let type_identity = shapes.add_type(subslice_target, binders, &[])?;
         if type_identity != subslice.range.type_identity {
+            return None;
+        }
+        if !declared_is_view
+            && program.normalized_type_identity(local.type_reference)
+                != validation::slice_view_shell(program, subslice_target, &[])
+                    .map(|view| program.normalized_type_identity(view.element))?
+        {
             return None;
         }
         let result = CheckedUnitStructuralResultBindingPlan {
