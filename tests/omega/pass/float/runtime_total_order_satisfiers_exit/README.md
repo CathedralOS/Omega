@@ -1,63 +1,40 @@
 # IEEE total-order satisfiers
 
-The authored program checks signed zero and NaN payload ordering through direct
-`F32::TotalOrder` / `F64::TotalOrder` calls and an `Order::before` satisfier.
-Its success result is exit 70.
-
-The public customer command is:
+This program checks signed zero, infinities and NaN payload ordering through
+`F32::TotalOrder` / `F64::TotalOrder` and an `Order::before` satisfier. Its
+authored success result is exit 70.
 
 ```sh
 omega run --both tests/omega/pass/float/runtime_total_order_satisfiers_exit/main.omg
 ```
 
-An unaccepted ordinary package review can stop this command before compilation
-(exit 200). The repository corpus harness supplies its reviewed fixture policy:
+On macOS ARM64 at `7e0a5266418`, the public command returns native exit 70 and
+checked-interpreter exit 70. Ordinary package preparation (`omega update`,
+reviewing the proposed decisions, then `omega update --resume`) accepted 52
+review rows before that run. An unaccepted package review remains a separate
+prerequisite; the corpus harness supplies its reviewed fixture policy:
 
 ```sh
-python tools/corpus_gate.py --both --filter float/runtime_total_order_satisfiers_exit
+python3 tools/corpus_gate.py --both --filter float/runtime_total_order_satisfiers_exit
 ```
 
-Shared views of scalar parameters now survive checked local planning. The
-companion `recast/runtime_scalar_parameter_shared_views_exit` program observes
-an ordinary `&i32` parameter view and equal-width `f32`/`f64` integer bit views;
-it exits 70 in both engines on Linux x86-64:
+The baseline at `b0c5a2d9c78`, with current explicit Console/Build call spelling,
+rejected native production at `computed primitive borrow lost its established
+local`; checked interpretation returned 70. The repaired path gives each
+immutable scalar parameter one original addressable home and retains a shared
+reference carrier through helper calls. The reference's viewed type stays
+separate from its backing type through serialization, native argument transport
+and image validation. No copied bit value replaces the borrowed storage.
+Multiple views share one home, and mutation remains blocked until every shared
+loan ends. Scalar return positions still observe a reference local as a value.
 
-```sh
-omega run --both tests/omega/pass/recast/runtime_scalar_parameter_shared_views_exit/main.omg
-python tools/corpus_gate.py --both --filter recast/runtime_scalar_parameter_shared_views_exit
-```
+The companion controls `recast/runtime_scalar_parameter_shared_views_exit`,
+`recast/runtime_bool_representation_recast_exit` and
+`recast/runtime_float_range_representation_recast_exit` also return 70 in both
+engines. Width mismatch, mutable Boolean-to-unconstrained-byte aliasing and
+fact-strengthening recasts retain their expected rejection diagnostics.
 
-The total-order program still fails native lowering at `computed primitive
-borrow lost its established local`; the checked interpreter exits 70. Passing
-`left_bits` / `right_bits` to the key helpers needs an established backing home
-for the scalar parameter and a retained shared representation-view loan of that
-home. Stage 05 `ScalarBindings::primitive_borrow` consumes established structural
-locals, while the checked scalar-view local currently retains only the scalar
-read recipe. The next repair must connect that loan to its original storage and
-replay the cross-carrier view; copying the bits into a different local would
-change the source's backing identity. Keep the total-order source unchanged.
-
-On base `9782e38b64ab`, a clean-source runner rejects the scalar-parameter
-control at `read_bits64`'s first local while interpretation returns 70. The
-same runner built with the admission repair executes that unchanged control
-with native/interpreter exit 70. A focused base/candidate comparison of all
-35 recast fixtures changes only this control from rejected to checked; all
-negative expected fragments are satisfied. Three older golden mismatches
-(`runtime_mutable_equivalent_domain_recast_exit`,
-`runtime_mutable_equivalent_range_recast_exit`, and
-`runtime_shared_domain_weakening_recast_exit`) also occur on the base at
-`Unit graph dropped or added a body effect`.
-
-Strict Clippy of the affected crate reports existing warnings at 17 untouched
-source files (34 library warnings, 36 including tests). The dependency-enabled
-run also stops on two existing `proof-admission` warnings. No reported lint
-site is in the changed local planner. These are retained validation failures,
-not passing checks.
-
-The focused Rust selector
-`test(execution::terminal_unit::calls::computation_arguments) or test(representation_view)`
-runs 19 tests: 18 pass and
-`a_bool_view_loan_read_spells_the_nonzero_image_of_its_integer_place` fails at
-its missing guard-expression assertion. Rebuilding with the original compiler
-source at `9782e38b64ab` reproduces that exact failure. The public total-order
-command also confirms missing ordinary package-review acceptance (exit 200).
+Source-to-serialized-artifact controls preserve negative zero and NaN payloads
+at both IEEE widths, share one backing across differently typed views, and
+reject a removed reference projection. Target translation controls exercise
+ARM64 and x64; native execution above was measured on macOS ARM64.

@@ -3399,21 +3399,6 @@ completion syntax or other terminal service is a prerequisite.
   The checked recast judgment still owns qualification legality; exact loan
   geometry, access and activation still own statement erasure.
 
-  The unchanged total-order customer (`omega run --both
-  tests/omega/pass/float/runtime_total_order_satisfiers_exit/main.omg`;
-  [reproducer](tests/omega/pass/float/runtime_total_order_satisfiers_exit/README.md))
-  still rejects at stage 05 `computed primitive borrow lost its established
-  local`; interpreter exit 70. The scalar-parameter shared-view control returns
-  70 in both engines. Next acceptance is native total-order exit 70 after
-  retaining the scalar parameter's backing home and passing its shared
-  representation-view loan through borrowed helper calls in
-  `expression_preparation/bindings::ScalarBindings::primitive_borrow`.
-  Reference-view replay requires the live static-tail-loan assignment's
-  Terminal/Abstract references validation and the Squalr reference-store
-  assignment's Terminal result contracts; coordinate those dependencies before
-  editing. Ordinary package-review acceptance can independently stop the public
-  command at exit 200; the corpus command uses reviewed fixture policy.
-
   Keep `runtime_bool_representation_recast_exit` and
   `runtime_float_range_representation_recast_exit` as native/interpreter
   exit-70 controls. Scalar and record-leaf cross-carrier observations use

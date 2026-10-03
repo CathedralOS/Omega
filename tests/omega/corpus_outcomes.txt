@@ -1845,8 +1845,7 @@ pass/float/runtime_named_float_to_integer_conversion_exit checked 5157ms @2d8ed2
 pass/float/runtime_named_fma_sequence_exit checked 16819ms @2d8ed253669f
 pass/float/runtime_named_format_conversion_exit checked 6217ms @2d8ed253669f
 pass/float/runtime_std_is_finite_exit checked 5045ms @2d8ed253669f
-pass/float/runtime_total_order_satisfiers_exit rejected 3536ms @9782e38b64ab+wt
-	terminal-artifact production failed: Lowering(Unsupported("computed primitive borrow lost its established local"))
+pass/float/runtime_total_order_satisfiers_exit checked 20230ms @7e0a52664189
 pass/float/scalar_helper_boundary_sequence_exit checked 4671ms @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms @163770eba39c
 pass/float/x86_fma_plan_association rejected 4263ms @2d8ed253669f
