@@ -1330,3 +1330,149 @@ fn projected_constructor_operands_preserve_siblings_and_exact_residuals() {
         }
     }
 }
+
+#[test]
+fn projected_constructor_operands_keep_parameter_and_result_cleanup_separate() {
+    use terminal_psi::{
+        RecordFieldInitializer, RecordFieldValue, StructuralAffineDiscard,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
+    let mut module = projected_constructor_module(false, false);
+    let extra = StructuralFieldDeclaration {
+        id: semantic_vocabulary::StructuralFieldId::new(6).unwrap(),
+        identity: "extra".into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(1)),
+    };
+    let StructuralTypeShape::Record { fields } =
+        &mut module.structural_types.last_mut().unwrap().shape
+    else {
+        unreachable!()
+    };
+    fields.push(extra.clone());
+    let kept = StructuralFieldDeclaration {
+        id: semantic_vocabulary::StructuralFieldId::new(7).unwrap(),
+        identity: "kept".into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(1)),
+    };
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(6),
+        identity: "FinalOwner".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![kept.clone()],
+        },
+    });
+    let caller = &mut module.machines[0];
+    let mut establish_extra = caller.blocks[0].operations[0].clone();
+    establish_extra.id = operation_id(3);
+    let OperationResult::Structural(result) = &mut establish_extra.result else {
+        unreachable!()
+    };
+    result.place = place_id(5);
+    result.structural_type = structural_type_id(1);
+    establish_extra.kind = OperationKind::EstablishRecord { fields: Vec::new() };
+    let mut establish_final = caller.blocks[0].operations[0].clone();
+    establish_final.id = operation_id(4);
+    let OperationResult::Structural(result) = &mut establish_final.result else {
+        unreachable!()
+    };
+    result.place = place_id(6);
+    result.structural_type = structural_type_id(6);
+    establish_final.kind = OperationKind::EstablishRecord {
+        fields: vec![RecordFieldInitializer {
+            field: kept.id,
+            value: RecordFieldValue::Structural(StructuralArgument {
+                place: place_id(4),
+                path: vec![StructuralPathSegment::Field("kept".into())],
+                access: StructuralAccess::Owned,
+            }),
+        }],
+    };
+    let OperationKind::EstablishRecord { fields } = &mut caller.blocks[0].operations[0].kind else {
+        unreachable!()
+    };
+    fields.push(RecordFieldInitializer {
+        field: extra.id,
+        value: RecordFieldValue::Structural(StructuralArgument {
+            place: place_id(5),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        }),
+    });
+    let mut continuation = caller.blocks[0].clone();
+    continuation.id = block_id(3);
+    continuation.operations = vec![caller.blocks[0].operations.pop().unwrap()];
+    let Terminator::ReturnUnitPartialAffine {
+        edge,
+        trivial_affine_discards,
+        ..
+    } = &mut continuation.terminator
+    else {
+        unreachable!()
+    };
+    *edge = edge_id(3);
+    *trivial_affine_discards = vec![place_id(6)];
+    caller.blocks[0].operations.insert(0, establish_extra);
+    caller.blocks[0].operations.push(establish_final);
+    caller.blocks[0].terminator = Terminator::Jump {
+        edge: edge_id(1),
+        target: block_id(3),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: vec![StructuralAffineDiscard {
+            place: place_id(4),
+            path: vec![StructuralPathSegment::Field("extra".into())],
+            structural_type: structural_type_id(1),
+        }],
+    };
+    caller.blocks.push(continuation);
+    for (place, producer, structural_type) in [(5, 3, 1), (6, 4, 6)] {
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: place_id(place),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(producer),
+                structural_type: structural_type_id(structural_type),
+            },
+        });
+    }
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect(
+        "temporary complement closes at its edge; parameter sibling remains live for the next call",
+    );
+    let mut omitted = module.clone();
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut omitted.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.clear();
+    assert!(
+        validate_module(&omitted).is_err(),
+        "a parameter's later cleanup cannot settle temporary debt"
+    );
+    let mut substituted = module;
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut substituted.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards[0].place = place_id(1);
+    residual_affine_discards[0].path = vec![StructuralPathSegment::Field("left".into())];
+    assert!(
+        validate_module(&substituted).is_err(),
+        "same-typed residuals keep their exact root identity"
+    );
+}
