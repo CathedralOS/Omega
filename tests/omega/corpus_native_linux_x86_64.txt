@@ -92,7 +92,7 @@ pass/calls/cyclic_mutable_borrow_block_parameter_call built 2259ms exit:0 @bd26d
 pass/calls/cyclic_projected_borrow_call_exit built 1085ms exit:70 @2d8ed253669f+wt
 pass/calls/cyclic_scalar_query_reborrow_exit built 1231ms exit:70 @2d8ed253669f+wt
 pass/calls/field_path_byte_subslice_exit built 975ms exit:70 @2d8ed253669f+wt
-pass/calls/generic_reference_forwarding_exit rejected 517ms @f1db309707d+wt
+pass/calls/generic_reference_forwarding_exit rejected 517ms @655eb1d82b+wt
 	machine argument `Counter::increment` for `nominal_forward` does not refine `Increment`: parameter 0 expects `&mut Self`, got `&mut Counter`
 pass/calls/guard_call_scalar_argument_exit built 1664ms exit:70 @9baafc0ace88
 pass/calls/guarded_value_call_arm_exit built 1036ms exit:70 @2d8ed253669f+wt
@@ -906,11 +906,11 @@ pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1539ms @f7f6234
 pass/termination/stored_reference_endpoint_arrivals checked 679ms @2d8ed253669f+wt
 pass/termination/symbolic_quotient_endpoints checked 712ms @2d8ed253669f+wt
 pass/termination/unsigned_identity_measure_rank_range checked 628ms @2d8ed253669f+wt
-pass/text/local_bounded_text_case_result_loan_exit rejected 1174ms @f1db309707d+wt
+pass/text/local_bounded_text_case_result_loan_exit rejected 1174ms @655eb1d82b+wt
 	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(20)))
-pass/text/local_bounded_text_scalar_loan_exit incomplete 1885ms @f1db309707d+wt
+pass/text/local_bounded_text_scalar_loan_exit incomplete 1885ms @655eb1d82b+wt
 	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 27 unproved; the module is not shown invalid
-pass/text/nested_mutable_receiver_byte_result_exit checked 2601ms @f1db309707d+wt
+pass/text/nested_mutable_receiver_byte_result_exit checked 2712ms @655eb1d82b+wt
 pass/text/runtime_alias_string_write built 852ms @2d8ed253669f+wt
 pass/text/runtime_bounded_carrier_alias_concat_exit built 2931ms exit:70 @2d8ed253669f+wt
 pass/text/runtime_bounded_carrier_concat_exit built 2563ms exit:70 @2d8ed253669f+wt
@@ -951,28 +951,28 @@ pass/time/runtime_time_host_virtual_exit checked 1537ms @2d8ed253669f+wt
 pass/time/static_duration_accessors built 6269ms exit:70 @2d8ed253669f+wt
 pass/traits/boundary_trait_effects_host_call built 1464ms @2d8ed253669f+wt
 pass/traits/dyn_finite_family_dispatch checked 589ms @2d8ed253669f+wt
-pass/traits/equatable_mixed_shape_equality_exit checked 3961ms @f1db309707d+wt
-pass/traits/equatable_record_equality_exit checked 3459ms @f1db309707d+wt
+pass/traits/equatable_mixed_shape_equality_exit checked 3961ms @655eb1d82b+wt
+pass/traits/equatable_record_equality_exit checked 3459ms @655eb1d82b+wt
 pass/traits/equatable_string_field_equality_exit rejected 1699ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
-pass/traits/generic_reference_forwarding_exit checked 2922ms @f1db309707d+wt
+pass/traits/generic_reference_forwarding_exit checked 2922ms @655eb1d82b+wt
 pass/traits/generic_trait_parent_binds_requirement checked 703ms @2d8ed253669f+wt
-pass/traits/nominal_generic_reference_forwarding_exit rejected 439ms @f1db309707d+wt
+pass/traits/nominal_generic_reference_forwarding_exit rejected 439ms @655eb1d82b+wt
 	machine argument `Counter::increment` for `forward` does not refine `Increment`: parameter 0 expects `&mut Self`, got `&mut Counter`
-pass/traits/nominal_machine_binder_static_dispatch rejected 524ms @f1db309707d+wt
+pass/traits/nominal_machine_binder_static_dispatch rejected 524ms @655eb1d82b+wt
 	machine argument `Counter::increment` for `step` does not refine `Increment`: parameter 0 expects `&mut Self`, got `&mut Counter`
 pass/traits/ring_requirement_satisfies_exit built 2576ms exit:70 @2d8ed253669f+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1574ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
-pass/traits/runtime_inherited_trait_default_exit rejected 814ms @f1db309707d+wt
+pass/traits/runtime_inherited_trait_default_exit rejected 818ms @655eb1d82b+wt
 	authored Call declaration selection occurrence remained unresolved after successful checking (CheckedCall): sibling requirement call `set(&mut subject, ...)` inside a trait default body
 pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1714ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1445ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
-pass/traits/runtime_qualified_byte_crash_equality_exit checked 1604ms @f1db309707d+wt
-pass/traits/static_subject_satisfies_receiver_requirement_exit checked 1588ms @f1db309707d+wt
-pass/traits/trait_generic_bound_static_dispatch checked 1595ms @f1db309707d+wt
+pass/traits/runtime_qualified_byte_crash_equality_exit checked 1604ms @655eb1d82b+wt
+pass/traits/static_subject_satisfies_receiver_requirement_exit checked 1588ms @655eb1d82b+wt
+pass/traits/trait_generic_bound_static_dispatch checked 1595ms @655eb1d82b+wt
 pass/traits/transparent_refinement_declaration built 895ms @2d8ed253669f+wt
 pass/types/runtime_addr_algebra_exit built 1056ms exit:70 @9baafc0ace88
 pass/types/runtime_addr_field_exit built 936ms exit:88 @9baafc0ace88
@@ -988,7 +988,7 @@ pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 6602ms exit
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 73459ms exit:70 @9baafc0ace88
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 957ms @34627c25182b
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(196), place: PlaceId(3) }))
-pass/wire/runtime_wire_encode_byte_slice_exit rejected 827ms @f1db309707d+wt
+pass/wire/runtime_wire_encode_byte_slice_exit rejected 827ms @655eb1d82b+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(86), place: PlaceId(3) }))
 pass/wire/runtime_wire_exact_array_without_count_exit built 10428ms exit:70 @9baafc0ace88
 pass/wire/runtime_wire_policy_authored_plan_exit built 38977ms exit:70 @866d948d5b4a

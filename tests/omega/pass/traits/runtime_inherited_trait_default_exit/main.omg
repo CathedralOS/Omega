@@ -7,10 +7,10 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 trait Resettable {
-    machine set(&mut self, value: i32);
+    machine set(subject: &mut Self, value: i32);
 
-    machine reset(&mut self) {
-        self.set(30);
+    machine reset(subject: &mut Self) {
+        set(&mut subject, 30);
     }
 }
 
@@ -22,18 +22,18 @@ trait ParentCounter: Resettable {
 }
 
 trait LeftReset {
-    machine set(&mut self, value: i32);
+    machine set(subject: &mut Self, value: i32);
 
-    machine reset(&mut self) {
-        self.set(1);
+    machine reset(subject: &mut Self) {
+        set(&mut subject, 1);
     }
 }
 
 trait RightReset {
-    machine set(&mut self, value: i32);
+    machine set(subject: &mut Self, value: i32);
 
-    machine reset(&mut self) {
-        self.set(2);
+    machine reset(subject: &mut Self) {
+        set(&mut subject, 2);
     }
 }
 
@@ -84,8 +84,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.required_value.reset();
-    main.parent_value.reset();
+    RequiredValue::reset(&mut main.required_value);
+    ParentValue::reset(&mut main.parent_value);
     ResolvedValue::reset(&mut main.resolved_value);
     transition main.required_value.value == 30
         && main.parent_value.value == 30
