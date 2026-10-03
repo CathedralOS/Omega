@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: uefi_os_handoff_invocation callee respell — Loader::drive named Loader::run (own 3-arg machine) creating a spurious call cycle + arity rejection; corrected to UefiOsHandoffCycle::run(&mut loader.cycle), the target's authored cyclic machine on the projected receiver. Fixture advances to the projected-operand omission frontier; outcomes restamp queued at the 19:57Z fence drop
+ticket: a91fa2ded6ff07f3482a44d8710ceac0
+published_utc: 2026-10-03T13:24:55.935758+00:00
