@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 4.12, "load1_start": 4.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 8.65, "load1_start": 1.98, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1427,6 +1427,7 @@ pass/calls/runtime_value_call_single_execution_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 1473ms @2d8ed253669f
 pass/calls/runtime_value_call_terminal_exit checked 37709ms @ca8c127c90c5
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 1888ms @ff6d0c077d78+wt
+pass/calls/scalar_local_record_view_call_exit checked 973ms @d16744b4f8fb
 pass/calls/scalar_range_argument_exit checked 706ms @4cab6512b4bb
 pass/calls/scalar_return_after_unit_call_exit checked 1343ms @63377f7122bb+wt
 pass/calls/scalar_unit_call_state_forward_exit checked 457ms @66b7a242b367+wt
