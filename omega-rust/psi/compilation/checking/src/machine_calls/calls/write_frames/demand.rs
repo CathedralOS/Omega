@@ -1443,16 +1443,27 @@ mod tests {
             let state = &program.machine_states(&program.machines()[0])[0];
             let parameter = &program.state_parameters(state)[0];
             for include_shared in [false, true] {
+                let origins = super::super::stored_origins::declared_origins_for_query(
+                    &program,
+                    parameter.symbol,
+                    "value",
+                    parameter.type_reference,
+                    include_shared,
+                )
+                .expect("opaque storage retains unknown regions");
                 assert!(
-                    super::super::stored_origins::declared_origins_for_query(
-                        &program,
-                        parameter.symbol,
+                    !origins.references.is_empty()
+                        && origins.references.iter().all(|leaf| leaf.origin.is_none()),
+                    "{value_type}: opaque storage is not an empty checked declaration",
+                );
+                assert!(
+                    super::super::stored_origins::expand_write_path(
                         "value",
-                        parameter.type_reference,
-                        include_shared,
+                        &[],
+                        std::slice::from_ref(&origins),
                     )
                     .is_none(),
-                    "{value_type}: opaque storage is not an empty checked declaration"
+                    "{value_type}: a whole opaque effect must remain unproven",
                 );
             }
         }

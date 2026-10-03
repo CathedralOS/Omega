@@ -1,5 +1,8 @@
 //! Type-derived symbolic origins for owned aggregate values. Cases are possible,
 //! not selected by a constructor; arrays retain one unknown-element selector.
+//! Opaque members retain an unknown region, not an empty reference inventory.
+//! A disjoint member write can then keep its footprint without granting any
+//! knowledge of the opaque member's contents or their caller-visible effects.
 
 use super::super::isolation::concrete_nominal_type;
 use super::{FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
@@ -176,21 +179,7 @@ fn walk_declared_origins(
                     continue;
                 }
                 let segments = walk.segments(step);
-                let mut path = name.to_owned();
-                let mut precision = FramePathPrecision::Exact;
-                for segment in &segments {
-                    match segment {
-                        PlaceSegment::Field { symbol } => {
-                            path.push('.');
-                            path.push_str(program.symbols.name(*symbol));
-                        }
-                        PlaceSegment::Case { .. } => {}
-                        _ => {
-                            precision = FramePathPrecision::CollectionCoarse;
-                            break;
-                        }
-                    }
-                }
+                let (path, precision) = storage_path(program, name, &segments);
                 origins.references.push(StoredWriteOrigin {
                     local_symbol: symbol,
                     local_path: path.clone(),
@@ -228,13 +217,33 @@ fn walk_declared_origins(
                 };
                 pending.push(walk.push(Some(step), *element_type, Some(selector))?);
             }
-            node if concrete_nominal_type(node).is_some() => {
-                let (symbol, _) = concrete_nominal_type(node)?;
-                let definition = data_definition_by_symbol(program, symbol)?;
-                if program.symbols.get(symbol).kind != SymbolKind::Data
-                    || definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-                    || !definition.type_parameters.is_empty()
-                {
+            node @ (TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::Generic {
+                base_symbol: symbol,
+                ..
+            }) => {
+                let definition = data_definition_by_symbol(program, *symbol)?;
+                if program.symbols.get(*symbol).kind != SymbolKind::Data {
+                    return None;
+                }
+                if definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
+                    // The boundary declaration exposes no internal field roster.
+                    // Keep its entire region unknown, so overlapping writes and
+                    // exact-origin queries still fail closed. Rejecting the whole
+                    // inventory instead loses independently declared siblings.
+                    if detail == OriginDetail::Paths {
+                        let segments = walk.segments(step);
+                        let (path, _) = storage_path(program, name, &segments);
+                        origins.references.push(StoredWriteOrigin {
+                            local_symbol: origins.local_symbol,
+                            local_path: path,
+                            local_segments: segments,
+                            origin: None,
+                        });
+                    }
+                    continue;
+                }
+                if concrete_nominal_type(node).is_none() || !definition.type_parameters.is_empty() {
                     return None;
                 }
                 for member in program.data_members(definition) {
@@ -295,6 +304,25 @@ fn walk_declared_origins(
         );
     }
     Some(origins)
+}
+
+fn storage_path(
+    program: &TypedTrees,
+    name: &str,
+    segments: &[PlaceSegment],
+) -> (String, FramePathPrecision) {
+    let mut path = name.to_owned();
+    for segment in segments {
+        match segment {
+            PlaceSegment::Field { symbol } => {
+                path.push('.');
+                path.push_str(program.symbols.name(*symbol));
+            }
+            PlaceSegment::Case { .. } => {}
+            _ => return (path, FramePathPrecision::CollectionCoarse),
+        }
+    }
+    (path, FramePathPrecision::Exact)
 }
 
 /// A disjoint owned field has no reference leaves, but an unknown field is
@@ -377,4 +405,46 @@ fn push_field(
         Some(PlaceSegment::Field { symbol }),
     )?);
     Some(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn opaque_regions_reject_overlapping_effects_and_preserve_disjoint_fields() {
+        let program = crate::front_end::typed_program(
+            "boundary data Authority<Requirement>;
+             data Requirement {}
+             data Context { authority: Authority<Requirement>; count: u32; }
+             machine use_context(context: &mut Context) {}",
+        );
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "use_context")
+            .expect("context machine");
+        let parameter = &program.state_parameters(&program.machine_states(machine)[0])[0];
+        let storage = super::super::super::reference_subjects::carrier_storage_type(
+            &program,
+            parameter.type_reference,
+        )
+        .expect("borrowed context storage");
+        let origins =
+            super::declared_origins_for_query(&program, parameter.symbol, "context", storage, true)
+                .expect("the declaration retains its opaque region");
+        let rows = std::slice::from_ref(&origins);
+        assert_eq!(
+            super::super::expand_write_path("context.count", &[], rows),
+            Some(vec!["context.count".to_owned()]),
+        );
+        for overlapping in ["context", "context.authority", "context.authority.contents"] {
+            assert!(
+                super::super::expand_write_path(overlapping, &[], rows).is_none(),
+                "unknown contents cannot become a complete effect: {overlapping}",
+            );
+        }
+        assert_eq!(origins.references.len(), 1);
+        assert!(origins.references[0].origin.is_none());
+        assert!(origins.cases.is_empty());
+        assert!(origins.moves.is_empty());
+    }
 }
