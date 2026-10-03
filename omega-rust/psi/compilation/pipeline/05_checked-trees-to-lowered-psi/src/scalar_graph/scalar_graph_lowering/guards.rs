@@ -202,11 +202,7 @@ fn validate_fallback(
     use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
     let program = &checked.typed;
-    let state = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|candidate| candidate.symbol == state)
+    let state = program.state_by_symbol(state)
         .ok_or(LoweringError::Unsupported(
             "scalar guard has no authored state",
         ))?;

@@ -192,11 +192,7 @@ pub(super) fn event_statement_index(
         | PermissionEventSource::Call {
             statement_index, ..
         } => statement_index,
-        PermissionEventSource::StateExit => program
-            .machines()
-            .iter()
-            .flat_map(|machine| program.machine_states(machine))
-            .find(|state| state.symbol == state_symbol)
+        PermissionEventSource::StateExit => program.state_by_symbol(state_symbol)
             .map_or(0, |state| {
                 program
                     .statement_table

@@ -699,11 +699,7 @@ pub(super) fn retain_internal_transfer(
     let Some(target_rank) = component.states.iter().find(|rank| rank.state == target) else {
         return false;
     };
-    let Some(target_state) = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|state| state.symbol == target)
+    let Some(target_state) = program.state_by_symbol(target)
     else {
         return false;
     };

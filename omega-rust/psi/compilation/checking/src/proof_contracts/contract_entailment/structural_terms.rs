@@ -325,11 +325,7 @@ pub(super) fn structural_term_in_scope(
                     .filter_map(|argument| structural_term_in_scope(program, scope, *argument))
                     .collect::<Vec<_>>();
                 if arguments.len() == handles.len() {
-                    let result_type = program
-                        .machines()
-                        .iter()
-                        .flat_map(|machine| program.machine_states(machine))
-                        .find(|state| state.symbol == call.target_symbol)
+                    let result_type = program.state_by_symbol(call.target_symbol)
                         .map(|state| state.return_type)?;
                     let field =
                         call_projection_field_symbol(program, result_type, member.member.as_str())?;

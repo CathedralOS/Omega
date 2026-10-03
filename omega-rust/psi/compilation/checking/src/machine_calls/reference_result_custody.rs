@@ -604,13 +604,11 @@ fn construction_sources_with_calls(
         );
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
-        let machine = program.machines().iter().find(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == call.target_symbol)
-        })?;
+        let machine = program
+            .machine_holding_state(call.target_symbol)
+            .filter(|machine| {
+                machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            })?;
         let [destination] = program.machine_states(machine) else {
             return None;
         };
@@ -1369,11 +1367,7 @@ pub fn nested_call_record_argument(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(destination) = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|candidate| candidate.symbol == call.target_symbol)
+    let Some(destination) = program.state_by_symbol(call.target_symbol)
     else {
         return false;
     };
@@ -1428,11 +1422,7 @@ pub fn nested_call_result_loans(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(destination) = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|candidate| candidate.symbol == call.target_symbol)
+    let Some(destination) = program.state_by_symbol(call.target_symbol)
     else {
         return false;
     };
@@ -1841,12 +1831,7 @@ fn mutable_view_source_parameter(
     if mutable_borrowed_parts(program, state.return_type).is_none() {
         return None;
     }
-    let Some(machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state.symbol)
-    }) else {
+    let Some(machine) = program.machine_holding_state(state.symbol) else {
         return None;
     };
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -1972,12 +1957,7 @@ fn shared_view_source_parameter(
         return None;
     }
     let expression = tail_return_expression(program, state)?;
-    let Some(machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state.symbol)
-    }) else {
+    let Some(machine) = program.machine_holding_state(state.symbol) else {
         return None;
     };
     let authored = program.state_parameters(state);
@@ -2166,11 +2146,7 @@ pub fn result_loan(
     {
         return None;
     }
-    let callee = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|candidate| candidate.symbol == call.target_symbol)?;
+    let callee = program.state_by_symbol(call.target_symbol)?;
     // The returned carrier either forwards a whole `&mut` ingress argument or
     // selects one declared leaf out of an owned record argument. Both lanes
     // must end in the same single result loan below.
@@ -2326,11 +2302,7 @@ pub fn result_loan(
                 // The carrier is the nested call's anonymous result: its
                 // returned-leaf roster names which caller-side captured loan
                 // the projected leaf replays through the nested actual.
-                let nested_destination = program
-                    .machines()
-                    .iter()
-                    .flat_map(|machine| program.machine_states(machine))
-                    .find(|candidate| candidate.symbol == nested.target_symbol)?;
+                let nested_destination = program.state_by_symbol(nested.target_symbol)?;
                 if !is_reference_record(program, nested_destination.return_type) {
                     return None;
                 }
@@ -2521,12 +2493,7 @@ pub fn mutable_result_loan(
     {
         return None;
     }
-    let Some(callee_machine) = program.machines().iter().find(|candidate| {
-        program
-            .machine_states(candidate)
-            .iter()
-            .any(|candidate_state| candidate_state.symbol == call.target_symbol)
-    }) else {
+    let Some(callee_machine) = program.machine_holding_state(call.target_symbol) else {
         return None;
     };
     let Some(callee) = program
@@ -3029,10 +2996,7 @@ fn mutable_symbol_type_symbol(
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
     if symbol == machine {
-        let owner = program
-            .machines()
-            .iter()
-            .find(|owner| owner.symbol == machine)?;
+        let owner = program.machine_by_symbol(machine)?;
         return program
             .attached_data_definition(owner)
             .map(|definition| definition.symbol);
@@ -3125,10 +3089,7 @@ fn mutable_member_from_type_symbol(
     {
         return Some(symbol);
     }
-    if let Some(owner) = program
-        .machines()
-        .iter()
-        .find(|owner| owner.symbol == type_symbol)
+    if let Some(owner) = program.machine_by_symbol(type_symbol)
     {
         if let Some(definition) = program.attached_data_definition(owner)
             && let Some(symbol) = resolved(definition)
@@ -3333,10 +3294,7 @@ fn mutable_return_path(
                 // `correspondence_data_type` spells — rather than the
                 // attached data definition's symbol.
                 let owner = if *owner == machine && name.as_str() == "Self" {
-                    program
-                        .machines()
-                        .iter()
-                        .find(|candidate| candidate.symbol == machine)?
+                    program.machine_by_symbol(machine)?
                         .attached_data_symbol
                 } else {
                     *owner
@@ -3537,10 +3495,7 @@ pub fn release_boundary(
         return Some(boundary);
     }
     let state = program
-        .machines()
-        .iter()
-        .flat_map(|candidate| program.machine_states(candidate))
-        .find(|candidate| candidate.symbol == state)?;
+        .state_by_symbol(state)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     (facts
         .borrow
