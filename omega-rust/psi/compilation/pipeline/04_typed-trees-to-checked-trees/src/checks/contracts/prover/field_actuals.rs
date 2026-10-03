@@ -70,48 +70,56 @@ pub(super) fn proves(
     };
     actual.segments.append(&mut required.segments);
     Some(semantic.context_view(context).facts().any(|fact| {
-        let candidate = match fact.payload {
-            FactPayload::BooleanExpression(expression) => expression,
-            FactPayload::ContractBooleanExpression { expression, .. } => expression,
-            FactPayload::BooleanValue {
-                expression,
-                value: true,
-            } => expression,
+        let (candidate, value) = match fact.payload {
+            FactPayload::BooleanExpression(expression)
+            | FactPayload::ContractBooleanExpression { expression, .. } => (expression, true),
+            FactPayload::BooleanValue { expression, value } => (expression, value),
             _ => return false,
-        };
-        if !matches!(
-            program.expression_table.expression(candidate),
-            ExpressionNode::Member(_)
-        ) {
-            return false;
-        }
-        let Some(candidate) = checked_place(program, candidate) else {
-            return false;
         };
         let FactPlace::Place(place) = fact.place else {
             return false;
         };
-        // Call postconditions retain their original formal predicate while the
-        // semantic substitution owner publishes its full actual FactPlace.
-        // Only direct positive members can use that substituted subject; their
-        // exact field suffix must remain part of the retained actual place.
-        let substituted = fact.origin == FactOrigin::CallEnsures
-            && matches!(fact.point, ProgramPoint::CallEnsures { .. });
-        if if substituted {
-            !actual.segments.ends_with(&candidate.segments)
-        } else {
-            candidate != actual
-        } {
-            return false;
-        }
-        // Only facts surviving the scheduled call-entry context may prove this
-        // use, and the complete invalidation subject must match, not a suffix.
-        crate::flow::canonical_place_from_semantic_place(
+        // The complete invalidation subject must still match the actual, even
+        // when the observation wraps its Boolean leaf in negation or equality.
+        if !crate::flow::canonical_place_from_semantic_place(
             program,
             semantic,
             semantic.places.get(place),
         )
         .is_some_and(|place| place == actual)
+        {
+            return false;
+        }
+        let substituted = fact.origin == FactOrigin::CallEnsures
+            && matches!(fact.point, ProgramPoint::CallEnsures { .. });
+        // Call postconditions retain their formal predicate alongside its
+        // substituted FactPlace. Other observations retain the caller's leaf.
+        // Boolean decomposition changes polarity, never either place identity.
+        super::super::direct::guard_value_proves_with(
+            program,
+            candidate,
+            value,
+            expression,
+            true,
+            &|candidate, required| {
+                if required != expression
+                    || !matches!(
+                        program.expression_table.expression(candidate),
+                        ExpressionNode::Member(_)
+                    )
+                {
+                    return false;
+                }
+                let Some(candidate) = checked_place(program, candidate) else {
+                    return false;
+                };
+                if substituted {
+                    actual.segments.ends_with(&candidate.segments)
+                } else {
+                    candidate == actual
+                }
+            },
+        )
     }))
 }
 

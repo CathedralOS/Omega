@@ -26,7 +26,7 @@ pub(super) fn proves(
     )
 }
 
-pub(super) fn proves_with(
+pub(in crate::checks::contracts) fn proves_with(
     program: &TypedTrees,
     guard: ExpressionHandle,
     guard_value: bool,
@@ -44,6 +44,7 @@ pub(super) fn proves_with(
     }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(guard)
         && unary.operator == UnaryOperator::LogicalNot
+        && crate::authored_selections::typed_operator_has_no_authored_selection(program, guard)
     {
         return proves_with(
             program,
@@ -56,6 +57,7 @@ pub(super) fn proves_with(
     }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(required)
         && unary.operator == UnaryOperator::LogicalNot
+        && crate::authored_selections::typed_operator_has_no_authored_selection(program, required)
     {
         return proves_with(
             program,
@@ -136,6 +138,8 @@ fn boolean_comparison(
     if !matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) || !crate::authored_selections::typed_operator_has_no_authored_selection(
+        program, expression,
     ) {
         return None;
     }
