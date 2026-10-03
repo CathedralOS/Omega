@@ -22,8 +22,9 @@ pub(crate) enum StructuralArgumentSourcePolicy {
     /// claim occurrence; the frontier separately requires that occurrence live.
     ParametersOrLinearCallResults,
     /// Boundary calls accept borrowed byte literals, call-scoped loans of
-    /// completed owned storage, and whole affine call results. Construction
-    /// locals are not thereby admitted as owned boundary transfers.
+    /// completed owned storage, and whole owned plain values or affine call
+    /// results. Producer and frontier replay retain establishment and single-move
+    /// custody independently of whether the value was constructed or returned.
     ParametersOrBoundaryActuals,
     /// Unit and scalar-result calls retain construction locals and whole
     /// ordinary and boundary affine results, whole owned primitive arrays,

@@ -152,19 +152,16 @@ pub(in crate::validation) fn validate_structural_argument(
                     StructuralPlaceKind::OperationResult { .. }
                         if !matches!(source_policy, StructuralArgumentSourcePolicy::OnlyParameters
                             | StructuralArgumentSourcePolicy::ParametersOrLinearCallResults)
-                            && (source_policy != StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                                || argument.access != StructuralAccess::Owned)
                             && (argument.path.is_empty() || argument.access != StructuralAccess::Owned)
                             && (crate::validation::record::completed_source(module, caller, argument.place).is_some()
                                 || (argument.access != StructuralAccess::Owned
                                     && crate::validation::record::loan_source(module, caller, argument.place).is_some())) =>
                     {
-                        // Call-scoped loans retain the same completed backing
-                        // at ordinary and boundary calls. The producer checks
+                        // Whole transfers and call-scoped loans retain the same
+                        // completed backing at ordinary and boundary calls. The producer checks
                         // establishment; record/frontier replay checks its
                         // availability here, and the common argument checks
                         // below preserve projection, access and qualification.
-                        // This does not admit owned boundary transfers.
                         let result = if argument.access == StructuralAccess::Owned {
                             crate::validation::record::completed_source(module, caller, argument.place)?
                         } else {

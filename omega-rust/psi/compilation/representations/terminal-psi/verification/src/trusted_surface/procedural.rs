@@ -684,10 +684,11 @@ rows! {
     // The record's field declarations retain byte predicates; root/projected
     // qualifications, result establishments and claims cannot be invented by
     // the call. Both structural call encodings replay the exact callee result.
-    // Completed local storage may also lend whole or projected call-scoped
-    // loans to a boundary. The same source, access, qualification, dominance
-    // and overlapping-argument checks apply; this grants neither owned
-    // boundary transfer nor retention after return.
+    // Completed plain local storage may transfer whole to a boundary, or lend
+    // whole or projected call-scoped loans. The same source, access,
+    // qualification, dominance and overlapping-argument checks apply; affine
+    // owned operands leave the frontier exactly once. A loan grants no
+    // retention after return, and a transfer grants no reference escape.
     // Shared bounded-owner presentation is independent of call kind, result
     // kind and entry/block placement. The exact available root retains its
     // access and qualifications; the view observes its live length and bytes.
