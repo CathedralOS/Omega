@@ -1197,7 +1197,6 @@ pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 808ms @48008365d839
 pass/wire/wire_compatibility_migration_across_shapes built 448ms
 pass/wire/wire_data_reserved_field built 242ms
 pass/wire/wire_preserving_decode_relay_exit built 1578ms exit:70 @bf6726603463+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 3)
 pass/write_only/state_forwarded_scalar_store_exit built 1019ms exit:70 @2bde2a770491
 run/borrows/direct_runtime_index_write built 1114ms exit:9 @48008365d839
 run/borrows/indexed_loan_element_write built 1123ms exit:0 @48008365d839

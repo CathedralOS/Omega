@@ -374,7 +374,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/owned_shape.rs",
-        sha256: Some("0b998baf224c15600aac08034023df3dcdf4ff2737a3c9fd81a4c79ec3865c5e"),
+        sha256: Some("b61b272e1943c223c627672e5994f916b876552fbc5ba06add269e1510b1cd32"),
         inventory_machinery: false,
     },
     ImplementationSite {

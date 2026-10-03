@@ -56,7 +56,7 @@ fn owned_shape<'a>(
                 StructuralFieldType::Scalar(_)
                 | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::BoundedInteger(_)
-        | StructuralFieldType::RefinedScalar(_)
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::Structural(child) => {
                     visit(types.clone(), *child, active, complete, shared_byte_slots)
