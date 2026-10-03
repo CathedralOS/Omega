@@ -2025,10 +2025,13 @@ crash and native exit behavior. Use affected check/native corpus slices under
   fused scalar graphs require complete successor operand producers before
   taking precedence over the common invocation plan; the admitted mutual
   tail-call loop remains at **70** in both engines.
+  `calls/runtime_guarded_terminal_guard_order_exit` also exits **0** in both
+  engines: each effectful guard runs once before selection, and selected operands
+  observe its writes in authored order. Both checked planning and lowering join
+  the terminal invocation to its exact target occurrence after guard calls.
   Structural-result tail calls, closed-sum case arms, range-constrained result
-  compatibility, arm calls whose guard makes calls or whose structural operands
-  need separate establishment, and claim-transferring arm calls remain declined
-  there. Nested receiver terminal
+  compatibility, arm calls whose structural operands need separate establishment,
+  and claim-transferring arm calls remain declined there. Nested receiver terminal
   calls still need the exact receiver leaf identity retained in the typed
   transition and joined to an occurrence-specific selected dispatch row;
   the receiver root cannot substitute for that identity.
