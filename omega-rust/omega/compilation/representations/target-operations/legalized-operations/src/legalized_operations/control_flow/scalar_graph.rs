@@ -19,6 +19,9 @@ pub struct LegalizedScalarFunction {
     pub provenance: TerminalPsiProvenance,
     pub call_plan: CallPlan,
     pub parameters: Vec<LegalizedScalarParameter>,
+    /// Complete incoming descriptor signature, including unused parameters.
+    /// Entry capture must not infer ABI bindings from calls in the body.
+    pub dynamic_parameters: Vec<TargetDynamicDescriptorParameterAbi>,
     pub structural: Option<crate::LegalizedStructuralContract>,
     pub entry_block: BlockId,
     pub blocks: Vec<LegalizedScalarBlock>,

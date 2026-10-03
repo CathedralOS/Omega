@@ -5542,7 +5542,11 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `tests/dynamic_composed_unit/direct_dynamic_units.rs`
   publishes scalar-forwarding artifacts and interprets Unit helper locals/two-hop
   forwarding. Stage 03's `tests/legalization/dynamic_parameter_call.rs` checks
-  Linux x86-64 scalar/Unit ABI replay and substitutions; selection still rejects
+  scalar/Unit ABI replay and substitutions. Legalized functions retain the
+  complete descriptor entry signature, including unused parameters, in canonical
+  identity and independent replay on all four hosted targets. Shared entry replay
+  rejects invented descriptors on structural-result functions; seven descriptor
+  controls pass. Selection still rejects
   `LegalizedScalarInstructionKind::DynamicParameterCall`.
 
   Carry the ordinary indirect call through selected construction/replay,

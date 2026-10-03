@@ -40,6 +40,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         encode_value_definition_site_identity(bytes, parameter.definition_site);
         encode_placement(bytes, &parameter.placement);
     }
+    encode_len(bytes, function.dynamic_parameters.len());
+    for parameter in &function.dynamic_parameters {
+        super::dynamic_calls::encode_parameter_abi(bytes, parameter);
+    }
     bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
     encode_len(bytes, function.blocks.len());
     for block in &function.blocks {

@@ -143,6 +143,7 @@ fn fixture_with_integer(
         .unwrap(),
         parameters: Vec::new(),
         entry_block: block,
+        dynamic_parameters: Vec::new(),
         blocks: vec![LegalizedScalarBlock {
             structural_parameters: Vec::new(),
             id: block,

@@ -166,6 +166,7 @@ mod tests {
                     },
                     call_plan,
                     parameters: Vec::new(),
+                    dynamic_parameters: Vec::new(),
                     structural: None,
                     entry_block: block,
                     ownership_frontier_facts: Vec::new(),

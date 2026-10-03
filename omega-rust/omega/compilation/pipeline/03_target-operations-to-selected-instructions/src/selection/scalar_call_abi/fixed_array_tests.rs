@@ -50,6 +50,7 @@ fn fixed_array_call(
         },
         call_plan: incoming,
         parameters: Vec::new(),
+        dynamic_parameters: Vec::new(),
         entry_block: BlockId::new(1).unwrap(),
         // This test supplies only the signature consumed by the argument reader;
         // it makes no claim of graph or source admission.

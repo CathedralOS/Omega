@@ -50,8 +50,8 @@ pub(super) fn derive(
                 .ok_or(Error::custody())?;
             let mut instructions = Vec::with_capacity(body.len());
             for node in body {
-                // Signature-only descriptor declarations project no
-                // instruction row; the call reads their roster entry.
+                // Signature-only declarations survive on the function,
+                // including unused descriptors, without instruction rows.
                 if scalar_graph_input::indirect_calls::is_descriptor_declaration(node) {
                     continue;
                 }
@@ -81,6 +81,7 @@ pub(super) fn derive(
         provenance: target.provenance.clone(),
         call_plan,
         parameters,
+        dynamic_parameters: target.graph.dynamic_parameters.clone(),
         structural: scalar_graph_input::structural_contract(target, abstracted, optimized, plan),
         entry_block: optimized.entry,
         blocks,
