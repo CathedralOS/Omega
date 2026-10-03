@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 13.89, "load1_start": 13.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 2.13, "load1_start": 2.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1622,8 +1622,8 @@ pass/core/numeric_trapping_conversion_overflow checked 1701ms @2d8ed253669f
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms @2d8ed253669f
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f
-pass/core/task_lifecycle_operations rejected 408ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
+pass/core/task_lifecycle_operations rejected 212ms @622851d3299a+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (record locals)", omission: Some("`Main::main` calls `Main::settle`, which has no plan; `Main::settle` has no admitted body (local construction stopped at call operation: claim transfers, statement 0)") })
 pass/core/zii_default_composite_exit checked 1479ms @2d8ed253669f
 pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
 pass/data/case_membership_union_guard_exit checked 1336ms @2d8ed253669f

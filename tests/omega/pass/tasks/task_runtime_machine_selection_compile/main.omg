@@ -7,7 +7,6 @@ use omega::language::core::binding;
 data CanaryTaskRuntime { }
 
 machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
-    &self,
     arguments: Arguments
 ) -> Task<T>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
@@ -15,7 +14,6 @@ satisfies TaskRuntime::start
 via ForeignBinding::CompilerIntrinsic;
 
 machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
-    &self,
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
@@ -45,8 +43,8 @@ machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends; {
 // Runtime-instance dispatch is deliberately outside this selected-provider
 // plan canary. This consumer closes each linear bootstrap claim locally after
 // elaboration.
-machine Task::settle<T>(self) -> TaskOutcome<T> {
-    suspend block self.finish()
+machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
+    suspend block Task::finish(task)
 }
 
 data Main {
@@ -54,13 +52,13 @@ data Main {
     issuer: Binding<TokenIssuer>;
 }
 
-machine Main::probe(&mut self) reaches TokenIssuer + TaskRuntime {
-    let token: Token = self.issuer.issue(7);
-    let task: Task<Token> = self.runtime.start<Worker::run>(token);
+machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
+    let token: Token = main.issuer.issue(7);
+    let task: Task<Token> = main.runtime.start<Worker::run>(token);
 
-    let retry: Token = self.issuer.issue(9);
+    let retry: Token = main.issuer.issue(9);
     let outcome: StartOutcome<Token, Token> =
-        self.runtime.try_start<Worker::run>(retry);
+        main.runtime.try_start<Worker::run>(retry);
     let retry_task: Task<Token> = outcome.task;
 
     _ = suspend block Task::settle(task);

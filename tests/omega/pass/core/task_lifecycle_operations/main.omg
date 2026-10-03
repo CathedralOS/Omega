@@ -4,21 +4,21 @@ use omega::language::core::drop;
 // TR4 lifecycle conservation: the checked helper operations model the borrow
 // and consume shapes published by the bodyless runtime requirements. Exact
 // generic provider coverage remains a separate installation/runtime rung.
-machine TaskOutcome::settle<T>(self) {
-    drop(self);
+machine TaskOutcome::settle<T>(task_outcome: TaskOutcome<T>) {
+    drop(task_outcome);
 }
 
-machine Task::observe_claim<T>(&self) {}
+machine Task::observe_claim<T>(task: &Task<T>) {}
 
-machine Task::settle_claim<T>(self) -> TaskOutcome<T> {
-    suspend block self.finish()
+machine Task::settle_claim<T>(task: Task<T>) -> TaskOutcome<T> {
+    suspend block Task::finish(task)
 }
 
 data Main {}
 
 machine Main::settle(task: Task<i32>) {
-    task.observe_claim();
-    let outcome: TaskOutcome<i32> = suspend block task.settle_claim();
+    Task::observe_claim(&task);
+    let outcome: TaskOutcome<i32> = suspend block Task::settle_claim(task);
     TaskOutcome::settle(outcome);
 }
 
