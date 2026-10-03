@@ -75,7 +75,7 @@ pub(crate) mod guarded_exits;
 pub(crate) mod successors;
 
 pub(crate) use computation_calls::validate_computation_calls;
-pub(crate) use parameters::parameter_storage;
+pub(crate) use parameters::{borrowed_parameter_custody, parameter_storage};
 pub(crate) use storage_reads::validate_entry_read_expression;
 pub(crate) use storage_reads::validate_expression as validate_storage_read_expression;
 pub(crate) use storage_reads::validate_normal_result_read_expression;

@@ -51,6 +51,22 @@ fn owned_record_byte_field_replacement_retains_predicates_and_capacity() {
 }
 
 #[test]
+fn zero_establishment_cannot_supply_a_nonempty_attached_field() {
+    let (mut module, _) = owned_record_destination();
+    restrict_field(&mut module, ByteSequencePredicate::NonEmpty);
+    for attachment in [None, Some(id(1))] {
+        module.machines[0].attachment = attachment;
+        assert!(
+            matches!(
+                validate_module(&module),
+                Err(ModuleError::ZeroedStructuralResultMismatch(_))
+            ),
+            "zeroing must reject at the establishing operation, independent of attachment"
+        );
+    }
+}
+
+#[test]
 fn owned_record_byte_field_replacement_rejects_unestablished_or_forged_storage() {
     let (valid, _) = owned_record_destination();
     for corruption in 0..5 {
@@ -525,17 +541,12 @@ fn nonempty_field_store_owes_only_its_bound() {
 }
 
 #[test]
-fn zeroed_attachment_cannot_invent_nonempty_membership() {
-    let (mut module, _) = fixture(StructuralAccess::MutableBorrow);
+fn attached_borrow_keeps_its_established_nonempty_field() {
+    let (mut module, proof) = fixture(StructuralAccess::MutableBorrow);
     restrict_field(&mut module, ByteSequencePredicate::NonEmpty);
     module.machines[0].attachment = Some(id(1));
-    assert_eq!(
-        validate_module(&module).err(),
-        Some(
-            terminal_verifier::ModuleError::InvalidStructuralFieldIdentity {
-                structural_type: id(1),
-                field: id(1),
-            }
-        )
-    );
+    // This fixture receives established storage and replaces its field with
+    // nonempty bytes; attachment metadata does not zero that incoming value.
+    verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("an established attached borrow is not zero initialization");
 }

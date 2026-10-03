@@ -13,6 +13,83 @@ const DEFINITIONS: &str = r#"
     data Packet { payload: Text; tag: u64; }
 "#;
 
+#[test]
+fn receiver_and_named_inputs_share_nonzero_nested_field_obligations() {
+    for (signature, subject, next_signature, next_call) in [
+        ("Packet::touch(&mut self)", "self", "&mut self", "next()"),
+        (
+            "touch(packet: &mut Packet)",
+            "packet",
+            "packet: &mut Packet",
+            "next(packet)",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+            data Label {{ text: [u8; 8] in NonEmpty; }}
+            data Packet {{ label: Label; }}
+            machine observe(text: &[u8; 8] in NonEmpty) {{}}
+            machine {signature} {{
+                observe(&{subject}.label.text);
+                {subject}.label.text = "changed";
+                transition {{ _ -> {next_call} }}
+                state next({next_signature}) {{ observe(&{subject}.label.text); }}
+            }}
+        "#
+        );
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+            .unwrap_or_else(|diagnostics| panic!("{signature}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn receiver_and_named_inputs_reject_unrestored_mutation() {
+    for (signature, subject) in [
+        ("Packet::touch(&mut self)", "self"),
+        ("touch(packet: &mut Packet)", "packet"),
+    ] {
+        for continuation in ["", "transition { _ -> self }"] {
+            let source = format!(
+                r#"
+                domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+                data Label {{ text: [u8; 8] in NonEmpty; }}
+                data Packet {{ label: Label; }}
+                machine clear(text: &mut [u8; 8]) {{ text = ""; }}
+                machine {signature} {{ clear(&mut {subject}.label.text); {continuation} }}
+            "#
+            );
+            let diagnostics =
+                lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                    .expect_err("an unqualified mutable alias cannot restore the declared field");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("NonEmpty")),
+                "{signature}: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn receiver_and_named_input_requires_are_not_implicit_postconditions() {
+    for (signature, subject) in [
+        ("Packet::clear(&mut self)", "self"),
+        ("clear(packet: &mut Packet)", "packet"),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
+            data Packet {{ text: [u8; 8]; }}
+            machine {signature} requires {subject}.text in NonEmpty {{ {subject}.text = ""; }}
+            "#
+        );
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+            .expect("extra input requirements are not declared field invariants");
+    }
+}
+
 fn check_nominal_self_edge(source: &str, accepted: bool) {
     let typed = parse_typed_trees(source);
     check_typed_nominal_self_edge(typed, source, accepted);

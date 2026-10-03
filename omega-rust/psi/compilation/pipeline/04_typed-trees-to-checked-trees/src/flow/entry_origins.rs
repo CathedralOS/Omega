@@ -5,7 +5,7 @@ use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
-use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
+use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
@@ -498,8 +498,7 @@ pub(super) fn rebase_contexts(
                 // arbitrary predecessor writes. Only explicit state requires
                 // are assumed here; state_values transports independently
                 // captured live qualifications through actual arrivals.
-                let declared_field = matches!(fact.origin, FactOrigin::MachineFieldDomain { .. });
-                complete &= target.is_valid() && (!assumptions || declared_field);
+                complete &= target.is_valid() && !assumptions;
                 if !assumptions && let Some(contract) = contract {
                     build.control.exit_parameter_origins.append_to_span(
                         &mut parameter_origins,

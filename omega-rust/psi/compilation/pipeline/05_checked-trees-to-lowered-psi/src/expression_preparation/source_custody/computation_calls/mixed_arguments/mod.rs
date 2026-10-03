@@ -394,9 +394,8 @@ pub(crate) fn rejoin_computation_call_arguments(
                     Some(position),
                 )?;
                 position
-            } else if matches!(checked.type_reference_table.type_reference(parameter.type_reference),
-                checked_trees::types::TypeReferenceNode::Reference { referee, .. }
-                    if checked.primitive_type_reference(*referee).is_none())
+            } else if validation::reference_shell(&checked.typed, parameter.type_reference)
+                .is_some_and(|shell| checked.primitive_type_reference(shell.referee).is_none())
             {
                 let position = access_positions
                     .as_ref()

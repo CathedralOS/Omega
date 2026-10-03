@@ -7,6 +7,71 @@ use super::{
 mod owned;
 mod owned_types;
 
+/// Reconstruct a borrowed signature's exact qualification set on both sides of
+/// its reference shell. Peeling the carrier never drops its domain obligations:
+/// admission compares this set before the existing type/access checks, and
+/// signature lowering publishes those same domains on the invocation place.
+pub(crate) fn borrowed_parameter_custody(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Result<
+    (
+        checked_trees::types::TypeReferenceHandle,
+        language_core::ReferenceAccess,
+        Vec<language_semantics::SemanticDomainId>,
+    ),
+    LoweringError,
+> {
+    let mut visited = Vec::new();
+    let mut access = None;
+    let mut qualifications = Vec::new();
+    loop {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return unsupported("Unit graph borrowed parameter has an invalid type chain");
+        }
+        visited.push(reference);
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let retained = checked.type_reference_table.constraints(*constraints);
+                if retained.len() != constraints.len() {
+                    return unsupported("Unit graph borrowed parameter has stale qualifications");
+                }
+                for constraint in retained {
+                    let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                    else {
+                        return unsupported(
+                            "Unit graph borrowed parameter has a non-domain constraint",
+                        );
+                    };
+                    if !domain.semantic_id.is_valid() {
+                        return unsupported("Unit graph borrowed parameter has an absent domain");
+                    }
+                    qualifications.push(domain.semantic_id);
+                }
+                reference = *base_type;
+            }
+            checked_trees::types::TypeReferenceNode::Reference {
+                referee,
+                access: mode,
+                ..
+            } if access.is_none() => {
+                access = Some(*mode);
+                reference = *referee;
+            }
+            _ => break,
+        }
+    }
+    let access = access.ok_or(LoweringError::Unsupported(
+        "Unit graph structural parameter is not a borrowed view",
+    ))?;
+    qualifications.sort_by_key(|domain| domain.0);
+    qualifications.dedup();
+    Ok((reference, access, qualifications))
+}
+
 #[cfg(test)]
 mod tests;
 

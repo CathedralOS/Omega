@@ -1374,8 +1374,8 @@ pub(crate) fn is_readable_mutable_reference(
 }
 
 /// The default-domain field facts a state assumes on entry for its readable
-/// `&mut` referents: each such parameter's `StateParameterDomain` field facts
-/// and, for `&mut self`, the machine's `MachineFieldDomain` facts. These are
+/// `&mut` referents: each such parameter's `StateParameterDomain` field facts,
+/// including receivers. These are
 /// exactly the rows the self-transition arrival check re-proves
 /// (checks/contracts/arrivals.rs); no second obligation vocabulary exists.
 pub(crate) fn mutable_referent_field_requirements(
@@ -1390,16 +1390,11 @@ pub(crate) fn mutable_referent_field_requirements(
         return Vec::new();
     };
     let mut referents = Vec::new();
-    let mut self_is_mutable = false;
     for parameter in program.state_parameters(state) {
         if !is_readable_mutable_reference(program, parameter.type_reference) {
             continue;
         }
-        if parameter.is_self {
-            self_is_mutable = true;
-        } else {
-            referents.push(parameter.symbol);
-        }
+        referents.push(parameter.symbol);
     }
     let mut requirements = Vec::new();
     if !referents.is_empty() {
@@ -1421,23 +1416,6 @@ pub(crate) fn mutable_referent_field_requirements(
                         && matches!(fact.place, FactPlace::Place(place)
                             if matches!(semantic.places.get(place).root, PlaceRoot::Symbol(root)
                                 if referents.contains(&root)))
-                })
-                .cloned(),
-        );
-    }
-    if self_is_mutable {
-        requirements.extend(
-            semantic
-                .contexts_at_point(ProgramPoint::Machine { machine_symbol })
-                .flat_map(|context| context.facts())
-                .filter(|fact| {
-                    matches!(
-                        fact.origin,
-                        FactOrigin::MachineFieldDomain {
-                            machine_symbol: origin_machine,
-                        } if origin_machine == machine_symbol
-                    ) && matches!(fact.payload, FactPayload::DomainMembership { domain_symbol, .. }
-                        if value_provable_domain(program, domain_symbol))
                 })
                 .cloned(),
         );
@@ -1480,9 +1458,11 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
         exit.machine_symbol,
         exit.state_symbol,
     ) {
-        for parameter in program.state_parameters(state).iter().filter(|parameter| {
-            !parameter.is_self && is_readable_mutable_reference(program, parameter.type_reference)
-        }) {
+        for parameter in program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| is_readable_mutable_reference(program, parameter.type_reference))
+        {
             for (domain_symbol, semantic_domain) in
                 crate::facts::field_domain::domain_constraint_identities(
                     program,

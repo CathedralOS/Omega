@@ -63,15 +63,8 @@ pub enum FactOrigin {
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     },
-    /// A declared encoding-domain refinement on a machine-attached-data field
-    /// (`out: &[u8] in Utf8`), surfaced as an always-holding entry fact for the
-    /// machine (#66 read-narrowing). NOT a contract: it imposes no caller
-    /// obligation -- write-enforcement guarantees the invariant.
-    MachineFieldDomain {
-        machine_symbol: SymbolHandle,
-    },
-    /// A declared domain qualification on a state PARAMETER, surfaced as an
-    /// entry assumption for the machine (#66/P1a). Sound: the param's implicit
+    /// A declared domain qualification on a state parameter or its fields,
+    /// including receivers, surfaced as an entry assumption. The implicit
     /// `requires param in Domain` is a CALLER obligation, so predicate proof or
     /// bodyless establishment evidence already exists at entry.
     StateParameterDomain {

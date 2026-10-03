@@ -8,7 +8,7 @@ use contracts::append_contract_semantic_facts;
 pub(crate) use contracts::contract_fact_place;
 use field_domains::{
     append_local_case_payload_domain_facts, append_local_zii_field_domain_facts,
-    append_machine_field_domain_facts, append_state_parameter_domain_facts,
+    append_state_parameter_domain_facts,
 };
 use points::proof_obligation_point;
 
@@ -19,11 +19,8 @@ pub(crate) fn build_semantic_facts(
     let mut facts = validation::build_definition_fact_plan(program);
     append_proof_obligation_semantic_facts(proof, &mut facts);
     append_contract_semantic_facts(program, proof, &mut facts);
-    // #66 read-narrowing: surface declared field domains as machine entry facts
-    // (sound because every write is enforced in-domain by checks::contracts::writes).
-    append_machine_field_domain_facts(program, &mut facts);
-    // #66: surface declared state-parameter domains as machine entry assumptions
-    // (sound because the param's implicit `requires` is caller-enforced).
+    // Receivers and named inputs have the same caller-enforced declared domains.
+    // Actual zero-initialized storage is established separately below.
     append_state_parameter_domain_facts(program, &mut facts);
     // #66: surface a case-constructed local's payload domain (`let cmd =
     // Command::Say { text: "ok" }` -> `cmd.<payload> in Utf8`) so a destructured
@@ -32,7 +29,7 @@ pub(crate) fn build_semantic_facts(
     append_local_case_payload_domain_facts(program, &mut facts);
     // ZII locals (`let room: Room;`): the zeroed storage already satisfies
     // every declared field domain that admits the empty byte sequence -- the
-    // same gate machine storage uses -- so those fields are live evidence
+    // establishment gate -- so those fields are live evidence
     // from the binding onward.
     append_local_zii_field_domain_facts(program, &mut facts);
 

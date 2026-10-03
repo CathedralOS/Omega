@@ -140,12 +140,6 @@ pub(super) struct FlowBuildContext<'plans> {
         typed_trees::types::TypeReferenceHandle,
         Option<Rc<Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>>>,
     >,
-    /// Filtered `(field path, domain)` rows of a machine's seeded
-    /// `MachineFieldDomain` facts. The facts are seeded before flow and the
-    /// rows hold plain segments/symbols -- no sweep-local arena handles -- so
-    /// the answer is stable across passes.
-    pub(super) machine_field_rows:
-        HashMap<SymbolHandle, Rc<Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>>>,
     /// Lazily built on the first symbol lookup; positions only, so it holds
     /// no typed-tree borrow and survives `discard_output`.
     symbol_index: Option<SymbolIndex>,
@@ -274,7 +268,6 @@ impl<'plans> FlowBuildContext<'plans> {
             result_identity_domain_rows: HashMap::default(),
             call_parameter_identities: HashMap::default(),
             referent_type_paths: HashMap::default(),
-            machine_field_rows: HashMap::default(),
             symbol_index: None,
             scalar_bindings_by_site,
             scalar_expressions_by_site,

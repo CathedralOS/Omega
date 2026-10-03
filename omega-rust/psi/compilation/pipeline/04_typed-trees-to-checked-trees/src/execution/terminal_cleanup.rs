@@ -1011,7 +1011,10 @@ pub(super) fn state_exit_result_locals(
         };
         if local.symbol != symbol
             || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
-            || !(validation::has_plain_owned_contents_with_numeric_constraints(
+            // Disposal preserves the established value until its death. Its
+            // represented predicates do not add a cleanup operation; the exact
+            // permission ledger and nominal-drop checks still own that decision.
+            || !(validation::has_plain_owned_contents_with_represented_constraints(
                 program,
                 local.type_reference,
             ) || validation::has_owned_or_shared_view_fields(program, local.type_reference))
