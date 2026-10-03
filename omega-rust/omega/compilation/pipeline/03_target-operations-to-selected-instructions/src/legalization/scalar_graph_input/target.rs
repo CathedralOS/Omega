@@ -26,7 +26,7 @@ pub(super) fn validate_target(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Result<(), LegalizationError> {
+) -> Result<super::BlockEntryCustody, LegalizationError> {
     super::hosted_scalar::validate_tails(native, optimized, plan)?;
     let operations = optimized
         .blocks

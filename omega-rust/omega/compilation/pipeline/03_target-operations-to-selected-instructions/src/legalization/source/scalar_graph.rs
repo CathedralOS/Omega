@@ -18,8 +18,10 @@ pub(super) fn derive(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarFunction, LegalizationError> {
-    let call_plan =
-        scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
+    let scalar_graph_input::MatchedScalarGraph {
+        call_plan,
+        custody_entries,
+    } = scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
     let parameters = optimized
         .parameters
         .iter()
@@ -35,10 +37,8 @@ pub(super) fn derive(
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     // Reference custody is replayed block by block so `.., Referent` call
     // arguments rejoin through the exact state their position suspends. The
-    // input match above already proved the same schedule; this reconstruction
-    // supplies only the argument-resolution snapshot.
-    let custody_entries =
-        scalar_graph_input::reference_custody::block_entry_states(optimized, plan, unit)?;
+    // input match above supplies the argument-resolution snapshots from its
+    // own reconstruction; none of these immutable source inputs changed.
     let blocks = optimized
         .blocks
         .iter()

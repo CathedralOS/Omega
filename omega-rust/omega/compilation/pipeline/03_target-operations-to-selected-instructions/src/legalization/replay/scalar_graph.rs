@@ -19,8 +19,10 @@ pub(super) fn replay(
     proposed_plan: &LegalizedOperationPlan,
     proposed: &LegalizedScalarFunction,
 ) -> Result<(), LegalizationError> {
-    let call_plan =
-        scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
+    let scalar_graph_input::MatchedScalarGraph {
+        call_plan,
+        custody_entries,
+    } = scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
     if proposed.structural
         != scalar_graph_input::structural_contract(target, abstracted, optimized, plan)
     {
@@ -59,9 +61,8 @@ pub(super) fn replay(
         return Err(invalid);
     }
     // Replay reference custody block by block; each row's structural
-    // arguments rejoin against the custody state its position suspends.
-    let custody_entries =
-        scalar_graph_input::reference_custody::block_entry_states(optimized, plan, unit)?;
+    // arguments rejoin against the custody state its position suspends. These
+    // snapshots came from this replay's input match, never from the proposal.
     for (block, source) in proposed.blocks.iter().zip(&optimized.blocks) {
         let (last, body) = source.nodes.split_last().ok_or(invalid.clone())?;
         if block.id != source.id

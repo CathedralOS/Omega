@@ -226,6 +226,7 @@ fn check(
         plan,
         unit,
     )
+    .map(|_| ())
 }
 
 mod unobserved_owned;
