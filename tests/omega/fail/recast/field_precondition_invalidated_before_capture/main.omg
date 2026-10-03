@@ -1,0 +1,8 @@
+data Desc { kind: u32; pages: u64; }
+data Cursor { offset: u32; }
+machine capture(buffer: &[u8; 32], cursor: &mut Cursor) -> u32
+requires cursor.offset <= 16 {
+    cursor.offset = 32;
+    let descriptor: &Desc = &buffer[cursor.offset] as &Desc;
+    (descriptor.kind)
+}

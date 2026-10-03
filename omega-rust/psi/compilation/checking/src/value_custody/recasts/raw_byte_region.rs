@@ -1,4 +1,3 @@
-use super::offset_bounds::incoming_guard_offset_bound;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use typed_trees::TypedTrees;
@@ -117,6 +116,7 @@ pub(super) fn interior_byte_region_source(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     source: ExpressionHandle,
 ) -> InteriorByteRegion {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
@@ -150,13 +150,10 @@ pub(super) fn interior_byte_region_source(
     };
     let region_length = *length as i64;
 
-    // RUNG C1: a RUNTIME offset (`&self.buf[k] as &u32`) discharges through
-    // the index place's enforced interval -- its declared range (dependent
-    // maxima substitute through the field's own range) bounds the offset,
-    // so `high(k) + size(T) <= N` is the footprint check. The interval is
-    // store-enforced/caller-proved by the R1 machinery, so it is a true
-    // bound at every read. Gap #4 routes: the dominating incoming-arm
-    // guard, and the R4 boundary-ensures witness.
+    // Standing declaration bounds hold at every read. Arrival requirements,
+    // predecessor guards and call postconditions instead pass through the
+    // shared effect walk up to this exact selector occurrence, so a write
+    // before formation retires them while a later write cannot retarget it.
     let offset = match program.expression_table.expression(indexed.index) {
         ExpressionNode::Integer(literal) => literal.value_i64().filter(|offset| *offset >= 0),
         _ => {
@@ -183,11 +180,19 @@ pub(super) fn interior_byte_region_source(
                 state,
                 indexed.index,
             );
-            let upper = match (declared_high, composite_high) {
-                (Some(declared), Some(composite)) => Some(declared.min(composite)),
-                (declared, composite) => declared.or(composite),
-            };
-            upper.or_else(|| incoming_guard_offset_bound(program, machine, state, indexed.index))
+            let occurrence_high =
+                crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    indexed.index,
+                )
+                .and_then(|(low, high)| (low >= 0).then_some(high));
+            [declared_high, composite_high, occurrence_high]
+                .into_iter()
+                .flatten()
+                .min()
         }
     };
     match offset {

@@ -48,23 +48,56 @@ pub fn arrival_integer_expression_bounds(
     {
         return None;
     }
+    occurrence_integer_expression_bounds(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        expression,
+    )
+}
+
+/// Bound the value observed at one exact expression occurrence. Entry and
+/// predecessor facts survive only the effects before that occurrence; later
+/// operands or statements cannot retarget an already evaluated value.
+/// This is body checking, not a way to discharge an incoming requirement from
+/// the requirement itself. Transition-argument admission keeps its separate
+/// declaration-only premise discipline above.
+pub fn occurrence_integer_expression_bounds(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let statement = statements.get(statement_index)?;
     let frames = CallFrameResolver::new(program);
     let mut environment = incoming_guard_environment(program, machine, state, frames.as_ref());
-    seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
     let mut walk = ArrivalWalk {
         program,
         machine,
         frames: frames.as_ref(),
         arrivals: Vec::new(),
+        observation: None,
     };
     if !walk.statements(state, &statements[..statement_index], &mut environment) {
         return None;
     }
-    walk.expression(state, expression, &mut environment);
-    // Within the consuming expression, an aggregate effect frame also covers
-    // reads evaluated before a later mutating child.
-    walk.expression_effects(state, expression, &mut environment);
-    let interval = walk.interval(state, expression, &environment);
+    walk.observation = Some(ExpressionObservation {
+        expression,
+        interval: None,
+    });
+    walk.statements(state, std::slice::from_ref(statement), &mut environment);
+    let interval = walk.observation?.interval?;
     let (low, high) = (interval.low?, interval.high?);
     (low <= high).then_some((low, high))
 }
@@ -381,6 +414,7 @@ pub(super) fn incoming_environments(
                 machine,
                 frames,
                 arrivals: Vec::new(),
+                observation: None,
             };
             let mut environment = environment.clone();
             state_seeds.apply(program, machine, state, &mut environment);
@@ -417,12 +451,18 @@ pub(super) fn incoming_environments(
     current
 }
 
+struct ExpressionObservation {
+    expression: ExpressionHandle,
+    interval: Option<Interval>,
+}
+
 struct ArrivalWalk<'program, 'frames> {
     program: &'program TypedTrees,
     machine: &'program Machine,
     frames: Option<&'frames CallFrameResolver<'program>>,
     /// Each arrival this walk delivers, by target state position, in order.
     arrivals: Vec<(usize, ValueEnvironment)>,
+    observation: Option<ExpressionObservation>,
 }
 
 impl ArrivalWalk<'_, '_> {
@@ -787,6 +827,20 @@ impl ArrivalWalk<'_, '_> {
                         self.frames
                             .and_then(|frames| frames.may_write_paths(self.machine, call)),
                     );
+                    if let Some(signature) = crate::machine_calls::calls::boundary_trait_signature(
+                        self.program,
+                        self.machine,
+                        call,
+                    ) {
+                        super::seed_out_param_ensures(
+                            self.program,
+                            self.machine,
+                            Some(source),
+                            call,
+                            signature,
+                            environment,
+                        );
+                    }
                 }
                 StatementNode::Expression(expression) => {
                     self.expression(source, *expression, environment)
@@ -896,6 +950,21 @@ impl ArrivalWalk<'_, '_> {
             | ExpressionNode::Boolean(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => {}
+        }
+        if self
+            .observation
+            .as_ref()
+            .is_some_and(|observation| observation.expression == expression)
+        {
+            let mut observed = environment.clone();
+            self.expression_effects(source, expression, &mut observed);
+            let interval = self.interval(source, expression, &observed);
+            let observation = self.observation.as_mut().expect("matched observation");
+            observation.interval = Some(
+                observation
+                    .interval
+                    .map_or(interval, |prior| prior.union(interval)),
+            );
         }
     }
 }

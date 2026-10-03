@@ -60,7 +60,9 @@ pub(crate) use cast_ranges::record_float_literal_assignment;
 pub(crate) use cast_ranges::validate_range_cast_at_use;
 pub(crate) use cited_element_bounds::{element_place_path, seed_cited_element_bounds};
 pub(crate) use float_arithmetic::{float_interval_fits_integer, float_source_proves_int_cast};
-pub use guard_narrowing::arrival_integer_expression_bounds;
+pub use guard_narrowing::{
+    arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
+};
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
     requires_value_environment, seed_out_param_ensures, validate_guard_ranges,

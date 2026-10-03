@@ -8,6 +8,59 @@ mod equality_meaning;
 mod receiver_returns;
 
 #[test]
+fn out_parameter_postconditions_do_not_retarget_value_snapshots() {
+    for (subject, is_reference) in [("snapshot", false), ("output", true)] {
+        let program = crate::front_end::typed_program(&format!(
+            "boundary trait Inspect {{
+                 machine run(snapshot: u32, output: &mut u32)
+                 ensures {subject} <= 16;
+             }}
+             machine capture(offset: &mut u32) reaches Inspect {{
+                 Inspect::run(offset, offset);
+             }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "capture")
+            .expect("authored caller");
+        let state = &program.machine_states(machine)[0];
+        let StatementNode::Call(call) =
+            &program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("authored boundary call");
+        };
+        let definition = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Inspect")
+            .expect("authored boundary trait");
+        let signature = &program.trait_machine_signatures(definition)[0];
+        // Exercise the postcondition transport independently of borrow admission:
+        // the value formal names its captured argument, while the reference
+        // formal names the live place after the call's writes have retired facts.
+        let mut environment = ValueEnvironment::new();
+        super::seed_out_param_ensures(
+            &program,
+            machine,
+            Some(state),
+            call,
+            signature,
+            &mut environment,
+        );
+        if is_reference {
+            assert_eq!(
+                environment.get("offset").and_then(|interval| interval.high),
+                Some(16),
+                "reference postcondition narrows the live output"
+            );
+        } else {
+            assert_eq!(environment.get("offset"), None, "{subject}");
+        }
+    }
+}
+
+#[test]
 fn a_strict_place_ceiling_proves_the_increment_for_narrower_carriers() {
     // ch12's `Counter::bump` relation: `requires self.count < self.cap`
     // records `cap >= count + 1`, and `cap`'s own declared carrier bounds the
