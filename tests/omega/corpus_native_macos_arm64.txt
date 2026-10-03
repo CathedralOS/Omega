@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 15.38, "load1_start": 16.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 4.83, "load1_start": 5.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -324,6 +324,7 @@ pass/collections/runtime_initialized_array_state_loan_exit built 1098ms exit:70 
 pass/collections/runtime_maze_pathfind_exit built 1835ms exit:70
 pass/collections/runtime_nested_const_row_indexed_read_exit built 576ms exit:1
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 1177ms exit:70 @5f978f80e84b+wt
+pass/collections/runtime_shared_fixed_array_cycle_exit built 18248ms exit:42 stdout:match @57334c2f117f
 pass/collections/runtime_signed_element_offset_read_exit built 587ms exit:70
 pass/collections/runtime_slice_record_copy_exit built 1323ms exit:70 @83d1d7229173+wt
 pass/collections/runtime_vec_u32_growth_exit built 2538ms exit:70

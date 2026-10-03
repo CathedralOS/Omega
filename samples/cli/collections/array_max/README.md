@@ -11,8 +11,8 @@ After ordinary package review:
 cargo run -p omega -- run --both samples/cli/collections/array_max/main.omg
 ```
 
-On macOS ARM64 at base `e8505b71528`, a fresh checkout's public command
-reaches pending package decisions and exits 200. No decisions were accepted
+On macOS ARM64 at `57334c2f117`, the public command reaches pending package
+decisions and exits 200 after 108.82 seconds. No decisions were accepted
 by the compiler repair. Complete the generated review before claiming this
 ordinary sample invocation runs.
 
