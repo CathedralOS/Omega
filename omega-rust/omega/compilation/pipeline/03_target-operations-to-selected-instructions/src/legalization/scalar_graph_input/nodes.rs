@@ -209,6 +209,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::ByteSequenceEqual {
+            psi_operation,
+            result,
+            ..
         } if result.scalar_type == ScalarType::Boolean => Ok((*psi_operation, result.value)),
         AbstractOperation::ElementViewRead {
             psi_operation,
@@ -341,6 +346,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         | AbstractOperation::StructuralByteSequenceFieldRead { .. }
         | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::ByteSequencePredicate { .. }
+        | AbstractOperation::ByteSequenceEqual { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
             Err(NodeRejection::Malformed)
         }
@@ -914,6 +920,16 @@ pub(super) fn validate(
                 if value_type(optimized, operand.length()) != Some(ScalarType::Integer(u64_type()))
                 {
                     return Err(LegalizationError::custody());
+                }
+                ScalarType::Boolean
+            }
+            AbstractOperation::ByteSequenceEqual { left, right, .. } => {
+                for operand in [left, right] {
+                    if value_type(optimized, operand.length())
+                        != Some(ScalarType::Integer(u64_type()))
+                    {
+                        return Err(LegalizationError::custody());
+                    }
                 }
                 ScalarType::Boolean
             }

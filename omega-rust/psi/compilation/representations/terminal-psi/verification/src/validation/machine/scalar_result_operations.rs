@@ -81,6 +81,11 @@ pub(super) fn register_scalar_result_operation(
         OperationKind::ByteSequencePredicate { operand, .. } => {
             super::super::byte_sequence::predicate::validate(module, machine, operation, &operand)?;
         }
+        OperationKind::ByteSequenceEqual { left, right, .. } => {
+            super::super::byte_sequence::equal::validate(
+                module, machine, operation, &left, &right,
+            )?;
+        }
         OperationKind::ElementViewLength { source } => {
             super::super::element_view::length::validate(module, machine, operation, source)?;
         }

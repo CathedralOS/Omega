@@ -23,6 +23,7 @@ const TS_PBS_GOAL: &str = "omega-rust/psi/compilation/representations/terminal-p
 const TS_SE: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect.rs";
 const TS_SE_BYTE_PREDICATE: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/byte_predicate.rs";
+const TS_SE_BYTE_EQUAL: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/byte_equal.rs";
 const TS_SE_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/byte_extent.rs";
 const TS_CALLS: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/call_composition.rs";
@@ -80,6 +81,7 @@ const VAL_BYTES_READ: &str = "omega-rust/psi/compilation/representations/termina
 const VAL_BYTES_WRITE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/write.rs";
 const VAL_BYTES_SUBSLICE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/subslice.rs";
 const VAL_BYTES_PREDICATE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/predicate.rs";
+const VAL_BYTES_EQUAL: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/equal.rs";
 const VAL_FLOAT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/float_meaning.rs";
 const VAL_PARTIAL_AFFINE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/partial_affine.rs";
 const VAL_CONTRACTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/contracts.rs";
@@ -668,6 +670,24 @@ static OP_BYTE_SEQUENCE_PREDICATE: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_BYTES_PREDICATE,
+    ],
+);
+static OP_BYTE_SEQUENCE_EQUAL: TrustedSurfaceEntry = entry(
+    "operation:byte-sequence-equal",
+    "a validated content-equality evaluation over two operands' exact live extents",
+    "each operand's own dominating current length observation is its read bound; the Boolean result equals live-length equality and byte equality at every live position of the two exact descriptors, without identifying aliased windows; a result-true premise concludes the proposition's field-resolved equality; the observation owes no index certificate",
+    &[
+        "fact:structural-effect-observation",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        TS_SE_BYTE_EQUAL,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_BYTES_EQUAL,
     ],
 );
 static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
@@ -1384,6 +1404,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_BYTE_SEQUENCE_READ,
     OP_BYTE_SEQUENCE_SUBSLICE,
     OP_BYTE_SEQUENCE_PREDICATE,
+    OP_BYTE_SEQUENCE_EQUAL,
     OP_ESTABLISH_ELEMENT_VIEW,
     OP_ESTABLISH_MUTABLE_ELEMENT_VIEW,
     OP_ELEMENT_VIEW_LENGTH,
@@ -1490,6 +1511,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::ByteSequenceRead => &OP_BYTE_SEQUENCE_READ,
         OperationSemanticTag::ByteSequenceSubslice => &OP_BYTE_SEQUENCE_SUBSLICE,
         OperationSemanticTag::ByteSequencePredicate => &OP_BYTE_SEQUENCE_PREDICATE,
+        OperationSemanticTag::ByteSequenceEqual => &OP_BYTE_SEQUENCE_EQUAL,
         OperationSemanticTag::EstablishElementView => &OP_ESTABLISH_ELEMENT_VIEW,
         OperationSemanticTag::EstablishMutableElementView => &OP_ESTABLISH_MUTABLE_ELEMENT_VIEW,
         OperationSemanticTag::ElementViewLength => &OP_ELEMENT_VIEW_LENGTH,

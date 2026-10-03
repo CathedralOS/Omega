@@ -458,6 +458,7 @@ fn checked_boolean_scalar_term_from_lowered(
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => {
             unsupported("storage observation requires an occurrence-bound crash predicate")
         }

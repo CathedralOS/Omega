@@ -367,6 +367,26 @@ fn decode_byte_sequence_operand(
     }
 }
 
+pub(super) fn encode_byte_sequence_equal(
+    writer: &mut Writer,
+    left: terminal_psi::control_flow::ByteSequenceOperand,
+    right: terminal_psi::control_flow::ByteSequenceOperand,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::BYTE_SEQUENCE_EQUAL);
+    encode_byte_sequence_operand(writer, left)?;
+    encode_byte_sequence_operand(writer, right)?;
+    Ok(())
+}
+
+pub(super) fn decode_byte_sequence_equal(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ByteSequenceEqual {
+        left: decode_byte_sequence_operand(reader)?,
+        right: decode_byte_sequence_operand(reader)?,
+    })
+}
+
 pub(super) fn encode_byte_sequence_predicate(
     writer: &mut Writer,
     operand: terminal_psi::control_flow::ByteSequenceOperand,

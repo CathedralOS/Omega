@@ -180,6 +180,9 @@ pub enum MachineSemanticKind {
     /// Evaluate one byte-sequence predicate over `count` bytes at the base
     /// pointer; the defined operand is the 0/1 verdict.
     ScanByteSequence,
+    /// Compare two measured byte spans; the defined operand is the 0/1
+    /// verdict, and mismatched counts read no bytes.
+    CompareByteSequences,
     /// One `Trapping` primitive at one carrier: the exact result, or an
     /// in-function architectural trap when the policy predicate holds.
     TrappingInteger(TrappingForm),
@@ -237,7 +240,7 @@ impl MachineSemanticKind {
         all
     };
 
-    const FIXED: [Self; 119] = [
+    const FIXED: [Self; 120] = [
         Self::Crash,
         Self::CopyBytes,
         Self::BitwiseAndI64,
@@ -357,6 +360,7 @@ impl MachineSemanticKind {
         Self::SaturatingMultiply(SaturatingCarrier::U64),
         Self::ByteLiteralImageAddress,
         Self::ScanByteSequence,
+        Self::CompareByteSequences,
     ];
 }
 
@@ -447,6 +451,7 @@ pub enum MachineAlternativeFamily {
     SaturatingMultiply(SaturatingCarrier),
     ByteLiteralImageAddress,
     ScanByteSequence,
+    CompareByteSequences,
     TrappingInteger(TrappingForm),
     NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
     FloatResultPolicy(FloatResultPolicyForm),
@@ -530,6 +535,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::FrameAddress => Self::FrameAddress,
             MachineSemanticKind::ByteLiteralImageAddress => Self::ByteLiteralImageAddress,
             MachineSemanticKind::ScanByteSequence => Self::ScanByteSequence,
+            MachineSemanticKind::CompareByteSequences => Self::CompareByteSequences,
             MachineSemanticKind::CallUnit => Self::CallUnit,
             MachineSemanticKind::NormalizedForeignCall => Self::NormalizedForeignCall,
             MachineSemanticKind::ExactMultiplyI64 => Self::ExactMultiplyI64,
@@ -605,6 +611,9 @@ pub enum MachineMemoryEffect {
     CopyBytesV1,
     /// Reads `count` bytes at the base pointer while evaluating the predicate.
     ScanByteSequenceV1,
+    /// Reads each span's bytes while comparing them; mismatched counts read
+    /// no bytes.
+    CompareByteSequencesV1,
     /// Initialize an eight-byte structural home and read stdin into its i32 payload.
     HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
@@ -752,6 +761,14 @@ pub enum MachineEncodedMemoryEffect {
     ScanByteSequenceV1 {
         base_pointer_operand: u16,
         count_operand: u16,
+    },
+    /// Reads each span's bytes while comparing them; the four operand homes
+    /// double as the compare's live inputs and mismatched counts read none.
+    CompareByteSequencesV1 {
+        left_base_operand: u16,
+        left_count_operand: u16,
+        right_base_operand: u16,
+        right_count_operand: u16,
     },
     /// Zero eight frame bytes, read stdin into payload at offset four, and set the tag at zero.
     HostedReadByteV1 {

@@ -368,6 +368,12 @@ pub(super) fn project(
             operand: operand.clone(),
             predicate: *predicate,
         },
+        AbstractOperation::ByteSequenceEqual { left, right, .. } => {
+            LegalizedScalarInstructionKind::ByteSequenceEqual {
+                left: left.clone(),
+                right: right.clone(),
+            }
+        }
         AbstractOperation::ByteSequenceLength { source, .. } => {
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source: *source,

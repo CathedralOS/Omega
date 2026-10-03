@@ -60,6 +60,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::FloatResultPolicy { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequencePredicate { .. }
+        | O::ByteSequenceEqual { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteViewFieldStore { .. }

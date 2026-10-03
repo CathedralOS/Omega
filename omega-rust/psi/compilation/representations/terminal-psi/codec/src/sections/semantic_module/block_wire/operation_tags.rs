@@ -216,3 +216,6 @@ pub(super) const LANDED_SCALAR_REPRESENTATION_VIEW: u8 = 102;
 pub(super) const ESTABLISH_STRUCTURAL_LOCAL: u8 = 103;
 /// `OperationKind::ByteSequencePredicate`.
 pub(super) const BYTE_SEQUENCE_PREDICATE: u8 = 104;
+
+/// `OperationKind::ByteSequenceEqual`.
+pub(super) const BYTE_SEQUENCE_EQUAL: u8 = 105;

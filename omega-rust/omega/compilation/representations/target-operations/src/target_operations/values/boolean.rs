@@ -68,4 +68,13 @@ pub enum TargetBooleanExpression {
         operand: terminal_psi::control_flow::ByteSequenceOperand,
         predicate: terminal_psi::ByteSequencePredicate,
     },
+    /// Content equality of two byte-sequence operands under the same operand
+    /// split a predicate keeps: each resolves at selection to its readable
+    /// base and its own dominating length.
+    ByteSequenceEqual {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        left: terminal_psi::control_flow::ByteSequenceOperand,
+        right: terminal_psi::control_flow::ByteSequenceOperand,
+    },
 }

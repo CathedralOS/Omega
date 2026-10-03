@@ -357,6 +357,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::ByteSequencePredicate { .. }
+        | OperationKind::ByteSequenceEqual { .. }
         | OperationKind::EstablishElementView { .. }
         | OperationKind::EstablishMutableElementView { .. }
         | OperationKind::ElementViewLength { .. }

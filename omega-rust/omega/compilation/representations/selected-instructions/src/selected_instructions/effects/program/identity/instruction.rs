@@ -35,6 +35,7 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::ReadFrameStorageV1 => 7,
         MachineMemoryEffect::WritePointerV1 => 4,
         MachineMemoryEffect::ScanByteSequenceV1 => 10,
+        MachineMemoryEffect::CompareByteSequencesV1 => 11,
     });
     encode_effect_tail(bytes, instruction);
 }
@@ -109,6 +110,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::ScanByteSequence { .. } => 96,
+        SelectedInstructionKind::CompareByteSequences => 97,
         SelectedInstructionKind::CopyI64 => 2,
         SelectedInstructionKind::BitwiseAndI64 => 51,
         SelectedInstructionKind::BitwiseXorI64 => 52,
@@ -378,7 +380,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::Crash
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnScalar
-        | SelectedInstructionKind::ReturnUnit => {}
+        | SelectedInstructionKind::ReturnUnit
+        | SelectedInstructionKind::CompareByteSequences => {}
         SelectedInstructionKind::ScanByteSequence { predicate } => {
             bytes.push(predicate.mask_bit());
         }
