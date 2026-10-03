@@ -64,6 +64,38 @@ fn selected_requirement_arms_evaluate_only_the_selected_operands() {
 }
 
 #[test]
+fn selected_host_requirement_arms_share_statement_dispatch() {
+    let program = typed_program(
+        r#"
+        boundary trait Console {
+            machine exit_process(code: i32) reaches Console;
+        }
+        machine mark(count: &mut u64, value: i32) -> i32 {
+            count = ((count as u64 in Wrapping) + 1) as u64;
+            transition count == 1 { true -> value _ -> 74 }
+        }
+        machine choose(selected: bool) reaches Console {
+            let mut count: u64 = 0;
+            transition selected {
+                true -> Console::exit_process(mark(&mut count, 70))
+                _ -> Console::exit_process(mark(&mut count, 71))
+            }
+        }
+        machine selected() reaches Console { choose(true); }
+        machine fallback() reaches Console { choose(false); }
+        "#,
+    );
+    for (entry, expected) in [("selected", 70), ("fallback", 71)] {
+        let mut evaluator = Evaluator::new(&program, &[]);
+        assert!(
+            matches!(evaluator.run_entry(entry, None), Err(Halt::Exit(code)) if code == expected)
+        );
+        assert!(evaluator.host_boundary_touched);
+        assert!(evaluator.non_fs_host_boundary_touched);
+    }
+}
+
+#[test]
 fn machine_heads_and_internal_states_use_resolved_identity() {
     let program = typed_program(
         r#"
