@@ -3,8 +3,8 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
-    self.console.exit_process(42);
+    main.console.exit_process(42);
 }
