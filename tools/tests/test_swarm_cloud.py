@@ -700,6 +700,42 @@ class ControllerTests(unittest.TestCase):
             self.ingest(self.reply(read,result=dict(thread='thread-1',environment='env-1',generation='gen-1',
                 executor='actual-host-0',runtime='completed',processes_stopped=True)))
 
+    def test_reconciled_create_checks_both_executor_identity_sources(self):
+        self.bind(self.binding_input())
+        self.update(lambda r:cloud.checkpoint(r,'1',checkpoint()))
+        create=self.request('create','create-second','1')
+        read=self.request('read','reconcile-second','1')
+        identity=dict(thread='thread-1',environment='env-1',generation='gen-1')
+        for observed,proved in (('actual-host-0',None), (None,'actual-host-0'), ('actual-host-0','actual-host-1'),
+                                ('actual-host-1','actual-host-0'), ('actual-host-1','other-host')):
+            proof=dict(identity,execution_id=create['execution_id'],effect='applied',evidence='host create read')
+            if proved: proof['executor']=proved
+            result=dict(identity,runtime='completed',processes_stopped=True,
+                        effects={'create-second':proof})
+            if observed: result['executor']=observed
+            before=self.store.load()
+            with self.subTest(observed=observed,proved=proved), self.assertRaisesRegex(RecoveryError,'duplicate|conflicting|differs'):
+                self.ingest(self.reply(read,result=result))
+            self.assertEqual(self.store.load(),before)
+
+    def test_reconciled_create_retains_executor_from_either_identity_source(self):
+        self.bind(self.binding_input())
+        self.update(lambda r:cloud.checkpoint(r,'1',checkpoint()))
+        create=self.request('create','create-second','1')
+        read=self.request('read','reconcile-second','1')
+        before=self.store.load()
+        identity=dict(thread='thread-1',environment='env-1',generation='gen-1')
+        for observed,proved in (('actual-host-1',None), (None,'actual-host-1'), ('actual-host-1','actual-host-1')):
+            proof=dict(identity,execution_id=create['execution_id'],effect='applied',evidence='host create read')
+            if proved: proof['executor']=proved
+            result=dict(identity,runtime='completed',processes_stopped=True,effects={'create-second':proof})
+            if observed: result['executor']=observed
+            record=copy.deepcopy(before)
+            cloud.ingest(record,self.reply(read,result=result))
+            with self.subTest(observed=observed,proved=proved):
+                self.assertEqual(record['cloud']['assignments']['1']['executor'],'actual-host-1')
+                self.assertEqual(record['cloud']['operations']['create-second']['effect'],'applied')
+
     def test_reviewed_revision_allows_integrated_consumer_reproduction(self):
         # Bind the consumer, with genuinely separate executor ownership.
         value=self.binding_input('1',28);self.bind(value)

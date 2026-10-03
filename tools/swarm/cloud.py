@@ -514,6 +514,10 @@ def ingest(record, envelope):
                 require((result.get("thread"), result.get("environment"), result.get("generation"))
                         == (proof.get("thread"), proof.get("environment"), proof.get("generation")),
                         "reconciled create differs from runtime observation")
+                # The read can supply executor identity absent from the create
+                # proof. Validate and retain both sources: checking only the
+                # proof would discard the observed executor and hide collisions.
+                mapping(record, row, result)
                 mapping(record, row, proof)
         for acknowledgment in result.get("acknowledgments", []):
             acknowledged = cloud["operations"][acknowledgment["operation"]]
