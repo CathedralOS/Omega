@@ -2009,8 +2009,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   identity and byte/element units; a prior descriptor or missing decrease
   evidence rejects. Its byte-view control
   `termination/runtime_receiver_byte_slice_recursion_exit` still exits **70**.
-  `wire/runtime_wire_decode_byte_slice_exit` stays with
-  **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**.
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
@@ -2048,8 +2046,8 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `fail/ranges/case_payload_domain_literal_out_of_range` and
   `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
 
-- **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
-  the remaining owned-array producers into record literals.
+- **RECORD-LITERAL-ARRAY-FIELD.** Compose the remaining owned-array producers
+  into record literals.
   Empty record-array fields and their nested array extents now lend through the
   ordinary mutable-record call path: `omega run --both
   tests/omega/pass/collections/empty_record_array_borrow_exit/main.omg` exits 0
@@ -2122,12 +2120,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   in stage 04 `control/statement_sequence/local_data.rs`, which currently
   refuses mutable bindings, and whole-array computation-argument loans.
 
-  `wire/runtime_wire_decode_byte_slice_exit` stops at stage 04
-  `structural field store: borrowed view field: declared domains`.
-  **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals. The byte-slice
-  decoder remains a required native run, not a success merely because its
-  rejection matches an old golden.
-
   The wire customers construct their records and call the checked codec
   machines `omega/packages/compilation-inputs/src/wire_codec_sources.rs`
   generates per called schema. The generated decoder's final
@@ -2151,9 +2143,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `05_selected-instructions-to-register-homes/src/assignment/home_assignment/validate/`.
   Reduce that measured work without bypassing replay. Acceptance stays unchanged `samples/cli/systems/wire_protocol`
   and `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
-  13-byte encode/decode, room 300, samples [150, -2], depth -64. The borrowed
-  customer `pass/wire/runtime_wire_decode_byte_slice_exit` must exit 70 after
-  re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
+  13-byte encode/decode, room 300, samples [150, -2], depth -64. Run checked
   and interpreter/native legs; leaving an omission cluster is not execution.
 
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value

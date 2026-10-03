@@ -10,6 +10,73 @@ use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSource
 const VIEW_IDENTITY: &str =
     "slice(constrained(named(name(i32)),arithmetic-domain(name(Wrapping))))";
 
+#[test]
+fn record_view_initializer_keeps_its_origin_before_a_later_replacement() {
+    let checked = checked(
+        r#"
+        data Sample { bytes: &[u8]; }
+        data Context { first: [u8; 4]; second: [u8; 4]; observed: u64; }
+        machine replace(sample: &mut Sample, bytes: &[u8]) {
+            sample.bytes = bytes;
+        }
+        machine enter(context: &mut Context) {
+            let sample: Sample = Sample { bytes: context.first[0..2] };
+            replace(&mut sample, context.second[1..3]);
+            context.observed = sample.bytes.len;
+        }
+    "#,
+    );
+    let (state, local) = local_symbol(&checked, "enter", "sample");
+    let loans = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(_, loan)| loan.owner_symbol == local)
+        .map(|(_, loan)| loan)
+        .collect::<Vec<_>>();
+    assert!(
+        checked
+            .facts
+            .values
+            .structural_values
+            .roots
+            .iter()
+            .any(|(_, root)| { root.state == state && root.statement_ordinal == 0 }),
+        "the initializer keeps its formation-time source: {loans:#?}",
+    );
+    // A later replacement cannot stand in for missing formation custody,
+    // and two sources at formation cannot be reduced to an arbitrary one.
+    for missing in [true, false] {
+        let mut borrow = checked.facts.borrow.clone();
+        let handle = borrow
+            .loans
+            .iter()
+            .find(|(_, loan)| {
+                loan.owner_symbol == local && loan.statement_index == usize::from(!missing)
+            })
+            .expect("initializer and replacement each have a loan")
+            .0;
+        borrow.loans.get_mut(handle).statement_index = if missing { 2 } else { 0 };
+        let (_, values) = crate::values::build_checked_value_computation_plans(
+            &checked.typed,
+            &checked.facts.operators,
+            &checked.facts.flow,
+            &borrow,
+            &checked.facts.proof,
+            &checked.facts.values.scalar_expressions,
+            &[],
+        );
+        assert!(
+            !values
+                .roots
+                .iter()
+                .any(|(_, root)| { root.state == state && root.statement_ordinal == 0 }),
+            "missing or ambiguous formation custody must reject"
+        );
+    }
+}
+
 /// A `&[T]` actual on a scalar-computation call loans the established view
 /// local whole: the argument names the local's own shared-borrow home rather
 /// than fabricating an owning result, the same custody a `&T` local keeps

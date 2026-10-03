@@ -19,8 +19,8 @@ Opaque identity without contents cannot execute a byte-consuming operation.
 
 Each literal declaration has one exact establishment operation. Establishment
 may occur at its authored position rather than an entry prefix; every use needs
-that operation to dominate it. An established literal is also the one source
-that may replace a shared view field's stored descriptor
+that operation to dominate it. An established literal may also replace a
+shared view field's stored descriptor
 ([`StructuralByteViewFieldStore`](structural_access.md#store-vocabulary)): its
 image backing outlives every root the field can belong to. Reentering the same producer through a backedge
 retains the identical immutable value and charges the operation again. A value
