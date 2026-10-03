@@ -80,6 +80,16 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Evaluate one declared byte predicate over the operand's exact live
+    /// extent. The operand retains its whole-view or field spelling, like a
+    /// concatenation operand; its dominating length observation fixes the
+    /// extent the scan reads.
+    ByteSequencePredicate {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        operand: terminal_psi::control_flow::ByteSequenceOperand,
+        predicate: terminal_psi::ByteSequencePredicate,
+    },
     /// Write one byte through the exact mutable view and verified bounds.
     ByteSequenceWrite {
         psi_operation: OperationId,
@@ -847,6 +857,7 @@ impl AbstractOperation {
             | Self::BooleanConstant { psi_operation, .. }
             | Self::StructuralScalarFieldRead { psi_operation, .. }
             | Self::ByteSequenceRead { psi_operation, .. }
+            | Self::ByteSequencePredicate { psi_operation, .. }
             | Self::ByteSequenceSubslice { psi_operation, .. }
             | Self::ByteSequenceLength { psi_operation, .. }
             | Self::EstablishElementView { psi_operation, .. }

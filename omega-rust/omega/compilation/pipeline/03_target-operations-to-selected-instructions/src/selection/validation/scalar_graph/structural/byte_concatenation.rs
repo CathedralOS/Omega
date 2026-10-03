@@ -147,7 +147,7 @@ pub(super) fn establish(
     Ok(())
 }
 
-fn operand_pointer(
+pub(super) fn operand_pointer(
     function: &LegalizedScalarFunction,
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,

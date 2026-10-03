@@ -19,10 +19,10 @@ use crate::register_model::{
     AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SATURATING_ADD_CLAMPED,
     AARCH64_SATURATING_ADD_U64, AARCH64_SATURATING_DIVIDE_SIGNED,
     AARCH64_SATURATING_MULTIPLY_CLAMPED, AARCH64_SATURATING_MULTIPLY_U64,
-    AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED, AARCH64_SHIFT_I64,
-    AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64,
-    AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_TRAPPING_BINARY, AARCH64_TRAPPING_CONVERT,
-    AARCH64_TRAPPING_FIXED_PAIR, AARCH64_TRAPPING_SHIFT,
+    AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED,
+    AARCH64_SCAN_BYTE_SEQUENCE, AARCH64_SHIFT_I64, AARCH64_STORE, AARCH64_STORE_PACKED,
+    AARCH64_STORE64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_TRAPPING_BINARY,
+    AARCH64_TRAPPING_CONVERT, AARCH64_TRAPPING_FIXED_PAIR, AARCH64_TRAPPING_SHIFT,
     aarch64_aapcs64_normalized_foreign_call_keys, aarch64_aapcs64_register_call_keys,
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_normalized_foreign_call_keys,
     aarch64_darwin_register_call_keys, aarch64_darwin_register_unit_call_keys,
@@ -666,6 +666,31 @@ pub fn aarch64_register_constraint_catalog(
                     GPR64,
                 );
                 row.early_clobber = operand >= 3;
+                row
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("nzcv").units.clone(),
+    });
+    // The scan reads its preserved base/count inputs while the loop cursors
+    // are written before any input home is consumed; the verdict operand is
+    // the only lasting definition. Flags fall to the compare/branch pairs.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_SCAN_BYTE_SEQUENCE,
+        operands: (0..5)
+            .map(|operand| {
+                let mut row = allocatable(
+                    operand,
+                    if operand < 2 {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    },
+                    GPR64,
+                );
+                row.early_clobber = operand >= 2;
                 row
             })
             .collect(),

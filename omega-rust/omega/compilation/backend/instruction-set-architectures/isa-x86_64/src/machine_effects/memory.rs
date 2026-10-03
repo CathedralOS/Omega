@@ -37,6 +37,20 @@ pub(super) fn declaration(
             },
             MachineSizeKnowledge::ExactBytes(36),
         ),
+        MachineSemanticKind::ScanByteSequence => (
+            MachineMemoryEffect::ScanByteSequenceV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1],
+            vec![2, 3, 4],
+            MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+                base_pointer_operand: 0,
+                count_operand: 1,
+            },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 16,
+                maximum_bytes: None,
+            },
+        ),
         MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6

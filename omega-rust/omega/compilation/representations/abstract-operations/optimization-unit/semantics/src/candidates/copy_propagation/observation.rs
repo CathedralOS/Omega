@@ -250,6 +250,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequencePredicate { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteViewFieldStore { .. }

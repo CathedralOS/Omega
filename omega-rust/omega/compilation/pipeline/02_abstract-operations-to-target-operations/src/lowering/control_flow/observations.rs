@@ -12,7 +12,7 @@ use abstract_operations::{
     IntegerOverflowPolicy,
 };
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{ScalarType, ValueId};
+use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 use std::collections::BTreeMap;
 use target_operations::{
     ScalarAbiValue, TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
@@ -79,6 +79,96 @@ pub(super) fn lower(
                     &mut provenance.operations,
                 )?;
             }
+        }
+        AbstractOperation::ByteSequencePredicate { operand, .. } => {
+            match operand {
+                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+                    // The same live-view gate a byte observation asks: a
+                    // whole-sequence source must be a prepared parameter or a
+                    // locally tracked view (or an owner address join).
+                    let owner_join = live.address_joins.contains(source)
+                        && super::transfers::address_parameter(function, live, *source)
+                            .is_some_and(|parameter| {
+                                structural_types
+                                    .get(&parameter.structural_type)
+                                    .is_some_and(|declaration| {
+                                        matches!(
+                                            declaration.shape,
+                                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                                terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                                    ..
+                                                }
+                                            )
+                                        )
+                                    })
+                            });
+                    if !prepared
+                        .parameters
+                        .iter()
+                        .any(|parameter| parameter.place == *source)
+                        && !live.views.contains_key(source)
+                        && !live.block_views.contains(source)
+                        && !owner_join
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                }
+                terminal_psi::control_flow::ByteSequenceOperand::Field {
+                    source,
+                    field,
+                    length,
+                } => {
+                    // The same readable-view authority and measured-length
+                    // coupling a concatenation operand asks: the field spells
+                    // an immutable byte view, and the length operand is the
+                    // field-length observation that measured it.
+                    let authority = super::primitive_storage::readable_byte_field(
+                        function,
+                        structural_types,
+                        prepared,
+                        live,
+                        source.place,
+                        &source.path,
+                        *field,
+                    )?;
+                    if source.access != terminal_psi::StructuralAccess::SharedBorrow
+                        || authority.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+                        || !function.operations.iter().any(|candidate| {
+                            matches!(candidate,
+                            AbstractOperation::StructuralByteSequenceFieldLength {
+                                source: measured, path, field: measured_field, result, ..
+                            } if *measured == source.place && *path == source.path
+                                && measured_field == field && result.value == *length)
+                        })
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    let scalar = live
+                        .integers
+                        .get(length)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                        .scalar_type();
+                    if scalar.sign() != IntegerSign::Unsigned
+                        || scalar.bits() != 64
+                        || scalar.is_address()
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                }
+            }
+            byte_views::lower_byte_observation_with_lengths(
+                operation,
+                function,
+                structural_types,
+                &prepared.parameters,
+                element_views::ElementViewBackings::new(
+                    &live.structural_homes,
+                    &live.address_joins,
+                ),
+                &mut values,
+                &live.lengths,
+                &mut provenance.operations,
+            )?;
         }
         AbstractOperation::ElementViewLength { source, .. }
         | AbstractOperation::ElementViewRead { source, .. }
@@ -385,6 +475,11 @@ pub(super) fn lower(
             (*psi_operation, result.value, result.scalar_type, expression)
         }
         AbstractOperation::ByteSequenceRead {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ByteSequencePredicate {
             psi_operation,
             result,
             ..

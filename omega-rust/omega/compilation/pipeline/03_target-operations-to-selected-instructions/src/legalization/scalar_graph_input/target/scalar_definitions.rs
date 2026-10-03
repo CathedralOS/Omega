@@ -131,6 +131,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
         abstracted,
         AbstractOperation::ByteSequenceLength { .. }
             | AbstractOperation::ByteSequenceRead { .. }
+            | AbstractOperation::ByteSequencePredicate { .. }
             | AbstractOperation::ElementViewLength { .. }
             | AbstractOperation::ElementViewRead { .. }
             | AbstractOperation::IntegerEqual { .. }
@@ -353,6 +354,11 @@ pub(super) fn observation(
             ..
         }
         | AbstractOperation::ByteSequenceRead {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ByteSequencePredicate {
             psi_operation,
             result,
             ..

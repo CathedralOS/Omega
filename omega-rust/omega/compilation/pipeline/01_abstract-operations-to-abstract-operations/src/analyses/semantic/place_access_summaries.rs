@@ -874,6 +874,16 @@ fn scan_operation(
         | O::ElementViewLength { source, .. } => {
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }
+        O::ByteSequencePredicate { operand, .. } => match operand {
+            ByteSequenceOperand::Whole { source, .. } => {
+                pending.attribute(context, *source, Vec::new(), AccessKind::Read);
+            }
+            ByteSequenceOperand::Field { source, field, .. } => {
+                let mut view = runtime_prefix(&source.path);
+                with_field(&mut view, *field);
+                pending.attribute(context, source.place, view, AccessKind::Read);
+            }
+        },
         O::ElementViewRead { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }

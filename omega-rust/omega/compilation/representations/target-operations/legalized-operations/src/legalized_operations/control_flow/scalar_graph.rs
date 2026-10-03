@@ -135,6 +135,9 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralByteViewFieldStore { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
+            LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => {
+                visit(operand.length())
+            }
             LegalizedScalarInstructionKind::ByteSequenceSubslice {
                 start, end, length, ..
             }
@@ -549,6 +552,14 @@ pub enum LegalizedScalarInstructionKind {
         source: semantic_vocabulary::PlaceId,
         length_byte_offset: u32,
     },
+    /// One verifier-admitted byte-sequence predicate evaluation. The operand
+    /// stays verbatim: a whole-sequence source reads its live view like a
+    /// byte observation, and a structural-field operand resolves at selection
+    /// like a concatenation operand.
+    ByteSequencePredicate {
+        operand: terminal_psi::control_flow::ByteSequenceOperand,
+        predicate: terminal_psi::ByteSequencePredicate,
+    },
     /// Establish one borrowed element descriptor over a structural collection
     /// projection; custody, access and extent were discharged before lowering.
     EstablishElementView {
@@ -842,6 +853,7 @@ impl LegalizedScalarInstructionKind {
             | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceLength { .. }
+            | Self::ByteSequencePredicate { .. }
             | Self::ElementViewWrite { .. }
             | Self::ElementViewRead { .. }
             | Self::ElementViewLength { .. }

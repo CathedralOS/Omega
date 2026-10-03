@@ -362,6 +362,12 @@ pub(super) fn project(
         AbstractOperation::ByteSequenceRead { .. } => {
             storage_instructions::project_byte_sequence_read(node, optimized, unit)?
         }
+        AbstractOperation::ByteSequencePredicate {
+            operand, predicate, ..
+        } => LegalizedScalarInstructionKind::ByteSequencePredicate {
+            operand: operand.clone(),
+            predicate: *predicate,
+        },
         AbstractOperation::ByteSequenceLength { source, .. } => {
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source: *source,

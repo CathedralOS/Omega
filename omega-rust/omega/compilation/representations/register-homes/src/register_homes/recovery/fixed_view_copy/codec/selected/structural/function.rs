@@ -238,6 +238,10 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 bytes.push(15);
                 bytes.extend_from_slice(&producer.get().to_le_bytes());
             }
+            SelectedMemoryAccessRole::ReadMeasuredSpan { length } => {
+                bytes.push(16);
+                bytes.extend_from_slice(&length.get().to_le_bytes());
+            }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WritePlace => bytes.push(6),
             SelectedMemoryAccessRole::WriteOutgoing { slot } => {
@@ -409,6 +413,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
             },
             15 => SelectedMemoryAccessRole::ReadReturnedView {
                 producer: decode_id(cursor, OperationId::new)?,
+            },
+            16 => SelectedMemoryAccessRole::ReadMeasuredSpan {
+                length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
             },
             0 => SelectedMemoryAccessRole::ReadPlace,
             6 => SelectedMemoryAccessRole::WritePlace,

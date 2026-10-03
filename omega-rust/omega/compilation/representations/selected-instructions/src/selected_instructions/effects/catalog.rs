@@ -177,6 +177,9 @@ pub enum MachineSemanticKind {
     SaturatingMultiply(SaturatingCarrier),
     /// PC-relative address of one byte literal's read-only image storage.
     ByteLiteralImageAddress,
+    /// Evaluate one byte-sequence predicate over `count` bytes at the base
+    /// pointer; the defined operand is the 0/1 verdict.
+    ScanByteSequence,
     /// One `Trapping` primitive at one carrier: the exact result, or an
     /// in-function architectural trap when the policy predicate holds.
     TrappingInteger(TrappingForm),
@@ -234,7 +237,7 @@ impl MachineSemanticKind {
         all
     };
 
-    const FIXED: [Self; 118] = [
+    const FIXED: [Self; 119] = [
         Self::Crash,
         Self::CopyBytes,
         Self::BitwiseAndI64,
@@ -353,6 +356,7 @@ impl MachineSemanticKind {
         Self::SaturatingMultiply(SaturatingCarrier::U32),
         Self::SaturatingMultiply(SaturatingCarrier::U64),
         Self::ByteLiteralImageAddress,
+        Self::ScanByteSequence,
     ];
 }
 
@@ -442,6 +446,7 @@ pub enum MachineAlternativeFamily {
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
     ByteLiteralImageAddress,
+    ScanByteSequence,
     TrappingInteger(TrappingForm),
     NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
     FloatResultPolicy(FloatResultPolicyForm),
@@ -524,6 +529,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,
             MachineSemanticKind::ByteLiteralImageAddress => Self::ByteLiteralImageAddress,
+            MachineSemanticKind::ScanByteSequence => Self::ScanByteSequence,
             MachineSemanticKind::CallUnit => Self::CallUnit,
             MachineSemanticKind::NormalizedForeignCall => Self::NormalizedForeignCall,
             MachineSemanticKind::ExactMultiplyI64 => Self::ExactMultiplyI64,
@@ -597,6 +603,8 @@ pub enum MachineMemoryEffect {
     AtomicPointerV1,
     /// Reads source and writes destination for the explicit runtime count.
     CopyBytesV1,
+    /// Reads `count` bytes at the base pointer while evaluating the predicate.
+    ScanByteSequenceV1,
     /// Initialize an eight-byte structural home and read stdin into its i32 payload.
     HostedReadByteV1,
     /// Private-byte initialization and kernel read, with an observable stdout write.
@@ -737,6 +745,12 @@ pub enum MachineEncodedMemoryEffect {
     CopyBytesV1 {
         source_pointer_operand: u16,
         destination_pointer_operand: u16,
+        count_operand: u16,
+    },
+    /// Reads `count` bytes at the base pointer while evaluating the predicate;
+    /// the operand homes double as the loop's live inputs.
+    ScanByteSequenceV1 {
+        base_pointer_operand: u16,
         count_operand: u16,
     },
     /// Zero eight frame bytes, read stdin into payload at offset four, and set the tag at zero.

@@ -292,6 +292,35 @@ impl Checker<'_> {
                 AbstractOperation::BooleanNot { psi_operation: operation, result, operand: source }
                 if operation == psi_operation && *result == resolve(value, aliases) && self.boolean_source(operand, *source, aliases)));
         }
+        if let Boolean::ByteSequencePredicate {
+            psi_operation,
+            source_value,
+            operand,
+            predicate,
+        } = expression
+        {
+            return *source_value == resolve(value, aliases)
+                && self
+                    .optimized
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .any(|node| {
+                        let AbstractOperation::ByteSequencePredicate {
+                            psi_operation: operation,
+                            result,
+                            operand: expected_operand,
+                            predicate: expected_predicate,
+                        } = &node.operation
+                        else {
+                            return false;
+                        };
+                        operation == psi_operation
+                            && result.value == resolve(value, aliases)
+                            && expected_predicate == predicate
+                            && operands_agree(operand, expected_operand, aliases)
+                    });
+        }
         let Some(node) = self
             .optimized
             .blocks
@@ -377,6 +406,48 @@ impl Checker<'_> {
                 == Some(ScalarType::Integer(right_scalar_type))
             && self.integer_source(left, source_left, aliases)
             && self.integer_source(right, source_right, aliases)
+    }
+}
+
+/// A verbatim-carried byte-sequence operand agrees with the node's own when
+/// its length scalar is the same value modulo successor bindings.
+fn operands_agree(
+    expressed: &terminal_psi::control_flow::ByteSequenceOperand,
+    expected: &terminal_psi::control_flow::ByteSequenceOperand,
+    aliases: &[(ValueId, ValueId)],
+) -> bool {
+    use terminal_psi::control_flow::ByteSequenceOperand as Operand;
+    match (expressed, expected) {
+        (
+            Operand::Whole {
+                source: expressed_source,
+                length: expressed_length,
+            },
+            Operand::Whole {
+                source: expected_source,
+                length: expected_length,
+            },
+        ) => {
+            expressed_source == expected_source
+                && resolve(*expressed_length, aliases) == *expected_length
+        }
+        (
+            Operand::Field {
+                source: expressed_source,
+                field: expressed_field,
+                length: expressed_length,
+            },
+            Operand::Field {
+                source: expected_source,
+                field: expected_field,
+                length: expected_length,
+            },
+        ) => {
+            expressed_source == expected_source
+                && expressed_field == expected_field
+                && resolve(*expressed_length, aliases) == *expected_length
+        }
+        _ => false,
     }
 }
 

@@ -42,6 +42,14 @@ pub enum SelectedInstructionKind {
     /// are preserved source/destination/count; 3/4 are early-clobber scratch.
     /// Count zero accesses neither pointer. Flags are clobbered.
     CopyBytes,
+    /// Evaluate `predicate` over `count` bytes beginning at the input base.
+    /// Inputs 0/1 are preserved base/count; 2/3/4 are early-clobber because
+    /// the prologue seeds all three before the loop reads the inputs;
+    /// operand 4 is the defined 0/1 result. Count zero reads no bytes.
+    /// Flags are clobbered.
+    ScanByteSequence {
+        predicate: terminal_psi::ByteSequencePredicate,
+    },
     LoadPacked {
         byte_offset: u32,
         width: PackedByteWidth,

@@ -1,7 +1,7 @@
 //! Boolean and integer scalar-operation tags.
 
 use crate::optimization_unit::identity::carrier_encoding::{
-    encode_abstract_result, encode_integer_value, encode_scalar_type,
+    encode_abstract_result, encode_integer_value, encode_scalar_type, encode_structural_argument,
     encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::operation_encoding::scalar_shapes::{
@@ -117,6 +117,34 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*index);
             bytes.id(*length);
             bytes.id(*obligation);
+        }
+        O::ByteSequencePredicate {
+            psi_operation,
+            result,
+            operand,
+            predicate,
+        } => {
+            bytes.u8(100);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            match operand {
+                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
+                    bytes.u8(0);
+                    bytes.id(*source);
+                    bytes.id(*length);
+                }
+                terminal_psi::control_flow::ByteSequenceOperand::Field {
+                    source,
+                    field,
+                    length,
+                } => {
+                    bytes.u8(1);
+                    encode_structural_argument(bytes, source);
+                    bytes.id(*field);
+                    bytes.id(*length);
+                }
+            }
+            bytes.u8(predicate.mask_bit());
         }
         O::StructuralByteSequenceFieldRead {
             psi_operation,

@@ -57,4 +57,15 @@ pub enum TargetBooleanExpression {
         left: Box<TargetIntegerExpression>,
         right: Box<TargetIntegerExpression>,
     },
+    /// A verifier-admitted byte-sequence predicate evaluation. The operand
+    /// stays verbatim: a whole-sequence source resolves to its live view
+    /// exactly as a byte observation does, and a structural-field operand
+    /// resolves at selection where the field's readable-view authority
+    /// lives — the same split a concatenation operand keeps.
+    ByteSequencePredicate {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        operand: terminal_psi::control_flow::ByteSequenceOperand,
+        predicate: terminal_psi::ByteSequencePredicate,
+    },
 }

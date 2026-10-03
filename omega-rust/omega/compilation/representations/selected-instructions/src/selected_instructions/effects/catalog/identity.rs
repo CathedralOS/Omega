@@ -104,6 +104,7 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::WriteFrameStorageV1 => 2,
             crate::MachineMemoryEffect::ReadFrameStorageV1 => 7,
             crate::MachineMemoryEffect::WritePointerV1 => 4,
+            crate::MachineMemoryEffect::ScanByteSequenceV1 => 10,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::ExplicitCrashV1 => 5,
@@ -283,6 +284,14 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&destination_pointer_operand.to_le_bytes());
             bytes.identity_bytes(&count_operand.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::ScanByteSequenceV1 {
+            base_pointer_operand,
+            count_operand,
+        } => {
+            bytes.identity_bytes(&[13]);
+            bytes.identity_bytes(&base_pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&count_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
             bytes.identity_bytes(&[7]);
@@ -455,6 +464,7 @@ fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
 pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     match kind {
         MachineSemanticKind::CopyBytes => 59,
+        MachineSemanticKind::ScanByteSequence => 96,
         MachineSemanticKind::CallAggregate => 35,
         MachineSemanticKind::ReturnAggregate => 36,
         MachineSemanticKind::CompareI64Zero => 0,
@@ -590,6 +600,7 @@ pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily)
 pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
     match family {
         MachineAlternativeFamily::CopyBytes => 59,
+        MachineAlternativeFamily::ScanByteSequence => 96,
         MachineAlternativeFamily::CallAggregate => 35,
         MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::CompareI64Zero => 0,

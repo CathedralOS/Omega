@@ -18,6 +18,7 @@ mod encoding_types;
 mod float_bits;
 pub(crate) mod float_result_policy;
 pub(crate) mod floating_control;
+mod scan_byte_sequence;
 pub(crate) mod trapping_forms;
 pub use floating_control::{
     encode_aarch64_selected_floating_control_form, validate_aarch64_selected_floating_control_form,

@@ -171,6 +171,7 @@ fn disturbs(
         }
         ReadByteSpan { .. }
         | ReadByteSequence { .. }
+        | ReadMeasuredSpan { .. }
         | ReadElementView { .. }
         | ReadIndexedPrimitive { .. }
         | WriteByteSpan { .. }

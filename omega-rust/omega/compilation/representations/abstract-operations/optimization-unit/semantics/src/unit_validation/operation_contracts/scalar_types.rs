@@ -45,6 +45,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }
+        | O::ByteSequencePredicate { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }

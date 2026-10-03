@@ -53,3 +53,4 @@ pub use selected_instructions::{
     IeeeFloatBinaryOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
     IeeeFloatToIntegerDomain,
 };
+pub use terminal_psi::ByteSequencePredicate;

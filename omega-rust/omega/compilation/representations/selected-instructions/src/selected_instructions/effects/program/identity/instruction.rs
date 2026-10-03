@@ -34,6 +34,7 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::WriteFrameStorageV1 => 2,
         MachineMemoryEffect::ReadFrameStorageV1 => 7,
         MachineMemoryEffect::WritePointerV1 => 4,
+        MachineMemoryEffect::ScanByteSequenceV1 => 10,
     });
     encode_effect_tail(bytes, instruction);
 }
@@ -107,6 +108,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::CopyBytes => 59,
+        SelectedInstructionKind::ScanByteSequence { .. } => 96,
         SelectedInstructionKind::CopyI64 => 2,
         SelectedInstructionKind::BitwiseAndI64 => 51,
         SelectedInstructionKind::BitwiseXorI64 => 52,
@@ -377,6 +379,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnUnit => {}
+        SelectedInstructionKind::ScanByteSequence { predicate } => {
+            bytes.push(predicate.mask_bit());
+        }
         SelectedInstructionKind::ReturnAggregate { fragment_count } => bytes.push(fragment_count),
         SelectedInstructionKind::CallScalar { callee }
         | SelectedInstructionKind::CallAggregate { callee }

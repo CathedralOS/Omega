@@ -52,6 +52,7 @@ fn keys() -> SelectedConstraintKeys {
         atomic_compare_exchange: Some(instruction(57)),
         crash: instruction(780),
         copy_bytes: Some(instruction(40)),
+        scan_byte_sequence: Some(instruction(41)),
         save_floating_control: Some(instruction(44)),
         restore_floating_control: Some(instruction(45)),
         call_aggregate: vec![RegisterConstraintKey {

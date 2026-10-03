@@ -216,6 +216,7 @@ pub(in crate::rewrites) fn speculatable(instruction: &SelectedInstruction) -> bo
     !matches!(
         instruction.kind,
         CopyBytes
+            | ScanByteSequence { .. }
             | LoadPacked { .. }
             | StorePacked { .. }
             | Store { .. }

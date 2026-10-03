@@ -775,6 +775,14 @@ pub(super) fn validate(
             actual, node, optimized, unit, operation,
         )?,
         (
+            LegalizedScalarInstructionKind::ByteSequencePredicate { operand, predicate },
+            AbstractOperation::ByteSequencePredicate {
+                operand: expected_operand,
+                predicate: expected_predicate,
+                ..
+            },
+        ) if operand == expected_operand && predicate == expected_predicate => {}
+        (
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source,
                 length_byte_offset,

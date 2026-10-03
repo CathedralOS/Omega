@@ -31,6 +31,7 @@ pub use register_model::X86_64_SATURATING_MULTIPLY_CLAMPED;
 pub use register_model::X86_64_SATURATING_MULTIPLY_U64;
 pub use register_model::X86_64_SATURATING_SUBTRACT_CLAMPED;
 pub use register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED;
+pub use register_model::X86_64_SCAN_BYTE_SEQUENCE;
 pub use register_model::X86_64_SHIFT_I64;
 pub use register_model::x86_64_linux_system_call_keys;
 pub use register_model::{

@@ -93,6 +93,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::ByteSequenceRead { .. }
+        | AbstractOperation::ByteSequencePredicate { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::EstablishElementView { .. }

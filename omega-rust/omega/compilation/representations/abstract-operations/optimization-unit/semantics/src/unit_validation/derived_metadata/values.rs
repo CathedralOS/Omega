@@ -38,6 +38,7 @@ pub(crate) fn expected_definitions(
         | O::PrimitiveScalarRead { result, .. }
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
+        | O::ByteSequencePredicate { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
@@ -153,6 +154,7 @@ pub(crate) fn expected_uses(
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]
         }
+        O::ByteSequencePredicate { operand, .. } => vec![operand.length()],
         O::ByteSequenceStore { length, .. }
         | O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
