@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.57, "load1_start": 6.71, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.84, "load1_start": 7.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -506,9 +506,10 @@ pass/domains/utf8_field_write_from_param rejected 359ms @48008365d839
 pass/domains/vacuous_domain_qualification checked 203ms
 pass/domains/view_field_literal_store_reads_exit built 1100ms exit:70 @1c0bb7bc95d0
 pass/drops/cleanup_machine_drop_shape checked 254ms @0aa983f6af47+wt
-pass/drops/core_drop_explicit_consume checked 247ms @0aa983f6af47+wt
-pass/drops/core_drop_owner_hook checked 253ms @0aa983f6af47+wt
-pass/drops/core_drop_owner_hook_body checked 241ms @0aa983f6af47+wt
+pass/drops/core_drop_explicit_consume built 661ms exit:0 @302faee005ee
+pass/drops/core_drop_owner_hook built 573ms exit:0 @302faee005ee
+pass/drops/core_drop_owner_hook_body built 735ms exit:0 @302faee005ee
+pass/drops/erased_record_initializer_exit built 818ms exit:70 @302faee005ee
 pass/drops/transfer_cleanup_into_state checked 229ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 812ms exit:73
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1600ms exit:70 @48008365d839
