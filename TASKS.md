@@ -3744,17 +3744,20 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
   Finish invariant discovery through states without direct exits, transfer of
   established relations between distinct cyclic components, and storage-changing
-  `self` transitions. The sequential-component case in
-  `cyclic_headers::tests::an_external_cyclic_frame_is_not_the_invocation` still
-  cannot relate the first component's carried `previous` to its invocation when
-  establishing the second component. Preserve establishment, every arrival's
+  `self` transitions. Exact all-path scalar origins now retain unchanged
+  invocation values across components. The remaining relation frontier changes
+  `previous` to `n` while decrementing `n`, under `n <= previous <= 1000`, then
+  hands off to a second countdown at `n <= 1`: the first component has no direct
+  exit, and the second needs `previous_current <= previous_invocation`.
+  Preserve establishment, every arrival's
   simultaneous substitution, and exact source/Terminal scope; an authored state
   edge cannot borrow the preserving implementation-edge exception to strict
   ranking.
 
   Retain the native `runtime_ranked_accumulator_guarantee_exit`,
-  `runtime_two_state_accumulator_exit`, `runtime_inductive_climbing_sum_exit`,
-  and `runtime_inductive_gauss_sum_exit` controls. Their guarantees survive
+  `runtime_two_state_accumulator_exit`, `runtime_sequential_ranked_components_exit`,
+  `runtime_inductive_climbing_sum_exit`, and `runtime_inductive_gauss_sum_exit`
+  controls. Their guarantees survive
   package review, serialization, independent verification,
   and execution. Preserve Wrapping's equality-only polynomial reasoning and
   each additive ranking step's independently proved no-wrap condition. Wrong
