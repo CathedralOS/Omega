@@ -378,6 +378,26 @@ mod tests {
             argument,
             checked_trees::CheckedCallScalarArgument::Computation(_)
         )));
+        let published = &checked.facts.flow.terminal_unit_effects;
+        assert!(
+            published.composed_machines.iter().any(|candidate| {
+                candidate.machine == machine.symbol
+                    && matches!(
+                        candidate.result,
+                        checked_trees::CheckedControlResultPlan::Scalar { .. }
+                    )
+            }),
+            "terminal call caller must retain its scalar completion after finalization; ordinary={:?}; composed={:?}; omission={:?}",
+            published
+                .machines
+                .iter()
+                .find(|candidate| candidate.machine == machine.symbol),
+            published
+                .composed_machines
+                .iter()
+                .find(|candidate| candidate.machine == machine.symbol),
+            published.omission_for_machine(machine.symbol),
+        );
     }
 
     #[test]
