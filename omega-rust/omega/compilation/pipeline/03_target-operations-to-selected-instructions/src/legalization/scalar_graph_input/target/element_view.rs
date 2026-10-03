@@ -395,7 +395,7 @@ impl Checker<'_> {
         path: &[terminal_psi::StructuralPathSegment],
         element: semantic_vocabulary::StructuralTypeId,
         source_byte_offset: u32,
-        extent: u64,
+        extent: target_operations::TargetViewExtent,
         element_stride: u32,
         region: terminal_psi::ElementViewRegion,
         access: terminal_psi::StructuralAccess,
@@ -411,12 +411,23 @@ impl Checker<'_> {
         };
         // Replay both type and byte offset through the shared projection owner;
         // a field-only spelling check cannot establish either relationship.
+        // An owned byte-carrier field has no canonical leaf spelling: it
+        // resolves through the copy-snapshot channel, which names the
+        // carrier's own declaration for the collection check below.
         let Some((collection, offset)) =
             crate::structural_inputs::structural_reference_input::project(
                 root_structural_type,
                 collection_path,
                 self.types,
             )
+            .or_else(|| {
+                crate::structural_inputs::structural_reference_input::runtime_leaf_copy_projection(
+                    root_structural_type,
+                    collection_path,
+                    self.types,
+                )
+                .map(|(carrier, offset, _)| (carrier, offset))
+            })
         else {
             return false;
         };
@@ -460,7 +471,8 @@ impl Checker<'_> {
                     }) {
                         return false;
                     }
-                    return byte_extent == extent && offset == source_byte_offset;
+                    return extent == target_operations::TargetViewExtent::Fixed(byte_extent)
+                        && offset == source_byte_offset;
                 }
             };
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed
@@ -468,16 +480,27 @@ impl Checker<'_> {
         {
             return false;
         }
-        let length = backing.length;
-        match byte_window {
-            Some((start, end)) if start <= end && end <= length => {
-                if end - start != extent {
+        match (byte_window, backing.extent) {
+            (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length)) => {
+                if !(start <= end && end <= length)
+                    || extent != target_operations::TargetViewExtent::Fixed(end - start)
+                {
                     return false;
                 }
             }
-            Some(_) => return false,
-            None if length != extent => return false,
-            None => {}
+            // A live carrier's count is dynamic; a static window cannot
+            // bound it at establishment.
+            (Some(_), _) => return false,
+            (None, terminal_semantics::CollectionExtent::Fixed(length)) => {
+                if extent != target_operations::TargetViewExtent::Fixed(length) {
+                    return false;
+                }
+            }
+            (None, terminal_semantics::CollectionExtent::LiveLength { .. }) => {
+                if extent != target_operations::TargetViewExtent::LiveLength {
+                    return false;
+                }
+            }
         }
         let Some(stride) =
             crate::structural_inputs::structural_reference_input::shape(element, self.types)
@@ -491,11 +514,21 @@ impl Checker<'_> {
             return false;
         };
         let window_start = byte_window.map_or(0, |(start, _)| start);
+        // An owned byte carrier's live-length word precedes its viewed
+        // elements; a fixed collection names its first element directly.
+        let leading: u64 = match backing.extent {
+            terminal_semantics::CollectionExtent::LiveLength { .. } => 8,
+            terminal_semantics::CollectionExtent::Fixed(_) => 0,
+        };
         stride != 0
             && stride == element_stride
             && window_start
                 .checked_mul(u64::from(stride))
-                .and_then(|window_offset| u64::from(offset).checked_add(window_offset))
+                .and_then(|window_offset| {
+                    u64::from(offset)
+                        .checked_add(leading)
+                        .and_then(|bytes| bytes.checked_add(window_offset))
+                })
                 == Some(u64::from(source_byte_offset))
     }
 }

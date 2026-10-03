@@ -70,12 +70,14 @@ pub use call_composition::{
     fixed_byte_array_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
     stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
-pub use collection_backing::{CollectionBacking, CollectionStorage, collection_backing};
+pub use collection_backing::{
+    CollectionBacking, CollectionExtent, CollectionStorage, collection_backing,
+};
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
 pub use primitive_place::{
-    canonical_primitive_path, canonical_static_projection, fixed_array_place_shape,
-    primitive_place_type, primitive_projection_type, primitive_read_projection_type,
-    runtime_element_field, runtime_structural_path_tip,
+    byte_carrier_field_declaration, canonical_primitive_path, canonical_static_projection,
+    fixed_array_place_shape, primitive_place_type, primitive_projection_type,
+    primitive_read_projection_type, runtime_element_field, runtime_structural_path_tip,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,

@@ -39,12 +39,14 @@ pub(crate) fn range(argument: &CheckedUnitStructuralArgumentPlan) -> Option<Rang
             expression,
             start,
             end,
+            storage_type_identity: _,
         } => (*root, ViewFamily::Bytes, *expression, start, end),
         CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
             root,
             expression,
             start,
             end,
+            storage_type_identity: _,
         } => (*root, ViewFamily::Elements, *expression, start, end),
         _ => return None,
     };
@@ -171,18 +173,41 @@ pub(crate) fn storage(
     }
     let (machine, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
-    let operation = validation::subslice_expression(&checked.typed, range.expression).ok_or(
-        LoweringError::Unsupported("range storage lost its readable expression"),
-    )?;
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
-        return unsupported("range storage lost its collection");
+    // The `coll[a..b]` spelling carries its collection through the indexed
+    // operation; the whole-extent spelling (`let v: &T = coll`) spells no
+    // `..` at all — its expression is the collection itself, behind the
+    // same readable-borrow unwrap the subslice recognizer applies.
+    let collection_expression = if let Some(operation) =
+        validation::subslice_expression(&checked.typed, range.expression)
+    {
+        let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation)
+        else {
+            return unsupported("range storage lost its collection");
+        };
+        indexed.collection
+    } else {
+        match checked.expression_table.expression(range.expression) {
+            ExpressionNode::Borrow(borrow)
+                if matches!(
+                    borrow.access,
+                    language_core::ReferenceAccess::Shared
+                        | language_core::ReferenceAccess::Mutable
+                ) =>
+            {
+                borrow.target
+            }
+            ExpressionNode::Borrow(_) => {
+                return unsupported("range storage lost its readable expression");
+            }
+            _ => range.expression,
+        }
     };
     let source = crate::emission::call_source_custody::projected_receivers::source(
         checked,
         machine.symbol,
         state,
         statement as usize,
-        indexed.collection,
+        collection_expression,
     )?;
     let symbol = match range.root {
         checked_trees::CheckedStorageRoot::Parameter { index } => checked
@@ -209,7 +234,7 @@ pub(crate) fn storage(
         &checked.typed,
         machine,
         Some(authored),
-        indexed.collection,
+        collection_expression,
     )
     .ok_or(LoweringError::Unsupported(
         "range collection has no declared type",
@@ -259,7 +284,8 @@ pub(crate) fn storage(
     let collection_element = match collection.shape {
         terminal_psi::StructuralTypeShape::FixedArray { element, .. } => Some(element),
         terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BoundedView { .. },
+            terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+            | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
         ) if range.family == ViewFamily::Bytes && view.shape.is_borrowed_byte_view() => {
             let byte = crate::emission::scalar_types::terminal_scalar_type(
                 checked_trees::types::PrimitiveType::U8,
@@ -489,9 +515,42 @@ pub(crate) fn replay(
 > {
     let (machine, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, site.state)?;
-    let operation = validation::subslice_expression(&checked.typed, site.expression).ok_or(
-        LoweringError::Unsupported("view subslice has no readable range operation"),
-    )?;
+    let Some(operation) = validation::subslice_expression(&checked.typed, site.expression) else {
+        // The whole-extent spelling `let v: &T = coll` authors no `..`
+        // operation — its endpoints stay omitted and its expression names
+        // the collection itself, behind the same readable-borrow unwrap
+        // `storage` applies. The replay checks the same exact root and
+        // projection agreement the spelled range checks.
+        let collection_expression = match checked.expression_table.expression(site.expression) {
+            ExpressionNode::Borrow(borrow)
+                if matches!(
+                    borrow.access,
+                    language_core::ReferenceAccess::Shared
+                        | language_core::ReferenceAccess::Mutable
+                ) =>
+            {
+                borrow.target
+            }
+            _ => site.expression,
+        };
+        let source = crate::emission::call_source_custody::projected_receivers::source(
+            checked,
+            machine.symbol,
+            site.state,
+            site.statement as usize,
+            collection_expression,
+        )?;
+        if !source_symbol.is_valid()
+            || source.root != source_symbol
+            || source.path != collection
+            || site
+                .retained
+                .is_some_and(|(start, end)| start.is_some() || end.is_some())
+        {
+            return unsupported("view subslice changed its exact collection root or projection");
+        }
+        return Ok((None, None));
+    };
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
         return unsupported("view subslice has no authored indexed expression");
     };
@@ -645,9 +704,15 @@ pub(crate) fn binding_site(
         }
         _ => return unsupported("range result has unreadable access"),
     };
+    // Constraint shells on the referee (a domain-qualified view such as
+    // `&[u8] in Utf8`) qualify the binding without changing its carrier:
+    // the result identity names the carrier, so the comparison peels them.
+    let declared_carrier = validation::slice_view_shell(&checked.typed, declared_type, &[])
+        .map(|shell| shell.slice)
+        .unwrap_or(declared.referee);
     if source.access != access
         || source.type_identity != result.type_identity
-        || checked.normalized_type_identity(declared.referee).as_str() != result.type_identity
+        || checked.normalized_type_identity(declared_carrier).as_str() != result.type_identity
         || result.multiplicity
             != if access == checked_trees::CheckedStructuralAccess::MutableBorrow {
                 language_semantics::Multiplicity::Affine

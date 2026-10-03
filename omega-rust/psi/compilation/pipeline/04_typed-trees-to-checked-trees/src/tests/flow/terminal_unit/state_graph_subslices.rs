@@ -423,6 +423,7 @@ fn range_source(
     let CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
         root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
         expression,
+        storage_type_identity: _,
     } = when_true.transfers[0].source
     else {
         panic!("exact source parameter and retained range");

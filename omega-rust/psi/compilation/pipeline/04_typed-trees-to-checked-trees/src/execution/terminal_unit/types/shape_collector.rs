@@ -472,7 +472,7 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<String> {
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
-            // Byte views and bounded byte references spell their implicit
+            // Byte views and bounded byte carriers spell their implicit
             // element through the collection establishment operation. The
             // carrier has no element field, so retain the declaration's u8
             // row beside it, just as an element view retains its element.
@@ -480,6 +480,7 @@ impl<'program> ShapeCollector<'program> {
                 carrier,
                 checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
                     | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
+                    | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             ) {
                 let mut referee = type_reference;
                 loop {
@@ -1150,15 +1151,11 @@ impl<'program> ShapeCollector<'program> {
                     // borrowed byte view survives with it: an element-view
                     // establishment of that view resolves its op's element
                     // through this row.
-                    CheckedUnitStructuralTypeShape::ByteSequence(
-                        checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
-                        | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. },
-                    ) => {
+                    CheckedUnitStructuralTypeShape::ByteSequence(_) => {
                         retained.extend(self.byte_view_elements.iter().cloned());
                     }
                     CheckedUnitStructuralTypeShape::FusedServiceBinding
-                    | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-                    | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+                    | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields } => {
                         for field in fields {
                             if let CheckedUnitStructuralFieldType::Structural { type_identity }

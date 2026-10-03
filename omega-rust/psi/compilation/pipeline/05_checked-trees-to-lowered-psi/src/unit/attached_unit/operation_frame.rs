@@ -2547,12 +2547,14 @@ impl OperationFrame<'_, '_> {
                 expression,
                 start,
                 end,
+                storage_type_identity: _,
             } => (*expression, start, end),
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
                 root: _,
                 expression,
                 start,
                 end,
+                storage_type_identity: _,
             } => (*expression, start, end),
             _ => return unsupported("view subslice binding lost its range source"),
         };

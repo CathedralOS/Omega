@@ -654,7 +654,7 @@ fn established_source(
     (
         StructuralTypeId,
         u32,
-        u64,
+        target_operations::TargetViewExtent,
         u32,
         TargetStructuralArgumentSource,
     ),
@@ -775,9 +775,9 @@ fn established_source(
             }
         }
     }
-    let (length, storage, representation) = match geometry {
+    let (extent_kind, storage, representation) = match geometry {
         terminal_semantics::ElementViewRegionGeometry::WholeCollection(collection) => {
-            (collection.length, collection.storage, None)
+            (collection.extent, collection.storage, None)
         }
         terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
             byte_extent,
@@ -794,7 +794,11 @@ fn established_source(
             } else {
                 terminal_semantics::CollectionStorage::Inline
             };
-            (byte_extent, storage, Some(layout))
+            (
+                terminal_semantics::CollectionExtent::Fixed(byte_extent),
+                storage,
+                Some(layout),
+            )
         }
     };
     let element_shape = crate::lowering::structural_layout::structural_shape(
@@ -812,9 +816,23 @@ fn established_source(
         || match storage {
             terminal_semantics::CollectionStorage::Inline => {
                 (if representation.is_some() {
-                    Some(length)
+                    match extent_kind {
+                        terminal_semantics::CollectionExtent::Fixed(length) => Some(length),
+                        _ => None,
+                    }
                 } else {
-                    u64::from(element_stride).checked_mul(length)
+                    match extent_kind {
+                        terminal_semantics::CollectionExtent::Fixed(length) => {
+                            u64::from(element_stride).checked_mul(length)
+                        }
+                        // An owned byte carrier's inline elements follow its
+                        // live-length word; capacity bounds their span.
+                        terminal_semantics::CollectionExtent::LiveLength { capacity } => {
+                            u64::from(element_stride)
+                                .checked_mul(capacity)
+                                .and_then(|span| span.checked_add(8))
+                        }
+                    }
                 }) != Some(u64::from(projected_shape.byte_size))
             }
             // The carrier contains one pointer, not capacity bytes. Dynamic
@@ -838,18 +856,31 @@ fn established_source(
             return Err(invalid());
         }
     }
-    let (window_offset, extent) = match byte_window {
-        Some((start, end)) if start <= end && end <= length => (
-            u32::try_from(
-                start
-                    .checked_mul(u64::from(element_stride))
-                    .ok_or_else(invalid)?,
+    let (window_offset, extent) = match (byte_window, extent_kind) {
+        (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length))
+            if start <= end && end <= length =>
+        {
+            (
+                u32::try_from(
+                    start
+                        .checked_mul(u64::from(element_stride))
+                        .ok_or_else(invalid)?,
+                )
+                .map_err(|_| invalid())?,
+                target_operations::TargetViewExtent::Fixed(end - start),
             )
-            .map_err(|_| invalid())?,
-            end - start,
-        ),
-        Some(_) => return Err(invalid()),
-        None => (0, length),
+        }
+        // A static window cannot bound a live count; dynamic narrowing is a
+        // following subslice over the established descriptor.
+        (Some(_), _) => return Err(invalid()),
+        (None, terminal_semantics::CollectionExtent::Fixed(length)) => {
+            (0, target_operations::TargetViewExtent::Fixed(length))
+        }
+        // An owned byte carrier's viewed elements start eight bytes into its
+        // storage, after the live-length word.
+        (None, terminal_semantics::CollectionExtent::LiveLength { .. }) => {
+            (8, target_operations::TargetViewExtent::LiveLength)
+        }
     };
     let source_byte_offset = source_byte_offset
         .checked_add(window_offset)
@@ -992,7 +1023,7 @@ mod tests {
         let expected = (
             array,
             0,
-            4,
+            target_operations::TargetViewExtent::Fixed(4),
             1,
             TargetStructuralArgumentSource::BlockParameter { block, place },
         );

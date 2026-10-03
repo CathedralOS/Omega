@@ -27,8 +27,8 @@ pub enum TargetElementView {
         placement: ValuePlacement,
     },
     /// A checked view establishment over a structural collection: the resolved
-    /// projection supplies the backing storage and byte offset; the compile-
-    /// known extent and element stride complete the descriptor.
+    /// projection supplies the backing storage and byte offset; the checked
+    /// extent and element stride complete the descriptor.
     Established {
         psi_operation: OperationId,
         place: PlaceId,
@@ -36,7 +36,7 @@ pub enum TargetElementView {
         element: StructuralTypeId,
         root_structural_type: StructuralTypeId,
         source_byte_offset: u32,
-        extent: u64,
+        extent: TargetViewExtent,
         region: TargetElementViewRegion,
         element_stride: u32,
         source: TargetStructuralArgumentSource,
@@ -53,6 +53,18 @@ pub enum TargetElementView {
         length: ValueId,
         obligation: ObligationId,
     },
+}
+
+/// The element count an established descriptor carries. An owned bounded
+/// byte carrier keeps its live count in the aligned u64 word immediately
+/// before its inline bytes; every other collection declares it statically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetViewExtent {
+    /// A compile-known element count fills the descriptor's extent word.
+    Fixed(u64),
+    /// The descriptor's extent word is the carrier's live element count,
+    /// read from the u64 header eight bytes before `source_byte_offset`.
+    LiveLength,
 }
 
 /// Exact retained region operands; geometry does not authorize their bounds.

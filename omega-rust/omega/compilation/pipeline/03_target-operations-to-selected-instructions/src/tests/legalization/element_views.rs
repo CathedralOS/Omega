@@ -1016,7 +1016,12 @@ fn array_arrival_element_view_retains_backing_and_rejects_substitution() {
                             place: id(10),
                         }
                     }
-                    _ => *extent += 1,
+                    _ => {
+                        let target_operations::TargetViewExtent::Fixed(length) = extent else {
+                            panic!("fixed extent");
+                        };
+                        *length += 1;
+                    }
                 }
                 assert!(
                     crate::legalize_target_operations(&changed, &source, &unit).is_err(),
@@ -1722,7 +1727,12 @@ fn representation_byte_region_replay(record: bool) {
                     std::mem::swap(start, end);
                 }
                 2 => *element_stride += 1,
-                _ => *extent += 1,
+                _ => {
+                    let target_operations::TargetViewExtent::Fixed(length) = extent else {
+                        panic!("fixed extent");
+                    };
+                    *length += 1;
+                }
             }
             assert!(
                 crate::legalize_target_operations(&changed, &source, &unit).is_err(),

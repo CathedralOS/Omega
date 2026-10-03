@@ -568,9 +568,9 @@ fn selected_declaration<'a>(
     ] {
         select_from(roster.iter(), identity, &mut selected)?;
     }
-    selected.ok_or(LoweringError::Unsupported(
-        "Unit closure references a missing structural type",
-    ))
+    selected.ok_or_else(|| {
+        LoweringError::Unsupported("Unit closure references a missing structural type")
+    })
 }
 
 pub(crate) fn lower_unit_structural_type_roots(
@@ -608,12 +608,14 @@ pub(crate) fn lower_unit_structural_type_roots(
             } => {
                 collect(checked, plans, referent_identity, active, selected)?;
             }
-            // Bounded byte backing has an implicit u8 element. Preserve
-            // that declared dependency just like a fixed array's explicit
-            // element; range establishment uses the same collection operation
-            // even when no local structural-value node constructs a view.
+            // Bounded byte backing has an implicit u8 element, owned or
+            // viewed. Preserve that declared dependency just like a fixed
+            // array's explicit element; range establishment uses the same
+            // collection operation even when no local structural-value node
+            // constructs a view.
             CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BoundedView { .. },
+                checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
+                | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
             ) => collect(
                 checked,
                 plans,

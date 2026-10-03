@@ -17,9 +17,22 @@ pub enum CollectionStorage {
     Borrowed,
 }
 
+/// The element count the collection's view descriptor carries. A fixed
+/// backing names it statically; an owned bounded byte carrier keeps it in
+/// the aligned u64 word immediately before its inline bytes, where the
+/// declared capacity only bounds the live count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionExtent {
+    /// A compile-known element count fills the descriptor's extent word.
+    Fixed(u64),
+    /// The carrier's live element count fills the descriptor's extent word,
+    /// loaded from the u64 header preceding `capacity` inline bytes.
+    LiveLength { capacity: u64 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CollectionBacking {
-    pub length: u64,
+    pub extent: CollectionExtent,
     pub storage: CollectionStorage,
 }
 
@@ -39,22 +52,42 @@ pub fn collection_backing<'types>(
             element: actual,
             length,
         } if actual == element => Some(CollectionBacking {
-            length,
+            extent: CollectionExtent::Fixed(length),
             storage: CollectionStorage::Inline,
         }),
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
-            capacity, ..
-        }) if types.clone().any(|declaration| {
-            declaration.id == element
-                && matches!(declaration.shape,
-                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                            if integer.sign() == IntegerSign::Unsigned
-                                && integer.bits() == 8 && !integer.is_address())
-        }) =>
+        StructuralTypeShape::ByteSequence(carrier)
+            if matches!(
+                carrier,
+                ByteSequenceCarrier::BoundedView { .. } | ByteSequenceCarrier::BoundedOwned { .. }
+            ) && types.clone().any(|declaration| {
+                declaration.id == element
+                    && matches!(declaration.shape,
+                            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                                if integer.sign() == IntegerSign::Unsigned
+                                    && integer.bits() == 8 && !integer.is_address())
+            }) =>
         {
+            let (ByteSequenceCarrier::BoundedView { capacity, .. }
+            | ByteSequenceCarrier::BoundedOwned { capacity }) = carrier
+            else {
+                unreachable!("carrier is bounded by the guard")
+            };
             Some(CollectionBacking {
-                length: capacity,
-                storage: CollectionStorage::Borrowed,
+                // A bounded view's declared capacity is its descriptor
+                // extent. An owned carrier's live length sits in its header
+                // word; capacity only bounds it.
+                extent: match carrier {
+                    ByteSequenceCarrier::BoundedOwned { .. } => {
+                        CollectionExtent::LiveLength { capacity }
+                    }
+                    _ => CollectionExtent::Fixed(capacity),
+                },
+                // Owned backing holds its elements directly; a bounded view
+                // is the referent pointer the descriptor carries instead.
+                storage: match carrier {
+                    ByteSequenceCarrier::BoundedOwned { .. } => CollectionStorage::Inline,
+                    _ => CollectionStorage::Borrowed,
+                },
             })
         }
         _ => None,
@@ -86,7 +119,7 @@ pub fn collection_view_backing<'a>(
     };
     crate::element_representation_relation(types, source, element, access)?;
     Some(CollectionBacking {
-        length,
+        extent: CollectionExtent::Fixed(length),
         storage: CollectionStorage::Inline,
     })
 }

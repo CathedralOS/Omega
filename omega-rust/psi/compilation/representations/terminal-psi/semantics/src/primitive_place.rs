@@ -287,6 +287,41 @@ fn plain_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
     }
 }
 
+/// The declared backing type a byte-carrier field projects: the unique
+/// declaration spelling that exact carrier. A field embeds its carrier
+/// inline, so the backing it names can only be identified by the carrier
+/// itself — the field's predicates and borrow access bind to the field,
+/// never to the backing type.
+pub fn byte_carrier_field_declaration<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    carrier: ByteSequenceCarrier,
+) -> Option<&'a StructuralTypeDeclaration> {
+    let mut matching = declarations.filter(|declaration| {
+        matches!(
+            declaration.shape,
+            StructuralTypeShape::ByteSequence(declared)
+                if same_byte_backing(carrier, declared)
+        )
+    });
+    let declaration = matching.next()?;
+    matching.next().is_none().then_some(declaration)
+}
+
+/// A field's byte carrier and a declaration's byte carrier name the same
+/// backing when their kind and extent agree; the borrow access a field
+/// binds belongs to the field, not to the backing type. Only the owned
+/// carrier projects a declared backing at all: a view field's descriptor is
+/// storage the record borrows, never a backing type the field names.
+fn same_byte_backing(field: ByteSequenceCarrier, declared: ByteSequenceCarrier) -> bool {
+    match (field, declared) {
+        (
+            ByteSequenceCarrier::BoundedOwned { capacity: field },
+            ByteSequenceCarrier::BoundedOwned { capacity: declared },
+        ) => field == declared,
+        _ => false,
+    }
+}
+
 impl ProjectionTip<'_> {
     fn primitive_scalar(&self) -> Option<ScalarType> {
         match self {
@@ -375,7 +410,12 @@ fn walk_primitive_projection<'a>(
                 step(Some(CanonicalStructuralPathSegment::Field(field.id)));
                 match field.field_type {
                     StructuralFieldType::Structural(child) => Position::Declared(child),
-                    _ => Position::ScalarField(plain_scalar_field(&field.field_type)?),
+                    _ => match field.field_type.byte_sequence_carrier() {
+                        Some(carrier) => Position::Declared(
+                            byte_carrier_field_declaration(declarations.clone(), carrier)?.id,
+                        ),
+                        None => Position::ScalarField(plain_scalar_field(&field.field_type)?),
+                    },
                 }
             }
             (

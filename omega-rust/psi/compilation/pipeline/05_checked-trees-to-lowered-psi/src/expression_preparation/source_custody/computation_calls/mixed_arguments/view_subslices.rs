@@ -117,12 +117,14 @@ pub(crate) fn validate_operand(
             expression,
             start,
             end,
+            storage_type_identity: _,
         } => (*root, *expression, start, end, true),
         CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
             root,
             expression,
             start,
             end,
+            storage_type_identity: _,
         } => (*root, *expression, start, end, false),
         _ => return unsupported("computed subslice has no retained range"),
     };

@@ -36,7 +36,7 @@ pub use target_operations::{
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
     TargetStructuralParameter, TargetStructuralReturnSource, TargetStructuralRuntimeIndex,
     TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
-    TargetUnitScalarHomeRequirement, TargetUnitWriteOnlyPrimitiveStoreSource,
+    TargetUnitScalarHomeRequirement, TargetUnitWriteOnlyPrimitiveStoreSource, TargetViewExtent,
     TargetX86ScalarFmaSettlement, TerminalPsiProvenance, boundary, calls, control_flow, operations,
     provenance, storage, values,
 };

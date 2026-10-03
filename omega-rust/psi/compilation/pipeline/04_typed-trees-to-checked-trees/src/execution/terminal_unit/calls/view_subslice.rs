@@ -61,6 +61,9 @@ pub(in crate::execution) struct ViewRange {
     /// Projection to the collection. Whole arrays and established views both
     /// have an empty path; storage kind comes from the declared type.
     pub(in crate::execution) collection: Vec<CheckedUnitStructuralPathSegment>,
+    /// Exact Terminal type identity of the collection's storage carrier,
+    /// enrolled in the checked structural type table.
+    pub(in crate::execution) storage_type_identity: String,
     pub(in crate::execution) kind: ViewKind,
     pub(in crate::execution) access: CheckedStructuralAccess,
     pub(in crate::execution) type_identity: String,
@@ -93,6 +96,7 @@ impl ViewSubslice {
                     expression,
                     start,
                     end,
+                    storage_type_identity: range.storage_type_identity,
                 },
                 ViewKind::Elements => {
                     CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
@@ -100,6 +104,7 @@ impl ViewSubslice {
                         expression,
                         start,
                         end,
+                        storage_type_identity: range.storage_type_identity,
                     }
                 }
             },
@@ -118,11 +123,13 @@ impl ViewSubslice {
             ViewKind::Bytes => CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 root: self.range.root,
                 expression: self.expression,
+                storage_type_identity: self.range.storage_type_identity.clone(),
             },
             ViewKind::Elements => CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 root: self.range.root,
                 path: self.range.collection.clone(),
                 expression: self.expression,
+                storage_type_identity: self.range.storage_type_identity.clone(),
             },
         }
     }
@@ -431,7 +438,7 @@ fn shape_of_kind(
         ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
         ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
     };
-    if let Some((root, collection)) = array_collection(
+    if let Some((root, collection, storage)) = array_collection(
         program,
         machine,
         state,
@@ -445,6 +452,7 @@ fn shape_of_kind(
                 root,
                 storage: ViewStorage::FixedArray,
                 collection,
+                storage_type_identity: collection_storage_identity(program, storage),
                 kind,
                 access,
                 type_identity,
@@ -503,10 +511,37 @@ fn shape_of_kind(
         root,
         storage: ViewStorage::Established,
         collection: Vec::new(),
+        // An established view's own type is its collection's storage
+        // carrier: the range narrows a descriptor, not array backing.
+        storage_type_identity: type_identity.clone(),
         kind,
         access,
         type_identity,
     })
+}
+
+/// The exact Terminal identity of the collection's storage carrier, spelled
+/// the way the checked structural type table enrolls the declared type: a
+/// byte carrier keeps its reference shell (`ref-mut(array(u8,3))`), while
+/// ordinary collections enroll under the peeled carrier spelling — the same
+/// carrier spelling lowering's `structural_carrier_type` computes.
+fn collection_storage_identity(program: &TypedTrees, storage: TypeReferenceHandle) -> String {
+    if byte_sequence_carrier(program, storage, &[]).is_some()
+        && let Some(identity) = byte_sequence_type_identity(program, storage, &[], &[])
+    {
+        return identity;
+    }
+    let mut peeled = storage;
+    loop {
+        match program.type_reference_table.type_reference(peeled) {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => peeled = *referee,
+            _ => break,
+        }
+    }
+    program.normalized_type_identity(peeled).into_string()
 }
 
 /// Resolve readable fixed-array storage, including a whole parameter or an
@@ -524,7 +559,11 @@ fn array_collection(
     target: TypeReferenceHandle,
     collection: ExpressionHandle,
     statement_index: usize,
-) -> Option<(CheckedStorageRoot, Vec<CheckedUnitStructuralPathSegment>)> {
+) -> Option<(
+    CheckedStorageRoot,
+    Vec<CheckedUnitStructuralPathSegment>,
+    TypeReferenceHandle,
+)> {
     let target_view = validation::slice_view_shell(program, target, &[])?;
     let element = target_view.element;
     let mutable = target_view.access == language_core::ReferenceAccess::Mutable;
@@ -579,6 +618,11 @@ fn array_collection(
     };
     let (mut projected, path) =
         super::projected_argument_path(program, state.symbol, statement_index, &place)?;
+    // The declared reference shell stays on the storage handle: byte
+    // carriers enroll in the checked type table under that shell's spelling
+    // (`ref-mut(array(u8,3))` for a `&mut [u8;3]` parameter), so peeling
+    // here would name an identity no roster carries.
+    let storage = projected;
     // Parameter access describes the one root reference already lowered to
     // its referent. The shared projection resolver owns field/index typing;
     // the selected collection must itself be an array. A nested reference
@@ -604,7 +648,72 @@ fn array_collection(
         }
     };
     (program.normalized_type_identity(array_element) == program.normalized_type_identity(element))
-        .then_some((root, path))
+        .then_some((root, path, storage))
+}
+
+/// The whole-extent spelling of the same range: `let v: &T = coll` lends
+/// `coll`'s entire backing as the `coll[..]` range — no `..` operator is
+/// spelled, so its endpoints stay omitted and the backing's own extent
+/// names the end.
+pub(in crate::execution) fn whole_extent(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    statement_index: usize,
+) -> Option<(ViewSubslice, TypeReferenceHandle)> {
+    let kind = view_kind(program, target).or_else(|| {
+        borrowed_slice_view_element(program, target, &[]).map(|_| ViewKind::Elements)
+    })?;
+    let access = structural_access_for_type_reference(program, target)?;
+    if !matches!(
+        access,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+    ) {
+        return None;
+    }
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+        let authored = match borrow.access {
+            language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
+            language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+            language_core::ReferenceAccess::WriteOnly => return None,
+        };
+        if authored != access {
+            return None;
+        }
+    }
+    let type_identity = match kind {
+        ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
+        ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
+    };
+    let (root, collection, storage) = array_collection(
+        program,
+        machine,
+        state,
+        parameters,
+        target,
+        expression,
+        statement_index,
+    )?;
+    Some((
+        ViewSubslice {
+            range: ViewRange {
+                root,
+                storage: ViewStorage::FixedArray,
+                collection,
+                storage_type_identity: collection_storage_identity(program, storage),
+                kind,
+                access,
+                type_identity,
+            },
+            expression,
+            start: None,
+            end: None,
+        },
+        storage,
+    ))
 }
 
 /// The immutable borrowed-view `let` that `symbol` names, declared at an

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 16, "jobs": null, "load1_end": 3.78, "load1_start": 3.78, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 2.98, "load1_start": 2.98, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -924,8 +924,7 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 1813ms @2d8ed25
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 1524ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit built 4743ms exit:70 @2d8ed253669f+wt
-pass/text/runtime_owned_string_byte_view_exit rejected 1245ms @34627c25182b
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
+pass/text/runtime_owned_string_byte_view_exit built 1416ms exit:70 @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit built 959ms exit:70 @9baafc0ace88
 pass/text/runtime_slice_indexed_string_guard_exit built 4091ms exit:70 @34627c25182b
 pass/text/runtime_stdin_command_branch_exit rejected 1345ms @2d8ed253669f+wt

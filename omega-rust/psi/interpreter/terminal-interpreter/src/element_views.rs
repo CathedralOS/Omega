@@ -438,7 +438,14 @@ impl TerminalExecution {
                     element,
                 )
                 .ok_or_else(invalid)?;
-                if start > end || u64::try_from(end).map_err(|_| invalid())? > collection.length {
+                let bound = match collection.extent {
+                    terminal_semantics::CollectionExtent::Fixed(length) => length,
+                    // An owned carrier's live count is bounded by its
+                    // capacity: a byte window may not reach past the
+                    // declared storage even before the live-length read.
+                    terminal_semantics::CollectionExtent::LiveLength { capacity } => capacity,
+                };
+                if start > end || u64::try_from(end).map_err(|_| invalid())? > bound {
                     return Err(invalid());
                 }
                 let mut cursor = self.local_structural_identities.cursor();
@@ -539,7 +546,19 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        let collection_length = collection.length;
+        let collection_length = match collection.extent {
+            terminal_semantics::CollectionExtent::Fixed(length) => length,
+            // An owned byte carrier's live count is dynamic; its byte-view
+            // establishment enters the byte-array channel, which reads that
+            // store's own live extent. Element snapshots of one cannot read
+            // scalar cells the carrier does not have.
+            terminal_semantics::CollectionExtent::LiveLength { capacity }
+                if matches!(descriptor, StructuralTypeShape::ByteSequence(_)) =>
+            {
+                capacity
+            }
+            _ => return Err(invalid()),
+        };
         let extent = usize::try_from(collection_length).map_err(|_| invalid())?;
         // Byte loans resolve their live ArrayStorage directly. Only consumers
         // retaining scalar snapshots need to walk and allocate element values.

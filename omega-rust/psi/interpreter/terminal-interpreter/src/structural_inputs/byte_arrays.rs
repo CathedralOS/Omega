@@ -6,6 +6,7 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::resolve_structural_arguments;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
+use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::ScalarType;
@@ -298,8 +299,13 @@ impl TerminalExecution {
                 .byte_sequence_values
                 .get(&source.place)
                 .ok_or_else(invalid)?;
+            // A borrowed backing is pointer-carried, so its declared capacity
+            // is the descriptor's whole extent.
+            let terminal_semantics::CollectionExtent::Fixed(capacity) = collection.extent else {
+                return Err(invalid());
+            };
             if !value.qualifications.is_empty()
-                || self.byte_sequence_length(source.place)? != collection.length
+                || self.byte_sequence_length(source.place)? != capacity
             {
                 return Err(invalid());
             }
@@ -319,18 +325,80 @@ impl TerminalExecution {
             return Ok((value, binding));
         }
         if source.access == StructuralAccess::SharedBorrow {
+            // An owned bounded byte carrier keeps its live byte sequence in
+            // the field store; the shared snapshot binds exactly that live
+            // sequence, not the declared capacity.
+            if matches!(
+                collection.extent,
+                terminal_semantics::CollectionExtent::LiveLength { .. }
+            ) {
+                let Some((StructuralPathSegment::Field(identity), prefix)) =
+                    source.path.split_last()
+                else {
+                    return Err(invalid());
+                };
+                let parent = resolve_structural_arguments(
+                    &self.program.structural_types,
+                    &self.structural_values,
+                    &[StructuralArgument {
+                        place: source.place,
+                        path: prefix.to_vec(),
+                        access: source.access,
+                    }],
+                )?
+                .pop()
+                .ok_or_else(invalid)?;
+                let declaration = self
+                    .program
+                    .structural_types
+                    .get(&parent.structural_type)
+                    .ok_or_else(invalid)?;
+                let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                    return Err(invalid());
+                };
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())
+                    .ok_or_else(invalid)?;
+                if !matches!(
+                    field.field_type.byte_sequence_carrier(),
+                    Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+                ) {
+                    return Err(invalid());
+                }
+                let bytes = self
+                    .structural_byte_sequence_fields
+                    .get(&StructuralByteSequenceRuntimeField {
+                        parent: StructuralRuntimePlace::from(&parent),
+                        field: field.id,
+                    })
+                    .ok_or_else(invalid)?
+                    .bytes()
+                    .to_vec();
+                return Ok((
+                    TerminalStructuralValue {
+                        opaque_identity: source.place.get(),
+                        structural_type: view_type,
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    },
+                    ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
+                ));
+            }
             // Shared inline collections retain the existing primitive snapshot
             // semantics, including genuinely empty initialized arrays. Host
             // input policy for pointer-only byte arrays remains independent.
+            let terminal_semantics::CollectionExtent::Fixed(count) = collection.extent else {
+                return Err(invalid());
+            };
             let byte_type = semantic_vocabulary::IntegerType::new(
                 semantic_vocabulary::IntegerSign::Unsigned,
                 8,
             )
             .map_err(|_| invalid())?;
             let mut path = source.path.clone();
-            let mut bytes =
-                Vec::with_capacity(usize::try_from(collection.length).map_err(|_| invalid())?);
-            for index in 0..collection.length {
+            let mut bytes = Vec::with_capacity(usize::try_from(count).map_err(|_| invalid())?);
+            for index in 0..count {
                 path.push(StructuralPathSegment::FixedIndex(index));
                 let value =
                     self.read_primitive_place(source.place, &path, ScalarType::Integer(byte_type))?;
@@ -377,7 +445,7 @@ impl TerminalExecution {
             home,
         };
         if !referent.qualifications.is_empty()
-            || length != collection.length
+            || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
             || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
         {
             return Err(invalid());
