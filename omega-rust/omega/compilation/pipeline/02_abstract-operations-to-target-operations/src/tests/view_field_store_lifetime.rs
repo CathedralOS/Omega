@@ -1,6 +1,6 @@
-//! A stored literal view names immutable image storage, which outlives every
-//! root, so lowering admits the descriptor replacement in any activation:
-//! the program entry's own parameter and a callee's parameter alike.
+//! Descriptor stores consume readable values independently of their producer.
+//! Image-backed literals outlive every activation; copied runtime descriptors
+//! retain their independently verified source loans without allocating backing.
 use super::super::{TargetLoweringRequest, lower_to_target_operations};
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
@@ -138,6 +138,74 @@ fn every_activation_replaces_its_parameter_field_with_image_backed_literal() {
             );
             crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
         }
+    }
+}
+
+#[test]
+fn record_field_replacement_reads_the_completed_descriptor_home() {
+    let source = super::structural_borrows::source_plan(
+        r#"
+        domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+        data Room [copy] { label: &[u8] in Utf8; }
+        data Main { source: Room; }
+        machine Main::run(main: &mut Main) {
+            main.source.label = "Gate";
+            transition { _ -> observe(main) }
+            state observe(main: &mut Main) {
+                let room: Room;
+                room.label = main.source.label;
+                transition room.label == "Gate" {
+                    true -> good(main)
+                    false -> bad(main)
+                }
+            }
+            state good(main: &mut Main) { }
+            state bad(main: &mut Main) { }
+        }
+        "#,
+    );
+    // Field observation materializes a descriptor in a normal value home.
+    // The store must consume that exact home, not recognize a literal source.
+    let (function_index, copy_index, copied_place) = source
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(function_index, function)| {
+            function
+                .operations
+                .iter()
+                .enumerate()
+                .find_map(|(copy_index, operation)| {
+                    let AbstractOperation::StructuralLeafCopy { result, .. } = operation else {
+                        return None;
+                    };
+                    function
+                        .operations
+                        .iter()
+                        .any(|operation| {
+                            matches!(
+                                operation,
+                                AbstractOperation::StructuralByteViewFieldStore { source, .. }
+                                    if *source == result.place
+                            )
+                        })
+                        .then_some((function_index, copy_index, result.place))
+                })
+        })
+        .expect("the store consumes the field observation's descriptor home");
+    for target in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
+        let lowered = lower_to_target_operations(&source, TargetLoweringRequest::new(target))
+            .expect("replacement shares ordinary readable-storage lookup with construction");
+        crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
+
+        let mut unavailable = source.clone();
+        unavailable.functions[function_index]
+            .operations
+            .remove(copy_index);
+        assert!(
+            lower_to_target_operations(&unavailable, TargetLoweringRequest::new(target)).is_err(),
+            "a type declaration cannot make the removed descriptor {copied_place:?} available"
+        );
     }
 }
 

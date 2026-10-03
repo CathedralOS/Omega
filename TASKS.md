@@ -497,24 +497,29 @@ evidence carriers without an exercising program. The
 the complete product bar; focused successes below do not establish that baseline.
 
 - **REFERENCE-BEARING-RECORD-LOCAL-FILL.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
-  Root a field store at a declared record local whose fields include a
-  borrowed view. `pass/text/runtime_string_stored_suffix_exit`,
-  `pass/text/runtime_local_struct_string_field_concat_exit` and
-  `pass/wire/runtime_wire_utf8_edge_verdicts_exit` remain native customers.
-  The text reduction is three lines:
-  `data Room [copy] { label: &[u8] in Utf8; }`, then `let room: Room;` and
-  `room.label = source.label;`.
+  Complete `pass/text/runtime_string_stored_suffix_exit` and
+  `pass/text/runtime_local_struct_string_field_concat_exit` through ordinary
+  byte-value construction and assignment. Their current failure is stage 04
+  `structural field store: destination parameter` at state 1, statement 3:
+  assigning concatenation into the uninitialized borrowed-view local
+  `out_line`, not the preceding `room.label = main.source.label`.
+  Observed with `omega run --both <fixture>/main.omg` on macOS ARM64 at
+  `20ff4f468d4` and with the descriptor-store repair below.
 
-  The unchanged wire UTF-8 decoder now executes with native/interpreter exit
-  70 on macOS ARM64. Runtime descriptor field establishment retains the exact
-  backing loan and independent predicate obligations through source custody,
-  Terminal verification and native lowering. Partial record storage no longer
-  requires a fabricated zero reference or a literal-only field initializer.
-  Recheck the two text customers and pin the three-line reduction through this
-  shared route; their execution acceptance remains open. Preserve descriptor
-  lifetime, overlapping-write rejection and current-content predicate replay.
-  Acceptance: the three fixtures reach their authored native exits, with the
-  three-line reduction pinned as its own fixture.
+  The three-line record-fill reduction is now pinned by
+  `pass/text/declared_record_view_field_fill_exit` (native/interpreter exit 70),
+  and the unchanged `pass/wire/runtime_wire_utf8_edge_verdicts_exit` retains
+  exit 70 in both engines. Native descriptor stores use ordinary readable
+  storage lookup, including copied value homes, instead of a producer whitelist.
+  Preserve descriptor lifetime, overlapping-write rejection and current-content
+  predicate replay. Remaining dependency: establish the concatenation's result
+  backing and the assigned view's lifetime under
+  [byte construction](wiki/spec/terminal-psi/structural_access.md#store-vocabulary)
+  and [storage provision](wiki/spec/language/generics.md#value-binders-and-const-requirements).
+  The existing operation materializes a bounded owner; these customers declare
+  only `&[u8]`. Do not infer storage authority from `Utf8`, reserve an arbitrary
+  maximum, or add a literal-flow recognizer to admit just these bodies.
+  Acceptance remains the unchanged text programs' authored exits 193/188.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans, source-free Terminal replay and
@@ -1132,7 +1137,7 @@ the complete product bar; focused successes below do not establish that baseline
 
   | Customer | Required behavior and owner |
   | --- | --- |
-  | `text/runtime_local_struct_string_field_concat_exit`, `text/runtime_string_stored_suffix_exit` | Exits 188/193 with unchanged shared-view Room records. `StructuralByteViewFieldStore` ([store vocabulary](wiki/spec/terminal-psi/structural_access.md#store-vocabulary)) replaces a shared view field's descriptor with an established literal whose octets imply the field predicates; native literals are image-backed (`ByteLiteralImageAddress` into the image's read-only literal pool), so the store lowers in every activation. `render(self.source)` copies the `[copy]` Room across the state edge as one `StructuralLeafCopy` whose view keeps its source loan; owned block arrivals transport the shared view field as its two-word descriptor (`text/copy_record_view_field_state_transfer_exit` and `text/owned_arrival_view_descriptor_forwarded_exit` exit 70 natively and interpreted). Both customers now stop at stage 04 `structural field store: destination parameter` (state 1, statement 2): `room.label = source.label` stores a non-literal view into a state-local record ([Q3](OWNER_QUESTIONS.md) `stored-view-lifetime-authority`), and the concatenation then reads a view field operand. Psi still declines other view-record copies: a state-local copy (`let copied: Badge = main.badge`) stops at stage 04 `scalar field store sequence: write frame agreement`, a nested record holding a view record stops at `state graph: terminator: jump successor: parameter transfer`, an owned call operand at `call operation: projected operand support`, and a case with a view payload at `structural field store: case field type`. `traits/equatable_string_field_equality_exit` stores both record literals (a quoted view member is a `ByteLiteralView` that decomposes into its `StructuralByteViewFieldStore`; `domains/record_literal_view_member_store_exit` exits 70) and stops at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 2): synthesized `self.left == self.right` needs content equality of two `&[u8] in Utf8` view fields, which `boolean_lowering.rs` unrolls only for bounded owners or a literal operand, and Terminal has no executable byte-sequence equality operation (`ByteSequenceEqual` is proposition tag 12 only). It needs a trusted Terminal executable view-equality operation, or a looped library comparison the synthesized equality calls. Copy permission cannot establish qualification or extend a loan. **NOMINAL-FIELD-FLOW** / **STATE-LOCAL-VALUE-FRONTIER**. |
+  | `text/runtime_local_struct_string_field_concat_exit`, `text/runtime_string_stored_suffix_exit` | Exits 188/193 with unchanged shared-view Room records; **REFERENCE-BEARING-RECORD-LOCAL-FILL** owns the current concatenation/storage frontier and its executable record-fill reduction. Keep the separate view-record compositions (local copy, nested state transfer, owned call operand, case payload) under **NOMINAL-FIELD-FLOW** / **STATE-LOCAL-VALUE-FRONTIER**. `traits/equatable_string_field_equality_exit` additionally needs content equality between two runtime view fields, not descriptor identity or literal-only comparison. Record construction and descriptor replacement preserve the same independently checked backing and predicate obligations; copying cannot extend a loan or establish qualification. |
   | `host/runtime_console_bounded_line_exit` | On macOS ARM64 the empty-input fixture exits 20 and its `host/runtime_console_bounded_line_{lf,full,partial_eof,middle_window}_exit` siblings exit 13, 34, 22 and 70 with exact stdout on both engines (LF stored and counted, Full without reading on, partial EOF, zero-capacity non-consumption, untouched `#` tails, next unread byte, and the `Main::repeat` middle-window entry). Remaining: the same oracles on the Windows and Linux matching hosts. |
   | `filesystem/native_wrapper_write_all_result` | On macOS ARM64, store and dispatch the write result: nonexistent parent gives Error, `/tmp` gives Ok, stdout contains PASS and no FAIL. Exit zero alone is insufficient. This is distinct from **FILESYSTEM-RELEASE-CONTRACT** proof closure. |
   | `host/runtime_gui_foreground_window_exit` | Windows, exact authored Gui provider: create, query/store foreground result, destroy, exit 70. An invisible window need not become foreground. |
