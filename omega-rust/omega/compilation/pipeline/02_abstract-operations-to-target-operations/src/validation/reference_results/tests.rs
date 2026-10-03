@@ -285,6 +285,68 @@ fn reference_replay_residual_rejoins_exact_type_path_and_leaf_exclusion() {
 }
 
 #[test]
+fn reference_replay_projected_call_moves_only_its_declared_leaf_roster() {
+    let mut declarations = catalog();
+    declarations.push(StructuralTypeDeclaration {
+        id: kind(4),
+        identity: "Reference".into(),
+        shape: StructuralTypeShape::Reference {
+            referent: kind(3),
+            access: StructuralAccess::MutableBorrow,
+        },
+    });
+    declarations[0].shape = StructuralTypeShape::Record {
+        fields: vec![field(5, "body", 4)],
+    };
+    let source = function();
+    let mut custody = Custody::default();
+    custody
+        .homes
+        .insert(place(1), (kind(2), StructuralMultiplicity::Affine));
+    for (name, backing) in [("left", 91), ("right", 92)] {
+        let mut leaf_path = path(name);
+        leaf_path.extend(path("body"));
+        custody.leaves.insert(
+            (place(1), leaf_path),
+            Leaf {
+                root: Root::Place(place(backing)),
+                structural_type: kind(2),
+                multiplicity: StructuralMultiplicity::Affine,
+            },
+        );
+    }
+    let argument = StructuralArgument {
+        place: place(1),
+        path: path("left"),
+        access: StructuralAccess::Owned,
+    };
+    let moved = argument_moves(&source, &declarations, &custody, &[argument.clone()]).unwrap();
+    assert_eq!(moved.len(), 1);
+    assert_eq!(moved.values().next().unwrap().root.place(), place(91));
+    assert!(
+        argument_moves(
+            &source,
+            &declarations,
+            &custody,
+            &[argument.clone(), argument.clone()]
+        )
+        .is_none()
+    );
+    let mut missing = custody.clone();
+    missing.leaves.remove(moved.keys().next().unwrap());
+    assert!(argument_moves(&source, &declarations, &missing, &[argument.clone()]).is_none());
+    let mut wrong = argument;
+    wrong.path = path("absent");
+    assert!(argument_moves(&source, &declarations, &custody, &[wrong]).is_none());
+    commit_argument_moves(&mut custody, &moved);
+    assert_eq!(custody.leaves.len(), 1);
+    assert_eq!(
+        custody.leaves.values().next().unwrap().root.place(),
+        place(92)
+    );
+}
+
+#[test]
 fn reference_replay_binds_copied_byte_descriptor_to_direct_byte_field() {
     let mut declarations = catalog();
     let carrier = terminal_psi::ByteSequenceCarrier::BorrowedView {

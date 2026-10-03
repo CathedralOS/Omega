@@ -421,35 +421,9 @@ pub(super) fn lower_terminator(
                     cleanup_actions,
                 });
             }
-            // A bare reference returns the address payload established by its
-            // producer. Its loan is checked independently; referent contents
-            // are never copied into the return ABI.
-            if reference_bearing && let Some(leaf) = live.references.get(&(*source, Vec::new())) {
-                if !returned_claims.is_empty()
-                    || !trivial_affine_locals.is_empty()
-                    || result.multiplicity != leaf.result.multiplicity
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                super::references::return_custody(
-                    function,
-                    live,
-                    structural_types,
-                    *source,
-                    result,
-                )?;
-                let operation = leaf
-                    .operation
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                let home =
-                    super::aggregate_results::home(operation, &leaf.result, structural_types)?;
-                provenance.edges.push(*psi_edge);
-                return Ok(TargetControlTerminator::ReturnStructural {
-                    psi_edge: *psi_edge,
-                    source: target_operations::TargetStructuralReturnSource::Home(home),
-                    cleanup_actions,
-                });
-            }
+            // Return the current value's storage home, including reference
+            // descriptors. Loan identity can predate this carrier (an ingress
+            // leaf or a moved record field); it is not the return ABI's home.
             let home = live
                 .structural_homes
                 .get(source)

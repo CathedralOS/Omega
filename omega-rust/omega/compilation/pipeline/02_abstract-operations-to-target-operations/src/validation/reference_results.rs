@@ -627,22 +627,36 @@ fn argument_moves(
         if !contains_reference(declarations, contract) {
             continue;
         }
-        if !argument.path.is_empty() {
+        if !argument
+            .path
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+        {
             return None;
         }
-        let paths = leaf_paths(declarations, contract, custody.leaves.len())?;
+        // Replay the selected subtree, including the whole-root empty path.
+        // Leaves outside this projection stay in the caller's carrier.
+        let selected = leaf_type(declarations, contract, &argument.path)?;
+        let paths = leaf_paths(declarations, selected, custody.leaves.len())?;
         if paths.len()
             != custody
                 .leaves
                 .keys()
-                .filter(|(carrier, _)| *carrier == argument.place)
+                .filter(|(carrier, path)| {
+                    *carrier == argument.place && path.starts_with(&argument.path)
+                })
                 .count()
         {
             return None;
         }
         for path in paths {
-            let leaf = custody.leaves.get(&(argument.place, path.clone()))?.clone();
-            if moved.insert((argument.place, path), leaf).is_some() {
+            let mut carrier_path = argument.path.clone();
+            carrier_path.extend(path);
+            let leaf = custody
+                .leaves
+                .get(&(argument.place, carrier_path.clone()))?
+                .clone();
+            if moved.insert((argument.place, carrier_path), leaf).is_some() {
                 return None;
             }
         }

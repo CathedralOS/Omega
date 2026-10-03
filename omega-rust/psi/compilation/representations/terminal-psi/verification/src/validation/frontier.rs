@@ -677,7 +677,6 @@ fn validate_scalar_cleanup_actions(
         block,
     };
     let mut frontier = frontier.clone();
-    let max_residuals = actions.len();
     let mut actions = actions.iter();
 
     // Every live, claim-free affine operation result follows the same reverse
@@ -695,9 +694,19 @@ fn validate_scalar_cleanup_actions(
         }) {
             continue;
         }
-        if frontier.partial_custody_paths.contains_key(&place)
-            || actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place))
-        {
+        if frontier.partial_custody_paths.contains_key(&place) {
+            validate_scalar_residual_cleanup(
+                module,
+                machine,
+                block,
+                &mut frontier,
+                place,
+                &mut actions,
+            )?;
+            frontier.owned_places.remove(&place);
+            continue;
+        }
+        if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
             return Err(mismatch());
         }
         super::references::discard_owned(module, machine, &mut frontier.references, place)?;
@@ -742,27 +751,18 @@ fn validate_scalar_cleanup_actions(
         {
             return Err(mismatch());
         }
-        if let Some(moved) = frontier.partial_custody_paths.remove(&parameter.place) {
-            let Some(residuals) =
-                partial_affine_residuals(module, parameter.structural_type, &moved, max_residuals)
-            else {
-                return Err(mismatch());
-            };
-            if moved.is_empty() || residuals.is_empty() {
-                return Err(mismatch());
-            }
-            for (path, structural_type) in residuals {
-                let expected = TerminalAffineCleanupAction::DiscardResidual(
-                    terminal_psi::StructuralAffineDiscard {
-                        place: parameter.place,
-                        path,
-                        structural_type,
-                    },
-                );
-                if actions.next() != Some(&expected) {
-                    return Err(mismatch());
-                }
-            }
+        if frontier
+            .partial_custody_paths
+            .contains_key(&parameter.place)
+        {
+            validate_scalar_residual_cleanup(
+                module,
+                machine,
+                block,
+                &mut frontier,
+                parameter.place,
+                &mut actions,
+            )?;
         } else {
             let Some(action) = actions.next() else {
                 return Err(mismatch());
@@ -801,6 +801,49 @@ fn validate_scalar_cleanup_actions(
         || !frontier.partial_custody_paths.is_empty()
     {
         return Err(mismatch());
+    }
+    Ok(())
+}
+
+/// Whole and projected results follow the same lifetime order. A projected
+/// disposal must name the complete remaining subtree roster, never the root.
+fn validate_scalar_residual_cleanup(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: BlockId,
+    frontier: &mut StructuralOwnershipFrontier,
+    place: PlaceId,
+    actions: &mut std::slice::Iter<'_, TerminalAffineCleanupAction>,
+) -> Result<(), ModuleError> {
+    let mismatch = || ModuleError::ScalarReturnAffineDiscardsMismatch {
+        machine: machine.id,
+        block,
+    };
+    let root_type = partial_affine_root_type(machine, place).ok_or_else(mismatch)?;
+    let moved = frontier
+        .partial_custody_paths
+        .remove(&place)
+        .ok_or_else(mismatch)?;
+    let residuals =
+        partial_affine_residuals(module, root_type, &moved, actions.len()).ok_or_else(mismatch)?;
+    if residuals.is_empty()
+        || frontier
+            .references
+            .iter()
+            .any(|reference| reference.carrier == place)
+    {
+        return Err(mismatch());
+    }
+    for (path, structural_type) in residuals {
+        let expected =
+            TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
+                place,
+                path,
+                structural_type,
+            });
+        if actions.next() != Some(&expected) {
+            return Err(mismatch());
+        }
     }
     Ok(())
 }

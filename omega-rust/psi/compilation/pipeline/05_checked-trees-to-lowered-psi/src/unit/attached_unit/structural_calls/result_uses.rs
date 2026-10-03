@@ -2250,6 +2250,24 @@ fn validate_operand_producers(
                             "Unit result projection disagrees with its authored path",
                         );
                     }
+                    if authored_access == checked_trees::CheckedStructuralAccess::Owned
+                        && !path.is_empty()
+                        && result.multiplicity == Multiplicity::Affine
+                    {
+                        crate::expression_preparation::source_custody::structural::validate_owned_transfer(
+                            checked,
+                            caller.machine,
+                            caller.state,
+                            local.symbol,
+                            local.type_reference,
+                            language_semantics::PermissionEventSource::Call {
+                                statement_index: coordinate.statement_index as usize,
+                                call_ordinal: coordinate.call_ordinal as usize,
+                                target_symbol: authored.source_target,
+                            },
+                            &path,
+                        )?;
+                    }
                     true
                 }
                 _ => false,

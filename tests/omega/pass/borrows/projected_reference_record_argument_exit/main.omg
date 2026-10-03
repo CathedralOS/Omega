@@ -1,0 +1,20 @@
+// Moving a record subtree transfers its stored reference, not its backing.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data View { body: &mut i32; }
+data Outer { inner: View; }
+machine select(value: View) -> &mut i32 { value.body }
+machine replace(value: &mut i32) { value = 29; }
+machine exercise(value: &mut i32) -> i32 {
+    let input: Outer = Outer { inner: View { body: value } };
+    let held: &mut i32 = select(input.inner);
+    replace(held);
+    value
+}
+
+data Main { console: Binding<Console>; value: i32; }
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i32 = exercise(&mut main.value);
+    main.console.exit_process(result);
+}

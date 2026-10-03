@@ -1000,26 +1000,36 @@ pub(super) fn call_arguments(
             continue;
         }
         if argument_owns_references(function, live, types, argument) {
-            if !argument.path.is_empty() {
+            if !argument
+                .path
+                .iter()
+                .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+            {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let (contract, _) = source_contract(function, live, argument.place)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let paths = leaf_paths(types, contract, live.references.len())
+            let selected = leaf_type(types, contract, &argument.path)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let paths = leaf_paths(types, selected, live.references.len())
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if paths.len()
                 != live
                     .references
                     .keys()
-                    .filter(|(carrier, _)| *carrier == argument.place)
+                    .filter(|(carrier, path)| {
+                        *carrier == argument.place && path.starts_with(&argument.path)
+                    })
                     .count()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             for path in paths {
+                let mut carrier_path = argument.path.clone();
+                carrier_path.extend(path);
                 let leaf = live
                     .references
-                    .get(&(argument.place, path.clone()))
+                    .get(&(argument.place, carrier_path.clone()))
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 // Abstract callee ingress promises independently available
                 // leaves. A type cannot describe an unknown suspended parent
@@ -1029,7 +1039,7 @@ pub(super) fn call_arguments(
                     .values()
                     .any(|child| child.parent.as_ref() == Some(&leaf.identity))
                     || moved
-                        .insert((argument.place, path.clone()), leaf.clone())
+                        .insert((argument.place, carrier_path), leaf.clone())
                         .is_some()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1190,19 +1200,26 @@ pub(super) fn establish(
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (root, parent) = normalized_source(function, live, types, source)?;
-    let identity = (result.place, Vec::new());
-    live.references.insert(
-        identity.clone(),
+    // An owned ingress record containing exactly this loan moves that loan
+    // into the new descriptor. Other establishments reborrow and retain the
+    // parent. Physical pointer formation is identical; custody is not.
+    let transferred = transferred_ingress_leaf(function, live, types, source);
+    let custody = if let Some(key) = transferred {
+        live.references
+            .remove(&key)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+    } else {
+        let (root, parent) = normalized_source(function, live, types, source)?;
         ReferenceCustody {
-            identity,
+            identity: (result.place, Vec::new()),
             root,
             parent,
             operation: Some(*psi_operation),
             result: result.clone(),
             referent,
-        },
-    );
+        }
+    };
+    live.references.insert((result.place, Vec::new()), custody);
     // A reference owns descriptor storage just like every other structural
     // result. Its separate custody row governs the loan, not home discovery.
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
@@ -1215,6 +1232,46 @@ pub(super) fn establish(
     });
     provenance.operations.push(*psi_operation);
     Ok(())
+}
+
+/// Retain the exact single-leaf ingress move already checked at the portable
+/// boundary. A local or reference-typed carrier still establishes a child loan.
+fn transferred_ingress_leaf(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    source: &StructuralArgument,
+) -> Option<(PlaceId, Vec<StructuralPathSegment>)> {
+    let parameter = function.structural_parameters.iter().find(|parameter| {
+        parameter.place == source.place && parameter.access == StructuralAccess::Owned
+    })?;
+    if matches!(
+        types.get(&parameter.structural_type)?.shape,
+        StructuralTypeShape::Reference { .. }
+    ) {
+        return None;
+    }
+    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
+        return None;
+    };
+    let paths = leaf_paths(types, parameter.structural_type, live.references.len())?;
+    if paths.as_slice() != [path.to_vec()] {
+        return None;
+    }
+    let key = (source.place, path.to_vec());
+    let leaf = live.references.get(&key)?;
+    (leaf.parent.is_none()
+        && live
+            .references
+            .keys()
+            .filter(|(carrier, _)| *carrier == source.place)
+            .count()
+            == 1
+        && !live
+            .references
+            .values()
+            .any(|child| child.parent.as_ref() == Some(&leaf.identity)))
+    .then_some(key)
 }
 
 /// Close the loan on the carrier at `source`; referent storage is unaffected.

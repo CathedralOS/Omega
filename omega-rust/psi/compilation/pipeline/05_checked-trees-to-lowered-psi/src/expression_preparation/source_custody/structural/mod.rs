@@ -28,6 +28,7 @@ mod slice_view;
 mod structural_case;
 mod view_element_copy;
 pub(crate) use owned_places::validate as validate_owned_place;
+pub(crate) use owned_places::validate_transfer as validate_owned_transfer;
 #[cfg(test)]
 mod owned_case_tests;
 mod owned_selection;
@@ -2089,21 +2090,39 @@ pub(crate) fn validate_local_ownership(
                     provenance
                 }
             || event.obligation_live
-            || ownership
-                .segments
-                .span(event.segments)
-                .is_none_or(|segments| !segments.is_empty())
         {
             return unsupported("structural local changed its whole no-code ownership provenance");
         }
+        let segments =
+            ownership
+                .segments
+                .span(event.segments)
+                .ok_or(LoweringError::Unsupported(
+                    "structural local has a stale ownership path",
+                ))?;
+        let (_, selected_type) =
+            validation::structural_owned_path(&checked.typed, type_reference, segments)
+                .map_err(LoweringError::Unsupported)?;
+        if checked.type_multiplicity(selected_type) != Multiplicity::Affine {
+            return unsupported("structural local event changed its selected affine custody");
+        }
         match event.kind {
-            PermissionEventKind::Establish if event.source == establishment_source => {
+            PermissionEventKind::Establish
+                if segments.is_empty() && event.source == establishment_source =>
+            {
                 establishments += 1
             }
-            PermissionEventKind::AffineDrop if event.source == PermissionEventSource::StateExit => {
+            PermissionEventKind::AffineDrop
+                if segments.is_empty() && event.source == PermissionEventSource::StateExit =>
+            {
                 drops += 1
             }
-            PermissionEventKind::Transfer => transfers += 1,
+            PermissionEventKind::Transfer => {
+                // A subtree transfer does not retire its containing local.
+                // Its consumer rejoins the exact typed path and permission;
+                // emitted frontier replay disposes only the residual complement.
+                transfers += usize::from(segments.is_empty());
+            }
             _ => return unsupported("structural local changed its ownership event"),
         }
     }

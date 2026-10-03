@@ -31,6 +31,8 @@ use call_paths::{call_dependency_conflict, call_reference_custody};
 #[cfg(test)]
 mod alternative_result_tests;
 #[cfg(test)]
+mod ingress_transfer_tests;
+#[cfg(test)]
 mod record_store_tests;
 #[cfg(test)]
 mod region_access_tests;
@@ -1149,7 +1151,7 @@ pub(super) fn apply_operation(
             continue;
         }
         if argument_owns_references(function, structural_types, argument) {
-            if !argument.path.is_empty() || matches!(operation, O::BoundaryCall { .. }) {
+            if matches!(operation, O::BoundaryCall { .. }) {
                 return Err(invalid(
                     function,
                     block,
@@ -1166,8 +1168,31 @@ pub(super) fn apply_operation(
                         "owned reference argument has no source",
                     )
                 })?;
-            let paths = leaf_paths(structural_types, signature.structural_type, live.len())
+            // Ownership moves the selected subtree's entire leaf roster, not
+            // the containing root. Resolve the declared path, then rebase each
+            // leaf onto its actual carrier; untouched siblings stay live.
+            let projected_type = argument
+                .path
+                .iter()
+                .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
+                .then(|| {
+                    terminal_semantics::runtime_structural_path_tip(
+                        structural_types.values().copied(),
+                        signature.structural_type,
+                        &argument.path,
+                    )
+                })
+                .flatten()
                 .ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "projected reference argument path is not a declared record edge",
+                    )
+                })?;
+            let paths =
+                leaf_paths(structural_types, projected_type.id, live.len()).ok_or_else(|| {
                     invalid(
                         function,
                         block,
@@ -1178,7 +1203,10 @@ pub(super) fn apply_operation(
             if paths.len()
                 != live
                     .iter()
-                    .filter(|reference| reference.carrier == argument.place)
+                    .filter(|reference| {
+                        reference.carrier == argument.place
+                            && reference.carrier_path.starts_with(&argument.path)
+                    })
                     .count()
             {
                 return Err(invalid(
@@ -1189,10 +1217,13 @@ pub(super) fn apply_operation(
                 ));
             }
             for path in paths {
+                let mut carrier_path = argument.path.clone();
+                carrier_path.extend(path);
                 let reference = live
                     .iter()
                     .find(|reference| {
-                        reference.carrier == argument.place && reference.carrier_path == path
+                        reference.carrier == argument.place
+                            && reference.carrier_path == carrier_path
                     })
                     .ok_or_else(|| {
                         invalid(
@@ -1282,7 +1313,13 @@ pub(super) fn apply_operation(
         }
     }
     let sources = match operation {
-        O::EstablishReference { source, .. } => vec![(Vec::new(), vec![(source.clone(), false)])],
+        O::EstablishReference { source, .. } => {
+            let transferred = transferred_ingress_leaf(function, structural_types, live, source);
+            if let Some(identity) = &transferred {
+                moved.insert(identity.clone());
+            }
+            vec![(Vec::new(), vec![(source.clone(), transferred.is_some())])]
+        }
         O::CallStructural {
             callee,
             structural_arguments,
@@ -1494,6 +1531,49 @@ pub(super) fn apply_operation(
         live.retain(|reference| !moved.contains(&reference.identity));
     }
     Ok(())
+}
+
+/// A sole leaf in an owned ingress record can move into a returned carrier.
+/// This is the same permission, not a child loan that would escape its parent.
+/// Local carriers and reference-typed roots still reborrow; additional leaves
+/// would require independent residual custody and cannot be silently retired.
+pub(super) fn transferred_ingress_leaf(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    live: &[LiveReference],
+    source: &StructuralArgument,
+) -> Option<ReferenceIdentity> {
+    let parameter = function.structural_parameters.iter().find(|parameter| {
+        parameter.place == source.place && parameter.access == StructuralAccess::Owned
+    })?;
+    if !matches!(
+        formal_origin(function, source),
+        Some(ReferenceOrigin::IngressLeaf(_))
+    ) || matches!(
+        types.get(&parameter.structural_type)?.shape,
+        terminal_psi::StructuralTypeShape::Reference { .. }
+    ) {
+        return None;
+    }
+    let (terminal_psi::StructuralPathSegment::Referent, path) = source.path.split_last()? else {
+        return None;
+    };
+    let paths = leaf_paths(types, parameter.structural_type, live.len())?;
+    if paths.as_slice() != [path.to_vec()] {
+        return None;
+    }
+    let mut leaves = live
+        .iter()
+        .filter(|reference| reference.carrier == source.place);
+    let leaf = leaves.next()?;
+    (leaves.next().is_none()
+        && leaf.carrier_path == path
+        && leaf.parent == ReferenceParent::Root(leaf.root.clone())
+        && !live.iter().any(|child| {
+            matches!(&child.parent,
+            ReferenceParent::Reference(identity) if identity == &leaf.identity)
+        }))
+    .then(|| leaf.identity.clone())
 }
 
 /// Publish one carrier only after every possible origin has independently

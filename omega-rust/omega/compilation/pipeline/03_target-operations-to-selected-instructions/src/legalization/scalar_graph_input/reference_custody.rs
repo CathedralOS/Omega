@@ -891,25 +891,34 @@ fn call_arguments(
             continue;
         }
         if argument_owns_references(function, custody, types, argument) {
-            if !argument.path.is_empty() {
+            if !argument
+                .path
+                .iter()
+                .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+            {
                 return Err(invalid());
             }
             let contract =
                 source_contract(function, custody, argument.place).ok_or_else(|| invalid())?;
+            let selected = leaf_type(types, contract, &argument.path).ok_or_else(|| invalid())?;
             let paths =
-                leaf_paths(types, contract, custody.leaves.len()).ok_or_else(|| invalid())?;
+                leaf_paths(types, selected, custody.leaves.len()).ok_or_else(|| invalid())?;
             if paths.len()
                 != custody
                     .leaves
                     .keys()
-                    .filter(|(carrier, _)| *carrier == argument.place)
+                    .filter(|(carrier, path)| {
+                        *carrier == argument.place && path.starts_with(&argument.path)
+                    })
                     .count()
             {
                 return Err(invalid());
             }
             for path in paths {
+                let mut carrier_path = argument.path.clone();
+                carrier_path.extend(path);
                 let leaf = custody
-                    .leaf(argument.place, &path)
+                    .leaf(argument.place, &carrier_path)
                     .ok_or_else(|| invalid())?;
                 // Abstract callee ingress promises independently available
                 // leaves. A type cannot describe an unknown suspended parent
@@ -919,7 +928,7 @@ fn call_arguments(
                     .values()
                     .any(|child| child.parent.as_ref() == Some(&leaf.identity))
                     || moved
-                        .insert((argument.place, path.clone()), leaf.clone())
+                        .insert((argument.place, carrier_path), leaf.clone())
                         .is_some()
                 {
                     return Err(invalid());
@@ -1295,6 +1304,49 @@ fn relocate_constructor_leaves<'a>(
     Ok(())
 }
 
+/// Reconstruct the sole-leaf move from owned ingress independently of target
+/// rows. Other establishments retain their parent as ordinary reborrows.
+fn transferred_ingress_leaf(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    source: &StructuralArgument,
+) -> Option<(PlaceId, Vec<StructuralPathSegment>)> {
+    let parameter = function.structural_parameters.iter().find(|parameter| {
+        parameter.place == source.place && parameter.access == StructuralAccess::Owned
+    })?;
+    if matches!(
+        types
+            .iter()
+            .find(|declaration| declaration.id == parameter.structural_type)?
+            .shape,
+        StructuralTypeShape::Reference { .. }
+    ) {
+        return None;
+    }
+    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
+        return None;
+    };
+    let paths = leaf_paths(types, parameter.structural_type, custody.leaves.len())?;
+    if paths.len() != 1 || paths[0].as_slice() != path {
+        return None;
+    }
+    let key = (source.place, path.to_vec());
+    let leaf = custody.leaves.get(&key)?;
+    (leaf.parent.is_none()
+        && custody
+            .leaves
+            .keys()
+            .filter(|(carrier, _)| *carrier == source.place)
+            .count()
+            == 1
+        && !custody
+            .leaves
+            .values()
+            .any(|child| child.parent.as_ref() == Some(&leaf.identity)))
+    .then_some(key)
+}
+
 /// Apply one operation's custody effect after its target row validated.
 /// Admission was proven upstream; this replay keeps only enough state to
 /// resolve later `.., Referent` spellings and result rosters independently.
@@ -1337,19 +1389,21 @@ pub(in crate::legalization) fn apply(
             {
                 return Err(invalid());
             }
-            let (root, parent) = normalized_source(function, custody, types, source)?;
-            let identity = (result.place, Vec::new());
-            custody.leaves.insert(
-                identity.clone(),
+            let transferred = transferred_ingress_leaf(function, custody, types, source);
+            let leaf = if let Some(key) = transferred {
+                custody.leaves.remove(&key).ok_or_else(|| invalid())?
+            } else {
+                let (root, parent) = normalized_source(function, custody, types, source)?;
                 Leaf {
-                    identity,
+                    identity: (result.place, Vec::new()),
                     root,
                     parent,
                     operation: Some(*psi_operation),
                     result: result.clone(),
                     referent,
-                },
-            );
+                }
+            };
+            custody.leaves.insert((result.place, Vec::new()), leaf);
         }
         AbstractOperation::ReleaseReference { source, .. } => {
             let leaf = custody.leaves.remove(&(*source, Vec::new()));
@@ -1557,6 +1611,27 @@ pub(in crate::legalization) fn apply_terminator(
             for action in cleanup_actions {
                 let place = match action {
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                        // The ownership receiver already checked the complete
+                        // complement and action order. This replay independently
+                        // confirms that this exact subtree holds no loan; its
+                        // containing carrier may have transferred other leaves.
+                        let root = source_contract(function, custody, discard.place)
+                            .ok_or_else(|| invalid())?;
+                        if discard.path.is_empty()
+                            || leaf_type(types, root, &discard.path)
+                                != Some(discard.structural_type)
+                            || is_suspended_root(custody, discard.place)
+                            || custody.leaves.keys().any(|(carrier, path)| {
+                                *carrier == discard.place
+                                    && (path.starts_with(&discard.path)
+                                        || discard.path.starts_with(path))
+                            })
+                        {
+                            return Err(invalid());
+                        }
+                        continue;
+                    }
                     terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
                         if cleanup.requirement_obligations.is_empty()
                             && source_contract(function, custody, cleanup.place)
