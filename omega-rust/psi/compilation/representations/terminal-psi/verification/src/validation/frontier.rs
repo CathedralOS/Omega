@@ -961,6 +961,7 @@ fn apply_continuation_residual_discards(
     module: &TerminalModule,
     machine: &TerminalMachine,
     block: BlockId,
+    parameter_order: &[&StructuralParameterDeclaration],
     frontier: &mut StructuralOwnershipFrontier,
     discards: &[terminal_psi::StructuralAffineDiscard],
 ) -> Result<(), ModuleError> {
@@ -968,13 +969,19 @@ fn apply_continuation_residual_discards(
         machine: machine.id,
         block,
     };
-    // Each dying root owns one contiguous run of residual rows — the shape
-    // pass has already required the same per-place grouping and order. Every
-    // run must be that place's exact complement before the root leaves the
-    // frontier; a second run for one root cannot re-open closed custody.
+    // Disposal groups follow the same live-root order as ordinary affine
+    // cleanup. Each group must be the exact current complement, including
+    // transfers in predecessor blocks; no same-block transfer implies death.
+    let eligible = expected_trivial_affine_discards(machine, parameter_order, frontier);
+    let mut next_root = 0;
     let mut offset = 0;
     while offset < discards.len() {
         let place = discards[offset].place;
+        let position = eligible[next_root..]
+            .iter()
+            .position(|candidate| *candidate == place)
+            .ok_or_else(invalid)?;
+        next_root += position + 1;
         let moved = frontier
             .partial_custody_paths
             .get(&place)
@@ -1002,21 +1009,9 @@ fn apply_continuation_residual_discards(
         frontier.owned_places.remove(&place);
         offset += expected.len();
     }
-    // A dying partial result root cannot leak across an unannotated
-    // continuation. Fully transferred roots have already left both frontier
-    // maps at the call. A structural parameter may stay partial past this
-    // edge: its untouched complement closes on the machine's own return
-    // terminator, which rejects any second surviving root.
-    if frontier.partial_custody_paths.keys().any(|place| {
-        partial_affine_root_type(machine, *place).is_some()
-            && machine
-                .structural_parameters
-                .iter()
-                .all(|parameter| parameter.place != *place)
-            && super::block_views::parameter(machine, *place).is_none()
-    }) {
-        return Err(invalid());
-    }
+    // Unselected complements remain live across ordinary evaluation edges.
+    // Exact joins compare their moved paths, and terminal cleanup must settle
+    // every remaining root; carrying custody is not disposing it.
     Ok(())
 }
 
