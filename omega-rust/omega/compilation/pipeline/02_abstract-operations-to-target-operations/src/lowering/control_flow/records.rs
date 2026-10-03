@@ -201,7 +201,16 @@ pub(super) fn establish(
                         types.get(&nested).map(|declaration| &declaration.shape),
                         Some(StructuralTypeShape::Reference { .. })
                     );
-                let multiplicity = if descriptor_member {
+                if !argument.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::Field(_)
+                            | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                    )
+                }) {
+                    return Err(invalid());
+                }
+                let multiplicity = if descriptor_member && argument.path.is_empty() {
                     // Relocating a descriptor never moves the referent: the
                     // source is the live view place (established or copied)
                     // or the block's view parameter — both spell the member's
@@ -211,7 +220,7 @@ pub(super) fn establish(
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     StructuralMultiplicity::Unrestricted
-                } else if bare_carrier {
+                } else if bare_carrier && argument.path.is_empty() {
                     live.references
                         .get(&(argument.place, Vec::new()))
                         .filter(|leaf| leaf.result.structural_type == nested)
@@ -219,7 +228,10 @@ pub(super) fn establish(
                         .result
                         .multiplicity
                 } else if let Some(home) = live.structural_homes.get(&argument.place) {
-                    if home.structural_type() != nested
+                    if types.subtree(home.structural_type(), &argument.path) != Some(nested)
+                        || home.access() != StructuralAccess::Owned
+                        || (!argument.path.is_empty()
+                            && home.multiplicity() != StructuralMultiplicity::Affine)
                         || home.has_claims()
                         || (byte_carrier.is_none() && !home.qualifications().is_empty())
                         || !home.projected_qualifications().is_empty()
@@ -236,7 +248,9 @@ pub(super) fn establish(
                         .next()
                         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                     if parameters.next().is_some()
-                        || parameter.structural_type != nested
+                        || types.subtree(parameter.structural_type, &argument.path) != Some(nested)
+                        || (!argument.path.is_empty()
+                            && parameter.multiplicity != StructuralMultiplicity::Affine)
                         || parameter.access != StructuralAccess::Owned
                         || (byte_carrier.is_none() && !parameter.qualifications.is_empty())
                         || !parameter.projected_qualifications.is_empty()
@@ -246,12 +260,20 @@ pub(super) fn establish(
                     parameter.multiplicity
                 };
                 if argument.access != StructuralAccess::Owned
-                    || !argument.path.is_empty()
                     || multiplicity == StructuralMultiplicity::Linear
                     || (byte_carrier.is_some()
                         && multiplicity != StructuralMultiplicity::Unrestricted)
                     || (multiplicity == StructuralMultiplicity::Affine
-                        && !consumed.insert(argument.place))
+                        && (consumed.iter().any(
+                            |(place, path): &(
+                                semantic_vocabulary::PlaceId,
+                                Vec<terminal_psi::StructuralPathSegment>,
+                            )| {
+                                *place == argument.place
+                                    && (path.starts_with(&argument.path)
+                                        || argument.path.starts_with(path))
+                            },
+                        ) || !consumed.insert((argument.place, argument.path.clone()))))
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
@@ -281,8 +303,12 @@ pub(super) fn establish(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    for place in consumed {
-        live.structural_homes.remove(&place);
+    for (place, path) in consumed {
+        // Projected transfer retains the original storage for its live siblings;
+        // the independently checked partial frontier owns their later disposal.
+        if path.is_empty() {
+            live.structural_homes.remove(&place);
+        }
     }
     super::references::relocate_record_leaves(live, result.place, relocations);
     live.structural_homes
