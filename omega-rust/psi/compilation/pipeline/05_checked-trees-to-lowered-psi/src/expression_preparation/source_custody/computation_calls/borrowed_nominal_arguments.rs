@@ -259,20 +259,17 @@ pub(super) fn validate(
     // from the exact authored formal, not the producer's requested identity.
     // The source/formal referee equality and occurrence checks below still own
     // the storage identity and loan authority; signature replay owns its shape.
-    let presentation = match validation::byte_sequence_carrier(
-        &checked.typed,
-        target.type_reference,
-        &[],
-    ) {
-        Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }) => {
-            target.type_reference
-        }
-        // A qualified bounded owner retains its live extent. Borrowing it
-        // presents the same storage carrier, not the reference's spelling;
-        // signature and Terminal argument checks retain its predicates.
-        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) | None => carrier,
-        _ => return unsupported("aggregate operand changed its byte carrier"),
-    };
+    let presentation =
+        match validation::byte_sequence_carrier(&checked.typed, target.type_reference, &[]) {
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }) => {
+                target.type_reference
+            }
+            // A qualified bounded owner retains its live extent. Borrowing it
+            // presents the same storage carrier, not the reference's spelling;
+            // signature and Terminal argument checks retain its predicates.
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) | None => carrier,
+            _ => return unsupported("aggregate operand changed its byte carrier"),
+        };
     if checked.normalized_type_identity(presentation).as_str() != argument.type_identity {
         return unsupported("record operand changed its declared referent type");
     }

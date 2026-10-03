@@ -1433,7 +1433,7 @@ the complete product bar; focused successes below do not establish that baseline
   are removed. Zero-validity remains an actual storage-establishment check.
   `domains/qualified_mutable_field_exit` and
   `domains/threaded_subject_keeps_established_domains` execute with native exit
-  0 on macOS ARM64 on the `02d98c7f59`-based candidate. The first observes nested
+  0 on macOS ARM64 on the `011a5aaf4e`-based candidate. The first observes nested
   NonEmpty fields before and after qualified and free-machine mutations; the
   second retains an established record across explicit state transitions.
   Nominal annotations cannot resurrect facts retired by mutation; unknown writes

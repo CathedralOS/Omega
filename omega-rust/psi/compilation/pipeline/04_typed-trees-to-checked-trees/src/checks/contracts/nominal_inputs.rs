@@ -138,8 +138,8 @@ pub(super) fn check(
                 )
             })
         };
-        // Receiver syntax only selects the actual place. Every formal owes the
-        // same declared fields, including a subject forwarded from the caller.
+        // Every formal owes the same declared fields, including a subject
+        // forwarded from the caller, independently of declaration qualification.
         // Its nominal type cannot restore evidence invalidated by a write.
         for (segments, domain_symbol, semantic_domain) in
             requirements.requirements(parameter.symbol)
