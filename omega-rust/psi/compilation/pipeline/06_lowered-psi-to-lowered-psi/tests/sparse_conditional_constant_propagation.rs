@@ -141,6 +141,33 @@ fn the_executed_fold_publishes_and_interprets_identically() {
 }
 
 #[test]
+fn the_published_fold_reenters_the_stage_at_its_fixed_point() {
+    // Fixed-point coverage: the executed fold's own publication decodes back
+    // to a legal stage input, and the same selection finds no remaining
+    // foldable leaf on it — folding only produces literals, and every literal
+    // the publication carries was already the fold's own output.
+    let first = run_psi_optimization(sccp_fixture(), selections()).unwrap();
+    assert_ne!(
+        first.execution().input_semantic(),
+        first.execution().output_semantic(),
+        "the first run rewrites, so the refeed is not restating a vacuous identity"
+    );
+    let refed = common::refeed(&publish(&first));
+    let second = run_psi_optimization(refed.clone(), selections())
+        .expect("the published artifact re-enters the stage");
+    assert_eq!(
+        second.lowered(),
+        &refed,
+        "the fold finds no remaining literal-resolved leaf on its own publication"
+    );
+    assert_eq!(
+        second.execution().input_semantic(),
+        second.execution().output_semantic(),
+        "the reentered run records the identity: the published module is the fixed point"
+    );
+}
+
+#[test]
 fn no_constant_workload_records_the_identity() {
     // Boundary coverage against a sibling fixture: no literal-resolved leaf
     // exists, so the selected rule leaves the module untouched.

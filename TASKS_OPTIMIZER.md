@@ -695,15 +695,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   dead COPY rather than a dead pure computation. The modules measure 1079,
   1051, 985 and 957 bytes, so each saving is exactly its own, 28 and 94.
 
-  A keyword screen of the six stage-06 rules' own tests, which is a screen and
-  not proof, finds the same three axes absent for every rule: rollback,
-  composition and budget. Fixed-point appears only for `control_flow_cleanup`.
-  Publication is absent for `copy_propagation`, `global_value_numbering` and
-  `sparse_conditional_constant_propagation`; corruption for
-  `dead_scalar_elimination` and `global_value_numbering`; boundary for
-  `control_flow_cleanup`. Rollback is covered for `ControlFlowCleanup` at the
-  driver level only, which is why the stage files do not mention it. Budget is
-  the one with no coverage anywhere and no customer yet.
+  Downstream publication and published-artifact fixed points now cover all
+  six stage-06 rules: each executed rewrite crosses
+  `finalize_terminal_artifact`, interprets from canonical bytes, and re-enters
+  the stage through the decoded publication as the identity. The
+  proof-check-elision leg needed an admission-honest fixture — its obligations
+  are answered by certificates the receiver re-decides, since producer-asserted
+  rows survive the stage relation but not canonical admission.
+
+  The remaining gaps are rollback for the five rules with no overlay coverage
+  (the stage entrance takes a selection, not a rollback overlay, so each needs
+  the `rollback_to_identity.rs` driver shape with a source fixture that proves
+  its rewrite fires), per-rule composition beyond the driver pairs and the
+  canonical-order stage test, and budget, which still has no customer and no
+  coverage anywhere.
 
   Acceptance: each applicable axis executes and independently replays through
   the rule's public entrance and compiler-produced publication. A fixed-point

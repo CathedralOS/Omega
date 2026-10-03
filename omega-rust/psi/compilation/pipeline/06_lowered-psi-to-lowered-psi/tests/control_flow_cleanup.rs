@@ -8,8 +8,8 @@ use crate::common;
 
 use common::{
     coercion_edge_fixture, coercion_region_fixture, control_flow_fixture, copy_fixture,
-    dead_machine_coercion_fixture, minimal_unit_lowered, suspension_rows, two_machine_fixture,
-    unit_call, value,
+    dead_machine_coercion_fixture, i32_argument, interpret, minimal_unit_lowered, publish,
+    suspension_rows, two_machine_fixture, unit_call, value,
 };
 use lowered_psi_to_lowered_psi::run_psi_optimization;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
@@ -224,6 +224,76 @@ fn a_fold_that_strands_no_block_still_rewrites_the_terminator() {
         &optimized.lowered().semantic_module,
     )
     .expect("the independent check accepts the surviving-target fold");
+}
+
+#[test]
+fn the_executed_cleanup_publishes_and_interprets_identically() {
+    // Downstream-publication coverage: the cleaned result crosses Terminal
+    // publication's own entrance, the manifest binds the executed output
+    // identity, and the canonical bytes admit and run the authored result.
+    let lowered = control_flow_fixture();
+    let baseline =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = publish(&baseline);
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("control flow cleanup executes");
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the fold and region removal are a real rewrite, not an identity this leg restates"
+    );
+    terminal_verifier::validate_control_flow_cleanup(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+    let published = publish(&optimized);
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic(),
+        "the manifest binds the executed output identity"
+    );
+    // Both folds keep the path to b4: the authored result is the literal 9
+    // before and after the stranded b3 and b5 leave the module.
+    let expected = interpret(&original, &[]);
+    let actual = interpret(&published, &[]);
+    assert_eq!(
+        expected,
+        terminal_interpreter::TerminalExecutionResult::Scalar(i32_argument(9)),
+        "the unoptimized publication returns the authored result"
+    );
+    assert_eq!(
+        actual, expected,
+        "the published cleanup interprets the same result"
+    );
+}
+
+#[test]
+fn the_published_cleanup_reenters_the_stage_at_its_fixed_point() {
+    // Fixed-point coverage through the published artifact, the form the
+    // coverage matrix names: the executed cleanup's canonical bytes decode
+    // back to a legal stage input, and the same selection finds no remaining
+    // fold or unreachable block on it. The in-memory re-entry leg stays with
+    // `machine_pruning_is_deterministic_and_idempotent`.
+    let first = run_psi_optimization(control_flow_fixture(), selections()).unwrap();
+    assert_ne!(
+        first.execution().input_semantic(),
+        first.execution().output_semantic(),
+        "the first run rewrites, so the refeed is not restating a vacuous identity"
+    );
+    let refed = common::refeed(&publish(&first));
+    let second = run_psi_optimization(refed.clone(), selections())
+        .expect("the published artifact re-enters the stage");
+    assert_eq!(
+        second.lowered(),
+        &refed,
+        "the cleanup finds no remaining fold on its own publication"
+    );
+    assert_eq!(
+        second.execution().input_semantic(),
+        second.execution().output_semantic(),
+        "the reentered run records the identity: the published module is the fixed point"
+    );
 }
 
 #[test]
