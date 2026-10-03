@@ -3283,6 +3283,126 @@ lands alone with its corpus slice unchanged and no fallback path.
   Grep each one again first. Acceptance: workspace `mbx check` and the
   package corpus are unchanged.
 
+## Red tests
+
+Measured at `66aaa8e5bc` (2026-10-03) on Windows x86-64 with
+`cargo nextest run --workspace --exclude external-root-writer --exclude
+component-candidate --lib --tests --no-fail-fast`: 15,915 run, 13,628 passed,
+2,287 failed, 40 skipped; two crates' tests do not compile. Each item owns
+its failures until its crates are green. For each red test, fix the code or
+the test, or delete the test when it pins retired behavior or code that a
+**Trust ceremony** item deletes. Acceptance for every item: each named
+package's `mbx nextest run -p <package> --no-fail-fast` reports zero failures
+at the landing commit, with the count of deleted tests stated in the commit.
+
+- **RED-TEST-BUILD-BREAKS.** (new-scope) `component-candidate`
+  (`src/tests.rs:20`) and `external-root-writer`
+  (`src/external_root_writer/tests.rs:18`) name
+  `semantic_vocabulary::BoundaryCompletion` without that dev-dependency, so
+  their test targets do not compile. Both broke in `f6e0119552`. Add the
+  dependency, or delete `external-root-writer` under
+  **DEAD-TRUST-CODE-DELETED**. Acceptance: `cargo build --workspace --lib
+  --tests` succeeds.
+
+- **RED-SELF-FIXTURES-CHECKING.** (split-of:STATIC-MACHINE-MIGRATION) 817
+  `typed-trees-to-checked-trees` tests fail to parse their embedded Omega
+  source: "`self` receivers are retired" or "implicit `self` is retired".
+  `11b293f8af` retired the syntax, and STATIC-MACHINE-MIGRATION's census
+  counts `.omg` files only. Respell each embedded fixture to static calls
+  with explicit parameters, keeping what the test asserts.
+
+- **RED-SELF-FIXTURES-LOWERING.** (split-of:STATIC-MACHINE-MIGRATION) The
+  same migration for 541 `checked-trees-to-lowered-psi` tests (lib and
+  `suite`).
+
+- **RED-SELF-FIXTURES-PSI.** (split-of:STATIC-MACHINE-MIGRATION) The same
+  migration for 431 tests in the other Psi packages:
+  - `validation` (`psi/compilation/checking`): 223
+  - `build-time-evaluation`: 84
+  - `syntax-trees-to-symbol-resolved-trees`: 51
+  - `lowered-psi-to-terminal-psi`: 37
+  - `symbol-resolved-trees-to-typed-trees`: 31
+  - `checked-interpreter`: 4
+  - `layout`: 1
+
+- **RED-SELF-FIXTURES-OMEGA.** (split-of:STATIC-MACHINE-MIGRATION) The same
+  migration for 165 tests in Omega packages:
+  - `selected-dispatch`: 37
+  - `abstract-operations-to-target-operations`: 30
+  - `provider-planning`: 24
+  - `omega`: 13
+  - `abstract-operations-to-abstract-operations`: 12
+  - `image-emission`: 11
+  - `optimization-unit-semantics`: 10
+  - `terminal-psi-to-abstract-operations`: 10
+  - `build-evaluation`: 8
+  - `terminal-production`: 8
+  - `component-publication`: 2
+
+- **RED-SELF-FIXTURES-PACKAGES.** (split-of:STATIC-MACHINE-MIGRATION) The
+  same migration for 87 tests: `package-evidence` 42, `package-manager` 25,
+  `trust-ledger` 20. Many pin review or trust machinery that
+  **REVIEW-SINGLE-PROJECTION** or **TRUST-REPORT-DELETED** removes; those
+  are deleted, not migrated.
+
+- **RED-PACKAGE-BEHAVIOR.** (new-scope) 104 non-syntax failures:
+  - `package-manager`: 66. They include `Declaration(WrongPackageReceiver)`
+    from fixture `build.omg` files still using the receiver form, and
+    `declarations::dependencies::edit` returning `Manual` patches where
+    automatic edits are expected.
+  - `omega` CLI tests: 32, mostly `build_input_inventory` and
+    `package_commands`.
+  - `package-evidence`: 6. Two are "accepted semantic binding
+    ConsoleExitProcessI32 was not consumed".
+
+- **RED-PSI-BEHAVIOR.** (new-scope) 94 non-syntax failures:
+  - `checked-trees-to-lowered-psi`: 62. Examples are `VerifiedOperationMalformed`
+    in `fixed_array_boundary_providers` and "record operand substituted its
+    projected referent path".
+  - `typed-trees-to-checked-trees`: 21, mostly case-payload and
+    structural-result bindings.
+  - `terminal-verifier`: 6.
+  - `terminal-interpreter`: 4.
+  - `validation`: 1.
+
+- **RED-OMEGA-BEHAVIOR.** (new-scope) 25 non-syntax failures:
+  - `compiler` `callback_terminal_custody`: 8. Fixture sources no longer
+    contain `register_leaf` / `CallbackProvider::call`.
+  - `terminal-psi-to-abstract-operations`: 7. Three are "attached Unit
+    closure is missing a checked transitive machine plan".
+  - `optimization-unit-semantics`: 4.
+  - `abstract-operations-to-abstract-operations`: 3.
+  - `abstract-operations-to-target-operations`: 2.
+  - `target-operations-to-selected-instructions`: 1.
+
+- **RED-GOLDEN-BYTES.** (new-scope) 18 tests compare encoded bytes with
+  checked-in expectations that have drifted:
+  - `terminal-codec`: 13, including proof-format tag numbers and the trust
+    graph;
+  - `register-homes`: 2;
+  - `image-emission` installation record: 1;
+  - `native-artifact` wrapper offsets: 1;
+  - `topology-plan` committed `request.bin`: 1.
+
+  Re-pin each one only after confirming the format change was intended.
+  Delete byte goldens whose format a deletion item removes.
+
+- **RED-WINDOWS-HOST.** (new-scope) 5 failures that look host-specific:
+  - `bounded-process` job-object limits (2: active-process and aggregate
+    memory);
+  - `package-compilation` `observation_summary_keeps_its_exact_bytes`
+    ("this host cannot represent");
+  - `package-source` (2).
+
+  Confirm each one on macOS. Then fix the Windows behavior or gate the test
+  by platform.
+
+- **RED-BASELINE-LEDGER-DELETED.** (new-scope) Delete
+  `wiki/drafts/measurements/known_baseline_failures.md` and its references
+  in **RC-REPOSITORY-CLOSURE** and the macOS release item. Red tests are owned
+  by the items above, and corpus outcomes by `tests/omega/corpus_outcomes.txt`.
+  Acceptance: no file links the ledger.
+
 ## Automatic service reach
 
 Finish portable coverage of
