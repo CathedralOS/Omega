@@ -135,6 +135,90 @@ mod byte_comparison_tests {
             "length must come from the compared local"
         );
     }
+
+    #[test]
+    fn composed_view_comparison_rejects_changed_index_and_missing_sibling() {
+        let checked = crate::front_end::checked_program(
+            r#"
+            domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+            data Tag { label: &[u8] in Utf8; weight: i32; }
+            data Envelope { elements: [Tag; 2]; }
+            machine compare(expected: i32) -> bool {
+                let left: Tag = Tag { label: "amulet", weight: 3 };
+                let right: Tag = Tag { label: "ring", weight: 4 };
+                let envelope: Envelope = Envelope { elements: [left, right] };
+                transition envelope.elements[0].label == "amulet"
+                    && envelope.elements[1].weight == expected {
+                    true -> (true)
+                    _ -> (false)
+                }
+            }
+        "#,
+        );
+        let plans = &checked.facts.values.scalar_expressions;
+        let (_, binding) = plans
+            .source_bindings
+            .iter()
+            .find(|(_, binding)| binding.role == checked_trees::CheckedScalarExpressionRole::Guard)
+            .expect("composed comparison source");
+        let retained = plans
+            .expression_at(binding.state, binding.statement_ordinal, binding.role)
+            .expect("composed comparison expansion");
+        let validate = |value: &Scalar| {
+            super::super::storage_reads::validate_expression(
+                &checked,
+                binding.state,
+                binding.statement_ordinal,
+                super::super::storage_reads::guard_subject(&checked, binding.expression),
+                value,
+            )
+        };
+        validate(retained).expect("exact composed comparison");
+        let mut changed = retained.clone();
+        let Scalar::Boolean(value) = &mut changed else {
+            panic!("Boolean guard")
+        };
+        let Boolean::And { right, .. } = value.as_mut() else {
+            panic!("composed guard")
+        };
+        **right = Boolean::Constant(true);
+        assert!(
+            validate(&changed).is_err(),
+            "the scalar sibling cannot disappear"
+        );
+
+        let mut changed = retained.clone();
+        let Scalar::Boolean(value) = &mut changed else {
+            panic!("Boolean guard")
+        };
+        let Boolean::And { left, .. } = value.as_mut() else {
+            panic!("composed guard")
+        };
+        let mut comparison = left.as_mut();
+        while let Boolean::And { left, .. } = comparison {
+            comparison = left.as_mut();
+        }
+        let Boolean::IntegerComparison { left, .. } = comparison else {
+            panic!("length equality")
+        };
+        let Scalar::StructuralParameterByteLength { path, .. } = left.as_mut() else {
+            panic!("live length")
+        };
+        let selected = path
+            .iter_mut()
+            .find_map(|segment| match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                    Some(index)
+                }
+                _ => None,
+            })
+            .expect("array element coordinate");
+        *selected = 1;
+        assert!(
+            validate(&changed).is_err(),
+            "length cannot come from the other element"
+        );
+    }
 }
 
 /// Content equality expands one source comparison into length and indexed
@@ -1450,6 +1534,44 @@ impl Context<'_> {
                 path,
             ));
         }
+        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        if let Ok(authored) =
+            crate::emission::call_source_custody::projected_receivers::store_destination(
+                self.checked,
+                machine.symbol,
+                self.state,
+                Some(self.statement as usize),
+                source,
+            )
+            && crate::emission::call_source_custody::projected_receivers::owned_local_declaration(
+                self.checked,
+                state,
+                self.statement as usize,
+                authored.root,
+            )
+            .is_some()
+        {
+            let selected = validation::declared_place_type_raw(
+                &self.checked.typed,
+                machine,
+                Some(state),
+                source,
+            )?;
+            let byte_carrier =
+                validation::bounded_byte_buffer_capacity(&self.checked.typed, selected).is_some()
+                    || validation::slice_view_shell(&self.checked.typed, selected, &[])
+                        .is_some_and(|view| {
+                            view.access == language_semantics::ReferenceAccess::Shared
+                                && self.checked.primitive_type_reference(view.element)
+                                    == Some(PrimitiveType::U8)
+                        });
+            return byte_carrier.then_some((
+                checked_trees::CheckedStorageRoot::OwnedLocal {
+                    symbol: authored.root,
+                },
+                authored.path,
+            ));
+        }
         let ExpressionNode::Name(name) = self.checked.expression_table.expression(source) else {
             return None;
         };
@@ -1490,16 +1612,6 @@ impl Context<'_> {
         let local = locals.next()?;
         if locals.next().is_some() || !local.initial_value.is_valid() {
             return None;
-        }
-        if validation::bounded_byte_buffer_capacity(&self.checked.typed, local.type_reference)
-            .is_some()
-        {
-            return Some((
-                checked_trees::CheckedStorageRoot::OwnedLocal {
-                    symbol: name.symbol,
-                },
-                Vec::new(),
-            ));
         }
         if local.is_mutable {
             return None;

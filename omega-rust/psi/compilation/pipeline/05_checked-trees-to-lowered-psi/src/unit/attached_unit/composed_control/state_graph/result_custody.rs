@@ -396,6 +396,10 @@ fn retired_in_body(
                 || validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     local.type_reference,
+                )
+                || validation::has_owned_or_shared_view_contents(
+                    &checked.typed,
+                    local.type_reference,
                 ))
         {
             return unsupported("Unit graph operand retirement changed its local custody");

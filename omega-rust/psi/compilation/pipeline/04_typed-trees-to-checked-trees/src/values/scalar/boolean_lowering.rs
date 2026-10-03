@@ -473,45 +473,38 @@ pub(super) fn comparable_byte_carrier(
     Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
     checked_trees::CheckedByteSequenceCarrier,
 )> {
-    if let Some((parameter_position, path, type_reference)) =
+    let (root, path, type_reference) = if let Some((parameter_position, path, type_reference)) =
         structural_fields::structural_parameter_place(program, authored_parameters, carrier)
     {
-        let carrier = comparable_byte_carrier_type(program, type_reference)?;
-        return Some((
+        (
             checked_trees::CheckedStorageRoot::Parameter {
                 index: parameter_position,
             },
             path,
-            carrier,
-        ));
-    }
-    if let Some((symbol, type_reference)) =
-        structural_fields::owned_local_root(program, authored_parameters, carrier)
-    {
-        let carrier = comparable_byte_carrier_type(program, type_reference)?;
-        return matches!(
-            carrier,
-            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+            type_reference,
         )
-        .then_some((
+    } else if let Some((symbol, path, type_reference)) =
+        structural_fields::owned_local_place(program, authored_parameters, carrier)
+    {
+        (
             checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
-            Vec::new(),
-            carrier,
-        ));
-    }
-    // Borrowed locals retain their distinct loan-backed root.
-    let (symbol, type_reference) =
-        structural_fields::view_local_root(program, authored_parameters, carrier)?;
+            path,
+            type_reference,
+        )
+    } else {
+        let (symbol, path, type_reference) =
+            structural_fields::view_local_place(program, authored_parameters, carrier)?;
+        (
+            checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+            path,
+            type_reference,
+        )
+    };
+    // The selected leaf defines its byte carrier. Its enclosing record may
+    // own storage while this field borrows bytes; retain both identities so
+    // downstream observation replay checks the actual backing and extent.
     let carrier = comparable_byte_carrier_type(program, type_reference)?;
-    matches!(
-        carrier,
-        checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
-    )
-    .then_some((
-        checked_trees::CheckedStorageRoot::ViewLocal { symbol },
-        Vec::new(),
-        carrier,
-    ))
+    Some((root, path, carrier))
 }
 
 /// The carrier of `type_reference` when it has a live byte length and
