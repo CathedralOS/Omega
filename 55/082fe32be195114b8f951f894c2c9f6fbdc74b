@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: linear_ambiguous_state_result_mapping entry contract respell — ProgramEntry-bound main declared a result while the target entry contract declares none; dropped the result (fixture's pinned behavior is the callee's normalized outcome map, not the entry value). Fixture advances to conditional-result-custody Terminal correspondence; outcomes restamp queued
+ticket: f49a99eb64d0617154f6bfd42c2bebf9
+published_utc: 2026-10-03T13:32:26.464742+00:00
