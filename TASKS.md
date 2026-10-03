@@ -231,45 +231,25 @@ execution and native exit/output. A moved refusal is still unfinished work.
   terminates.
 
 - **STATIC-RECEIVER-FOOTPRINT-UNVERIFIED.** (split-of:STATIC-MACHINE-MIGRATION)
-  `checks/borrows/calls/receiver/footprint.rs` (591 lines) has lost most of its
-  verification, and the decision it encodes is unsettled. Measured at this base,
-  independently of any migration edit:
-  `cargo nextest run -p typed-trees-to-checked-trees -E 'test(borrow::checks::receiver_argument_reads)
-  or test(borrow::checks::receiver_live_loan_reads) or test(borrow::checks::receiver_jump_loans)
-  or test(borrow::checks::self_operand_loans)'` selects 47 tests of which 33
-  fail, because they are authored in `&mut self` and the parser now refuses it.
+  Finish retiring implicit-receiver borrow checking and migrate its remaining
+  tests in `typed-trees-to-checked-trees`. Ordinary returning calls use
+  explicit argument exclusivity; do not restore a whole-record exception
+  based on which fields a callee happens to access.
 
-  Both checks the surviving fixtures pin -- `check_receiver_footprint_against_argument_loans`
-  and `check_receiver_reads_against_live_loans` -- are gated on
-  `call_passes_receiver` = `call.has_receiver || local_jump(..).is_some()`
-  (`checks/borrows/calls/receiver.rs:42`). `has_receiver` requires
-  `machine_has_receiver`, which is `parameters.iter().any(|p| p.is_self)`
-  (`typed-trees/src/typed_trees/trait_and_machine_tables.rs:391`), so with
-  `self` parser-refused NO callee can satisfy it. The ordinary-call leg of both
-  checks is therefore dead code reachable only through `local_jump`, which is a
-  different rule already covered by `receiver_jump_loans`.
+  Remaining work: `checks/borrows/calls/receiver/footprint.rs` still mixes
+  retired receiver lookup with the live explicit same-machine jump footprint.
+  Preserve the latter's carried-loan and scope-exit judgments while removing
+  `is_self` and implicit receiver authority. Migrate
+  `tests/borrow/checks/{receiver_argument_reads,receiver_jump_loans,self_operand_loans}.rs`
+  to explicit arguments; a parser rejection does not verify their loan rules.
+  Retain rejection of overlapping whole-record/field loans and acceptance of
+  disjoint projections, completed nested calls and ended loans.
 
-  The open question is whether the whole-`&mut` subject footprint relaxation
-  (footprint.rs:1-13: a whole `&mut` receiver is judged by what the callee
-  accesses through it, so arguments of disjoint fields stay usable beside it)
-  survives on the ordinary-call leg or retires with the syntax.
-  STATIC-CALL-ARGUMENT-LENT-ROOT reads as deciding it retires -- "The refusal is
-  correct; the authored program changes" plus "no exclusivity exception added to
-  checking" -- in which case the call leg of both checks and the three fixtures
-  below should be DELETED rather than respelled, together with the 33 red tests.
-  That is a corpus-and-compiler scope call, so it is recorded here rather than
-  acted on. The three fixtures are
-  `fail/borrows/{whole_mut_receiver_write_under_argument_view,
-  whole_mut_receiver_read_under_argument_loan,
-  whole_mut_receiver_read_under_live_local_loan}`; each was migrated in a
-  scratch tree and each landed on a DIFFERENT refusal than it pins, so none is
-  a respelling. Measured: the first becomes "receives `main` as both mutable and
-  read-only", which duplicates the already-migrated
-  `bare_self_mut_operand_beside_self_view`; the second becomes "receives `main`
-  as mutable more than once"; the third becomes "receives `main` while local
-  borrow `other_view` is still active". Restructuring them to disjoint
-  projections is not a repair either -- it removes the whole-`&mut` subject the
-  footprint check exists to judge, so the fixture would pin nothing.
+  Acceptance: the migrated tests reach borrow checking, ordinary call
+  exclusivity remains covered by `explicit_call_live_loans`, and the
+  explicit-jump controls retain their carried-loan lifetimes. Run the existing
+  `pass/borrow/runtime_method_view_write_after_last_use_exit` canary
+  (exit 70), keeping its Bag local rather than entry-owned.
 
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   A receiver call on a public boundary requirement reaches it WITHOUT a
