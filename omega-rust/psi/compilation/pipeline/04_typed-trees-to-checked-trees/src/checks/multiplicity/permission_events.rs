@@ -110,6 +110,16 @@ pub(crate) fn prepare_permission_events(
             state,
             &mut facts.flow.ownership.segments,
         );
+        // Control discovery already attached the ordered calls to this state.
+        // Snapshot once while permission production mutates the separate
+        // ownership arenas; rescanning all states and cloning these calls for
+        // every statement makes ordinary package checking quadratic in states.
+        let calls = facts
+            .flow
+            .control
+            .calls
+            .span_or_empty(state_flow.calls)
+            .to_vec();
         let first_transition = statements
             .iter()
             .position(|statement| matches!(statement, StatementNode::Transition(_)));
@@ -138,6 +148,7 @@ pub(crate) fn prepare_permission_events(
                 state_flow.machine_symbol,
                 state.symbol,
                 &moves,
+                &calls,
                 statement_index,
                 statement,
                 &mut places,
@@ -179,6 +190,7 @@ pub(crate) fn prepare_permission_events(
                     state_flow.machine_symbol,
                     state.symbol,
                     &moves,
+                    &calls,
                     statement_index,
                     &statements[statement_index],
                     &mut outcome,

@@ -1726,13 +1726,17 @@ the complete product bar; focused successes below do not establish that baseline
 
   The samples `collections/array_max`, `arithmetic/dot_product` and
   `algorithms/horner_eval` loop over a shared `&[T; N]` machine parameter.
-  Stage 05 now reads it through its declared extent
-  (`collections/runtime_borrowed_fixed_array_state_reads_exit` exits 70
-  without a loop). In a loop, `unranked_cycles.rs` reports
-  `ControlCycleIneligible { reason: Parameter { index: 0 } }`: its parameter
-  roster admits shared plain records, borrowed byte views, element views and
-  scalars, not a shared fixed array, whose frozen extent and contents serve
-  every arrival the same way.
+  The former shared-array cycle eligibility refusal is no longer current:
+  `unranked_cycles.rs` uses the ordinary borrowed-carrier classifier. On
+  macOS ARM64 at base `e8505b71528`, `python3 tools/corpus_gate.py --both
+  --filter collections/runtime_shared_fixed_array_cycle_exit` executes the
+  byte-identical `array_max` body with native/interpreter exit 42 and exact
+  stdout, including console I/O around the full loop. Preserve the acyclic
+  exit-70 control `collections/runtime_borrowed_fixed_array_state_reads_exit`.
+  The sample's public `omega run --both` reaches pending package review and
+  exits 200; no decisions were accepted. Follow its README for that separate
+  acceptance. Reproduce `dot_product` and `horner_eval` before assigning their
+  next failure; do not reuse the retired cycle-parameter diagnosis.
 
   - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
     relations: broader qualified/partial ownership, reference-bearing or
