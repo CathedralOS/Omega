@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("mixed_projection_sources_in_one_call");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
