@@ -25,9 +25,14 @@ pub(super) fn admitted(
     };
     let states = program.machine_states(machine);
     let adjacency = machine_adjacency(program, machine);
-    let entry_is_reentered = adjacency
+    // Solve exact value origins once for the whole machine, including edges
+    // between components. An unchanged parameter may remain the invocation
+    // value even when another parameter of that same state drifts.
+    let solved = crate::flow::machine_parameter_origins(program, machine);
+    let origins = states
         .iter()
-        .any(|destinations| destinations.contains(&0));
+        .map(|state| crate::flow::state_parameter_origins(program, machine, state, &solved))
+        .collect::<Vec<_>>();
     let mut admitted = Vec::new();
     for component in strongly_connected_components(&adjacency) {
         if !component_is_cyclic(&adjacency, &component) {
@@ -35,7 +40,7 @@ pub(super) fn admitted(
         }
         let Some(headers) = component
             .iter()
-            .map(|&index| Header::new(program, facts, machine, &states[index], entry_is_reentered))
+            .map(|&index| Header::new(program, facts, machine, &states[index], &origins))
             .collect::<Option<Vec<_>>>()
         else {
             continue;

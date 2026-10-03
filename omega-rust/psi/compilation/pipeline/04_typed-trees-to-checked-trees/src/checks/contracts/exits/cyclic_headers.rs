@@ -3,8 +3,11 @@
 //!
 //! Each state in a cyclic transition component has its own current parameter
 //! frame; the invocation formals are a separate immutable frame even when the
-//! entry state is reentered. For every exit returning `e`, propose its guarantee
-//! with `result` replaced by `e` in that state's frame. The component owns the
+//! entry state is reentered. Only the flow owner's exact all-path origin
+//! solution can identify an immutable scalar with an invocation value; another
+//! parameter changing on that same edge does not invalidate this identity. For
+//! every exit returning `e`, propose its guarantee with `result` replaced by `e`
+//! in that state's frame. The component owns the
 //! conjunction of these state-local candidates. Every incoming edge proves the
 //! destination conjunction under simultaneous actual-argument substitution.
 //! An internal edge may assume only its caller's conjunction, while an external
@@ -161,7 +164,7 @@ struct Header<'program, 'facts> {
     /// `result` may denote, with its domain.
     result: Option<(TypeReferenceHandle, ArithmeticDomain)>,
     requires: Vec<ExpressionHandle>,
-    entry_is_reentered: bool,
+    origins: &'facts [Vec<(SymbolHandle, SymbolHandle)>],
 }
 
 impl<'program, 'facts> Header<'program, 'facts> {
@@ -170,7 +173,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         facts: &'facts CheckFacts,
         machine: &'program Machine,
         header: &'program State,
-        entry_is_reentered: bool,
+        origins: &'facts [Vec<(SymbolHandle, SymbolHandle)>],
     ) -> Option<Self> {
         let states = program.machine_states(machine);
         let entry = states.first()?;
@@ -227,7 +230,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             terms,
             result,
             requires,
-            entry_is_reentered,
+            origins,
         })
     }
 
@@ -509,13 +512,12 @@ impl<'program, 'facts> Header<'program, 'facts> {
         bindings
     }
 
-    /// Every current state has a distinct frame. Only an entry that cannot be
-    /// reentered may use invocation atoms directly. The component hypotheses
-    /// use this same caller frame, never the destination's freshly bound one.
+    /// Current parameters start with fresh atoms. The flow owner's exact
+    /// all-path origin solution can identify one immutable scalar with its
+    /// invocation value independently of other parameters drifting. Missing,
+    /// changed or ambiguous origins grant no equality, and a reference's
+    /// identity can never turn its mutable contents into an entry snapshot.
     fn caller_atoms(&self, caller: &State) -> Vec<ScopedArithmeticBinding> {
-        if caller.symbol == self.entry.symbol && !self.entry_is_reentered {
-            return self.formal_roster();
-        }
         let parameters = self
             .program
             .state_parameters(caller)
@@ -533,7 +535,43 @@ impl<'program, 'facts> Header<'program, 'facts> {
                     })
             })
             .collect::<Vec<_>>();
-        self.with_formals(self.atoms_of(&parameters, format!("arrival:{:?}", caller.symbol)))
+        let mut bindings = self.atoms_of(&parameters, format!("arrival:{:?}", caller.symbol));
+        let origins = self
+            .program
+            .machine_states(self.machine)
+            .iter()
+            .position(|state| state.symbol == caller.symbol)
+            .and_then(|index| self.origins.get(index));
+        let formals = self.formal_roster();
+        if let Some(origins) = origins {
+            for (parameter, binding) in parameters.iter().zip(&mut bindings) {
+                let Some((origin, _)) = origins
+                    .iter()
+                    .find(|(_, current)| *current == parameter.symbol)
+                else {
+                    continue;
+                };
+                let Some(formal) = self.formals.iter().find(|formal| formal.symbol == *origin)
+                else {
+                    continue;
+                };
+                if formal.domain != parameter.domain
+                    || self.program.primitive_type_reference(formal.type_reference)
+                        != self
+                            .program
+                            .primitive_type_reference(parameter.type_reference)
+                {
+                    continue;
+                }
+                if let Some(invocation) = formals
+                    .iter()
+                    .find(|entry| entry.binder == ScopedArithmeticBinder::Symbol(*origin))
+                {
+                    binding.value = invocation.value.clone();
+                }
+            }
+        }
+        self.with_formals(bindings)
     }
 
     /// An arrival's simultaneous substitution: each header parameter denotes
@@ -885,10 +923,10 @@ ensures result <= previous
     }
 
     #[test]
-    fn an_external_cyclic_frame_is_not_the_invocation() {
-        // Separate components cannot assume each other's proposals. In
-        // particular, the first component's current entry parameters cannot
-        // be identified with the invocation when proving the second's base.
+    fn sequential_components_reuse_only_exact_parameter_origins() {
+        // The first component changes n but preserves previous exactly.
+        // The second's base may use that value identity, independently of
+        // either component's invariant proposals.
         let source = r#"
 machine descend(n: u64 [0..=1000], previous: u64 [0..=1000]) -> u64
 terminates by n -> Nat::Descending;
@@ -906,15 +944,12 @@ ensures result <= previous
     }
 }
 "#;
-        let diagnostics =
-            check(source).expect_err("an external cyclic frame needs its own established relation");
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic.message
-                == "cannot prove ensures contract for exit from descend at statement 1: result <= previous; no exact incoming reference origin for previous"),
-            "{diagnostics:#?}"
-        );
+        check(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     }
 }
 
 #[cfg(test)]
 mod component_tests;
+
+#[cfg(test)]
+mod origin_tests;

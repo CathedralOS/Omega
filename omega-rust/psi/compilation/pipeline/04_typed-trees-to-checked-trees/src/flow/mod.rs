@@ -35,6 +35,11 @@ mod state_values;
 
 // One state's facts and the producers it runs for its entry, statements, and exits.
 mod entry_origins;
+// Contract induction consumes the same all-path origin solution as flow
+// rebasing. These are scratch queries, not additional retained proof authority.
+pub(crate) use entry_origins::{
+    machine_parameter_origins, state_origins as state_parameter_origins,
+};
 mod exits;
 mod expression;
 mod operator_calls;
