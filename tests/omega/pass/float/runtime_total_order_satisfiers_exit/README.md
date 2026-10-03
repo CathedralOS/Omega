@@ -38,3 +38,7 @@ Source-to-serialized-artifact controls preserve negative zero and NaN payloads
 at both IEEE widths, share one backing across differently typed views, and
 reject a removed reference projection. Target translation controls exercise
 ARM64 and x64; native execution above was measured on macOS ARM64.
+
+`F32` and `F64` own the operation names, not the runtime operands. Exact
+`Order::before` satisfaction infers `Self` from each callable's operands;
+whole-trait conformances separately supply their declared subject type.
