@@ -3103,3 +3103,68 @@ fn rebound_dynamic_calls_replay_both_instance_projections() {
         }
     }
 }
+
+#[test]
+fn scalar_reference_call_replays_original_backing_and_viewed_type() {
+    let source = source_plan(
+        r#"
+        data Main {}
+        machine read(value: &u32) -> u32 { value }
+        machine Main::run(value: f32) -> u32 {
+            let view: &u32 = &value as &u32;
+            read(view)
+        }
+    "#,
+    );
+    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("shared scalar representation call lowers");
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("original backing and viewed argument independently validate");
+        let operation = target
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call {
+                    psi_operation,
+                    arguments,
+                    ..
+                } if arguments.iter().any(|argument| {
+                    argument.root_structural_type != argument.structural_type
+                        && argument.path == [terminal_psi::StructuralPathSegment::Referent]
+                }) =>
+                {
+                    Some(*psi_operation)
+                }
+                _ => None,
+            })
+            .expect("a reference call preserves distinct backing and viewed declarations");
+        for corruption in 0..5 {
+            let changed = mutate_call_row(
+                &target,
+                |row| matches!(row, TargetUnitOperation::Call { psi_operation, .. } if *psi_operation == operation),
+                |row| {
+                    let TargetUnitOperation::Call { arguments, .. } = row else {
+                        unreachable!()
+                    };
+                    let argument = &mut arguments[0];
+                    match corruption {
+                        0 => argument.root_structural_type = argument.structural_type,
+                        1 => argument.structural_type = argument.root_structural_type,
+                        2 => argument.access = StructuralAccess::MutableBorrow,
+                        3 => argument.path.clear(),
+                        _ => argument.source = target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                            psi_operation: OperationId::new(999).unwrap(),
+                        },
+                    }
+                },
+            );
+            assert!(matches!(crate::validate_abstract_to_target_translation(&source, native, &changed),
+                Err(crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch { .. })),
+                "forged shared representation argument {corruption}");
+        }
+    }
+}

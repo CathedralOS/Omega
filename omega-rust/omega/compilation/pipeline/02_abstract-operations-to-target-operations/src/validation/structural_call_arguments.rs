@@ -2750,7 +2750,14 @@ impl Replay<'_> {
         // verbatim. The carrier place itself is loan custody, not a
         // pointer source.
         if matches!(semantic.path.last(), Some(StructuralPathSegment::Referent)) {
-            if !matches_referent_argument(actual, semantic, declared, self.declarations) {
+            if !matches_referent_argument(
+                actual,
+                semantic,
+                declared,
+                self.declarations,
+                self.source,
+                self.roots,
+            ) {
                 return Err(psi_operation);
             }
         } else if !matches_argument_identity(actual, semantic, declared) {
@@ -3509,10 +3516,57 @@ fn matches_referent_argument(
     semantic: &StructuralArgument,
     declared: &StructuralParameterDeclaration,
     declarations: &[StructuralTypeDeclaration],
+    source: &AbstractFunction,
+    roots: &BTreeMap<PlaceId, RootDeclaration>,
 ) -> bool {
     let Some((StructuralPathSegment::Referent, carrier_path)) = semantic.path.split_last() else {
         return false;
     };
+    let Some(backing) = roots.get(&actual.place) else {
+        return false;
+    };
+    let carrier_type = source
+        .structural_places
+        .iter()
+        .find(|place| place.id == semantic.place)
+        .and_then(|place| match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                structural_type, ..
+            } => Some(structural_type),
+            _ => roots.get(&semantic.place).map(|root| root.structural_type),
+        });
+    let Some((reference_type, _)) = carrier_type.and_then(|carrier| {
+        structural_shapes::project_static_path(carrier, carrier_path, declarations).ok()
+    }) else {
+        return false;
+    };
+    let Some(StructuralTypeShape::Reference { referent, access }) = declarations
+        .iter()
+        .find(|declaration| declaration.id == reference_type)
+        .map(|declaration| &declaration.shape)
+    else {
+        return false;
+    };
+    // The root remains the original producer's storage; the reference leaf
+    // supplies the independently checked observation type and access.
+    if *referent != declared.structural_type
+        || !(*access == semantic.access
+            || *access == StructuralAccess::MutableBorrow
+                && matches!(
+                    semantic.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
+        || actual.root_structural_type != backing.structural_type
+        || (actual.root_structural_type != declared.structural_type
+            && (semantic.access != StructuralAccess::SharedBorrow
+                || !terminal_semantics::reference_source_compatible(
+                    declarations.iter(),
+                    backing.structural_type,
+                    reference_type,
+                )))
+    {
+        return false;
+    }
     carrier_path
         .iter()
         .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
@@ -3533,7 +3587,6 @@ fn matches_referent_argument(
         && actual.access == declared.access
         && actual.path == semantic.path
         && actual.structural_type == declared.structural_type
-        && actual.root_structural_type == declared.structural_type
         && actual.source_byte_offset == 0
         && actual.fixed_array_length.is_none()
         && actual.element_stride.is_none()
