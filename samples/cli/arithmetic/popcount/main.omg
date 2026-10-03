@@ -1,6 +1,6 @@
 // Population count (Hamming weight) -- the number of set bits in a word, via the
 // classic shift-and-mask loop. It composes three things this language now has:
-// a bounded self-transition loop, the bitwise AND (`& 1` tests the low bit), and
+// a bounded state-transition loop, the bitwise AND (`& 1` tests the low bit), and
 // the LOGICAL right shift (`>> 1` over an unsigned word feeds the next bit in,
 // never sign-extending). Counting 0xDEADBEEF yields 24 set bits.
 //
@@ -8,55 +8,44 @@
 //       count += x & 1     // add the low bit
 //       x >>= 1            // shift the next bit down
 //
-// `x` is `u32 in Wrapping` so the unsigned `>>` is logical and the loop always
+// `word` is `u32 in Wrapping` so the unsigned `>>` is logical and the loop always
 // terminates (a signed/arithmetic `>>` on a high-bit value would spin forever).
 // Expected exit: 24.
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 
-data Main {
-    console: Binding<Console>;
-    pause: [u8; 256];
-    x: u32 in Wrapping;
-    bit: u32 in Wrapping;
-    count: u32 in Wrapping;
-    result: i32;
-}
-
-machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
-    main.x = 3735928559; // 0xDEADBEEF
-    main.count = 0;
+machine main() reaches Console {
+    Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
 
     transition {
-        _ -> step(main)
+        _ -> step(3735928559, 0) // 0xDEADBEEF
     }
 
     // Loop head: stop once every bit has been shifted out.
-    state step(main: &mut Main) {
-        transition main.x == 0 {
-            true -> done(main)
-            _ -> count_bit(main)
+    state step(word: u32 in Wrapping, count: u32 in Wrapping) {
+        transition word == 0 {
+            true -> done(count)
+            _ -> count_bit(word, count)
         }
     }
 
     // Loop body: accumulate the low bit, then shift it away.
-    state count_bit(main: &mut Main) {
-        main.bit = main.x & 1;
-        main.count = main.count + main.bit;
-        main.x = main.x >> 1;
+    state count_bit(word: u32 in Wrapping, count: u32 in Wrapping) {
+        let bit: u32 in Wrapping = word & 1;
+        let next_count: u32 in Wrapping = count + bit;
+        let next_word: u32 in Wrapping = word >> 1;
         transition {
-            _ -> step(main)
+            _ -> step(next_word, next_count)
         }
     }
 
-    state done(main: &mut Main) {
-        main.result = narrow_u32_to_i32_trapping(main.count as u32);
-        main.console.write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.result);
+    state done(count: u32 in Wrapping) {
+        let result: i32 = narrow_u32_to_i32_trapping(count as u32);
+        Console::write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
+        Console::write_line("[press Enter to close]");
+        let mut pause: [u8; 256];
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(result);
     }
 }
