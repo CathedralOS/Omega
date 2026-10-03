@@ -3775,11 +3775,16 @@ shared checker in `omega-rust/omega/compilation/backend/plans/provider-evidence/
   Distinguish prohibited possible behavior from insufficient evidence.
 
   [The package verdict harness](omega-rust/omega/packages/package-manager/tests/behavior_exclusion_verdicts.rs)
-  asserts Linux realization of `no-op-app` and attributed service/machine refusal
-  for `sink-app`. Add verdict coverage for `checking-app`, `quiet-logger-app` and
-  `direct-unit.omg` under `tests/omega/packages/behavior-exclusions/`; the two
-  kits are their dependencies. Exercise native publication/execution and both
-  optimization settings; declaration-only checks do not establish them.
+  now exercises native publication/execution of `no-op-app` and
+  `quiet-logger-app`, plus attributed refusals for checking/direct-Unit assertions,
+  eager predicate traps and actual Sink invocations, with optimization off/on.
+  The explicit static Build argument reaches the evaluator's shared enum-exclusion
+  path; namespace dispatch must never silently execute its empty prelude body.
+  On macOS ARM64, `cargo nextest run -p package-manager behavior_exclusion_verdicts
+  --no-fail-fast` runs eight controls, including four native executions.
+  Remaining: source-generated entry/dispatch coverage and independent replay of
+  changed entry/provider/target/scope/policy subjects. Other hosted executions
+  still need matching runners; all four targets have authored entry bindings.
   Physical custody belongs to **BUILD-EXCLUSION-REALIZATION**.
 
 - **BUILD-EXCLUSION-REALIZATION.** Carry exclusion policies through native

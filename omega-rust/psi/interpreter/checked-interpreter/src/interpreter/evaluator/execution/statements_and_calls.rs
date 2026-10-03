@@ -474,17 +474,16 @@ impl<'program> Evaluator<'program> {
         if is_statically_harvested_build_declaration(call.target.as_str()) {
             return Ok(Value::Unit);
         }
+        // Exclusions include exact static Build calls: their authority is an
+        // explicit argument, so namespace classification cannot bypass them.
+        if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
+            return Ok(value);
+        }
         // Activation facets require a runtime receiver. A declaration called
         // `write` or `close` is not a facet merely because its leaf matches;
         // let ordinary selected-target dispatch handle namespace calls below.
         if !self.statement_receiver_is_namespace(call) {
             if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
-                return Ok(value);
-            }
-            // Build behavior exclusions are EVALUATED selections: the executed
-            // call against the activation's root Build records the selection;
-            // a spelled call that never runs is not a selection.
-            if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
                 return Ok(value);
             }
             if self

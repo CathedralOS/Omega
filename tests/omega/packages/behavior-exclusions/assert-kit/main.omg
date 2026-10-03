@@ -2,8 +2,8 @@
 // implementations satisfy it; neither edits the public ceiling. Which one an
 // application composes is ordinary build provider selection.
 //
-// The scalar helper keeps this fixture executable while direct Unit crash
-// planning is incomplete; the separate direct-unit control pins that gap.
+// The helper and the separate direct-Unit control exercise the same crash
+// exclusion across an ordinary call and a direct guarded trap.
 module main;
 
 use omega::language::core::binding;

@@ -1420,6 +1420,7 @@ dependencies = [
  "arena",
  "artifacts",
  "boundary-applications",
+ "bounded-process",
  "build-declarations",
  "build-evaluation",
  "build-output",

@@ -9,4 +9,7 @@ machine build(builder: &mut Build) {
     Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
     Build::exclude_crash(builder, CrashCause::Trap);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
