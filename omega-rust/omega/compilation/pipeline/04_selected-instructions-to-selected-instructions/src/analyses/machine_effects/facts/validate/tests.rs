@@ -11,7 +11,6 @@ use register_environment::{
 };
 use register_model::{
     RegisterClassId, RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId,
-    ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, SelectedBlock,
@@ -153,10 +152,17 @@ fn validate(
     function: &SelectedFunction,
     instruction: &SelectedInstruction,
     actual: &InstructionMachineEffects,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    environment: &ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<(), MachineEffectError> {
-    validate_instruction(function, instruction, actual, constraints, catalog)
+    validate_instruction(
+        function,
+        instruction,
+        actual,
+        environment.physical(),
+        environment.constraints(),
+        catalog,
+    )
 }
 
 #[test]
@@ -236,13 +242,7 @@ fn drifted_call_operand_views_and_clobber_shape_are_rejected() {
     let mut clobbered = instruction.clone();
     clobbered.clobbers.pop();
     assert!(matches!(
-        validate(
-            &function,
-            &clobbered,
-            &expected,
-            environment.constraints(),
-            &catalog,
-        ),
+        validate(&function, &clobbered, &expected, &environment, &catalog,),
         Err(MachineEffectError::ConstraintEffectMismatch { .. })
     ));
 }
@@ -300,13 +300,7 @@ fn fuel_settlements_replay_against_claimed_provenance_sites() {
     };
     expected.provenance = instruction.provenance.clone();
     assert_eq!(
-        validate(
-            &function,
-            &instruction,
-            &expected,
-            environment.constraints(),
-            &catalog,
-        ),
+        validate(&function, &instruction, &expected, &environment, &catalog,),
         Ok(())
     );
 
@@ -330,13 +324,7 @@ fn fuel_settlements_replay_against_claimed_provenance_sites() {
         }
         assert!(
             matches!(
-                validate(
-                    &function,
-                    &forged,
-                    &expected,
-                    environment.constraints(),
-                    &catalog,
-                ),
+                validate(&function, &forged, &expected, &environment, &catalog,),
                 Err(MachineEffectError::FuelProvenanceMismatch { .. })
             ),
             "corruption {corruption} must be rejected"
@@ -438,7 +426,13 @@ fn function_replay_reaches_terminator_operand_rows() {
         }],
     };
     assert_eq!(
-        validate_function(&function, &actual, environment.constraints(), &catalog),
+        validate_function(
+            &function,
+            &actual,
+            environment.physical(),
+            environment.constraints(),
+            &catalog
+        ),
         Ok(())
     );
 
@@ -447,7 +441,13 @@ fn function_replay_reaches_terminator_operand_rows() {
     };
     instruction.operands[0].access = RegisterOperandAccess::Def;
     assert!(matches!(
-        validate_function(&function, &actual, environment.constraints(), &catalog),
+        validate_function(
+            &function,
+            &actual,
+            environment.physical(),
+            environment.constraints(),
+            &catalog
+        ),
         Err(MachineEffectError::ConstraintOperandMismatch { .. })
     ));
 }
@@ -461,13 +461,7 @@ fn assert_operand_mismatch(
 ) {
     assert!(
         matches!(
-            validate(
-                function,
-                instruction,
-                actual,
-                environment.constraints(),
-                catalog,
-            ),
+            validate(function, instruction, actual, environment, catalog,),
             Err(MachineEffectError::ConstraintOperandMismatch { .. })
         ),
         "corrupted operand contract must be rejected"

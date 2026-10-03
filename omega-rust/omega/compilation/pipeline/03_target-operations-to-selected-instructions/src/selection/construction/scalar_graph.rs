@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance.
 //! Scalar instructions share one selection path regardless of the caller's result.
 
-use crate::selection::constraints::{fixed_input_constraint, instruction, row};
+use crate::selection::constraints::{fixed_input_constraint, row};
 use crate::selection::model::SelectedInstructionError;
 use calling_conventions::ValueLocation;
 use legalized_operations::{
@@ -590,14 +590,35 @@ impl Builder<'_> {
                 .map_err(|_| SelectedInstructionError::custody())?,
         );
         let provenance = self.settle_provenance(provenance);
-        self.instructions.push(instruction(
-            id,
-            kind,
-            key,
-            operands,
-            provenance,
-            self.catalog,
-        )?);
+        let constraint =
+            if let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind {
+                let record = self
+                    .transport
+                    .normalized_foreign_calls
+                    .get(ordinal as usize)
+                    .filter(|record| record.instruction == id && record.call.boundary == boundary)
+                    .ok_or_else(SelectedInstructionError::custody)?;
+                std::borrow::Cow::Owned(
+                    super::super::scalar_call_abi::normalized_foreign::call_constraint(
+                        &record.call,
+                        self.environment,
+                    )
+                    .ok_or_else(SelectedInstructionError::custody)?,
+                )
+            } else {
+                std::borrow::Cow::Borrowed(row(self.catalog, key)?)
+            };
+        if constraint.key != key {
+            return Err(SelectedInstructionError::custody());
+        }
+        self.instructions
+            .push(super::super::constraints::instruction_from_row(
+                id,
+                kind,
+                operands,
+                provenance,
+                &constraint,
+            )?);
         Ok(())
     }
 

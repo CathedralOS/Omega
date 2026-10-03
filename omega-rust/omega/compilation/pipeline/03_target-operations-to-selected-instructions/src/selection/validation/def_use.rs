@@ -1,8 +1,8 @@
 //! Selected SSA definitions, dominance, and explicit parallel edge transport.
 use super::integrity::terminator_instruction;
-use crate::selection::constraints::row;
+use crate::selection::constraints::resolved_row;
 use crate::selection::model::SelectedInstructionError;
-use register_model::{RegisterOperandAccess, ValidatedRegisterConstraintCatalog};
+use register_model::RegisterOperandAccess;
 use selected_instructions::SelectedValueTransport;
 use selected_instructions::{
     SelectedFunction, SelectedSuccessor, SelectedTerminator, VirtualRegister, VirtualRegisterId,
@@ -14,23 +14,23 @@ use std::collections::BTreeSet;
 pub(super) fn validate_def_use(
     function_index: usize,
     function: &SelectedFunction,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
-    validate(function_index, function, catalog, false)
+    validate(function_index, function, environment, false)
 }
 
 pub(super) fn validate_projected_def_use(
     function_index: usize,
     function: &SelectedFunction,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
-    validate(function_index, function, catalog, true)
+    validate(function_index, function, environment, true)
 }
 
 fn validate(
     function_index: usize,
     function: &SelectedFunction,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     projected: bool,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::NonCanonicalVirtualRegisters {
@@ -106,7 +106,7 @@ fn validate(
             .chain(std::iter::once(terminator_instruction(&block.terminator)))
             .enumerate()
         {
-            let constraint = row(catalog, instruction.constraint)?;
+            let constraint = resolved_row(function, instruction, environment)?;
             for (operand, expected) in instruction.operands.iter().zip(&constraint.operands) {
                 if matches!(
                     expected.access,
@@ -147,7 +147,7 @@ fn validate(
             .chain(std::iter::once(terminator_instruction(&block.terminator)))
             .enumerate()
         {
-            let constraint = row(catalog, instruction.constraint)?;
+            let constraint = resolved_row(function, instruction, environment)?;
             for (operand, expected) in instruction.operands.iter().zip(&constraint.operands) {
                 if matches!(
                     expected.access,

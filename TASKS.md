@@ -4333,15 +4333,25 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   legalization, ordinary call-result storage, recovery encoding and fragment
   publication. On macOS ARM64, `python3 tools/corpus_gate.py --native --filter
   providers/foreign_record_result_exit` builds and executes two C record-returning
-  calls, retains both results and exits 70. Direct `omega run` still requires
+  calls, retains both results and exits 70. The companion
+  `providers/foreign_multiregister_result_exit` runs two libc `lldiv` calls,
+  retains both two-register results and exits 70 after checking signed 64-bit
+  quotients and remainders. Direct `omega run` still requires
   the project's ordinary package review; the corpus run supplies isolated test
   admissions. This does not establish the whole ABI task.
 
-  The selected foreign-call catalog still enumerates Unit/single-register
-  results. Multi-register and indirect results need plan-driven register
-  constraints through emission, not more signature-specific catalog families.
-  Complete that transport and owned arguments using the evaluated ABI plan;
-  preserve the distinction between storage geometry and ABI classification.
+  Foreign imports now share one mechanism template per target ABI. Selection,
+  effect analysis/replay and encoding derive complete operands and effects from
+  retained evaluated plans; signature/callback catalog permutations are removed.
+  Constructed selection and encoding tests cover multi-register, floating and
+  indirect results on all four targets, including corrupted placement and call
+  rosters. Native indirect-result execution and owned/descriptor arguments remain
+  unfinished; complete them using the evaluated ABI plan, preserving the
+  distinction between storage geometry and ABI classification. The native
+  `providers/` sweep still has the pre-existing provider-admission rejection in
+  `checked_boundary_requirement_dispatch_exit` and the Linux-only execution
+  requirement in `kernel_import_result_chain_exit` on macOS; neither is pinned
+  as success or attributed to this transport repair.
 
   Acceptance: an owned whole-place argument and aggregate result execute
   source-to-C on a matching host with exact values, register/stack placement

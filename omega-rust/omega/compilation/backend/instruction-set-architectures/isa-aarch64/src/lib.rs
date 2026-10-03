@@ -51,7 +51,7 @@ pub use frame_protocol::{
 };
 pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,
-    validate_aarch64_machine_effect_catalog,
+    aarch64_normalized_foreign_call_declaration, validate_aarch64_machine_effect_catalog,
 };
 pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,

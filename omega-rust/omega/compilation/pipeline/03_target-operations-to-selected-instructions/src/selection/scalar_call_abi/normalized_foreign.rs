@@ -3,19 +3,15 @@
 //! The evaluated `BoundaryEntryPlan` carried by the legalized call is producer
 //! evidence, not authority: this module re-derives the call signature from the
 //! retained argument and result custody, re-validates the plan against it, and
-//! selects the unique register-model row whose explicit operands match the
-//! plan's register-resident parameter banks and optional scalar result. A
+//! instantiates the mechanism template from the plan's complete placements. A
 //! substituted locator, provider execution, plan, argument, or home fails
-//! closed; a missing or duplicated catalog row is not a match.
-use super::{
-    CallSignature, LegalizedScalarFunction, RegisterOperandAccess, ValueLocation, ValueShape,
-    scalar_shape,
-};
+//! closed; target templates do not enumerate source signatures.
+use super::{CallSignature, LegalizedScalarFunction, ValueLocation, ValueShape, scalar_shape};
 use crate::SelectedInstructionError;
 use calling_conventions::validate_boundary_entry_plan;
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId};
+use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
 use target_operations::{
     TargetBoundaryResult, TargetStructuralArgumentSource, TargetUnitScalarArgumentSource,
 };
@@ -69,164 +65,36 @@ pub(crate) fn structural_parameter_positions(
     })
 }
 
-/// The exact operand roster one evaluated plan requires: register-resident
-/// parameters in canonical bank order, then the scalar result definition.
-fn plan_operand_views(
-    call: &LegalizedNormalizedForeignCall,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Option<Vec<(register_model::RegisterViewId, RegisterOperandAccess)>> {
-    let plan = &call.binding.boundary_entry_plan.call;
-    let mut views = Vec::new();
-    // The plan keeps authored identity; only explicit instruction operands are
-    // bank-ordered, avoiding a catalog row for every source-type permutation.
-    // A parameter-destination callback's private slot is written by
-    // materialization bytes emitted inside the call encoding, so it never
-    // becomes an operand view.
-    let private_ordinals = private_callback_ordinals(call);
-    let mut parameters = plan
-        .parameters
-        .iter()
-        .enumerate()
-        .filter(|(position, _)| !private_ordinals.contains(position))
-        .collect::<Vec<_>>();
-    parameters.sort_by_key(|(_, placement)| {
-        placement.shape.class == calling_conventions::ValueClass::Float
-    });
-    for (_, placement) in parameters {
-        match placement.locations.as_slice() {
-            [
-                ValueLocation::Register {
-                    register,
-                    value_byte_offset: 0,
-                    byte_size,
-                },
-            ] if *byte_size == placement.shape.byte_size => {
-                views.push((
-                    environment.fixed_register_view(*register)?,
-                    RegisterOperandAccess::Use,
-                ));
-            }
-            [
-                ValueLocation::Stack {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ] if *byte_size == placement.shape.byte_size => {}
-            _ => return None,
-        }
-    }
-    if let Some(result) = &plan.result {
-        for location in &result.locations {
-            let (register, access) = match location {
-                ValueLocation::Register { register, .. } => (*register, RegisterOperandAccess::Def),
-                ValueLocation::Indirect {
-                    pointer: calling_conventions::IndirectPointerLocation::Register(register),
-                    ..
-                } => (*register, RegisterOperandAccess::Use),
-                _ => return None,
-            };
-            views.push((environment.fixed_register_view(register)?, access));
-        }
-    }
-    Some(views)
-}
-
-/// The complete implicit unit set a normalized foreign call's selected row
-/// must declare: the family baseline carried by every plain row, the pinned
-/// register units of each register-resident private parameter slot, and the
-/// architecture-fixed scratch units when any callback destination is a
-/// record field. A stack-resident private slot has no register pin to
-/// declare.
-fn expected_implicit_uses(
-    call: &LegalizedNormalizedForeignCall,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Option<Vec<RegisterUnitId>> {
-    let keys = environment.selected_keys();
-    let family = entry_family(call);
-    let mut expected = keys
-        .call_normalized_foreign
-        .iter()
-        .filter(|key| key.family == family)
-        .find_map(|key| {
-            environment
-                .constraint(*key)
-                .filter(|row| row.operands.is_empty())
-                .map(|row| row.implicit_uses.clone())
-        })?;
-    let mut field_destination = false;
-    for callback in &call.callbacks {
-        let register = match &callback.destination {
-            calling_conventions::NativePlace::Parameter(_) => {
-                let [ValueLocation::Register { register, .. }] =
-                    callback.application.placement.locations.as_slice()
-                else {
-                    continue;
-                };
-                *register
-            }
-            calling_conventions::NativePlace::Field { .. } => {
-                field_destination = true;
-                continue;
-            }
-        };
-        let view_id = environment.fixed_register_view(register)?;
-        let view = environment
-            .physical()
-            .model()
-            .views
-            .iter()
-            .find(|view| view.id == view_id)?;
-        expected.extend(view.units.iter().copied());
-    }
-    if field_destination {
-        let scratch = call
-            .binding
-            .boundary_entry_plan
-            .call
-            .policy
-            .callback_field_scratch();
-        let view_id = environment.fixed_register_view(scratch)?;
-        let view = environment
-            .physical()
-            .model()
-            .views
-            .iter()
-            .find(|view| view.id == view_id)?;
-        expected.extend(view.units.iter().copied());
-    }
-    expected.sort_unstable();
-    expected.dedup();
-    Some(expected)
-}
-
-/// The unique selected foreign-call row for this exact evaluated plan. Zero
-/// or multiple matching rows are both custody failures: the catalog must hold
-/// exactly one row per (input register banks, scalar result bank) plan.
+/// The target supplies one canonical mechanism template. The evaluated plan,
+/// not a catalog permutation, supplies its explicit operands and callback uses.
 pub(crate) fn call_key(
     call: &LegalizedNormalizedForeignCall,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
-    let views = plan_operand_views(call, environment)?;
-    let implicit_uses = expected_implicit_uses(call, environment)?;
-    let keys = environment.selected_keys();
     let family = entry_family(call);
-    let mut matches = keys.call_normalized_foreign.iter().filter(|key| {
-        key.family == family
-            && environment.constraint(**key).is_some_and(|row| {
-                row.implicit_uses == implicit_uses
-                    && row.operands.len() == views.len()
-                    && row
-                        .operands
-                        .iter()
-                        .zip(&views)
-                        .all(|(operand, (view, access))| {
-                            operand.access == *access && operand.fixed_view == Some(*view)
-                        })
-            })
-    });
-    let result = *matches.next()?;
-    matches.next().is_none().then_some(result)
+    environment
+        .selected_keys()
+        .call_normalized_foreign
+        .into_iter()
+        .find(|key| {
+            key.family == family
+                && environment
+                    .constraint(*key)
+                    .is_some_and(|row| row.operands.is_empty())
+        })
+}
+
+pub(crate) fn call_constraint(
+    call: &LegalizedNormalizedForeignCall,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Option<RegisterInstructionConstraint> {
+    let key = call_key(call, environment)?;
+    selected_instructions::calls::constraints::instantiate_foreign_call_constraint(
+        call,
+        environment.constraint(key)?,
+        environment.physical(),
+        |register| environment.fixed_register_view(register),
+    )
 }
 
 /// Replay the complete evaluated custody a normalized foreign call claims.
@@ -534,22 +402,10 @@ pub(crate) fn validate(
     if validated.plan() != plan {
         return Err(invalid());
     }
-    // The selected row is the unique catalog row for this plan, carried by
-    // the environment's foreign roster and equal to the claimed constraint.
-    let views = plan_operand_views(call, environment).ok_or_else(invalid)?;
+    // Reconstruct the complete physical row, including all result fragments,
+    // from the semantic plan just checked above and the target template.
     if call_key(call, environment) != Some(key)
-        || environment.constraint(key) != Some(constraint)
-        || constraint.key != key
-        || constraint.implicit_uses
-            != expected_implicit_uses(call, environment).ok_or_else(invalid)?
-        || constraint.operands.len() != views.len()
-        || constraint
-            .operands
-            .iter()
-            .zip(&views)
-            .any(|(operand, (view, access))| {
-                operand.access != *access || operand.fixed_view != Some(*view)
-            })
+        || call_constraint(call, environment).as_ref() != Some(constraint)
     {
         return Err(invalid());
     }

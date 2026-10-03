@@ -18,8 +18,8 @@ use crate::register_model::physical_model::GPR64;
 use calling_conventions::MachineRegister;
 use register_model::{
     RegisterConstraintCatalog, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint, RegisterUnit,
-    RegisterUnitId, RegisterUnitKind,
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnit, RegisterUnitId,
+    RegisterUnitKind,
 };
 use register_model::{
     RegisterConstraintCatalogValidationError, RegisterModelValidationError,
@@ -495,242 +495,44 @@ fn unknown_and_omitted_units_reject() {
 }
 
 #[test]
-fn normalized_foreign_scalar_rows_cover_banks_results_and_caller_saves() {
+fn normalized_foreign_templates_retain_complete_target_call_effects() {
     let model =
         register_model::validate_physical_register_model(super::aarch64_physical_register_model())
             .unwrap();
     let catalog = super::aarch64_register_constraint_catalog(&model);
-    let integer_class = model.model().view_named("x0").unwrap().class;
-    for (inputs, keys, expected_count) in [
+    for (base, keys) in [
         (
-            super::aarch64_aapcs64_register_unit_call_keys()
-                .into_iter()
-                .chain(super::aarch64_aapcs64_mixed_unit_call_keys())
-                .collect::<Vec<_>>(),
+            super::aarch64_aapcs64_register_unit_call_keys()[0],
             super::aarch64_aapcs64_normalized_foreign_call_keys(),
-            2430,
         ),
         (
-            super::aarch64_darwin_register_unit_call_keys()
-                .into_iter()
-                .chain(super::aarch64_darwin_mixed_unit_call_keys())
-                .collect::<Vec<_>>(),
+            super::aarch64_darwin_register_unit_call_keys()[0],
             super::aarch64_darwin_normalized_foreign_call_keys(),
-            2430,
         ),
     ] {
-        assert_eq!(keys.len(), expected_count);
-        let mut keys = keys.into_iter();
-        let mut layouts = Vec::new();
-        for input in inputs.iter().copied() {
-            let unit = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == input)
-                .unwrap();
-            assert!(
-                !layouts.contains(&unit.operands),
-                "input layouts are unique"
-            );
-            layouts.push(unit.operands.clone());
-            for result_name in [None, Some("x0"), Some("d0")] {
-                let key = keys.next().unwrap();
-                let row = catalog
-                    .constraints
-                    .iter()
-                    .find(|row| row.key == key)
-                    .unwrap();
-                let input_count = unit.operands.len();
-                assert_eq!(&row.operands[..input_count], &unit.operands);
-                assert_eq!(row.implicit_uses, unit.implicit_uses);
-                assert_eq!(row.implicit_defs, unit.implicit_defs);
-                let mut clobbers = unit.clobbers.clone();
-                if let Some(result_name) = result_name {
-                    let result = model.model().view_named(result_name).unwrap();
-                    assert_eq!(row.operands.len(), input_count + 1);
-                    let operand = &row.operands[input_count];
-                    assert_eq!(operand.operand, input_count as u16);
-                    assert_eq!(operand.access, RegisterOperandAccess::Def);
-                    assert_eq!(operand.class, result.class);
-                    assert_eq!(operand.fixed_view, Some(result.id));
-                    assert_eq!(operand.tied_to, None);
-                    assert!(!operand.early_clobber);
-                    clobbers.retain(|unit| !result.write_units.contains(unit));
-                } else {
-                    assert_eq!(row.operands.len(), input_count);
-                }
-                assert_eq!(row.clobbers, clobbers, "{key:?}");
-            }
-        }
-        // The callback-position tail: each integer-bank operand position of
-        // each input bank drops out of the operand list and reappears as an
-        // implicit unit use, once per result choice.
-        for input in inputs.iter().copied() {
-            let unit = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == input)
-                .unwrap();
-            for position in 0..unit.operands.len() {
-                let operand = &unit.operands[position];
-                if operand.access != RegisterOperandAccess::Use {
-                    continue;
-                }
-                let callback_view = model
-                    .model()
-                    .views
-                    .iter()
-                    .find(|view| view.id == operand.fixed_view.unwrap())
-                    .unwrap();
-                if callback_view.class != integer_class {
-                    continue;
-                }
-                let mut expected_uses = unit.implicit_uses.clone();
-                expected_uses.extend(callback_view.units.iter().copied());
-                expected_uses.sort_unstable();
-                expected_uses.dedup();
-                for result_name in [None, Some("x0"), Some("d0")] {
-                    let key = keys.next().unwrap();
-                    let row = catalog
-                        .constraints
-                        .iter()
-                        .find(|row| row.key == key)
-                        .unwrap();
-                    let mut expected_operands = unit.operands.clone();
-                    expected_operands.remove(position);
-                    for (index, operand) in expected_operands.iter_mut().enumerate() {
-                        operand.operand = index as u16;
-                    }
-                    assert_eq!(row.implicit_uses, expected_uses, "{key:?}");
-                    assert_eq!(row.implicit_defs, unit.implicit_defs);
-                    let mut clobbers = unit.clobbers.clone();
-                    if let Some(result_name) = result_name {
-                        let result = model.model().view_named(result_name).unwrap();
-                        let operand = RegisterOperandConstraint {
-                            operand: expected_operands.len() as u16,
-                            access: RegisterOperandAccess::Def,
-                            class: result.class,
-                            fixed_view: Some(result.id),
-                            tied_to: None,
-                            early_clobber: false,
-                        };
-                        expected_operands.push(operand);
-                        clobbers.retain(|unit| !result.write_units.contains(unit));
-                    }
-                    assert_eq!(row.operands, expected_operands, "{key:?}");
-                    assert_eq!(row.clobbers, clobbers, "{key:?}");
-                }
-            }
-        }
-        // The field-destination tail: operands keep the input bank's shape —
-        // the record root flows through its own parameter slot — while the
-        // architecture-fixed scratch register joins the implicit uses.
-        let scratch = model.model().view_named("x16").unwrap();
-        for input in inputs.iter().copied() {
-            let unit = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == input)
-                .unwrap();
-            let mut expected_uses = unit.implicit_uses.clone();
-            expected_uses.extend(scratch.units.iter().copied());
-            expected_uses.sort_unstable();
-            expected_uses.dedup();
-            for result_name in [None, Some("x0"), Some("d0")] {
-                let key = keys.next().unwrap();
-                let row = catalog
-                    .constraints
-                    .iter()
-                    .find(|row| row.key == key)
-                    .unwrap();
-                assert_eq!(row.implicit_uses, expected_uses, "{key:?}");
-                assert_eq!(row.implicit_defs, unit.implicit_defs);
-                let mut expected_operands = unit.operands.clone();
-                let mut clobbers = unit.clobbers.clone();
-                if let Some(result_name) = result_name {
-                    let result = model.model().view_named(result_name).unwrap();
-                    expected_operands.push(RegisterOperandConstraint {
-                        operand: expected_operands.len() as u16,
-                        access: RegisterOperandAccess::Def,
-                        class: result.class,
-                        fixed_view: Some(result.id),
-                        tied_to: None,
-                        early_clobber: false,
-                    });
-                    clobbers.retain(|unit| !result.write_units.contains(unit));
-                }
-                assert_eq!(row.operands, expected_operands, "{key:?}");
-                assert_eq!(row.clobbers, clobbers, "{key:?}");
-            }
-        }
-        // The mixed tail: one integer-bank position drops to an implicit use
-        // (private parameter slot) and the scratch units join it (the paired
-        // field destination's root-carrying register).
-        for input in inputs.iter().copied() {
-            let unit = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == input)
-                .unwrap();
-            for position in 0..unit.operands.len() {
-                let operand = &unit.operands[position];
-                if operand.access != RegisterOperandAccess::Use {
-                    continue;
-                }
-                let callback_view = model
-                    .model()
-                    .views
-                    .iter()
-                    .find(|view| view.id == operand.fixed_view.unwrap())
-                    .unwrap();
-                if callback_view.class != integer_class {
-                    continue;
-                }
-                let mut expected_uses = unit.implicit_uses.clone();
-                expected_uses.extend(callback_view.units.iter().copied());
-                expected_uses.extend(scratch.units.iter().copied());
-                expected_uses.sort_unstable();
-                expected_uses.dedup();
-                for result_name in [None, Some("x0"), Some("d0")] {
-                    let key = keys.next().unwrap();
-                    let row = catalog
-                        .constraints
-                        .iter()
-                        .find(|row| row.key == key)
-                        .unwrap();
-                    let mut expected_operands = unit.operands.clone();
-                    expected_operands.remove(position);
-                    for (index, operand) in expected_operands.iter_mut().enumerate() {
-                        operand.operand = index as u16;
-                    }
-                    assert_eq!(row.implicit_uses, expected_uses, "{key:?}");
-                    assert_eq!(row.implicit_defs, unit.implicit_defs);
-                    let mut clobbers = unit.clobbers.clone();
-                    if let Some(result_name) = result_name {
-                        let result = model.model().view_named(result_name).unwrap();
-                        let operand = RegisterOperandConstraint {
-                            operand: expected_operands.len() as u16,
-                            access: RegisterOperandAccess::Def,
-                            class: result.class,
-                            fixed_view: Some(result.id),
-                            tied_to: None,
-                            early_clobber: false,
-                        };
-                        expected_operands.push(operand);
-                        clobbers.retain(|unit| !result.write_units.contains(unit));
-                    }
-                    assert_eq!(row.operands, expected_operands, "{key:?}");
-                    assert_eq!(row.clobbers, clobbers, "{key:?}");
-                }
-            }
-        }
-        assert_eq!(keys.next(), None);
+        let [key] = keys.as_slice() else {
+            panic!("one import template per ABI");
+        };
+        let row = catalog
+            .constraints
+            .iter()
+            .find(|row| row.key == *key)
+            .unwrap();
+        let base = catalog
+            .constraints
+            .iter()
+            .find(|row| row.key == base)
+            .unwrap();
+        assert!(row.operands.is_empty());
+        assert_eq!(row.implicit_uses, base.implicit_uses);
+        assert_eq!(row.implicit_defs, base.implicit_defs);
+        assert_eq!(row.clobbers, base.clobbers);
     }
     super::validate_aarch64_register_constraint_catalog(catalog, &model).unwrap();
 }
 
 #[test]
-fn normalized_foreign_scalar_rows_reject_bank_result_and_clobber_mutations() {
+fn normalized_foreign_templates_reject_signature_rows_and_changed_effects() {
     let model =
         register_model::validate_physical_register_model(super::aarch64_physical_register_model())
             .unwrap();
@@ -739,7 +541,7 @@ fn normalized_foreign_scalar_rows_reject_bank_result_and_clobber_mutations() {
         super::aarch64_aapcs64_normalized_foreign_call_keys(),
         super::aarch64_darwin_normalized_foreign_call_keys(),
     ] {
-        let key = *keys.last().unwrap();
+        let key = keys[0];
         for mutation in 0..5 {
             let mut changed = catalog.clone();
             let row = changed
@@ -748,21 +550,26 @@ fn normalized_foreign_scalar_rows_reject_bank_result_and_clobber_mutations() {
                 .find(|row| row.key == key)
                 .unwrap();
             match mutation {
-                0 => {
-                    let view = model.model().view_named("x0").unwrap();
-                    let operand = row.operands.last_mut().unwrap();
-                    operand.fixed_view = Some(view.id);
-                    operand.class = view.class;
+                0..=2 => {
+                    let view = model
+                        .model()
+                        .view_named(if mutation == 2 { "d0" } else { "x0" })
+                        .unwrap();
+                    row.operands
+                        .push(register_model::RegisterOperandConstraint {
+                            operand: 0,
+                            access: if mutation == 0 {
+                                RegisterOperandAccess::Use
+                            } else {
+                                RegisterOperandAccess::Def
+                            },
+                            class: view.class,
+                            fixed_view: Some(view.id),
+                            tied_to: None,
+                            early_clobber: false,
+                        });
                 }
-                1 => row.operands.last_mut().unwrap().access = RegisterOperandAccess::Use,
-                2 => {
-                    let view = model.model().view_named("d0").unwrap();
-                    row.operands[0].fixed_view = Some(view.id);
-                    row.operands[0].class = view.class;
-                }
-                3 => row
-                    .clobbers
-                    .extend(&model.model().view_named("d0").unwrap().write_units),
+                3 => row.implicit_defs.clear(),
                 4 => row.clobbers.retain(|unit| {
                     !model
                         .model()

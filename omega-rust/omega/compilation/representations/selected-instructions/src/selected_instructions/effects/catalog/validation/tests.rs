@@ -1674,7 +1674,8 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
             MachineSemanticKind::NormalizedForeignCall
         ))
     );
-    // A two-result aggregate shape is not a normalized foreign plan row.
+    // Every result fragment needs its own encoded write; a scalar declaration
+    // cannot certify a two-register aggregate merely by sharing its key.
     let mut doubled = row.clone();
     doubled.operands.push(RegisterOperandConstraint {
         operand: 3,
@@ -1690,6 +1691,18 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
             MachineSemanticKind::NormalizedForeignCall
         ))
     );
+    validate_declaration(
+        target::Architecture::X86_64,
+        &doubled,
+        &declaration(doubled.key, encoded(&doubled)),
+    )
+    .unwrap();
+    let mut reordered = declaration(doubled.key, encoded(&doubled));
+    reordered.alternatives[0]
+        .encoded
+        .external_operand_writes
+        .reverse();
+    assert!(validate_declaration(target::Architecture::X86_64, &doubled, &reordered).is_err());
     // The encoded surface cannot borrow fall-through control or drop the
     // row's declared clobbers.
     let mut changed = source.clone();

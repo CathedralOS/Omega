@@ -169,6 +169,7 @@ pub(super) fn validate(
                     callbacks,
                 },
                 &destinations,
+                record,
             )
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
             decoded_footprint(
@@ -206,6 +207,7 @@ pub(super) fn validate(
                     callbacks,
                 },
                 &destinations,
+                record,
             )
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
             decoded_footprint(

@@ -25,8 +25,10 @@ pub(super) fn validate(
     if operation.result.is_some() != call.result.scalar_home().is_some() {
         return Err(replay.invalid());
     }
-    let key = crate::selection::scalar_call_abi::normalized_foreign::call_key(call, environment)
-        .ok_or_else(|| replay.invalid())?;
+    let constraint =
+        crate::selection::scalar_call_abi::normalized_foreign::call_constraint(call, environment)
+            .ok_or_else(|| replay.invalid())?;
+    let key = constraint.key;
     if !replay
         .constraints
         .keys
@@ -35,15 +37,12 @@ pub(super) fn validate(
     {
         return Err(replay.invalid());
     }
-    let constraint = environment
-        .constraint(key)
-        .ok_or_else(|| replay.invalid())?;
     crate::selection::scalar_call_abi::normalized_foreign::validate(
         replay.function,
         source,
         operation,
         key,
-        constraint,
+        &constraint,
         environment,
     )?;
     let saved_controls = call.binding.import().map(|_| LocalStorageSlotId::Boundary {

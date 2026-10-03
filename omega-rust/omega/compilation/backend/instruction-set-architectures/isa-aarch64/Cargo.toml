@@ -19,4 +19,11 @@ layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
 
 [dev-dependencies]
+function-identity = { path = "../../../../foundation/function-identity" }
+symbols = { path = "../../../../../psi/foundation/symbols" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
+target-operations = { path = "../../../representations/target-operations" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+task-plans = { path = "../../runtime/task-plans" }

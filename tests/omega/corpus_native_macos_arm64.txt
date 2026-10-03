@@ -877,6 +877,7 @@ pass/providers/checked_fixed_operator_physical_custody built 1393ms exit:70 @bed
 pass/providers/component_owner_provider_override_compile built 300ms
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922
 pass/providers/external_leaf_dllimport_compile built 2074ms @fb2178def922
+pass/providers/foreign_multiregister_result_exit built 1320ms exit:70 @7b8965f77903+wt
 pass/providers/foreign_record_result_exit built 1812ms exit:70 @b10ef07ea7b6
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
 pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39f0+wt

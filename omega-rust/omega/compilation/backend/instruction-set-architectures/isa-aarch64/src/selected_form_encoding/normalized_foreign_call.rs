@@ -11,15 +11,13 @@
 
 use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
+    SelectedNormalizedForeignCall,
 };
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 
-use crate::aarch64_register_constraint_catalog_for;
-use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
+use crate::machine_effects::aarch64_selected_abi;
 
 pub const AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
 pub const AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
@@ -157,6 +155,7 @@ pub fn encode_aarch64_selected_normalized_foreign_call_template(
     operand_accesses: &[RegisterOperandAccess],
     effects: &MachineEncodedEffects,
     callback_destinations: &[Aarch64CallbackMaterializationDestination],
+    record: &SelectedNormalizedForeignCall,
 ) -> Result<
     ValidatedAarch64SelectedNormalizedForeignCallTemplate,
     Aarch64NormalizedForeignCallTemplateError,
@@ -186,6 +185,7 @@ pub fn encode_aarch64_selected_normalized_foreign_call_template(
         &bytes,
         fixup,
         callback_destinations,
+        record,
     )
 }
 
@@ -201,11 +201,12 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
     bytes: &[u8],
     fixup: Aarch64NormalizedForeignCallFixup,
     callback_destinations: &[Aarch64CallbackMaterializationDestination],
+    record: &SelectedNormalizedForeignCall,
 ) -> Result<
     ValidatedAarch64SelectedNormalizedForeignCallTemplate,
     Aarch64NormalizedForeignCallTemplateError,
 > {
-    let abi = aarch64_selected_abi(target)
+    aarch64_selected_abi(target)
         .map_err(|_| Aarch64NormalizedForeignCallTemplateError::UnsupportedTarget)?;
     if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64NormalizedForeignCallTemplateError::NonCanonicalPhysicalModel);
@@ -214,104 +215,63 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
         SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => (boundary, ordinal),
         _ => return Err(Aarch64NormalizedForeignCallTemplateError::InstructionKindMismatch),
     };
-    // The exact selected constraint row owns the operand roster: find the
-    // unique per-plan foreign row whose fixed views match the machine row.
-    let keys = match abi {
-        Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_normalized_foreign_call_keys(),
-        Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_normalized_foreign_call_keys(),
-    };
-    let catalog = aarch64_register_constraint_catalog_for(physical);
-    // Callback families share explicit operands across the catalog — a
-    // private parameter slot is implicit-only and the field scratch adds
-    // uses — so the row must join on implicit uses too; matching operands
-    // alone would resolve the plain family for a callback row.
-    let row = catalog
-        .constraints
-        .iter()
-        .find(|row| {
-            keys.contains(&row.key)
-                && row.implicit_uses == effects.implicit_unit_uses
-                && row.operands.len() == operand_views.len()
-                && row.operands.len() == operand_accesses.len()
-                && row
-                    .operands
-                    .iter()
-                    .zip(operand_views.iter().zip(operand_accesses))
-                    .all(|(operand, (view, access))| {
-                        operand.fixed_view == Some(*view) && operand.access == *access
-                    })
-        })
-        .ok_or(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)?;
-    let shape =
-        crate::register_model::aarch64_normalized_foreign_callback_shape(row, physical.model());
-    let expected_alternative = MachineAlternativeKey {
-        family: MachineAlternativeFamily::NormalizedForeignCall,
-        variant: shape.alternative_variant(),
-    };
-    if alternative != expected_alternative {
-        return Err(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch);
-    }
-    // The row's declared shape must agree with the destination descriptors:
-    // at most one register destination, pinned to the parameter-slot
-    // register the row removed from its operand bank.
-    let mut register_destinations = 0;
-    let mut field_destinations = 0;
-    for destination in callback_destinations {
-        match *destination {
-            Aarch64CallbackMaterializationDestination::Register(register) => {
-                register_destinations += 1;
-                if Some(register) != shape.parameter_slot {
-                    return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
-                }
-            }
-            Aarch64CallbackMaterializationDestination::RecordField {
-                root_register,
-                byte_offset,
-            } => {
-                field_destinations += 1;
-                if !shape.field_scratch
-                    || callback_group_bytes(
-                        Aarch64CallbackMaterializationDestination::RecordField {
-                            root_register,
-                            byte_offset,
-                        },
-                    )
-                    .is_none()
-                {
-                    return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
-                }
-            }
-        }
-    }
-    if register_destinations > 1
-        || (field_destinations > 0 && !shape.field_scratch)
-        || (field_destinations == 0 && shape.field_scratch)
+    if record.call.boundary != boundary
+        || record.call.binding.native_target() != Some(target)
+        || record.call.binding.import().is_none()
     {
         return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
     }
-    let expected = MachineEncodedEffects {
-        external_operand_reads: row
+    let row = crate::machine_effects::normalized_foreign_constraint(record)
+        .ok_or(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)?;
+    if row.operands.len() != operand_views.len()
+        || row.operands.len() != operand_accesses.len()
+        || row
             .operands
             .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Use)
-            .map(|operand| operand.operand)
-            .collect(),
-        external_operand_writes: row
-            .operands
-            .iter()
-            .filter(|operand| operand.access == register_model::RegisterOperandAccess::Def)
-            .map(|operand| operand.operand)
-            .collect(),
-        implicit_unit_uses: row.implicit_uses.clone(),
-        implicit_unit_defs: row.implicit_defs.clone(),
-        implicit_unit_clobbers: row.clobbers.clone(),
-        memory: MachineEncodedMemoryEffect::NoneV1,
-        stack: MachineEncodedStackEffect::UnchangedV1,
-        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        control: MachineEncodedControlEffect::DirectRelativeCallV1,
+            .zip(operand_views.iter().zip(operand_accesses))
+            .any(|(operand, (view, access))| {
+                operand.fixed_view != Some(*view) || operand.access != *access
+            })
+    {
+        return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
+    }
+    let declaration = crate::aarch64_normalized_foreign_call_declaration(record, &row)
+        .ok_or(Aarch64NormalizedForeignCallTemplateError::EffectMismatch)?;
+    let [expected] = declaration.alternatives.as_slice() else {
+        return Err(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch);
     };
-    if effects != &expected {
+    if alternative != expected.key {
+        return Err(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch);
+    }
+    if effects != &expected.encoded {
         return Err(Aarch64NormalizedForeignCallTemplateError::EffectMismatch);
+    }
+    let destinations = record
+        .call
+        .callbacks
+        .iter()
+        .map(|callback| {
+            let [calling_conventions::ValueLocation::Register { register, .. }] =
+                callback.application.placement.locations.as_slice()
+            else {
+                return None;
+            };
+            match callback.destination {
+                calling_conventions::NativePlace::Parameter(_) => Some(
+                    Aarch64CallbackMaterializationDestination::Register(*register),
+                ),
+                calling_conventions::NativePlace::Field { .. } => {
+                    Some(Aarch64CallbackMaterializationDestination::RecordField {
+                        root_register: *register,
+                        byte_offset: u32::try_from(callback.field_byte_offset?).ok()?,
+                    })
+                }
+            }
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)?;
+    if destinations != callback_destinations {
+        return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
     }
     let mut expected_bytes = Vec::new();
     for destination in callback_destinations {
@@ -435,12 +395,12 @@ mod tests {
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
         MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-        MachineEncodedTrapBehavior, SelectedInstructionKind,
+        MachineEncodedTrapBehavior, SelectedInstructionKind, SelectedNormalizedForeignCall,
     };
     use semantic_vocabulary::BoundaryMachineId;
     use target::NativeTarget;
 
-    use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
+    use crate::aarch64_physical_register_model;
 
     fn inputs(
         darwin: bool,
@@ -453,6 +413,7 @@ mod tests {
         Vec<RegisterViewId>,
         Vec<RegisterOperandAccess>,
         MachineEncodedEffects,
+        SelectedNormalizedForeignCall,
     ) {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
         let kind = SelectedInstructionKind::NormalizedForeignCall {
@@ -463,17 +424,8 @@ mod tests {
             family: MachineAlternativeFamily::NormalizedForeignCall,
             variant: 0,
         };
-        let catalog = aarch64_register_constraint_catalog(&physical);
-        let key = if darwin {
-            crate::aarch64_darwin_normalized_foreign_call_keys()
-        } else {
-            crate::aarch64_aapcs64_normalized_foreign_call_keys()
-        }[input_layout * 3 + result];
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == key)
-            .unwrap();
+        let record = record(darwin, input_layout, result);
+        let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
         let operands = row
             .operands
             .iter()
@@ -505,12 +457,547 @@ mod tests {
             trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
             control: MachineEncodedControlEffect::DirectRelativeCallV1,
         };
-        (physical, kind, alternative, operands, accesses, effects)
+        (
+            physical,
+            kind,
+            alternative,
+            operands,
+            accesses,
+            effects,
+            record,
+        )
+    }
+
+    /// These records carry physical call inputs only; source ownership and
+    /// declarations remain the selection tests' independent responsibility.
+    fn record(darwin: bool, input_layout: usize, result: usize) -> SelectedNormalizedForeignCall {
+        use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
+        use semantic_vocabulary::{
+            IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
+            StructuralTypeId, ValueId,
+        };
+        use target_operations::{
+            TargetBoundaryResult, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
+            TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement,
+        };
+        let target = if darwin {
+            NativeTarget::macos_arm64()
+        } else {
+            NativeTarget::linux_arm64()
+        };
+        let (general, floating) = if input_layout < 9 {
+            (input_layout, 0)
+        } else {
+            ((input_layout - 9) / 8, (input_layout - 9) % 8 + 1)
+        };
+        let parameters = std::iter::repeat_n(ValueShape::integer(8, 8), general)
+            .chain(std::iter::repeat_n(ValueShape::float(8), floating))
+            .collect::<Vec<_>>();
+        let result_shape = match result {
+            0 => None,
+            1 => Some(ValueShape::integer(8, 8)),
+            2 => Some(ValueShape::float(8)),
+            3 => Some(ValueShape::integer(16, 8)),
+            4 => Some(ValueShape::homogeneous_float_aggregate(8, 2)),
+            5 => Some(ValueShape::integer(24, 8)),
+            _ => panic!("test result"),
+        };
+        let boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters,
+                result: result_shape,
+            },
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        let locator = if darwin {
+            target::normalize_foreign_locator(
+                target::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
+                    symbol: b"_leaf".to_vec(),
+                },
+                target::TargetProfile::MacosArm64,
+            )
+        } else {
+            target::normalize_foreign_locator(
+                target::ForeignLocatorCandidate::ElfVersioned {
+                    object: b"libc.so.6".to_vec(),
+                    symbol: b"leaf".to_vec(),
+                    version: b"GLIBC_2.0".to_vec(),
+                },
+                target::TargetProfile::LinuxArm64,
+            )
+        }
+        .unwrap();
+        let commitment = task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
+        let same_stack_contribution = task_plans::admit_same_stack_contribution(
+            task_plans::SameStackContributionAdmissionCandidate {
+                provider_plan_report_identity: 0xA1,
+                provider_plan_commitment: commitment,
+                requirement_identity: "Foreign::leaf".into(),
+                receipt:
+                    task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                        0xA2,
+                    )
+                    .unwrap(),
+                bytes: 64,
+                alignment: 16,
+            },
+            0xA1,
+            commitment,
+            "Foreign::leaf",
+        )
+        .unwrap();
+        let operation = OperationId::new(7).unwrap();
+        let scalar_type = |floating| {
+            if floating {
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)
+            } else {
+                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
+            }
+        };
+        let scalar_arguments = boundary_entry_plan
+            .call
+            .parameters
+            .iter()
+            .enumerate()
+            .map(
+                |(position, placement)| target_operations::TargetUnitScalarCallArgument {
+                    parameter_index: position as u32,
+                    source: target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        parameter_index: position as u32,
+                        source_value: ValueId::new(100 + position as u64).unwrap(),
+                        scalar_type: scalar_type(position >= general),
+                    },
+                    placement: placement.clone(),
+                },
+            )
+            .collect();
+        let completion = match result_shape {
+            None => TargetBoundaryResult::Unit,
+            Some(shape) if result <= 2 => {
+                TargetBoundaryResult::Scalar(TargetUnitScalarHomeRequirement {
+                    defining_operation: operation,
+                    source_value: ValueId::new(8).unwrap(),
+                    scalar_type: scalar_type(result == 2),
+                    shape,
+                })
+            }
+            Some(shape) => TargetBoundaryResult::Structural(TargetStructuralHomeRequirement {
+                origin: TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    result: terminal_psi::StructuralOperationResult {
+                        place: PlaceId::new(9).unwrap(),
+                        structural_type: StructuralTypeId::new(2).unwrap(),
+                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                },
+                layout: TargetStructuralHomeLayout::Aggregate(ValueShape::integer(
+                    shape.byte_size,
+                    shape.alignment,
+                )),
+            }),
+        };
+        SelectedNormalizedForeignCall {
+            instruction: selected_instructions::SelectedInstructionId(4),
+            operation,
+            call: legalized_operations::LegalizedNormalizedForeignCall {
+                boundary: BoundaryMachineId::new(3).unwrap(),
+                provider_execution:
+                    target_operations::ProviderExecutionBinding::from_execution_record(
+                        target_operations::ProviderPlanReportIdentity::new(0xA1).unwrap(),
+                        1,
+                        2,
+                        3,
+                        4,
+                    )
+                    .unwrap(),
+                binding: target_operations::NormalizedForeignCallBinding {
+                    boundary_entry_plan,
+                    mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+                        locator,
+                        same_stack_contribution,
+                    },
+                },
+                scalar_arguments,
+                structural_arguments: Vec::new(),
+                result: completion,
+                callbacks: Vec::new(),
+            },
+            effect: optimization_unit::EffectLink {
+                input: 1,
+                output: 2,
+            },
+            ownership: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn retained_multiple_callbacks_bind_operands_effects_bytes_and_fixups() {
+        use calling_conventions::{
+            CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
+            CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativeCallbackDemand,
+            NativeParameterApplication, NativeParameterId, NativePlace, StaticMachineBinderId,
+            ValueLocation,
+        };
+        use function_identity::{MachineFunctionIdentity, StateKey};
+        use symbols::SymbolHandle;
+
+        for alternate_abi in [false, true] {
+            let (physical, kind, _, _, _, _, mut record) = inputs(alternate_abi, 3, 1);
+            let target = record.call.binding.native_target().unwrap();
+            let original = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
+            let root = NativeParameterId::new(81).unwrap();
+            let destinations = [
+                NativePlace::Parameter(NativeParameterId::new(82).unwrap()),
+                NativePlace::Field {
+                    parameter: root,
+                    layout: LayoutPlanId::new(83).unwrap(),
+                    field_path: vec![LayoutSlotId::new(1).unwrap()],
+                },
+                NativePlace::Parameter(NativeParameterId::new(84).unwrap()),
+                NativePlace::Field {
+                    parameter: root,
+                    layout: LayoutPlanId::new(83).unwrap(),
+                    field_path: vec![LayoutSlotId::new(2).unwrap()],
+                },
+            ];
+            let requirement = CallbackRequirementId::new(85).unwrap();
+            let context = CallbackMaterializationContext {
+                binders: (1..=4)
+                    .map(|identity| CallbackBinderRequirement {
+                        binder: StaticMachineBinderId::new(identity).unwrap(),
+                        requirement,
+                    })
+                    .collect(),
+                demands: destinations
+                    .iter()
+                    .cloned()
+                    .map(|destination| NativeCallbackDemand {
+                        destination,
+                        requirement,
+                    })
+                    .collect(),
+            };
+            let plan = &mut record.call.binding.boundary_entry_plan;
+            plan.call.callback_materializations = destinations
+                .iter()
+                .cloned()
+                .enumerate()
+                .map(|(position, destination)| CallbackMaterialization {
+                    binder: context.binders[position].binder,
+                    destination,
+                })
+                .collect();
+            let continuation = StateKey {
+                machine: SymbolHandle::from_parts(1, 1),
+                state: SymbolHandle::from_parts(2, 1),
+                segment_index: 0,
+            };
+            let mut encoded_destinations = Vec::new();
+            for (placement_index, destination) in destinations.into_iter().enumerate() {
+                let (parameter, native_ordinal, field_byte_offset) = match destination {
+                    NativePlace::Parameter(parameter) => (parameter, placement_index / 2 + 1, None),
+                    NativePlace::Field { parameter, .. } => {
+                        (parameter, 0, Some((placement_index / 2) * 8))
+                    }
+                };
+                let placement = plan.call.parameters[native_ordinal].clone();
+                let [ValueLocation::Register { register, .. }] = placement.locations.as_slice()
+                else {
+                    panic!("fixture callback root must be register resident")
+                };
+                encoded_destinations.push(match field_byte_offset {
+                    None => super::Aarch64CallbackMaterializationDestination::Register(*register),
+                    Some(byte_offset) => {
+                        super::Aarch64CallbackMaterializationDestination::RecordField {
+                            root_register: *register,
+                            byte_offset: byte_offset as u32,
+                        }
+                    }
+                });
+                record
+                    .call
+                    .callbacks
+                    .push(target_operations::TargetNativeCallbackArgument {
+                        terminal_operation: record.operation,
+                        placement_index,
+                        callback_function: MachineFunctionIdentity::callback_thunk(
+                            continuation,
+                            placement_index,
+                        )
+                        .unwrap(),
+                        destination,
+                        field_byte_offset,
+                        application: NativeParameterApplication {
+                            parameter,
+                            native_ordinal: native_ordinal as u32,
+                            shape: placement.shape,
+                            placement,
+                        },
+                        registrar_boundary_entry_plan: plan.clone(),
+                        registrar_context: context.clone(),
+                        registrar_application_commitment: [0x66; 32],
+                    });
+            }
+            // The two private parameter slots are materialized inside the call.
+            // The field root remains an explicit input; source custody is checked upstream.
+            record.call.scalar_arguments.truncate(1);
+            let scratch_register = plan.call.policy.callback_field_scratch();
+            let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
+            assert_eq!(row.key, original.key);
+            assert_eq!(row.operands.len(), 2);
+            assert_eq!(row.operands[0], original.operands[0]);
+            assert_eq!(row.operands[1].access, RegisterOperandAccess::Def);
+            assert_eq!(row.operands[1].fixed_view, original.operands[3].fixed_view);
+            for register in [
+                match encoded_destinations[0] {
+                    super::Aarch64CallbackMaterializationDestination::Register(register) => {
+                        register
+                    }
+                    _ => unreachable!(),
+                },
+                match encoded_destinations[2] {
+                    super::Aarch64CallbackMaterializationDestination::Register(register) => {
+                        register
+                    }
+                    _ => unreachable!(),
+                },
+                scratch_register,
+            ] {
+                let view = crate::aarch64_fixed_register_view(&physical, register).unwrap();
+                let view = physical
+                    .model()
+                    .views
+                    .iter()
+                    .find(|candidate| candidate.id == view)
+                    .unwrap();
+                assert!(
+                    view.units
+                        .iter()
+                        .all(|unit| row.implicit_uses.contains(unit))
+                );
+            }
+            let declaration =
+                crate::aarch64_normalized_foreign_call_declaration(&record, &row).unwrap();
+            let alternative = &declaration.alternatives[0];
+            assert_eq!(alternative.key.variant, 3);
+            assert_eq!(
+                alternative.size,
+                selected_instructions::MachineSizeKnowledge::ExactBytes(44)
+            );
+            assert_eq!(alternative.encoded.external_operand_reads, vec![0]);
+            assert_eq!(alternative.encoded.external_operand_writes, vec![1]);
+            let operands = row
+                .operands
+                .iter()
+                .map(|operand| operand.fixed_view.unwrap())
+                .collect::<Vec<_>>();
+            let accesses = row
+                .operands
+                .iter()
+                .map(|operand| operand.access)
+                .collect::<Vec<_>>();
+            let template = encode_aarch64_selected_normalized_foreign_call_template(
+                target,
+                &physical,
+                kind,
+                alternative.key,
+                &operands,
+                &accesses,
+                &alternative.encoded,
+                &encoded_destinations,
+                &record,
+            )
+            .unwrap();
+            assert_eq!(template.bytes().len(), 44);
+            assert_eq!(template.fixup().opcode_byte_offset, 40);
+            assert_eq!(template.fixup().callbacks.len(), 4);
+            let mut byte_offset = 0;
+            for (position, fixup) in template.fixup().callbacks.iter().enumerate() {
+                assert_eq!(fixup.destination, encoded_destinations[position]);
+                assert_eq!(fixup.materialization_byte_offset, byte_offset);
+                assert_eq!(
+                    fixup.materialization_byte_count,
+                    if position % 2 == 0 { 8 } else { 12 }
+                );
+                byte_offset += fixup.materialization_byte_count;
+            }
+            let replay =
+                |bytes: &[u8], fixup, effects: &MachineEncodedEffects, destinations: &[_]| {
+                    validate_aarch64_selected_normalized_foreign_call_template(
+                        target,
+                        &physical,
+                        kind,
+                        alternative.key,
+                        &operands,
+                        &accesses,
+                        effects,
+                        bytes,
+                        fixup,
+                        destinations,
+                        &record,
+                    )
+                };
+            assert!(
+                replay(
+                    template.bytes(),
+                    template.fixup().clone(),
+                    &alternative.encoded,
+                    &encoded_destinations
+                )
+                .is_ok()
+            );
+            let mut changed_bytes = template.bytes().to_vec();
+            changed_bytes[0] ^= 1;
+            assert!(
+                replay(
+                    &changed_bytes,
+                    template.fixup().clone(),
+                    &alternative.encoded,
+                    &encoded_destinations
+                )
+                .is_err()
+            );
+            let mut changed_fixup = template.fixup().clone();
+            changed_fixup.callbacks[1].materialization_byte_offset += 1;
+            assert!(
+                replay(
+                    template.bytes(),
+                    changed_fixup,
+                    &alternative.encoded,
+                    &encoded_destinations
+                )
+                .is_err()
+            );
+            let mut changed_destinations = encoded_destinations.clone();
+            changed_destinations.swap(0, 2);
+            assert!(
+                replay(
+                    template.bytes(),
+                    template.fixup().clone(),
+                    &alternative.encoded,
+                    &changed_destinations
+                )
+                .is_err()
+            );
+            let mut changed_effects = alternative.encoded.clone();
+            changed_effects.implicit_unit_uses.clear();
+            assert!(
+                replay(
+                    template.bytes(),
+                    template.fixup().clone(),
+                    &changed_effects,
+                    &encoded_destinations
+                )
+                .is_err()
+            );
+            let mut changed_row = row.clone();
+            changed_row.implicit_uses.clear();
+            assert!(
+                crate::aarch64_normalized_foreign_call_declaration(&record, &changed_row).is_none()
+            );
+            let mut changed_record = record.clone();
+            changed_record.call.callbacks[0].application.native_ordinal = 0;
+            assert!(
+                crate::machine_effects::normalized_foreign_constraint(&changed_record).is_none()
+            );
+            let mut changed_record = record.clone();
+            changed_record.call.callbacks[1].field_byte_offset = None;
+            assert!(
+                crate::machine_effects::normalized_foreign_constraint(&changed_record).is_none()
+            );
+            let mut changed_record = record.clone();
+            changed_record.call.callbacks[0].terminal_operation =
+                semantic_vocabulary::OperationId::new(99).unwrap();
+            assert!(
+                crate::aarch64_normalized_foreign_call_declaration(&changed_record, &row).is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn direct_and_hidden_aggregate_results_share_the_import_template() {
+        for darwin in [false, true] {
+            let target = if darwin {
+                NativeTarget::macos_arm64()
+            } else {
+                NativeTarget::linux_arm64()
+            };
+            let mut shared_key = None;
+            for result in 0..=5 {
+                let (physical, kind, alternative, operands, accesses, effects, record) =
+                    inputs(darwin, 11, result);
+                let row = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
+                if let Some(key) = shared_key {
+                    assert_eq!(row.key, key);
+                } else {
+                    shared_key = Some(row.key);
+                }
+                let declaration =
+                    crate::aarch64_normalized_foreign_call_declaration(&record, &row).unwrap();
+                assert_eq!(declaration.alternatives[0].encoded, effects);
+                let template = encode_aarch64_selected_normalized_foreign_call_template(
+                    target,
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    &accesses,
+                    &effects,
+                    &[],
+                    &record,
+                )
+                .unwrap();
+                assert_eq!(template.bytes(), &0x9400_0000_u32.to_le_bytes());
+                let mut corrupted = effects.clone();
+                corrupted.implicit_unit_clobbers.clear();
+                assert_eq!(
+                    encode_aarch64_selected_normalized_foreign_call_template(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        &accesses,
+                        &corrupted,
+                        &[],
+                        &record
+                    ),
+                    Err(Aarch64NormalizedForeignCallTemplateError::EffectMismatch)
+                );
+                let mut changed_row = row.clone();
+                changed_row.operands.last_mut().unwrap().access = RegisterOperandAccess::UseDef;
+                assert!(
+                    crate::aarch64_normalized_foreign_call_declaration(&record, &changed_row)
+                        .is_none()
+                );
+                let mut changed_record = record.clone();
+                changed_record
+                    .call
+                    .binding
+                    .boundary_entry_plan
+                    .call
+                    .parameters[0]
+                    .locations
+                    .clear();
+                assert!(
+                    crate::machine_effects::normalized_foreign_constraint(&changed_record)
+                        .is_none()
+                );
+            }
+        }
     }
 
     #[test]
     fn template_has_exact_bytes_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects) = inputs(true, 1, 1);
+        let (physical, kind, alternative, operands, accesses, effects, record) = inputs(true, 1, 1);
         let template = encode_aarch64_selected_normalized_foreign_call_template(
             NativeTarget::macos_arm64(),
             &physical,
@@ -520,6 +1007,7 @@ mod tests {
             &accesses,
             &effects,
             &[],
+            &record,
         )
         .unwrap();
         assert_eq!(template.bytes(), &0x9400_0000_u32.to_le_bytes());
@@ -537,11 +1025,12 @@ mod tests {
     }
 
     #[test]
-    fn every_plan_row_selects_its_exact_operands_and_effects() {
-        let (physical, kind, alternative, _, _, _) = inputs(false, 0, 0);
+    fn evaluated_plans_select_exact_operands_and_effects_under_one_template() {
+        let (physical, kind, alternative, _, _, _, _) = inputs(false, 0, 0);
         for input_layout in 0..81 {
             for result in 0..3 {
-                let (_, _, _, operands, accesses, effects) = inputs(false, input_layout, result);
+                let (_, _, _, operands, accesses, effects, record) =
+                    inputs(false, input_layout, result);
                 let template = encode_aarch64_selected_normalized_foreign_call_template(
                     NativeTarget::linux_arm64(),
                     &physical,
@@ -551,12 +1040,13 @@ mod tests {
                     &accesses,
                     &effects,
                     &[],
+                    &record,
                 )
                 .unwrap();
                 assert_eq!(template.operand_views(), operands.as_slice());
                 // A different result choice is a valid row, but cannot retain
                 // this row's external writes and remaining caller-save effects.
-                let (_, _, _, wrong, wrong_accesses, _) =
+                let (_, _, _, wrong, wrong_accesses, _, _) =
                     inputs(false, input_layout, (result + 1) % 3);
                 assert_eq!(
                     encode_aarch64_selected_normalized_foreign_call_template(
@@ -568,8 +1058,9 @@ mod tests {
                         &wrong_accesses,
                         &effects,
                         &[],
+                        &record,
                     ),
-                    Err(Aarch64NormalizedForeignCallTemplateError::EffectMismatch)
+                    Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)
                 );
                 if !operands.is_empty() {
                     // This view belongs to neither the input nor result bank.
@@ -585,6 +1076,7 @@ mod tests {
                             &accesses,
                             &effects,
                             &[],
+                            &record,
                         ),
                         Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)
                     );
@@ -607,6 +1099,7 @@ mod tests {
                             &swapped_accesses,
                             &effects,
                             &[],
+                            &record,
                         )
                         .is_err()
                     );
@@ -617,7 +1110,7 @@ mod tests {
 
     #[test]
     fn rejects_wrong_kind_target_alternative_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects) = inputs(true, 1, 1);
+        let (physical, kind, alternative, operands, accesses, effects, record) = inputs(true, 1, 1);
         assert_eq!(
             encode_aarch64_selected_normalized_foreign_call_template(
                 NativeTarget::macos_arm64(),
@@ -630,6 +1123,7 @@ mod tests {
                 &accesses,
                 &effects,
                 &[],
+                &record,
             ),
             Err(Aarch64NormalizedForeignCallTemplateError::InstructionKindMismatch)
         );
@@ -651,6 +1145,7 @@ mod tests {
                     &accesses,
                     &effects,
                     &[],
+                    &record,
                 ),
                 Err(Aarch64NormalizedForeignCallTemplateError::UnsupportedTarget)
             );
@@ -668,6 +1163,7 @@ mod tests {
                 &accesses,
                 &effects,
                 &[],
+                &record,
             ),
             Err(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch)
         );
@@ -680,6 +1176,7 @@ mod tests {
             &accesses,
             &effects,
             &[],
+            &record,
         )
         .unwrap();
         // A substituted boundary or ordinal cannot validate.
@@ -697,6 +1194,7 @@ mod tests {
                 template.bytes(),
                 foreign,
                 &[],
+                &record,
             ),
             Err(Aarch64NormalizedForeignCallTemplateError::FixupMismatch)
         );
@@ -714,6 +1212,7 @@ mod tests {
                 template.bytes(),
                 foreign,
                 &[],
+                &record,
             ),
             Err(Aarch64NormalizedForeignCallTemplateError::FixupMismatch)
         );
@@ -730,6 +1229,7 @@ mod tests {
                 &0x1400_0000_u32.to_le_bytes(),
                 template.fixup().clone(),
                 &[],
+                &record,
             ),
             Err(Aarch64NormalizedForeignCallTemplateError::MalformedTemplate)
         );
@@ -746,6 +1246,7 @@ mod tests {
                 &accesses,
                 &wrong_effects,
                 &[],
+                &record,
             ),
             Err(Aarch64NormalizedForeignCallTemplateError::EffectMismatch)
         );

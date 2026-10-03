@@ -221,10 +221,18 @@ impl ValidatedTargetRegisterEnvironment {
         &self,
         register: target_operations::MachineRegister,
     ) -> Option<register_model::RegisterViewId> {
-        match self.target.architecture {
-            Architecture::X86_64 => x86_64_fixed_register_view(&self.physical, register),
-            Architecture::Aarch64 => aarch64_fixed_register_view(&self.physical, register),
-        }
+        fixed_register_view(&self.physical, register)
+    }
+}
+
+/// Resolve an ABI register through its ISA-owned physical vocabulary.
+pub fn fixed_register_view(
+    physical: &ValidatedPhysicalRegisterModel,
+    register: target_operations::MachineRegister,
+) -> Option<register_model::RegisterViewId> {
+    match physical.model().architecture {
+        Architecture::X86_64 => x86_64_fixed_register_view(physical, register),
+        Architecture::Aarch64 => aarch64_fixed_register_view(physical, register),
     }
 }
 

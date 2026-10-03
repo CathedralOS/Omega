@@ -7,7 +7,6 @@ use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::validate_block_constraints;
 use legalized_operations::{LegalizedScalarBlock, LegalizedScalarTerminator};
-use register_model::ValidatedRegisterConstraintCatalog;
 use selected_instructions::SelectedTerminator;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedMemoryAccess,
@@ -19,7 +18,6 @@ pub(super) fn validate(
     source: &legalized_operations::LegalizedScalarFunction,
     block: &LegalizedScalarBlock,
     replay: &mut Replay<'_>,
-    catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedScalarTerminator::StructuralCase {
         source: subject,
@@ -276,7 +274,12 @@ pub(super) fn validate(
         if ordinal == 0 {
             original_cursor = Some(replay.block_cursor);
         } else {
-            validate_block_constraints(replay.function, replay.block, replay.selected, catalog)?;
+            validate_block_constraints(
+                replay.function,
+                replay.block,
+                replay.selected,
+                replay.environment,
+            )?;
         }
         if let Some(next) = next {
             replay.instruction_cursor = replay

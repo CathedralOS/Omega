@@ -622,13 +622,12 @@ fn validate_encoded_effects(
             .count();
         let (arguments, results) = constraint.operands.split_at(arity);
         // A normalized foreign row is a per-plan fixed-view roster: leading
-        // Use arguments and at most one trailing Def result, every operand
+        // Use arguments and trailing Def result fragments, every operand
         // pinned to the exact ABI view the evaluated boundary plan selected.
-        if results.len() > 1
-            || constraint
-                .operands
-                .iter()
-                .any(|operand| operand.fixed_view.is_none())
+        if constraint
+            .operands
+            .iter()
+            .any(|operand| operand.fixed_view.is_none())
             || results
                 .iter()
                 .any(|operand| operand.access != RegisterOperandAccess::Def)

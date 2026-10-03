@@ -491,7 +491,7 @@ pub(in crate::selection) fn validate_with_environment(
             .instruction_cursor
             .checked_add(1)
             .ok_or_else(invalid)?;
-        validate_block_constraints(function, block, selected, catalog)?;
+        validate_block_constraints(function, block, selected, environment)?;
     }
     if replay.register_cursor != selected.virtual_registers.len() {
         return Err(invalid());
@@ -509,7 +509,7 @@ pub(in crate::selection) fn validate_with_environment(
     {
         return Err(invalid());
     }
-    super::def_use::validate_projected_def_use(function, selected, catalog)
+    super::def_use::validate_projected_def_use(function, selected, environment)
 }
 
 struct Replay<'a> {
