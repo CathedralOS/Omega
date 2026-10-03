@@ -10,10 +10,10 @@
 //! distance). It then tries, in order:
 //!
 //! 1. `ranges::check`, when the witness declares a rank range;
-//! 2. a strict decrease on every edge inside each cyclic component: a
-//!    single-state self-loop through the order's own prover (`nat`, `slice`,
-//!    `struct_view` or `lexicographic`), and a multi-state cycle edge by edge
-//!    through `nat` over the edges `patterns` finds;
+//! 2. a strict decrease on every edge inside each cyclic component. Plain Exact
+//!    scalar Nat ranks compare incoming and current values through the shared
+//!    statement transfer. Other representations and orders retain their own
+//!    judgments (`nat`, `slice`, `struct_view` or `lexicographic`);
 //! 3. `ranges::proves_relational_decrease`, when the witness declares a rank
 //!    range;
 //! 4. for a bounded distance, the same edges with the subjects swapped, which
@@ -27,6 +27,7 @@
 //! is shared by `ranges` and `struct_view`: whether write frames preserve a
 //! ranked input path.
 
+mod current_values;
 mod entry_requirements;
 mod lexicographic;
 mod nat;
@@ -595,7 +596,22 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
                     // `source`, the same roles must decide the edge: a rank
                     // published through the telescope is never paired with an
                     // edge proof that named a different parameter.
-                    let proven = if carried_subject_resolved {
+                    let proven = if let Some(proven) = current_values::edge_decreases(
+                        program,
+                        machine,
+                        source,
+                        target,
+                        measure,
+                        source_entries.map(Vec::as_slice),
+                        entry_mappings
+                            .as_deref()
+                            .and_then(|mappings| mappings.get(target_position))
+                            .map(Vec::as_slice),
+                        &edge,
+                        call_frames,
+                    ) {
+                        proven
+                    } else if carried_subject_resolved {
                         source_entries
                             .zip(
                                 entry_mappings
@@ -863,6 +879,16 @@ fn component_has_proven_decrease<'p>(
     let edges = graph::cyclic_edges(adjacency, component);
     if edges.is_empty() {
         return false;
+    }
+
+    // Plain scalar Nat ranks read the same current-value transfer as contracts.
+    // This owns both explicit actuals and implicit self actuals; a store cannot
+    // turn an old positive guard into evidence about the new counter.
+    if matches!(order, RankingOrder::NatDescending)
+        && let Some(proven) =
+            current_values::component_decreases(program, machine, component, measure, call_frames)
+    {
+        return proven;
     }
 
     // A direct self-loop on a single-state component can use the full set of
