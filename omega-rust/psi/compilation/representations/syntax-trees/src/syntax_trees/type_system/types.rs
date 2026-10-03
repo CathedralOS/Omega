@@ -251,6 +251,23 @@ impl TypeReferenceTable {
             .collect()
     }
 
+    /// Generic-application nodes created at or after `watermark`, as
+    /// (handle, base name). Accessor specialization rewrites a template's
+    /// `PlacedField<T>` self type only inside the fresh copy, never in the
+    /// authored template signature.
+    pub fn generic_nodes_from(&self, watermark: u32) -> Vec<(TypeReferenceHandle, String)> {
+        self.type_references
+            .iter()
+            .filter(|(handle, _)| handle.arena_index() >= watermark)
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Generic { base_name, .. } => {
+                    Some((handle, base_name.as_str().to_string()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
     /// `Self` nodes created at or after a specialization watermark. Trait
     /// synthesis replaces these only in the fresh copy, never in the authored
     /// trait signature.

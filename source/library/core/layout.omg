@@ -505,13 +505,13 @@ pub trait Writable<T> {
 
 pub boundary data PlacedField<T>;
 
-boundary machine PlacedField::read<T>(&self) -> T
+boundary machine PlacedField::read<T>(placed_field: &PlacedField<T>) -> T
 satisfies Readable<T>::read;
 
-boundary machine PlacedField::take<T>(&mut self) -> T
+boundary machine PlacedField::take<T>(placed_field: &mut PlacedField<T>) -> T
 satisfies DestructiveRead<T>::take;
 
-boundary machine PlacedField::write<T>(&mut self, value: T)
+boundary machine PlacedField::write<T>(placed_field: &mut PlacedField<T>, value: T)
 satisfies Writable<T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE

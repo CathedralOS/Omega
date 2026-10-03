@@ -303,6 +303,23 @@ fn clone_accessor_machine(
     clone.attached_data = Some(generated_identifier(accessor_name, provenance));
     clone.is_public = is_public;
     clone.type_parameters = HandleSpan::empty();
+    // The template spells its subject `placed_field: &PlacedField<T>`: the
+    // subject position binds the accessor's OWN attached data, so the copied
+    // application rewrites to the opaque accessor identity -- not to the
+    // field's `T` argument -- before the ordinary `Named(T)` substitution
+    // below fills the field type everywhere else. `is_self` marks that same
+    // parameter so `view.<field>.op()` receiver calls bind the subject
+    // through the receiver place and leave it out of the authored argument
+    // correspondence.
+    let subject = TypeReferenceNode::Named(generated_identifier(accessor_name, provenance));
+    for (handle, base_name) in syntax.tables.type_references.generic_nodes_from(watermark) {
+        if base_name == "PlacedField" {
+            syntax
+                .tables
+                .type_references
+                .replace_type_reference(handle, subject.clone());
+        }
+    }
     let replacement = syntax
         .tables
         .type_references
@@ -316,7 +333,46 @@ fn clone_accessor_machine(
                 .replace_type_reference(handle, replacement.clone());
         }
     }
+    for state_handle in syntax.tables.items.state_handles(clone.states).to_vec() {
+        let parameters = syntax.tables.items.state(state_handle).parameters;
+        for parameter_handle in syntax.tables.items.state_parameters(parameters).to_vec() {
+            if parameter_type_names(
+                syntax,
+                syntax
+                    .tables
+                    .items
+                    .state_parameter(parameter_handle)
+                    .type_reference,
+                accessor_name,
+            ) {
+                syntax
+                    .tables
+                    .items
+                    .state_parameter_mut(parameter_handle)
+                    .is_self = true;
+            }
+        }
+    }
     syntax.push_root_item(Item::Machine(clone));
+}
+
+/// Whether `type_reference` names `name` once reference and constraint shells
+/// are stripped -- the syntax-level rule an accessor clone uses to find its
+/// copied `&PlacedField<T>` subject parameter after specialization rewrites
+/// it to the accessor's own data identity.
+fn parameter_type_names(
+    syntax: &SyntaxTrees,
+    mut type_reference: TypeReferenceHandle,
+    name: &str,
+) -> bool {
+    loop {
+        match syntax.tables.type_references.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Named(named) => return named.as_str() == name,
+            _ => return false,
+        }
+    }
 }
 
 fn access_is_exported(access: &FieldAccess) -> bool {
