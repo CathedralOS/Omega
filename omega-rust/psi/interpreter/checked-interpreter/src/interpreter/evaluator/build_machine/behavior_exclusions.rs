@@ -21,65 +21,34 @@ use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::StatementHandle;
 
 impl<'program> Evaluator<'program> {
-    /// A `StatementNode::Call` selecting a behavior exclusion.
-    /// Enum-valued selections arrive as ordinary calls to exact toolchain
-    /// Build machines; `exclude_service<Trait>` is the parser-carved marker
-    /// (no resolved target machine). The evaluator intercepts these calls:
-    /// the call IS the selection, not execution of the declared empty body.
+    /// Service selections are parser-owned markers; enum selections are ordinary
+    /// resolved static calls. Both record their executed source coordinate.
     pub(in crate::interpreter::evaluator) fn try_behavior_exclusion_statement(
         &mut self,
         statement: StatementHandle,
         call: &TableCall,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        // `exclude_service` is the parser-carved marker (no resolved target
-        // machine); `exclude_crash` resolves to the exact toolchain
-        // `Build::exclude_crash` state or arrives unresolved under the same
-        // name. The name gates first: `exact_build_facet_method` admits an
-        // unresolved target by name alone, so ordering by name keeps an
-        // unrelated unresolved call out of the crash branch.
         let kind = if BuildOperation::from_call_target(call.target.as_str())
             == Some(BuildOperation::ServiceExclusion)
             && !call.target_symbol.is_valid()
         {
+            self.require_root_build_receiver(
+                self.statement_receiver_cell(call, frame)?,
+                call.target.as_str(),
+            )?;
             ExecutedBehaviorExclusionKind::Service
-        } else if call.target.as_str() == "exclude_crash"
-            && self.exact_build_facet_method("Build", "exclude_crash", call.target_symbol)
-        {
-            ExecutedBehaviorExclusionKind::CrashCause {
-                case_symbol: self.evaluated_exclusion_case(
-                    self.program
-                        .statement_table
-                        .expression_handles(call.arguments),
-                    frame,
-                    "exclude_crash",
-                    "CrashCause",
-                )?,
-            }
-        } else if call.target.as_str() == "exclude_physical_authority"
-            && self.exact_build_facet_method(
-                "Build",
-                "exclude_physical_authority",
-                call.target_symbol,
-            )
-        {
-            ExecutedBehaviorExclusionKind::PhysicalAuthorityClass {
-                case_symbol: self.evaluated_exclusion_case(
-                    self.program
-                        .statement_table
-                        .expression_handles(call.arguments),
-                    frame,
-                    "exclude_physical_authority",
-                    "PhysicalAuthorityClass",
-                )?,
-            }
         } else {
-            return Ok(None);
+            let arguments = self
+                .program
+                .statement_table
+                .expression_handles(call.arguments);
+            let Some(kind) = self.evaluate_enum_exclusion(call.target_symbol, arguments, frame)?
+            else {
+                return Ok(None);
+            };
+            kind
         };
-        self.require_root_build_receiver(
-            self.statement_receiver_cell(call, frame)?,
-            call.target.as_str(),
-        )?;
         self.record_executed_exclusion(
             ExecutedBehaviorExclusionSite::Statement(statement),
             kind,
@@ -88,10 +57,6 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    /// The expression-call twin of [`Self::try_behavior_exclusion_statement`]:
-    /// `handle` is the `ExpressionNode::Call`'s own handle wherever it sat —
-    /// statement expression or nested position — since an evaluated call is
-    /// a selection regardless of the surrounding syntactic slot.
     pub(in crate::interpreter::evaluator) fn try_behavior_exclusion_value_call(
         &mut self,
         handle: ExpressionHandle,
@@ -102,49 +67,26 @@ impl<'program> Evaluator<'program> {
             == Some(BuildOperation::ServiceExclusion)
             && !call.target_symbol.is_valid()
         {
+            let receiver = if call.receiver.is_valid() {
+                self.resolve_place(call.receiver, frame)
+                    .ok()
+                    .map(|cell| self.deref_cell(cell))
+            } else {
+                None
+            };
+            self.require_root_build_receiver(receiver, call.target.as_str())?;
             ExecutedBehaviorExclusionKind::Service
-        } else if call.target.as_str() == "exclude_crash"
-            && self.exact_build_facet_method("Build", "exclude_crash", call.target_symbol)
-        {
-            ExecutedBehaviorExclusionKind::CrashCause {
-                case_symbol: self.evaluated_exclusion_case(
-                    self.program
-                        .expression_table
-                        .expression_handles(call.arguments),
-                    frame,
-                    "exclude_crash",
-                    "CrashCause",
-                )?,
-            }
-        } else if call.target.as_str() == "exclude_physical_authority"
-            && self.exact_build_facet_method(
-                "Build",
-                "exclude_physical_authority",
-                call.target_symbol,
-            )
-        {
-            ExecutedBehaviorExclusionKind::PhysicalAuthorityClass {
-                case_symbol: self.evaluated_exclusion_case(
-                    self.program
-                        .expression_table
-                        .expression_handles(call.arguments),
-                    frame,
-                    "exclude_physical_authority",
-                    "PhysicalAuthorityClass",
-                )?,
-            }
         } else {
-            return Ok(None);
+            let arguments = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments);
+            let Some(kind) = self.evaluate_enum_exclusion(call.target_symbol, arguments, frame)?
+            else {
+                return Ok(None);
+            };
+            kind
         };
-        let receiver = if call.receiver.is_valid() {
-            match self.resolve_place(call.receiver, frame) {
-                Ok(cell) => Some(self.deref_cell(cell)),
-                Err(_) => None,
-            }
-        } else {
-            None
-        };
-        self.require_root_build_receiver(receiver, call.target.as_str())?;
         self.record_executed_exclusion(
             ExecutedBehaviorExclusionSite::Expression(handle),
             kind,
@@ -153,27 +95,66 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    /// Recover the exact toolchain variant from an ordinary evaluated value.
+    /// Static Build operations carry their authority as the first argument,
+    /// never in the declaration namespace. Select by exact resolved toolchain
+    /// identity, evaluate arguments once in authored order, and retain the case.
+    /// Executing the prelude's empty body would silently discard the restriction.
+    fn evaluate_enum_exclusion(
+        &mut self,
+        target_symbol: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Option<ExecutedBehaviorExclusionKind>> {
+        // Most interpreter calls are ordinary program calls. Reject those by
+        // provenance before searching the compiler-owned facet declarations.
+        if !target_symbol.is_valid() || !self.symbol_has_build_prelude_source(target_symbol) {
+            return Ok(None);
+        }
+        let (method_name, type_name) =
+            if self.exact_build_facet_method("Build", "exclude_crash", target_symbol) {
+                ("exclude_crash", "CrashCause")
+            } else if self.exact_build_facet_method(
+                "Build",
+                "exclude_physical_authority",
+                target_symbol,
+            ) {
+                ("exclude_physical_authority", "PhysicalAuthorityClass")
+            } else {
+                return Ok(None);
+            };
+        let [builder, argument] = arguments else {
+            return trap(format!(
+                "behavior exclusion `{method_name}` takes a Build reference and one {type_name} value"
+            ));
+        };
+        // Ordinary argument evaluation preserves reference forwarding; value
+        // evaluation would read a copy and erase the activation's identity.
+        let receiver = self.eval_argument(*builder, frame)?;
+        self.require_root_build_receiver(Some(self.deref_cell(receiver)), method_name)?;
+        let case_symbol =
+            self.evaluated_exclusion_case(*argument, frame, method_name, type_name)?;
+        Ok(Some(match type_name {
+            "CrashCause" => ExecutedBehaviorExclusionKind::CrashCause { case_symbol },
+            _ => ExecutedBehaviorExclusionKind::PhysicalAuthorityClass { case_symbol },
+        }))
+    }
+
+    /// Recover an exact toolchain case from an ordinary evaluated value.
     /// Locals and computed cases select just as literal cases do. Both enum
     /// axes share the same identity check; names are interpreted only at this
     /// compiler-owned source boundary, never as physical classification.
     fn evaluated_exclusion_case(
         &mut self,
-        arguments: &[ExpressionHandle],
+        argument: ExpressionHandle,
         frame: &mut Frame,
         method_name: &str,
         type_name: &str,
     ) -> EvalResult<SymbolHandle> {
-        let [argument] = arguments else {
-            return trap(format!(
-                "behavior exclusion `{method_name}` takes exactly one {type_name} value"
-            ));
-        };
         let Value::Enum {
             type_symbol,
             variant_name,
             payload,
-        } = self.eval_expression(*argument, frame)?
+        } = self.eval_expression(argument, frame)?
         else {
             return trap(format!(
                 "behavior exclusion `{method_name}` argument did not evaluate to a compiler-owned {type_name} case"
