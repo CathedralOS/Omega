@@ -1,0 +1,17 @@
+data Packet { samples: [i32; 2]; stamp: i32; }
+
+machine stamp(samples: &mut [i32; 2], previous: i32) -> i32 {
+    samples[0] = 90;
+    previous
+}
+
+machine main() -> i32 {
+    let mut samples: [i32; 2] = [30, 40];
+    // The first field's completed copy is legal. The nested call still holds
+    // its exclusive first operand while evaluating the conflicting read.
+    let packet: Packet = Packet {
+        samples: samples,
+        stamp: stamp(&mut samples, samples[0])
+    };
+    packet.stamp
+}

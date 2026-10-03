@@ -39,6 +39,7 @@ pass/recast/runtime_scalar_parameter_shared_views_exit built 1784ms exit:70 inte
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 1625ms exit:3 interpreter-exit:3 interpreter:agrees @f7e9667e2f4a
 pass/structs/case_field_type_store_shapes built 2978ms exit:70 interpreter-exit:70 interpreter:agrees @c15189f4e04b
 pass/structs/runtime_declared_record_member_fill_exit built 1371ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
+pass/structs/runtime_local_array_snapshot_exit built 1454ms exit:70 interpreter-exit:70 interpreter:agrees @a0af6064e4c8+wt
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt
 pass/text/declared_record_view_field_fill_exit built 1235ms exit:70 interpreter-exit:70 interpreter:agrees @20ff4f468d4e+wt
 pass/text/zii_default_string_equality_exit built 1986ms exit:70 interpreter-exit:70 interpreter:agrees @7e2fff8c80ba+wt

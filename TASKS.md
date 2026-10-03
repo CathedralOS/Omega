@@ -2088,10 +2088,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   one operation shared by calls and record, case, and array construction;
   reference destinations and referents retain their aliases. The call-order
   control `structural/runtime_structural_operand_snapshot_exit` now also
-  agrees between engines (exit 42). A mutable local-array version still needs the
-  scalar-array local establishment
-  in stage 04 `control/statement_sequence/local_data.rs`, which currently
-  refuses mutable bindings, and whole-array computation-argument loans.
+  agrees between engines (exit 42). The mutable local-array composition is also
+  implemented: on macOS ARM64 at `a0af6064e4c`, the new
+  `structs/runtime_local_array_snapshot_exit` and its field-backed control both
+  execute natively and in the checked interpreter with exit 70 under
+  `python3 tools/corpus_gate.py --both --filter structs/runtime_local_array_snapshot_exit,structs/runtime_array_member_snapshot_exit`.
+  Ordinary local establishment and whole-array argument loans preserve the
+  earlier `[30, 40]` snapshot while the later operand changes the local to
+  `[90, 40]`. Keep `fail/borrows/local_array_borrow_operand_read` as the
+  conflicting-access control; this closes the obsolete mutable-local
+  establishment frontier, not the remaining owned element producers above.
+  The ordinary `omega run --both` route still returns exit 200 for pending
+  package-review acceptance; no project decisions were manufactured.
 
   The wire customers construct their records and call the checked codec
   machines `omega/packages/compilation-inputs/src/wire_codec_sources.rs`
