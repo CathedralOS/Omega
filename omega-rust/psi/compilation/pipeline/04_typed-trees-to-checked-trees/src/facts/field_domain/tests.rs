@@ -2,6 +2,119 @@ use super::data_definition_for_field_type;
 use crate::tests::front_end::typed_program_with_generic_data_result;
 
 #[test]
+fn declared_field_roster_preserves_case_paths_and_extent_roles() {
+    use facts::PlaceSegment;
+
+    let program = crate::tests::front_end::typed_program(
+        "domain i32::Ten(value) requires 0 <= value && value <= 10;
+         domain i32::Marked;
+         data Leaf { amount: i32 in Ten & Marked; }
+         data Container {
+             fixed: [Leaf; 2];
+             view: &[Leaf];
+             borrowed: &Leaf;
+             hidden: &write Leaf;
+             case Empty;
+             case Present(payload: Leaf);
+         }",
+    );
+    let container = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Container")
+        .unwrap();
+    let rows = super::declared_data_field_domain_rows(&program, container);
+    // Two domains per readable leaf: two fixed elements plus their evidence
+    // rollup, one slice extent, one referent, and one conditional payload.
+    assert_eq!(rows.len(), 12);
+    assert_eq!(rows.iter().filter(|row| row.transfer).count(), 2);
+    assert!(rows.iter().all(|row| row.semantic_domain.is_valid()));
+    assert_eq!(
+        rows.iter()
+            .filter(|row| row
+                .path
+                .iter()
+                .any(|segment| matches!(segment, PlaceSegment::Case { .. })))
+            .count(),
+        2,
+    );
+    let obligations = super::declared_field_domain_paths(&program, container);
+    assert_eq!(obligations.len(), 5);
+    assert_eq!(
+        obligations
+            .iter()
+            .filter(|(path, _, _)| path.contains(&super::WHOLE_ELEMENT_EXTENT))
+            .count(),
+        1,
+        "only the slice extent is an obligation; fixed-array rollups are evidence",
+    );
+    for (path, domain, instance) in obligations {
+        assert!(rows.iter().any(|row| !row.transfer
+            && row.path == path
+            && row.domain_symbol == domain
+            && row.semantic_domain == instance));
+    }
+}
+
+#[test]
+fn declared_field_roster_preserves_indexed_domain_identity() {
+    let program = crate::tests::front_end::typed_program(
+        "domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+         data Limits { case Pair(first: u64 in AtMost<10>, second: u64 in AtMost<20>); }
+         machine inspect(items: [Limits; 2]) {}",
+    );
+    let limits = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Limits")
+        .unwrap();
+    let rows = super::declared_data_field_domain_rows(&program, limits);
+    assert_eq!(rows.len(), 2);
+    assert!(
+        rows.iter()
+            .all(|row| row.semantic_domain.is_valid() && !row.transfer)
+    );
+    assert_ne!(rows[0].semantic_domain, rows[1].semantic_domain);
+    assert_ne!(rows[0].path, rows[1].path);
+    assert_eq!(
+        super::declared_field_domain_paths(&program, limits),
+        rows.iter()
+            .map(|row| (row.path.clone(), row.domain_symbol, row.semantic_domain))
+            .collect::<Vec<_>>(),
+    );
+    let inspect = &program.machines()[0];
+    let entry = &program.machine_states(inspect)[0];
+    let items = &program.state_parameters(entry)[0];
+    let array_rows = super::declared_result_field_domain_paths(&program, items.type_reference);
+    assert_eq!(array_rows.len(), 4);
+    for (index, element) in array_rows.chunks_exact(2).enumerate() {
+        for ((path, domain, instance), row) in element.iter().zip(&rows) {
+            assert_eq!(path[0], facts::PlaceSegment::FixedIndex { index });
+            assert_eq!(&path[1..], row.path);
+            assert_eq!(
+                (*domain, *instance),
+                (row.domain_symbol, row.semantic_domain)
+            );
+        }
+    }
+    let typed_trees::data::DataMember::Variant(pair) = &program.data_members(limits)[0] else {
+        panic!("declared pair case");
+    };
+    for (row, field) in rows.iter().zip(program.data_payload_fields(pair)) {
+        assert_eq!(
+            super::domain_constraint_identities(&program, field.type_reference),
+            [(row.domain_symbol, row.semantic_domain)],
+        );
+        assert_eq!(
+            row.path[0],
+            facts::PlaceSegment::Case {
+                variant: pair.symbol
+            }
+        );
+    }
+}
+
+#[test]
 fn closed_const_record_store_uses_the_substituted_owner() {
     let typed = typed_program_with_generic_data_result(
         r#"

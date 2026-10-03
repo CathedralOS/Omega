@@ -184,7 +184,7 @@ pub(crate) fn build_contract_exit_facts(
                         crate::checks::contracts::result_domain_type(program, entry.return_type),
                     )
                     .iter()
-                    .any(|(_, domain)| {
+                    .any(|(_, domain, _)| {
                         crate::checks::contracts::value_provable_domain(program, *domain)
                     }) || crate::flow::call_result_qualification_identities(program, entry.symbol)
                         .iter()
@@ -230,7 +230,7 @@ pub(crate) fn build_contract_exit_facts(
                                         program, data,
                                     )
                                     .iter()
-                                    .any(|(_, domain)| {
+                                    .any(|(_, domain, _)| {
                                         crate::checks::contracts::value_provable_domain(
                                             program, *domain,
                                         )
@@ -246,7 +246,7 @@ pub(crate) fn build_contract_exit_facts(
                             ),
                         )
                         .iter()
-                        .any(|(_, domain)| {
+                        .any(|(_, domain, _)| {
                             crate::checks::contracts::value_provable_domain(program, *domain)
                         }) || crate::facts::field_domain::declared_owned_field_domain_identities(
                             program,

@@ -138,7 +138,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// program-pure on it.
     pub(super) referent_type_paths: HashMap<
         typed_trees::types::TypeReferenceHandle,
-        Option<Rc<Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>>>,
+        Option<Rc<Vec<crate::facts::field_domain::FieldDomainIdentity>>>,
     >,
     /// Lazily built on the first symbol lookup; positions only, so it holds
     /// no typed-tree borrow and survives `discard_output`.

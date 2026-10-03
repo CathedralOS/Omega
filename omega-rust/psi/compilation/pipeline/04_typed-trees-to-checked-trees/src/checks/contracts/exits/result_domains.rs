@@ -1173,8 +1173,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         result_domain_type(program, entry.return_type),
     )
     .into_iter()
-    .filter(|(_, domain_symbol)| value_provable_domain(program, *domain_symbol))
-    .map(|(path, domain)| (path, domain, language_semantics::SemanticDomainId::NULL))
+    .filter(|(_, domain_symbol, _)| value_provable_domain(program, *domain_symbol))
     .collect::<Vec<_>>();
     paths.extend(
         crate::facts::field_domain::declared_owned_field_domain_identities(
@@ -1506,6 +1505,24 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
             continue;
         };
         let place = facts.semantic.places.get(place);
+        // Returning the whole referent restores only its active payloads.
+        // The case-qualified row is an implication, not a claim that this case
+        // is selected or that its inactive bytes contain an established value.
+        if canonical_place_from_semantic_place(program, &facts.semantic, place).is_some_and(
+            |subject| {
+                crate::flow::place_case_path_is_inactive(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    exit.machine_symbol,
+                    exit.state_symbol,
+                    exit.statement_index,
+                    &subject,
+                )
+            },
+        ) {
+            continue;
+        }
         let satisfied =
             if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol) {
                 canonical_place_from_semantic_place(program, &facts.semantic, place).is_some_and(

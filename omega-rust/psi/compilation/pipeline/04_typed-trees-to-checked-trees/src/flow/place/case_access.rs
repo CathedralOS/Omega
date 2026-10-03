@@ -47,6 +47,44 @@ pub(crate) fn place_cases_are_selected(
         })
 }
 
+/// A whole value owes a payload invariant only when its enclosing cases are
+/// active. Discharge the conditional obligation from a live contrary tag, not
+/// from a missing payload fact. This grants no permission to read the payload:
+/// reads still require every enclosing case to be positively selected.
+pub(crate) fn place_case_path_is_inactive(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    subject: &CanonicalPlace,
+) -> bool {
+    subject
+        .segments
+        .iter()
+        .enumerate()
+        .any(|(position, segment)| {
+            let PlaceSegment::Case { variant } = segment else {
+                return false;
+            };
+            place_case_has_value(
+                program,
+                semantic,
+                contexts,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                &CanonicalPlace {
+                    root: subject.root,
+                    segments: subject.segments[..position].to_vec(),
+                },
+                *variant,
+                false,
+            )
+        })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn place_case_has_value(
     program: &TypedTrees,

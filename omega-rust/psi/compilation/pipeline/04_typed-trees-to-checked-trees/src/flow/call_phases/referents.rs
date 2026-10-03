@@ -53,7 +53,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         return;
     };
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    let mut rows: Vec<(crate::flow::CanonicalPlace, Vec<PlaceSegment>, SymbolHandle)> = Vec::new();
+    let mut rows = Vec::new();
     let mut argument_index = 0usize;
     for parameter in parameters {
         let argument = if parameter.is_self {
@@ -75,17 +75,13 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             .referent_type_paths
             .entry(parameter.type_reference)
             .or_insert_with(|| {
-                let paths: Vec<(Vec<PlaceSegment>, SymbolHandle)> =
-                    crate::facts::field_domain::declared_result_field_domain_paths(
-                        program,
-                        crate::checks::contracts::result_domain_type(
-                            program,
-                            parameter.type_reference,
-                        ),
-                    );
+                let paths = crate::facts::field_domain::declared_result_field_domain_paths(
+                    program,
+                    crate::checks::contracts::result_domain_type(program, parameter.type_reference),
+                );
                 let paths = paths
                     .into_iter()
-                    .filter(|(_, domain_symbol)| {
+                    .filter(|(_, domain_symbol, _)| {
                         crate::checks::contracts::value_provable_domain(program, *domain_symbol)
                     })
                     .collect::<Vec<_>>();
@@ -171,7 +167,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             {
                 storage.root = PlaceRoot::Symbol(self_symbol);
             }
-            for (path, domain_symbol) in paths.iter() {
+            for (path, domain_symbol, semantic_domain) in paths.iter() {
                 if requires_prior_row
                     && !row_was_live(
                         program,
@@ -181,11 +177,17 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         &storage,
                         path,
                         *domain_symbol,
+                        *semantic_domain,
                     )
                 {
                     continue;
                 }
-                rows.push((storage.clone(), path.clone(), *domain_symbol));
+                rows.push((
+                    storage.clone(),
+                    path.clone(),
+                    *domain_symbol,
+                    *semantic_domain,
+                ));
             }
         }
     }
@@ -205,7 +207,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts: Vec<(crate::flow::CanonicalPlace, HandleSpan<facts::FactRef>)> = Vec::new();
-    for (storage, path, domain_symbol) in rows {
+    for (storage, path, domain_symbol, semantic_domain) in rows {
         let mut place = storage.clone();
         place.extend_segments(&path);
         let place_handle = crate::semantic::places::append_place_with_segments(
@@ -222,7 +224,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
                 domain_symbol,
-                semantic_domain: language_semantics::SemanticDomainId::NULL,
+                semantic_domain,
             },
         });
         if let Some((_, refs)) = contexts
@@ -251,8 +253,9 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     }
 }
 
-/// Whether `storage + path in domain` was live in the contexts active before
-/// the call.
+/// Whether this exact `storage + path in domain instance` was live before
+/// the call. A different application of one indexed family cannot restore a
+/// conservatively invalidated candidate that the callee might not have received.
 fn row_was_live(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
@@ -261,7 +264,11 @@ fn row_was_live(
     storage: &crate::flow::CanonicalPlace,
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
+    if !semantic_domain.is_valid() {
+        return false;
+    }
     let mut place = storage.clone();
     place.extend_segments(path);
     let place =
@@ -274,6 +281,20 @@ fn row_was_live(
         .any(|reference| {
             semantic
                 .context_view(semantic.contexts.get(reference.context))
-                .proves_place_domain_membership_in_program(program, place, domain_symbol)
+                .facts()
+                .any(|fact| {
+                    matches!(fact.payload,
+                        FactPayload::DomainMembership {
+                            domain_symbol: candidate_domain,
+                            semantic_domain: candidate_instance,
+                            ..
+                        } | FactPayload::ContractDomainMembership {
+                            domain_symbol: candidate_domain,
+                            semantic_domain: candidate_instance,
+                            ..
+                        } if candidate_domain == domain_symbol && candidate_instance == semantic_domain)
+                        && matches!(fact.place, FactPlace::Place(candidate_place)
+                            if semantic.places_match(program, candidate_place, place))
+                })
         })
 }
