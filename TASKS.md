@@ -2616,17 +2616,26 @@ paths drift. Each item lands alone with the cited corpus slice unchanged
 allowed at trust boundaries; these items remove repetition of a check the
 same flow already performed, not the check itself.
 
-- **STD-CHECKED-ONCE-PER-INVOCATION.** (new-scope) `omega --check --timings`
-  of `tests/omega/pass/borrows/runtime_record_byte_region_loan_exit` takes
-  14.8 s on the Windows release build, of which its own stages take about
-  120 ms. With `OMEGA_REVIEW_TIMINGS=1`, `omega_language_std` compiles twice:
-  11.0 s in the `discovery` review pass and 1.6 s in the `bound` pass
-  (`package-manager` `review/candidate/compilation/package_pass.rs`
-  `compile_dependency_closure`, run once per pass). Reuse the discovery pass's
-  checked dependency compilation in the bound pass when that dependency's
-  compilation inputs are unchanged. Acceptance: the same command prints one
-  `stage=package omega_language_std` row, and its outcome and diagnostics are
-  unchanged.
+- **STD-CHECKED-ONCE-PER-INVOCATION.** (new-scope) Finish avoiding repeated
+  dependency compilation work in discovery and bound review passes. Identical
+  whole-program checks already reuse exact-input results; a package timing row
+  measures the entire occurrence, not a checker execution. At `f056d152743` on
+  macOS ARM64, the unoptimized dev compiler's `omega --check --timings
+  tests/omega/pass/borrows/runtime_record_byte_region_loan_exit/main.omg`
+  succeeds in 139.92 s. Discovery executes two preliminary and two settled
+  checks; bound requests both again but executes zero of either. Its std
+  occurrence still takes 6.36 s through
+  `package-manager/src/review/candidate/compilation/package_pass.rs`.
+
+  Profile and remove that residual repeated work while preserving fresh source
+  custody and binding settlement. Whole-occurrence reuse already requires equal
+  complete inputs. New accepted bindings can change provider plans and fused
+  erasure authorization; do not erase them from the reuse key or reuse a review
+  that never consumed them. The two `std_importing_check_*` tests distinguish
+  requests from executions, unchanged programs from Linux's changed settled
+  input, and repeated candidate invocations. Acceptance: retain those exact
+  execution counts and the CLI outcome, and measure a reduction in the remaining
+  bound-pass work. One package timing row is not an acceptance oracle.
 
 - **CHECK-MEMO-PROGRAM-CLONES.** (new-scope) Stage 04's
   `checking/exact_input_memo.rs` deep-copies whole programs. A miss clones
