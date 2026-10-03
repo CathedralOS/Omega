@@ -3148,15 +3148,6 @@ the test, or delete the test when it pins retired behavior or code that a
 package's `mbx nextest run -p <package> --no-fail-fast` reports zero failures
 at the landing commit, with the count of deleted tests stated in the commit.
 
-- **RED-TEST-BUILD-BREAKS.** (new-scope) `component-candidate`
-  (`src/tests.rs:20`) and `external-root-writer`
-  (`src/external_root_writer/tests.rs:18`) name
-  `semantic_vocabulary::BoundaryCompletion` without that dev-dependency, so
-  their test targets do not compile. Both broke in `f6e0119552`. Add the
-  dependency, or delete `external-root-writer` under
-  **DEAD-TRUST-CODE-DELETED**. Acceptance: `cargo build --workspace --lib
-  --tests` succeeds.
-
 - **RED-SELF-FIXTURES-CHECKING.** (split-of:STATIC-MACHINE-MIGRATION) 817
   `typed-trees-to-checked-trees` tests fail to parse their embedded Omega
   source: "`self` receivers are retired" or "implicit `self` is retired".

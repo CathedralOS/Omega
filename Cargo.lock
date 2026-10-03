@@ -511,6 +511,7 @@ dependencies = [
  "effects",
  "image-emission",
  "native-artifact",
+ "semantic-vocabulary",
  "target",
  "terminal-codec",
 ]
@@ -678,6 +679,7 @@ dependencies = [
  "post-handoff-writer-plan",
  "program-entry-plan",
  "provider-planning",
+ "semantic-vocabulary",
  "source",
  "symbols",
 ]
