@@ -15,7 +15,7 @@ ensures result == total
     remaining = remaining - 1;
     accumulator = accumulator + 1;
     transition remaining > 0 {
-        true -> self
+        true -> accumulate(remaining, accumulator, total)
         false -> accumulator
     }
 }
@@ -26,7 +26,7 @@ fn checked() -> checked_trees::CheckedTrees {
         crate::tests::front_end::typed_program(SOURCE),
         &crate::CheckingRequest::settled(),
     )
-    .expect("the unchanged mutable accumulator passes ordinary source checking")
+    .expect("the explicit mutable accumulator passes ordinary source checking")
 }
 
 #[test]
