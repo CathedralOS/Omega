@@ -10,6 +10,12 @@
 //! 8-byte call-area adjustment. A substitution in any field must therefore be
 //! rejected by canonical construction — none of the fields can drift without
 //! breaking one of those joins.
+//!
+//! The substitution legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `InstalledProviderUnitScalarCallFieldForTest` inventory, so a new
+//! representable axis extends coverage by one variant instead of a parallel
+//! mutation list.
 
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValuePlacement, ValueShape, evaluate_call_plan,
@@ -20,6 +26,9 @@ use machine_code::{
     MachineCodeFunction, MachineCodePlan, ParameterFunctionAbiRecord, SemanticCodeAttribution,
     SemanticCodeSite, StackAdjustmentPair, UnitAffineCleanupRecord, UnitCallStackEvidence,
     UnitScalarParameterLocationRecord, UnitStackEvidence,
+};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
@@ -44,332 +53,323 @@ fn installed_provider_unit_scalar_call_row_survives_object_replay() {
     build_object_artifact(&plan).expect("exact installed-provider custody row replays");
 }
 
+optimization_core::custody_field_inventory! {
+    /// One substitutable custody axis of the installed-provider Unit
+    /// scalar-call record or of its roster. Every declared axis is bound by
+    /// exact construction joins — the caller's retained parameter ABI, the
+    /// provider conformance row, the candidate's ABI, the internal-call
+    /// relocation and call stack, and the attribution interval — so each
+    /// substitution is rejected by canonical construction; none still builds
+    /// to reach replay. `provider.refinement.required_domains` and
+    /// `provider.refinement.realized_service_ceiling` are the family's
+    /// unauthenticated fields: the checker admits them unexamined, so they
+    /// cannot appear as rejecting substitution axes.
+    enum InstalledProviderUnitScalarCallFieldForTest {
+        Owner,
+        OwnerCleanupAction,
+        Boundary,
+        ProviderBoundary,
+        ProviderRequirementIdentity,
+        ProviderProviderIdentity,
+        ProviderCandidateIdentity,
+        ProviderCandidate,
+        ProviderCandidateCaller,
+        ProviderSignatureParameters,
+        ProviderRefinementPositionalParameters,
+        CallPlan,
+        ArgumentsDropped,
+        ArgumentsDuplicated,
+        ArgumentParameterIndex,
+        ArgumentSourceParameterIndex,
+        ArgumentSourceValue,
+        ArgumentSourceScalarType,
+        ArgumentSourceLocation,
+        ArgumentDestination,
+        ArgumentCodeOffset,
+        ArgumentByteCount,
+        SourceArguments,
+        ClaimTransfers,
+        CompletionClaimSources,
+        CompletionReceipts,
+        OperationOrdinal,
+        CodeOffset,
+        ByteCount,
+        RosterDropped,
+        RosterDuplicated,
+    }
+}
+
 /// Every representable field of an installed-provider Unit scalar-call row is
 /// an authenticated custody axis: a one-field substitution is rejected by
 /// object construction, and dropping or duplicating the row breaks the
 /// relocation-identity join.
 #[test]
 fn installed_provider_unit_scalar_call_row_rejects_every_one_field_substitution() {
-    let caller = MachineId::new(1).expect("caller");
-    let custody_join = ObjectError::InvalidInternalUnitCallEvidence(caller);
-    let record_join = ObjectError::InvalidInstalledProviderUnitScalarCallEvidence(caller);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installed provider Unit scalar-call row",
+        fields: InstalledProviderUnitScalarCallFieldForTest::INVENTORY,
+        honest: &installed_provider_scalar_call_plan,
+        donor: foreign_installed_provider_scalar_call_plan(),
+        custody: &installed_provider_row_custody,
+        substitute: &substitute_installed_provider_unit_scalar_call,
+        check: &installed_provider_row_check,
+        outcome: &installed_provider_unit_scalar_call_outcome,
+        joined_replay: None,
+    });
+}
 
-    type Mutation = (&'static str, Box<dyn Fn(&mut MachineCodePlan)>, ObjectError);
-    let mutations: Vec<Mutation> = vec![
-        (
-            "owner",
-            Box::new(|plan| {
-                provider_call(plan).owner = CallSiteOwner::Operation(OperationId::new(7).unwrap());
-            }),
-            custody_join.clone(),
-        ),
-        (
-            "owner::cleanup_action",
-            Box::new(|plan| {
-                provider_call(plan).owner = CallSiteOwner::CleanupAction {
-                    edge: EdgeId::new(1).unwrap(),
-                    action_ordinal: 0,
-                };
-            }),
-            custody_join.clone(),
-        ),
-        (
-            "boundary",
-            Box::new(|plan| {
-                provider_call(plan).boundary = BoundaryMachineId::new(9).unwrap();
-            }),
-            record_join.clone(),
-        ),
-        (
-            "provider.boundary",
-            Box::new(|plan| {
-                provider_call(plan).provider.boundary = BoundaryMachineId::new(9).unwrap();
-            }),
-            record_join.clone(),
-        ),
-        (
-            "provider.requirement_identity",
-            Box::new(|plan| {
-                provider_call(plan).provider.requirement_identity.clear();
-            }),
-            record_join.clone(),
-        ),
-        (
-            "provider.provider_identity",
-            Box::new(|plan| {
-                provider_call(plan).provider.provider_identity.clear();
-            }),
-            record_join.clone(),
-        ),
-        (
-            "provider.candidate_identity",
-            Box::new(|plan| {
-                provider_call(plan).provider.candidate_identity.clear();
-            }),
-            record_join.clone(),
-        ),
-        (
-            "provider.candidate",
-            Box::new(|plan| {
-                provider_call(plan).provider.candidate = MachineId::new(5).unwrap();
-            }),
-            custody_join.clone(),
-        ),
-        (
-            "provider.candidate::caller",
-            Box::new(|plan| {
-                provider_call(plan).provider.candidate = MachineId::new(1).unwrap();
-            }),
-            custody_join.clone(),
-        ),
-        (
-            "provider.signature.parameters",
-            Box::new(|plan| {
-                provider_call(plan).provider.signature.parameters.push(
-                    ProviderSignatureParameter {
-                        position: 0,
-                        is_self: false,
-                        structural_type: StructuralTypeId::new(7).unwrap(),
-                        multiplicity: StructuralMultiplicity::Affine,
-                        access: StructuralAccess::Owned,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                    },
-                );
-            }),
-            record_join.clone(),
-        ),
-        (
-            "provider.refinement.positional_parameters",
-            Box::new(|plan| {
-                provider_call(plan)
-                    .provider
-                    .refinement
-                    .positional_parameters
-                    .push(ProviderParameterRefinement {
-                        boundary_index: 0,
-                        candidate_index: 0,
-                    });
-            }),
-            record_join.clone(),
-        ),
-        (
-            "call_plan",
-            Box::new(|plan| {
-                provider_call(plan).call_plan = evaluate_call_plan(
-                    CallingPolicy::native_for_target(plan.target),
-                    &CallSignature {
-                        parameters: vec![ValueShape::integer(4, 4)],
-                        result: Some(ValueShape::integer(4, 4)),
-                    },
-                )
-                .expect("scalar-result call plan");
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments::drop",
-            Box::new(|plan| {
-                provider_call(plan).arguments.clear();
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments::duplicate",
-            Box::new(|plan| {
-                let duplicate = provider_call(plan).arguments[0].clone();
-                provider_call(plan).arguments.push(duplicate);
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].parameter_index",
-            Box::new(|plan| {
-                provider_call(plan).arguments[0].parameter_index = 1;
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].source.parameter_index",
-            Box::new(|plan| {
-                let InternalUnitScalarArgumentSourceRecord::Parameter {
-                    parameter_index, ..
-                } = &mut provider_call(plan).arguments[0].source
-                else {
-                    unreachable!("provider scalar argument is parameter-sourced")
-                };
-                *parameter_index = 1;
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].source.source_value",
-            Box::new(|plan| {
-                let InternalUnitScalarArgumentSourceRecord::Parameter { source_value, .. } =
-                    &mut provider_call(plan).arguments[0].source
-                else {
-                    unreachable!("provider scalar argument is parameter-sourced")
-                };
-                *source_value = ValueId::new(12).unwrap();
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].source.scalar_type",
-            Box::new(|plan| {
-                let InternalUnitScalarArgumentSourceRecord::Parameter { scalar_type, .. } =
-                    &mut provider_call(plan).arguments[0].source
-                else {
-                    unreachable!("provider scalar argument is parameter-sourced")
-                };
-                *scalar_type =
-                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"));
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].source.location",
-            Box::new(|plan| {
-                let InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } =
-                    &mut provider_call(plan).arguments[0].source
-                else {
-                    unreachable!("provider scalar argument is parameter-sourced")
-                };
-                *location = UnitScalarParameterLocationRecord::Register(MachineRegister::X86Rsi);
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].destination",
-            Box::new(|plan| {
-                provider_call(plan).arguments[0].destination = ValuePlacement {
-                    shape: ValueShape::integer(0, 1),
-                    locations: Vec::new(),
-                };
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].code_offset",
-            Box::new(|plan| {
-                provider_call(plan).arguments[0].code_offset = 7;
-            }),
-            record_join.clone(),
-        ),
-        (
-            "arguments[0].byte_count",
-            Box::new(|plan| {
-                provider_call(plan).arguments[0].byte_count = 4;
-            }),
-            record_join.clone(),
-        ),
-        (
-            "source_arguments",
-            Box::new(|plan| {
-                provider_call(plan)
-                    .source_arguments
-                    .push(StructuralArgument {
-                        place: PlaceId::new(9).unwrap(),
+/// The retained custody view a substitution must move: the caller's
+/// installed-provider roster itself.
+fn installed_provider_row_custody(
+    plan: &MachineCodePlan,
+) -> Vec<InstalledProviderUnitScalarCallRecord> {
+    plan.functions[0]
+        .installed_provider_unit_scalar_calls
+        .clone()
+}
+
+/// The family's independent checker: canonical object construction. On an
+/// admitted plan the rebuilt custody is the roster the artifact itself
+/// retains.
+fn installed_provider_row_check(
+    plan: &MachineCodePlan,
+) -> Result<Vec<InstalledProviderUnitScalarCallRecord>, ObjectError> {
+    let artifact = build_object_artifact(plan)?;
+    Ok(artifact
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.functions[0].machine)
+        .map(|function| function.installed_provider_unit_scalar_calls.clone())
+        .unwrap_or_default())
+}
+
+/// Mutate exactly one custody axis of the caller's installed-provider row;
+/// `donor` grants no new authority and is retained for signature uniformity.
+fn substitute_installed_provider_unit_scalar_call(
+    plan: &mut MachineCodePlan,
+    field: InstalledProviderUnitScalarCallFieldForTest,
+    _donor: &MachineCodePlan,
+) {
+    use InstalledProviderUnitScalarCallFieldForTest as Field;
+    match field {
+        Field::Owner => {
+            provider_call(plan).owner = CallSiteOwner::Operation(OperationId::new(7).unwrap());
+        }
+        Field::OwnerCleanupAction => {
+            provider_call(plan).owner = CallSiteOwner::CleanupAction {
+                edge: EdgeId::new(1).unwrap(),
+                action_ordinal: 0,
+            };
+        }
+        Field::Boundary => {
+            provider_call(plan).boundary = BoundaryMachineId::new(9).unwrap();
+        }
+        Field::ProviderBoundary => {
+            provider_call(plan).provider.boundary = BoundaryMachineId::new(9).unwrap();
+        }
+        Field::ProviderRequirementIdentity => {
+            provider_call(plan).provider.requirement_identity.clear();
+        }
+        Field::ProviderProviderIdentity => {
+            provider_call(plan).provider.provider_identity.clear();
+        }
+        Field::ProviderCandidateIdentity => {
+            provider_call(plan).provider.candidate_identity.clear();
+        }
+        Field::ProviderCandidate => {
+            provider_call(plan).provider.candidate = MachineId::new(5).unwrap();
+        }
+        Field::ProviderCandidateCaller => {
+            provider_call(plan).provider.candidate = MachineId::new(1).unwrap();
+        }
+        Field::ProviderSignatureParameters => {
+            provider_call(plan)
+                .provider
+                .signature
+                .parameters
+                .push(ProviderSignatureParameter {
+                    position: 0,
+                    is_self: false,
+                    structural_type: StructuralTypeId::new(7).unwrap(),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+        }
+        Field::ProviderRefinementPositionalParameters => {
+            provider_call(plan)
+                .provider
+                .refinement
+                .positional_parameters
+                .push(ProviderParameterRefinement {
+                    boundary_index: 0,
+                    candidate_index: 0,
+                });
+        }
+        Field::CallPlan => {
+            provider_call(plan).call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(plan.target),
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(4, 4)],
+                    result: Some(ValueShape::integer(4, 4)),
+                },
+            )
+            .expect("scalar-result call plan");
+        }
+        Field::ArgumentsDropped => {
+            provider_call(plan).arguments.clear();
+        }
+        Field::ArgumentsDuplicated => {
+            let duplicate = provider_call(plan).arguments[0].clone();
+            provider_call(plan).arguments.push(duplicate);
+        }
+        Field::ArgumentParameterIndex => {
+            provider_call(plan).arguments[0].parameter_index = 1;
+        }
+        Field::ArgumentSourceParameterIndex => {
+            let InternalUnitScalarArgumentSourceRecord::Parameter {
+                parameter_index, ..
+            } = &mut provider_call(plan).arguments[0].source
+            else {
+                unreachable!("provider scalar argument is parameter-sourced")
+            };
+            *parameter_index = 1;
+        }
+        Field::ArgumentSourceValue => {
+            let InternalUnitScalarArgumentSourceRecord::Parameter { source_value, .. } =
+                &mut provider_call(plan).arguments[0].source
+            else {
+                unreachable!("provider scalar argument is parameter-sourced")
+            };
+            *source_value = ValueId::new(12).unwrap();
+        }
+        Field::ArgumentSourceScalarType => {
+            let InternalUnitScalarArgumentSourceRecord::Parameter { scalar_type, .. } =
+                &mut provider_call(plan).arguments[0].source
+            else {
+                unreachable!("provider scalar argument is parameter-sourced")
+            };
+            *scalar_type =
+                ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"));
+        }
+        Field::ArgumentSourceLocation => {
+            let InternalUnitScalarArgumentSourceRecord::Parameter { location, .. } =
+                &mut provider_call(plan).arguments[0].source
+            else {
+                unreachable!("provider scalar argument is parameter-sourced")
+            };
+            *location = UnitScalarParameterLocationRecord::Register(MachineRegister::X86Rsi);
+        }
+        Field::ArgumentDestination => {
+            provider_call(plan).arguments[0].destination = ValuePlacement {
+                shape: ValueShape::integer(0, 1),
+                locations: Vec::new(),
+            };
+        }
+        Field::ArgumentCodeOffset => {
+            provider_call(plan).arguments[0].code_offset = 7;
+        }
+        Field::ArgumentByteCount => {
+            provider_call(plan).arguments[0].byte_count = 4;
+        }
+        Field::SourceArguments => {
+            provider_call(plan)
+                .source_arguments
+                .push(StructuralArgument {
+                    place: PlaceId::new(9).unwrap(),
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                });
+        }
+        Field::ClaimTransfers => {
+            provider_call(plan).claim_transfers.push(ClaimTransfer {
+                claim: ClaimId::new(9).unwrap(),
+                argument_index: 0,
+            });
+        }
+        Field::CompletionClaimSources => {
+            provider_call(plan)
+                .completion_claim_sources
+                .push(CompletionClaimSource {
+                    claim: ClaimId::new(9).unwrap(),
+                    entry: Some(EntryClaim {
+                        claim: ClaimId::new(9).unwrap(),
+                        input: PlaceId::new(9).unwrap(),
                         path: Vec::new(),
-                        access: StructuralAccess::Owned,
-                    });
-            }),
-            record_join.clone(),
-        ),
-        (
-            "claim_transfers",
-            Box::new(|plan| {
-                provider_call(plan).claim_transfers.push(ClaimTransfer {
+                    }),
+                    content: None,
+                });
+        }
+        Field::CompletionReceipts => {
+            provider_call(plan)
+                .completion_receipts
+                .push(CompletionReceipt {
                     claim: ClaimId::new(9).unwrap(),
                     argument_index: 0,
                 });
-            }),
-            record_join.clone(),
-        ),
-        (
-            "completion_claim_sources",
-            Box::new(|plan| {
-                provider_call(plan)
-                    .completion_claim_sources
-                    .push(CompletionClaimSource {
-                        claim: ClaimId::new(9).unwrap(),
-                        entry: Some(EntryClaim {
-                            claim: ClaimId::new(9).unwrap(),
-                            input: PlaceId::new(9).unwrap(),
-                            path: Vec::new(),
-                        }),
-                        content: None,
-                    });
-            }),
-            record_join.clone(),
-        ),
-        (
-            "completion_receipts",
-            Box::new(|plan| {
-                provider_call(plan)
-                    .completion_receipts
-                    .push(CompletionReceipt {
-                        claim: ClaimId::new(9).unwrap(),
-                        argument_index: 0,
-                    });
-            }),
-            record_join.clone(),
-        ),
-        (
-            "operation_ordinal",
-            Box::new(|plan| {
-                provider_call(plan).operation_ordinal = 1;
-            }),
-            record_join.clone(),
-        ),
-        (
-            "code_offset",
-            Box::new(|plan| {
-                provider_call(plan).code_offset = 5;
-            }),
-            record_join.clone(),
-        ),
-        (
-            "byte_count",
-            Box::new(|plan| {
-                provider_call(plan).byte_count = 12;
-            }),
-            record_join.clone(),
-        ),
-        (
-            "roster::drop",
-            Box::new(|plan| {
-                plan.functions[0]
-                    .installed_provider_unit_scalar_calls
-                    .clear();
-            }),
-            custody_join.clone(),
-        ),
-        (
-            "roster::duplicate",
-            Box::new(|plan| {
-                let duplicate = plan.functions[0].installed_provider_unit_scalar_calls[0].clone();
-                plan.functions[0]
-                    .installed_provider_unit_scalar_calls
-                    .push(duplicate);
-            }),
-            custody_join.clone(),
-        ),
-    ];
-
-    for (name, mutate, expected) in mutations {
-        let mut plan = installed_provider_scalar_call_plan();
-        mutate(&mut plan);
-        assert_eq!(
-            build_object_artifact(&plan),
-            Err(expected),
-            "{name}: substituted custody row must be rejected"
-        );
+        }
+        Field::OperationOrdinal => {
+            provider_call(plan).operation_ordinal = 1;
+        }
+        Field::CodeOffset => {
+            provider_call(plan).code_offset = 5;
+        }
+        Field::ByteCount => {
+            provider_call(plan).byte_count = 12;
+        }
+        Field::RosterDropped => {
+            plan.functions[0]
+                .installed_provider_unit_scalar_calls
+                .clear();
+        }
+        Field::RosterDuplicated => {
+            let duplicate = plan.functions[0].installed_provider_unit_scalar_calls[0].clone();
+            plan.functions[0]
+                .installed_provider_unit_scalar_calls
+                .push(duplicate);
+        }
     }
+}
+
+/// The expected checker outcome per field: owner, candidate and roster legs
+/// orphan the internal-call relocation join first; every other leg surfaces
+/// the family's own canonical-construction rejection.
+fn installed_provider_unit_scalar_call_outcome(
+    field: InstalledProviderUnitScalarCallFieldForTest,
+) -> MutationOutcome<ObjectError> {
+    use InstalledProviderUnitScalarCallFieldForTest as Field;
+    let caller = MachineId::new(1).expect("caller");
+    MutationOutcome::ExactError(match field {
+        Field::Owner
+        | Field::OwnerCleanupAction
+        | Field::ProviderCandidate
+        | Field::ProviderCandidateCaller
+        | Field::RosterDropped
+        | Field::RosterDuplicated => ObjectError::InvalidInternalUnitCallEvidence(caller),
+        _ => ObjectError::InvalidInstalledProviderUnitScalarCallEvidence(caller),
+    })
 }
 
 fn provider_call(plan: &mut MachineCodePlan) -> &mut InstalledProviderUnitScalarCallRecord {
     &mut plan.functions[0].installed_provider_unit_scalar_calls[0]
+}
+
+/// A second honestly produced plan whose retained custody roster differs: the
+/// provider call targets a foreign candidate machine under a foreign
+/// boundary, proving the matrix's custody view is not vacuous. Construction
+/// accepts it, so the donor is authentic evidence of the same family.
+fn foreign_installed_provider_scalar_call_plan() -> MachineCodePlan {
+    let mut plan = installed_provider_scalar_call_plan();
+    let candidate = machine_id(3);
+    plan.functions[1].machine = candidate;
+    plan.functions[0].internal_calls[0].target = candidate;
+    let row = &mut plan.functions[0].installed_provider_unit_scalar_calls[0];
+    row.provider.candidate = candidate;
+    row.boundary = BoundaryMachineId::new(8).expect("foreign boundary");
+    row.provider.boundary = row.boundary;
+    build_object_artifact(&plan).expect("the foreign donor plan builds authentically");
+    plan
 }
 
 /// One caller-owned installed-provider scalar call: the caller forwards its
