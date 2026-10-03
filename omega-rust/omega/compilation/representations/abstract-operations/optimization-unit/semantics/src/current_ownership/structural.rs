@@ -79,17 +79,23 @@ pub(super) fn has_live_owned_operation_result(
 }
 
 /// Cleanup custody requires an actual owner, not just a typed place declaration.
-pub(super) fn partial_affine_root_type(
+pub(crate) fn partial_affine_root_type(
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    if let Some(parameter) = function
-        .structural_parameters
+    if function
+        .entry_claim_declarations
         .iter()
-        .find(|parameter| parameter.place == place)
+        .any(|claim| claim.input == place)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
     {
-        return (!parameter.is_self
-            && parameter.access == StructuralAccess::Owned
+        return None;
+    }
+    if let Some(parameter) = function.arrival_parameter(place) {
+        return (parameter.access == StructuralAccess::Owned
             && parameter.multiplicity == StructuralMultiplicity::Affine
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty())
@@ -119,6 +125,16 @@ pub(super) fn partial_affine_root_type(
             | O::BoundaryCall {
                 psi_operation,
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            }
+            | O::EstablishRecord {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::EstablishStructuralCase {
+                psi_operation,
+                result,
                 ..
             } if *psi_operation == producer
                 && result.place == place
@@ -182,5 +198,23 @@ pub(super) fn projected_root_is_fully_consumed(
             moved.contains(&vec![StructuralPathSegment::FixedIndex(
                 u64::try_from(index).expect("a usize index fits u64"),
             )])
+        })
+}
+
+/// Both aggregate constructors bind the same finished structural operands.
+pub(super) fn constructor_arguments(
+    operation: &O,
+) -> impl Iterator<Item = &terminal_psi::StructuralArgument> {
+    let fields = match operation {
+        O::EstablishCase { fields, .. }
+        | O::EstablishRecord { fields, .. }
+        | O::EstablishStructuralCase { fields, .. } => fields.as_slice(),
+        _ => &[],
+    };
+    fields
+        .iter()
+        .filter_map(|initializer| match &initializer.value {
+            terminal_psi::RecordFieldValue::Structural(argument) => Some(argument),
+            terminal_psi::RecordFieldValue::Scalar { .. } => None,
         })
 }

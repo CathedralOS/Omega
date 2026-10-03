@@ -286,20 +286,13 @@ pub(super) fn validate_current_ownership_cfg(
             // Construction joins the same whole-value transfer frontier as calls.
             // Heterogeneous field operands need a temporary structural-only roster;
             // ordinary call operands continue borrowing their retained slice.
-            let record_arguments = match &node.operation {
-                O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
-                    .iter()
-                    .filter_map(|initializer| match &initializer.value {
-                        terminal_psi::RecordFieldValue::Structural(argument) => {
-                            Some(argument.clone())
-                        }
-                        terminal_psi::RecordFieldValue::Scalar { .. } => None,
-                    })
-                    .collect::<Vec<_>>(),
-                _ => Vec::new(),
-            };
+            let record_arguments = super::structural::constructor_arguments(&node.operation)
+                .cloned()
+                .collect::<Vec<_>>();
             let structural_arguments = match &node.operation {
-                O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments.as_slice(),
+                O::EstablishCase { .. }
+                | O::EstablishRecord { .. }
+                | O::EstablishStructuralCase { .. } => record_arguments.as_slice(),
                 // A Unit call that forwards descriptors is not replayed here;
                 // the scalar-result call is replayed in both forms.
                 O::CallStructural {
@@ -327,7 +320,9 @@ pub(super) fn validate_current_ownership_cfg(
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
-                O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments
+                O::EstablishCase { .. }
+                | O::EstablishRecord { .. }
+                | O::EstablishStructuralCase { .. } => record_arguments
                     .iter()
                     .map(|argument| {
                         crate::unit_validation::operation_contracts::structural_source_contract(

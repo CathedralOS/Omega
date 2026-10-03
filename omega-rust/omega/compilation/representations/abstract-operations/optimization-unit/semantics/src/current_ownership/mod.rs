@@ -34,6 +34,7 @@ mod replay;
 mod residuals;
 mod storage_regions;
 mod structural;
+pub(crate) use structural::partial_affine_root_type;
 
 use block_parameters::bind_owned_parameters;
 pub(crate) use block_parameters::parameter_establishment_order;
