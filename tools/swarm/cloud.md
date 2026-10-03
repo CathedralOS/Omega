@@ -370,6 +370,95 @@ nor accept deletes anything. Duplicate identical acceptance is idempotent;
 wrong SHA, blocked checkpoint, unresolved effects, stale observation, missing
 logs, incomplete cleanup or historical-only evidence fail.
 
+## Scouting and implementation readiness
+
+`admit` reserves a bounded preflight contract; it does not admit implementation.
+Before the first implementation `follow_up`, record a separate `readiness`
+receipt after actual preflight, fresh exact ownership and any incoming bilateral
+handoffs. Preflight continuations remain available for scouting blocked work.
+Existing journals remain readable; an unfinished unscouted assignment cannot
+start implementation. Final exact-candidate acceptance and 2/5/10 promotion
+are unchanged. Readiness never completes a task or clears a denial latch.
+
+```sh
+python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION readiness --input build/swarm/readiness.json
+```
+
+Input wraps `assignment`, `repository` (an accessible inspected Git checkout),
+`evidence_root` (locally recovered artifact directory) and `receipt`. The receipt
+has `schema:1`, unique attempt `id`, exact `assignment` and `environment`, full
+`source_revision` for the reproduced observation, full `current_revision` equal
+to the inspected checkout HEAD, `started_utc`, `observed_utc`, `cache` (`warm`,
+`cold`, `unknown`), `complexity`, and explicit `assumptions`. Use genuine scouting
+start time, including selection, reproduction and review before admission.
+Each attempt covers its own work interval; do not repeatedly count the same
+reproduction as fresh work. Duplicate identical IDs are idempotent. Preserve
+unscheduled scouting evidence too; omit neither rejected candidates nor time
+spent outside implementation when comparing the trial.
+
+`scope` equals the assignment's `base`, `outcome`, `writes`, `reads`,
+`acceptance`, `dependency_review` and all declared incoming/outgoing
+`dependencies`. `known_dependencies` lists those reviewed edge IDs; an extra
+known prerequisite or missing reviewed edge records a dependency blocker.
+Declare the edge and its actual producer/consumer scope rather than overriding
+that result. `inputs` lists reviewed Git paths covering declared writes, reads
+and acceptance inputs; parent trees cover descendants, including additions and
+deletions. Include semantic prerequisites, authored oracle, compiler/toolchain
+configuration and digests/goldens that affect this reproduction. A hashed
+`review_artifact: {"path":"scope-review.json","sha256":"ACTUAL_SHA256"}`
+contains the validity rationale, concrete producer/consumer review and remaining
+assumptions. This is evidence-backed engineering judgment, **not proof that the
+controller discovered every semantic dependency**. Inspect the recovered review
+and command logs before recording the receipt; hashes establish byte identity,
+not the truth of the adapter's observation.
+
+`before` contains exact `revision`, `environment`, native/interpreter `kind`,
+execution `command` matching acceptance, integer command `exit`, authored
+`expected_result`, `failure_kind` (`compile` or `run`), and hashed `artifact`.
+For a run include actual `program_result`. `classification` is
+`valid-should-work`, `invalid-source`, `pending-approval`, or `compile-only`.
+Only a compiler rejection of reviewed valid should-work source, or a failing
+execution against the authored oracle, can become ready. Green, invalid,
+unapproved and compile-only observations record `not-reproduced`. A native
+compile that emitted bytes is not an execution observation. Missing
+implementation is the repair hypothesis; do not classify it as an external
+blocker. An actual external `blocker` has `kind` (`live-owner`,
+`product-decision`, `executor-unavailable`, `denied-action`, `dependency`), exact
+`reason` and actual `evidence`; it may omit `before` when no reproduction ran.
+
+Receipts and ownership use the existing 120-second observation freshness bound.
+Refreshing judgment need not rerun expensive reproduction when complete reviewed
+Git input objects are unchanged. The controller checks source/base/current
+objects, hashes the artifacts, and rechecks relevant checkout inputs/artifacts
+at implementation intent. Unrelated commits and unrelated claim renewals are
+neutral; changed relevant inputs, reviewed scope, overlapping ownership or
+prerequisites make readiness stale. Missing provenance fails closed. Stop and
+revalidate newly discovered prerequisites. Once the implementation request is
+confirmed applied for this exact scope, ordinary validation continuations retain
+the existing recovery, fresh claims, dependency and denial gates; the repair's
+own source edits do not require finding another red program.
+
+`status` exposes `readiness` (`unscouted`, `ready`, `stale`, `blocked`,
+`not-reproduced`), `scouting_attempts` and summed `scouting_seconds`; the journal
+retains each attempt's reason, evidence, timestamps, cache and complexity. A
+blocked/green result suggests `scout_or_revalidate`, never verified completion.
+Metrics are reported worker work intervals, not a platform clock or statistical
+speedup. Measure end-to-end time including scouting, implementation, validation,
+landing and cleanup; disclose overlapping work, warm-cache and task-complexity
+differences. Failed malformed receipt transactions do not write journal events;
+retain their tool errors alongside trial evidence.
+
+For the first live canary, the parent uses supported exposed create/read/follow-up
+operations for exactly two independent currently red authored outcomes, each with
+its own executor/preflight/claims and complete reviewed inputs. Record every
+scouting attempt (including green or blocked selections), then emit implementation
+intents only for both ready legs. Reconcile unknown operations on the same threads;
+reuse each warm executor, one build per executor, and serialize official landing.
+Both must independently satisfy unchanged exact-candidate acceptance and cleanup
+with `user_rescue:false` before any 5-session promotion. This canary demonstrates
+correctness and autonomy, not a statistical speedup. This increment launches or
+stops no worker and performs no live canary.
+
 ## Staged trial gates
 
 The parent selects and reproduces two **currently red real programs**, with
