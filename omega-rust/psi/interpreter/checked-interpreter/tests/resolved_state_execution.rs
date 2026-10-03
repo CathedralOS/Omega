@@ -214,14 +214,17 @@ fn namespace_operator_keeps_its_identity_backed_intrinsic_route() {
 }
 
 #[test]
-fn legacy_self_statement_keeps_the_runtime_instance() {
+fn static_calls_mutate_the_explicit_local_instance() {
     let checked = crate::front_end::checked_program(
         "data Counter { value: i32 in Wrapping; }
-         machine Counter::increment(&mut self) { self.value = self.value + 1; }
-         machine Counter::twice(&mut self) { self.increment(); self.increment(); }
+         machine Counter::increment(counter: &mut Counter) { counter.value = counter.value + 1; }
+         machine Counter::twice(counter: &mut Counter) {
+             Counter::increment(counter);
+             Counter::increment(counter);
+         }
          machine main() -> i32 {
              let mut counter: Counter;
-             counter.twice();
+             Counter::twice(&mut counter);
              counter.value as i32
          }",
     );
@@ -265,20 +268,20 @@ fn resolved_calls_keep_exact_states_when_debug_spellings_collide() {
 }
 
 #[test]
-fn sibling_transitions_preserve_receiver_and_arguments() {
+fn sibling_transitions_preserve_explicit_borrow_and_arguments() {
     let checked = crate::front_end::checked_program(
         "data Counter { value: i32 in Wrapping; }
-         machine Counter::advance(&mut self, amount: i32 in Wrapping) -> i32 {
+         machine Counter::advance(counter: &mut Counter, amount: i32 in Wrapping) -> i32 {
              let carried: i32 in Wrapping = amount + 1;
-             transition true { true -> finish(carried) false -> 0 }
-             state finish(&mut self, carried: i32 in Wrapping) -> i32 {
-                 self.value = self.value + carried;
-                 self.value as i32
+             transition true { true -> finish(counter, carried) false -> 0 }
+             state finish(counter: &mut Counter, carried: i32 in Wrapping) -> i32 {
+                 counter.value = counter.value + carried;
+                 counter.value as i32
              }
          }
          machine main() -> i32 {
              let mut counter: Counter = Counter { value: 2 };
-             let result: i32 = counter.advance(4);
+             let result: i32 = Counter::advance(&mut counter, 4);
              transition result == 7 && counter.value == 7 { true -> 7 false -> 0 }
          }",
     );

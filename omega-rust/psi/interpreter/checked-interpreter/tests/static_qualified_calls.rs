@@ -73,11 +73,11 @@ fn qualified_value_calls_run_their_declaration_whatever_the_leaf_spelling() {
 }
 
 #[test]
-fn qualified_legacy_subject_binds_the_explicit_home_in_operand_order() {
+fn qualified_arguments_bind_explicit_homes_in_operand_order() {
     let program = checked(
         "data Point { value: i32; }
-         machine Point::less(&self, rhs: &Point) -> bool {
-             self.value < rhs.value
+         machine Point::less(left: &Point, right: &Point) -> bool {
+             left.value < right.value
          }
          machine main() -> i32 {
              let left: Point = Point { value: 1 };
@@ -90,8 +90,8 @@ fn qualified_legacy_subject_binds_the_explicit_home_in_operand_order() {
              }
          }",
     );
-    // main has no Point instance: self must name the first actual's storage,
-    // and swapping or skipping that operand changes the ordered result.
+    // Each borrow names its actual's storage; swapping or skipping an operand
+    // changes the ordered result.
     let outcome = run(&program, "main", &[]);
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 70);

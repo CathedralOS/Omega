@@ -274,9 +274,6 @@ impl<'program> Evaluator<'program> {
         for parameter in program.state_parameters(entry_state) {
             let is_context = provisioned_context == Some(parameter.symbol);
             context_bound |= is_context;
-            if parameter.is_self {
-                continue;
-            }
             if !is_context {
                 return unsupported(format!(
                     "entry machine `{entry_machine_name}` parameter `{}` is not the selected entry shape's provisioned context; the interpreter supplies no other arrival value",
@@ -412,14 +409,7 @@ impl<'program> Evaluator<'program> {
                 "machine `{machine_name}` has no states to evaluate"
             ))
         })?;
-        // The `&self` receiver is bound from the machine instance, not the
-        // argument list -- exclude it from the positional count.
-        let parameter_count = self
-            .program
-            .state_parameters(entry_state)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
+        let parameter_count = self.program.state_parameters(entry_state).len();
         if parameter_count != arguments.len() {
             return Err(Halt::Trap(format!(
                 "machine `{machine_name}` takes {parameter_count} argument(s); the build-time \
@@ -526,12 +516,7 @@ impl<'program> Evaluator<'program> {
                 "machine `{machine_name}` has no states to evaluate"
             ))
         })?;
-        let parameter_count = self
-            .program
-            .state_parameters(entry_state)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
+        let parameter_count = self.program.state_parameters(entry_state).len();
         if parameter_count != arguments.len() {
             return Err(Halt::Trap(format!(
                 "machine `{machine_name}` takes {parameter_count} argument(s); the build-time position supplied {}",
@@ -556,12 +541,7 @@ impl<'program> Evaluator<'program> {
         self.retain_root_build(entry_state, &argument_cells)?;
         let evaluated_arguments = argument_cells
             .into_iter()
-            .zip(
-                self.program
-                    .state_parameters(entry_state)
-                    .iter()
-                    .filter(|parameter| !parameter.is_self),
-            )
+            .zip(self.program.state_parameters(entry_state).iter())
             .map(|(cell, parameter)| {
                 // Snapshot arguments supply referent values. Reference parameters
                 // need the same wrapper used by ordinary calls, or forwarding a
@@ -1155,8 +1135,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Bind a state's parameters to their positional argument cells. An implicit
-    /// self uses the resolved instance; an explicit self keeps its evaluated home. Seeds
+    /// Bind a state's parameters to their positional argument cells. Seeds
     /// from `carried` (the enclosing same-machine state's bindings) so a re-entered state
     /// still holds its earlier bindings; the state's own params rebind on top.
     fn bind_frame(
@@ -1167,7 +1146,7 @@ impl<'program> Evaluator<'program> {
         machine_symbol: SymbolHandle,
         carried: Vec<FrameLocal>,
     ) -> EvalResult<Frame> {
-        let explicit_subject = self.state_arguments_include_subject(state, arguments.len())?;
+        self.check_state_argument_count(state, arguments.len())?;
         let mut frame = Frame {
             return_type: state.return_type,
             locals: carried,
@@ -1176,12 +1155,8 @@ impl<'program> Evaluator<'program> {
             state_symbol: state.symbol,
             guard_call_results: Vec::new(),
         };
-        let mut arg_index = 0;
-        for parameter in self.program.state_parameters(state) {
-            if parameter.is_self && !explicit_subject {
-                continue;
-            }
-            let argument = arguments[arg_index].clone();
+        for (parameter, argument) in self.program.state_parameters(state).iter().zip(arguments) {
+            let argument = argument.clone();
             let cell = argument.cell;
             // Coerce a by-value ARGUMENT to the param's declared width/domain at
             // the binding, matching the native truncating/clamping/trapping store
@@ -1222,9 +1197,6 @@ impl<'program> Evaluator<'program> {
                 }
                 None => cell,
             };
-            if parameter.is_self {
-                frame.self_cell = self.deref_cell(cell.clone());
-            }
             frame.bind(FrameLocal {
                 symbol: parameter.symbol,
                 cell,
@@ -1232,7 +1204,6 @@ impl<'program> Evaluator<'program> {
                 scalar,
                 mutable_recast: argument.mutable_recast,
             });
-            arg_index += 1;
         }
         Ok(frame)
     }
