@@ -4,12 +4,9 @@ use rooms::rooms;
 data RoomLookup {
 }
 
-machine RoomLookup::find_room(
-    &mut self,
-    level: Level,
+machine RoomLookup::find_room(level: Level,
     cell: CellId,
-    out_room: &mut Room
-)
+    out_room: &mut Room)
 ensures
     out_room.label in Utf8,
     out_room.description in Utf8,
@@ -23,14 +20,11 @@ ensures
     }
 
 
-    state find_room_at(
-        &mut self,
-        rooms: &[Room],
+    state find_room_at(rooms: &[Room],
         room_count: u64,
         cell: CellId,
         out_room: &mut Room,
-        index: u64 in Wrapping
-    )
+        index: u64 in Wrapping)
     requires index < 16
     {
         let found: bool = rooms[index].cell == cell;
@@ -46,11 +40,8 @@ ensures
         }
     }
 
-    state apply_room(
-        &mut self,
-        room: Room,
-        out_room: &mut Room
-    ) {
+    state apply_room(room: Room,
+        out_room: &mut Room) {
         out_room.cell = room.cell;
         out_room.depth = room.depth;
         out_room.branch = room.branch;
@@ -73,11 +64,8 @@ ensures
     }
 }
 
-machine RoomLookup::find_room_mut(
-    &mut self,
-    level: &mut Level,
-    cell: CellId
-    ) -> &mut Room {
+machine RoomLookup::find_room_mut(level: &mut Level,
+    cell: CellId) -> &mut Room {
     let rooms: &mut [Room] = level.rooms.as_mut_slice();
 
     transition level.room_count > 0 {
@@ -86,13 +74,10 @@ machine RoomLookup::find_room_mut(
     }
 
 
-    state find_room_mut_at(
-        &mut self,
-        rooms: &mut [Room],
+    state find_room_mut_at(rooms: &mut [Room],
         room_count: u64,
         cell: CellId,
-        index: u64 in Wrapping
-    )
+        index: u64 in Wrapping)
     requires index < 16
     {
         let found: bool = rooms[index].cell == cell;

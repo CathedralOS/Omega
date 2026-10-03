@@ -27,16 +27,16 @@ data Main {
     game: Game;
 }
 
-machine Main::main(&mut self) {
-    self.game.initialize(7);
+machine Main::main(main: &mut Main) {
+    Game::initialize(&mut main.game, 7);
 
     transition {
-        _ -> running(&mut self)
+        _ -> running(main)
     }
 
 
     state running(main: &mut Main) {
-        block main.game.run_game_loop();
+        block Game::run_game_loop(&mut main.game);
 
         transition {
             _ -> shutdown(main)

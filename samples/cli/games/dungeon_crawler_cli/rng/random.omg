@@ -4,19 +4,13 @@ use omega::language::core::numeric_conversion;
 data Random {
 }
 
-machine Random::seed(
-    &mut self,
-    value: u64 in Wrapping,
-    state: &mut RandomState
-) {
+machine Random::seed(value: u64 in Wrapping,
+    state: &mut RandomState) {
     state.seed = value;
     state.calls = 0;
 }
 
-machine Random::next_u32(
-    &mut self,
-    state: &mut RandomState
-    ) -> u32 {
+machine Random::next_u32(state: &mut RandomState) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
 
@@ -26,14 +20,14 @@ machine Random::next_u32(
 }
 
 machine Random::range(
-    &mut self,
+    random: &mut Random,
     state: &mut RandomState,
     exclusive_max: u32 in Wrapping
     ) -> u32
 requires exclusive_max > 0
 ensures result < exclusive_max
 {
-    let raw: u32 in Wrapping = self.next_u32(state) as u32 in Wrapping;
+    let raw: u32 in Wrapping = Random::next_u32(state) as u32 in Wrapping;
 
     transition {
         _ -> ((raw % exclusive_max) as u32)
@@ -41,14 +35,14 @@ ensures result < exclusive_max
 }
 
 machine Random::chance(
-    &mut self,
+    random: &mut Random,
     state: &mut RandomState,
     numerator: u32 in Wrapping,
     denominator: u32 in Wrapping
     ) -> bool
 requires denominator > 0
 {
-    let roll: u32 in Wrapping = self.range(state, denominator) as u32 in Wrapping;
+    let roll: u32 in Wrapping = Random::range(random, state, denominator) as u32 in Wrapping;
 
     transition {
         _ -> (roll < numerator)
