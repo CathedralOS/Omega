@@ -59,25 +59,27 @@ fn prove_mathematical(
     let mut facts = Vec::new();
     for fact in projected_facts(assumptions, semantic_axioms) {
         spend(1)?;
-        if matches!(
-            fact.proposition,
-            Proposition::LessOrEqual(..)
-                | Proposition::LessThan(..)
-                | Proposition::IntegerMathEqual(..)
-                | Proposition::IntegerMathLessOrEqual(..)
-                | Proposition::IntegerMathLessThan(..)
-        ) {
+        let citation = fact.proof();
+        // Lift leaf orders before expanding their exact defining equations.
+        // The scalar-to-math substitution bridge intentionally accepts only
+        // leaves; ValueEqualityTransport independently justifies the later
+        // exact-ring expansion without reinterpreting arithmetic policies.
+        let premise = mathematical_premise(&citation, false).or_else(|| {
+            matches!(fact.proposition, Proposition::IntegerMathEqual(..)).then_some(citation)
+        });
+        if let Some(premise) = premise {
             facts.extend(super::super::value_transport::citation_forms(
                 context,
-                fact.proof(),
+                premise,
                 assumptions,
                 semantic_axioms,
             ));
         }
     }
-    if let Some(proof) = translate(context, strict, left, right, &facts) {
+    if let Some(proof) = prove_order(context, left, right, &facts) {
         return Some(proof);
     }
+
     // Search one retained endpoint equality at a time. Further SSA expansion
     // belongs to the shared ValueEqualityTransport owner, not this producer.
     for fact in &facts {
@@ -87,9 +89,9 @@ fn prove_mathematical(
         };
         for (old, replacement) in [(first, second), (second, first)] {
             let (endpoint, intermediate) = if old == left {
-                (0, translate(context, strict, replacement, right, &facts))
+                (0, prove_order(context, replacement, right, &facts))
             } else if old == right {
-                (1, translate(context, strict, left, replacement, &facts))
+                (1, prove_order(context, left, replacement, &facts))
             } else {
                 continue;
             };
@@ -106,6 +108,71 @@ fn prove_mathematical(
         }
     }
     None
+}
+
+/// Compose around one retained order. Both outside links use only direct
+/// translation or checked arithmetic normalization, so this search cannot
+/// recursively invent an unbounded roster of intermediate inequalities.
+fn prove_order(
+    context: &PropositionContext,
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    facts: &[ProofNode],
+) -> Option<ProofNode> {
+    if let Some(proof) = direct_order(context, left, right, facts) {
+        return Some(proof);
+    }
+    for middle in facts {
+        spend(1)?;
+        let Proposition::IntegerMathLessOrEqual(middle_left, middle_right) = &middle.conclusion
+        else {
+            continue;
+        };
+        let Some(head) = direct_order(context, left, middle_left, facts) else {
+            continue;
+        };
+        let Some(tail) = direct_order(context, middle_right, right, facts) else {
+            continue;
+        };
+        let first = ProofNode {
+            conclusion: order(false, left.clone(), middle_right.clone()),
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(head),
+                middle_less_or_equal_right: Box::new(middle.clone()),
+            },
+        };
+        return Some(ProofNode {
+            conclusion: order(false, left.clone(), right.clone()),
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(first),
+                middle_less_or_equal_right: Box::new(tail),
+            },
+        });
+    }
+    None
+}
+
+fn direct_order(
+    context: &PropositionContext,
+    left: &IntegerMathTerm,
+    right: &IntegerMathTerm,
+    facts: &[ProofNode],
+) -> Option<ProofNode> {
+    spend(1)?;
+    let conclusion = order(false, left.clone(), right.clone());
+    if decide_primitive(
+        context,
+        &conclusion,
+        PrimitiveJudgment::ClosedIntegerRelation,
+    )
+    .is_ok()
+    {
+        return Some(ProofNode {
+            conclusion,
+            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+        });
+    }
+    translate(context, false, left, right, facts)
 }
 
 fn endpoints(proposition: &Proposition) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
