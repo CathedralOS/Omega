@@ -1002,6 +1002,10 @@ impl ItemTable {
         self.state_storage.parameters.get(handle)
     }
 
+    pub fn state_parameter_mut(&mut self, handle: StateParameterHandle) -> &mut StateParameterNode {
+        self.state_storage.parameters.get_mut(handle)
+    }
+
     #[inline]
     pub fn item(&self, handle: ItemHandle) -> &Item {
         self.items.get(handle)
