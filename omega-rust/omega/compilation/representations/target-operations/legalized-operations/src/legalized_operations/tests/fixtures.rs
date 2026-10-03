@@ -104,6 +104,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             },
             call_plan: call_plan.clone(),
             parameters: Vec::new(),
+            dynamic_parameters: Vec::new(),
             structural: Some(LegalizedStructuralContract {
                 result: None,
                 structural_types: vec![StructuralTypeDeclaration {
@@ -386,6 +387,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         .unwrap(),
         parameters: Vec::new(),
         entry_block: block,
+        dynamic_parameters: Vec::new(),
         blocks: vec![LegalizedScalarBlock {
             id: block,
             structural_parameters: Vec::new(),

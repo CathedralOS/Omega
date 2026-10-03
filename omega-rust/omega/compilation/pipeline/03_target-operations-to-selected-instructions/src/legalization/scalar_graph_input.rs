@@ -266,6 +266,7 @@ pub(super) fn match_input(
     } else {
         function_abi(native.target, target, abstracted, optimized)?
     };
+    header::validate_descriptor_parameters(native.target, target, abstracted, &call_plan)?;
     // Ordered target graph replay rejoins every boundary row to its admitted
     // execution and exact source occurrence, independently of the result ABI.
     if optimized.blocks.is_empty()

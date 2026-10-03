@@ -168,6 +168,156 @@ pub(crate) fn unit_fixture(
 }
 
 #[test]
+fn parameter_dynamic_signature_retains_unused_descriptor_on_hosted_targets() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let (source, target, unit) = unused_descriptor_fixture(native);
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        let function = &legal.plan().scalar_functions[0];
+        assert_eq!(
+            function.dynamic_parameters,
+            target.functions[0].graph.dynamic_parameters
+        );
+        assert_eq!(function.dynamic_parameters.len(), 2);
+        assert_eq!(function.blocks[0].instructions.len(), 1);
+        let LegalizedScalarInstructionKind::DynamicParameterCall(call) =
+            &function.blocks[0].instructions[0].kind
+        else {
+            panic!("descriptor parameter call kind")
+        };
+        assert_eq!(call.parameter_abi, function.dynamic_parameters[0]);
+
+        // The uninvoked parameter still belongs to the callable interface.
+        // Changing its semantic identity must change legalized identity even
+        // though the call instruction and physical signature stay identical.
+        let mut renamed_source = source.clone();
+        let AbstractOperation::DynamicDescriptorParameter { parameter } =
+            &mut renamed_source.functions[0].operations[1]
+        else {
+            panic!("second descriptor declaration")
+        };
+        parameter.trait_identity = "test::OtherShape".into();
+        let (renamed_target, renamed_unit) = lower_descriptor_fixture(&renamed_source, native);
+        let renamed =
+            legalize_target_operations(&renamed_target, &renamed_source, &renamed_unit).unwrap();
+        assert_eq!(function.blocks, renamed.plan().scalar_functions[0].blocks);
+        assert_ne!(
+            legalized_operations::legalized_operation_plan_identity(legal.plan()),
+            legalized_operations::legalized_operation_plan_identity(renamed.plan()),
+        );
+    }
+}
+
+#[test]
+fn parameter_dynamic_signature_rejects_undeclared_structural_entry() {
+    let native = NativeTarget::linux_x64();
+    let (_, descriptor_target, _) = unit_fixture(native);
+    let (source, target, unit) =
+        crate::tests::fixtures::call_structural::fixture(native, Vec::new());
+    legalize_target_operations(&target, &source, &unit).unwrap();
+    for function_index in 0..target.functions.len() {
+        let mut changed = target.clone();
+        let function = &mut changed.functions[function_index];
+        let mut invented = descriptor_target.functions[0].graph.dynamic_parameters[0].clone();
+        invented.parameter.owner = function.machine;
+        function.graph.dynamic_parameters.push(invented);
+        assert!(
+            legalize_target_operations(&changed, &source, &unit).is_err(),
+            "undeclared descriptor on function {function_index}"
+        );
+    }
+}
+
+#[test]
+fn parameter_dynamic_signature_replay_rejects_roster_substitution() {
+    let (source, target, unit) = unused_descriptor_fixture(NativeTarget::linux_x64());
+    let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+    let identity = legalized_operations::legalized_operation_plan_identity(legal.plan());
+    for mutation in 0..9 {
+        let mut changed = legal.plan().clone();
+        let parameters = &mut changed.scalar_functions[0].dynamic_parameters;
+        match mutation {
+            0 => parameters.clear(),
+            1 => {
+                parameters.pop();
+            }
+            2 => parameters.push(parameters[1].clone()),
+            3 => parameters.swap(0, 1),
+            4 => parameters[1].parameter.owner = MachineId::new(2).unwrap(),
+            5 => parameters[1].parameter.source_position = 0,
+            6 => parameters[1].parameter.access = StructuralAccess::MutableBorrow,
+            7 => parameters[1].instance = parameters[0].instance.clone(),
+            8 => parameters[1].table = parameters[0].table.clone(),
+            _ => unreachable!(),
+        }
+        assert_ne!(
+            legalized_operations::legalized_operation_plan_identity(&changed),
+            identity,
+            "mutation {mutation}"
+        );
+        assert!(
+            validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    // A matching proposal cannot legitimize a substituted upstream roster:
+    // source replay must independently recover the declared entry ABI.
+    let mut changed_target = target.clone();
+    changed_target.functions[0].graph.dynamic_parameters[1].table =
+        changed_target.functions[0].graph.dynamic_parameters[0]
+            .table
+            .clone();
+    assert!(legalize_target_operations(&changed_target, &source, &unit).is_err());
+}
+
+fn unused_descriptor_fixture(
+    native: NativeTarget,
+) -> (
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
+) {
+    let (mut source, _, _) = unit_fixture(native);
+    let AbstractOperation::DynamicDescriptorParameter { mut parameter } =
+        source.functions[0].operations[0].clone()
+    else {
+        panic!("descriptor declaration")
+    };
+    parameter.ordinal = 1;
+    parameter.source_position = 1;
+    source.functions[0].operations.insert(
+        1,
+        AbstractOperation::DynamicDescriptorParameter { parameter },
+    );
+    let (target, unit) = lower_descriptor_fixture(&source, native);
+    (source, target, unit)
+}
+
+fn lower_descriptor_fixture(
+    source: &abstract_operations::AbstractOperationPlan,
+    native: NativeTarget,
+) -> (
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
+) {
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    (target, unit)
+}
+
+#[test]
 fn parameter_dynamic_unit_call_legalizes_without_result_home() {
     let (source, target, unit) = unit_fixture(NativeTarget::linux_x64());
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();

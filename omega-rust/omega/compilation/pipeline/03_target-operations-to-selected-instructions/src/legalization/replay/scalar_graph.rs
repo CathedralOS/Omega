@@ -42,6 +42,7 @@ pub(super) fn replay(
         || proposed.attachment != target.attachment
         || proposed.provenance != target.provenance
         || proposed.call_plan != call_plan
+        || proposed.dynamic_parameters != target.graph.dynamic_parameters
         || proposed.entry_block != optimized.entry
         || proposed.parameters.len() != optimized.parameters.len()
         || proposed.blocks.len() != optimized.blocks.len()

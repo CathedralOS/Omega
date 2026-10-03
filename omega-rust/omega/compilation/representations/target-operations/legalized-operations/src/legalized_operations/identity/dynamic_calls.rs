@@ -7,7 +7,7 @@ use super::encoding::{encode_ids, encode_len};
 use super::scalar::encode_scalar_type;
 use super::structural_types::{encode_access, encode_string};
 use crate::legalized_operations::LegalizedDynamicParameterCall;
-use target_operations::TargetUnitScalarHomeRequirement;
+use target_operations::{TargetDynamicDescriptorParameterAbi, TargetUnitScalarHomeRequirement};
 use terminal_psi::{TerminalDynamicDescriptorParameter, TerminalDynamicRequirement};
 
 pub(super) fn encode_dynamic_parameter_call(
@@ -31,9 +31,7 @@ pub(super) fn encode_dynamic_parameter_call(
             .requirement_slot
             .to_le_bytes(),
     );
-    encode_descriptor_parameter(bytes, &call.parameter_abi.parameter);
-    encode_placement(bytes, &call.parameter_abi.instance);
-    encode_placement(bytes, &call.parameter_abi.table);
+    encode_parameter_abi(bytes, &call.parameter_abi);
     encode_requirement(bytes, &call.requirement);
     encode_call_plan(bytes, &call.dispatch_call_plan);
     bytes.extend_from_slice(&call.table_slot_byte_offset.to_le_bytes());
@@ -52,6 +50,15 @@ pub(super) fn encode_dynamic_parameter_call(
         .expect("canonical call crash continuations");
     encode_len(bytes, crashes.len());
     bytes.extend_from_slice(&crashes);
+}
+
+pub(super) fn encode_parameter_abi(
+    bytes: &mut Vec<u8>,
+    parameter: &TargetDynamicDescriptorParameterAbi,
+) {
+    encode_descriptor_parameter(bytes, &parameter.parameter);
+    encode_placement(bytes, &parameter.instance);
+    encode_placement(bytes, &parameter.table);
 }
 
 fn encode_descriptor_parameter(

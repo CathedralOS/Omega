@@ -55,36 +55,7 @@ pub(super) fn function_abi(
     // Borrowed descriptor parameters are zero-code leading declarations; each
     // occupies a trailing `{instance, table}` pointer pair whose dense lane
     // ordinal and borrowed access the declaration row must retain exactly.
-    let declared_dynamic_parameters = abstracted
-        .operations
-        .iter()
-        .take_while(|operation| {
-            matches!(
-                operation,
-                AbstractOperation::DynamicDescriptorParameter { .. }
-            )
-        })
-        .filter_map(|operation| match operation {
-            AbstractOperation::DynamicDescriptorParameter { parameter } => Some(parameter),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if declared_dynamic_parameters
-        .iter()
-        .enumerate()
-        .any(|(index, parameter)| {
-            parameter.owner != abstracted.machine
-                || parameter.ordinal != index as u32
-                || parameter.source_position != (abstracted.parameters.len() + index) as u32
-                || !matches!(
-                    parameter.access,
-                    terminal_psi::StructuralAccess::SharedBorrow
-                        | terminal_psi::StructuralAccess::MutableBorrow
-                )
-        })
-    {
-        return Err(LegalizationError::custody());
-    }
+    let declared_dynamic_parameters = descriptor_parameters(abstracted).collect::<Vec<_>>();
     let pointer_size =
         u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
     let pointer_alignment =
@@ -112,23 +83,6 @@ pub(super) fn function_abi(
         },
     )
     .map_err(|_| LegalizationError::custody())?;
-    // The signature roster binds each declared descriptor to its exact
-    // `{instance, table}` placements in the evaluated plan.
-    let descriptor_base = abstracted.parameters.len();
-    if target.graph.dynamic_parameters.len() != declared_dynamic_parameters.len()
-        || target
-            .graph
-            .dynamic_parameters
-            .iter()
-            .enumerate()
-            .any(|(index, abi)| {
-                abi.parameter != *declared_dynamic_parameters[index]
-                    || abi.instance != expected.parameters[descriptor_base + index * 2]
-                    || abi.table != expected.parameters[descriptor_base + index * 2 + 1]
-            })
-    {
-        return Err(LegalizationError::custody());
-    }
     if expected
         .result
         .as_ref()
@@ -212,4 +166,81 @@ pub(super) fn function_abi(
         }
     }
     Ok(expected)
+}
+
+/// Every function entry replays its descriptor roster, regardless of its
+/// result carrier. Checking only calls or scalar signatures would admit
+/// fabricated descriptors on structural functions and lose unused declarations.
+pub(super) fn validate_descriptor_parameters(
+    native: ::target::NativeTarget,
+    target: &TargetFunction,
+    abstracted: &AbstractFunction,
+    call_plan: &CallPlan,
+) -> Result<(), LegalizationError> {
+    let declared = descriptor_parameters(abstracted).collect::<Vec<_>>();
+    if target.graph.dynamic_parameters.len() != declared.len() {
+        return Err(LegalizationError::custody());
+    }
+    let descriptor_base = abstracted
+        .parameters
+        .len()
+        .checked_add(abstracted.structural_parameters.len())
+        .ok_or_else(LegalizationError::custody)?;
+    let pointer_alignment =
+        u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
+    let pointer_size =
+        u32::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
+    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    for (parameter_index, (parameter, abi)) in declared
+        .iter()
+        .zip(&target.graph.dynamic_parameters)
+        .enumerate()
+    {
+        let source_position = descriptor_base
+            .checked_add(parameter_index)
+            .and_then(|position| u32::try_from(position).ok())
+            .ok_or_else(LegalizationError::custody)?;
+        let instance_position = parameter_index
+            .checked_mul(2)
+            .and_then(|position| descriptor_base.checked_add(position))
+            .ok_or_else(LegalizationError::custody)?;
+        let table_position = instance_position
+            .checked_add(1)
+            .ok_or_else(LegalizationError::custody)?;
+        if parameter.owner != abstracted.machine
+            || usize::try_from(parameter.ordinal).ok() != Some(parameter_index)
+            || parameter.source_position != source_position
+            || !matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
+            || abi.parameter != **parameter
+            || abi.instance.shape != pointer_shape
+            || abi.table.shape != pointer_shape
+            || call_plan.parameters.get(instance_position) != Some(&abi.instance)
+            || call_plan.parameters.get(table_position) != Some(&abi.table)
+        {
+            return Err(LegalizationError::custody());
+        }
+    }
+    Ok(())
+}
+
+fn descriptor_parameters(
+    abstracted: &AbstractFunction,
+) -> impl Iterator<Item = &terminal_psi::TerminalDynamicDescriptorParameter> {
+    abstracted
+        .operations
+        .iter()
+        .take_while(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
+        .filter_map(|operation| match operation {
+            AbstractOperation::DynamicDescriptorParameter { parameter } => Some(parameter),
+            _ => None,
+        })
 }
