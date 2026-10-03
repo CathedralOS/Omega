@@ -5,7 +5,7 @@
 // (entry-proved by the caller, immutable in the state).
 use omega::language::std::console;
 use omega::language::core::binding;
-data Main { console: Binding<Console>; count: u32 [0..=11]; cursor: u32 [0..=self.count]; }
+data Main { console: Binding<Console>; count: u32 [0..=11]; cursor: u32 [0..=count * 2]; }
 machine Main::main(main: &mut Main) {
     main.console.exit_process(70);
 }

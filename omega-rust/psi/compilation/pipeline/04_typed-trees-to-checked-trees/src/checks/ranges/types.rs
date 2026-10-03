@@ -250,7 +250,7 @@ fn dependent_range_of_type_reference(
                         let minimum =
                             validation::closed_integer_range_bound(program, *minimum)?.to_i64()?;
                         let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                            &program.expression_table,
+                            program,
                             *maximum,
                             *end_inclusive,
                         )?;

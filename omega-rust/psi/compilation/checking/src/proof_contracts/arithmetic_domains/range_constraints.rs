@@ -161,11 +161,8 @@ fn dependent_maximum_substituted(
     maximum: typed_trees::expression::ExpressionHandle,
     end_inclusive: bool,
 ) -> Option<i64> {
-    let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-        &program.expression_table,
-        maximum,
-        end_inclusive,
-    )?;
+    let symbolic =
+        typed_trees::dependent_ranges::symbolic_range_maximum(program, maximum, end_inclusive)?;
     let mut resolved: Option<i64> = None;
     for data in program.data_definitions() {
         for member in program.data_members(data) {

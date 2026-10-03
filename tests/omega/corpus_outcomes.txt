@@ -527,12 +527,12 @@ fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 62ms
 	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `first` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/data_where_whole_read_during_window_rejected rejected 64ms expected @5181ccde6df7+wt
 	the next whole-value read of `map` occurs inside an OPEN invariant window: a prior write left data `Map`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-fail/dependent/dependent_arg_unrelated_rejected rejected 410ms expected @2d8ed253669f
-	cannot prove transition argument `self.j` satisfies dependent parameter `i` in `Main::main.main`; expected 0..=self.count -- relate them on the arm (`self.j <= self.count` or a `<` guard), or tighten the argument below the field's declared minimum
-fail/dependent/dependent_forward_after_write_rejected rejected 433ms expected @2d8ed253669f
-	cannot prove transition argument `i` satisfies dependent parameter `k` in `Main::main.read`; expected 0..=self.count -- relate them on the arm (`i <= self.count` or a `<` guard), or tighten the argument below the field's declared minimum
-fail/dependent/dependent_range_on_field_rejected rejected 325ms expected @2d8ed253669f
-	data `Main` field `cursor` declares a range whose bound is not a constant integer expression; a non-constant bound cannot be enforced (it would silently behave unbounded). A dependent maximum (`[0..=self.<field>]`) is supported on machine STATE PARAMETERS whose named field carries an enforced literal integer range
+fail/dependent/dependent_arg_unrelated_rejected rejected 223ms expected @b03305417fb2+wt
+	cannot prove transition argument `main.j` satisfies dependent parameter `i` in `Main::main.main`; expected 0..=main.count -- relate them on the arm (`main.j <= main.count` or a `<` guard), or tighten the argument below the field's declared minimum
+fail/dependent/dependent_forward_after_write_rejected rejected 214ms expected @b03305417fb2+wt
+	cannot prove transition argument `i` satisfies dependent parameter `k` in `Main::main.read`; expected 0..=main.count -- relate them on the arm (`i <= main.count` or a `<` guard), or tighten the argument below the field's declared minimum
+fail/dependent/dependent_range_on_field_rejected rejected 194ms expected @b03305417fb2+wt
+	data `Main` field `cursor` declares a range whose bound is not a constant integer expression; a non-constant bound cannot be enforced (it would silently behave unbounded). A dependent maximum (`[0..=<parameter>.<field>]` on a subject parameter) is supported on machine STATE PARAMETERS whose named field carries an enforced literal integer range
 fail/dependent/mutable_referent_alias_corruption_return_rejected rejected 594ms expected @2d8ed253669f
 	cannot prove default-domain field requirement for return from corrupt at statement 2: level.rooms[1].label requires [u8; N]::Utf8
 fail/dependent/nested_gated_field_omitted_rejected rejected 350ms expected @2d8ed253669f

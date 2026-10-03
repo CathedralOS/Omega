@@ -37,9 +37,7 @@ pub(super) fn refine_dependent_subtract(
         return naive;
     };
     // Left: `self.F` or `self.F + m` for the SAME field.
-    let Some(left_bound) =
-        typed_trees::dependent_ranges::symbolic_max_bound(&program.expression_table, left)
-    else {
+    let Some(left_bound) = typed_trees::dependent_ranges::symbolic_max_bound(program, left) else {
         return naive;
     };
     if left_bound.field.as_str() != right_field.as_str() {
@@ -95,7 +93,7 @@ pub(super) fn dependent_maximum_of_type_reference(
                         ..
                     } => {
                         let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                            &program.expression_table,
+                            program,
                             *maximum,
                             *end_inclusive,
                         )?;

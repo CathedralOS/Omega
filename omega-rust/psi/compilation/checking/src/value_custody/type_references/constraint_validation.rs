@@ -476,8 +476,9 @@ fn dependent_state_parameter_range_error(
             "{owner} declares a range whose bound is not a constant integer \
              expression; a non-constant bound cannot be enforced (it would \
              silently behave unbounded). A dependent maximum \
-             (`[0..=self.<field>]`) is supported on machine STATE PARAMETERS \
-             whose named field carries an enforced literal integer range"
+             (`[0..=<parameter>.<field>]` on a subject parameter) is supported \
+             on machine STATE PARAMETERS whose named field carries an enforced \
+             literal integer range"
         )
     };
     if crate::closed_integer_range_bound(program, minimum)
@@ -489,11 +490,9 @@ fn dependent_state_parameter_range_error(
     // Sibling-length class (`[0..items.len]`): the named sibling must be a
     // slice/fixed-array parameter of the SAME state, and only offsets <= 0
     // are admissible (a `+k` bound would exceed the length).
-    if let Some(sibling) = typed_trees::dependent_ranges::sibling_range_maximum(
-        &program.expression_table,
-        maximum,
-        end_inclusive,
-    ) {
+    if let Some(sibling) =
+        typed_trees::dependent_ranges::sibling_range_maximum(program, maximum, end_inclusive)
+    {
         let TypeReferenceOwner::StateParameter {
             owner: StateSignatureOwner::Machine(machine),
             state: state_name,
@@ -538,18 +537,14 @@ fn dependent_state_parameter_range_error(
     // shape a specialized `Value` binder leaves behind: a runtime-bound
     // generic argument's result range `-> u64[0..=Bound]` names the
     // specialization's own realized parameter.
-    if let Some(scoped) = typed_trees::dependent_ranges::scoped_range_maximum(
-        &program.expression_table,
-        maximum,
-        end_inclusive,
-    ) {
+    if let Some(scoped) =
+        typed_trees::dependent_ranges::scoped_range_maximum(program, maximum, end_inclusive)
+    {
         return scoped_maximum_error(program, owner, scoped);
     }
-    let Some(symbolic) = typed_trees::dependent_ranges::symbolic_range_maximum(
-        &program.expression_table,
-        maximum,
-        end_inclusive,
-    ) else {
+    let Some(symbolic) =
+        typed_trees::dependent_ranges::symbolic_range_maximum(program, maximum, end_inclusive)
+    else {
         return Some(generic());
     };
     let TypeReferenceOwner::StateParameter {
@@ -571,7 +566,7 @@ fn dependent_state_parameter_range_error(
     .is_some_and(|field| {
         // The field must EXIST and be an integer primitive. A LITERAL
         // range on it is NOT required: the guard route discharges
-        // rangeless fields at every call site (`arg < self.rows`); the
+        // rangeless fields at every call site (`arg < param.rows`); the
         // floor route and the callee substitution simply contribute
         // nothing for a rangeless field (both are None-safe), and the
         // R3 product rule supplies bounds through couplings instead.
@@ -581,9 +576,9 @@ fn dependent_state_parameter_range_error(
     });
     if !field_is_dischargeable {
         return Some(format!(
-            "{owner} declares a dependent maximum naming `self.{}`, but no integer field of \
+            "{owner} declares a dependent maximum naming `{}.{}`, but no integer field of \
              that name exists on the machine's attached data",
-            symbolic.field,
+            symbolic.receiver, symbolic.field,
         ));
     }
     None

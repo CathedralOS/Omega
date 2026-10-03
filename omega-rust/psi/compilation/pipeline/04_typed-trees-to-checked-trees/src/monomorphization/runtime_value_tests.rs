@@ -75,10 +75,7 @@ fn runtime_bound_result_range_uses_the_realized_parameter() {
             .iter()
             .find_map(|constraint| match constraint {
                 typed_trees::types::TypeConstraintNode::Range { maximum, .. } => {
-                    typed_trees::dependent_ranges::scoped_name_bound(
-                        &program.expression_table,
-                        *maximum,
-                    )
+                    typed_trees::dependent_ranges::scoped_name_bound(program, *maximum)
                 }
                 _ => None,
             })?;

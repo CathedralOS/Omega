@@ -90,10 +90,9 @@ fn guard_conjunct_proves_dependent_upper(
     if expression_display_name(proof_plan, argument_side) != argument_label {
         return false;
     }
-    let Some(bound) = typed_trees::dependent_ranges::symbolic_max_bound(
-        &proof_plan.program.expression_table,
-        bound_side,
-    ) else {
+    let Some(bound) =
+        typed_trees::dependent_ranges::symbolic_max_bound(&proof_plan.program, bound_side)
+    else {
         return false;
     };
     if bound.field.as_str() != max_field.as_str() {
@@ -116,9 +115,10 @@ fn guard_conjunct_proves_dependent_upper(
 /// bound field and the argument's place must survive the whole state: a write
 /// between arrival and the call would invalidate the carried fact.
 ///
-/// The route speaks only of `self.<field>` arguments -- the guard's bound
-/// names `self.<max_field>`, and the preservation scan is a `self.` path
-/// comparison; a local argument's writes would not be caught by it.
+/// The route speaks only of subject-field arguments -- the guard's bound
+/// names `<subject>.<max_field>`, and the preservation scan compares the
+/// receiver's subject path; a local argument's writes would not be caught
+/// by it.
 pub(crate) fn incoming_guard_proves_dependent_call_upper(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
@@ -623,17 +623,16 @@ fn sibling_conjunct_proves(
     if expression_display_name(proof_plan, argument_side) != argument_label {
         return false;
     }
-    let Some(bound) = typed_trees::dependent_ranges::sibling_len_bound(
-        &proof_plan.program.expression_table,
-        bound_side,
-    )
-    .map(|bound| (bound.sibling, bound.offset))
-    .or_else(|| {
-        // The guard names the CALLER's expression (`self.buf.len`), not the
-        // callee's param -- recognize `<expr>.len + k` with the RECEIVER
-        // display-matched below instead of the bare-name rule.
-        len_of_expression_bound(proof_plan, bound_side)
-    }) else {
+    let Some(bound) =
+        typed_trees::dependent_ranges::sibling_len_bound(&proof_plan.program, bound_side)
+            .map(|bound| (bound.sibling, bound.offset))
+            .or_else(|| {
+                // The guard names the CALLER's expression (`self.buf.len`), not the
+                // callee's param -- recognize `<expr>.len + k` with the RECEIVER
+                // display-matched below instead of the bare-name rule.
+                len_of_expression_bound(proof_plan, bound_side)
+            })
+    else {
         return false;
     };
     let (receiver_label, k) = (bound.0, bound.1);
