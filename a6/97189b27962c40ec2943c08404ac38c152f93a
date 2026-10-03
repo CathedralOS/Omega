@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: 12-row corpus restamp at 3284f31163c; 3 checked+3 native upstream heals (win64_large_aggregate, total_order_satisfiers, mutable_string_concat) + 3 moved-diags (task_lifecycle, string_field_concat, string_stored_suffix); OMEGA_CORPUS_TIMINGS-armed probes
+ticket: a9311e338af37ce3960c31e296a4e573
+published_utc: 2026-10-03T22:42:30.041713+00:00
