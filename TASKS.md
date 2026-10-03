@@ -161,6 +161,33 @@ execution and native exit/output. A moved refusal is still unfinished work.
   seconds for this app's 2917 lines against a floor above 5400, so the
   multiplier is repetition rather than per-line work.
 
+  Candidate (b)'s MECHANISM is now identified exactly, and closing it is an
+  owner-level decision rather than an optimization.
+  `terminal-psi/codec/src/sections/semantic_module.rs:68` (`encode_module`)
+  runs four validations before it encodes -- `scalar_qualification_wire::validate`,
+  `validate_canonical_order`, `validate_structural_foundation` and
+  `validate_module_representation`, the last being the one that contains the
+  quadratic freshness predicate of candidate (a). `semantic_fingerprint:158`
+  calls `encode_module`, and `terminal_psi_identity:164` calls
+  `semantic_fingerprint`. So EVERY identity or fingerprint computation
+  re-validates the whole module, and identity is computed repeatedly per
+  publish: `validation/context/mod.rs:70` runs `validate_exact_ranked_cycles`
+  and `validate_context_projection`, which each derive it independently, and
+  `canonical_artifact.rs:103,115` plus `sections/artifact_manifest.rs:144` and
+  `sections/obligation_ledger.rs:87` add further whole-module passes per
+  artifact publish.
+
+  Two fixes are available and they are not equivalent. Threading one computed
+  identity through the optimizer validation layer keeps every check and changes
+  no trust, but it alters signatures across `01_abstract-operations-to-abstract-operations`
+  and the codec. Making `semantic_fingerprint` call `encode_raw` directly is a
+  few lines and removes the repetition outright, but it moves the guarantee
+  that a fingerprinted module is valid from the codec to the fingerprint's
+  callers -- a canonical-identity trust question, since byte-level identity is
+  what the bootstrap chain and package review compare. That second option is
+  not an engineering call to make unilaterally; the first is, and is the one to
+  cost first.
+
   The rewrite itself remains ready: `scratchpad/dungeon_v2.patch` still applies
   cleanly and brings the app's receiver count to zero. The deadline has
   since been raised to 5400 seconds and the run still returned
