@@ -469,6 +469,13 @@ the complete product bar; focused successes below do not establish that baseline
   and the unchanged `pass/wire/runtime_wire_utf8_edge_verdicts_exit` retains
   exit 70 in both engines. Native descriptor stores use ordinary readable
   storage lookup, including copied value homes, instead of a producer whitelist.
+  `pass/domains/utf8_field_write_from_param` also builds; its runtime witness
+  `pass/domains/runtime_qualified_view_field_parameter_store_exit` prints
+  `Gate`, `hi`, and an empty line with native/interpreter exit 70 on macOS ARM64
+  under `python3 tools/corpus_gate.py --both --filter runtime_qualified_view_field_parameter_store_exit`.
+  Field-store authority now uses ordinary record-loan custody, and native entry
+  capture retains descriptor-store source parameters. The witness's public
+  `omega run --both` command still exits 200 pending ordinary package review.
   Preserve descriptor lifetime, overlapping-write rejection and current-content
   predicate replay. Remaining dependency: establish the concatenation's result
   backing and the assigned view's lifetime under

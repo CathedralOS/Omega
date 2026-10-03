@@ -1,0 +1,25 @@
+// Replacing a local descriptor retains the incoming window, not the previous
+// initializer. Observe both its extent and bytes before the local is discarded.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8]::Utf8(bytes) requires valid_utf8(bytes);
+data Slot { out: &[u8] in Utf8; }
+data Main { console: Binding<Console>; }
+
+machine verify(context: &mut Main, text: &[u8] in Utf8) reaches Console {
+    let mut slot: Slot = Slot { out: "old" };
+    slot.out = text;
+    print_slot(context, &slot);
+}
+
+machine print_slot(context: &mut Main, slot: &Slot) reaches Console {
+    context.console.write_line(slot.out);
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    verify(context, "Gate");
+    verify(context, "hi");
+    verify(context, "");
+    context.console.exit_process(70);
+}

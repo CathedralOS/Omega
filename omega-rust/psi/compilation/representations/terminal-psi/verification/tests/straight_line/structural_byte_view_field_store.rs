@@ -332,6 +332,70 @@ fn view_result(
     )
 }
 
+/// A constructor owns the record's slot, not the descriptor's borrowed bytes.
+/// Replacing that slot requires the same writable home as lending the record.
+fn constructed_destination_fixture() -> TerminalModule {
+    let mut module = fixture();
+    let (place, result) = view_result(4, 3, 1);
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(place);
+    machine.blocks[0].operations.insert(
+        1,
+        Operation {
+            id: id(3),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result,
+            kind: OperationKind::EstablishRecord {
+                fields: vec![terminal_psi::RecordFieldInitializer {
+                    field: id(1),
+                    value: terminal_psi::RecordFieldValue::Structural(
+                        terminal_psi::StructuralArgument {
+                            place: id(2),
+                            path: vec![],
+                            access: StructuralAccess::Owned,
+                        },
+                    ),
+                }],
+            },
+        },
+    );
+    machine.blocks[0].operations[2] = store(4, 2);
+    module
+}
+
+#[test]
+fn a_constructed_record_owns_its_descriptor_field_storage() {
+    let module = constructed_destination_fixture();
+    validate_module(&module).expect("the local descriptor slot is writable");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("literal predicates and backing remain independently verified");
+}
+
+#[test]
+fn a_constructed_destination_does_not_supply_source_predicates() {
+    let mut module = constructed_destination_fixture();
+    module.machines[0].blocks[0].operations[2] = store(4, 3);
+    rejects(&module);
+}
+
+#[test]
+fn descriptor_field_replacement_requires_the_destination_establishment() {
+    let mut module = constructed_destination_fixture();
+    module.machines[0].blocks[0].operations.swap(1, 2);
+    assert!(
+        matches!(validate_module(&module),
+            Err(ModuleError::ByteSequenceViewNotEstablished { operation, place })
+                if operation == id(2) && place == id(4)),
+        "{:?}",
+        validate_module(&module),
+    );
+}
+
 fn scalar_operation(identity: u64, bits: u16, kind: OperationKind) -> Operation {
     Operation {
         id: id(identity),

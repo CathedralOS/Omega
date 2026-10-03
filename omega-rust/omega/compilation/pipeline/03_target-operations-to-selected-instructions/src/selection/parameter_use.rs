@@ -47,6 +47,11 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                     destination,
                     source,
                     ..
+                }
+                | LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
+                    destination,
+                    source,
+                    ..
                 } => destination.place == place || *source == place,
                 LegalizedScalarInstructionKind::StructuralScalarFieldRead {
                     source: argument,
@@ -61,10 +66,6 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                     ..
                 } => argument.place == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
-                    destination,
-                    ..
-                }
-                | LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
                     destination,
                     ..
                 } => destination.place == place,
