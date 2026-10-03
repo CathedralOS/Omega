@@ -28,6 +28,7 @@ mod placed_view_referent;
 mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;
+mod reference_views;
 mod scalar_array;
 mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
@@ -84,6 +85,9 @@ pub use proof_bearing_scalar::{
 pub use record_field::{
     CasePayloadCarrier, RecordFieldCarrier, case_payload_carrier, observed_field_declaration,
     record_field_carrier,
+};
+pub use reference_views::{
+    reference_source_compatible, scalar_reference_view_is_total, scalar_reference_view_value,
 };
 pub use scalar_array::scalar_array_leaf_shape;
 pub use scalar_leaf_schema::{

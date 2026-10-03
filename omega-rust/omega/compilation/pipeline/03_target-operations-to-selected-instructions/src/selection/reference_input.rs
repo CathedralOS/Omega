@@ -47,7 +47,7 @@ pub(super) fn establishment(
     {
         return None;
     }
-    let StructuralTypeShape::Reference { referent, access } = declarations
+    let StructuralTypeShape::Reference { access, .. } = declarations
         .iter()
         .find(|declaration| declaration.id == result.structural_type)?
         .shape
@@ -78,7 +78,12 @@ pub(super) fn establishment(
         StructuralTypeShape::Reference { referent, .. } if through_referent => (*referent, true),
         _ => (selected, false),
     };
-    (actual == referent).then_some(ReferenceAddress {
+    terminal_semantics::reference_source_compatible(
+        declarations.iter(),
+        actual,
+        result.structural_type,
+    )
+    .then_some(ReferenceAddress {
         place: source.place,
         byte_offset,
         load_pointer,

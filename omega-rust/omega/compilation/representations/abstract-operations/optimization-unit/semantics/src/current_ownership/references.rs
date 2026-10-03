@@ -1381,7 +1381,19 @@ pub(super) fn apply_operation(
                 })?;
             let mut alternatives = Vec::with_capacity(candidates.len());
             for (source, transfers_existing) in candidates {
-                if reference_source_type(function, structural_types, &source) != Some(expected)
+                let compatible = reference_source_type(function, structural_types, &source)
+                    .is_some_and(|actual| {
+                        if matches!(operation, O::EstablishReference { .. }) {
+                            terminal_semantics::reference_source_compatible(
+                                structural_types.values().copied(),
+                                actual,
+                                result.structural_type,
+                            )
+                        } else {
+                            actual == expected
+                        }
+                    });
+                if !compatible
                     || !leaf_access_within(
                         structural_types,
                         result.structural_type,

@@ -1046,7 +1046,7 @@ pub(super) fn validate_establishment(
         .result
         .structural()
         .ok_or_else(|| invalid(machine, "reference result is absent"))?;
-    let expected = referent(module, result.structural_type).ok_or_else(|| {
+    referent(module, result.structural_type).ok_or_else(|| {
         invalid(
             machine,
             "reference establishment requires a whole reference result",
@@ -1055,8 +1055,13 @@ pub(super) fn validate_establishment(
     if !matches!(
         source.access,
         StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-    ) || source_type(module, machine, source) != Some(expected)
-        || !leaf_access_within(module, result.structural_type, &[], source.access)
+    ) || !source_type(module, machine, source).is_some_and(|actual| {
+        terminal_semantics::reference_source_compatible(
+            module.structural_types.iter(),
+            actual,
+            result.structural_type,
+        )
+    }) || !leaf_access_within(module, result.structural_type, &[], source.access)
     {
         return Err(invalid(
             machine,
@@ -2077,7 +2082,18 @@ pub(super) fn apply_operation(
                 .ok_or_else(|| invalid(machine, "reference call result leaf is unsupported"))?;
             let mut alternatives = Vec::with_capacity(candidates.len());
             for (source, transfers_existing) in candidates {
-                if source_type(module, machine, &source) != Some(expected) {
+                let compatible = source_type(module, machine, &source).is_some_and(|actual| {
+                    if matches!(operation.kind, OperationKind::EstablishReference { .. }) {
+                        terminal_semantics::reference_source_compatible(
+                            module.structural_types.iter(),
+                            actual,
+                            result.structural_type,
+                        )
+                    } else {
+                        actual == expected
+                    }
+                });
+                if !compatible {
                     return Err(invalid(
                         machine,
                         "reference result changes its mapped source type",
