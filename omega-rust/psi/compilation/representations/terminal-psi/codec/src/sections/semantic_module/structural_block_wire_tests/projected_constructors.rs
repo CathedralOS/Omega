@@ -1,11 +1,12 @@
 use super::{decode_module, encode_module, id, unit_module};
+use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
     BindingRelevance, Operation, OperationKind, OperationResult, RecordFieldInitializer,
     RecordFieldValue, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, Terminator,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalModule, Terminator,
 };
 
 fn projected_constructor(case: bool) -> TerminalModule {
