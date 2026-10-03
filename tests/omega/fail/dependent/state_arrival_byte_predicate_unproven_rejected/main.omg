@@ -1,0 +1,29 @@
+// FAIL CANARY: a state `requires` naming a byte predicate refuses when the
+// arriving edge establishes no such fact -- the contract prover demands it
+// at the call site ("needs fact `valid_utf8(view)` here"). The guarded
+// sibling PASSES (pass/dependent/state_arrival_byte_predicate_guarded_compile).
+domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+
+data Main {
+    buffer: [u8; 8];
+    result: u64;
+}
+
+machine Main::main(main: &mut Main) {
+    main.buffer[0] = 65;
+    main.result = 0;
+    let view: &[u8] = main.buffer[0..1];
+    transition view.len == 1 {
+        true -> checked(main, view)
+        false -> bad()
+    }
+    state checked(main: &mut Main, view: &[u8])
+    requires
+        valid_utf8(view)
+    {
+        main.result = view.len;
+    }
+    state bad() { }
+}
