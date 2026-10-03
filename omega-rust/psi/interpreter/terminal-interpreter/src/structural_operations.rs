@@ -237,7 +237,8 @@ impl TerminalExecution {
         let mut staged_referents: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue> =
             BTreeMap::new();
         let mut staged_element_views = BTreeMap::new();
-        let mut consumed = BTreeSet::new();
+        let mut consumed = Vec::new();
+        let mut frontier = self.live_affine_frontier.clone();
         for ((declaration, namespace), binding) in roster.into_iter().zip(fields) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
                 return Err(invalid());
@@ -267,7 +268,6 @@ impl TerminalExecution {
                     // only a payload member nests a child subtree.
                     if namespace != ScalarFieldNamespace::CasePayload
                         || argument.access != StructuralAccess::Owned
-                        || !argument.path.is_empty()
                     {
                         return Err(invalid());
                     }
@@ -275,17 +275,14 @@ impl TerminalExecution {
                         opaque_identity: value.opaque_identity,
                         path: vec![StructuralPathSegment::Field(declaration.identity.clone())],
                     };
-                    let affine = self
-                        .live_affine_frontier
-                        .iter()
-                        .any(|entry| entry.place == argument.place && entry.path.is_empty());
-                    if affine
-                        && (!consumed.insert(argument.place)
-                            || result.multiplicity == StructuralMultiplicity::Unrestricted)
-                    {
+                    let affine =
+                        self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
+                    if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
                         return Err(invalid());
                     }
-                    if let Some(case) = self.scalar_case_values.get(&argument.place) {
+                    if argument.path.is_empty()
+                        && let Some(case) = self.scalar_case_values.get(&argument.place)
+                    {
                         if declaration.field_type
                             != StructuralFieldType::Structural(case.structural_type)
                         {
@@ -306,9 +303,13 @@ impl TerminalExecution {
                         }
                         continue;
                     }
-                    let Some(child) = self.structural_values.get(&argument.place) else {
-                        return Err(invalid());
-                    };
+                    let child = resolve_structural_arguments(
+                        &self.program.structural_types,
+                        &self.structural_values,
+                        std::slice::from_ref(argument),
+                    )?
+                    .pop()
+                    .ok_or_else(invalid)?;
                     if !child.qualifications.is_empty()
                         || declaration.field_type
                             != StructuralFieldType::Structural(child.structural_type)
@@ -339,7 +340,7 @@ impl TerminalExecution {
                             matches!(row.shape, StructuralTypeShape::ElementView { .. })
                         })
                     {
-                        let descriptor = self.element_view_argument(argument, child)?;
+                        let descriptor = self.element_view_argument(argument, &child)?;
                         staged_element_views.insert(member.clone(), descriptor.clone());
                     }
                     for (carrier, descriptor) in &self.structural_element_view_fields {
@@ -389,14 +390,7 @@ impl TerminalExecution {
                 }
             }
         }
-        for place in consumed {
-            if let Some(child) = self.structural_values.remove(&place) {
-                self.prune_subtree(&StructuralRuntimePlace::from(&child));
-            } else {
-                self.scalar_case_values.remove(&place);
-            }
-            remove_affine_root(&mut self.live_affine_frontier, place);
-        }
+        self.commit_constructor_operands(frontier, &consumed)?;
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_cases.extend(staged_cases);
         self.structural_byte_sequence_fields
@@ -426,7 +420,7 @@ impl TerminalExecution {
 
     /// Remove every runtime cell under `from`; paired with subtree copies so
     /// consumed children vacate their source region atomically.
-    fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
+    pub(crate) fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
         self.structural_scalar_fields.retain(|cell, _| {
             cell.parent.opaque_identity != from.opaque_identity
                 || !cell.parent.path.starts_with(&from.path)

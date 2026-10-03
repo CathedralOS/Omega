@@ -1257,3 +1257,189 @@ fn record_erased_declarations_have_no_runtime_initializers_or_storage() {
         assert!(!execution.structural_values.contains_key(&result.place));
     }
 }
+
+fn projected_constructor_fixture(
+    case: bool,
+) -> (
+    TerminalExecution,
+    StructuralOperationResult,
+    Vec<RecordFieldInitializer>,
+) {
+    let mut module = record_module();
+    let member = |identity: u64, name: &str| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(identity).unwrap(),
+        identity: name.into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(StructuralTypeId::new(1).unwrap()),
+    };
+    module.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: StructuralTypeId::new(2).unwrap(),
+            identity: "Pair".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![member(1, "left"), member(2, "right")],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: StructuralTypeId::new(3).unwrap(),
+            identity: "Selected".into(),
+            shape: if case {
+                StructuralTypeShape::Sum {
+                    cases: vec![StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(1).unwrap(),
+                        identity: "Value".into(),
+                        fields: vec![member(1, "selected")],
+                    }],
+                }
+            } else {
+                StructuralTypeShape::Record {
+                    fields: vec![member(1, "selected")],
+                }
+            },
+        },
+    ]);
+    let (mut execution, _) = run(&module, &[unsigned(7)]);
+    let source = PlaceId::new(20).unwrap();
+    execution.structural_values.insert(
+        source,
+        crate::values::TerminalStructuralValue {
+            opaque_identity: 9000,
+            structural_type: StructuralTypeId::new(2).unwrap(),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    );
+    execution
+        .live_affine_frontier
+        .insert(StructuralAffineDiscard {
+            place: source,
+            path: Vec::new(),
+            structural_type: StructuralTypeId::new(2).unwrap(),
+        });
+    for (name, scalar) in [("left", 11), ("right", 29)] {
+        execution.structural_scalar_fields.insert(
+            crate::values::StructuralScalarRuntimeField::member(
+                crate::values::StructuralRuntimePlace {
+                    opaque_identity: 9000,
+                    path: vec![StructuralPathSegment::Field(name.into())],
+                },
+                StructuralFieldId::new(1).unwrap(),
+            ),
+            unsigned(scalar),
+        );
+    }
+    let result = StructuralOperationResult {
+        place: PlaceId::new(21).unwrap(),
+        structural_type: StructuralTypeId::new(3).unwrap(),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    };
+    let fields = vec![RecordFieldInitializer {
+        field: StructuralFieldId::new(1).unwrap(),
+        value: RecordFieldValue::Structural(StructuralArgument {
+            place: source,
+            path: vec![StructuralPathSegment::Field("left".into())],
+            access: StructuralAccess::Owned,
+        }),
+    }];
+    (execution, result, fields)
+}
+
+fn execute_projected_constructor(
+    execution: &mut TerminalExecution,
+    result: &StructuralOperationResult,
+    fields: &[RecordFieldInitializer],
+    case: bool,
+) -> Result<(), crate::errors::TerminalInterpretError> {
+    if case {
+        execution
+            .execute_establish_structural_case(&Operation {
+                id: OperationId::new(100).unwrap(),
+                static_reach_binding: None,
+                suspension_crossing: None,
+                result: OperationResult::Structural(result.clone()),
+                kind: OperationKind::EstablishStructuralCase {
+                    result_case: StructuralCaseId::new(1).unwrap(),
+                    fields: fields.to_vec(),
+                },
+            })
+            .map(|_| ())
+    } else {
+        execution.establish_record(result, fields)
+    }
+}
+
+#[test]
+fn projected_constructor_operands_preserve_live_sibling_storage() {
+    for case in [false, true] {
+        let (mut execution, result, fields) = projected_constructor_fixture(case);
+        execute_projected_constructor(&mut execution, &result, &fields, case).unwrap();
+        let selected = &execution.structural_values[&result.place];
+        let cell = |identity, name: &str| {
+            crate::values::StructuralScalarRuntimeField::member(
+                crate::values::StructuralRuntimePlace {
+                    opaque_identity: identity,
+                    path: vec![StructuralPathSegment::Field(name.into())],
+                },
+                StructuralFieldId::new(1).unwrap(),
+            )
+        };
+        assert_eq!(
+            execution
+                .structural_scalar_fields
+                .get(&cell(selected.opaque_identity, "selected")),
+            Some(&unsigned(11))
+        );
+        assert_eq!(
+            execution.structural_scalar_fields.get(&cell(9000, "right")),
+            Some(&unsigned(29))
+        );
+        assert!(
+            !execution
+                .structural_scalar_fields
+                .contains_key(&cell(9000, "left"))
+        );
+        assert!(
+            execution
+                .live_affine_frontier
+                .contains(&StructuralAffineDiscard {
+                    place: PlaceId::new(20).unwrap(),
+                    path: vec![StructuralPathSegment::Field("right".into())],
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                })
+        );
+        let mut repeated = result.clone();
+        repeated.place = PlaceId::new(22).unwrap();
+        assert!(execute_projected_constructor(&mut execution, &repeated, &fields, case).is_err());
+        assert_eq!(
+            execution.structural_scalar_fields.get(&cell(9000, "right")),
+            Some(&unsigned(29))
+        );
+    }
+}
+
+#[test]
+fn projected_constructor_operands_refuse_unowned_or_unknown_paths_atomically() {
+    for case in [false, true] {
+        for mutation in 0..2 {
+            let (mut execution, result, mut fields) = projected_constructor_fixture(case);
+            if mutation == 0 {
+                execution.live_affine_frontier.clear();
+            } else {
+                let RecordFieldValue::Structural(argument) = &mut fields[0].value else {
+                    unreachable!()
+                };
+                argument.path = vec![StructuralPathSegment::Field("absent".into())];
+            }
+            let before = execution.structural_scalar_fields.clone();
+            let frontier = execution.live_affine_frontier.clone();
+            assert!(execute_projected_constructor(&mut execution, &result, &fields, case).is_err());
+            assert_eq!(execution.structural_scalar_fields, before);
+            assert_eq!(execution.live_affine_frontier, frontier);
+            assert!(!execution.structural_values.contains_key(&result.place));
+        }
+    }
+}

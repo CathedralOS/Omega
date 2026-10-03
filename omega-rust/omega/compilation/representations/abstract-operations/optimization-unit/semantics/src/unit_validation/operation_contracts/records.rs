@@ -1,7 +1,7 @@
 //! Reconstruct complete record construction from the current executable inputs.
 //!
 //! Earlier operations own evaluation order. This operation binds their finished
-//! values to declaration identities and transfers whole children atomically.
+//! values to declaration identities and transfers selected children atomically.
 //! Source admission alone cannot authorize substituted fields or child homes in
 //! a rewritten optimization unit; dominance and current ownership are checked
 //! separately against the same operands.
@@ -152,6 +152,32 @@ pub(crate) fn record_establishment_matches(
     field_initializers_match(function, result, declarations, fields, types, domains)
 }
 
+/// Select the same owned subtree that current partial-custody replay consumes.
+/// A projected constructor never substitutes its root type for the selected field.
+fn constructor_argument_contract<'a>(
+    function: &'a PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> Option<super::structural_access::StructuralSourceContract<'a>> {
+    let mut source = structural_source_contract(function, argument.place)?;
+    if !argument.path.is_empty() {
+        if argument.access != StructuralAccess::Owned
+            || !argument.path.iter().all(|segment| {
+                matches!(
+                    segment,
+                    terminal_psi::StructuralPathSegment::Field(_)
+                        | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                )
+            })
+        {
+            return None;
+        }
+        let root = crate::current_ownership::partial_affine_root_type(function, argument.place)?;
+        source.structural_type = resolve_structural_path(types, root, &argument.path)?;
+    }
+    Some(source)
+}
+
 pub(crate) fn field_initializers_match(
     function: &PsiOptimizationFunction,
     result: &terminal_psi::StructuralOperationResult,
@@ -175,7 +201,7 @@ pub(crate) fn field_initializers_match(
         }
         match (&declaration.field_type, &initializer.value) {
             (StructuralFieldType::Structural(expected), RecordFieldValue::Structural(argument)) => {
-                let Some(source) = structural_source_contract(function, argument.place) else {
+                let Some(source) = constructor_argument_contract(function, argument, types) else {
                     return false;
                 };
                 // A view-descriptor member stores its descriptor with the
@@ -183,7 +209,6 @@ pub(crate) fn field_initializers_match(
                 // borrowed byte view arm below: the record relocates the
                 // descriptor, the referent stays borrowed.
                 argument.access == StructuralAccess::Owned
-                    && argument.path.is_empty()
                     && (source.access == StructuralAccess::Owned
                         || (source.access == StructuralAccess::SharedBorrow
                             && shared_view_member(types, *expected)))

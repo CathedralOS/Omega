@@ -27,19 +27,19 @@ pub(super) fn validate_partial_continuation_roster(
     let mut root = None;
     let mut moved = BTreeSet::new();
     for node in &block.nodes {
-        let O::CallStructural {
-            structural_arguments,
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Unit,
-            ..
-        } = &node.operation
-        else {
-            continue;
+        let call_arguments = match &node.operation {
+            O::CallStructural {
+                structural_arguments,
+                dynamic_arguments,
+                result: AbstractStructuralCallResult::Unit,
+                ..
+            } if dynamic_arguments.is_empty() => structural_arguments.as_slice(),
+            _ => &[],
         };
-        if !dynamic_arguments.is_empty() {
-            continue;
-        }
-        for argument in structural_arguments {
+        for argument in call_arguments
+            .iter()
+            .chain(super::structural::constructor_arguments(&node.operation))
+        {
             if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
                 continue;
             }

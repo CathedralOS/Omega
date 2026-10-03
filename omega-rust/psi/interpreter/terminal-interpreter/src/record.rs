@@ -1,5 +1,5 @@
 //! Atomic record establishment over the interpreter's existing structural storage.
-use crate::custody::remove_affine_root;
+use crate::custody::resolve_structural_arguments;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -8,7 +8,6 @@ use crate::values::StructuralScalarRuntimeField;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use terminal_psi::OperationKind;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralAffineDiscard;
@@ -17,6 +16,8 @@ use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
+
+mod operands;
 
 #[cfg(test)]
 mod tests;
@@ -64,7 +65,8 @@ impl TerminalExecution {
         let mut staged_referents = BTreeMap::new();
         let mut staged_bytes = BTreeMap::new();
         let mut staged_views = BTreeMap::new();
-        let mut consumed = BTreeSet::new();
+        let mut consumed = Vec::new();
+        let mut frontier = self.live_affine_frontier.clone();
         for (binding, declaration) in fields.iter().zip(declarations) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
                 return Err(invalid());
@@ -86,10 +88,13 @@ impl TerminalExecution {
                     );
                 }
                 terminal_psi::RecordFieldValue::Structural(argument) => {
-                    let child = self
-                        .structural_values
-                        .get(&argument.place)
-                        .ok_or_else(invalid)?;
+                    let child = resolve_structural_arguments(
+                        &self.program.structural_types,
+                        &self.structural_values,
+                        std::slice::from_ref(argument),
+                    )?
+                    .pop()
+                    .ok_or_else(invalid)?;
                     if matches!(
                         declaration.field_type.byte_sequence_carrier(),
                         Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -130,14 +135,9 @@ impl TerminalExecution {
                         {
                             return Err(invalid());
                         }
-                        let affine = self
-                            .live_affine_frontier
-                            .iter()
-                            .any(|entry| entry.place == argument.place && entry.path.is_empty());
-                        if affine
-                            && (!consumed.insert(argument.place)
-                                || result.multiplicity == StructuralMultiplicity::Unrestricted)
-                        {
+                        let affine =
+                            self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
+                        if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
                             return Err(invalid());
                         }
                         staged_bytes.insert(
@@ -193,21 +193,15 @@ impl TerminalExecution {
                         continue;
                     }
                     if argument.access != StructuralAccess::Owned
-                        || !argument.path.is_empty()
                         || !child.qualifications.is_empty()
                         || declaration.field_type
                             != StructuralFieldType::Structural(child.structural_type)
                     {
                         return Err(invalid());
                     }
-                    let affine = self
-                        .live_affine_frontier
-                        .iter()
-                        .any(|entry| entry.place == argument.place && entry.path.is_empty());
-                    if affine
-                        && (!consumed.insert(argument.place)
-                            || result.multiplicity == StructuralMultiplicity::Unrestricted)
-                    {
+                    let affine =
+                        self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
+                    if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
                         return Err(invalid());
                     }
                     let mut member_path = value.path.clone();
@@ -220,7 +214,7 @@ impl TerminalExecution {
                             matches!(row.shape, StructuralTypeShape::ElementView { .. })
                         })
                     {
-                        let descriptor = self.element_view_argument(argument, child)?;
+                        let descriptor = self.element_view_argument(argument, &child)?;
                         let descriptor = descriptor.clone();
                         staged_views.insert(
                             StructuralRuntimePlace {
@@ -308,27 +302,7 @@ impl TerminalExecution {
                 }
             }
         }
-        for place in consumed {
-            if let Some(child) = self.structural_values.remove(&place) {
-                self.structural_element_view_fields.retain(|home, _| {
-                    home.opaque_identity != child.opaque_identity
-                        || !home.path.starts_with(&child.path)
-                });
-                self.reference_referents.retain(|carrier, _| {
-                    carrier.opaque_identity != child.opaque_identity
-                        || !carrier.path.starts_with(&child.path)
-                });
-                self.structural_scalar_fields.retain(|field, _| {
-                    field.parent.opaque_identity != child.opaque_identity
-                        || !field.parent.path.starts_with(&child.path)
-                });
-                self.structural_byte_sequence_fields.retain(|field, _| {
-                    field.parent.opaque_identity != child.opaque_identity
-                        || !field.parent.path.starts_with(&child.path)
-                });
-            }
-            remove_affine_root(&mut self.live_affine_frontier, place);
-        }
+        self.commit_constructor_operands(frontier, &consumed)?;
         self.structural_scalar_fields.extend(staged);
         self.structural_byte_sequence_fields.extend(staged_bytes);
         self.structural_element_view_fields.extend(staged_views);
