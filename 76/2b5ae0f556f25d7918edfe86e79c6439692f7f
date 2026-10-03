@@ -1,0 +1,4 @@
+owner: interior byte and record slice writes
+provenance: agent=codex model=gpt-6
+ticket: 07e4d66e96ae426b81b2e0dbb4884beb
+published_utc: 2026-10-03T10:23:00.238571+00:00
