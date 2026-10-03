@@ -1,9 +1,9 @@
-//! Publish the same authored invocation contract for every callable body.
+//! Publish the same checked invocation contract for every callable body.
 //! Structural entry predicates and closed scalar clauses share one namespace;
-//! cleanup selection cannot add or remove a caller obligation.
+//! bound generic cleanup prerequisites retain their distinct checked origin.
 use crate::lowering_error::LoweringError;
 use crate::unit::runtime_requirements::lower_structural_runtime_requirement;
-use checked_trees::CheckedTrees;
+use checked_trees::{CheckedBooleanExpression, CheckedTrees};
 use semantic_vocabulary::Proposition;
 use symbols::SymbolHandle;
 use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration, ValueDeclaration};
@@ -42,7 +42,7 @@ pub(crate) fn lower(
             ),
         )?;
         crate::unit::runtime_requirements::validate_runtime_memberships(checked, source)?;
-        let requirements = checked_requirements
+        runtime_requirements = checked_requirements
             .iter()
             .map(|requirement| {
                 lower_structural_runtime_requirement(
@@ -54,25 +54,30 @@ pub(crate) fn lower(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut keyed = requirements
-            .into_iter()
-            .map(|requirement| {
-                terminal_codec::canonical_proposition_order_key(&requirement)
-                    .map(|key| (key, requirement))
-                    .map_err(|_| {
-                        LoweringError::Unsupported(
-                            "structural runtime requirement is not canonically encodable",
-                        )
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        keyed.sort_by(|left, right| left.0.cmp(&right.0));
-        keyed.dedup_by(|left, right| left.0 == right.0);
-        runtime_requirements = keyed
-            .into_iter()
-            .map(|(_, requirement)| requirement)
-            .collect();
     }
+    let contextual = &checked.facts.contextual_cleanup.entry_requirements;
+    for (_, requirement) in contextual.rows.iter() {
+        if requirement.machine != source {
+            continue;
+        }
+        let expression = CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: requirement.parameter_position,
+            path: contextual.paths.span_or_empty(requirement.path).to_vec(),
+        };
+        let expression = if requirement.expected {
+            expression
+        } else {
+            CheckedBooleanExpression::Not(Box::new(expression))
+        };
+        runtime_requirements.push(lower_structural_runtime_requirement(
+            &expression,
+            scalar_parameters,
+            erased_scalar_parameters,
+            predicate_parameters,
+            structural_types,
+        )?);
+    }
+    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut runtime_requirements)?;
     // Publish each closed authored `requires` clause as its own row
     // beside the runtime requirements: a Unit callee's roster has one row
     // per authored clause, so a caller owes one obligation per clause. A

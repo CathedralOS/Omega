@@ -310,6 +310,8 @@ pub(crate) fn prepare_permission_events(
             &facts.flow,
             &mut cleanup_dispositions,
         );
+        cleanup_dispositions.entry_requirements =
+            std::mem::take(&mut facts.contextual_cleanup.entry_requirements);
         facts.contextual_cleanup = cleanup_dispositions;
         Ok(())
     } else {

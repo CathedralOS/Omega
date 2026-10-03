@@ -35,6 +35,7 @@
 // runs.
 mod assembly;
 pub(crate) mod calls;
+pub(crate) mod contextual_cleanup;
 mod dynamic_erased_lane;
 mod evidence;
 mod exit_membership;

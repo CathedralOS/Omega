@@ -6,7 +6,7 @@
 //! repeated array elements contribute one target edge, not invented call sites.
 use super::carried_semantic_dependencies::{event_statement_index, event_type_reference};
 use arena::Arena;
-use checked_trees::CheckFacts;
+use checked_trees::{CheckFacts, ContextualCleanupDisposition};
 use diagnostics::Diagnostic;
 use facts::PlaceSegment;
 use flow_effects::{CleanupDependency, OperationalPlan};
@@ -17,6 +17,60 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 type Substitutions = Vec<(SymbolHandle, TypeReferenceHandle)>;
+
+/// A selected owned cleanup leaf, relative to `disposition.root` and including
+/// its selected path. A FixedRange denotes every element of that half-open
+/// interval; it is never authority for just one representative element.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CleanupLeaf {
+    Nominal {
+        machine: SymbolHandle,
+        path: Vec<PlaceSegment>,
+    },
+    Symbolic {
+        parameter: SymbolHandle,
+        path: Vec<PlaceSegment>,
+    },
+}
+
+/// Walk the selected residual once for both effects and generic obligations.
+/// Unknown storage is `None`, distinct from an empty, cleanup-free residual.
+pub(crate) fn selected_cleanup_leaves(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    disposition: &ContextualCleanupDisposition,
+) -> Option<Vec<CleanupLeaf>> {
+    let dispositions = &facts.contextual_cleanup;
+    let path = facts.flow.ownership.segments.span(disposition.path)?;
+    let removed = dispositions
+        .exclusions
+        .span(disposition.exclusions)?
+        .iter()
+        .map(|place| dispositions.segments.span(place.segments))
+        .collect::<Option<Vec<_>>>()?;
+    if removed.iter().any(|removed| path.starts_with(removed)) {
+        return Some(Vec::new());
+    }
+    let remaining = removed
+        .iter()
+        .filter_map(|removed| removed.strip_prefix(path))
+        .collect::<Vec<_>>();
+    let statement = event_statement_index(program, disposition.state, disposition.source);
+    let reference =
+        event_type_reference(program, disposition.state, statement, disposition.root, &[])?;
+    let (reference, substitutions) = select_type(program, reference, &[], path)?;
+    let mut leaves = Vec::new();
+    visit(
+        program,
+        reference,
+        &substitutions,
+        &remaining,
+        &mut Vec::new(),
+        &mut path.to_vec(),
+        &mut leaves,
+    )?;
+    Some(leaves)
+}
 
 pub(crate) fn derive_cleanup_effect_dependencies(
     program: &TypedTrees,
@@ -67,51 +121,20 @@ pub(crate) fn derive_cleanup_effect_dependencies(
         {
             continue;
         }
-        let path = facts
-            .flow
-            .ownership
-            .segments
-            .span_or_empty(disposition.path);
-        let removed = dispositions
-            .exclusions
-            .span_or_empty(disposition.exclusions)
-            .iter()
-            .map(|place| dispositions.segments.span_or_empty(place.segments))
-            .collect::<Vec<_>>();
-        if removed.iter().any(|removed| path.starts_with(removed)) {
-            continue;
-        }
-        let remaining = removed
-            .iter()
-            .filter_map(|removed| removed.strip_prefix(path))
-            .collect::<Vec<_>>();
-        let statement = event_statement_index(program, disposition.state, disposition.source);
-        let Some(reference) =
-            event_type_reference(program, disposition.state, statement, disposition.root, &[])
-        else {
-            return Err(vec![Diagnostic::error(
-                "selected cleanup has no exact source storage type",
-            )]);
-        };
-        let mut targets = Vec::new();
-        let selected = select_type(program, reference, &[], path);
-        if selected.is_none_or(|(reference, substitutions)| {
-            visit(
-                program,
-                reference,
-                &substitutions,
-                &remaining,
-                &mut Vec::new(),
-                &mut targets,
-            )
-            .is_none()
-        }) {
-            return Err(vec![Diagnostic::error(format!(
+        let invalid = || {
+            vec![Diagnostic::error(format!(
                 "cleanup effect dependency in `{}` has no exact structural residual disposition",
                 program.symbols.name(disposition.machine),
-            ))]);
-        }
-        for target in targets {
+            ))]
+        };
+        let leaves = selected_cleanup_leaves(program, facts, disposition).ok_or_else(invalid)?;
+        for leaf in leaves {
+            let CleanupLeaf::Nominal {
+                machine: target, ..
+            } = leaf
+            else {
+                return Err(invalid());
+            };
             let Some(machine) = program.machine_by_symbol(target) else {
                 continue;
             };
@@ -138,7 +161,8 @@ fn visit(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     removed: &[&[PlaceSegment]],
     active: &mut Vec<TypeReferenceHandle>,
-    targets: &mut Vec<SymbolHandle>,
+    path: &mut Vec<PlaceSegment>,
+    leaves: &mut Vec<CleanupLeaf>,
 ) -> Option<()> {
     if removed.iter().any(|path| path.is_empty()) {
         return Some(());
@@ -184,12 +208,19 @@ fn visit(
                 substitutions,
                 removed,
                 active,
-                targets,
+                path,
+                leaves,
             )
         }
-        TypeReferenceNode::Named { symbol, .. } => {
-            visit_owner(program, *symbol, substitutions, removed, active, targets)
-        }
+        TypeReferenceNode::Named { symbol, .. } => visit_owner(
+            program,
+            *symbol,
+            substitutions,
+            removed,
+            active,
+            path,
+            leaves,
+        ),
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
@@ -213,7 +244,15 @@ fn visit(
                     .zip(arguments)
                     .map(|(parameter, argument)| (parameter.symbol, *argument)),
             );
-            visit_owner(program, *base_symbol, &nested, removed, active, targets)
+            visit_owner(
+                program,
+                *base_symbol,
+                &nested,
+                removed,
+                active,
+                path,
+                leaves,
+            )
         }
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
@@ -232,7 +271,8 @@ fn visit_owner(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     removed: &[&[PlaceSegment]],
     active: &mut Vec<TypeReferenceHandle>,
-    targets: &mut Vec<SymbolHandle>,
+    path: &mut Vec<PlaceSegment>,
+    leaves: &mut Vec<CleanupLeaf>,
 ) -> Option<()> {
     let symbol = program
         .machine_by_symbol(symbol)
@@ -242,11 +282,17 @@ fn visit_owner(
         .iter()
         .find(|data| data.symbol == symbol)
     else {
-        // Only authenticated primitive leaves have no hidden nominal storage.
-        // An unsubstituted type parameter or dynamic owner cannot publish a
-        // pure cleanup effect merely because its concrete data is unavailable.
-        return (program.symbols.get(symbol).kind == symbols::SymbolKind::BuiltinType)
-            .then_some(());
+        return match program.symbols.get(symbol).kind {
+            symbols::SymbolKind::BuiltinType => Some(()),
+            symbols::SymbolKind::TypeParameter if removed.is_empty() => {
+                leaves.push(CleanupLeaf::Symbolic {
+                    parameter: symbol,
+                    path: path.clone(),
+                });
+                Some(())
+            }
+            _ => None,
+        };
     };
     if let Some(target) = crate::checks::nominal_drop_machine_symbol(program, symbol) {
         // A nominal hook requires the whole value. Partial transfer across
@@ -254,9 +300,10 @@ fn visit_owner(
         if !removed.is_empty() {
             return None;
         }
-        if !targets.contains(&target) {
-            targets.push(target);
-        }
+        leaves.push(CleanupLeaf::Nominal {
+            machine: target,
+            path: path.clone(),
+        });
     }
     let mut matched = 0;
     for member in program.data_members(data) {
@@ -269,14 +316,19 @@ fn visit_owner(
                     },
                 );
                 matched += child.len();
+                path.push(PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
                 visit(
                     program,
                     field.type_reference,
                     substitutions,
                     &child,
                     active,
-                    targets,
+                    path,
+                    leaves,
                 )?;
+                path.pop();
             }
             DataMember::Variant(variant) => {
                 let case = selected(
@@ -289,6 +341,9 @@ fn visit_owner(
                 if case.iter().any(|path| path.is_empty()) {
                     continue;
                 }
+                path.push(PlaceSegment::Case {
+                    variant: variant.symbol,
+                });
                 let mut case_matched = 0;
                 for field in program
                     .data_payload_fields(variant)
@@ -302,15 +357,21 @@ fn visit_owner(
                         },
                     );
                     case_matched += child.len();
+                    path.push(PlaceSegment::Field {
+                        symbol: field.symbol,
+                    });
                     visit(
                         program,
                         field.type_reference,
                         substitutions,
                         &child,
                         active,
-                        targets,
+                        path,
+                        leaves,
                     )?;
+                    path.pop();
                 }
+                path.pop();
                 if case_matched != case.len() {
                     return None;
                 }
@@ -335,7 +396,8 @@ fn visit_array(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     removed: &[&[PlaceSegment]],
     active: &mut Vec<TypeReferenceHandle>,
-    targets: &mut Vec<SymbolHandle>,
+    path: &mut Vec<PlaceSegment>,
+    leaves: &mut Vec<CleanupLeaf>,
 ) -> Option<()> {
     // Only endpoints named by custody participate. This is an effect set, so
     // all untouched elements share one traversal, even for enormous arrays.
@@ -367,7 +429,24 @@ fn visit_array(
             continue;
         }
         let children = selected(removed, PlaceSegment::FixedIndex { index });
-        visit(program, element, substitutions, &children, active, targets)?;
+        path.push(if pair[1] == index + 1 {
+            PlaceSegment::FixedIndex { index }
+        } else {
+            PlaceSegment::FixedRange {
+                start: index,
+                end: pair[1],
+            }
+        });
+        visit(
+            program,
+            element,
+            substitutions,
+            &children,
+            active,
+            path,
+            leaves,
+        )?;
+        path.pop();
     }
     Some(())
 }

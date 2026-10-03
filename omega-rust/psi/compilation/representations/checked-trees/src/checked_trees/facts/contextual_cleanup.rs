@@ -18,6 +18,9 @@ pub struct ContextualCleanupFacts {
     pub applications: Arena<ContextualCleanupApplication>,
     pub exclusions: Arena<Place>,
     pub segments: Arena<PlaceSegment>,
+    /// Bound generic obligations are entry inputs to source flow. Their
+    /// storage survives refreshing the selected death occurrences.
+    pub entry_requirements: ContextualCleanupEntryRequirements,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -42,4 +45,26 @@ pub struct ContextualCleanupDisposition {
 pub struct ContextualCleanupApplication {
     pub template: Handle<ContextualCleanupDisposition>,
     pub instance: Handle<ContextualCleanupDisposition>,
+}
+
+/// Instantiated cleanup prerequisites, distinct from authored `requires`.
+/// The shared structural predicate path also names their exact invocation
+/// namespace during Terminal publication.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContextualCleanupEntryRequirements {
+    pub rows: Arena<ContextualCleanupEntryRequirement>,
+    pub paths: Arena<crate::CheckedStructuralPredicatePathSegment>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContextualCleanupEntryRequirement {
+    pub machine: SymbolHandle,
+    pub parameter_position: u32,
+    pub path: HandleSpan<crate::CheckedStructuralPredicatePathSegment>,
+    pub expected: bool,
+    /// Authored hook clause supplying this proposition and diagnostic origin.
+    pub hook_machine: SymbolHandle,
+    pub hook_clause: typed_trees::expression::ExpressionHandle,
+    /// Generic source body whose symbolic death first introduced the row.
+    pub template_machine: SymbolHandle,
 }

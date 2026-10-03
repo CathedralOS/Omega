@@ -98,6 +98,20 @@ fn selected_cleanup_dependency_specializes_generic_consumers_independently() {
     };
     let template_state = &checked.machine_states(checked.machine_by_symbol(template).unwrap())[0];
     let template_parameter = &checked.state_parameters(template_state)[0];
+    let symbolic = dispositions
+        .iter()
+        .find(|(_, row)| row.machine == template)
+        .unwrap()
+        .1;
+    assert_eq!(
+        crate::flow::selected_cleanup_leaves(&checked.typed, &checked.facts, symbolic),
+        Some(vec![crate::flow::CleanupLeaf::Symbolic {
+            parameter: checked
+                .machine_type_parameters(checked.machine_by_symbol(template).unwrap())[0]
+                .symbol,
+            path: Vec::new(),
+        }]),
+    );
     assert_eq!(
         selected_roots(template),
         [facts::PlaceRoot::Symbol(template_parameter.symbol)],
@@ -120,6 +134,9 @@ fn selected_cleanup_dependency_specializes_generic_consumers_independently() {
         let original = dispositions.get(application.template);
         let concrete = dispositions.get(application.instance);
         assert_eq!(original.machine, template);
+        assert!(crate::flow::selected_cleanup_leaves(&checked.typed, &checked.facts, concrete)
+            .expect("closed cleanup leaves")
+            .iter().all(|leaf| matches!(leaf, crate::flow::CleanupLeaf::Nominal { path, .. } if path.is_empty())));
         assert!(instances.contains(&concrete.machine));
         assert_eq!(
             checked.symbols.get(concrete.state).generated_from,
@@ -368,11 +385,37 @@ fn selected_cleanup_dependency_tracks_remaining_array_elements() {
         machine partial(values: [Token; 2]) { take(values[0]); }
         machine complete(values: [Token; 2]) { take(values[0]); take(values[1]); }
         machine empty(values: [Token; 0]) {}
+        machine interval(values: [Token; 4]) { take(values[0]); }
     "#,
     );
     assert_eq!(cleanup_targets(&checked, "partial"), ["Token::drop"]);
     assert!(cleanup_targets(&checked, "complete").is_empty());
     assert!(cleanup_targets(&checked, "empty").is_empty());
+    for (name, path) in [
+        ("partial", facts::PlaceSegment::FixedIndex { index: 1 }),
+        (
+            "interval",
+            facts::PlaceSegment::FixedRange { start: 1, end: 4 },
+        ),
+    ] {
+        let machine = machine_named(&checked, name);
+        let disposition = checked
+            .facts
+            .contextual_cleanup
+            .dispositions
+            .iter()
+            .find(|(_, row)| row.machine == machine)
+            .unwrap()
+            .1;
+        assert_eq!(
+            crate::flow::selected_cleanup_leaves(&checked.typed, &checked.facts, disposition),
+            Some(vec![crate::flow::CleanupLeaf::Nominal {
+                machine: machine_named(&checked, "Token::drop"),
+                path: vec![path],
+            }]),
+            "the selected interval denotes every surviving element without eager expansion",
+        );
+    }
 }
 
 #[test]

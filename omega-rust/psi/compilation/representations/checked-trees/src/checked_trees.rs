@@ -50,7 +50,7 @@ pub use borrow::{
     ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::{
-    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupFacts,
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
 };
 
 pub use facts::{

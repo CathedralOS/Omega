@@ -80,7 +80,9 @@ mod reference_spans;
 // Not a flow-build step: derived from the complete check facts.
 mod carried_semantic_dependencies;
 mod cleanup_effect_dependencies;
-pub(crate) use cleanup_effect_dependencies::derive_cleanup_effect_dependencies;
+pub(crate) use cleanup_effect_dependencies::{
+    CleanupLeaf, derive_cleanup_effect_dependencies, selected_cleanup_leaves,
+};
 
 pub(crate) use reference_places::{
     call_result_sources, local_reference_candidate_storages_at_call,

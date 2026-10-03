@@ -40,6 +40,14 @@ pub(super) fn check_call_requires(
             call_flow.receiver_symbol,
         )
         .collect();
+    super::contextual_cleanup::check(
+        program,
+        facts,
+        state_flow,
+        call_flow,
+        &entry_contexts,
+        diagnostics,
+    );
     super::nominal_inputs::check(
         program,
         facts,

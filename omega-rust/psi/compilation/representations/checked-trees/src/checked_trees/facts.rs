@@ -61,7 +61,7 @@ pub use content::{
     ContentPartitionResultRewrite, ContentProjectionFacts, RetainedBorrowCustodyFact,
 };
 pub use contextual_cleanup::{
-    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupFacts,
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
 };
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,

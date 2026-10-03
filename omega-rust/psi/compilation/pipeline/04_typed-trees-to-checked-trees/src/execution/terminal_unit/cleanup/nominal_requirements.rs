@@ -85,6 +85,25 @@ pub(crate) fn nominal_scalar_caller_requirements(
             expression,
         )?);
     }
+    // Bound generic prerequisites share the caller's invocation namespace but
+    // remain separate from authored clauses. This plan represents only a direct
+    // Boolean field: a deeper structural path requires its wider owning plan.
+    let contextual = &facts.contextual_cleanup.entry_requirements;
+    for (_, requirement) in contextual.rows.iter() {
+        if requirement.machine != caller_machine.symbol {
+            continue;
+        }
+        let [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] =
+            contextual.paths.span_or_empty(requirement.path)
+        else {
+            return None;
+        };
+        structural_requirements.push(CheckedUnitNominalAffineCallerRequirementPlan {
+            source_parameter_index: requirement.parameter_position,
+            field_identity: field_identity.clone(),
+            expected: requirement.expected,
+        });
+    }
     structural_requirements.sort_by(|left, right| {
         left.source_parameter_index
             .cmp(&right.source_parameter_index)
