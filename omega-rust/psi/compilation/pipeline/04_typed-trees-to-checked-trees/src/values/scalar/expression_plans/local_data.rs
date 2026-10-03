@@ -104,7 +104,25 @@ pub(super) fn plan(
             binding_symbols,
         );
     }
-    let Some(primitive_type) = program.primitive_type_reference(local.type_reference) else {
+    // An element-spelling `let` (`let v: u8 = arr[a..b]`) binds the
+    // same view an explicit `&[u8]` spelling does: when the
+    // initializer's own result type is a borrowed slice view the local
+    // plans like a view local — its endpoints mint under the subslice
+    // roles and no scalar binding enters the roster.
+    let Some(primitive_type) = program
+        .primitive_type_reference(local.type_reference)
+        .filter(|_| {
+            local.is_mutable
+                || validation::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    local.initial_value,
+                )
+                .and_then(|result| validation::slice_view_shell(program, result, &[]))
+                .is_none()
+        })
+    else {
         // An immutable view local narrowed from another
         // view keeps its range endpoints under the same
         // subslice roles a call or transition argument
