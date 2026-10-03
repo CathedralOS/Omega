@@ -1,0 +1,10 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_field_precondition_capture_exit");
+    Build::depend(builder, Source::Path {
+        location: "../../../../../source/library/std"
+    });
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_arm64::ProgramEntry, main);
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
+}

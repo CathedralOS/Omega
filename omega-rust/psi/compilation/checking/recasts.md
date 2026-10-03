@@ -101,8 +101,14 @@ each dimension before flattening the coordinate, then independently proves
 each emitted byte's backing bound. A loan's outer runtime offset is captured
 at its declaration boundary in a private primitive home; later statements read
 that home rather than reloading the authored offset field. Current inner array
-selectors remain ordinary observation or assignment operands. Exact source
-replay, loan access and scalar carrier checks remain independent of geometry.
+selectors remain ordinary observation or assignment operands. Geometry uses
+bounds at the exact selector occurrence: entry requirements and incoming facts
+survive only the effects before formation. Earlier writes and calls invalidate
+those facts; later effects do not retarget the captured coordinate. The shared
+arrival analysis supplies these bounds and call postconditions; recast checking
+does not maintain a separate incoming-edge guard walker. Standing field bounds
+still require store-enforced declarations. Exact source replay, loan access and
+scalar carrier checks remain independent of geometry.
 
 Native and interpreter projection/state forwarding preserve backing identity.
 The interpreter retains the same reference-recast descriptor for shared and

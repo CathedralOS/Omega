@@ -1,0 +1,26 @@
+use omega_language_std::console;
+data Desc { kind: u32; pages: u64; }
+data Cursor { offset: u32; }
+machine capture(buffer: &[u8; 32], cursor: &mut Cursor) -> i32
+requires cursor.offset <= 16 {
+    let descriptor: &Desc = &buffer[cursor.offset] as &Desc;
+    cursor.offset = 16;
+    transition descriptor.kind == 3 && descriptor.pages == 10 {
+        true -> 70
+        _ -> 74
+    }
+}
+machine main() reaches Console {
+    let mut buffer: [u8; 32];
+    buffer[0] = 3;
+    buffer[8] = 10;
+    buffer[16] = 4;
+    buffer[24] = 20;
+    let mut cursor: Cursor;
+    cursor.offset = 0;
+    let result: i32 = capture(&buffer, &mut cursor);
+    transition cursor.offset == 16 && result == 70 {
+        true -> Console::exit_process(70)
+        _ -> Console::exit_process(74)
+    }
+}

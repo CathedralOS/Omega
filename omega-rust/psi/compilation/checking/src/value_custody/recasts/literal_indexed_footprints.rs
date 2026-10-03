@@ -58,6 +58,7 @@ pub fn validate_literal_indexed_recast_footprint(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     expression: ExpressionHandle,
     viewed_type: TypeReferenceHandle,
     access: language_core::ReferenceAccess,
@@ -79,6 +80,7 @@ pub fn validate_literal_indexed_recast_footprint(
         program,
         machine,
         state,
+        statement_index,
         cast,
         initializer,
         viewed_type,
@@ -122,7 +124,7 @@ pub fn validate_literal_indexed_recast_footprint(
     let InteriorByteRegion::Bounded {
         offset,
         region_length,
-    } = interior_byte_region_source(program, machine, state, source)
+    } = interior_byte_region_source(program, machine, state, statement_index, source)
     else {
         return None;
     };
@@ -151,6 +153,7 @@ pub fn validate_runtime_indexed_recast_source(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     expression: ExpressionHandle,
     viewed_type: TypeReferenceHandle,
     access: language_core::ReferenceAccess,
@@ -172,6 +175,7 @@ pub fn validate_runtime_indexed_recast_source(
         program,
         machine,
         state,
+        statement_index,
         cast,
         initializer,
         viewed_type,
@@ -223,7 +227,7 @@ pub fn validate_runtime_indexed_recast_source(
     let InteriorByteRegion::Bounded {
         offset,
         region_length,
-    } = interior_byte_region_source(program, machine, state, source)
+    } = interior_byte_region_source(program, machine, state, statement_index, source)
     else {
         return None;
     };
@@ -337,6 +341,7 @@ mod tests {
             program,
             machine,
             state,
+            0,
             local.initial_value,
             *referee,
             *access,
@@ -360,6 +365,7 @@ mod tests {
             program,
             machine,
             state,
+            0,
             local.initial_value,
             *referee,
             *access,

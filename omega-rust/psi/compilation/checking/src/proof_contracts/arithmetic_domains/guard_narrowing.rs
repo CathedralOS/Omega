@@ -23,7 +23,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 use crate::proof_contracts::bound_expression_meaning as meaning;
 mod case_facts;
 mod parameter_bounds;
-pub use arrivals::arrival_integer_expression_bounds;
+pub use arrivals::{arrival_integer_expression_bounds, occurrence_integer_expression_bounds};
 
 #[cfg(test)]
 mod tests;
@@ -1353,6 +1353,12 @@ fn seed_ensures_conjunct(
     else {
         return;
     };
+    // A value formal denotes the argument snapshot, not the caller's live
+    // storage after other arguments or the callee may have changed it. Only
+    // a reference formal can publish a postcondition about that storage.
+    if crate::reference_shell(program, parameters[position].type_reference).is_none() {
+        return;
+    }
     let Some(argument) = arguments.get(position).copied() else {
         return;
     };
