@@ -862,6 +862,7 @@ pub enum StructuralEffectObservation {
     ElementViewEstablished {
         source: terminal_psi::StructuralArgument,
         destination: PlaceId,
+        region: terminal_psi::ElementViewRegion,
     },
     ElementViewLengthRead {
         source: PlaceId,
@@ -1555,6 +1556,7 @@ pub fn structural_effect_leaf_observation_in(
             OperationKind::EstablishElementView {
                 destination,
                 source,
+                region,
                 ..
             },
         )
@@ -1563,6 +1565,7 @@ pub fn structural_effect_leaf_observation_in(
             OperationKind::EstablishMutableElementView {
                 destination,
                 source,
+                region,
                 ..
             },
         ) => {
@@ -1572,6 +1575,7 @@ pub fn structural_effect_leaf_observation_in(
             StructuralEffectObservation::ElementViewEstablished {
                 source: source.clone(),
                 destination: *destination,
+                region: *region,
             }
         }
         (

@@ -832,6 +832,7 @@ fn array_arrival_source(access: StructuralAccess) -> abstract_operations::Abstra
             residual_affine_discards: Vec::new(),
         },
         O::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             psi_operation: id(2),
             result: result(12, 4),
             destination: id(12),
@@ -1566,6 +1567,204 @@ fn returned_subslice_materializes_descriptor_home_and_replays_its_producer() {
         assert!(
             crate::validate_legalized_operations(&targeted, &source, &unit, changed,).is_err(),
             "bytes={bytes}: replay must retain the exact subslice"
+        );
+    }
+}
+
+#[test]
+fn representation_byte_region_replays_endpoints_layout_and_proof_custody() {
+    use super::owned_block_store::id;
+    use legalized_operations::LegalizedScalarInstructionKind as K;
+    use target_operations::{TargetElementView, TargetElementViewRegion, TargetUnitOperation};
+    use terminal_psi::ElementViewRegion;
+
+    let mut source = array_arrival_source(StructuralAccess::SharedBorrow);
+    let mut declarations = source.structural_types.iter().cloned().collect::<Vec<_>>();
+    declarations[0].shape = StructuralTypeShape::PrimitiveScalar(integer(IntegerSign::Unsigned, 8));
+    declarations[1].shape = StructuralTypeShape::FixedArray {
+        element: id(1),
+        length: 8,
+    };
+    declarations[3].shape = StructuralTypeShape::ElementView { element: id(5) };
+    declarations.push(StructuralTypeDeclaration {
+        id: id(5),
+        identity: "Word".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(integer(IntegerSign::Unsigned, 16)),
+    });
+    source.structural_types = declarations.into();
+    let O::EstablishElementView {
+        element, region, ..
+    } = &mut source.functions[0].operations[2]
+    else {
+        panic!("array establishment");
+    };
+    *element = id(5);
+    *region = ElementViewRegion::RepresentationBytes {
+        start: id(3),
+        end: id(4),
+        obligation: id(77),
+    };
+    // An odd byte origin is valid: only the six-byte suffix must tile u16.
+    // Descriptor construction must not assert alignment of its backing.
+    source.functions[0].operations.splice(
+        2..2,
+        [(4, 3, 1), (5, 4, 7)].map(|(operation, value, literal)| O::IntegerConstant {
+            psi_operation: id(operation),
+            result: id(value),
+            scalar_type: integer(IntegerSign::Unsigned, 64),
+            value: semantic_vocabulary::IntegerValue::Unsigned(literal),
+        }),
+    );
+    let seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let goal = terminal_semantics::representation_region_goal(id(3), id(4), 8, 2).unwrap();
+    let fact = optimization_unit::AcceptedObligationFact::new(
+        seed.psi,
+        [4; 32],
+        source.functions[0].machine,
+        id(2),
+        id(77),
+        terminal_codec::canonical_proposition_order_key(&goal).unwrap(),
+    );
+    let unit =
+        optimization_unit::attach_accepted_obligation_facts(seed.clone(), vec![fact.clone()])
+            .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let mut changed_source = source.clone();
+    let O::EstablishElementView {
+        region: ElementViewRegion::RepresentationBytes { start, end, .. },
+        ..
+    } = &mut changed_source.functions[0].operations[4]
+    else {
+        panic!("region establishment");
+    };
+    std::mem::swap(start, end);
+    let changed_seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &changed_source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let changed_unit =
+        optimization_unit::attach_accepted_obligation_facts(changed_seed, vec![fact]).unwrap();
+    assert!(matches!(optimization_unit_semantics::validate_psi_optimization_unit(&changed_unit),
+        Err(optimization_unit_semantics::OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)));
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        assert!(crate::legalize_target_operations(&targeted, &source, &seed).is_err());
+        let legalized = crate::legalize_target_operations(&targeted, &source, &unit).unwrap();
+        crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone())
+            .unwrap();
+        for mutation in 0..4 {
+            let mut changed = targeted.clone();
+            let view = changed.functions[0]
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::EstablishElementView { view, .. } => Some(view),
+                    _ => None,
+                })
+                .unwrap();
+            let TargetElementView::Established {
+                region,
+                element_stride,
+                extent,
+                ..
+            } = view
+            else {
+                panic!("established region");
+            };
+            match mutation {
+                0 => *region = TargetElementViewRegion::WholeCollection,
+                1 => {
+                    let TargetElementViewRegion::RepresentationBytes { start, end, .. } = region
+                    else {
+                        panic!("byte region");
+                    };
+                    std::mem::swap(start, end);
+                }
+                2 => *element_stride += 1,
+                _ => *extent += 1,
+            }
+            assert!(
+                crate::legalize_target_operations(&changed, &source, &unit).is_err(),
+                "{native:?} mutation {mutation}"
+            );
+            assert!(
+                crate::validate_legalized_operations(
+                    &changed,
+                    &source,
+                    &unit,
+                    legalized.plan().clone()
+                )
+                .is_err()
+            );
+        }
+        let mut changed = legalized.plan().clone();
+        let K::EstablishElementView { accepted_fact, .. } = &mut changed.scalar_functions[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|row| matches!(row.kind, K::EstablishElementView { .. }))
+            .unwrap()
+            .kind
+        else {
+            panic!("legalized region");
+        };
+        assert!(accepted_fact.take().is_some());
+        assert!(crate::validate_legalized_operations(&targeted, &source, &unit, changed).is_err());
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        // Instruction replay binds pointer operands, not just producer/result IDs.
+        let mut changed = selected.plan().clone();
+        let address = changed.functions[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|row| {
+                matches!(
+                    row.kind,
+                    selected_instructions::SelectedInstructionKind::ByteViewAddress
+                )
+            })
+            .unwrap();
+        address.operands.swap(0, 1);
+        assert!(
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                changed
+            )
+            .is_err()
         );
     }
 }

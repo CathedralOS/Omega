@@ -771,6 +771,7 @@ mod tests {
         assert_eq!(store, expected);
 
         let mut view = OperationKind::EstablishMutableElementView {
+            region: crate::ElementViewRegion::WholeCollection,
             destination: place(1),
             source: argument(2),
             element: StructuralTypeId::new(1).unwrap(),

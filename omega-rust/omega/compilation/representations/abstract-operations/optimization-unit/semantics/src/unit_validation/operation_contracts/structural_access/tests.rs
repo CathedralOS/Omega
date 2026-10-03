@@ -1118,6 +1118,7 @@ fn subslice_access_authenticates_establishment_parent_permission() {
             .structural_result()
             .unwrap();
         function.blocks[0].nodes[0].operation = Operation::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             psi_operation: producer,
             result: result.clone(),
             destination: result.place,

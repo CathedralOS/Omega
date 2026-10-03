@@ -1039,8 +1039,8 @@ fn returning_view_discard(
         .is_valid(value)
         .then(|| &checked.facts.values.structural_values.nodes.get(value).kind)
         .and_then(|kind| match kind {
-            checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
-            | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => {
+            checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+            | checked_trees::CheckedStructuralValueKind::MutableSliceView { source, .. } => {
                 Some(source)
             }
             _ => None,

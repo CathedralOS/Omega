@@ -316,3 +316,5 @@ fn statement_expression_roots(
             .map(|(_, root)| root),
     );
 }
+
+pub use raw_byte_region::{SliceRecastByteRegion, slice_recast_byte_region};

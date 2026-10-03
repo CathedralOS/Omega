@@ -668,6 +668,7 @@ fn bounded_byte_collection() -> (TerminalExecution, Operation) {
     let array_type = StructuralTypeId::new(4).unwrap();
     let byte_type = StructuralTypeId::new(5).unwrap();
     operation.kind = OperationKind::EstablishMutableElementView {
+        region: terminal_psi::ElementViewRegion::WholeCollection,
         destination: PlaceId::new(2).unwrap(),
         source: terminal_psi::StructuralArgument {
             place: source,
@@ -939,4 +940,309 @@ fn bounded_byte_collection_rejects_capacity_access_and_home_drift() {
             "{mutation}"
         );
     }
+}
+
+fn representation_byte_collection() -> (
+    TerminalExecution,
+    Operation,
+    crate::values::StructuralRuntimePlace,
+) {
+    use crate::byte_sequences::ByteSequenceView;
+    use terminal_psi::StructuralTypeDeclaration;
+    let (mut execution, mut operation) = runtime_subslice();
+    let source = PlaceId::new(1).unwrap();
+    let byte_type = StructuralTypeId::new(1).unwrap();
+    let view_type = StructuralTypeId::new(2).unwrap();
+    let array_type = StructuralTypeId::new(3).unwrap();
+    let element_type = StructuralTypeId::new(4).unwrap();
+    operation.kind = OperationKind::EstablishMutableElementView {
+        destination: PlaceId::new(2).unwrap(),
+        source: terminal_psi::StructuralArgument {
+            place: source,
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        },
+        element: element_type,
+        region: terminal_psi::ElementViewRegion::RepresentationBytes {
+            start: ValueId::new(1).unwrap(),
+            end: ValueId::new(2).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        },
+    };
+    let program = Arc::get_mut(&mut execution.program).unwrap();
+    for (id, shape) in [
+        (
+            byte_type,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            )),
+        ),
+        (
+            view_type,
+            StructuralTypeShape::ElementView {
+                element: element_type,
+            },
+        ),
+        (
+            array_type,
+            StructuralTypeShape::FixedArray {
+                element: byte_type,
+                length: 8,
+            },
+        ),
+        (
+            element_type,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+            )),
+        ),
+    ] {
+        program.structural_types.insert(
+            id,
+            StructuralTypeDeclaration {
+                id,
+                identity: format!("region-type-{}", id.get()).into(),
+                shape,
+            },
+        );
+    }
+    let machine = program
+        .machines
+        .get_mut(&execution.current_machine)
+        .unwrap();
+    machine.structural_parameters[0].structural_type = array_type;
+    machine
+        .blocks
+        .get_mut(&execution.current)
+        .unwrap()
+        .operations[0] = operation.clone();
+    let root = execution.structural_values.get_mut(&source).unwrap();
+    root.structural_type = array_type;
+    let backing = crate::values::StructuralRuntimePlace::from(&*root);
+    execution.structural_byte_arrays.insert(
+        backing.clone(),
+        ByteSequenceView::new(vec![0, 1, 2, 3, 4, 5, 6, 7]),
+    );
+    execution.element_view_values.clear();
+    for (number, value) in [(1, 2), (2, 6), (3, 2), (4, 0), (5, 1)] {
+        execution.values.insert(
+            ValueId::new(number).unwrap(),
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                value: IntegerValue::Unsigned(value),
+            },
+        );
+    }
+    (execution, operation, backing)
+}
+
+fn representation_write(destination: u64, index: u64, value: u64) -> Operation {
+    Operation {
+        id: semantic_vocabulary::OperationId::new(20).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::ElementViewWrite {
+            destination: PlaceId::new(destination).unwrap(),
+            index: ValueId::new(index).unwrap(),
+            value: ValueId::new(value).unwrap(),
+            length: ValueId::new(3).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(20).unwrap(),
+        },
+    }
+}
+
+#[test]
+fn representation_element_view_writes_live_bytes_through_transferred_descriptor() {
+    let (mut execution, operation, backing) = representation_byte_collection();
+    execution
+        .execute_establish_element_view(&operation)
+        .unwrap();
+    let destination = PlaceId::new(2).unwrap();
+    let view = execution.element_view_values[&destination].clone();
+    assert_eq!(view.len(), 2);
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
+    assert_eq!(
+        execution
+            .read_representation_element(&view, 0, &[], scalar)
+            .unwrap(),
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+            value: IntegerValue::Unsigned(0x0302)
+        }
+    );
+    // Ordinary argument binding changes only the descriptor place and access.
+    let mut parameter =
+        execution.program.machines[&execution.current_machine].structural_parameters[0].clone();
+    parameter.place = PlaceId::new(3).unwrap();
+    parameter.structural_type = StructuralTypeId::new(2).unwrap();
+    let argument = terminal_psi::StructuralArgument {
+        place: destination,
+        path: Vec::new(),
+        access: StructuralAccess::MutableBorrow,
+    };
+    let bound = execution
+        .bind_element_view_arguments(
+            &[parameter],
+            &[argument],
+            &[execution.structural_values[&destination].clone()],
+        )
+        .unwrap();
+    execution.element_view_values.extend(bound);
+    for (number, value) in [(6, 0x1234), (7, 0xabcd)] {
+        execution.values.insert(
+            ValueId::new(number).unwrap(),
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+                value: IntegerValue::Unsigned(value),
+            },
+        );
+    }
+    execution
+        .execute_element_view_write(&representation_write(3, 4, 6))
+        .unwrap();
+    execution
+        .execute_element_view_write(&representation_write(3, 5, 7))
+        .unwrap();
+    let bytes = &execution.structural_byte_arrays[&backing];
+    assert_eq!(
+        (0..8)
+            .map(|index| *bytes.get(index).unwrap())
+            .collect::<Vec<_>>(),
+        [0, 1, 0x34, 0x12, 0xcd, 0xab, 6, 7]
+    );
+    // Original and nested descriptors observe current storage, never a snapshot.
+    let nested = view.subslice(1, 2, StructuralAccess::SharedBorrow).unwrap();
+    assert_eq!(
+        execution
+            .read_representation_element(&nested, 0, &[], scalar)
+            .unwrap(),
+        execution.values[&ValueId::new(7).unwrap()]
+    );
+    assert!(
+        execution
+            .write_representation_element(&nested, 0, execution.values[&ValueId::new(6).unwrap()])
+            .is_err()
+    );
+    assert!(
+        nested
+            .subslice(0, 1, StructuralAccess::MutableBorrow)
+            .is_none()
+    );
+}
+
+#[test]
+fn representation_element_view_refuses_bad_bounds_tiling_layout_and_authority() {
+    for (start, end) in [(6, 2), (2, 9), (2, 5)] {
+        let (mut execution, operation, _) = representation_byte_collection();
+        for (number, value) in [(1, start), (2, end)] {
+            execution.values.insert(
+                ValueId::new(number).unwrap(),
+                TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    value: IntegerValue::Unsigned(value),
+                },
+            );
+        }
+        assert!(
+            execution
+                .execute_establish_element_view(&operation)
+                .is_err()
+        );
+        assert!(
+            !execution
+                .element_view_values
+                .contains_key(&PlaceId::new(2).unwrap())
+        );
+    }
+    let (mut execution, operation, _) = representation_byte_collection();
+    Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .structural_types
+        .get_mut(&StructuralTypeId::new(4).unwrap())
+        .unwrap()
+        .shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+    assert!(
+        execution
+            .execute_establish_element_view(&operation)
+            .is_err()
+    );
+    let (mut execution, operation, _) = representation_byte_collection();
+    execution
+        .execute_establish_element_view(&operation)
+        .unwrap();
+    let view = execution.element_view_values[&PlaceId::new(2).unwrap()].clone();
+    let scalar = TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+        value: IntegerValue::Unsigned(7),
+    };
+    assert!(
+        execution
+            .write_representation_element(&view, 2, scalar)
+            .is_err()
+    );
+    assert!(
+        execution
+            .read_representation_element(&view, 0, &[], ScalarType::Boolean)
+            .is_err()
+    );
+    let shared = view.subslice(0, 2, StructuralAccess::SharedBorrow).unwrap();
+    assert!(
+        execution
+            .write_representation_element(&shared, 0, scalar)
+            .is_err()
+    );
+}
+
+#[test]
+fn representation_element_view_reads_exact_normalized_record_leaf() {
+    let (mut execution, operation, _) = representation_byte_collection();
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
+    Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .structural_types
+        .get_mut(&StructuralTypeId::new(4).unwrap())
+        .unwrap()
+        .shape = StructuralTypeShape::Record {
+        fields: vec![terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            identity: "word".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
+        }],
+    };
+    execution
+        .execute_establish_element_view(&operation)
+        .unwrap();
+    let read = Operation {
+        id: semantic_vocabulary::OperationId::new(21).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+            id: ValueId::new(9).unwrap(),
+            scalar_type: scalar,
+            qualifications: Default::default(),
+        }),
+        kind: OperationKind::ElementViewRead {
+            source: PlaceId::new(2).unwrap(),
+            index: ValueId::new(5).unwrap(),
+            length: ValueId::new(3).unwrap(),
+            path: vec![StructuralPathSegment::Field("word".into())],
+            obligation: semantic_vocabulary::ObligationId::new(21).unwrap(),
+        },
+    };
+    execution.execute_element_view_read(&read).unwrap();
+    assert_eq!(
+        execution.values[&ValueId::new(9).unwrap()],
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+            value: IntegerValue::Unsigned(0x0504)
+        }
+    );
+    let mut wrong = read;
+    let OperationKind::ElementViewRead { path, .. } = &mut wrong.kind else {
+        unreachable!()
+    };
+    path[0] = StructuralPathSegment::Field("other".into());
+    assert!(execution.execute_element_view_read(&wrong).is_err());
 }

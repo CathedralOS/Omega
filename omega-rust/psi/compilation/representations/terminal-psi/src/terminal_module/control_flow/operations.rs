@@ -138,6 +138,18 @@ impl OperationResult {
         }
     }
 }
+/// Units and representation of an established collection view. Whole collection
+/// borrowing retains its exact element type; a byte region requires independent
+/// portable representation and extent evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ElementViewRegion {
+    WholeCollection,
+    RepresentationBytes {
+        start: ValueId,
+        end: ValueId,
+        obligation: ObligationId,
+    },
+}
 
 /// Closed operation vocabulary for the current pre-release compiler.
 ///
@@ -181,6 +193,7 @@ impl OperationResult {
 /// the declared width. Signed values interpret the reduced bits as two's
 /// complement. It is total and generates no overflow obligation; the verifier
 /// reconstructs its exact result-term axiom.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
     /// Establish a reference permission carrier for the exact captured source.
@@ -485,22 +498,26 @@ pub enum OperationKind {
     /// collection's own stored extent under a shared loan; no elements copy.
     /// `source` names the collection root and projection under shared-borrow
     /// access, and `element` is the view's declared element type, which must
-    /// equal the collection's own element type at the path end.
+    /// equal the collection's own element type for `WholeCollection`. A
+    /// `RepresentationBytes` region instead owns portable layout and tiling proof.
     EstablishElementView {
         destination: PlaceId,
         source: StructuralArgument,
         element: StructuralTypeId,
+        region: ElementViewRegion,
     },
     /// Establish one mutably borrowed element view over the contiguous
     /// elements of a structural collection place. The result carries the
     /// collection's own stored extent under a mutable loan; no elements copy.
     /// `source` names the collection root and projection under mutable-borrow
     /// access, and `element` is the view's declared element type, which must
-    /// equal the collection's own element type at the path end.
+    /// equal the collection's own element type for `WholeCollection`. A
+    /// `RepresentationBytes` region instead owns portable layout and tiling proof.
     EstablishMutableElementView {
         destination: PlaceId,
         source: StructuralArgument,
         element: StructuralTypeId,
+        region: ElementViewRegion,
     },
     /// Observe the exact element count of one whole borrowed element view.
     /// The result is unsigned 64-bit; the source place and its custody remain
@@ -1025,6 +1042,13 @@ impl OperationKind {
                 left.remap_length(map);
                 right.remap_length(map);
             }
+            Self::EstablishElementView { region, .. }
+            | Self::EstablishMutableElementView { region, .. } => {
+                if let ElementViewRegion::RepresentationBytes { start, end, .. } = region {
+                    *start = map(*start);
+                    *end = map(*end);
+                }
+            }
             Self::ByteSequenceSubslice {
                 start, end, length, ..
             }
@@ -1113,8 +1137,6 @@ impl OperationKind {
             | Self::StructuralCaseLeafCopy { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::ByteSequenceLength { .. }
-            | Self::EstablishElementView { .. }
-            | Self::EstablishMutableElementView { .. }
             | Self::ElementViewLength { .. }
             | Self::StructuralByteSequenceFieldLength { .. }
             | Self::StructuralByteViewFieldStore { .. }

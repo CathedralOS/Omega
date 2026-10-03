@@ -651,6 +651,26 @@ pub(super) fn append_operation(
         axioms.push(semantics.result_equation().clone());
         return Ok(());
     }
+    if let Some((start, end, id, extent, stride)) =
+        element_extent::representation_region(module, machine, operation)
+    {
+        let proposition =
+            terminal_semantics::representation_region_goal(start, end, extent, stride)
+                .ok_or(ModuleError::InvalidElementViewEstablishment(operation.id))?;
+        operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::Operation {
+                machine: machine.id,
+                operation: operation.id,
+            },
+            obligation: Obligation {
+                id,
+                class: ObligationClass::Derivable,
+                proposition,
+            },
+            semantic_axioms: axioms.clone(),
+            canonical_certificate: true,
+        });
+    }
     if let Some(observation) = structural_effect_leaf_observation(operation)
         .map_err(ModuleError::OperationSemanticSchema)?
     {

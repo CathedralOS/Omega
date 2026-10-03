@@ -734,6 +734,7 @@ fn place_access_summaries_resolve_aliases_external_roots_and_result_sources() {
     callee.blocks[0].nodes.insert(
         0,
         node(O::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             psi_operation: id(730, OperationId::new),
             result: terminal_psi::StructuralOperationResult {
                 place: view_place,

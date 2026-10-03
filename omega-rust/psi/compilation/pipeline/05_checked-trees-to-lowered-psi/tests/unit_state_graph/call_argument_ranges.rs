@@ -575,6 +575,7 @@ fn mutable_field_range_calls_reject_forged_authority_and_missing_cleanup() {
                             source,
                             destination,
                             element,
+                            region,
                         } = &operation.kind
                     {
                         let source = terminal_psi::StructuralArgument {
@@ -585,6 +586,7 @@ fn mutable_field_range_calls_reject_forged_authority_and_missing_cleanup() {
                             source,
                             destination: *destination,
                             element: *element,
+                            region: *region,
                         };
                         let terminal_psi::OperationResult::Structural(result) =
                             &mut operation.result

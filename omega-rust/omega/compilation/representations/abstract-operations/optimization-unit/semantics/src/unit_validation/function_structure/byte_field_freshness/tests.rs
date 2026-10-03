@@ -45,6 +45,7 @@ fn view_backed_calls_invalidate_only_potentially_overlapping_fields() {
         });
     let mut establishment = function.blocks[0].nodes[0].clone();
     establishment.operation = O::EstablishElementView {
+        region: terminal_psi::ElementViewRegion::WholeCollection,
         psi_operation: producer,
         result: terminal_psi::StructuralOperationResult {
             place: view,

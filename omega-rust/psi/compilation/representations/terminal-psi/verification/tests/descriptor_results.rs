@@ -325,6 +325,7 @@ fn descriptor_return_rejects_owned_backing_despite_identical_result_type() {
         1,
         result(),
         OperationKind::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             destination: place(2),
             source: StructuralArgument {
                 place: place(1),

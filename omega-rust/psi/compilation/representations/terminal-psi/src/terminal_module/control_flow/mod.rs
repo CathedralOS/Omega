@@ -14,8 +14,8 @@ pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering};
 pub use float_result_policy::{FloatResultPolicy, FloatSaturationRule};
 pub use machines::{Block, TerminalMachine};
 pub use operations::{
-    ByteSequenceOperand, Operation, OperationKind, OperationResult, StructuralOperationResult,
-    StructuralResultClaimBinding,
+    ByteSequenceOperand, ElementViewRegion, Operation, OperationKind, OperationResult,
+    StructuralOperationResult, StructuralResultClaimBinding,
 };
 pub use ranking::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,

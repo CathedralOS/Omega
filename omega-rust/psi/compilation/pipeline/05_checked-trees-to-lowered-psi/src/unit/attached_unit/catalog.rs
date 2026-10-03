@@ -42,7 +42,7 @@ fn collect_value_roots(
         checked_trees::CheckedStructuralValueKind::Place(source)
         | checked_trees::CheckedStructuralValueKind::Reference { source }
         | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
-        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source } => {
+        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source, .. } => {
             roots.push(source.type_identity.clone());
         }
         checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf } => {

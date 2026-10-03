@@ -2,7 +2,9 @@
 //!
 //! Scalar views retain their element snapshot; structural views retain the original
 //! storage identity and collection path. Neither descriptor copies an owned
-//! structural element. A window selects the same backing across local bindings,
+//! structural element. Representation views decode and update the original byte
+//! allocation using independently reconstructed layout. A window selects the
+//! same backing across local bindings,
 //! calls and state transfer, without relying on a frame-local source place ID.
 //! The verified loan controls interference; execution preserves its access and
 //! exact bounds when resolving a field below the descriptor.
@@ -21,6 +23,7 @@ use semantic_vocabulary::ValueId;
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
+use terminal_psi::ElementViewRegion;
 use terminal_psi::Operation;
 use terminal_psi::OperationKind;
 use terminal_psi::OperationResult;
@@ -48,6 +51,7 @@ pub(crate) struct ElementView {
 enum ElementViewBacking {
     Scalars(Arc<[TerminalScalarValue]>),
     Structural { collection: TerminalStructuralValue },
+    Representation(Arc<representation::RepresentationView>),
 }
 
 impl ElementView {
@@ -220,15 +224,17 @@ impl TerminalExecution {
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let (destination, source, element, access, multiplicity) = match &operation.kind {
+        let (destination, source, element, region, access, multiplicity) = match &operation.kind {
             OperationKind::EstablishElementView {
                 destination,
                 source,
                 element,
+                region,
             } => (
                 *destination,
                 source,
                 *element,
+                *region,
                 StructuralAccess::SharedBorrow,
                 StructuralMultiplicity::Unrestricted,
             ),
@@ -236,10 +242,12 @@ impl TerminalExecution {
                 destination,
                 source,
                 element,
+                region,
             } => (
                 *destination,
                 source,
                 *element,
+                *region,
                 StructuralAccess::MutableBorrow,
                 StructuralMultiplicity::Affine,
             ),
@@ -325,6 +333,42 @@ impl TerminalExecution {
             root_type,
             &source.path,
         )?;
+        if let ElementViewRegion::RepresentationBytes { start, end, .. } = region {
+            if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
+                return Err(invalid());
+            }
+            let start = count(&start, &self.values)?;
+            let end = count(&end, &self.values)?;
+            let view = self.representation_view(source, collection_type, element, start, end)?;
+            let extent = view.length;
+            self.element_view_values.insert(
+                result.place,
+                ElementView {
+                    backing: ElementViewBacking::Representation(Arc::new(view)),
+                    window: 0..extent,
+                    home: None,
+                    access,
+                },
+            );
+            self.structural_values.insert(
+                result.place,
+                TerminalStructuralValue {
+                    opaque_identity: result.place.get(),
+                    structural_type: result.structural_type,
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                },
+            );
+            if multiplicity == StructuralMultiplicity::Affine {
+                self.live_affine_frontier
+                    .insert(terminal_psi::StructuralAffineDiscard {
+                        place: result.place,
+                        path: Vec::new(),
+                        structural_type: result.structural_type,
+                    });
+            }
+            return Ok(OperationFlow::Advance);
+        }
         let collection = terminal_semantics::collection_backing(
             self.program.structural_types.values(),
             collection_type,
@@ -441,6 +485,19 @@ impl TerminalExecution {
         if !terminal_scalar_belongs_to_type(element) {
             return Err(invalid());
         }
+        if let Some(view) = self.element_view_values.get(destination)
+            && matches!(view.backing, ElementViewBacking::Representation(_))
+        {
+            let view = view.clone();
+            if view.access != StructuralAccess::MutableBorrow
+                || view.len() != length
+                || index >= length
+            {
+                return Err(invalid());
+            }
+            self.write_representation_element(&view, index, element)?;
+            return Ok(OperationFlow::Advance);
+        }
         let Some(view) = self.element_view_values.get_mut(destination) else {
             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                 *destination,
@@ -521,9 +578,6 @@ impl TerminalExecution {
         };
         // Scalar element reads use this operation; structural element fields
         // resolve through the common structural projection owner.
-        if !path.is_empty() {
-            return Err(invalid());
-        }
         let result = operation.result.scalar().ok_or_else(invalid)?;
         let index = count(index, &self.values)?;
         let length = count(length, &self.values)?;
@@ -536,7 +590,11 @@ impl TerminalExecution {
         // A mutable descendant may have updated the original storage while
         // this descriptor was suspended. Snapshots cannot authorize stale reads
         // after restoration; shared descendants retain read-only access to home.
-        let element = if let Some(home) = &view.home {
+        let element = if matches!(view.backing, ElementViewBacking::Representation(_)) {
+            self.read_representation_element(view, index, path, result.scalar_type)?
+        } else if !path.is_empty() {
+            return Err(invalid());
+        } else if let Some(home) = &view.home {
             let mut path = home.path.clone();
             path.push(StructuralPathSegment::FixedIndex(
                 u64::try_from(view.window.start.checked_add(index).ok_or_else(invalid)?)
@@ -687,6 +745,8 @@ impl TerminalExecution {
         Ok(())
     }
 }
+
+mod representation;
 
 #[cfg(test)]
 mod tests;

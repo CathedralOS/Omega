@@ -383,7 +383,10 @@ pub(crate) fn validate(
             // under the view's access, and `EstablishElementView` or
             // `EstablishMutableElementView` carries the runtime extent
             // descriptor.
-            CheckedStructuralValueKind::BorrowedSliceView { source: argument } => {
+            CheckedStructuralValueKind::BorrowedSliceView {
+                source: argument,
+                region,
+            } => {
                 slice_view::validate(
                     checked,
                     owner,
@@ -392,9 +395,20 @@ pub(crate) fn validate(
                     expression,
                     &argument,
                     crate::expression_preparation::bindings::LoanAccess::Shared,
+                    region,
                 )?;
+                if matches!(
+                    region,
+                    checked_trees::CheckedElementViewRegion::RepresentationBytes { .. }
+                ) {
+                    operand_roles
+                        .push(CheckedScalarExpressionRole::RepresentationViewOffset { expression });
+                }
             }
-            CheckedStructuralValueKind::MutableSliceView { source: argument } => {
+            CheckedStructuralValueKind::MutableSliceView {
+                source: argument,
+                region,
+            } => {
                 slice_view::validate(
                     checked,
                     owner,
@@ -403,7 +417,15 @@ pub(crate) fn validate(
                     expression,
                     &argument,
                     crate::expression_preparation::bindings::LoanAccess::Mutable,
+                    region,
                 )?;
+                if matches!(
+                    region,
+                    checked_trees::CheckedElementViewRegion::RepresentationBytes { .. }
+                ) {
+                    operand_roles
+                        .push(CheckedScalarExpressionRole::RepresentationViewOffset { expression });
+                }
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if matches!(
@@ -926,6 +948,7 @@ pub(crate) fn validate(
                         | CheckedScalarExpressionRole::StructuralArrayElement { .. }
                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                         | CheckedScalarExpressionRole::StructuralValueField { .. }
+                        | CheckedScalarExpressionRole::RepresentationViewOffset { .. }
                 )
         })
     {
@@ -973,6 +996,7 @@ pub(crate) fn validate(
                         CheckedScalarExpressionRole::StructuralValueSubject { .. }
                             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                             | CheckedScalarExpressionRole::StructuralValueField { .. }
+                            | CheckedScalarExpressionRole::RepresentationViewOffset { .. }
                             | CheckedScalarExpressionRole::StructuralArrayElement { .. }
                             | CheckedScalarExpressionRole::RecordField { .. }
                     )
@@ -1299,6 +1323,10 @@ fn role_belongs_to_value(
         let node = checked.expression_table.expression(expression);
         match (role, node) {
             (
+                CheckedScalarExpressionRole::RepresentationViewOffset { expression: owner },
+                ExpressionNode::Cast(_) | ExpressionNode::Borrow(_),
+            ) if owner == expression => return Ok(true),
+            (
                 CheckedScalarExpressionRole::RecordField {
                     expression: owner, ..
                 }
@@ -1521,6 +1549,31 @@ pub(crate) fn operand_source(
         visited.push(expression);
         if !checked.expression_table.expression_is_valid(expression) {
             return unsupported("structural operand has stale authored scope");
+        }
+        if role == (CheckedScalarExpressionRole::RepresentationViewOffset { expression }) {
+            let region =
+                validation::slice_recast_byte_region(&checked.typed, machine, source, expression)
+                    .ok_or(LoweringError::Unsupported(
+                    "representation offset lost its authored recast",
+                ))?;
+            let primitive = validation::expression_result_type_reference(
+                &checked.typed,
+                machine,
+                source,
+                region.start,
+            )
+            .and_then(|reference| checked.primitive_type_reference(reference))
+            .or_else(|| {
+                matches!(
+                    checked.expression_table.expression(region.start),
+                    ExpressionNode::Integer(_)
+                )
+                .then_some(PrimitiveType::U64)
+            })
+            .ok_or(LoweringError::Unsupported(
+                "representation offset lost its scalar carrier",
+            ))?;
+            return Ok((region.start, primitive));
         }
         if let CheckedScalarExpressionRole::StructuralArrayElement {
             expression: array,

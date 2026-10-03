@@ -181,6 +181,7 @@ pub enum AbstractOperation {
         destination: PlaceId,
         source: StructuralArgument,
         element: semantic_vocabulary::StructuralTypeId,
+        region: terminal_psi::ElementViewRegion,
     },
     /// Observe the element count of one verifier-approved element view.
     ElementViewLength {

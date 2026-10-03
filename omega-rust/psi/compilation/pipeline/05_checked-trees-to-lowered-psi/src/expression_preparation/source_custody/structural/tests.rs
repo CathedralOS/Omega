@@ -117,8 +117,9 @@ fn zeroed_local_array_supplies_slice_view_without_an_initializer_expression() {
             )
         })
         .expect("slice view root");
-    let CheckedStructuralValueKind::BorrowedSliceView { source: argument } =
-        &values.nodes.get(root.root).kind
+    let CheckedStructuralValueKind::BorrowedSliceView {
+        source: argument, ..
+    } = &values.nodes.get(root.root).kind
     else {
         unreachable!()
     };
@@ -132,6 +133,7 @@ fn zeroed_local_array_supplies_slice_view_without_an_initializer_expression() {
             root.expression,
             argument,
             crate::expression_preparation::bindings::LoanAccess::Shared,
+            checked_trees::CheckedElementViewRegion::WholeCollection,
         )
     };
     replay(root.statement_ordinal, argument).expect("declaration establishes zeroed backing");
@@ -173,8 +175,10 @@ fn qualified_collection_views_replay_exact_source_type_path_and_access() {
             .roots
             .iter()
             .find_map(|(_, root)| match &values.nodes.get(root.root).kind {
-                CheckedStructuralValueKind::BorrowedSliceView { source }
-                | CheckedStructuralValueKind::MutableSliceView { source } => Some((root, source)),
+                CheckedStructuralValueKind::BorrowedSliceView { source, .. }
+                | CheckedStructuralValueKind::MutableSliceView { source, .. } => {
+                    Some((root, source))
+                }
                 _ => None,
             })
             .expect("retained collection view");
@@ -193,6 +197,7 @@ fn qualified_collection_views_replay_exact_source_type_path_and_access() {
                 root.expression,
                 argument,
                 loan,
+                checked_trees::CheckedElementViewRegion::WholeCollection,
             )
         };
         replay(argument).expect("qualified storage can be lent without constructing its fields");
@@ -1070,4 +1075,103 @@ fn sibling_argument_root_partition_rejects_injected_and_duplicate_roles() {
                 .expect("a delegated field ordinal is checked by its owning constructor replay");
         }
     }
+}
+
+#[test]
+fn representation_view_region_replays_exact_offset_occurrence_and_extent() {
+    use checked_trees::{CheckedElementViewRegion, CheckedScalarExpressionRole};
+    let checked = crate::front_end::checked_program(
+        "data Storage where offset <= 3 { bytes: [u8; 8]; offset: u32; }
+         machine run(storage: &mut Storage) {
+             storage.offset = 2;
+             let view: &mut [u16] = &mut storage.bytes[storage.offset * 2] as &mut [u16];
+         }",
+    );
+    let values = &checked.facts.values.structural_values;
+    let (root, argument, region) = values
+        .roots
+        .iter()
+        .find_map(|(_, root)| match &values.nodes.get(root.root).kind {
+            CheckedStructuralValueKind::MutableSliceView {
+                source,
+                region: region @ CheckedElementViewRegion::RepresentationBytes { .. },
+            } => Some((root.clone(), source.clone(), *region)),
+            _ => None,
+        })
+        .expect("retained representation region");
+    let replay = |checked: &CheckedTrees, region| {
+        let (machine, state) = super::super::authored_state(checked, root.state).unwrap();
+        super::slice_view::validate(
+            checked,
+            machine,
+            state,
+            root.statement_ordinal,
+            root.expression,
+            &argument,
+            crate::expression_preparation::bindings::LoanAccess::Mutable,
+            region,
+        )
+    };
+    replay(&checked, region).expect("authored composite offset and collection extent replay");
+    let CheckedElementViewRegion::RepresentationBytes { start, end } = region else {
+        unreachable!()
+    };
+    assert!(
+        replay(
+            &checked,
+            CheckedElementViewRegion::RepresentationBytes {
+                start,
+                end: end - 1
+            }
+        )
+        .is_err()
+    );
+    assert!(replay(&checked, CheckedElementViewRegion::WholeCollection).is_err());
+    assert!(
+        replay(
+            &checked,
+            CheckedElementViewRegion::RepresentationBytes {
+                start: arena::Handle::invalid(),
+                end
+            }
+        )
+        .is_err()
+    );
+    let mut substituted = checked.clone();
+    substituted
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .get_mut(start)
+        .authored_root = root.expression;
+    assert!(
+        replay(&substituted, region).is_err(),
+        "offset computation cannot name the enclosing view"
+    );
+    let role = CheckedScalarExpressionRole::RepresentationViewOffset {
+        expression: root.expression,
+    };
+    assert!(
+        super::operand_source(&checked, root.state, root.statement_ordinal - 1, role).is_err(),
+        "a valid arena handle from another statement supplies no source occurrence"
+    );
+    assert!(
+        super::operand_source(
+            &checked,
+            root.state,
+            root.statement_ordinal,
+            CheckedScalarExpressionRole::RepresentationViewOffset {
+                expression: checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get(start)
+                    .authored_root
+            }
+        )
+        .is_err(),
+        "only the authored recast owns this operand role"
+    );
 }

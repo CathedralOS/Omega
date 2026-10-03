@@ -112,10 +112,26 @@ pub(super) fn adapt(
                 | OperationKind::EstablishMutableElementView { source, .. }
                 | OperationKind::EstablishReference { source } => {
                     let destination = DescriptorLocation::whole(result?.place);
-                    step.derivations.push((
-                        location(source.place, &source.path, None)?,
-                        destination.clone(),
-                    ));
+                    let source_location = location(source.place, &source.path, None)?;
+                    step.derivations
+                        .push((source_location.clone(), destination.clone()));
+                    if matches!(
+                        operation.kind,
+                        OperationKind::EstablishElementView {
+                            region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+                            ..
+                        } | OperationKind::EstablishMutableElementView {
+                            region: terminal_psi::ElementViewRegion::RepresentationBytes { .. },
+                            ..
+                        }
+                    ) {
+                        // Relative element coordinates cannot refine byte backing coordinates.
+                        let mut projection = Projection::new(&[]);
+                        projection.exact = false;
+                        graph
+                            .projections
+                            .insert((position, source_location, destination.clone()), projection);
+                    }
                     if let Some(origins) = graph.originations.get_mut(&position) {
                         origins.retain(|(location, _)| location != &destination);
                     }

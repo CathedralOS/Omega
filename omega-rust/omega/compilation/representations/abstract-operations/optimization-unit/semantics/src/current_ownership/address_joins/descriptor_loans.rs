@@ -98,13 +98,18 @@ impl DescriptorLoans {
                     }));
                 }
                 let descriptor = match &node.operation {
-                    O::EstablishElementView { result, source, .. }
-                        if source.access == StructuralAccess::SharedBorrow => Some((
-                        result.place,
-                        source.place,
-                        Projection::new(&source.path),
-                        source.access,
-                    )),
+                    O::EstablishElementView { result, source, region, .. }
+                        if source.access == StructuralAccess::SharedBorrow
+                            || matches!(region, terminal_psi::ElementViewRegion::RepresentationBytes { .. }) => {
+                        let mut projection = Projection::new(&source.path);
+                        if matches!(region, terminal_psi::ElementViewRegion::RepresentationBytes { .. }) {
+                            // This descriptor owns the narrowed loan itself, unlike
+                            // the temporary exclusive whole-collection capability.
+                            // Its child indices cannot refine byte-unit geometry.
+                            projection.exact = false;
+                        }
+                        Some((result.place, source.place, projection, source.access))
+                    },
                     O::ElementViewSubslice {
                         result,
                         source,

@@ -183,6 +183,7 @@ fn view_module() -> TerminalModule {
             claims: Vec::new(),
         }),
         kind: OperationKind::EstablishMutableElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             destination: place_id(PRODUCED),
             source: argument(ROOT, StructuralAccess::MutableBorrow),
             element: structural_type_id(ELEMENT),
@@ -253,6 +254,7 @@ fn shared_establishment_cannot_supply_an_exclusive_successor() {
     let mut module = view_module();
     result(&mut module).multiplicity = StructuralMultiplicity::Unrestricted;
     module.machines[0].blocks[0].operations[0].kind = OperationKind::EstablishElementView {
+        region: terminal_psi::ElementViewRegion::WholeCollection,
         destination: place_id(PRODUCED),
         source: argument(ROOT, StructuralAccess::SharedBorrow),
         element: structural_type_id(ELEMENT),
@@ -395,6 +397,7 @@ fn mutable_view_cannot_widen_a_nested_reference_permission() {
 fn shared_view_respects_the_nested_reference_access_lattice() {
     let mut baseline = reference_backed_view_module();
     let OperationKind::EstablishMutableElementView {
+        region: _,
         destination,
         source,
         element,
@@ -403,6 +406,7 @@ fn shared_view_respects_the_nested_reference_access_lattice() {
         unreachable!()
     };
     baseline.machines[0].blocks[0].operations[0].kind = OperationKind::EstablishElementView {
+        region: terminal_psi::ElementViewRegion::WholeCollection,
         destination,
         source: StructuralArgument {
             access: StructuralAccess::SharedBorrow,
@@ -635,4 +639,99 @@ fn mutable_view_backedge_transfers_the_current_parameter_only() {
             place: place_id(PRODUCED),
         })
     );
+}
+
+fn representation_region_module() -> TerminalModule {
+    let mut module = view_module();
+    let unsigned =
+        |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+    module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(unsigned(16));
+    module.structural_types[1].shape = StructuralTypeShape::FixedArray {
+        element: structural_type_id(4),
+        length: 8,
+    };
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(4),
+        identity: "test::octet".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(unsigned(8)),
+    });
+    module.machines[0].parameters = vec![
+        ValueDeclaration {
+            id: value_id(30),
+            scalar_type: unsigned(64),
+            qualifications: Default::default(),
+        },
+        ValueDeclaration {
+            id: value_id(31),
+            scalar_type: unsigned(64),
+            qualifications: Default::default(),
+        },
+    ];
+    let OperationKind::EstablishMutableElementView { region, .. } =
+        &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("formation")
+    };
+    *region = terminal_psi::ElementViewRegion::RepresentationBytes {
+        start: value_id(30),
+        end: value_id(31),
+        obligation: semantic_vocabulary::ObligationId::new(40).unwrap(),
+    };
+    module
+}
+
+#[test]
+fn representation_region_requires_exact_geometry_operands_and_certificate() {
+    let module = representation_region_module();
+    validate_module(&module).expect("well-typed region owns an independent obligation");
+    assert!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .is_err(),
+        "formation must not silently waive its missing tiling/bounds proof"
+    );
+    for mutation in 0..5 {
+        let mut wrong = module.clone();
+        match mutation {
+            0 => wrong.machines[0].parameters[0].scalar_type = ScalarType::Boolean,
+            1 => {
+                let OperationKind::EstablishMutableElementView { region, .. } =
+                    &mut wrong.machines[0].blocks[0].operations[0].kind
+                else {
+                    panic!()
+                };
+                *region = terminal_psi::ElementViewRegion::WholeCollection;
+            }
+            2 => {
+                wrong.structural_types[0].shape =
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
+            }
+            3 => {
+                let StructuralTypeShape::FixedArray { element, .. } =
+                    &mut wrong.structural_types[1].shape
+                else {
+                    panic!()
+                };
+                *element = structural_type_id(ELEMENT);
+            }
+            4 => {
+                let OperationKind::EstablishMutableElementView {
+                    region: terminal_psi::ElementViewRegion::RepresentationBytes { start, .. },
+                    ..
+                } = &mut wrong.machines[0].blocks[0].operations[0].kind
+                else {
+                    panic!()
+                };
+                *start = value_id(999);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&wrong).is_err(),
+            "invalid region mutation {mutation}"
+        );
+    }
 }

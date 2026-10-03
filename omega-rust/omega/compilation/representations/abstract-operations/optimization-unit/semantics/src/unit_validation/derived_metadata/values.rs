@@ -179,6 +179,10 @@ pub(crate) fn expected_uses(
         O::ElementViewSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],
+        O::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. },
+            ..
+        } => vec![*start, *end],
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),

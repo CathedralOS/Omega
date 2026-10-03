@@ -976,6 +976,8 @@ fail/ranges/sum_payload_non_case_guard_unproven rejected 142ms expected @7f4f399
 	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
 fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: the recast target `u32` needs 4 bytes at offset 9, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/interior_slice_exclusive_backing_read rejected 168ms expected @57fc72937714+wt
+	state `write_words` receives `main.bytes` as mutable while its mutable receiver reads `main.bytes[4]`
 fail/recast/interior_slice_runtime_offset_non_tiling rejected 174ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
 fail/recast/recast_borrow_polarity_escalation rejected 161ms expected @a3bac00e54bb+wt
@@ -2092,8 +2094,7 @@ pass/recast/runtime_bool_representation_recast_exit checked 1642ms @a3bac00e54bb
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms @a3bac00e54bb+wt
 pass/recast/runtime_guarded_offset_recast_exit checked 1534ms @a3bac00e54bb+wt
 pass/recast/runtime_integer_bit_view_recast_exit checked 1553ms @a3bac00e54bb+wt
-pass/recast/runtime_interior_slice_congruent_offset_exit rejected 876ms @a3bac00e54bb+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/recast/runtime_interior_slice_congruent_offset_exit checked 911ms @57fc72937714+wt
 pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 883ms @a3bac00e54bb+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1046ms @a3bac00e54bb+wt

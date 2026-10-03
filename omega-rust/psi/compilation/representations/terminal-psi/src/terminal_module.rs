@@ -35,13 +35,13 @@ pub use boundary::{
     program_local_root_introduction_compatibility_report_identity,
 };
 pub use control_flow::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, FloatResultPolicy,
-    FloatSaturationRule, MemoryOrdering, Operation, OperationKind, OperationResult,
-    RecordFieldInitializer, RecordFieldValue, ScalarCaseField, StructuralCaseSuccessorEdge,
-    StructuralOperationResult, StructuralResultClaimBinding, SuccessorEdge,
-    TerminalBlockNaturalRank, TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, TrappingIntegerOperation,
-    TrappingIntegerPrimitive,
+    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion,
+    FloatResultPolicy, FloatSaturationRule, MemoryOrdering, Operation, OperationKind,
+    OperationResult, RecordFieldInitializer, RecordFieldValue, ScalarCaseField,
+    StructuralCaseSuccessorEdge, StructuralOperationResult, StructuralResultClaimBinding,
+    SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine, TerminalNaturalCycle,
+    TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
+    TrappingIntegerOperation, TrappingIntegerPrimitive,
 };
 pub use identity::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 pub use observation::{

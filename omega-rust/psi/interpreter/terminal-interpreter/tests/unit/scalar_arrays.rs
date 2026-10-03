@@ -941,6 +941,7 @@ fn mutable_element_view_writes_owned_array_and_retires_exact_loan() {
                 claims: Vec::new(),
             }),
             kind: OperationKind::EstablishMutableElementView {
+                region: terminal_psi::ElementViewRegion::WholeCollection,
                 destination: place_id(3),
                 source: StructuralArgument {
                     place: place_id(1),

@@ -22,6 +22,8 @@ pub(super) fn establish(
         destination,
         source,
         element,
+        region,
+        accepted_fact,
     } = &row.kind
     else {
         return Err(invalid());
@@ -124,11 +126,12 @@ pub(super) fn establish(
         return Err(invalid());
     };
     let Some(geometry) =
-        crate::structural_inputs::structural_reference_input::collection_view_geometry(
+        crate::structural_inputs::structural_reference_input::collection_view_region_geometry(
             root,
             source,
             result.structural_type,
             &signature.structural_types,
+            *region,
         )
     else {
         return Err(invalid());
@@ -138,7 +141,9 @@ pub(super) fn establish(
     // An empty view has no dereferenceable payload. Keep its independently
     // checked backing identity, but do not require a slot for a zero-byte
     // array or invent dummy storage. Its descriptor is the empty (0, 0) view.
-    let base = if element_count == 0 {
+    let base = if element_count == 0
+        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+    {
         constant(builder, row, 0, 0)?
     } else if parameter.is_some() {
         let Some(base) = builder
@@ -183,7 +188,9 @@ pub(super) fn establish(
             byte_size: 16,
             alignment: 8,
         });
-    let backing = if element_count == 0 {
+    let backing = if element_count == 0
+        && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
+    {
         base
     } else if geometry.storage == terminal_semantics::CollectionStorage::Borrowed {
         let pointer = transport_register(builder, *destination, 0)?;
@@ -217,8 +224,74 @@ pub(super) fn establish(
         )?;
         backing
     };
+    let (backing, length) = match region {
+        terminal_psi::ElementViewRegion::WholeCollection => {
+            if accepted_fact.is_some() {
+                return Err(invalid());
+            }
+            (backing, constant(builder, row, 8, element_count)?)
+        }
+        terminal_psi::ElementViewRegion::RepresentationBytes {
+            start,
+            end,
+            obligation,
+        } => {
+            let fact = accepted_fact.ok_or_else(|| invalid())?;
+            let (_, start_register, _, start_type) =
+                builder.resolve(*start).ok_or_else(|| invalid())?;
+            let (_, end_register, _, end_type) = builder.resolve(*end).ok_or_else(|| invalid())?;
+            let word = semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .map_err(|_| invalid())?,
+            );
+            if start_type != word || end_type != word || geometry.stride == 0 {
+                return Err(invalid());
+            }
+            let region_provenance = selected_instructions::SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![*start, *end],
+                obligations: vec![*obligation],
+                ..Default::default()
+            };
+            let selected_backing = transport_register(builder, *destination, 0)?;
+            builder.emit(
+                SelectedInstructionKind::ByteViewAddress,
+                builder.constraints.keys.add_i64,
+                &[backing, start_register, selected_backing],
+                region_provenance.clone(),
+            )?;
+            let bytes = transport_register(builder, *destination, 8)?;
+            builder.emit(
+                SelectedInstructionKind::ExactSubtractI64 {
+                    obligation: *obligation,
+                    accepted_fact: fact,
+                },
+                builder.constraints.keys.subtract_i64,
+                &[end_register, start_register, bytes],
+                region_provenance.clone(),
+            )?;
+            let stride = constant(builder, row, 8, u64::from(geometry.stride))?;
+            let length = transport_register(builder, *destination, 8)?;
+            let mut operands = vec![bytes, stride, length];
+            if builder.environment.target().architecture == target::Architecture::X86_64 {
+                operands.push(super::super::integer_arithmetic::division_scratch(builder)?);
+            }
+            builder.emit(
+                SelectedInstructionKind::ExactDivideU64 {
+                    obligation: *obligation,
+                    accepted_fact: fact,
+                },
+                builder.constraints.keys.divide_u64,
+                &operands,
+                region_provenance.clone(),
+            )?;
+            (selected_backing, length)
+        }
+    };
     store(builder, row, slot, 0, backing)?;
-    let length = constant(builder, row, 8, element_count)?;
     store(builder, row, slot, 8, length)?;
     let descriptor = address(builder, row, slot, 0, 16, true)?;
     builder.transport.pointers.push((*destination, descriptor));

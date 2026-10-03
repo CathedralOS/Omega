@@ -196,10 +196,12 @@ pub(super) fn account(
                 if facts.values.structural_values.nodes.is_valid(*value) =>
             {
                 match &facts.values.structural_values.nodes.get(*value).kind {
-                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
-                    | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => {
-                        Some(source)
+                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
+                        source, ..
                     }
+                    | checked_trees::CheckedStructuralValueKind::MutableSliceView {
+                        source, ..
+                    } => Some(source),
                     _ => None,
                 }
             }

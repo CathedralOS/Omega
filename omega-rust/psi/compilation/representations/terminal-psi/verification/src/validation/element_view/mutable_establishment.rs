@@ -53,7 +53,21 @@ pub(in crate::validation) fn validate_establishment(
         return Err(invalid());
     }
     let collection = source_collection_type(module, machine, source).ok_or_else(invalid)?;
-    if !collection_source_matches(module, collection, element, result.structural_type) {
+    let OperationKind::EstablishMutableElementView { region, .. } = operation.kind else {
+        return Err(invalid());
+    };
+    if matches!(
+        region,
+        terminal_psi::ElementViewRegion::RepresentationBytes { .. }
+    ) && source.path.iter().any(|segment| {
+        matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+        )
+    }) {
+        return Err(invalid());
+    }
+    if !collection_source_matches(module, collection, element, result.structural_type, region) {
         return Err(invalid());
     }
     Ok(())

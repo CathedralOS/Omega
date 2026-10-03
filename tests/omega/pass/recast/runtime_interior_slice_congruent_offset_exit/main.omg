@@ -23,8 +23,15 @@ machine Main::main(main: &mut Main) reaches Console {
     state write_words(main: &mut Main, words: &mut [u16]) {
     words[0] = 0x0201;
     words[1] = 0x0403;
-    transition words.len == 2
-        && main.bytes[4] == 1 && main.bytes[5] == 2
+    transition words.len == 2 {
+        true -> check_backing(main)
+        _ -> bad_length(main)
+    }
+    }
+
+    // The edge drops the mutable slice before observing its original backing.
+    state check_backing(main: &mut Main) {
+    transition main.bytes[4] == 1 && main.bytes[5] == 2
         && main.bytes[6] == 3 && main.bytes[7] == 4 {
         true -> good(main)
         _ -> bad_write(main)

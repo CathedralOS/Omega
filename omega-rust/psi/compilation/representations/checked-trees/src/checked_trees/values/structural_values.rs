@@ -33,6 +33,18 @@ pub struct CheckedStructuralValue {
     pub kind: CheckedStructuralValueKind,
 }
 
+/// A view borrows either the collection's existing elements or an exactly
+/// tiled byte region. The latter retains its scalar computation handle so the
+/// offset is evaluated once at formation, before any later mutation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedElementViewRegion {
+    WholeCollection,
+    RepresentationBytes {
+        start: CheckedScalarComputationHandle,
+        end: u64,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralValueKind {
     /// Capture existing borrowed storage into an owned permission carrier.
@@ -81,6 +93,7 @@ pub enum CheckedStructuralValueKind {
     /// elements, so the lent storage keeps its owner and extent.
     BorrowedSliceView {
         source: crate::CheckedUnitStructuralArgumentPlan,
+        region: CheckedElementViewRegion,
     },
     /// A mutably borrowed `&mut [T]` view of the contiguous elements an owned
     /// collection place holds. `source` is that lent place under its mutable
@@ -90,6 +103,7 @@ pub enum CheckedStructuralValueKind {
     /// borrows reach the lent storage.
     MutableSliceView {
         source: crate::CheckedUnitStructuralArgumentPlan,
+        region: CheckedElementViewRegion,
     },
     /// A copyable payloadless case leaf read through shared-borrowed storage
     /// (`self.bitness` on a `&self` receiver): the borrowed place's active

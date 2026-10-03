@@ -844,6 +844,7 @@ fn unused_descriptor_return_rejects_owned_backing_escape() {
     signature.place = id(1403, PlaceId::new);
     unused.operations = vec![
         O::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeCollection,
             psi_operation: id(1405, OperationId::new),
             result: terminal_psi::StructuralOperationResult {
                 place: result_place,

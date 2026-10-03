@@ -1163,7 +1163,7 @@ fn remainder_scratch(
 }
 
 // The x86 high half is an explicit zero-valued implementation register.
-fn division_scratch(
+pub(super) fn division_scratch(
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::custody();

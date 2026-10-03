@@ -1177,7 +1177,7 @@ fn remainder_scratch(
 }
 
 // The x86 high half is an explicit zero-valued implementation register.
-fn division_scratch(
+pub(super) fn division_scratch(
     replay: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let instruction = SelectedInstructionId(

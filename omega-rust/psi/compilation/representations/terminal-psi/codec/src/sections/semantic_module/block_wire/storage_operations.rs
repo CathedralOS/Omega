@@ -293,6 +293,7 @@ pub(super) fn encode_establish_element_view(
     destination: PlaceId,
     source: StructuralArgument,
     element: semantic_vocabulary::StructuralTypeId,
+    region: terminal_psi::ElementViewRegion,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_ELEMENT_VIEW);
     writer.id(destination);
@@ -300,6 +301,7 @@ pub(super) fn encode_establish_element_view(
     super::super::structural_signature_wire::encode_structural_access(writer, source.access);
     encode_structural_path(writer, "element view source path", &source.path)?;
     writer.id(element);
+    encode_element_view_region(writer, region);
     Ok(())
 }
 
@@ -314,6 +316,7 @@ pub(super) fn decode_establish_element_view(
             path: decode_structural_path(reader)?,
         },
         element: reader.id("StructuralTypeId")?,
+        region: decode_element_view_region(reader)?,
     })
 }
 
@@ -324,6 +327,7 @@ pub(super) fn encode_establish_mutable_element_view(
     destination: PlaceId,
     source: StructuralArgument,
     element: semantic_vocabulary::StructuralTypeId,
+    region: terminal_psi::ElementViewRegion,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_MUTABLE_ELEMENT_VIEW);
     writer.id(destination);
@@ -331,6 +335,7 @@ pub(super) fn encode_establish_mutable_element_view(
     super::super::structural_signature_wire::encode_structural_access(writer, source.access);
     encode_structural_path(writer, "mutable element view source path", &source.path)?;
     writer.id(element);
+    encode_element_view_region(writer, region);
     Ok(())
 }
 
@@ -345,6 +350,7 @@ pub(super) fn decode_establish_mutable_element_view(
             path: decode_structural_path(reader)?,
         },
         element: reader.id("StructuralTypeId")?,
+        region: decode_element_view_region(reader)?,
     })
 }
 
@@ -841,4 +847,65 @@ pub(super) fn decode_store_structural_field(
             path: decode_structural_path(reader)?,
         },
     })
+}
+
+fn encode_element_view_region(writer: &mut Writer, region: terminal_psi::ElementViewRegion) {
+    match region {
+        terminal_psi::ElementViewRegion::WholeCollection => writer.u8(0),
+        terminal_psi::ElementViewRegion::RepresentationBytes {
+            start,
+            end,
+            obligation,
+        } => {
+            writer.u8(1);
+            writer.id(start);
+            writer.id(end);
+            writer.id(obligation);
+        }
+    }
+}
+fn decode_element_view_region(
+    reader: &mut Reader<'_>,
+) -> Result<terminal_psi::ElementViewRegion, CodecError> {
+    match reader.u8()? {
+        0 => Ok(terminal_psi::ElementViewRegion::WholeCollection),
+        1 => Ok(terminal_psi::ElementViewRegion::RepresentationBytes {
+            start: reader.id("ValueId")?,
+            end: reader.id("ValueId")?,
+            obligation: reader.id("ObligationId")?,
+        }),
+        tag => Err(CodecError::InvalidTag("element view region", tag)),
+    }
+}
+
+#[cfg(test)]
+mod region_tests {
+    use super::*;
+    use terminal_psi::ElementViewRegion;
+
+    #[test]
+    fn representation_region_wire_retains_endpoints_and_obligation() {
+        for region in [
+            ElementViewRegion::WholeCollection,
+            ElementViewRegion::RepresentationBytes {
+                start: ValueId::new(2).unwrap(),
+                end: ValueId::new(7).unwrap(),
+                obligation: ObligationId::new(9).unwrap(),
+            },
+        ] {
+            let mut writer = Writer::default();
+            encode_element_view_region(&mut writer, region);
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_element_view_region(&mut reader).unwrap(), region);
+            assert_eq!(reader.remaining(), 0);
+            if bytes.len() > 1 {
+                assert!(
+                    decode_element_view_region(&mut Reader::new(&bytes[..bytes.len() - 1]))
+                        .is_err()
+                );
+            }
+        }
+        assert!(decode_element_view_region(&mut Reader::new(&[2])).is_err());
+    }
 }

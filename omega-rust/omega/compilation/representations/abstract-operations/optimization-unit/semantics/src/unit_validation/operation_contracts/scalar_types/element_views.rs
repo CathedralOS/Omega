@@ -47,7 +47,12 @@ pub(super) fn types_match(
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
         }
-        O::EstablishElementView { .. } => true,
+        O::EstablishElementView { region, .. } => match region {
+            terminal_psi::ElementViewRegion::WholeCollection => true,
+            terminal_psi::ElementViewRegion::RepresentationBytes { start, end, .. } => {
+                u64_scalar(start) && u64_scalar(end)
+            }
+        },
         _ => false,
     }
 }

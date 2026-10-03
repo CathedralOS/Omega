@@ -221,7 +221,7 @@ impl TerminalExecution {
     /// Both array arguments and local descriptor establishments pin the same
     /// payload home. The cursor is committed only after the caller validates
     /// the complete operation; no byte payload is copied into another store.
-    fn array_storage_root_staged(
+    pub(crate) fn array_storage_root_staged(
         &self,
         place: semantic_vocabulary::PlaceId,
         identity_cursor: &mut Option<u64>,

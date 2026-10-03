@@ -465,13 +465,14 @@ static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a validated element-view length observation of a machine or block parameter, exact establishment or subslice result; relating a block parameter to a preceding observation additionally requires every arrival to trace unchanged to that same-family descriptor or producer, with mutable freshness under every intermediate name",
-    conclusion: "the observation equals the exact parameter's own ViewExtent; independent producer or all-arrival evidence may additionally equate it to a preceding observation of the identical descriptor, the array's static element count, or `end - start` with subslice bounds left as separate obligations; byte and element units are not equated",
+    conclusion: "the observation equals the exact parameter's own ViewExtent; independent producer or all-arrival evidence may additionally equate it to a preceding observation of the identical descriptor, the array's static element count, `end - start` for subslices, or `(end - start) / stride` for a normalized byte representation region, with bounds and exact tiling left as separate obligations; byte and element units are not equated",
     dependencies: &[
         "fact:structural-effect-observation",
         "formation:operation-validation",
         "scope:dominance-order",
     ],
     implementation: &[
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/representation_regions.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs",
         OP_FACTS_BYTE_EXTENT,
         OPERATION_FACTS,

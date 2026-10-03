@@ -7,6 +7,81 @@ use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, T
 
 type SymbolIdentity = (u32, u32);
 
+/// Authored coordinates of a slice representation view. This identifies the
+/// source occurrence; it grants no bounds, representation or borrow authority.
+/// The ordinary recast judgment and the emitted region obligation own those.
+#[derive(Debug, Clone, Copy)]
+pub struct SliceRecastByteRegion {
+    pub collection: ExpressionHandle,
+    pub source: ExpressionHandle,
+    pub start: ExpressionHandle,
+    pub extent: u64,
+    pub element: TypeReferenceHandle,
+    pub access: language_core::ReferenceAccess,
+}
+
+pub fn slice_recast_byte_region(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<SliceRecastByteRegion> {
+    let initializer = super::strip_mutable(program, expression);
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
+        return None;
+    };
+    if !cast.form.is_recast() {
+        return None;
+    }
+    let TypeReferenceNode::Slice {
+        element_type: element,
+    } = program
+        .type_reference_table
+        .type_reference(cast.target_type)
+    else {
+        return None;
+    };
+    let access = if cast.form == language_core::cast_form::CastForm::RecastMutable {
+        language_core::ReferenceAccess::Mutable
+    } else {
+        language_core::ReferenceAccess::Shared
+    };
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
+        && borrow.access != access
+    {
+        return None;
+    }
+    let source = super::strip_mutable(program, cast.value);
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
+        return None;
+    };
+    let collection_type = crate::value_custody::places::declared_place_type(
+        program,
+        machine,
+        Some(state),
+        indexed.collection,
+    )?;
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(length),
+        ..
+    } = program.type_reference_table.type_reference(collection_type)
+    else {
+        return None;
+    };
+    if super::exact_scalar_representation_type(program, *element_type) != Some(PrimitiveType::U8) {
+        return None;
+    }
+    Some(SliceRecastByteRegion {
+        collection: indexed.collection,
+        source,
+        start: indexed.index,
+        extent: u64::try_from(*length).ok()?,
+        element: *element,
+        access,
+    })
+}
+
 /// Exact value of an interior byte offset when its syntax or declared range
 /// pins one value. A mere upper bound is sufficient for fixed-footprint views,
 /// but an unsized slice with multi-byte elements additionally owes divisibility

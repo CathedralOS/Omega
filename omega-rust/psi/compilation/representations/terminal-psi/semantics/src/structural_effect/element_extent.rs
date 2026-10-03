@@ -56,7 +56,12 @@ pub fn element_establishment_length_equation(
     else {
         return Ok(None);
     };
-    let StructuralEffectObservation::ElementViewEstablished { destination, .. } = producer else {
+    let StructuralEffectObservation::ElementViewEstablished {
+        destination,
+        region: terminal_psi::ElementViewRegion::WholeCollection,
+        ..
+    } = producer
+    else {
         return Ok(None);
     };
     if source != destination {

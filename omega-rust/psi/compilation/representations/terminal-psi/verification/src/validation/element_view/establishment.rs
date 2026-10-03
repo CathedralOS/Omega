@@ -60,16 +60,28 @@ pub(in crate::validation) fn collection_source_matches(
     collection: StructuralTypeId,
     element: StructuralTypeId,
     view_type: StructuralTypeId,
+    region: terminal_psi::ElementViewRegion,
 ) -> bool {
-    let Some(backing) =
-        terminal_semantics::collection_backing(module.structural_types.iter(), collection, element)
-    else {
-        return false;
-    };
-    backing.storage == terminal_semantics::CollectionStorage::Inline
-        || module.structural_types.iter().any(|declaration| {
-            declaration.id == view_type && declaration.shape.is_borrowed_byte_view()
-        })
+    match terminal_semantics::element_view_region_geometry(
+        module.structural_types.iter(),
+        collection,
+        element,
+        region,
+    ) {
+        Some(terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing)) => {
+            backing.storage == terminal_semantics::CollectionStorage::Inline
+                || module
+                    .structural_types
+                    .iter()
+                    .any(|row| row.id == view_type && row.shape.is_borrowed_byte_view())
+        }
+        Some(terminal_semantics::ElementViewRegionGeometry::RepresentationBytes { .. }) => {
+            module.structural_types.iter().any(|row| {
+                row.id == view_type && row.shape == StructuralTypeShape::ElementView { element }
+            })
+        }
+        None => false,
+    }
 }
 
 /// Arrival custody comes from the exact declaration. A structural result owns
@@ -181,7 +193,20 @@ pub(in crate::validation) fn validate_establishment(
         return Err(invalid());
     }
     let collection = source_collection_type(module, machine, source).ok_or_else(invalid)?;
-    if !collection_source_matches(module, collection, element, result.structural_type) {
+    let OperationKind::EstablishElementView { region, .. } = operation.kind else {
+        return Err(invalid());
+    };
+    if matches!(
+        region,
+        terminal_psi::ElementViewRegion::RepresentationBytes { .. }
+    ) && source
+        .path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::FixedByteRange { .. }))
+    {
+        return Err(invalid());
+    }
+    if !collection_source_matches(module, collection, element, result.structural_type, region) {
         return Err(invalid());
     }
     Ok(())
