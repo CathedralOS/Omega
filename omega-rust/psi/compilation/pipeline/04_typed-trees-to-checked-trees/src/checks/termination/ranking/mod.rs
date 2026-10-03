@@ -882,7 +882,7 @@ fn component_has_proven_decrease<'p>(
     }
 
     // Plain scalar Nat ranks read the same current-value transfer as contracts.
-    // This owns both explicit actuals and implicit self actuals; a store cannot
+    // This reads the explicitly supplied current actuals; a store cannot
     // turn an old positive guard into evidence about the new counter.
     if matches!(order, RankingOrder::NatDescending)
         && let Some(proven) =
