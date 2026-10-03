@@ -3075,12 +3075,39 @@ lands alone with its corpus slice unchanged and no fallback path.
   commit. Acceptance: a counting test over the file-read seam shows one read
   per consumed file per invocation, and the check corpus is unchanged.
 
+- **CONFINEMENT-REFUSES-LEAF-SYMLINKS.** (new-scope) Prerequisite of
+  **BUILD-SESSION-RECEIPTS-DELETED**. On Unix, a scoped `build.omg` can write
+  outside its grants without any race:
+  1. `real_symlink` (`checked-interpreter/.../filesystem/real/path_calls.rs`)
+     authorizes only the link name, so the script can create
+     `out/x -> /home/user/.profile.d/new` (any target that does not exist
+     yet);
+  2. it then calls open `out/x` with `O_CREAT|O_WRONLY`;
+  3. `resolve_for_check` (`filesystem/real.rs`) fails to canonicalize the
+     dangling link and falls back to the canonical parent plus the leaf;
+  4. the grant check passes, because the parent is the write root;
+  5. `OpenOptions::open` follows the link and creates the file outside
+     every grant.
+
+  Today only the `FilesystemSponsor` mirror stops this: it records `x` as a
+  symlink, and `prepare_open_with_extent` refuses a non-object entry.
+  `RealScoped` without a sponsor (`CheckedCompileRequest::new`'s default) has
+  no such guard. Make the grant layer itself correct, in one commit: an open
+  or create whose leaf is a symlink is refused, using `O_NOFOLLOW` on Unix
+  and an `lstat` leaf check, and the opened file's real path is re-checked
+  through the descriptor before the first write. Acceptance: a `RealScoped`
+  test without a sponsor shows the dangling-link create is refused with
+  `EACCES`, and nothing is created outside the root on Linux or macOS; the
+  build corpus is unchanged.
+
 - **BUILD-SESSION-RECEIPTS-DELETED.** (new-scope) Delete the in-process
   bookkeeping around build evaluation and keep only the real confinement:
   - `session_accounting.rs::verify_build_session_accounting` (7 usage
     reconciliations against `BuildEvaluationSponsor`);
   - `FilesystemSponsor`'s mirror namespace, its sponsor/host divergence
-    halt, and its quiescence snapshots;
+    halt, and its quiescence snapshots. Do this only after
+    **CONFINEMENT-REFUSES-LEAF-SYMLINKS**: the mirror is currently the
+    only guard against a dangling-symlink escape;
   - the observation identity and production-subject chain
     (`observation_identity.rs`, `production_subject.rs`,
     `validate_accepted_terminal_production_subject`, the admitted-checkpoint
