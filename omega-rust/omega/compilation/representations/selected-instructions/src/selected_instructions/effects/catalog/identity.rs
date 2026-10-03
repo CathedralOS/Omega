@@ -105,6 +105,7 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::ReadFrameStorageV1 => 7,
             crate::MachineMemoryEffect::WritePointerV1 => 4,
             crate::MachineMemoryEffect::ScanByteSequenceV1 => 10,
+            crate::MachineMemoryEffect::CompareByteSequencesV1 => 11,
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::ExplicitCrashV1 => 5,
@@ -292,6 +293,18 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
             bytes.identity_bytes(&base_pointer_operand.to_le_bytes());
             bytes.identity_bytes(&count_operand.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+            left_base_operand,
+            left_count_operand,
+            right_base_operand,
+            right_count_operand,
+        } => {
+            bytes.identity_bytes(&[14]);
+            bytes.identity_bytes(&left_base_operand.to_le_bytes());
+            bytes.identity_bytes(&left_count_operand.to_le_bytes());
+            bytes.identity_bytes(&right_base_operand.to_le_bytes());
+            bytes.identity_bytes(&right_count_operand.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
             bytes.identity_bytes(&[7]);
@@ -464,7 +477,8 @@ fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
 pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     match kind {
         MachineSemanticKind::CopyBytes => 59,
-        MachineSemanticKind::ScanByteSequence => 96,
+        MachineSemanticKind::ScanByteSequence => 233,
+        MachineSemanticKind::CompareByteSequences => 234,
         MachineSemanticKind::CallAggregate => 35,
         MachineSemanticKind::ReturnAggregate => 36,
         MachineSemanticKind::CompareI64Zero => 0,
@@ -600,7 +614,8 @@ pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily)
 pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
     match family {
         MachineAlternativeFamily::CopyBytes => 59,
-        MachineAlternativeFamily::ScanByteSequence => 96,
+        MachineAlternativeFamily::ScanByteSequence => 233,
+        MachineAlternativeFamily::CompareByteSequences => 234,
         MachineAlternativeFamily::CallAggregate => 35,
         MachineAlternativeFamily::ReturnAggregate => 36,
         MachineAlternativeFamily::CompareI64Zero => 0,

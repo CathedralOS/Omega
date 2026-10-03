@@ -94,11 +94,8 @@ pub(super) fn validate_primitive_scalar_read(
     let expected_indices = if terminal_psi::is_static_structural_path(expected_path) {
         Vec::new()
     } else {
-        let root_type = scalar_graph_input::primitive_locals::read_root_type(
-            optimized,
-            *expected,
-        )
-        .ok_or(invalid.clone())?;
+        let root_type = scalar_graph_input::primitive_locals::read_root_type(optimized, *expected)
+            .ok_or(invalid.clone())?;
         let (_, _, elements) =
             crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                 root_type,

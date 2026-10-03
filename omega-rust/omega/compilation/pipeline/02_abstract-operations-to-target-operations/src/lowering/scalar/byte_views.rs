@@ -223,21 +223,16 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         if result.scalar_type != ScalarType::Boolean {
             return Err(invalid());
         }
-        if let terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } = operand {
-            let (_view, _) = resolve_byte_view(
-                function,
-                structural_types,
-                parameters,
-                backings,
-                values,
-                lengths,
-                *source,
-                &mut Vec::new(),
-            )?;
-            if !observes_length(values, lengths, *length, *source) {
-                return Err(invalid());
-            }
-        }
+        validate_whole_operand(
+            function,
+            structural_types,
+            parameters,
+            backings,
+            values,
+            lengths,
+            operand,
+            &invalid,
+        )?;
         insert_value(
             values,
             result.value,
@@ -246,6 +241,42 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
                 source_value: result.value,
                 operand: operand.clone(),
                 predicate: *predicate,
+            }),
+        )?;
+        provenance.push(*psi_operation);
+        return Ok(true);
+    }
+    if let AbstractOperation::ByteSequenceEqual {
+        psi_operation,
+        result,
+        left,
+        right,
+    } = operation
+    {
+        let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+        if result.scalar_type != ScalarType::Boolean {
+            return Err(invalid());
+        }
+        for operand in [left, right] {
+            validate_whole_operand(
+                function,
+                structural_types,
+                parameters,
+                backings,
+                values,
+                lengths,
+                operand,
+                &invalid,
+            )?;
+        }
+        insert_value(
+            values,
+            result.value,
+            KnownScalar::BooleanRuntime(TargetBooleanExpression::ByteSequenceEqual {
+                psi_operation: *psi_operation,
+                source_value: result.value,
+                left: left.clone(),
+                right: right.clone(),
             }),
         )?;
         provenance.push(*psi_operation);
@@ -709,4 +740,35 @@ pub(in crate::lowering) fn descriptor_result<'a>(
             result.structural_type,
         ))
     .then_some((operation, result))
+}
+
+/// A whole operand's own checks: the source must resolve to a live view and
+/// the spelled length must be the length observation that measured it.
+#[allow(clippy::too_many_arguments)]
+fn validate_whole_operand(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters: &[TargetStructuralParameter],
+    backings: super::element_views::ElementViewBackings<'_>,
+    values: &BTreeMap<ValueId, KnownScalar>,
+    lengths: &BTreeMap<ValueId, PlaceId>,
+    operand: &terminal_psi::control_flow::ByteSequenceOperand,
+    invalid: &dyn Fn() -> LoweringError,
+) -> Result<(), LoweringError> {
+    if let terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } = operand {
+        let (_view, _) = resolve_byte_view(
+            function,
+            structural_types,
+            parameters,
+            backings,
+            values,
+            lengths,
+            *source,
+            &mut Vec::new(),
+        )?;
+        if !observes_length(values, lengths, *length, *source) {
+            return Err(invalid());
+        }
+    }
+    Ok(())
 }

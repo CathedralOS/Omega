@@ -138,6 +138,9 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => {
                 visit(operand.length())
             }
+            LegalizedScalarInstructionKind::ByteSequenceEqual { left, right, .. } => [left, right]
+                .into_iter()
+                .for_each(|operand| visit(operand.length())),
             LegalizedScalarInstructionKind::ByteSequenceSubslice {
                 start, end, length, ..
             }
@@ -560,6 +563,13 @@ pub enum LegalizedScalarInstructionKind {
         operand: terminal_psi::control_flow::ByteSequenceOperand,
         predicate: terminal_psi::ByteSequencePredicate,
     },
+    /// Content equality of two byte-sequence operands; each operand resolves
+    /// to its readable base and its own dominating length exactly as a
+    /// predicate operand does.
+    ByteSequenceEqual {
+        left: terminal_psi::control_flow::ByteSequenceOperand,
+        right: terminal_psi::control_flow::ByteSequenceOperand,
+    },
     /// Establish one borrowed element descriptor over a structural collection
     /// projection; custody, access and extent were discharged before lowering.
     EstablishElementView {
@@ -854,6 +864,7 @@ impl LegalizedScalarInstructionKind {
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceLength { .. }
             | Self::ByteSequencePredicate { .. }
+            | Self::ByteSequenceEqual { .. }
             | Self::ElementViewWrite { .. }
             | Self::ElementViewRead { .. }
             | Self::ElementViewLength { .. }

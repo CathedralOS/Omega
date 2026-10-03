@@ -450,6 +450,98 @@ pub(in crate::selection) fn byte_predicate(
     if result.scalar_type != ScalarType::Boolean || count_type != integer {
         return Err(replay.invalid());
     }
+    let base = measured_span_reads(function, replay, row, operand)?;
+    let cursor = byte_field_store::scratch(replay, 2)?;
+    let byte = byte_field_store::scratch(replay, 3)?;
+    let output =
+        replay.result_register(result.value, result.definition_site, result.scalar_type)?;
+    replay.check_instruction(
+        SelectedInstructionKind::ScanByteSequence {
+            predicate: *predicate,
+        },
+        replay
+            .constraints
+            .keys
+            .scan_byte_sequence
+            .ok_or_else(|| replay.invalid())?,
+        &[base, count, cursor, byte, output],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![operand.length(), result.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
+/// Replay the two-span content compare: each operand's own dominating
+/// length supplies its read extent.
+pub(in crate::selection) fn byte_equal(
+    function: &LegalizedScalarFunction,
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } = &row.kind else {
+        return Err(replay.invalid());
+    };
+    let result = row.result.ok_or_else(|| replay.invalid())?;
+    let integer = ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?,
+    );
+    let (_, left_count, _, left_count_type) = replay
+        .resolve(left.length())
+        .ok_or_else(|| replay.invalid())?;
+    let (_, right_count, _, right_count_type) = replay
+        .resolve(right.length())
+        .ok_or_else(|| replay.invalid())?;
+    if result.scalar_type != ScalarType::Boolean
+        || left_count_type != integer
+        || right_count_type != integer
+    {
+        return Err(replay.invalid());
+    }
+    let left_base = measured_span_reads(function, replay, row, left)?;
+    let right_base = measured_span_reads(function, replay, row, right)?;
+    let cursor = byte_field_store::scratch(replay, 4)?;
+    let left_byte = byte_field_store::scratch(replay, 5)?;
+    let right_byte = byte_field_store::scratch(replay, 6)?;
+    let output =
+        replay.result_register(result.value, result.definition_site, result.scalar_type)?;
+    replay.check_instruction(
+        SelectedInstructionKind::CompareByteSequences,
+        replay
+            .constraints
+            .keys
+            .compare_byte_sequences
+            .ok_or_else(|| replay.invalid())?,
+        &[
+            left_base,
+            left_count,
+            right_base,
+            right_count,
+            cursor,
+            left_byte,
+            right_byte,
+            output,
+        ],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![left.length(), right.length(), result.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
+/// Replay the measured-span read rows one byte-sequence operand scans.
+fn measured_span_reads(
+    function: &LegalizedScalarFunction,
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    operand: &ByteSequenceOperand,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let base = byte_concatenation::operand_pointer(function, replay, row, operand)?;
     let offset = match operand {
         ByteSequenceOperand::Field { .. } => {
@@ -487,26 +579,5 @@ pub(in crate::selection) fn byte_predicate(
             SelectedMemoryAccessRole::ReadMeasuredSpan { length },
         )?;
     }
-    let cursor = byte_field_store::scratch(replay, 2)?;
-    let byte = byte_field_store::scratch(replay, 3)?;
-    let output =
-        replay.result_register(result.value, result.definition_site, result.scalar_type)?;
-    replay.check_instruction(
-        SelectedInstructionKind::ScanByteSequence {
-            predicate: *predicate,
-        },
-        replay
-            .constraints
-            .keys
-            .scan_byte_sequence
-            .ok_or_else(|| replay.invalid())?,
-        &[base, count, cursor, byte, output],
-        &SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![operand.length(), result.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
-    )?;
-    Ok(output)
+    Ok(base)
 }

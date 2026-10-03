@@ -465,6 +465,7 @@ pub(crate) fn evaluate_compile_known_boolean_expression(
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. } => None,
         LoweredBooleanReturnExpression::Not { operand } => Some(
             !evaluate_compile_known_boolean_expression(operand, parameters)?,

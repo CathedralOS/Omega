@@ -437,6 +437,7 @@ fn operation_observations(
         | O::StructuralLeafCopy { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequencePredicate { .. }
+        | O::ByteSequenceEqual { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::EstablishElementView { .. }

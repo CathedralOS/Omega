@@ -602,6 +602,11 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_byte_operand(bytes, operand);
                     bytes.push(predicate.mask_bit());
                 }
+                LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => {
+                    bytes.push(46);
+                    encode_byte_operand(bytes, left);
+                    encode_byte_operand(bytes, right);
+                }
                 LegalizedScalarInstructionKind::EstablishElementView {
                     result,
                     destination,

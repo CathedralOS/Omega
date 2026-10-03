@@ -168,6 +168,7 @@ pub fn target_register_environment_identity(
         selected_keys.load8_indexed,
         selected_keys.copy_bytes,
         selected_keys.scan_byte_sequence,
+        selected_keys.compare_byte_sequences,
         selected_keys.store,
         selected_keys.address_offset,
         selected_keys.store64,

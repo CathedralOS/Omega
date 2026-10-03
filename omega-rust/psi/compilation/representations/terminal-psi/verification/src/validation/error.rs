@@ -1423,6 +1423,7 @@ pub enum ModuleError {
         source: PlaceId,
         field: StructuralFieldId,
     },
+    InvalidByteSequenceEqual(OperationId),
     ByteSequenceReadOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,

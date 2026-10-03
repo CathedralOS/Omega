@@ -138,6 +138,22 @@ pub(super) fn lower(
                 predicate: *predicate,
             })
         }
+        OperationKind::ByteSequenceEqual { left, right } => {
+            let result = operation
+                .result
+                .scalar()
+                .filter(|result| result.scalar_type == ScalarType::Boolean)
+                .ok_or(LoweringError::InvalidByteSequenceEqual(operation.id))?;
+            Ok(AbstractOperation::ByteSequenceEqual {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                left: left.clone(),
+                right: right.clone(),
+            })
+        }
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,

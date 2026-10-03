@@ -181,11 +181,8 @@ pub(super) fn project_primitive_scalar_read(
     let indices = if terminal_psi::is_static_structural_path(path) {
         Vec::new()
     } else {
-        let root_type = scalar_graph_input::primitive_locals::read_root_type(
-            optimized,
-            *source,
-        )
-        .ok_or(Error::custody())?;
+        let root_type = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
+            .ok_or(Error::custody())?;
         let (_, _, elements) =
             crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                 root_type,

@@ -94,6 +94,7 @@ fn validator_selected_keys(
         load8_indexed: keys.load8_indexed,
         copy_bytes: keys.copy_bytes,
         scan_byte_sequence: keys.scan_byte_sequence,
+        compare_byte_sequences: keys.compare_byte_sequences,
         store: keys.store,
         address_offset: keys.address_offset,
         store64: keys.store64,

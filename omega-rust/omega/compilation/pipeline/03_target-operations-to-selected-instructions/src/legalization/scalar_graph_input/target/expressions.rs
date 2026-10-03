@@ -321,6 +321,35 @@ impl Checker<'_> {
                             && operands_agree(operand, expected_operand, aliases)
                     });
         }
+        if let Boolean::ByteSequenceEqual {
+            psi_operation,
+            source_value,
+            left,
+            right,
+        } = expression
+        {
+            return *source_value == resolve(value, aliases)
+                && self
+                    .optimized
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .any(|node| {
+                        let AbstractOperation::ByteSequenceEqual {
+                            psi_operation: operation,
+                            result,
+                            left: expected_left,
+                            right: expected_right,
+                        } = &node.operation
+                        else {
+                            return false;
+                        };
+                        operation == psi_operation
+                            && result.value == resolve(value, aliases)
+                            && operands_agree(left, expected_left, aliases)
+                            && operands_agree(right, expected_right, aliases)
+                    });
+        }
         let Some(node) = self
             .optimized
             .blocks

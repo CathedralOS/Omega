@@ -319,6 +319,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::ByteSequencePredicate { operand, predicate } => {
             value_operations::encode_byte_sequence_predicate(writer, operand, predicate)?
         }
+        OperationKind::ByteSequenceEqual { left, right } => {
+            value_operations::encode_byte_sequence_equal(writer, left, right)?
+        }
         OperationKind::EstablishByteSequenceLiteral {
             destination,
             bytes,
@@ -861,6 +864,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::BYTE_SEQUENCE_PREDICATE => {
             value_operations::decode_byte_sequence_predicate(reader)?
+        }
+        operation_tags::BYTE_SEQUENCE_EQUAL => {
+            value_operations::decode_byte_sequence_equal(reader)?
         }
         operation_tags::ESTABLISH_BYTE_SEQUENCE_LITERAL => {
             value_operations::decode_establish_byte_sequence_literal(reader)?

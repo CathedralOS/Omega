@@ -144,6 +144,7 @@ impl SelectedConstraintKeys {
             }
             MachineSemanticKind::CopyBytes => return self.copy_bytes,
             MachineSemanticKind::ScanByteSequence => return self.scan_byte_sequence,
+            MachineSemanticKind::CompareByteSequences => return self.compare_byte_sequences,
             MachineSemanticKind::Float32ToBits => return self.float32_to_bits,
             MachineSemanticKind::Float64ToBits => return self.float64_to_bits,
             MachineSemanticKind::BitsToFloat32 => return self.bits_to_float32,

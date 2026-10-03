@@ -746,6 +746,7 @@ pub(super) fn lower_operation(
         }
         AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::ByteSequencePredicate { .. }
+        | AbstractOperation::ByteSequenceEqual { .. }
         | AbstractOperation::ByteSequenceRead { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ElementViewLength { .. }

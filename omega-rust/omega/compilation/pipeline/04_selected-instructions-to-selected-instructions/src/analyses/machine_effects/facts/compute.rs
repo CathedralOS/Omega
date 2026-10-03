@@ -135,6 +135,7 @@ fn terminal_selected_keys(
         load8_indexed: keys.load8_indexed,
         copy_bytes: keys.copy_bytes,
         scan_byte_sequence: keys.scan_byte_sequence,
+        compare_byte_sequences: keys.compare_byte_sequences,
         store: keys.store,
         address_offset: keys.address_offset,
         store64: keys.store64,
@@ -305,6 +306,7 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
         SelectedInstructionKind::CallAggregate { .. } => MachineSemanticKind::CallAggregate,
         SelectedInstructionKind::ReturnAggregate { .. } => MachineSemanticKind::ReturnAggregate,
+        SelectedInstructionKind::CompareByteSequences => MachineSemanticKind::CompareByteSequences,
         SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
         SelectedInstructionKind::CompareI64Immediate { .. } => {
             MachineSemanticKind::CompareI64Immediate
