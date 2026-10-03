@@ -477,6 +477,10 @@ pub(super) fn encode_structural_field(
         BindingRelevance::Erased => 2,
     });
     match &field.field_type {
+        StructuralFieldType::Atomic(value) => {
+            bytes.u8(8);
+            encode_scalar_type(bytes, *value);
+        }
         StructuralFieldType::BoundedInteger(bounds) => {
             bytes.u8(6);
             encode_integer_type(bytes, bounds.integer_type());

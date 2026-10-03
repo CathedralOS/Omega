@@ -6,7 +6,9 @@
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
-use checked_trees::{BorrowAccessKind, BorrowLoanLineage, CheckedTrees};
+use checked_trees::{
+    BorrowAccessKind, BorrowLoanLineage, CheckedTrees, CheckedUnitEffectOperationPlan,
+};
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
 
@@ -19,6 +21,102 @@ pub(super) fn statement_owes_operation(
 ) -> bool {
     !validation::is_fact_only_citation(&checked.typed, statement)
         && !place_loan_declaration(checked, machine, state, index, statement).unwrap_or(false)
+}
+
+/// An operation can cover both its effect statement and a separate result
+/// binding. These coordinates establish coverage only: each operation's source
+/// replay must still validate the exact binding and effect before emission.
+pub(super) fn covered_statements(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> impl Iterator<Item = u32> {
+    let coordinates = match operation {
+        CheckedUnitEffectOperationPlan::Call(call) => [
+            Some(call.coordinate.statement_index),
+            call.scalar_result()
+                .map(|result| result.statement_index)
+                .or_else(|| {
+                    call.structural_result()
+                        .map(|result| result.statement_index)
+                }),
+        ],
+        CheckedUnitEffectOperationPlan::AtomicAccess(access) => [
+            Some(access.statement_index),
+            access.result.as_ref().map(|result| result.statement_index),
+        ],
+        _ => [source_statement(operation), None],
+    };
+    coordinates.into_iter().flatten()
+}
+
+/// The operation's source frontier used by reference-release ordering. A
+/// structural call result owns its binding frontier; other calls own their
+/// invocation frontier.
+pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
+    match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+            Some(result.statement_index)
+        }
+        // A structural result names its binding statement; every other call
+        // names its coordinate's statement.
+        CheckedUnitEffectOperationPlan::Call(call) => Some(
+            call.structural_result()
+                .map_or(call.coordinate.statement_index, |result| {
+                    result.statement_index
+                }),
+        ),
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+            statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+            statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+            statement_index, ..
+        } => Some(*statement_index),
+        CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => {
+            Some(coordinate.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+            Some(store.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::AtomicAccess(access) => Some(access.statement_index),
+        CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
+            Some(store.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(store) => {
+            Some(store.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StoreStructuralField {
+            statement_index, ..
+        } => Some(*statement_index),
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store.statement_index),
+        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+            Some(store.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
+        CheckedUnitEffectOperationPlan::ElementViewWrite(write) => Some(write.statement_index),
+        CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
+            Some(write.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+        | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+        | CheckedUnitEffectOperationPlan::Complete { .. } => None,
+    }
 }
 
 fn place_loan_declaration(

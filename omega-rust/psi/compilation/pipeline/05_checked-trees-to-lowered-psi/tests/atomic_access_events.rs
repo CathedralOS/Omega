@@ -6,7 +6,7 @@
 //! field of the borrowed receiver, supplied as a structural input.
 //!
 //! The rejection controls mutate the lowered event and check that the
-//! verifier refuses an illegal ordering, a shared-borrow write, a mistyped or
+//! verifier refuses an illegal ordering, a forged plain-cell identity, a mistyped or
 //! dropped result, a store that claims a result, an undeclared field, and a
 //! runtime-selected location; the codec refuses to publish any of them.
 
@@ -36,12 +36,12 @@ fn u32_value(value: u128) -> TerminalScalarValue {
     }
 }
 
-/// One body over `self.counter`, reporting each value it names.
+/// One body over `cell.counter`, reporting each value it names.
 fn source(body: &str) -> String {
     format!(
         "boundary trait Report {{ machine value(v: u32) reaches Report; }}
         data Cell {{ counter: AtomicU32; }}
-        machine Cell::run(&mut self) reaches Report {{
+        machine Cell::run(cell: &Cell) reaches Report {{
             {body}
         }}"
     )
@@ -56,18 +56,17 @@ fn lower(body: &str) -> lowered_psi::LoweredPsi {
     .unwrap_or_else(|error| panic!("{body}: {error:#?}"))
 }
 
-/// Run the serialized module with `counter` initially `initial`, returning
-/// every reported value.
-fn run(
+/// Run the serialized module with `counter` initially `initial`.
+fn interpret(
     module: &TerminalModule,
     proof: &terminal_psi::ProofBundle,
     initial: u128,
-) -> Result<Vec<u128>, TerminalArtifactInterpretError> {
+) -> Result<terminal_interpreter::MeasuredTerminalExecution, TerminalArtifactInterpretError> {
     let machine = &module.machines[0];
     let receiver = machine
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.is_self)
+        .next()
         .expect("the body retains its receiver");
     let declaration = module
         .structural_types
@@ -81,7 +80,7 @@ fn run(
         .iter()
         .find(|field| field.identity == "counter")
         .expect("counter field");
-    let execution = interpret_terminal_artifact_measured(
+    interpret_terminal_artifact_measured(
         &encode_module(module).expect("canonical semantic bytes"),
         &encode_proof_section(module, proof).expect("canonical proof bytes"),
         &AdmissionProfile::default(),
@@ -102,7 +101,16 @@ fn run(
             ..Default::default()
         },
         &mut AcceptTerminalEffects,
-    )?;
+    )
+}
+
+/// Return every reported value from a Unit body.
+fn run(
+    module: &TerminalModule,
+    proof: &terminal_psi::ProofBundle,
+    initial: u128,
+) -> Result<Vec<u128>, TerminalArtifactInterpretError> {
+    let execution = interpret(module, proof, initial)?;
     assert_eq!(execution.value(), TerminalExecutionResult::Unit);
     Ok(execution
         .effects()
@@ -147,11 +155,11 @@ fn events(module: &TerminalModule) -> Vec<AtomicAccessEvent> {
 
 #[test]
 fn store_and_load_carry_their_orderings_and_round_trip_the_value() {
-    let body = "self.counter.store(42, Publish);
-                let seen: u32 = self.counter.load(Receive);
+    let body = "cell.counter.store(42, Publish);
+                let seen: u32 = cell.counter.load(Receive);
                 Report::value(seen);
-                self.counter.store(43, GlobalOrder);
-                let again: u32 = self.counter.load(GlobalOrder);
+                cell.counter.store(43, GlobalOrder);
+                let again: u32 = cell.counter.load(GlobalOrder);
                 Report::value(again);";
     let lowered = lower(body);
     assert!(matches!(
@@ -174,6 +182,61 @@ fn store_and_load_carry_their_orderings_and_round_trip_the_value() {
         ]
     ));
     assert_eq!(execute(body, 0), [42, 43]);
+}
+
+#[test]
+fn scalar_completion_covers_effects_and_their_result_bindings() {
+    for observation in [
+        "cell.counter.fetch_or(5, ReceivePublish)",
+        "cell.counter.swap(15, ReceivePublish)",
+        "cell.counter.load(Receive)",
+    ] {
+        let source = format!(
+            "data Cell {{ counter: AtomicU32; }}
+             machine Cell::mark(cell: &Cell) -> u32 {{
+                 cell.counter.store(10, Publish);
+                 let prior: u32 = {observation};
+                 transition {{ _ -> (prior) }}
+             }}"
+        );
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Cell::mark"),
+        )
+        .unwrap_or_else(|error| panic!("{observation}: {error:#?}"));
+        assert_eq!(
+            interpret(&lowered.semantic_module, &lowered.proof_bundle, 0)
+                .expect("serialized scalar completion executes")
+                .value(),
+            TerminalExecutionResult::Scalar(u32_value(10)),
+            "{observation}: the store precedes the returned observation"
+        );
+
+        let mut omitted = checked.clone();
+        let mut removed = false;
+        for machine in &mut omitted.facts.flow.terminal_unit_effects.machines {
+            machine.operations.retain(|operation| {
+                let observing = matches!(operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::AtomicAccess(access)
+                        if access.result.is_some());
+                removed |= observing;
+                !observing
+            });
+        }
+        assert!(
+            removed,
+            "the observing effect is in the ordinary operation roster"
+        );
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &omitted,
+                TerminalMachineSelection::Name("Cell::mark"),
+            )
+            .is_err(),
+            "{observation}: neither an effect nor its binding may disappear"
+        );
+    }
 }
 
 #[test]
@@ -200,9 +263,9 @@ fn every_fetch_returns_the_observed_prior_and_wraps_at_the_field_width() {
         ("fetch_xor", 6, AtomicReadModifyWrite::FetchXor, 10, 12),
     ] {
         let body = format!(
-            "let prior: u32 in Wrapping = self.counter.{method}({operand}, ReceivePublish);
+            "let prior: u32 in Wrapping = cell.counter.{method}({operand}, ReceivePublish);
              Report::value(prior as u32);
-             let now: u32 = self.counter.load(NoOrdering);
+             let now: u32 = cell.counter.load(NoOrdering);
              Report::value(now);"
         );
         let lowered = lower(&body);
@@ -230,18 +293,18 @@ fn every_fetch_returns_the_observed_prior_and_wraps_at_the_field_width() {
 
 #[test]
 fn swap_returns_the_displaced_resident() {
-    let body = "let prior: u32 = self.counter.swap(42, ReceivePublish);
+    let body = "let prior: u32 = cell.counter.swap(42, ReceivePublish);
                 Report::value(prior);
-                let now: u32 = self.counter.load(NoOrdering);
+                let now: u32 = cell.counter.load(NoOrdering);
                 Report::value(now);";
     assert_eq!(execute(body, 10), [10, 42]);
 }
 
 #[test]
 fn compare_exchange_keeps_both_orderings_and_exchanges_only_on_a_match() {
-    let body = "let prior: u32 in Wrapping = self.counter.compare_exchange(10, 99, ReceivePublish, Receive);
+    let body = "let prior: u32 in Wrapping = cell.counter.compare_exchange(10, 99, ReceivePublish, Receive);
                 Report::value(prior as u32);
-                let now: u32 = self.counter.load(NoOrdering);
+                let now: u32 = cell.counter.load(NoOrdering);
                 Report::value(now);";
     let lowered = lower(body);
     assert!(matches!(
@@ -270,7 +333,7 @@ fn compare_exchange_keeps_both_orderings_and_exchanges_only_on_a_match() {
 /// Lower one fetch body, rewrite it, and return the verifier's refusal.
 fn mutated(mutate: impl FnOnce(&mut TerminalModule)) -> ModuleError {
     let lowered = lower(
-        "let prior: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
+        "let prior: u32 in Wrapping = cell.counter.fetch_add(5, NoOrdering);
          Report::value(prior as u32);",
     );
     let mut module = lowered.semantic_module;
@@ -331,19 +394,49 @@ fn verification_rejects_substituted_atomic_evidence() {
     });
     assert_eq!(refusal(error), AtomicAccessRefusal::IllegalOrdering);
 
-    // A modifying event through a shared borrow: no atomic-cell identity
-    // authorizes mutation through a shared loan yet.
+    // Equal-width plain scalar storage cannot acquire atomic authority by
+    // borrowing it shared or relabeling the event.
+    let error = mutated(|module| {
+        for declaration in &mut module.structural_types {
+            if let StructuralTypeShape::Record { fields } = &mut declaration.shape {
+                for field in fields {
+                    if let terminal_psi::StructuralFieldType::Atomic(scalar) = field.field_type {
+                        field.field_type = terminal_psi::StructuralFieldType::Scalar(scalar);
+                    }
+                }
+            }
+        }
+    });
+    assert_eq!(refusal(error), AtomicAccessRefusal::UnresolvedField);
+
     let error = mutated(|module| {
         for parameter in module
             .machines
             .iter_mut()
             .flat_map(|machine| &mut machine.structural_parameters)
-            .filter(|parameter| parameter.is_self)
         {
-            parameter.access = StructuralAccess::SharedBorrow;
+            parameter.access = StructuralAccess::WriteOnlyBorrow;
         }
     });
-    assert_eq!(refusal(error), AtomicAccessRefusal::UnwritableLocation);
+    assert_eq!(refusal(error), AtomicAccessRefusal::UnreadableLocation);
+
+    // Replacing an atomic observation with an ordinary field load would lose
+    // the event's ordering. Shared authority cannot admit that substitution.
+    let error = mutated(|module| {
+        let operation = atomic_operation(module);
+        let OperationKind::AtomicAccess { place, field, .. } = operation.kind else {
+            unreachable!("selected an atomic event");
+        };
+        operation.kind = OperationKind::IntegerStructuralField {
+            source: place,
+            path: Vec::new(),
+            field,
+        };
+    });
+    assert!(matches!(
+        error,
+        ModuleError::InvalidIntegerStructuralField { .. }
+    ));
 
     // The observed prior carries the field's own type, and an observing
     // event cannot drop it.
@@ -393,6 +486,78 @@ fn verification_rejects_substituted_atomic_evidence() {
     assert_eq!(refusal(error), AtomicAccessRefusal::RuntimeSelectedLocation);
 }
 
+#[test]
+fn owned_element_view_descriptors_do_not_authorize_plain_atomic_snapshots() {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration,
+    };
+
+    for nested in [false, true] {
+        let error = mutated(|module| {
+            let cell = module.machines[0].structural_parameters[0].structural_type;
+            let next_identity = module
+                .structural_types
+                .iter()
+                .map(|declaration| declaration.id.get())
+                .max()
+                .unwrap()
+                + 1;
+            let view = StructuralTypeId::new(next_identity).unwrap();
+            module.structural_types.push(StructuralTypeDeclaration {
+                id: view,
+                identity: "borrowed cells".into(),
+                shape: StructuralTypeShape::ElementView { element: cell },
+            });
+            let (root, path) = if nested {
+                let wrapper = StructuralTypeId::new(next_identity + 1).unwrap();
+                let field = StructuralFieldId::new(1).unwrap();
+                module.structural_types.push(StructuralTypeDeclaration {
+                    id: wrapper,
+                    identity: "owned view container".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![StructuralFieldDeclaration {
+                            id: field,
+                            identity: "cells".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(view),
+                        }],
+                    },
+                });
+                (
+                    wrapper,
+                    vec![
+                        CanonicalStructuralPathSegment::Field(field),
+                        CanonicalStructuralPathSegment::FixedIndex(0),
+                    ],
+                )
+            } else {
+                (view, vec![CanonicalStructuralPathSegment::FixedIndex(0)])
+            };
+            let parameter = &mut module.machines[0].structural_parameters[0];
+            parameter.structural_type = root;
+            parameter.access = StructuralAccess::Owned;
+
+            let operation = atomic_operation(module);
+            let OperationKind::AtomicAccess { place, field, .. } = operation.kind else {
+                unreachable!("selected an atomic event");
+            };
+            operation.kind = OperationKind::IntegerStructuralField {
+                source: place,
+                path,
+                field,
+            };
+        });
+        assert!(
+            matches!(error, ModuleError::InvalidIntegerStructuralField { .. }),
+            "owned descriptor (nested={nested}) must not own borrowed atomic backing: {error:?}"
+        );
+    }
+}
+
 /// Lowering rejoins every planned event to its authored carrier: a plan that
 /// substitutes the operation, an ordering, the field, an operand, or the
 /// prior's binding statement refuses instead of emitting a different event.
@@ -401,8 +566,8 @@ fn lowering_rejects_a_plan_that_drifts_from_its_authored_carrier() {
     use checked_trees::{
         CheckedAtomicEvent, CheckedAtomicReadModifyWrite, CheckedUnitEffectOperationPlan,
     };
-    let body = "self.counter.store(10, Publish);
-                let prior: u32 in Wrapping = self.counter.fetch_add(5, ReceivePublish);
+    let body = "cell.counter.store(10, Publish);
+                let prior: u32 in Wrapping = cell.counter.fetch_add(5, ReceivePublish);
                 Report::value(prior as u32);";
     let checked = crate::front_end::checked_program(&source(body));
     checked_trees_to_lowered_psi::lower_machine(

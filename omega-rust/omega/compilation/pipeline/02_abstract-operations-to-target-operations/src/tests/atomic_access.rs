@@ -10,10 +10,10 @@ fn atomic_fetch_add_retains_its_observed_prior_and_ordered_operands() {
     let source = source_plan(
         r#"
         data Main { counter: AtomicU32; observed: u32 in Wrapping; }
-        machine Main::run(&mut self) {
-            self.counter.store(10, NoOrdering);
-            let prior: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
-            self.observed = prior;
+        machine Main::run(main: &mut Main) {
+            main.counter.store(10, NoOrdering);
+            let prior: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
+            main.observed = prior;
         }
     "#,
     );
@@ -80,13 +80,18 @@ fn atomic_target_planning_rejects_ordering_and_read_authority_substitution() {
     let source = source_plan(
         r#"
         data Main { counter: AtomicU32; }
-        machine Main::run(&mut self) {
-            self.counter.store(10, NoOrdering);
-            let prior: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
+        machine Main::run(main: &Main) {
+            main.counter.store(10, NoOrdering);
+            let prior: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
         }
     "#,
     );
-    for mutation in ["ordering", "shared writer", "write-only observer"] {
+    crate::lower_to_target_operations(
+        &source,
+        crate::TargetLoweringRequest::new(NativeTarget::macos_arm64()),
+    )
+    .expect("shared atomic cell admits store and fetch");
+    for mutation in ["ordering", "plain scalar", "write-only observer"] {
         let mut changed = source.clone();
         let function = &mut changed.functions[0];
         match mutation {
@@ -104,9 +109,24 @@ fn atomic_target_planning_rejects_ordering_and_read_authority_substitution() {
                     .unwrap();
                 *event = MemoryOrdering::Receive;
             }
-            "shared writer" => {
-                function.structural_parameters[0].access =
-                    terminal_psi::StructuralAccess::SharedBorrow
+            "plain scalar" => {
+                let mut replaced = false;
+                for declaration in changed.structural_types.make_mut() {
+                    if let terminal_psi::StructuralTypeShape::Record { fields } =
+                        &mut declaration.shape
+                    {
+                        for field in fields {
+                            if let terminal_psi::StructuralFieldType::Atomic(scalar) =
+                                field.field_type
+                            {
+                                field.field_type =
+                                    terminal_psi::StructuralFieldType::Scalar(scalar);
+                                replaced = true;
+                            }
+                        }
+                    }
+                }
+                assert!(replaced);
             }
             _ => {
                 function.structural_parameters[0].access =

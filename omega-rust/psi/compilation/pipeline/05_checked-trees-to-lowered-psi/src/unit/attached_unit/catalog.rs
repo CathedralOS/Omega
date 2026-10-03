@@ -9,7 +9,6 @@ use super::super::{
     StructuralTypeDeclaration, lower_mixed_cases, lower_mixed_fields,
     program_local_root_introduction_compatibility_report_identity, service_id,
     structural_domain_id, structural_field_id, structural_type_id, terminal_byte_sequence_carrier,
-    terminal_structural_field_type,
 };
 use super::bodies::UnitPlans;
 use super::{
@@ -733,21 +732,6 @@ pub(crate) fn lower_unit_structural_type_roots(
                     ));
                 }
                 let (relevance, field_type) = match &field.field_type {
-                    CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
-                        (field.relevance, StructuralFieldType::BoundedInteger(*integer))
-                    }
-                    CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                        (field.relevance, terminal_structural_field_type(*primitive)?)
-                    }
-                    CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => {
-                        (field.relevance, StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates })
-                    }
-                    CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
-                        (field.relevance, StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier)))
-                    }
-                    CheckedUnitStructuralFieldType::Structural { type_identity } => {
-                        (field.relevance, StructuralFieldType::Structural(lookup_type_id(&type_ids, type_identity)?))
-                    }
                     CheckedUnitStructuralFieldType::ProviderBacked {
                         provider_type_identity,
                     } => (field.relevance, StructuralFieldType::Erased {
@@ -771,11 +755,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                             lookup_type_id(&type_ids, provider_type_identity)?,
                         ))
                     }
-                    CheckedUnitStructuralFieldType::Erased { type_identity } => {
-                        (field.relevance, StructuralFieldType::Erased {
-                            type_identity: type_identity.clone(),
-                        })
-                    }
+                    field_type => (field.relevance, crate::returns::structural_types::lower_field_type(field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
                     id: structural_field_id(allocate_dense(&mut next_field)?),
@@ -822,33 +802,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                                                 "Unit structural sum case contains an empty or duplicate payload field identity",
                                             ));
                                         }
-                                        let field_type = match &field.field_type {
-                                            CheckedUnitStructuralFieldType::BoundedInteger(integer) => StructuralFieldType::BoundedInteger(*integer),
-                                            CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                                                terminal_structural_field_type(*primitive)?
-                                            }
-                                            CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
-                                            CheckedUnitStructuralFieldType::ByteSequence(
-                                                carrier,
-                                            ) => StructuralFieldType::ByteSequence(
-                                                terminal_byte_sequence_carrier(*carrier),
-                                            ),
-                                            CheckedUnitStructuralFieldType::Structural {
-                                                type_identity,
-                                            } => StructuralFieldType::Structural(lookup_type_id(
-                                                &type_ids,
-                                                type_identity,
-                                            )?),
-                                            CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                                            | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
-                                                return unsupported("provider-backed attachment fields are valid only on records");
-                                            }
-                                            CheckedUnitStructuralFieldType::Erased {
-                                                type_identity,
-                                            } => StructuralFieldType::Erased {
-                                                type_identity: type_identity.clone(),
-                                            },
-                                        };
+                                        let field_type = crate::returns::structural_types::lower_field_type(&field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,

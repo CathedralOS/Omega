@@ -347,6 +347,7 @@ fn constructible_record(
             }
             match field.field_type {
                 StructuralFieldType::Scalar(_)
+                | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)

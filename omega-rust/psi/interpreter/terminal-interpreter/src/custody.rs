@@ -593,7 +593,8 @@ pub(crate) fn direct_scalar_field_type(
         (candidate.id == field && !candidate.relevance.is_erased())
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
-                terminal_psi::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                terminal_psi::StructuralFieldType::Scalar(scalar_type)
+                | terminal_psi::StructuralFieldType::Atomic(scalar_type) => Some(*scalar_type),
                 terminal_psi::StructuralFieldType::BoundedInteger(bounded) => {
                     Some(ScalarType::Integer(bounded.integer_type()))
                 }

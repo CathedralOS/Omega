@@ -243,6 +243,7 @@ pub(in crate::validation) fn has_plain_owned_shape(
             }
             match &field.field_type {
                 StructuralFieldType::Scalar(_)
+                | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::BoundedInteger(_)
                 | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::Structural(child) => visit(module, *child, active, complete),

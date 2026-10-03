@@ -286,6 +286,10 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
             BindingRelevance::Erased => 2,
         });
         match &field.field_type {
+            StructuralFieldType::Atomic(scalar) => {
+                bytes.push(8);
+                encode_scalar_type(bytes, *scalar);
+            }
             StructuralFieldType::BoundedInteger(bounds) => {
                 bytes.push(6);
                 super::scalar::encode_integer_type(bytes, bounds.integer_type());

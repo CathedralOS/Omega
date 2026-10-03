@@ -16,12 +16,9 @@
 //! The place is an atomic field reached through static fields and at most one
 //! literal element of a structural parameter — the (root, carrier path,
 //! field) location a scalar field store names. Planning requires the field
-//! to be declared atomic storage; a
-//! modifying event needs exclusive (`&mut`) authority over its root, because
-//! Terminal types do not yet mark atomic cells and a shared-borrow write is
-//! only sound on one. That shared-receiver form (all atomic receivers are
-//! shared in the source contract) therefore still declines here, with its
-//! own trace phase, rather than producing a module verification refuses.
+//! to be declared atomic storage. Its retained field type supplies atomic-cell
+//! identity, so shared access authorizes the event without granting ordinary
+//! shared mutation. Independent Terminal verification checks that identity.
 //! Operands are the carrier's own `AtomicOperand` scalar rows, rechecked
 //! against the decoder's operand expressions.
 
@@ -127,7 +124,6 @@ pub(super) fn load_event(
         structural_parameters,
         statement_index,
         carrier.place,
-        false,
         trace,
     )?;
     trace.phase("atomic access: load result binding");
@@ -176,7 +172,6 @@ pub(super) fn writing_event(
         structural_parameters,
         statement_index,
         carrier.place,
-        true,
         trace,
     )?;
     let primitive_type = place.primitive_type;
@@ -314,7 +309,6 @@ fn place(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
-    modifies: bool,
     trace: &LocalConstructionTrace,
 ) -> Option<AtomicPlace> {
     trace.phase("atomic access: place: atomic storage");
@@ -387,18 +381,10 @@ fn place(
                     .get(parameter.position as usize)
                     .is_some_and(|source| source.symbol == symbol)
             })?;
-    let authorized = if modifies {
-        parameter.access == CheckedStructuralAccess::MutableBorrow
-    } else {
-        matches!(
-            parameter.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
-        )
-    };
-    if modifies && parameter.access == CheckedStructuralAccess::SharedBorrow {
-        trace.phase("atomic access: place: shared receiver without atomic cell identity");
-        return None;
-    }
+    let authorized = matches!(
+        parameter.access,
+        CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+    );
     if !authorized
         || parameter.multiplicity == Multiplicity::Linear
         || !parameter.qualifications.is_empty()

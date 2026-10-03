@@ -28,6 +28,8 @@ const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/compilation/representations/t
 const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/structural_case.rs";
 const TERMINATOR_FACTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/terminator_facts.rs";
 const CRASH_FIELD_ORIGINS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/crash_field_origins.rs";
+const SHARED_MUTATION: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/shared_mutation.rs";
 const CRASH_PATHS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/crash_paths.rs";
 const BLOCK_INVARIANTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/scalar_block_invariants.rs";
 const SUBSTITUTION: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/substitution.rs";
@@ -252,6 +254,7 @@ static TERMINATOR_CRASH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     implementation: &[
         TERMINATOR_FACTS,
         CRASH_FIELD_ORIGINS,
+        SHARED_MUTATION,
         CRASH_PATHS,
         TERMINATION,
     ],
@@ -798,6 +801,7 @@ static FACT_CRASH_SITE_RETENTION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     dependencies: &["scope:crash-origin-filter"],
     implementation: &[
         CRASH_FIELD_ORIGINS,
+        SHARED_MUTATION,
         CRASH_PATHS,
         TERMINATOR_FACTS,
         RECONSTRUCTION,

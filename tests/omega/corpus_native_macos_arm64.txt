@@ -47,8 +47,7 @@ pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 609ms exit:70
 pass/atomics/atomic_global_order_operations checked 200ms
 pass/atomics/runtime_atomic_compare_exchange_exit built 2351ms exit:70 @fb2178def922
 pass/atomics/runtime_atomic_fetch_add_exit built 2588ms exit:70 @fb2178def922
-pass/atomics/shared_receiver_atomic_store rejected 733ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Cell::publish`), which was itself omitted at local construction at `atomic access: place: shared receiver without atomic cell identity`
+pass/atomics/shared_receiver_atomic_store built 1028ms exit:70 @e7aa25bff706+wt
 pass/blockexec/blocking_executor_custody_claims_compile built 335ms
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 209ms
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 209ms

@@ -36,7 +36,9 @@ fn scalar_field_type(
     permit_bounded_read: bool,
 ) -> Option<ScalarType> {
     match field_type {
-        StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+        StructuralFieldType::Scalar(scalar_type) | StructuralFieldType::Atomic(scalar_type) => {
+            Some(*scalar_type)
+        }
         StructuralFieldType::BoundedInteger(bounded) if permit_bounded_read => {
             Some(ScalarType::Integer(bounded.integer_type()))
         }
@@ -51,7 +53,7 @@ fn scalar_field_type(
 
 /// The scalar type a field observation yields below `root_type`: a relevant
 /// field of the record `path` reaches, or a relevant payload field of the case
-/// a final `Case` step selects. This admission is type-only. A `Case` step
+/// a final `Case` step selects. This checks type and backing access. A `Case` step
 /// names an overlaid payload that is live only while that case is active, so
 /// operation reconstruction separately requires the case's membership fact
 /// at the read, exactly as it does for `StructuralCaseLeafCopy`.
@@ -60,6 +62,7 @@ fn observed_scalar_field(
     root_type: StructuralTypeId,
     path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: StructuralFieldId,
+    access: StructuralAccess,
 ) -> Option<ScalarType> {
     let declaration = terminal_semantics::observed_field_declaration(
         module.structural_types.iter(),
@@ -67,6 +70,22 @@ fn observed_scalar_field(
         path,
         field,
     )?;
+    // A non-atomic snapshot requires exclusive or owned storage. A shared
+    // cell must use AtomicAccess, retaining its ordering and event identity.
+    if matches!(declaration.field_type, StructuralFieldType::Atomic(_)) {
+        let access = terminal_semantics::observed_field_backing_access(
+            module.structural_types.iter(),
+            root_type,
+            path,
+            access,
+        )?;
+        if !matches!(
+            access,
+            StructuralAccess::Owned | StructuralAccess::MutableBorrow
+        ) {
+            return None;
+        }
+    }
     scalar_field_type(&declaration.field_type, true)
 }
 
@@ -207,8 +226,13 @@ pub(in crate::validation) fn validate_integer_structural_field(
     // record carrying borrowed-view members still answers scalar reads.
     if let Some(result) = crate::validation::record::constructed_source(module, machine, source) {
         if matches!(result_type, ScalarType::Integer(_))
-            && observed_scalar_field(module, result.structural_type, path, field)
-                == Some(result_type)
+            && observed_scalar_field(
+                module,
+                result.structural_type,
+                path,
+                field,
+                StructuralAccess::Owned,
+            ) == Some(result_type)
         {
             return Ok(());
         }
@@ -228,8 +252,13 @@ pub(in crate::validation) fn validate_integer_structural_field(
                 operation,
             ));
         };
-        if observed_scalar_field(module, parameter.structural_type, path, field)
-            != Some(result_type)
+        if observed_scalar_field(
+            module,
+            parameter.structural_type,
+            path,
+            field,
+            parameter.access,
+        ) != Some(result_type)
         {
             return Err(invalid());
         }
@@ -250,12 +279,10 @@ pub(in crate::validation) fn validate_integer_structural_field(
                 .and_then(|result| (result.place == source).then_some((operation, result)))
         })
         .ok_or_else(invalid)?;
-    let readable = match &producer.kind {
+    let access = match &producer.kind {
         OperationKind::EstablishReference { source }
         | OperationKind::EstablishElementView { source, .. }
-        | OperationKind::EstablishMutableElementView { source, .. } => {
-            has_readable_structural_access(source.access)
-        }
+        | OperationKind::EstablishMutableElementView { source, .. } => Some(source.access),
         // A call result spells the returned loan's access on its `Reference`
         // type shell: `let seen: &Node = self.first()` binds the `&Node`
         // referent through the call's result, and reads through it observe
@@ -268,14 +295,11 @@ pub(in crate::validation) fn validate_integer_structural_field(
             .structural_types
             .iter()
             .find(|declaration| declaration.id == borrowed_result.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    &declaration.shape,
-                    StructuralTypeShape::Reference { access, .. }
-                        if has_readable_structural_access(*access)
-                )
+            .and_then(|declaration| match &declaration.shape {
+                StructuralTypeShape::Reference { access, .. } => Some(*access),
+                _ => None,
             }),
-        _ => false,
+        _ => None,
     };
     let empty_result_custody = borrowed_result.qualifications.is_empty()
         && borrowed_result.projected_qualifications.is_empty()
@@ -287,7 +311,7 @@ pub(in crate::validation) fn validate_integer_structural_field(
             .content_entry_claims
             .iter()
             .all(|claim| claim.input.root != source);
-    if !readable
+    if !access.is_some_and(has_readable_structural_access)
         || !matches!(
             borrowed_result.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -313,7 +337,8 @@ pub(in crate::validation) fn validate_integer_structural_field(
         Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
         _ => borrowed_result.structural_type,
     };
-    if observed_scalar_field(module, observed_root, path, field) != Some(result_type) {
+    let access = access.ok_or_else(invalid)?;
+    if observed_scalar_field(module, observed_root, path, field, access) != Some(result_type) {
         return Err(invalid());
     }
     Ok(())
@@ -333,8 +358,13 @@ pub(in crate::validation) fn validate_boolean_structural_field(
         field,
     };
     if let Some(result) = crate::validation::record::completed_source(module, machine, source) {
-        return if observed_scalar_field(module, result.structural_type, path, field)
-            == Some(ScalarType::Boolean)
+        return if observed_scalar_field(
+            module,
+            result.structural_type,
+            path,
+            field,
+            StructuralAccess::Owned,
+        ) == Some(ScalarType::Boolean)
         {
             Ok(())
         } else {
@@ -350,8 +380,13 @@ pub(in crate::validation) fn validate_boolean_structural_field(
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
     ) || !has_readable_structural_access(parameter.access)
         || !has_empty_structural_custody(machine, source)
-        || observed_scalar_field(module, parameter.structural_type, path, field)
-            != Some(ScalarType::Boolean)
+        || observed_scalar_field(
+            module,
+            parameter.structural_type,
+            path,
+            field,
+            parameter.access,
+        ) != Some(ScalarType::Boolean)
     {
         return Err(invalid());
     }

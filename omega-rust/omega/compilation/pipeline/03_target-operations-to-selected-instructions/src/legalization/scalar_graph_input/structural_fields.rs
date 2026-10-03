@@ -469,15 +469,15 @@ pub(in crate::legalization) fn read(
             Some(terminal_psi::StructuralTypeShape::Reference {
                 referent,
                 access:
-                    terminal_psi::StructuralAccess::SharedBorrow
-                    | terminal_psi::StructuralAccess::MutableBorrow,
+                    access @ (terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow),
             }) => {
                 let leaf = custody.readable_leaf(place, &[])?;
                 if &leaf.result != result || leaf.referent != *referent {
                     return None;
                 }
                 through_reference = true;
-                (*referent, terminal_psi::StructuralAccess::SharedBorrow)
+                (*referent, *access)
             }
             _ => (
                 result.structural_type,
@@ -486,6 +486,23 @@ pub(in crate::legalization) fn read(
         };
         (structural_type, access)
     };
+    let access = terminal_semantics::observed_field_backing_access(
+        types.iter(),
+        structural_type,
+        path,
+        access,
+    )?;
+    let declaration =
+        terminal_semantics::observed_field_declaration(types.iter(), structural_type, path, field)?;
+    if matches!(
+        declaration.field_type,
+        terminal_psi::StructuralFieldType::Atomic(_)
+    ) && !matches!(
+        access,
+        terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
+    ) {
+        return None;
+    }
     // A final `Case` step selects which payload overlay holds the field. It
     // names no storage of its own: the payload lives at the sum's place, so
     // the runtime carrier stops at the sum and the case travels beside it.

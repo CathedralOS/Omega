@@ -830,12 +830,15 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
     fields.iter().all(|field| {
         !field.relevance.is_erased()
             && match field.field_type {
-                StructuralFieldType::Scalar(ScalarType::Boolean) => true,
-                StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+                StructuralFieldType::Scalar(ScalarType::Boolean)
+                | StructuralFieldType::Atomic(ScalarType::Boolean) => true,
+                StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                | StructuralFieldType::Atomic(ScalarType::Integer(integer)) => {
                     matches!(integer.bits(), 8 | 16 | 32 | 64)
                         && (!integer.is_address() || integer.bits() == 64)
                 }
                 StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
+                | StructuralFieldType::Atomic(ScalarType::IeeeFloat(_))
                 | StructuralFieldType::BoundedInteger(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::PredicateByteSequence { .. }

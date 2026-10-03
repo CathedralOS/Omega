@@ -262,6 +262,7 @@ fn plain_type(
                         // Bounds remain part of the declaration and source proof;
                         // they do not make an unobserved scalar payload executable.
                         StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::Atomic(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => true,
                         StructuralFieldType::Structural(nested) => {

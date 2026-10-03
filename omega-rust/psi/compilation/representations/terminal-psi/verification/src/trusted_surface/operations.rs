@@ -53,6 +53,9 @@ const OP_FACTS_RECORD: &str = "omega-rust/psi/compilation/representations/termin
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/scalar_case.rs";
 const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/structural_case.rs";
 const TV_CALLS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/call_composition.rs";
+const TS_SHARED_MUTATION: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/shared_mutation.rs";
+const TV_STORAGE_OBSERVATIONS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/storage_observations.rs";
 const VAL_OPS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/operations.rs";
 const VAL_RECORD: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/record.rs";
@@ -165,6 +168,8 @@ const CALL_SITES: &[&str] = &[
     TS_CALLS,
     TS_CALLS_VIEW,
     TV_CALLS,
+    TS_SHARED_MUTATION,
+    TV_STORAGE_OBSERVATIONS,
     OP_FACTS,
     OP_FACTS_CASE_HOPS,
     VAL_STRUCTURAL_OPS,
@@ -1045,8 +1050,8 @@ static OP_FLOAT_RESULT_POLICY: TrustedSurfaceEntry = entry(
 
 static OP_ATOMIC_ACCESS: TrustedSurfaceEntry = entry(
     "operation:atomic-access",
-    "a live root whose access grants the event (readable to observe, writable to modify, both for read-modify-write, swap and compare-exchange), a static path to an integer or Boolean primitive leaf, source-legal orderings, leaf-typed operands, and a leaf-typed result exactly when the event observes",
-    "no proposition facts: the observed prior is an unconstrained value of the leaf type; a modifying event retires every observation of its root",
+    "a live root with readable authority when observing and dedicated atomic-cell identity authorizing mutation even through shared access, a static path to a fixed integer or Boolean atomic leaf, source-legal orderings, leaf-typed operands, and a leaf-typed result exactly when the event observes",
+    "no proposition facts: the observed prior is an unconstrained scalar snapshot; a modifying event retires potentially aliasing atomic observations while plain siblings remain stable",
     &[
         "invalidation:atomic-access",
         "formation:operation-validation",
@@ -1057,6 +1062,8 @@ static OP_ATOMIC_ACCESS: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_ATOMIC,
+        TS_SHARED_MUTATION,
+        TV_STORAGE_OBSERVATIONS,
         VAL_PRIMITIVE_STORAGE,
     ],
 );
@@ -1238,6 +1245,8 @@ static OP_CALL_DYNAMIC_SCALAR: TrustedSurfaceEntry = entry(
         TS_ROWS,
         TS_CALLS,
         TV_CALLS,
+        TS_SHARED_MUTATION,
+        TV_STORAGE_OBSERVATIONS,
         OP_FACTS,
         VAL_OPS,
         VAL_CONTRACTS,
@@ -1258,6 +1267,8 @@ static OP_CALL_DYNAMIC_PARAMETER_SCALAR: TrustedSurfaceEntry = entry(
         TS_ROWS,
         TS_CALLS,
         TV_CALLS,
+        TS_SHARED_MUTATION,
+        TV_STORAGE_OBSERVATIONS,
         OP_FACTS,
         VAL_OPS,
         VAL_CONTRACTS,
@@ -1278,6 +1289,8 @@ static OP_CALL_DYNAMIC_UNIT: TrustedSurfaceEntry = entry(
         TS_ROWS,
         TS_CALLS,
         TV_CALLS,
+        TS_SHARED_MUTATION,
+        TV_STORAGE_OBSERVATIONS,
         OP_FACTS,
         VAL_OPS,
         VAL_CONTRACTS,
@@ -1298,6 +1311,8 @@ static OP_CALL_DYNAMIC_PARAMETER_UNIT: TrustedSurfaceEntry = entry(
         TS_ROWS,
         TS_CALLS,
         TV_CALLS,
+        TS_SHARED_MUTATION,
+        TV_STORAGE_OBSERVATIONS,
         OP_FACTS,
         VAL_OPS,
         VAL_CONTRACTS,
@@ -1332,6 +1347,8 @@ static OP_BOUNDARY_CALL: TrustedSurfaceEntry = entry(
         TS_CALLS,
         TS_CALLS_VIEW,
         TV_CALLS,
+        TS_SHARED_MUTATION,
+        TV_STORAGE_OBSERVATIONS,
         OP_FACTS,
         VAL_OPS,
         VAL_CONTRACTS,

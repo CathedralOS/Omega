@@ -174,7 +174,9 @@ fn zeroed_field_scalar(field: &StructuralFieldDeclaration) -> Option<ScalarType>
     }
     match field.field_type {
         StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(format)),
-        StructuralFieldType::Scalar(scalar_type) => Some(scalar_type),
+        StructuralFieldType::Scalar(scalar_type) | StructuralFieldType::Atomic(scalar_type) => {
+            Some(scalar_type)
+        }
         StructuralFieldType::BoundedInteger(bounds) if admits_zero(bounds) => {
             Some(ScalarType::Integer(bounds.integer_type()))
         }

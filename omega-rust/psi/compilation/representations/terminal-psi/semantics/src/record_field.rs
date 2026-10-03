@@ -1,6 +1,6 @@
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
-    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
@@ -24,7 +24,7 @@ pub fn record_field_carrier<'types>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<RecordFieldCarrier> {
-    let (structural_type, runtime_path) = walk_record_fields(types.clone(), root, path)?;
+    let (structural_type, runtime_path, _) = walk_record_fields(types.clone(), root, path)?;
     matches!(
         types
             .clone()
@@ -66,7 +66,7 @@ pub fn case_payload_carrier<'types>(
     let (CanonicalStructuralPathSegment::Case(case), prefix) = path.split_last()? else {
         return None;
     };
-    let (sum, runtime_path) = walk_record_fields(types.clone(), root, prefix)?;
+    let (sum, runtime_path, _) = walk_record_fields(types.clone(), root, prefix)?;
     let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) = &types
         .clone()
         .find(|declaration| declaration.id == sum)?
@@ -112,6 +112,30 @@ pub fn observed_field_declaration<'types>(
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
 }
 
+/// Preserve backing authority when observing a field through a canonical path.
+/// Owning an element-view descriptor, even inside an owned record, grants no
+/// exclusive access to the elements it references. A caller must separately
+/// validate the field and the operation's access requirements.
+pub fn observed_field_backing_access<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+    access: StructuralAccess,
+) -> Option<StructuralAccess> {
+    let prefix = match path.split_last() {
+        Some((CanonicalStructuralPathSegment::Case(_), prefix)) => prefix,
+        _ => path,
+    };
+    let (_, _, crosses_view) = walk_record_fields(types, root, prefix)?;
+    Some(
+        if crosses_view && access != StructuralAccess::WriteOnlyBorrow {
+            StructuralAccess::SharedBorrow
+        } else {
+            access
+        },
+    )
+}
+
 /// Walk declaration-local record fields and literal array indices from `root`.
 /// Returns the reached type and its
 /// runtime path; the caller decides which shape it must have.
@@ -119,9 +143,10 @@ fn walk_record_fields<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
-) -> Option<(StructuralTypeId, Vec<StructuralPathSegment>)> {
+) -> Option<(StructuralTypeId, Vec<StructuralPathSegment>, bool)> {
     let mut structural_type = root;
     let mut runtime_path = Vec::with_capacity(path.len());
+    let mut crosses_view = false;
     for (index, segment) in path.iter().enumerate() {
         if let CanonicalStructuralPathSegment::FixedIndex(element_index) = segment {
             // Fixed arrays retain every element identity through nested fields.
@@ -137,7 +162,10 @@ fn walk_record_fields<'types>(
                     }
                     *element
                 }
-                StructuralTypeShape::ElementView { element } if index + 1 == path.len() => *element,
+                StructuralTypeShape::ElementView { element } if index + 1 == path.len() => {
+                    crosses_view = true;
+                    *element
+                }
                 _ => return None,
             };
             runtime_path.push(StructuralPathSegment::FixedIndex(*element_index));
@@ -162,5 +190,5 @@ fn walk_record_fields<'types>(
         runtime_path.push(StructuralPathSegment::Field(field.identity.clone()));
         structural_type = child;
     }
-    Some((structural_type, runtime_path))
+    Some((structural_type, runtime_path, crosses_view))
 }

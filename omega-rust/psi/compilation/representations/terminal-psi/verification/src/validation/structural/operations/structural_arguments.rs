@@ -406,6 +406,7 @@ fn is_material_write_only_type(module: &TerminalModule, structural_type: Structu
                     }
                     match field.field_type {
                         StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::Atomic(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(next) => pending.push(next),

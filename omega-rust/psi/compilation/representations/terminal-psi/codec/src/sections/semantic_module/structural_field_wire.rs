@@ -221,6 +221,10 @@ pub(crate) fn encode_structural_field(
         BindingRelevance::Erased => 2,
     });
     match &field.field_type {
+        StructuralFieldType::Atomic(scalar_type) => {
+            writer.u8(8);
+            encode_scalar_type(writer, *scalar_type);
+        }
         StructuralFieldType::Scalar(scalar_type) => {
             writer.u8(1);
             encode_scalar_type(writer, *scalar_type);
@@ -271,6 +275,7 @@ pub(crate) fn decode_structural_field(
     };
     let field_type = match reader.u8()? {
         1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
+        8 => StructuralFieldType::Atomic(decode_scalar_type(reader)?),
         2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
         3 => StructuralFieldType::Erased {
             type_identity: reader.string("erased structural field type identity")?,

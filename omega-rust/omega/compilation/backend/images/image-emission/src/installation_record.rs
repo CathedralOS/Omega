@@ -87,6 +87,7 @@ use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joi
 /// Marker 100 retains byte-field predicate sets and exact carrier access.
 /// Marker 101 retains 32-bit aggregate sizes and placement offsets.
 /// Marker 103 retains ordered origin alternatives per returned reference leaf.
+/// Marker 104 distinguishes atomic cells from ordinary scalar fields.
 /// Marker 102 distinguishes nonconstructible Fused service bindings from records.
 /// Marker 99 retains the by-value opaque boundary application's strong
 /// selected-application custody so install replay compares it with the bound
@@ -95,7 +96,7 @@ use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joi
 /// result source rosters. Marker 97 seals complete placed-region inventory
 /// identities for the bound image; marker 96 records carry no complete-custody
 /// digests.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 103;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 104;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer

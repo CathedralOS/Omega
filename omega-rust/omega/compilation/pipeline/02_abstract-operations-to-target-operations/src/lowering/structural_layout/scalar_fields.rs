@@ -73,8 +73,15 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         .filter(|candidate| !candidate.relevance.is_erased())
     {
         let shape = match candidate.field_type {
-            StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
-            StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+            StructuralFieldType::Atomic(_)
+                if candidate.field_type.atomic_scalar_type().is_none() =>
+            {
+                return Err(LoweringError::UnknownStructuralType(structural_type));
+            }
+            StructuralFieldType::Scalar(ScalarType::Boolean)
+            | StructuralFieldType::Atomic(ScalarType::Boolean) => ValueShape::integer(1, 1),
+            StructuralFieldType::Scalar(ScalarType::Integer(integer))
+            | StructuralFieldType::Atomic(ScalarType::Integer(integer)) => {
                 let size = integer.bits().div_ceil(8);
                 ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
             }
@@ -83,10 +90,12 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
                 let size = integer.bits().div_ceil(8);
                 ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
             }
-            StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
+            StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
+            | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
                 ValueShape::float(4)
             }
-            StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => {
+            StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
+            | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => {
                 ValueShape::float(8)
             }
             StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),

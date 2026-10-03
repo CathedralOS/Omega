@@ -393,11 +393,13 @@ pub(super) fn lower(
                 // The home stores the selected address. Origins constrain
                 // custody; choosing a static origin would lose a callee's
                 // runtime selection among several admissible referents.
-                let referent = match types
+                let (referent, access) = match types
                     .get(&custody.result.structural_type)
                     .map(|declaration| &declaration.shape)
                 {
-                    Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
+                    Some(StructuralTypeShape::Reference { referent, access }) => {
+                        (*referent, *access)
+                    }
                     _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
                 };
                 let home = live
@@ -419,7 +421,7 @@ pub(super) fn lower(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 through_reference = true;
-                (referent, StructuralAccess::SharedBorrow)
+                (referent, access)
             } else if let Some(home) = live.structural_homes.get(&place) {
                 if home.has_claims()
                     || home.multiplicity() == StructuralMultiplicity::Linear
@@ -455,6 +457,28 @@ pub(super) fn lower(
                 }
                 (source.structural_type, source.access)
             };
+            let access = terminal_semantics::observed_field_backing_access(
+                types.values().copied(),
+                structural_type,
+                path,
+                access,
+            )
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let declaration = terminal_semantics::observed_field_declaration(
+                types.values().copied(),
+                structural_type,
+                path,
+                field,
+            )
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            if matches!(declaration.field_type, StructuralFieldType::Atomic(_))
+                && !matches!(
+                    access,
+                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                )
+            {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
             let mut carrier = structural_type;
             let mut runtime_path = Vec::with_capacity(path.len());
             if through_reference {

@@ -562,7 +562,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
         }
         if crash_facts {
             axioms.retain(|proposition| {
-                crash_field_origins::retains_entry_meaning(proposition, machine)
+                crash_field_origins::retains_entry_meaning(proposition, module, machine)
             });
         }
         for (position, operation) in block.operations.iter().enumerate() {
@@ -602,7 +602,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 // Do not let a current mutable-field observation become an
                 // entry fact or feed a later derived crash-path predicate.
                 axioms.retain(|proposition| {
-                    crash_field_origins::retains_entry_meaning(proposition, machine)
+                    crash_field_origins::retains_entry_meaning(proposition, module, machine)
                 });
             }
         }

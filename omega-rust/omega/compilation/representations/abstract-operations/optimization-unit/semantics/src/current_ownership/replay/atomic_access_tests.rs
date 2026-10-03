@@ -55,7 +55,7 @@ fn fixture() -> (PsiOptimizationFunction, StructuralTypeDeclaration, O) {
                 id: field,
                 identity: "resident".into(),
                 relevance: BindingRelevance::Relevant,
-                field_type: StructuralFieldType::Scalar(scalar_type()),
+                field_type: StructuralFieldType::Atomic(scalar_type()),
             }],
         },
     };
@@ -91,7 +91,8 @@ fn empty_frontier() -> CurrentOwnership {
 
 #[test]
 fn atomic_arrivals_preserve_read_and_write_authority() {
-    let (mut function, _, store) = fixture();
+    let (mut function, declaration, store) = fixture();
+    let types = BTreeMap::from([(declaration.id, &declaration)]);
     let O::AtomicEvent { event, .. } = &store else {
         panic!()
     };
@@ -126,7 +127,7 @@ fn atomic_arrivals_preserve_read_and_write_authority() {
     };
     for (access, store_allowed, load_allowed, fetch_allowed) in [
         (StructuralAccess::MutableBorrow, true, true, true),
-        (StructuralAccess::SharedBorrow, false, true, false),
+        (StructuralAccess::SharedBorrow, true, true, true),
         (StructuralAccess::WriteOnlyBorrow, true, false, false),
     ] {
         function.blocks[1].structural_parameters[0].access = access;
@@ -138,6 +139,7 @@ fn atomic_arrivals_preserve_read_and_write_authority() {
             assert_eq!(
                 validate_atomic_access(
                     &function,
+                    &types,
                     function.blocks[1].id,
                     0,
                     operation,
@@ -154,6 +156,7 @@ fn atomic_arrivals_preserve_read_and_write_authority() {
     assert!(
         validate_atomic_access(
             &function,
+            &types,
             function.blocks[1].id,
             0,
             &store,
@@ -167,6 +170,7 @@ fn atomic_arrivals_preserve_read_and_write_authority() {
     assert!(
         validate_atomic_access(
             &function,
+            &types,
             function.blocks[1].id,
             0,
             &store,
@@ -177,27 +181,72 @@ fn atomic_arrivals_preserve_read_and_write_authority() {
 }
 
 #[test]
+fn ordinary_scalar_identity_cannot_authorize_an_atomic_event() {
+    let (mut function, mut declaration, store) = fixture();
+    function.blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+        panic!("record fixture")
+    };
+    fields[0].field_type = StructuralFieldType::Scalar(scalar_type());
+    let types = BTreeMap::from([(declaration.id, &declaration)]);
+    assert!(
+        validate_atomic_access(
+            &function,
+            &types,
+            function.blocks[1].id,
+            0,
+            &store,
+            &empty_frontier(),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn atomic_access_requires_live_whole_owned_storage() {
-    let (mut function, _, store) = fixture();
+    let (mut function, declaration, store) = fixture();
+    let types = BTreeMap::from([(declaration.id, &declaration)]);
     let parameter = &mut function.blocks[1].structural_parameters[0];
     parameter.access = StructuralAccess::Owned;
     parameter.multiplicity = StructuralMultiplicity::Affine;
     let root = parameter.place;
     let mut frontier = empty_frontier();
     assert!(matches!(
-        validate_atomic_access(&function, function.blocks[1].id, 0, &store, &frontier),
+        validate_atomic_access(
+            &function,
+            &types,
+            function.blocks[1].id,
+            0,
+            &store,
+            &frontier
+        ),
         Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { .. })
     ));
     frontier
         .owned_places
         .insert(root, StructuralMultiplicity::Affine);
-    validate_atomic_access(&function, function.blocks[1].id, 0, &store, &frontier).unwrap();
+    validate_atomic_access(
+        &function,
+        &types,
+        function.blocks[1].id,
+        0,
+        &store,
+        &frontier,
+    )
+    .unwrap();
     frontier.partial_custody_paths.insert(
         root,
         BTreeSet::from([vec![StructuralPathSegment::Field("resident".into())]]),
     );
     assert!(matches!(
-        validate_atomic_access(&function, function.blocks[1].id, 0, &store, &frontier),
+        validate_atomic_access(
+            &function,
+            &types,
+            function.blocks[1].id,
+            0,
+            &store,
+            &frontier
+        ),
         Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { .. })
     ));
 }

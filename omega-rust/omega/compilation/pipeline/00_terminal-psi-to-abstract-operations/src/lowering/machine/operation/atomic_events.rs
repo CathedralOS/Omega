@@ -32,9 +32,8 @@ use abstract_operations::{
 };
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, ScalarType};
 use terminal_psi::{
-    AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationKind, StructuralAccess,
-    StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    Terminator,
+    AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationKind, StructuralFieldType,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, Terminator,
 };
 
 use crate::lowering::LoweringError;
@@ -203,7 +202,7 @@ fn field_type(
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
         .field_type
     {
-        StructuralFieldType::Scalar(scalar_type) => Some(scalar_type),
+        StructuralFieldType::Atomic(scalar_type) => Some(scalar_type),
         _ => None,
     }
 }
@@ -264,7 +263,7 @@ fn reaching_fact(
         if let Some(write) = declaration.operations[..before]
             .iter()
             .rev()
-            .find_map(|operation| latest_write(operation, &local))
+            .find_map(|operation| latest_write(operation, &local, machine))
         {
             reached.insert(write);
             continue;
@@ -311,9 +310,31 @@ type Location = (
 );
 
 /// The first preceding operation that prevents looking farther for a write.
-fn latest_write(operation: &Operation, location: &Location) -> Option<Reaching> {
+fn latest_write(
+    operation: &Operation,
+    location: &Location,
+    machine: &TerminalMachine,
+) -> Option<Reaching> {
     let (root, path, field) = location;
+    let may_alias = |other| {
+        abstract_operations::atomic::atomic_roots_may_alias(
+            std::iter::once(machine.structural_parameters.as_slice()).chain(
+                machine
+                    .blocks
+                    .iter()
+                    .map(|block| block.structural_parameters.as_slice()),
+            ),
+            *root,
+            other,
+        )
+    };
     match &operation.kind {
+        // Dynamic descriptors can capture aliases outside this operation's
+        // explicit projection roster. No event history crosses that call.
+        OperationKind::CallDynamicScalar { .. }
+        | OperationKind::CallDynamicUnit { .. }
+        | OperationKind::CallDynamicParameterScalar { .. }
+        | OperationKind::CallDynamicParameterUnit { .. } => return Some(Reaching::Unknown),
         OperationKind::AtomicAccess {
             place: other_root,
             path: other_path,
@@ -327,6 +348,9 @@ fn latest_write(operation: &Operation, location: &Location) -> Option<Reaching> 
             {
                 return Some(Reaching::Atomic(operation.id));
             }
+            if other_root != root && event.modifies_resident() && may_alias(*other_root) {
+                return Some(Reaching::Unknown);
+            }
         }
         OperationKind::StructuralScalarFieldStore {
             destination,
@@ -334,15 +358,16 @@ fn latest_write(operation: &Operation, location: &Location) -> Option<Reaching> 
             field: other_field,
             ..
         } => {
-            if destination == root
-                && terminal_semantics::structural_paths_may_overlap(other_path, path)
-                && other_field == field
+            if (destination != root && may_alias(*destination))
+                || (destination == root
+                    && terminal_semantics::structural_paths_may_overlap(other_path, path)
+                    && other_field == field)
             {
                 return Some(Reaching::Unknown);
             }
         }
-        // Observations never write, and a shared loan never admits a write
-        // (a modifying atomic event through one does not verify).
+        // These observations do not write. A shared call is different: it
+        // may modify this resident through the declared atomic cell.
         OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. }
@@ -356,45 +381,13 @@ fn latest_write(operation: &Operation, location: &Location) -> Option<Reaching> 
                 .kind
                 .structural_projections()
                 .iter()
-                .any(|projection| projection.root == *root)
-                && !shared_only(&operation.kind, *root);
+                .any(|projection| projection.root == *root || may_alias(projection.root));
             if lends_root {
                 return Some(Reaching::Unknown);
             }
         }
     }
     None
-}
-
-/// Whether every structural argument naming `root` lends it shared.
-fn shared_only(kind: &OperationKind, root: PlaceId) -> bool {
-    let arguments = match kind {
-        OperationKind::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralWithScalarArguments {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => return false,
-    };
-    arguments
-        .iter()
-        .filter(|argument| argument.place == root)
-        .all(|argument| argument.access == StructuralAccess::SharedBorrow)
 }
 
 /// Actual control successors, including edges that carry no structural data.

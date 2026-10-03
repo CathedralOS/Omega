@@ -81,7 +81,7 @@ use crate::proofs::{content_conservation, evidence_lowering};
 use crate::retention::placed_view_inputs::lower_placed_view_input;
 use crate::returns::structural_types::{
     lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
-    terminal_byte_sequence_carrier, terminal_structural_field_type,
+    terminal_byte_sequence_carrier,
 };
 use crate::scalar_graph::scalar_carriers;
 use crate::terminal_identities::{

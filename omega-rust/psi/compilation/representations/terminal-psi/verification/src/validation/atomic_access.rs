@@ -3,7 +3,7 @@
 //! An `AtomicAccess` operation carries only its root, path, and event. The
 //! verifier reconstructs everything the event claims from the module:
 //!
-//! - the location is one relevant plain scalar field beneath a structural
+//! - the location is one relevant atomic scalar field beneath a structural
 //!   parameter, reached by the static carrier path a `StructuralScalarFieldStore`
 //!   walks — an atomic event joins exactly one location's modification order,
 //!   and a runtime-selected element names no single location. A bounded field
@@ -11,8 +11,8 @@
 //! - the root grants the event's authority: an observing event needs readable
 //!   access, a modifying event writable access, and a read-modify-write,
 //!   swap, or compare-exchange needs both. A shared borrow therefore admits a
-//!   load but no modifying event: Terminal types do not yet mark atomic
-//!   cells, and mutation through a shared loan is only sound on such a cell;
+//!   modifying event only when the retained field is dedicated atomic storage;
+//!   plain scalar storage never obtains atomic authority from its width;
 //! - the orderings replay the source legality matrix;
 //! - the leaf type admits the event: arithmetic fetches need a fixed integer
 //!   leaf; loads, stores, swaps, and compare-exchanges take a fixed integer or
@@ -50,7 +50,7 @@ pub enum AtomicAccessRefusal {
     UnreadableLocation,
     /// The root does not grant the writable authority a modifying event needs.
     UnwritableLocation,
-    /// The carrier path or field names no relevant plain scalar field.
+    /// The carrier path or field names no relevant dedicated atomic field.
     UnresolvedField,
     /// The leaf type has no event of this kind.
     UnsupportedLeafType(ScalarType),
@@ -99,6 +99,7 @@ pub(super) fn leaf_type(
     let writable = matches!(
         parameter.access,
         StructuralAccess::Owned
+            | StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow
     );
@@ -129,8 +130,8 @@ pub(super) fn leaf_type(
         })
         .ok_or_else(|| refuse(AtomicAccessRefusal::UnresolvedField))?;
     // A bounded field owes a range obligation on every store; an atomic event
-    // carries none, so only plain scalar fields admit one.
-    let StructuralFieldType::Scalar(leaf) = leaf.field_type else {
+    // carries none, so only dedicated atomic fields admit one.
+    let StructuralFieldType::Atomic(leaf) = leaf.field_type else {
         return Err(refuse(AtomicAccessRefusal::UnresolvedField));
     };
     let fixed_integer = matches!(leaf, ScalarType::Integer(integer) if !integer.is_address());

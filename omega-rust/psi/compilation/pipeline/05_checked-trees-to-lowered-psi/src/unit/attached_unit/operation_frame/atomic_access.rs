@@ -51,14 +51,12 @@ impl OperationFrame<'_, '_> {
             authored_destination,
             access,
         )?;
-        let authorized = if access.event.modifies_resident() {
-            parameter.access == StructuralAccess::MutableBorrow
-        } else {
-            matches!(
-                parameter.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
-            )
-        };
+        // Atomic identity, rather than exclusive access to the containing
+        // record, grants mutation. Ordinary fields retain their own rules.
+        let authorized = matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        );
         if !authorized || !parameter.qualifications.is_empty() {
             return unsupported("atomic event parameter lost its access authority");
         }
@@ -69,7 +67,7 @@ impl OperationFrame<'_, '_> {
             &access.field_identity,
             self.structural_types.declarations(),
         )?;
-        if field.field_type != StructuralFieldType::Scalar(scalar_type) {
+        if field.field_type != StructuralFieldType::Atomic(scalar_type) {
             return unsupported("atomic event field differs from its checked carrier");
         }
         let field = field.id;

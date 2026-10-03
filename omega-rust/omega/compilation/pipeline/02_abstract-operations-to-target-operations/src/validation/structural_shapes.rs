@@ -656,7 +656,9 @@ fn collect_field_leaves(
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, leaf.byte_size, true));
         }
-        StructuralFieldType::Scalar(_) | StructuralFieldType::BoundedInteger(_) => {
+        StructuralFieldType::Scalar(_)
+        | StructuralFieldType::Atomic(_)
+        | StructuralFieldType::BoundedInteger(_) => {
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, leaf.byte_size, false));
         }
@@ -1065,9 +1067,14 @@ fn field_shape(
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<ValueShape, InvalidStructuralShape> {
+    if matches!(field, StructuralFieldType::Atomic(_)) && field.atomic_scalar_type().is_none() {
+        return Err(InvalidStructuralShape);
+    }
     match field {
-        StructuralFieldType::Scalar(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
-        StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
+        StructuralFieldType::Scalar(ScalarType::Boolean)
+        | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
+        StructuralFieldType::Scalar(ScalarType::Integer(integer))
+        | StructuralFieldType::Atomic(ScalarType::Integer(integer)) => {
             let bytes = integer.bits().div_ceil(8);
             Ok(ValueShape::integer(
                 u32::from(bytes),
@@ -1083,8 +1090,10 @@ fn field_shape(
             ))
         }
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
+        | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
+        | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(ValueShape::float(8)),
         StructuralFieldType::Structural(nested) => shape(*nested, declarations, cache, active),
         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })

@@ -1588,6 +1588,7 @@ fn constructible_record(types: &StructuralTypeLookup<'_>, root: StructuralTypeId
             }
             match field.field_type {
                 StructuralFieldType::Scalar(_)
+                | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)

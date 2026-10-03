@@ -10,11 +10,11 @@ fn atomic_fragment_publication_retains_source_and_rejects_missing_replay() {
     let compiled = compile_attached_entry(
         r#"
         data Main { prefix: u64; counter: AtomicU32; }
-        machine Main::main(&mut self) {
-            self.prefix = 3;
-            self.counter.store(10, NoOrdering);
-            let prior: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
-            self.counter.store(prior as u32, NoOrdering);
+        machine Main::main(main: &mut Main) {
+            main.prefix = 3;
+            main.counter.store(10, NoOrdering);
+            let prior: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
+            main.counter.store(prior as u32, NoOrdering);
         }
         "#,
         "Main::main",

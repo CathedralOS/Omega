@@ -457,23 +457,34 @@ pub(crate) fn validate_structural_root_operations(
                     let valid = matches!(
                         result.scalar_type,
                         ScalarType::Boolean | ScalarType::Integer(_)
-                    ) && readable_field_type(function, *source).is_some_and(|root| {
-                        // A call result's `Reference` shell keeps the loan's
-                        // access on the type; the observed record is its
-                        // referent, the peel every read-side validator shares.
-                        let observed_root = match structural_types
-                            .iter()
-                            .find(|(id, _)| **id == root)
-                            .map(|(_, declaration)| &declaration.shape)
-                        {
-                            Some(terminal_psi::StructuralTypeShape::Reference {
-                                referent, ..
-                            }) => *referent,
-                            _ => root,
-                        };
-                        observed_scalar_field(structural_types, observed_root, path, *field)
-                            == Some(result.scalar_type)
-                    });
+                    ) && readable_field_type(function, *source).is_some_and(
+                        |(root, access)| {
+                            // A call result's `Reference` shell keeps the loan's
+                            // access on the type; the observed record is its
+                            // referent, the peel every read-side validator shares.
+                            let (observed_root, access) = match structural_types
+                                .iter()
+                                .find(|(id, _)| **id == root)
+                                .map(|(_, declaration)| &declaration.shape)
+                            {
+                                Some(terminal_psi::StructuralTypeShape::Reference {
+                                    referent,
+                                    access,
+                                }) => (*referent, *access),
+                                Some(terminal_psi::StructuralTypeShape::ElementView { .. }) => {
+                                    (root, terminal_psi::StructuralAccess::SharedBorrow)
+                                }
+                                _ => (root, access),
+                            };
+                            observed_scalar_field(
+                                structural_types,
+                                observed_root,
+                                path,
+                                *field,
+                                access,
+                            ) == Some(result.scalar_type)
+                        },
+                    );
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidStructuralScalarFieldRead {
@@ -962,24 +973,30 @@ fn observed_scalar_field(
     root: StructuralTypeId,
     path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
+    access: terminal_psi::StructuralAccess,
 ) -> Option<ScalarType> {
-    if let Some(carrier) =
-        terminal_semantics::case_payload_carrier(structural_types.values().copied(), root, path)
-    {
-        return relevant_scalar_field(carrier.fields, field, true);
-    }
-    // A read also reaches a mixed shape's common field, which sits on the
-    // carrier beside the tag whatever case is active; a store reaches the same
-    // common fields through `direct_relevant_scalar_field`.
-    let carrier =
-        terminal_semantics::record_field_carrier(structural_types.values().copied(), root, path)?;
-    let (terminal_psi::StructuralTypeShape::Record { fields }
-    | terminal_psi::StructuralTypeShape::Mixed { fields, .. }) =
-        &structural_types.get(&carrier.structural_type)?.shape
-    else {
+    let access = terminal_semantics::observed_field_backing_access(
+        structural_types.values().copied(),
+        root,
+        path,
+        access,
+    )?;
+    let declaration = terminal_semantics::observed_field_declaration(
+        structural_types.values().copied(),
+        root,
+        path,
+        field,
+    )?;
+    if matches!(
+        declaration.field_type,
+        terminal_psi::StructuralFieldType::Atomic(_)
+    ) && !matches!(
+        access,
+        terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
+    ) {
         return None;
-    };
-    relevant_scalar_field(fields, field, true)
+    }
+    relevant_scalar_field(std::slice::from_ref(declaration), field, true)
 }
 
 fn direct_relevant_scalar_field(
@@ -997,6 +1014,106 @@ fn direct_relevant_scalar_field(
     relevant_scalar_field(fields, field, allow_bounded_integer)
 }
 
+#[test]
+fn atomic_field_snapshots_require_exclusive_storage() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
+    use terminal_psi::{
+        BindingRelevance, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let root = StructuralTypeId::new(1).unwrap();
+    let field = StructuralFieldId::new(1).unwrap();
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    let mut declaration = StructuralTypeDeclaration {
+        id: root,
+        identity: "test::Cell".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "resident".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Atomic(scalar),
+            }],
+        },
+    };
+    for (access, expected) in [
+        (StructuralAccess::Owned, Some(scalar)),
+        (StructuralAccess::MutableBorrow, Some(scalar)),
+        (StructuralAccess::SharedBorrow, None),
+        (StructuralAccess::WriteOnlyBorrow, None),
+    ] {
+        let types = BTreeMap::from([(root, &declaration)]);
+        assert_eq!(
+            observed_scalar_field(&types, root, &[], field, access),
+            expected
+        );
+    }
+    let elements = StructuralTypeId::new(2).unwrap();
+    let wrapper = StructuralTypeId::new(3).unwrap();
+    let collection_field = StructuralFieldId::new(2).unwrap();
+    let wrapper_declaration = StructuralTypeDeclaration {
+        id: wrapper,
+        identity: "test::Wrapper".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: collection_field,
+                identity: "elements".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(elements),
+            }],
+        },
+    };
+    // Owning the descriptor does not own the cells it views. An inline array,
+    // in contrast, retains the enclosing root's exclusive storage authority.
+    for (shape, expected) in [
+        (StructuralTypeShape::ElementView { element: root }, None),
+        (
+            StructuralTypeShape::FixedArray {
+                element: root,
+                length: 1,
+            },
+            Some(scalar),
+        ),
+    ] {
+        let elements_declaration = StructuralTypeDeclaration {
+            id: elements,
+            identity: "test::Elements".into(),
+            shape,
+        };
+        let types = BTreeMap::from([
+            (root, &declaration),
+            (elements, &elements_declaration),
+            (wrapper, &wrapper_declaration),
+        ]);
+        for access in [StructuralAccess::Owned, StructuralAccess::MutableBorrow] {
+            assert_eq!(
+                observed_scalar_field(
+                    &types,
+                    wrapper,
+                    &[
+                        semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            collection_field
+                        ),
+                        semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0),
+                    ],
+                    field,
+                    access,
+                ),
+                expected,
+            );
+        }
+    }
+    let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+        panic!("record")
+    };
+    fields[0].field_type = StructuralFieldType::Scalar(scalar);
+    let types = BTreeMap::from([(root, &declaration)]);
+    assert_eq!(
+        observed_scalar_field(&types, root, &[], field, StructuralAccess::SharedBorrow),
+        Some(scalar)
+    );
+}
+
 fn relevant_scalar_field(
     fields: &[terminal_psi::StructuralFieldDeclaration],
     field: semantic_vocabulary::StructuralFieldId,
@@ -1007,6 +1124,7 @@ fn relevant_scalar_field(
             .then_some(&candidate.field_type)
             .and_then(|field_type| match field_type {
                 terminal_psi::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                terminal_psi::StructuralFieldType::Atomic(_) => field_type.atomic_scalar_type(),
                 terminal_psi::StructuralFieldType::IeeeFloat(format) => {
                     Some(ScalarType::IeeeFloat(*format))
                 }
@@ -1025,7 +1143,7 @@ fn relevant_scalar_field(
 fn readable_field_type(
     function: &PsiOptimizationFunction,
     place: PlaceId,
-) -> Option<StructuralTypeId> {
+) -> Option<(StructuralTypeId, terminal_psi::StructuralAccess)> {
     let signature = crate::unit_validation::operation_contracts::structural_source_contract(
         function, place, false,
     )?;
@@ -1067,7 +1185,7 @@ fn readable_field_type(
     {
         return None;
     }
-    Some(signature.structural_type)
+    Some((signature.structural_type, signature.access))
 }
 
 /// The borrowed entry or block parameter a restoration-window operation may name,

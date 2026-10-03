@@ -123,6 +123,9 @@ impl ByteSequenceCarrier {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralFieldType {
     Scalar(ScalarType),
+    /// Dedicated atomic storage. Its scalar representation does not authorize
+    /// ordinary shared mutation or a plain scalar reference to the cell.
+    Atomic(ScalarType),
     /// A scalar field whose declaration retains an inclusive integer restriction.
     BoundedInteger(semantic_vocabulary::BoundedIntegerType),
     /// Relevant IEEE leaf retained for structural identity and predicates.
@@ -142,6 +145,20 @@ pub enum StructuralFieldType {
 }
 
 impl StructuralFieldType {
+    /// The admitted fixed-width atomic carrier, never an ordinary scalar of
+    /// the same representation. Address and floating carriers are not cells.
+    pub fn atomic_scalar_type(&self) -> Option<ScalarType> {
+        match self {
+            Self::Atomic(ScalarType::Boolean) => Some(ScalarType::Boolean),
+            Self::Atomic(ScalarType::Integer(integer))
+                if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+            {
+                Some(ScalarType::Integer(*integer))
+            }
+            _ => None,
+        }
+    }
+
     pub const fn byte_sequence_carrier(&self) -> Option<ByteSequenceCarrier> {
         match self {
             Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => {
@@ -162,7 +179,7 @@ impl StructuralFieldType {
     /// not discharge restricted-field construction or mutation requirements.
     pub fn scalar_type(&self) -> Option<ScalarType> {
         match self {
-            Self::Scalar(scalar_type) => Some(*scalar_type),
+            Self::Scalar(scalar_type) | Self::Atomic(scalar_type) => Some(*scalar_type),
             Self::BoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
             Self::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
             Self::ByteSequence(_)
@@ -194,6 +211,7 @@ impl StructuralFieldType {
             Self::ByteSequence(_)
             | Self::PredicateByteSequence { .. }
             | Self::BoundedInteger(_)
+            | Self::Atomic(_)
             | Self::Structural(_)
             | Self::Erased { .. } => None,
         }

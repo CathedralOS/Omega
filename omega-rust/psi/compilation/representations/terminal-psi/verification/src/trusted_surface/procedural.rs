@@ -208,9 +208,9 @@ rows! {
         "scope:crash-origin-filter",
         PremiseScope,
         "the axiom set reconstructed before a crash site",
-        "only propositions whose observed storage keeps entry meaning are retained; later-storage observations are dropped before crash proofs",
+        "only propositions whose exact observed storage keeps entry meaning are retained; shared access does not freeze atomic residents, while ordinary sibling projections remain stable",
         &["scope:dominance-order"],
-        &[tv!( "verification/reconstruction/crash_field_origins.rs"), tv!( "verification/reconstruction/crash_paths.rs")]
+        &[tv!( "verification/reconstruction/crash_field_origins.rs"), tv!( "verification/reconstruction/crash_paths.rs"), "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/shared_mutation.rs"]
     );
     SCOPE_PRIMITIVE_SNAPSHOTS => (
         "scope:primitive-value-snapshots",
@@ -259,9 +259,9 @@ rows! {
         "invalidation:atomic-access",
         WriteInvalidation,
         "an AtomicAccess whose event modifies its leaf (store, read-modify-write, swap, or compare-exchange)",
-        "every proposition still observing the accessed root is removed from the axiom set; the event itself publishes no equation",
+        "potentially aliasing atomic observations are removed using the type-directed shared mutation judgment; plain sibling fields and immutable scalar snapshots survive, and the event itself publishes no equation",
         &["scope:field-value-snapshots", "scope:borrowed-storage-observations"],
-        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
+        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs"), tv!("verification/storage_observations.rs"), "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/shared_mutation.rs"]
     );
     INV_FIELD_STORE => (
         "invalidation:structural-field-store",
@@ -307,7 +307,7 @@ rows! {
         "a call operation's callee signature, argument substitution, and the callee's verified contract",
         "parameter equalities, instantiated requires obligations, and imported ensures propositions composed into the caller frame; borrowed payload substitutions preserve the original root and each canonical Case/Field coordinate, with active-case admission before call invalidation; a lent stored view field has no owned-field spelling, so its binder is omitted only when the complete published contract never observes it",
         &["scope:call-frame-rewrite", "formation:contract-validation", "scope:field-value-snapshots", "scope:borrowed-storage-observations", "formation:structural-operations", "formation:active-case-projection"],
-        &[tv!( "verification/call_composition.rs"), ts!( "call_composition.rs"), ts!( "static_path.rs")]
+        &[tv!( "verification/call_composition.rs"), ts!( "call_composition.rs"), ts!( "static_path.rs"), ts!("shared_mutation.rs"), tv!("verification/storage_observations.rs")]
     );
     COMP_CALL_ROW_VALIDATION => (
         "composition:call-row-validation",

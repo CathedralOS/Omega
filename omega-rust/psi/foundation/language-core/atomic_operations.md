@@ -37,10 +37,11 @@ the plan to the carrier (`emission/atomic_sources.rs`) and emits one Terminal
 names (terminal-psi `control_flow/atomic.rs`). The codec, independent
 verifier (`validation/atomic_access.rs`) and interpreter consume that event;
 the verifier refuses illegal orderings, runtime-selected locations, bounded
-fields, mistyped operands or results, and modifying events through a shared
-borrow. That last refusal is deliberate: Terminal types do not yet mark atomic
-cells, so the source's shared-receiver form (`shared_receiver_atomic_store`)
-still stops at checked planning. Fences and single-attempt compare-exchange
+fields, mistyped operands or results, and events on ordinary scalar storage.
+`StructuralFieldType::Atomic` retains dedicated-cell identity separately from
+its scalar carrier. Shared loans authorize these events, not ordinary stores
+or non-atomic snapshots. Atomic fields do not expose a plain scalar reference.
+Fences and single-attempt compare-exchange
 have no producer yet.
 
 Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
@@ -51,7 +52,10 @@ happens-before replay rechecks. A backward latest-write analysis follows the act
 bindings, so a state parameter keeps the same modification history under its
 own place identity. The independent unit checker reconstructs that relation
 from its current edges and rejects substituted backing, stale initial-residency
-claims, ambiguous writes and intervening non-atomic writes or exclusive loans.
+claims, ambiguous writes and intervening non-atomic writes or calls lending
+the atomic backing, including shared calls. Shared access does not prove an
+unchanged atomic resident. Source and Terminal proof composition independently
+expire observations that shared calls may mutate; copied SSA values survive.
 The event retains its block-local root: arrival declarations supply access and
 layout through target lowering and independent native selection. Projected or
 ambiguous edge bindings still refuse rather than guessing a storage identity.

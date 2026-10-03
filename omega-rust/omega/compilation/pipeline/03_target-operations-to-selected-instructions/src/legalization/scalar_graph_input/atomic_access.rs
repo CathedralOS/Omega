@@ -106,13 +106,6 @@ pub(in crate::legalization) fn access(
     if !event.ordering_is_legal()
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || !matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        )
-        || event.modifies_resident() && parameter.access == StructuralAccess::SharedBorrow
         || event.observes_resident() && parameter.access == StructuralAccess::WriteOnlyBorrow
     {
         return None;
@@ -138,7 +131,7 @@ pub(in crate::legalization) fn access(
         .find(|field| field.id == location.field && !field.relevance.is_erased())?;
     // A bounded or qualified leaf owes additional evidence; matching its
     // machine width does not discharge the restriction on an atomic write.
-    let StructuralFieldType::Scalar(ScalarType::Integer(integer)) = field.field_type else {
+    let StructuralFieldType::Atomic(ScalarType::Integer(integer)) = field.field_type else {
         return None;
     };
     let scalar_type = ScalarType::Integer(integer);

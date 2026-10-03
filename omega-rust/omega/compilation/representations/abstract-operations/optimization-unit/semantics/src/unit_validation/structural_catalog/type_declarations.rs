@@ -34,6 +34,16 @@ pub(crate) fn validate_structural_fields(
             field: field.id,
         };
         match (&field.field_type, field.relevance) {
+            (terminal_psi::StructuralFieldType::Atomic(_), _)
+                if field.field_type.atomic_scalar_type().is_none() =>
+            {
+                return Err(
+                    OptimizationUnitValidationError::InvalidStructuralFieldIdentity {
+                        structural_type,
+                        field: field.id,
+                    },
+                );
+            }
             (
                 terminal_psi::StructuralFieldType::PredicateByteSequence {
                     carrier,
@@ -63,6 +73,7 @@ pub(crate) fn validate_structural_fields(
             ) => return Err(invalid_erased()),
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
+                | terminal_psi::StructuralFieldType::Atomic(_)
                 | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::Structural(_),
@@ -70,6 +81,7 @@ pub(crate) fn validate_structural_fields(
             ) => return Err(invalid_erased()),
             (
                 terminal_psi::StructuralFieldType::Scalar(_)
+                | terminal_psi::StructuralFieldType::Atomic(_)
                 | terminal_psi::StructuralFieldType::BoundedInteger(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::ByteSequence(_)

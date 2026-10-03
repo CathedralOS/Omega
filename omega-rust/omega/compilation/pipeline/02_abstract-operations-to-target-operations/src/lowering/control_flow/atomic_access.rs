@@ -103,13 +103,6 @@ pub(super) fn lower(
         .arrival_parameter(location.root)
         .ok_or_else(invalid)?;
     if !access.ordering_is_legal()
-        || !matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        )
-        || access.modifies_resident() && parameter.access == StructuralAccess::SharedBorrow
         || access.observes_resident() && parameter.access == StructuralAccess::WriteOnlyBorrow
     {
         return Err(invalid());
@@ -133,7 +126,7 @@ pub(super) fn lower(
         .iter()
         .find(|field| field.id == location.field && !field.relevance.is_erased())
         .ok_or_else(invalid)?;
-    let StructuralFieldType::Scalar(ScalarType::Integer(integer)) = field.field_type else {
+    let StructuralFieldType::Atomic(ScalarType::Integer(integer)) = field.field_type else {
         // A bounded field additionally owes a range proof; an atomic event
         // cannot invent that proof by erasing the field's restriction.
         return Err(invalid());

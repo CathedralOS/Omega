@@ -34,6 +34,22 @@ its own staged write does not establish caller-visible writeback.
 
 ## Construction and receiving checks
 
+Dedicated atomic fields retain `Atomic(scalar)` rather than `Scalar(scalar)`.
+Equal layout does not imply equal access authority. `AtomicAccess` requires
+that cell identity and legal operation orderings; it may modify the cell
+through a shared loan. Ordinary field stores still require exclusive or owned
+storage, and non-atomic field snapshots of an atomic cell require that same
+exclusive or owned authority over the backing, not merely ownership of a view
+descriptor. A shared observation uses an atomic event.
+Projecting an atomic field cannot manufacture an ordinary scalar reference.
+
+Shared atomic storage is not stable entry content. A call may mutate reachable
+atomic storage even through shared arguments, and separately named shared
+parameters may alias. Proof composition expires affected storage observations
+while retaining immutable scalar snapshots and unaffected ordinary fields.
+This is independent of the native serial coherence analysis; neither mechanism
+claims a complete concurrent memory model.
+
 A first-class `Reference { referent, access }` structural value owns a permission
 carrier, not its referent. `EstablishReference` captures the exact source place;
 the explicit `Referent` path segment crosses the borrowed boundary. Owned

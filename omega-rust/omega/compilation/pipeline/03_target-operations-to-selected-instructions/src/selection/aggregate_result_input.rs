@@ -119,6 +119,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
             LegalizedScalarInstructionKind::EstablishReference { source, .. } => source.place == place,
+            LegalizedScalarInstructionKind::AtomicAccess { location, .. } => location.place == place,
             // Byte operations read the owner's length and backing, not a
             // pointer encoded in its first incoming register fragment.
             LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,

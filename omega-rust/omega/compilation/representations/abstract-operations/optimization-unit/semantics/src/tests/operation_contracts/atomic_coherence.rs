@@ -236,7 +236,7 @@ fn atomic_cfg_unit_with_arrivals(
                     id: id(1, StructuralFieldId::new),
                     identity: "value".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(
+                    field_type: terminal_psi::StructuralFieldType::Atomic(ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
                     )),
                 }],
@@ -282,6 +282,34 @@ fn coherent_witness() -> Option<AtomicReadsFrom> {
     Some(AtomicReadsFrom::Write {
         operation: id(37, OperationId::new),
     })
+}
+
+#[test]
+fn distinct_shared_arrivals_do_not_prove_atomic_cells_disjoint() {
+    let mut other = location();
+    other.root = id(36, PlaceId::new);
+    let mut unit = atomic_cfg_unit(
+        32,
+        &[(32, 5)],
+        vec![
+            integer_constant(36, stored_value()),
+            store(37, location(), stored_value()),
+            store(38, other, stored_value()),
+            load(39, location(), observed_value(), coherent_witness()),
+            return_unit(40),
+        ],
+    );
+    // Separate exclusive arguments establish disjoint storage. Changing the
+    // declaration to shared removes that evidence, not just write permission.
+    validate_psi_optimization_unit(&unit).expect("exclusive arrivals are disjoint");
+    for parameter in &mut unit.functions[0].structural_parameters {
+        parameter.access = terminal_psi::StructuralAccess::SharedBorrow;
+    }
+    refresh_identity(&mut unit);
+    assert!(matches!(
+        validate_psi_optimization_unit(&unit),
+        Err(OptimizationUnitValidationError::AtomicEventCoherenceMismatch { .. })
+    ));
 }
 
 fn coherence_mismatch(

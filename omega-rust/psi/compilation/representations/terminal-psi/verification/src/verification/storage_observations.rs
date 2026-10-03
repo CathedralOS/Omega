@@ -9,7 +9,9 @@
 //! calls, and normal exits. Immutable SSA captures remain owned by field_snapshots.
 
 use crate::validation::ObservationKind;
-use semantic_vocabulary::{CanonicalStructuralPathSegment, PlaceId, Proposition};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, PlaceId, Proposition, StructuralPlaceKind, StructuralTypeId,
+};
 use std::collections::BTreeMap;
 use terminal_psi::{StructuralAccess, TerminalMachine, TerminalModule};
 use terminal_semantics::borrowed_storage::{self, AliasSources, Region};
@@ -22,6 +24,23 @@ pub(super) struct StorageObservations<'a> {
 }
 
 impl<'a> StorageObservations<'a> {
+    /// Shared invocation roots can alias despite distinct PlaceIds. Expire
+    /// only observations whose selected contents permit shared mutation;
+    /// plain siblings and separately captured scalar values remain stable.
+    pub(super) fn observes_shared_mutation(&self, proposition: &Proposition) -> bool {
+        crate::validation::storage_observations(proposition)
+            .iter()
+            .any(|((root, path), _)| {
+                place_root_type(self.machine, *root).is_none_or(|root| {
+                    terminal_semantics::shared_mutation(
+                        self.module.structural_types.iter(),
+                        root,
+                        path.as_deref().unwrap_or_default(),
+                    ) != terminal_semantics::SharedMutation::None
+                })
+            })
+    }
+
     pub(super) fn new(module: &'a TerminalModule, machine: &'a TerminalMachine) -> Self {
         let origins = crate::validation::borrowed_storage_origins(module, machine);
         let invocation_origins = origins
@@ -171,3 +190,46 @@ impl<'a> StorageObservations<'a> {
 
 #[cfg(test)]
 mod tests;
+
+/// The structural type `place` carries at its root in `caller`.
+pub(super) fn place_root_type(
+    caller: &TerminalMachine,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    if let Some(parameter) = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+    {
+        return Some(parameter.structural_type);
+    }
+    if let Some(parameter) = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .find(|parameter| parameter.place == place)
+    {
+        return Some(parameter.structural_type);
+    }
+    caller.structural_places.iter().find_map(|row| {
+        if row.id != place {
+            return None;
+        }
+        match row.kind {
+            StructuralPlaceKind::OperationResult {
+                structural_type, ..
+            }
+            | StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            }
+            | StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } => Some(structural_type),
+            StructuralPlaceKind::Parameter { position, .. } => caller
+                .structural_parameters
+                .get(position as usize)
+                .map(|parameter| parameter.structural_type),
+            _ => None,
+        }
+    })
+}

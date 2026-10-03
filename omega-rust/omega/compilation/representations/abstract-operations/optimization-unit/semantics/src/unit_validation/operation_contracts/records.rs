@@ -437,6 +437,7 @@ fn record_type(
             }
             match field.field_type {
                 StructuralFieldType::Scalar(_)
+                | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)
@@ -519,6 +520,7 @@ pub(crate) fn constructible(
             }
             match field.field_type {
                 StructuralFieldType::Scalar(_)
+                | StructuralFieldType::Atomic(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child)

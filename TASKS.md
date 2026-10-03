@@ -809,7 +809,14 @@ the complete product bar; focused successes below do not establish that baseline
   under [concurrency](wiki/spec/language/concurrency.md) and the
   [atomic vocabulary](omega-rust/psi/foundation/language-core/atomic_operations.md).
   `atomics/runtime_atomic_{fetch_add,compare_exchange}_exit` exit 70 natively on
-  macOS ARM64. `samples/cli/systems/atomics_cross` also runs with a named entry
+  macOS ARM64. `omega run --both
+  tests/omega/pass/atomics/shared_receiver_atomic_store/main.omg` now exits 70
+  in native and checked execution on that host: the shared helper stores 10,
+  fetch-or returns 10, and its caller observes resident 15. Dedicated atomic
+  field identity survives source planning, Terminal encoding and native
+  selection; independent replay rejects plain-cell substitution, shared raw
+  snapshots, and stale predecessor facts across potentially aliased roots.
+  `samples/cli/systems/atomics_cross` also runs with a named entry
   and forwarded state storage, native/interpreter exit 70: events retain their
   exact local roots, and independent coherence follows whole-storage bindings
   while rejecting wrong backing, stale residency and intervening writes. Serial
@@ -824,10 +831,9 @@ the complete product bar; focused successes below do not establish that baseline
     priors, never separate loads. Preserve decode/encode and round-trip laws,
     observing/non-observing and decisive/single-attempt behavior, failure
     ordering, `Uncommitted` custody and target retry-work attribution.
-  - Complete source/Terminal event production and correspondence for shared
-    atomic cells, bounded fields, scalar-result composition, fences and
-    single-attempt exchange. `shared_receiver_atomic_store` fails checked
-    planning because Terminal lacks atomic-cell identity;
+  - Complete source/Terminal event production and correspondence for bounded
+    atomic fields, fences and single-attempt exchange. Shared fixed-width
+    cells and scalar-result composition now execute;
     `atomic_global_order_operations` only checks without an executable entry.
     Abstract fence/single-attempt carriers exist but lack Terminal producers.
     A fence remains an event even when realization emits no instruction.

@@ -53,15 +53,15 @@ pub(super) fn validate(
             node,
             StatementNode::LocalData(_) | StatementNode::Call(_) | StatementNode::Assignment(_)
         ) || !machine.operations.iter().any(|operation| {
-            super::super::scalar_arrays::source_statement(operation) == Some(statement as u32)
+            super::super::statement_custody::covered_statements(operation)
+                .any(|covered| covered == statement as u32)
         }) {
             return unsupported("ordered scalar control omitted an authored prefix statement");
         }
     }
     for operation in &machine.operations[..machine.operations.len() - 1] {
-        if super::super::scalar_arrays::source_statement(operation)
-            .is_none_or(|statement| statement as usize >= prefix)
-        {
+        let mut covered = super::super::statement_custody::covered_statements(operation).peekable();
+        if covered.peek().is_none() || covered.any(|statement| statement as usize >= prefix) {
             return unsupported("ordered scalar control moved a tail effect into its prefix");
         }
     }

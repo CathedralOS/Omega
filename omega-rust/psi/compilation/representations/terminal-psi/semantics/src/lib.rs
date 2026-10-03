@@ -36,6 +36,7 @@ pub mod scalar_ordering;
 mod scalar_representation_view;
 mod semantic_rows;
 mod service_binding;
+mod shared_mutation;
 mod static_path;
 mod storage_regions;
 mod structural_effect;
@@ -83,8 +84,8 @@ pub use proof_bearing_scalar::{
     proof_bearing_scalar_semantic_row, validate_proof_bearing_scalar_semantic_rows,
 };
 pub use record_field::{
-    CasePayloadCarrier, RecordFieldCarrier, case_payload_carrier, observed_field_declaration,
-    record_field_carrier,
+    CasePayloadCarrier, RecordFieldCarrier, case_payload_carrier, observed_field_backing_access,
+    observed_field_declaration, record_field_carrier,
 };
 pub use reference_views::{
     reference_source_compatible, scalar_reference_view_is_total, scalar_reference_view_value,
@@ -105,6 +106,7 @@ pub use semantic_rows::{
     exact_operation_semantic_row_in, is_unconditionally_total_scalar, operation_semantic_row,
 };
 pub use service_binding::{fused_service_field_carrier, fused_service_field_matches};
+pub use shared_mutation::{SharedMutation, shared_mutation};
 pub use static_path::{
     canonical_case_leaf_type, canonical_structural_path_tip, interior_member_borrow,
     runtime_index_bound, runtime_index_selects, runtime_structural_path_tip,

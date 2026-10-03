@@ -288,7 +288,7 @@ pub(super) fn append_terminator(
                 axioms.clear();
             } else if crash_facts {
                 axioms.retain(|proposition| {
-                    super::crash_field_origins::retains_entry_meaning(proposition, machine)
+                    super::crash_field_origins::retains_entry_meaning(proposition, module, machine)
                 });
             }
             crash_sites.push(ReconstructedCrashSiteFacts {
