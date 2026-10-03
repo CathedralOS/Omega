@@ -146,7 +146,7 @@ pub(super) fn operand(
     else {
         return unsupported("scalar qualification erased its normalized result");
     };
-    if *base_type != cast.target_type {
+    if table.type_reference(*base_type) != table.type_reference(cast.target_type) {
         return unsupported("scalar qualification changed its normalized result carrier");
     }
     let constraints = table
