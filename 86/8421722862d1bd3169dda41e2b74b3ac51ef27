@@ -1,0 +1,4 @@
+owner: z6 / dependent-subject-symbol
+provenance: session=z6 model=devin gate=cargo-check-5pkgs witness=dependent-subject-symbol canary=dep_arg_unrelated/dep_fwd_after_write/dep_range_on_field
+ticket: e9feded7dc484b82b1adbd30d4857766
+published_utc: 2026-10-03T08:16:50.398619+00:00
