@@ -25,6 +25,7 @@ pub(crate) struct ByteOverlayIndex {
     pub extent: u64,
 }
 
+#[derive(Clone)]
 pub(crate) struct ByteOverlaySource {
     pub(crate) referee: typed_trees::types::TypeReferenceHandle,
     pub(crate) remaining_bytes: Option<u64>,
@@ -122,12 +123,16 @@ pub(crate) enum LoanedSource {
 /// A recast loan retains storage and layout, not a table of source reads.
 /// Shared by the state's scalar namespaces; each observation resolves the live
 /// backing anew. Geometry cannot grant access or replace source replay.
+#[derive(Clone)]
 pub(crate) struct ByteRecordLoan {
+    pub(crate) statement_index: u32,
     pub(crate) symbol: symbols::SymbolHandle,
     pub(crate) capture: Result<ByteRecordCapture, LoweringError>,
 }
 
+#[derive(Clone)]
 pub(crate) struct ByteRecordCapture {
+    pub(crate) coordinate: Option<semantic_vocabulary::PlaceId>,
     pub(crate) source: LoanedSource,
     pub(crate) carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) runtime_index: Option<checked_trees::CheckedRuntimeIndex>,

@@ -13,9 +13,8 @@ use super::super::super::super::super::{
 };
 use super::super::super::super::{
     Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan, Operation, OperationKind,
-    OperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, Terminator,
-    ValueDeclaration, allocate_dense, edge_id, lookup_claim_id, place_id, terminal_scalar_type,
-    unsupported,
+    OperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration,
+    allocate_dense, edge_id, lookup_claim_id, place_id, terminal_scalar_type, unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -255,6 +254,31 @@ impl StateGraphEmission<'_, '_> {
             } => when_true.statement_ordinal(),
             _ => None,
         };
+        let capture_boundary = match conditional_true_ordinal {
+            Some(statement) => statement,
+            None => {
+                let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+                    checked,
+                    state.state,
+                )?;
+                u32::try_from(
+                    checked
+                        .statement_table
+                        .statements(authored.statement_nodes)
+                        .len(),
+                )
+                .map_err(|_| LoweringError::Unsupported("record capture state extent overflow"))?
+            }
+        };
+        evaluation.capture_record_coordinates_before(
+            capture_boundary,
+            &self.catalogs.structural_types,
+            &values,
+            &mut self.catalogs.next_place,
+            &mut next_value,
+            &mut operations,
+            &mut self.catalogs.temporary_places,
+        )?;
         // A named true successor with expression arguments may read the case
         // payloads the guard's own case tests select.
         let first_successor_reads_payloads = match &state.terminator {

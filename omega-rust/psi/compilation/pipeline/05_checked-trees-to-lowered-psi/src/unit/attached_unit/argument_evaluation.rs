@@ -29,6 +29,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 };
 use checked_trees::CheckedCallScalarArgument;
 
+mod record_captures;
 mod scalar_control;
 mod source_values;
 

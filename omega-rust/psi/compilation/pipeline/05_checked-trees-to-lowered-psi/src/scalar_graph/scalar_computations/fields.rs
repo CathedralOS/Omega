@@ -122,7 +122,12 @@ pub(crate) fn prepare_byte_record_loans(
     let (_, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let mut loans = Vec::new();
-    for statement in checked.statement_table.statements(authored.statement_nodes) {
+    for (statement_index, statement) in checked
+        .statement_table
+        .statements(authored.statement_nodes)
+        .iter()
+        .enumerate()
+    {
         let StatementNode::LocalData(local) = statement else {
             continue;
         };
@@ -157,6 +162,7 @@ pub(crate) fn prepare_byte_record_loans(
                 return unsupported("record byte observation has no normalized scalar layout");
             };
             Ok(Some(ByteRecordCapture {
+                coordinate: None,
                 source: loan.source,
                 carrier_path: loan.carrier_path,
                 runtime_index: loan.runtime_index,
@@ -171,6 +177,9 @@ pub(crate) fn prepare_byte_record_loans(
             Err(error) => Err(error),
         };
         loans.push(ByteRecordLoan {
+            statement_index: u32::try_from(statement_index).map_err(|_| {
+                LoweringError::Unsupported("record loan statement ordinal overflow")
+            })?,
             symbol: local.symbol,
             capture,
         });
@@ -763,11 +772,13 @@ fn captured_store_path(
         // Byte overlays resolve this authored coordinate through their
         // formation-time snapshot. Other record loans still require an
         // immutable coordinate; neither path may reload a mutable selector.
-        if loan.byte_overlay.is_none() && !matches!(
-            selector,
-            checked_trees::CheckedRuntimeIndex::Parameter { .. }
-                | checked_trees::CheckedRuntimeIndex::Local { .. }
-        ) {
+        if loan.byte_overlay.is_none()
+            && !matches!(
+                selector,
+                checked_trees::CheckedRuntimeIndex::Parameter { .. }
+                    | checked_trees::CheckedRuntimeIndex::Local { .. }
+            )
+        {
             return unsupported("record store requires an immutable captured selector");
         }
         path.push(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector.clone()));

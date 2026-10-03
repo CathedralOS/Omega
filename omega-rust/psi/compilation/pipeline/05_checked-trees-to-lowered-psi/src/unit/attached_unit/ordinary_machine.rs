@@ -1082,6 +1082,18 @@ impl MachineEmission<'_> {
             obligation_limit: u64::MAX,
         };
         let (operation_index, staged) = match step {
+            argument_schedule::Step::CaptureBefore(statement) => {
+                self.evaluation.capture_record_coordinates_before(
+                    statement,
+                    self.structural_types,
+                    &self.scalar_result_values,
+                    &mut self.next_place,
+                    &mut self.next_value_identity,
+                    &mut self.operations,
+                    &mut self.structural_value_temporaries,
+                )?;
+                return Ok(());
+            }
             argument_schedule::Step::Begin => {
                 if self
                     .retained_scalar_prefix
