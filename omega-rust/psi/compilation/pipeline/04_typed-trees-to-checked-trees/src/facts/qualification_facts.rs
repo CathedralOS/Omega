@@ -464,6 +464,7 @@ pub(crate) fn build_service_reach_facts(
             .map(|machine| checked_trees::MachineServiceReachRows {
                 machine: machine.machine,
                 dependency: machine.dependency,
+                cleanup_contribution: machine.cleanup_contribution,
                 interface: machine.interface,
                 published_ceiling: machine.published,
                 inferred_direct: machine.inferred_direct,

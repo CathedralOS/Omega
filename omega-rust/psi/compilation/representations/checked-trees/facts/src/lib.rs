@@ -9,6 +9,14 @@
 //! handle; none of them re-derives a fact from source.
 
 pub mod fact_plan;
+pub mod predicates;
+
+pub use predicates::{
+    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
+    CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
+    CheckedRuntimeIndex, CheckedScalarExpression, CheckedStorageRoot,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
+};
 
 pub use fact_plan::contexts::view::FactContextView;
 pub use fact_plan::contexts::{

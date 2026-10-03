@@ -143,7 +143,7 @@ pub(crate) fn build_check_facts(
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::proof::bind_outcome_specific_arm_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
-    let mut semantic = build_semantic_facts(program, &proof);
+    let semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.
@@ -167,56 +167,74 @@ pub(crate) fn build_check_facts(
     // proofs, mutation frames, and crash-route refinement all classify the
     // same typed program.
     let call_frames = validation::CallFrameResolver::new(program);
-    let mut flow = build_flow_facts_with_service_reaches(
-        program,
-        &borrow,
-        &proof,
-        &mut semantic,
-        &domains,
-        &operational,
-        &service_reach_inference,
-        &values.scalar_expressions,
-        &operators,
-        &validation_facts.exact_integer_casts,
-        mutation_summaries,
-        call_frames.as_ref(),
-    );
-    crate::facts::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
-    crate::values::retain_nested_structural_call_arguments(
-        program,
-        &operators,
-        &flow,
-        &mut values.scalar_expressions,
-        &mut values.proof_terms.terms,
-        &validation_facts.exact_integer_casts,
-    );
-    (values.scalar_computations, values.structural_values) =
-        crate::values::build_checked_value_computation_plans(
-            program,
-            &operators,
-            &flow,
-            &borrow,
-            &proof,
-            &values.scalar_expressions,
-            &validation_facts.exact_integer_casts,
-        );
-    let index_compatibility = index_compatibility::build_index_compatibility_facts(
-        program, &operators, &semantic, &flow, &proof,
-    )?;
-    // Ownership selects implicit execution edges from the same complete flow
-    // and occurrence schedule later replayed by custody admission. Prepare that
-    // selection before publishing any effect-bearing capability or contract.
+    // Keep declaration-owned handles stable while each iteration discards its
+    // derived flow observations. Only newly bound invocation inputs schedule
+    // another pass; selected custody is rebuilt from that pass's live facts.
     let mut prepared = CheckFacts {
-        semantic,
         borrow,
         proof,
         values,
         domains,
         operators,
-        flow,
         ..CheckFacts::default()
     };
-    crate::checks::prepare_permission_events(program, &mut prepared)?;
+    loop {
+        prepared.semantic.clone_from(&semantic);
+        contextual_cleanup::entry_flow::seed_entry_requirements(
+            program,
+            &mut prepared.semantic,
+            &prepared.contextual_cleanup.entry_requirements,
+        )?;
+        prepared.flow = build_flow_facts_with_service_reaches(
+            program,
+            &prepared.borrow,
+            &prepared.proof,
+            &mut prepared.semantic,
+            &prepared.domains,
+            &operational,
+            &service_reach_inference,
+            &prepared.values.scalar_expressions,
+            &prepared.operators,
+            &validation_facts.exact_integer_casts,
+            mutation_summaries,
+            call_frames.as_ref(),
+        );
+        crate::facts::review_sources::bind_checked_body_call_source_spans(
+            program,
+            &mut prepared.flow,
+        )?;
+        crate::checks::prepare_permission_events(program, &mut prepared)?;
+        if !contextual_cleanup::infer_entry_requirements(program, &mut prepared)? {
+            break;
+        }
+    }
+    crate::values::retain_nested_structural_call_arguments(
+        program,
+        &prepared.operators,
+        &prepared.flow,
+        &mut prepared.values.scalar_expressions,
+        &mut prepared.values.proof_terms.terms,
+        &validation_facts.exact_integer_casts,
+    );
+    (
+        prepared.values.scalar_computations,
+        prepared.values.structural_values,
+    ) = crate::values::build_checked_value_computation_plans(
+        program,
+        &prepared.operators,
+        &prepared.flow,
+        &prepared.borrow,
+        &prepared.proof,
+        &prepared.values.scalar_expressions,
+        &validation_facts.exact_integer_casts,
+    );
+    let index_compatibility = index_compatibility::build_index_compatibility_facts(
+        program,
+        &prepared.operators,
+        &prepared.semantic,
+        &prepared.flow,
+        &prepared.proof,
+    )?;
     let dependencies =
         crate::flow::derive_cleanup_effect_dependencies(program, &operational, &prepared)?;
     let operational =

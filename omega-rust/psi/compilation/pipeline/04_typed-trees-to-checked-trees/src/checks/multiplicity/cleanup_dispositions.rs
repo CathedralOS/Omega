@@ -5,7 +5,8 @@
 //! ordinary ownership state for each outgoing edge.
 use arena::Arena;
 use checked_trees::{
-    ContextualCleanupDisposition, ContextualCleanupFacts, FlowPermissionEventFact,
+    ContextualCleanupDisposition, ContextualCleanupFacts, FlowClaimJoinExit,
+    FlowPermissionEventFact,
 };
 use facts::{Place, PlaceRoot, PlaceSegment};
 use language_semantics::{PermissionAccess, PermissionEventKind};
@@ -21,6 +22,7 @@ impl RemainingCustody {
         events: &[FlowPermissionEventFact],
         segments: &Arena<PlaceSegment>,
         output: &mut ContextualCleanupFacts,
+        exit: FlowClaimJoinExit,
     ) {
         for event in events {
             if event.access != PermissionAccess::Owned {
@@ -41,6 +43,7 @@ impl RemainingCustody {
                     machine: event.machine_symbol,
                     state: event.state_symbol,
                     source: event.source,
+                    exit,
                     root: event.root,
                     path: event.segments,
                     exclusions: output.exclusions.insert_many(exclusions),

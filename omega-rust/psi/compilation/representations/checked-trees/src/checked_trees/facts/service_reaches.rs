@@ -62,6 +62,11 @@ impl ServiceReachFacts {
 pub struct MachineServiceReachRows {
     pub machine: SymbolHandle,
     pub dependency: flow_effects::ServiceReachDependency,
+    /// Selected nominal cleanup contracts after this exact type/const
+    /// substitution, propagated through ordinary calls. Calls through static
+    /// machine binders contribute through their existing contract dependency,
+    /// never again through this fixed cleanup basis.
+    pub cleanup_contribution: ServiceReachRowId,
     /// Exact public/private interface from symbol-resolved inference. This is
     /// not reconstructed from `published_ceiling`, because a public empty
     /// ceiling and private empty inference share the same row contents.

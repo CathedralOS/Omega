@@ -17,7 +17,7 @@ pub(crate) use cleanup_evidence::{
     service_reach_plan_is_empty,
 };
 pub(crate) use nominal_requirements::{
-    checked_requires_expressions, is_bounded_nominal_cleanup_record,
+    checked_requires_expressions, direct_boolean_field_requirement, is_bounded_nominal_cleanup_record,
     nominal_cleanup_boolean_requirements, nominal_cleanup_caller_boolean_requirements,
     nominal_cleanup_missing_requirement, nominal_cleanup_missing_requirement_diagnostic,
     nominal_scalar_caller_requirements, scalar_nominal_cleanup_missing_requirement_diagnostic,

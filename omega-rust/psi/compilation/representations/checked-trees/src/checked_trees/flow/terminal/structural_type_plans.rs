@@ -336,34 +336,4 @@ pub enum CheckedUnitStructuralPathSegment {
     Referent,
 }
 
-/// The checked scalar a `RuntimeIndex` segment selects with.
-///
-/// The segment carries no bound: the checked producer admitted the selector,
-/// and Terminal re-proves `0 <= index < extent` from the facts that hold
-/// before the operation (the caller's published requires for an entry
-/// parameter, a dominating guard, a stored field's snapshot). Restating an
-/// interval here would be a second, trusted copy of that evidence.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CheckedRuntimeIndex {
-    /// The dense direct scalar parameter position of the calling state -- the
-    /// coordinate `CheckedScalarExpression::Parameter` uses.
-    Parameter { position: u32 },
-    /// The owning assignment's evaluated `AssignmentIndex { depth }` scalar:
-    /// the selector of that indexed step of its target, evaluated before the
-    /// stored value.
-    AssignmentIndex { depth: u32 },
-    /// A current program-point read of one integer scalar field below a
-    /// structural entry parameter of the calling state -- a stored-field
-    /// snapshot, the same subject
-    /// `CheckedScalarExpression::StructuralParameterField` names in scalar
-    /// observations. Terminal lowering emits the field read and selects with
-    /// its value; the leaf's scalar type resolves from the field's declared
-    /// type, so it is not restated here.
-    StructuralField(crate::checked_trees::CheckedStructuralParameterField),
-    /// An immutable integer scalar local of the calling state, at the dense
-    /// position after its scalar parameters -- the coordinate
-    /// `CheckedScalarExpression::Local` uses. Symbol resolution hoists a
-    /// computed selector (`grid[r * 6 + c]`) into such a local; Terminal
-    /// lowering selects with the local's established value.
-    Local { position: u32 },
-}
+pub use facts::CheckedRuntimeIndex;

@@ -9,6 +9,7 @@ name = "facts"
 path = "src/lib.rs"
 
 [dependencies]
+semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 arena = { path = "../../../../foundation/arena" }
 language-core = { path = "../../../../foundation/language-core" }
 language-semantics = { path = "../../../../foundation/language-semantics" }

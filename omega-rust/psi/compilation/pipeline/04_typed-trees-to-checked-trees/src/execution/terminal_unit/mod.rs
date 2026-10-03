@@ -179,7 +179,7 @@ mod borrowed_windows;
 pub(crate) mod byte_operands;
 pub(crate) mod calls;
 mod candidate_closure;
-mod cleanup;
+pub(crate) mod cleanup;
 mod composed_control;
 pub(crate) mod control;
 mod dynamic_scalar_calls;

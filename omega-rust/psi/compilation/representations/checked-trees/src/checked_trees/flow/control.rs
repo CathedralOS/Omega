@@ -72,6 +72,10 @@ pub struct FlowStatementFact {
     pub statement_index: usize,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub entry_constraints: HandleSpan<FlowConstraintRef>,
+    /// Live observations after operand evaluation, before destination storage
+    /// is invalidated or its replacement established. Replacement cleanup
+    /// consumes the old value at this point, not at statement entry or exit.
+    pub pre_store_constraints: HandleSpan<FlowConstraintRef>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

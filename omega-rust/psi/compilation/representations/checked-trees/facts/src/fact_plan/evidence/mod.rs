@@ -63,6 +63,12 @@ pub enum FactOrigin {
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     },
+    /// A bound generic cleanup prerequisite, supplied by the invocation rather
+    /// than an authored clause. Ordinary place invalidation governs its lifetime.
+    ContextualCleanup {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
     /// A declared domain qualification on a state parameter or its fields,
     /// including receivers, surfaced as an entry assumption. The implicit
     /// `requires param in Domain` is a CALLER obligation, so predicate proof or

@@ -823,11 +823,21 @@ the complete product bar; focused successes below do not establish that baseline
   exact remaining owned places, and portable/native admission retains hook
   requirements, service reach, finite normal completion, and provider identity.
 
-  Remaining acceptance: compose contextual hooks with generic `drop<T>` and
-  dying local owners at normal scope exit through encoded,
-  independently verified Terminal and native artifacts. Reject missing/forged
-  hook identity or premises and duplicate consumption; retain helper-call,
-  reserved-hook selection and erased-field controls.
+  `omega run --both tests/omega/pass/drops/contextual_core_drop_exit/main.omg`
+  now prints `BA` and exits 0 in both engines on macOS ARM64 in the local
+  cleanup-composition candidate. Ordinary core `drop<T>` and unrelated generic
+  forwarding retain exact hook prerequisites and substituted cleanup reach.
+  Source checks use each selected exit, post-call temporary cleanup, and
+  replacement facts captured after RHS evaluation but before the store.
+
+  Remaining acceptance: retain conditional prerequisites through generic
+  selection/forwarding without demanding readiness of the returned owner;
+  `contextual_conditions` currently rejects four valid `choose<T>` programs.
+  Preserve separate target/continuation custody and carry live relational facts
+  across named-state arrivals. Dying local owners also remain unfinished.
+  Complete these through encoded, independently verified Terminal and native
+  artifacts; reject missing/forged hook identity or premises and duplicate
+  consumption, retaining helper-call, reserved-hook and erased-field controls.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize outgoing

@@ -31,6 +31,10 @@ pub struct ContextualCleanupDisposition {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub source: PermissionEventSource,
+    /// Exact selected normal-exit occurrence. An invalid state means this row
+    /// is not an exit, or the custody producer cannot distinguish its exits;
+    /// it never authorizes borrowing facts from every exit of the state.
+    pub exit: crate::FlowClaimJoinExit,
     pub root: facts::PlaceRoot,
     /// The selected path uses the flow ownership segment arena. Excluded
     /// subtrees below use this family's segment arena instead.

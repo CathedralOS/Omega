@@ -16,7 +16,10 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
-use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact};
+use checked_trees::{
+    CheckFacts, ContextualCleanupFacts, FlowClaimJoinExit, FlowClaimJoinExitKind,
+    FlowPermissionEventFact,
+};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -160,6 +163,7 @@ pub(crate) fn prepare_permission_events(
                 &permission_events[event_start..],
                 &facts.flow.ownership.segments,
                 &mut cleanup_dispositions,
+                FlowClaimJoinExit::default(),
             );
         }
 
@@ -202,6 +206,7 @@ pub(crate) fn prepare_permission_events(
                     &permission_events[event_start..],
                     &facts.flow.ownership.segments,
                     &mut cleanup_dispositions,
+                    FlowClaimJoinExit::default(),
                 );
                 let StatementNode::Transition(transition) = &statements[statement_index] else {
                     unreachable!("transition indices contain only transitions")
@@ -222,6 +227,18 @@ pub(crate) fn prepare_permission_events(
                         &outgoing,
                         &facts.flow.ownership.segments,
                         &mut cleanup_dispositions,
+                        if transition.target.is_valid() && !transition.continuation.is_valid() {
+                            FlowClaimJoinExit {
+                                state_symbol: state.symbol,
+                                statement_index,
+                                kind: FlowClaimJoinExitKind::TransitionTarget,
+                            }
+                        } else {
+                            // The current statement custody fold combines both
+                            // targets. Until it retains separate transfers, no
+                            // branch may claim an exact exit observation.
+                            FlowClaimJoinExit::default()
+                        },
                     );
                 }
             }
@@ -238,6 +255,18 @@ pub(crate) fn prepare_permission_events(
                 &outgoing,
                 &facts.flow.ownership.segments,
                 &mut cleanup_dispositions,
+                FlowClaimJoinExit {
+                    state_symbol: state.symbol,
+                    statement_index: if matches!(
+                        statements.last(),
+                        Some(StatementNode::Expression(_))
+                    ) {
+                        statements.len() - 1
+                    } else {
+                        statements.len()
+                    },
+                    kind: FlowClaimJoinExitKind::FinalExpression,
+                },
             );
         }
 
@@ -262,6 +291,7 @@ pub(crate) fn prepare_permission_events(
             &permission_events[temporary_start..],
             &facts.flow.ownership.segments,
             &mut cleanup_dispositions,
+            FlowClaimJoinExit::default(),
         );
     }
 

@@ -719,6 +719,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "semantic-vocabulary",
  "symbols",
  "typed-trees",
 ]

@@ -42,7 +42,7 @@ mod checked_projection;
 mod literal_projection;
 mod places;
 pub(super) use checked_projection::entry_value as checked_projected_entry_value;
-pub(super) use places::entry_place;
+pub(super) use places::entry_parameter_place;
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};

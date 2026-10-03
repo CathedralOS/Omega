@@ -81,9 +81,7 @@ pub(crate) use evidence::{
     exact_target_evidence_parameters, instantiate_contract_expression_evidence_parameter,
 };
 use exits::{CyclicHeaderInvariants, check_exit_ensures};
-pub(crate) use exits::{
-    is_readable_mutable_reference, result_domain_type, scalar_result_domains, value_provable_domain,
-};
+pub(crate) use exits::{is_readable_mutable_reference, result_domain_type, value_provable_domain};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use writes::check_domain_field_writes;
@@ -95,7 +93,8 @@ pub(super) fn check_flow_call_contracts(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
+    let mut diagnostics =
+        crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts);
     let content_plans = validation::content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
     let mut owned_call_frames = None;

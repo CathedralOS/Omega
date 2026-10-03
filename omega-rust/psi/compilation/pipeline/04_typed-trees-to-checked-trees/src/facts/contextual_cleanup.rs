@@ -4,6 +4,10 @@
 //! generated-from links instead of reconstructing parameter/local identity from
 //! spelling, declaration order, or generated machine names. The occurrence and
 //! its excluded subtrees still come from the one custody producer.
+pub(crate) mod entry_flow;
+mod requirements;
+pub(crate) use requirements::{check_cleanup_requirements, infer_entry_requirements};
+
 use arena::Arena;
 use checked_trees::{ContextualCleanupApplication, ContextualCleanupFacts, FlowFacts};
 use facts::{PlaceRoot, PlaceSegment};
@@ -44,6 +48,10 @@ pub(crate) fn bind_applications(
                 && template.state == state
                 && template.root == root
                 && template.source == source
+                && template.exit.state_symbol
+                    == source_symbol(program, instance.exit.state_symbol, instance.machine)
+                && template.exit.statement_index == instance.exit.statement_index
+                && template.exit.kind == instance.exit.kind
                 && flow.ownership.segments.span_or_empty(template.path) == path
         }) {
             let template_exclusions = cleanup.exclusions.span_or_empty(template.exclusions);

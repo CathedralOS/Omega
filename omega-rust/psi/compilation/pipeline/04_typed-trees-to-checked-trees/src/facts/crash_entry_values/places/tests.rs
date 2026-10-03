@@ -1,10 +1,28 @@
-use super::entry_place;
+use super::{entry_parameter_place, entry_place};
 use crate::tests::front_end::typed_program;
-use checked_trees::CrashPredicateExpression;
+use checked_trees::{CheckedStructuralPredicatePathSegment as Path, CrashPredicateExpression};
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
 fn observed_entry(source: &str, state_name: Option<&str>) -> Option<CrashPredicateExpression> {
+    observed_place(source, state_name, entry_place)
+}
+
+fn observed_typed_entry(source: &str, state_name: Option<&str>) -> Option<(u32, Vec<Path>)> {
+    observed_place(source, state_name, entry_parameter_place)
+}
+
+fn observed_place<T>(
+    source: &str,
+    state_name: Option<&str>,
+    resolve: impl FnOnce(
+        &typed_trees::TypedTrees,
+        symbols::SymbolHandle,
+        symbols::SymbolHandle,
+        usize,
+        &crate::flow::CanonicalPlace,
+    ) -> Option<T>,
+) -> Option<T> {
     let program = typed_program(source);
     let machine = program
         .machines()
@@ -51,7 +69,7 @@ fn observed_entry(source: &str, state_name: Option<&str>) -> Option<CrashPredica
         argument,
     )
     .expect("observed canonical place");
-    entry_place(&program, machine.symbol, state.symbol, ordinal, &place)
+    resolve(&program, machine.symbol, state.symbol, ordinal, &place)
 }
 
 fn ready() -> CrashPredicateExpression {
@@ -91,6 +109,17 @@ fn owned_alias_and_named_state_preserve_the_original_parameter() {
             }
         }";
     assert_eq!(observed_entry(source, Some("next")), Some(ready()));
+    assert_eq!(
+        observed_typed_entry(source, Some("next")),
+        Some((0, vec![Path::Field("ready".to_owned())])),
+    );
+    assert_eq!(
+        observed_typed_entry(
+            &source.replace("received.other =", "received.ready ="),
+            Some("next")
+        ),
+        None,
+    );
     assert_eq!(
         observed_entry(
             &source.replace("received.other =", "received.ready ="),
@@ -194,13 +223,17 @@ fn field_identity_must_belong_to_the_observed_parameter_type() {
             (name == "Token").then(ready),
             "{name}"
         );
+        assert_eq!(
+            entry_parameter_place(&program, machine.symbol, state.symbol, 0, &place),
+            (name == "Token").then(|| (0, vec![Path::Field(field.path_identity())])),
+        );
     }
 }
 
 #[test]
 fn nominal_payload_projection_preserves_its_case_qualification() {
     let program = typed_program(
-        "data Choice { case Present(ready: bool); case Missing; }
+        "data Choice { case #7 Present(#13 ready: bool); case #9 Missing; }
          machine Choice::drop(owner: &mut Choice) {}
          machine value(input: Choice) {}",
     );
@@ -232,10 +265,35 @@ fn nominal_payload_projection_preserves_its_case_qualification() {
         ],
     };
     assert_eq!(
+        entry_parameter_place(&program, machine.symbol, state.symbol, 0, &place),
+        Some((
+            0,
+            vec![Path::Case("#7".to_owned()), Path::Field("#13".to_owned())]
+        )),
+    );
+    assert_eq!(
         entry_place(&program, machine.symbol, state.symbol, 0, &place),
         Some(CrashPredicateExpression::Member {
             receiver: Box::new(CrashPredicateExpression::Parameter(0)),
             member: "Present::ready".to_owned(),
         })
     );
+}
+
+#[test]
+fn typed_entry_path_uses_canonical_field_identity_and_exact_fixed_index() {
+    for (written, present) in [(1, true), (0, false)] {
+        let source = format!(
+            "data Token {{ #17 flags: [bool; 2]; }}
+             machine sink(value: bool) {{}}
+             machine value(mut input: Token) {{
+                 input.flags[{written}] = false;
+                 sink(input.flags[0]);
+             }}"
+        );
+        assert_eq!(
+            observed_typed_entry(&source, None),
+            present.then(|| (0, vec![Path::Field("#17".to_owned()), Path::FixedIndex(0)])),
+        );
+    }
 }

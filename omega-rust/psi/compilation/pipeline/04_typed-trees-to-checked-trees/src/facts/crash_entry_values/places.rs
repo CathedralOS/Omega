@@ -3,7 +3,7 @@
 //! crash-predicate presentation; no source expression is manufactured.
 use super::mutable::PlaceSegment;
 use super::{entry_operand_symbol_at, field_entry_name};
-use checked_trees::CrashPredicateExpression;
+use checked_trees::{CheckedStructuralPredicatePathSegment, CrashPredicateExpression};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
@@ -94,6 +94,140 @@ pub(in crate::facts) fn entry_place(
                 },
             }),
     )
+}
+
+/// Resolve a current observation to its unchanged invocation parameter and
+/// canonical structural path. The presentation comes only from the provenance
+/// replay above; every member is then authenticated against the exact entry
+/// type, including the case and field identities used by checked predicates.
+pub(in crate::facts) fn entry_parameter_place(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
+    let expression = entry_place(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        place,
+    )?;
+    let mut projections = Vec::new();
+    let mut root = &expression;
+    let position = loop {
+        match root {
+            CrashPredicateExpression::Parameter(position) => break *position,
+            CrashPredicateExpression::Member { receiver, member } => {
+                projections.push(Projection::Member(member.clone()));
+                root = receiver;
+            }
+            CrashPredicateExpression::Indexed { collection, index } => {
+                let CrashPredicateExpression::Integer(index) = index.as_ref() else {
+                    return None;
+                };
+                projections.push(Projection::Index(index.parse().ok()?));
+                root = collection;
+            }
+            _ => return None,
+        }
+    };
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let entry = crate::checks::termination::named_transition_target_state_index(
+        program,
+        machine,
+        machine_symbol,
+    )?;
+    let parameters = program.state_parameters(program.machine_states(machine).get(entry)?);
+    let mut reference = parameters
+        .get(usize::try_from(position).ok()?)?
+        .type_reference;
+    let mut path = Vec::new();
+    let mut identities = Vec::new();
+    for projection in projections.into_iter().rev() {
+        match projection {
+            Projection::Index(index) => {
+                path.push(CheckedStructuralPredicatePathSegment::FixedIndex(
+                    u64::try_from(index).ok()?,
+                ));
+                identities.push(facts::PlaceSegment::FixedIndex { index });
+            }
+            Projection::Member(member) => {
+                // structural_data also supports unresolved-name discovery for
+                // other callers. This provenance query requires a resolved type.
+                let mut owner = reference;
+                loop {
+                    match program.type_reference_table.type_reference(owner) {
+                        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                        | typed_trees::types::TypeReferenceNode::Constrained {
+                            base_type: referee,
+                            ..
+                        } => owner = *referee,
+                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                        | typed_trees::types::TypeReferenceNode::Generic {
+                            base_symbol: symbol,
+                            ..
+                        } if symbol.is_valid() => break,
+                        _ => return None,
+                    }
+                }
+                let data = crate::values::structural_data(program, reference)?;
+                let mut selected = None;
+                for declaration in program.data_members(data) {
+                    let (variant, fields) = match declaration {
+                        typed_trees::data::DataMember::Field(field) => {
+                            (None, std::slice::from_ref(field))
+                        }
+                        typed_trees::data::DataMember::Variant(variant) => {
+                            (Some(variant), program.data_payload_fields(variant))
+                        }
+                    };
+                    for field in fields {
+                        let presentation = field_entry_name(
+                            program,
+                            field.symbol,
+                            field.name.as_str(),
+                            variant.map(|variant| variant.name.as_str()),
+                        );
+                        if presentation == member {
+                            if selected.is_some() || field.relevance.is_erased() {
+                                return None;
+                            }
+                            selected = Some((variant, field));
+                        }
+                    }
+                }
+                let (variant, field) = selected?;
+                if let Some(variant) = variant {
+                    path.push(CheckedStructuralPredicatePathSegment::Case(
+                        variant.path_identity(),
+                    ));
+                    identities.push(facts::PlaceSegment::Case {
+                        variant: variant.symbol,
+                    });
+                }
+                path.push(CheckedStructuralPredicatePathSegment::Field(
+                    field.path_identity(),
+                ));
+                identities.push(facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
+            }
+        }
+        let (_, resolved, endpoint, _) =
+            crate::values::resolve_structural_parameter_path(program, parameters, position, &path)?;
+        if resolved != identities {
+            return None;
+        }
+        reference = endpoint;
+    }
+    // Authenticate even a whole-parameter observation with an empty path.
+    crate::values::resolve_structural_parameter_path(program, parameters, position, &path)?;
+    Some((position, path))
 }
 
 /// Observation may read stable storage inside an owner whose whole value is

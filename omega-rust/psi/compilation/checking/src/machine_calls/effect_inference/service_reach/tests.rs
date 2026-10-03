@@ -329,3 +329,68 @@ fn selected_cleanup_dependency_changes_cached_graph_without_rewriting_source_cal
             .is_empty()
     );
 }
+
+#[test]
+fn selected_cleanup_fixed_basis_propagates_without_flattening_callbacks() {
+    let program = crate::front_end::typed_program(
+        r#"
+        boundary trait Console {}
+        trait Task { machine run() reaches Console; }
+        machine hook() reaches Console {}
+        machine selected() satisfies Task::run {}
+        machine ordinary() { selected(); }
+        machine callback<machine Step>() where machine Step satisfies Task::run; { Step(); }
+    "#,
+    );
+    let machine = |name: &str| {
+        program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap()
+    };
+    let selected = machine("selected");
+    let hook = machine("hook");
+    let mut dependencies = arena::Arena::default();
+    dependencies.append(flow_effects::CleanupDependency {
+        caller_machine: selected.symbol,
+        caller_state: program.machine_states(selected)[0].symbol,
+        target_machine: hook.symbol,
+        target_state: program.machine_states(hook)[0].symbol,
+    });
+    let mut operational =
+        crate::infer_operational_may_with_cleanup_dependencies(&program, &dependencies);
+    // The operational boundary retains this exact binder when specialization
+    // selects a callable. Model that existing coordinate, without changing the
+    // source template or its requirement bound.
+    let callback = machine("callback");
+    let binder = program.machine_type_parameters(callback)[0].symbol;
+    let call = operational
+        .calls
+        .iter()
+        .find_map(|(handle, call)| (call.target_state_symbol == binder).then_some(handle))
+        .expect("nominal callback occurrence");
+    let call = operational.calls.get_mut(call);
+    call.static_machine_parameter = binder;
+    call.target_machine_symbol = selected.symbol;
+    call.target_state_symbol = program.machine_states(selected)[0].symbol;
+    let inferred = infer_service_reaches(&program, &operational);
+    let cleanup = |name: &str| {
+        inferred.services(
+            inferred
+                .for_machine(machine(name).symbol)
+                .unwrap()
+                .cleanup_contribution,
+        )
+    };
+    assert_eq!(cleanup("selected").len(), 1);
+    assert_eq!(cleanup("ordinary"), cleanup("selected"));
+    assert!(
+        cleanup("callback").is_empty(),
+        "selected callback cleanup stays in its selected contract"
+    );
+    assert_eq!(
+        inferred.services(inferred.for_machine(callback.symbol).unwrap().effective),
+        cleanup("selected")
+    );
+}

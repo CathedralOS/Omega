@@ -32,11 +32,25 @@ struct MachineReachWork {
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
     dependency_direct: DependencyWork,
     dependency: DependencyWork,
-    calls: Vec<(
-        SymbolHandle,
-        DirectServiceReach,
-        HandleSpan<flow_effects::StaticMachineCallBinding>,
-    )>,
+    cleanup_contribution: Vec<ServiceReachId>,
+    calls: Vec<MachineReachCall>,
+}
+
+#[derive(Debug, Clone)]
+struct MachineReachCall {
+    target: SymbolHandle,
+    direct: DirectServiceReach,
+    bindings: HandleSpan<flow_effects::StaticMachineCallBinding>,
+    cleanup: CleanupContribution,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CleanupContribution {
+    // Selected callbacks retain their own contractual substitution. Their
+    // bodies cannot add a second fixed contribution to the enclosing schema.
+    Callback,
+    Ordinary,
+    SelectedCleanup,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -125,11 +139,18 @@ pub(crate) fn infer_service_reaches_uncached(
                     } else if checked_body {
                         extend_service_set(&mut dependency_direct.concrete, &call_reach.services);
                     }
-                    calls.push((
-                        call.target_machine_symbol,
-                        call_reach,
-                        call.static_machine_bindings,
-                    ));
+                    calls.push(MachineReachCall {
+                        target: call.target_machine_symbol,
+                        direct: call_reach,
+                        bindings: call.static_machine_bindings,
+                        cleanup: if call.static_machine_parameter.is_valid()
+                            || is_nominal_parameter(program, call.target_state_symbol)
+                        {
+                            CleanupContribution::Callback
+                        } else {
+                            CleanupContribution::Ordinary
+                        },
+                    });
                 }
             }
         }
@@ -140,11 +161,12 @@ pub(crate) fn infer_service_reaches_uncached(
         {
             // Internal ownership-edge calls propagate the target's checked
             // closure; they do not manufacture a direct boundary invocation.
-            calls.push((
-                dependency.target_machine,
-                DirectServiceReach::default(),
-                HandleSpan::empty(),
-            ));
+            calls.push(MachineReachCall {
+                target: dependency.target_machine,
+                direct: DirectServiceReach::default(),
+                bindings: HandleSpan::empty(),
+                cleanup: CleanupContribution::SelectedCleanup,
+            });
         }
         work.push(MachineReachWork {
             symbol: machine.symbol,
@@ -175,10 +197,13 @@ pub(crate) fn infer_service_reaches_uncached(
                     upper_bound: machine.service_reach_row,
                 })
                 .into_iter()
-                .chain(calls.iter().flat_map(|(_, reach, _)| {
-                    reach.unresolved_installation_reaches.iter().copied()
-                }))
+                .chain(
+                    calls.iter().flat_map(|call| {
+                        call.direct.unresolved_installation_reaches.iter().copied()
+                    }),
+                )
                 .collect(),
+            cleanup_contribution: Vec::new(),
             dependency: dependency_direct.clone(),
             dependency_direct,
             calls,
@@ -207,6 +232,7 @@ pub(crate) fn infer_service_reaches_uncached(
                     machine.published.clone(),
                     machine.concrete_effective.clone(),
                     machine.dependency.clone(),
+                    machine.cleanup_contribution.clone(),
                 )
             })
             .collect::<Vec<_>>();
@@ -215,19 +241,35 @@ pub(crate) fn infer_service_reaches_uncached(
             let mut concrete_transitive = work[machine_index].concrete_direct.clone();
             let mut unresolved = work[machine_index].unresolved_installation_reaches.clone();
             let mut dependency = work[machine_index].dependency_direct.clone();
-            for (target, direct, bindings) in &work[machine_index].calls {
-                extend_service_set(&mut transitive, &direct.services);
-                extend_service_set(&mut concrete_transitive, &direct.concrete_services);
-                if let Some(target) = work_index.get(target).map(|index| &work[*index]) {
+            let mut cleanup_contribution = Vec::new();
+            for call in &work[machine_index].calls {
+                extend_service_set(&mut transitive, &call.direct.services);
+                extend_service_set(&mut concrete_transitive, &call.direct.concrete_services);
+                if let Some(target) = work_index.get(&call.target).map(|index| &work[*index]) {
                     if work[machine_index].checked_body {
                         substitute_dependency(
                             program,
                             operational,
                             &work,
                             &target.dependency,
-                            *bindings,
+                            call.bindings,
                             &mut dependency,
                         );
+                        // Keep the instantiated custody contribution beside
+                        // the original template's fixed/binder expression.
+                        // This uses the same call-component fixed point and
+                        // the hook's contract, never emitted-body subtraction.
+                        match call.cleanup {
+                            CleanupContribution::Callback => {}
+                            CleanupContribution::Ordinary => extend_service_set(
+                                &mut cleanup_contribution,
+                                &target.cleanup_contribution,
+                            ),
+                            CleanupContribution::SelectedCleanup => extend_service_set(
+                                &mut cleanup_contribution,
+                                effective_services(target),
+                            ),
+                        }
                     }
                     extend_service_set(&mut transitive, effective_services(target));
                     extend_service_set(
@@ -244,6 +286,7 @@ pub(crate) fn infer_service_reaches_uncached(
             work[machine_index].concrete_transitive = concrete_transitive;
             work[machine_index].unresolved_installation_reaches = unresolved;
             work[machine_index].dependency = dependency;
+            work[machine_index].cleanup_contribution = cleanup_contribution;
             let machine = &mut work[machine_index];
             // A checked body's declaration contributes to its row; it does not
             // cap calls through private helpers or exported wrappers. Pinned
@@ -267,6 +310,7 @@ pub(crate) fn infer_service_reaches_uncached(
                 && machine.published == previous.3
                 && machine.concrete_effective == previous.4
                 && machine.dependency == previous.5
+                && machine.cleanup_contribution == previous.6
         }) {
             break;
         }
@@ -379,6 +423,7 @@ pub(crate) fn infer_service_reaches_uncached(
             }
         }
 
+        let cleanup_contribution = plan.rows.intern(machine_work.cleanup_contribution.clone());
         let published = plan.rows.intern(machine_work.published.clone());
         let inferred_direct = plan.rows.intern(machine_work.direct.clone());
         let inferred_transitive = plan.rows.intern(machine_work.transitive.clone());
@@ -401,6 +446,7 @@ pub(crate) fn infer_service_reaches_uncached(
             MachineServiceReachInference {
                 machine: machine.symbol,
                 dependency,
+                cleanup_contribution,
                 interface: if machine_work.uses_published {
                     ServiceReachInterface::PublishedCeiling(published)
                 } else {

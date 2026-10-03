@@ -34,7 +34,8 @@ pub(super) fn validate_requirements(
         let parameter = nominal
             .machine
             .structural_parameters
-            .get(position as usize)
+            .iter()
+            .find(|parameter| parameter.position == position)
             .ok_or(LoweringError::Unsupported(
                 "contextual nominal cleanup caller requirement root is absent",
             ))?;
@@ -139,7 +140,8 @@ pub(crate) fn prepare_signature(
             let checked_parameter = nominal
                 .machine
                 .structural_parameters
-                .get(requirement.source_parameter_index as usize)
+                .iter()
+                .find(|parameter| parameter.position == requirement.source_parameter_index)
                 .ok_or(LoweringError::Unsupported(
                     "nominal cleanup caller parameter is absent",
                 ))?;

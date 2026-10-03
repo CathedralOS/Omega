@@ -20,6 +20,11 @@ pub struct ServiceReachDependency {
 pub struct MachineServiceReachInference {
     pub machine: SymbolHandle,
     pub dependency: ServiceReachDependency,
+    /// Selected nominal cleanup contracts after this exact type/const
+    /// substitution, propagated through ordinary calls. Calls through static
+    /// machine binders contribute through their existing contract dependency,
+    /// never again through this fixed cleanup basis.
+    pub cleanup_contribution: ServiceReachRowId,
     /// Exact public/private contract axis. A published empty ceiling remains
     /// distinct from an internal empty inference.
     pub interface: ServiceReachInterface,

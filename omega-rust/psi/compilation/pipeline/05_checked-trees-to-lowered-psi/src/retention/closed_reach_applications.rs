@@ -40,8 +40,8 @@ pub(crate) fn retain_closed_reach_applications(
     }
     // One prepared graph serves the complete selected batch. The commitment
     // replay immediately preceding this phase checks retained template custody.
-    let operational = validation::infer_operational_may(&checked.typed);
-    let inferred = validation::infer_service_reaches(&checked.typed, &operational);
+    let operational = &checked.facts.operational;
+    let inferred = &checked.facts.service_reaches;
     for specialization in &checked.machine_specializations {
         let Some(owner) = exact_machine(source_machines, specialization.instance)? else {
             continue;
@@ -81,14 +81,12 @@ pub(crate) fn retain_closed_reach_applications(
         // bounds stay in the ordinary conservative rows this projection
         // replays, while the requirement structure itself remains in the
         // module's separate installation dependency axis.
-        if checked
-            .facts
-            .service_reaches
-            .for_machine(specialization.instance)
-            .is_none()
-        {
-            return unsupported("closed reach application lost its checked owner row");
-        }
+        let instance =
+            inferred
+                .for_machine(specialization.instance)
+                .ok_or(LoweringError::Unsupported(
+                    "closed reach application lost its checked owner row",
+                ))?;
         let mut dependencies = Vec::new();
         for dependency in inferred
             .dependency_parameters
@@ -327,11 +325,22 @@ pub(crate) fn retain_closed_reach_applications(
             continue;
         }
         calls.sort_by_key(|call| call.operation);
-        let fixed = retain_services(
+        // Type/const specialization selects actual custody leaves. Retain
+        // their contractual contribution beside the template dependency; it
+        // cannot be recovered from authored calls alone or by subtracting a
+        // callback ceiling from the owner's flattened row.
+        let mut fixed = retain_services(
             checked,
-            inferred.services(template.dependency.concrete),
+            inferred.rows.services(template.dependency.concrete),
             module,
         )?;
+        fixed.extend(retain_services(
+            checked,
+            inferred.rows.services(instance.cleanup_contribution),
+            module,
+        )?);
+        fixed.sort();
+        fixed.dedup();
         let terminal_owner = module
             .machines
             .iter_mut()

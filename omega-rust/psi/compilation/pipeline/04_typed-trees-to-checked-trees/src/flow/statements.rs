@@ -67,10 +67,11 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             statement_index,
             FlowBorrowWeakeningReason::LastUseExpired,
         );
-        build.control.statements.append(FlowStatementFact {
+        let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
             entry_semantic_contexts: *active_contexts,
             entry_constraints: *active_constraints,
+            pre_store_constraints: HandleSpan::empty(),
         });
         if matches!(statement, StatementNode::Transition(_))
             && proof.outcome_specific_arms.iter().any(|(_, arm)| {
@@ -232,6 +233,11 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // their surviving facts while the assignment still reads its old
         // source value, before invalidating the overwritten destination.
         let assignment_source_contexts = *active_contexts;
+        build
+            .control
+            .statements
+            .get_mut(statement_fact)
+            .pre_store_constraints = *active_constraints;
         let mut mutated_places = storage_writes
             .as_ref()
             .map(|places| (**places).clone())

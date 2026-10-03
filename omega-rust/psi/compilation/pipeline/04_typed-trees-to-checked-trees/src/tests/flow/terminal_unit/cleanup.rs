@@ -1,6 +1,8 @@
 //! Fixtures shared by the unit cleanup tests.
 
 mod affine_residuals;
+mod contextual_conditions;
+mod contextual_generic;
 mod effect_dependencies;
 mod fixed_array_construction;
 mod nominal_cleanup_requirements;

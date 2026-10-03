@@ -193,6 +193,7 @@ fn carried_transfer_facts(
         statement_index: 1,
         entry_semantic_contexts: arena::HandleSpan::empty(),
         entry_constraints,
+        pre_store_constraints: arena::HandleSpan::empty(),
     });
     facts.flow.control.states.insert(FlowStateFact {
         machine_symbol: symbol(MACHINE),
@@ -314,6 +315,7 @@ fn mutation_facts(root: u32, place: &[u32]) -> (CheckFacts, arena::Handle<Borrow
         statement_index: 1,
         entry_semantic_contexts: arena::HandleSpan::empty(),
         entry_constraints,
+        pre_store_constraints: arena::HandleSpan::empty(),
     });
     facts.flow.control.states.insert(FlowStateFact {
         machine_symbol: symbol(MACHINE),
