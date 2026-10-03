@@ -10,7 +10,8 @@ use super::{
     StructuralMultiplicity, StructuralTypeId, ValueId, ValueShape, build, evaluate_call_plan,
 };
 use crate::selection::construction::scalar_graph::tests::scalar_arrays::array_fixture;
-use terminal_psi::StructuralAccess;
+use semantic_vocabulary::StructuralPlaceKind;
+use terminal_psi::{StructuralAccess, StructuralPlaceDeclaration};
 
 #[test]
 fn owned_array_arguments_replay_exact_home_type_and_fragments() {
@@ -88,6 +89,15 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                     crash_continuations: Vec::new(),
                 });
             source.provenance.operations.push(row.operation);
+            source.structural.as_mut().unwrap().structural_places.push(
+                StructuralPlaceDeclaration {
+                    id: output.place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: row.operation,
+                        structural_type: output.structural_type,
+                    },
+                },
+            );
             let LegalizedScalarTerminator::Return(returned) = &mut source.blocks[0].terminator
             else {
                 panic!("return");
@@ -126,6 +136,16 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                 )
             };
             validate(&source, &selected).unwrap();
+            // A produced home needs its own declaration, not merely another
+            // array of equal width in the incoming place catalog.
+            let mut missing_result_home = source.clone();
+            missing_result_home
+                .structural
+                .as_mut()
+                .unwrap()
+                .structural_places
+                .retain(|declaration| declaration.id != PlaceId::new(3).unwrap());
+            assert!(validate(&missing_result_home, &selected).is_err());
             let narrow = with_narrow_scalar_result(source.clone());
             let selected_narrow = build(
                 0,
@@ -330,7 +350,13 @@ fn with_narrow_scalar_result(mut source: LegalizedScalarFunction) -> LegalizedSc
     let LegalizedScalarInstructionKind::Call(call) = &mut row.kind else {
         panic!("call");
     };
-    call.structural_result = None;
+    let structural_result = call.structural_result.take().expect("array call result");
+    source
+        .structural
+        .as_mut()
+        .unwrap()
+        .structural_places
+        .retain(|declaration| declaration.id != structural_result.place);
     call.call_plan = evaluate_call_plan(
         call.call_plan.policy,
         &CallSignature {

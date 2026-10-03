@@ -569,6 +569,18 @@ the complete product bar; focused successes below do not establish that baseline
     self.get_name(), .. }`) still decline at `outer calls: ordered statement
     call` (`05_checked-trees-to-lowered-psi/src/tests/structural_float_member_read.rs`).
 
+    Mixed-value call-result forwarding still needs the checked transitive
+    callee plans consumed by `05_checked-trees-to-lowered-psi/src/unit/attached_unit/`.
+    Two owned helpers forwarding a mixed value with a common stamp and case
+    payload interpret with exit 70 on macOS ARM64 at `d05b9c985b8`, but native
+    compilation reports `attached Unit closure is missing a checked transitive
+    machine plan`. Omega's completed-result storage query now uses the common
+    layout admission, with exact producer/place, permissions and ABI replay;
+    the mixed-return regression covers all four hosted target ABIs. Next
+    acceptance is native exit 70 from the same two-call forwarding program,
+    preserving both the common field and selected payload, not another return
+    shape exception.
+
   - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
     owns shared/exclusive local establishment, reads, returned references and
     state forwarding; [representation-view checking](omega-rust/psi/compilation/checking/recasts.md)

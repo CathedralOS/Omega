@@ -1077,26 +1077,6 @@ pub(super) fn home(
             && (!bounded_owned_byte_type(source, result.structural_type)
                 || !result.qualification_establishments.is_empty()))
         || !result.projected_qualifications.is_empty()
-        || !source
-            .structural
-            .as_ref()?
-            .structural_types
-            .iter()
-            .any(|declaration| {
-                declaration.id == result.structural_type
-                    && (terminal_semantics::descriptor_results::is_shared_descriptor(
-                        std::iter::once(declaration), declaration.id,
-                    ) || matches!(
-                        declaration.shape,
-                        StructuralTypeShape::Reference { .. }
-                            | StructuralTypeShape::Record { .. }
-                            | StructuralTypeShape::Sum { .. }
-                            | StructuralTypeShape::FixedArray { .. }
-                            | StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                    ))
-            })
     {
         return None;
     }
@@ -1109,6 +1089,10 @@ pub(super) fn home(
     {
         return None;
     }
+    // Layout admission, not a second nominal-kind roster, decides whether
+    // this completed value has a native home. In particular a mixed value's
+    // common fields, discriminator and overlay belong to one ordinary home.
+    // The producer/declaration and permission checks above remain independent.
     crate::structural_inputs::structural_reference_input::shape(
         result.structural_type,
         &signature.structural_types,
