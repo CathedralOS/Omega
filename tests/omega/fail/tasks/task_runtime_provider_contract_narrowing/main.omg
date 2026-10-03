@@ -6,18 +6,12 @@ use omega::language::core::task;
 data NarrowTaskRuntime { }
 NarrowTaskRuntimeTaskRuntime: NarrowTaskRuntime satisfies TaskRuntime;
 
-machine NarrowTaskRuntime::start<T, Arguments, machine Target>(
-    &self,
-    arguments: Arguments
-) -> Task<T>
+machine NarrowTaskRuntime::start<T, Arguments, machine Target>(narrow_task_runtime: &NarrowTaskRuntime, arguments: Arguments) -> Task<T>
 where machine Target(arguments: Arguments) -> T suspends;
 satisfies TaskRuntime::start
 via ForeignBinding::CompilerIntrinsic;
 
-machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
-    &self,
-    arguments: Arguments
-) -> StartOutcome<T, Arguments>
+machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(narrow_task_runtime: &NarrowTaskRuntime, arguments: Arguments) -> StartOutcome<T, Arguments>
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
 via ForeignBinding::CompilerIntrinsic;

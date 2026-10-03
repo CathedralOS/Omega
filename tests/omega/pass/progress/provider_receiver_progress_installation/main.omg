@@ -22,23 +22,23 @@ data SchedulerProvider { grant: addr; notify: addr; }
 // requirement into canonical ProcessExit or establish its progress premise.
 // The provider covers every catalogued host: a fixture compiled under the
 // corpus's host-selected target finds a complete candidate wherever it runs.
-linux_x86_64 machine SchedulerProvider::notify(&self, value: i32)
+linux_x86_64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::Syscall(1);
 
-linux_arm64 machine SchedulerProvider::notify(&self, value: i32)
+linux_arm64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_arm64 machine SchedulerProvider::notify(&self, value: i32)
+macos_arm64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_x86_64 machine SchedulerProvider::notify(&self, value: i32)
+macos_x86_64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-windows_x86_64 machine SchedulerProvider::notify(&self, value: i32)
+windows_x86_64 machine SchedulerProvider::notify(scheduler_provider: &SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
@@ -50,12 +50,12 @@ data Main {
     scheduler: Binding<Scheduler>;
 }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Scheduler
-requires self.scheduler in SchedulerHandle::WeakFair
+requires main.scheduler in SchedulerHandle::WeakFair
 terminates
 {
-    self.scheduler.notify(65);
+    main.scheduler.notify(65);
 }
 
 machine build(builder: &mut Build) {
