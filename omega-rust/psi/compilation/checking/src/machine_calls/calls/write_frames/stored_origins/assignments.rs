@@ -124,16 +124,6 @@ fn assigned_stored_origins(
     let established = stored
         .iter()
         .find(|local| local.local_symbol == source.root);
-    // A move row owns its whole subtree. A replacement strictly inside that
-    // subtree cannot split the transport it describes.
-    if established.is_some_and(|established| {
-        established.moves.iter().any(|moved| {
-            moved.local_segments.len() < source.segments.len()
-                && prefix_matches(&moved.local_segments, &source.segments)
-        })
-    }) {
-        return None;
-    }
     if let Some(collection_depth) = source.segments.iter().position(|segment| {
         matches!(
             segment,
@@ -191,6 +181,19 @@ fn assigned_stored_origins(
         });
         replaced.symbolic = false;
         return Some(replaced);
+    }
+    // A move row owns its whole subtree. A replacement strictly inside that
+    // subtree cannot split the transport it describes. Collection writes splice
+    // the same rows through `collection` above, so this strictness is needed
+    // only on the member path, whose splices cannot separate a moved
+    // ancestor's untouched remainder.
+    if established.is_some_and(|established| {
+        established.moves.iter().any(|moved| {
+            moved.local_segments.len() < source.segments.len()
+                && prefix_matches(&moved.local_segments, &source.segments)
+        })
+    }) {
+        return None;
     }
     let leaves = reference_leaves_with_origins(
         program,
