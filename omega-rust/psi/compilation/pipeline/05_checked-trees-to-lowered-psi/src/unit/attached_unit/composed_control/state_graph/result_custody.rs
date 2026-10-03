@@ -126,10 +126,9 @@ fn body_inputs<'input>(
     for (operation_index, owner) in state.operations.iter().enumerate() {
         for operation in owner.with_value_calls() {
             if let Some(call) = operation.call() {
-                // Boundary settlement retains its own completion receipts.
-                if call.is_boundary() {
-                    continue;
-                }
+                // Boundary and ordinary calls retire owned operands by the
+                // same authored transfer. Boundary completion receipts govern
+                // returned custody, not ownership of the caller's inputs.
                 let authored = crate::emission::call_source_custody::authored::locate_source(
                     checked,
                     state.state,
@@ -234,7 +233,7 @@ fn body_inputs<'input>(
 /// assignment's destination or passed whole into its enclosing call has no
 /// edge disposal or authored local. The call consumer independently rejoins
 /// each occurrence, result contract and evaluation order before emission.
-/// Named affine locals also retire at ordinary calls when
+/// Named affine locals also retire at calls when
 /// their unique whole move rejoins exact establishment and transfer evidence.
 /// Shared call admission checks each authored operand before emission.
 fn retired_in_body(
