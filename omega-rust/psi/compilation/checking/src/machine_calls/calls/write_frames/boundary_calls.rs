@@ -447,6 +447,14 @@ fn parameter_boundary_receiver_type(
             }
             root
         }
+        CallerWriteSite::Transition(target) => {
+            let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+                program.statement_table.transition_target(target)
+            else {
+                return None;
+            };
+            path.head_symbol
+        }
         CallerWriteSite::Statement(_) => return None,
     };
     let (name, fields) = members.split_first()?;
@@ -498,6 +506,14 @@ fn call_site_symbols(
                 expression_receiver_symbol(program, call.receiver),
                 call.target_symbol,
             ))
+        }
+        CallerWriteSite::Transition(target) => {
+            let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+                program.statement_table.transition_target(target)
+            else {
+                return None;
+            };
+            Some((path.head_symbol, path.symbol))
         }
         CallerWriteSite::Statement(_) => None,
     }

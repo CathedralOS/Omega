@@ -88,7 +88,7 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
                 &mut super::super::FrameInference::for_state(state.symbol),
             ) || reference_binding_exposed(expression)
         }
-        CallerWriteSite::Statement(_) => return None,
+        CallerWriteSite::Statement(_) | CallerWriteSite::Transition(_) => return None,
     };
     (!exposed).then_some(())
 }
