@@ -1,0 +1,25 @@
+machine mark(count: &mut u64, value: u64) -> u64 {
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    value
+}
+
+machine choose(count: &mut u64, selector: u64) -> u64 {
+    transition {
+        selector == 0 -> mark(count, 20)
+        selector == 1 -> mark(count, 30)
+        _ -> mark(count, 40)
+    }
+}
+
+machine main() crashes Trap {
+    let mut count: u64 = 0;
+    let first: u64 = choose(&mut count, 0);
+    let second: u64 = choose(&mut count, 1);
+    let fallback: u64 = choose(&mut count, 2);
+    transition first == 20 && second == 30 && fallback == 40 && count == 3 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

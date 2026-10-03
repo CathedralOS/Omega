@@ -727,10 +727,18 @@ pub(crate) fn build_checked_value_computation_plans(
                         else {
                             continue;
                         };
-                        let Some((owner, _)) = crate::semantic::calls::find_state_with_machine(
-                            program,
-                            call.target_symbol,
-                        ) else {
+                        // A free machine name retains its head symbol; an
+                        // attached call can retain its entry state. Both are
+                        // invocations with the same formal-directed operands.
+                        let Some((owner, _)) =
+                            crate::semantic::calls::find_machine_head(program, call.target_symbol)
+                                .or_else(|| {
+                                    crate::semantic::calls::find_state_with_machine(
+                                        program,
+                                        call.target_symbol,
+                                    )
+                                })
+                        else {
                             continue;
                         };
                         if owner.symbol == machine.symbol && path.symbol != machine.symbol {

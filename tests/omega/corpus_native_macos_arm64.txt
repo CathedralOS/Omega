@@ -138,6 +138,7 @@ pass/calls/guard_call_scalar_argument_exit built 1262ms exit:70 @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit built 1487ms exit:70 @c9c108ecb4ac+wt
 pass/calls/guarded_arm_value_tail_call_exit built 1292ms exit:70 @d0cd22d4e92a+wt
 pass/calls/guarded_arm_view_range_tail_call_exit built 6972ms exit:70 @ad4cf8611e36+wt
+pass/calls/guarded_terminal_call_chain_exit built 757ms exit:0 @1613b6ca9c6a+wt
 pass/calls/guarded_value_call_arm_exit built 718ms exit:70
 pass/calls/inline_record_scalar_call_arguments_exit built 925ms exit:70 stdout:match @3a2233464b3b
 pass/calls/local_after_call_result_store_exit built 1567ms exit:70 @48008365d839

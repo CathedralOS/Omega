@@ -382,3 +382,120 @@ fn value_tail_call_bindings_are_rejoined_to_their_arm() {
         "a returned binding the call did not produce rejects"
     );
 }
+
+const ORDERED_CALLS: &str = r#"
+    machine mark(count: &mut u64, value: u64) -> u64 {
+        count = ((count as u64 in Wrapping) + 1) as u64;
+        value
+    }
+    machine choose(count: &mut u64, selector: u64) -> u64 {
+        transition {
+            selector == 0 -> mark(count, 20)
+            selector == 1 -> mark(count, 30)
+            _ -> mark(count, 40)
+        }
+    }
+    machine main() crashes Trap {
+        let mut count: u64 = 0;
+        let first: u64 = choose(&mut count, 0);
+        let second: u64 = choose(&mut count, 1);
+        let fallback: u64 = choose(&mut count, 2);
+        transition first == 20 && second == 30 && fallback == 40 && count == 3 {
+            true -> done()
+            _ -> bad()
+        }
+        state done() {}
+        state bad() { crash Trap; }
+    }
+"#;
+
+fn interpret_unit(checked: &CheckedTrees) {
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        checked,
+        terminal_production::TerminalMachineSelection::Name("main"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .expect("ordered calls publish a checked artifact")
+    .into_artifact();
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .expect("source-free artifact verifies and executes"),
+        terminal_interpreter::TerminalExecutionResult::Unit,
+    );
+}
+
+#[test]
+fn ordered_calls_execute_once_and_forward_each_selected_result() {
+    interpret_unit(&crate::front_end::checked_program(ORDERED_CALLS));
+}
+
+#[test]
+fn ordered_calls_compose_with_internal_jumps_and_value_completion() {
+    let source = ORDERED_CALLS
+        .replace("selector == 1 -> mark(count, 30)", "selector == 1 -> local(count)")
+        .replace("_ -> mark(count, 40)", "_ -> 40\n        }\n        state local(count: &mut u64) -> u64 { transition { _ -> mark(count, 30) }")
+        .replace("count == 3", "count == 2");
+    interpret_unit(&crate::front_end::checked_program(&source));
+}
+
+#[test]
+fn ordered_call_placement_and_custody_reject_substitution() {
+    let checked = crate::front_end::checked_program(ORDERED_CALLS);
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose")
+        .unwrap()
+        .symbol;
+    let plan_index = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .position(|plan| plan.machine == machine)
+        .expect("ordered caller plan");
+    for mutation in 0..5 {
+        let mut changed = checked.clone();
+        let state =
+            &mut changed.facts.flow.terminal_unit_effects.composed_machines[plan_index].states[0];
+        let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
+            &mut state.terminator
+        else {
+            panic!("ordered arm chain");
+        };
+        let checked_trees::CheckedGuardedJumpArmPlan::Return(first) = &mut arms[0] else {
+            panic!("first arm completes");
+        };
+        let CheckedConditionalReturnArm::Call(operation) = &mut first.return_arm else {
+            panic!("first arm calls");
+        };
+        if mutation == 0 {
+            state.operations.push(operation.clone());
+        } else {
+            let call = operation.call_mut().unwrap();
+            match mutation {
+                1 => call.coordinate.statement_index += 1,
+                2 => call.target.state = state.state,
+                3 => {
+                    call.structural_arguments[0].access =
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                }
+                _ => call.target.service_reach = Default::default(),
+            }
+        }
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("main")).is_err(),
+            "ordered call mutation {mutation} must reject"
+        );
+    }
+}

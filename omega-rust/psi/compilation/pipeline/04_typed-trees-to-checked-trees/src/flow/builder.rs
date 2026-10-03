@@ -172,7 +172,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         if build.dirty_state_value_inputs.is_empty() {
             if complete_pass {
                 let mut flow = { build.finish() };
-                attach_reach_summaries(&mut flow, service_reaches, operational);
+                attach_reach_summaries(program, &mut flow, service_reaches, operational);
                 return flow;
             }
             complete_pass = true;
@@ -209,6 +209,6 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         }
     }
     let mut flow = { build.finish() };
-    attach_reach_summaries(&mut flow, service_reaches, operational);
+    attach_reach_summaries(program, &mut flow, service_reaches, operational);
     flow
 }
