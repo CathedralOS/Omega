@@ -52,7 +52,7 @@ pub(super) fn emit(
         environment,
     )?;
     // The private save home is disjoint from outgoing arguments and survives
-    // the counterparty's register clobbers. Save before any argument transport;
+    // the counterparty's register clobbers. Save after argument transport;
     // restore before interpreting its result. Both remain ordinary selected
     // instructions so allocation and byte replay see their complete effects.
     // Only returning user-space counterparties can change floating controls.
@@ -61,31 +61,6 @@ pub(super) fn emit(
     let saved_controls = call.binding.import().map(|_| LocalStorageSlotId::Boundary {
         operation: operation.operation,
     });
-    if let Some(saved_controls) = saved_controls {
-        builder
-            .transport
-            .local_slots
-            .push(SelectedLocalStorageSlot {
-                id: saved_controls,
-                byte_size: 8,
-                alignment: 8,
-            });
-        builder.emit(
-            SelectedInstructionKind::SaveFloatingControl {
-                slot: saved_controls,
-            },
-            builder
-                .constraints
-                .keys
-                .save_floating_control
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[],
-            SelectedInstructionProvenance {
-                operations: vec![operation.operation],
-                ..Default::default()
-            },
-        )?;
-    }
     // Durable scalars retain their bits in GPR storage. Transfer floating
     // arguments into short ABI-bank homes only at the call boundary; stack
     // arguments store those same bits directly into their exact-width slots.
@@ -179,6 +154,34 @@ pub(super) fn emit(
     let mut operands: Vec<VirtualRegisterId> =
         operands.into_iter().map(|(_, register)| register).collect();
     let hidden = structural::indirect_results::prepare_call(source, operation, builder)?;
+    // Marshaling only moves bytes and addresses; it does not change floating
+    // controls. Save immediately around the counterparty, after preparation,
+    // and before result registers acquire the call instruction's origin.
+    if let Some(saved_controls) = saved_controls {
+        builder
+            .transport
+            .local_slots
+            .push(SelectedLocalStorageSlot {
+                id: saved_controls,
+                byte_size: 8,
+                alignment: 8,
+            });
+        builder.emit(
+            SelectedInstructionKind::SaveFloatingControl {
+                slot: saved_controls,
+            },
+            builder
+                .constraints
+                .keys
+                .save_floating_control
+                .ok_or_else(|| SelectedInstructionError::custody())?,
+            &[],
+            SelectedInstructionProvenance {
+                operations: vec![operation.operation],
+                ..Default::default()
+            },
+        )?;
+    }
     let mut result_registers = Vec::new();
     if let Some(pointer) = hidden {
         operands.push(pointer);

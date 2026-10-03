@@ -14,6 +14,7 @@ use target::{NativeTarget, TargetProfile};
 use target_operations::{BoundarySettlementRealization, NormalizedForeignCallBinding};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
+#[derive(Debug)]
 struct Execution;
 impl installation_evidence::ProviderExecutionEvidence for Execution {
     fn requirement_identity(&self) -> &str {
@@ -283,7 +284,7 @@ fn owned_foreign_arguments_replay_payload_fragments_and_private_copies() {
             .unwrap();
             for mutation in 0..4 {
                 let mut changed = legal.plan().clone();
-                let call = changed.functions[0].blocks.iter_mut().flat_map(|block| &mut block.instructions).find_map(|instruction| {
+                let call = changed.scalar_functions[0].blocks.iter_mut().flat_map(|block| &mut block.instructions).find_map(|instruction| {
                     if let legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) = &mut instruction.kind { Some(call) } else { None }
                 }).unwrap();
                 let argument = &mut call.structural_arguments[0];

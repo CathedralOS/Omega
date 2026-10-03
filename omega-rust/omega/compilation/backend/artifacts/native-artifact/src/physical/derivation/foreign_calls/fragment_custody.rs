@@ -338,60 +338,16 @@ fn fragment_scalar_argument_custody_rejoin(
     ) {
         return false;
     }
-    // The call's operand roster is every register-resident argument word in
-    // canonical bank order — GPR scalars and structural referent pointers,
-    // then IEEE inputs — followed by the optional scalar result definition.
-    let register_arguments = record
-        .call
-        .scalar_arguments
-        .iter()
-        .filter(|argument| {
-            matches!(
-                argument.placement.locations.as_slice(),
-                [calling_conventions::ValueLocation::Register { .. }]
-            )
-        })
-        .count()
-        + record
-            .call
-            .structural_arguments
-            .iter()
-            .filter(|argument| {
-                matches!(
-                    argument.destination.locations.as_slice(),
-                    [calling_conventions::ValueLocation::Register { .. }]
-                )
-            })
-            .count();
+    // Parameter identities are not operand offsets: an aggregate may
+    // contribute multiple fragments or one owned-copy pointer.
+    let register_positions =
+        selected_instructions::calls::constraints::foreign_argument_registers(&record.call);
+    let register_arguments = register_positions.len();
     if !foreign_result_operand_count(record).is_some_and(|results| {
         register_arguments.checked_add(results) == Some(instruction.operands.len())
     }) {
         return false;
     }
-    // `Parameter`-destination callbacks claim a register placement without
-    // occupying a call-row operand (the address bytes live inside the call
-    // encoding), matching the projection's operand roster.
-    let mut register_positions = plan
-        .parameters
-        .iter()
-        .enumerate()
-        .filter(|(position, placement)| {
-            !record.call.callbacks.iter().any(|callback| {
-                usize::try_from(callback.application.native_ordinal) == Ok(*position)
-                    && matches!(
-                        callback.destination,
-                        calling_conventions::NativePlace::Parameter(_)
-                    )
-            }) && matches!(
-                placement.locations.as_slice(),
-                [calling_conventions::ValueLocation::Register { .. }]
-            )
-        })
-        .map(|(position, _)| position)
-        .collect::<Vec<_>>();
-    register_positions.sort_by_key(|position| {
-        plan.parameters[*position].shape.class == calling_conventions::ValueClass::Float
-    });
     for (scalar_ordinal, (argument, physical)) in record
         .call
         .scalar_arguments
@@ -416,7 +372,7 @@ fn fragment_scalar_argument_custody_rejoin(
         }
         let register_operand = register_positions
             .iter()
-            .position(|position| *position == native_position)
+            .position(|(position, _)| *position == native_position)
             .unwrap_or(register_arguments);
         let span_rejoins = match (argument.source, physical.source) {
             (

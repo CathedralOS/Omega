@@ -716,9 +716,11 @@ fn classify_scalar_leaves(
     if policy == CallingPolicy::MicrosoftX64 {
         return Ok(ValueClass::Integer);
     }
+    // AAPCS64's four-member rule is not SysV's two-eightbyte limit. Larger
+    // SysV float aggregates take the memory-placement class below.
     if let Some(members) = homogeneous_float_leaves(leaves, referent) {
         if policy == CallingPolicy::Aapcs64
-            || (policy == CallingPolicy::SystemVAMD64 && members > 1)
+            || (policy == CallingPolicy::SystemVAMD64 && members > 1 && referent.byte_size <= 16)
         {
             return Ok(ValueClass::HomogeneousFloatAggregate { members });
         }
