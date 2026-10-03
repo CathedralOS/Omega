@@ -1174,12 +1174,17 @@ impl OperationFrame<'_, '_> {
                 &dense
             }
         };
-        let index = bindings.expression_at(
-            self.checked,
-            self.state,
-            leaf.statement_index(),
-            leaf.index_role(self.checked, self.state)?,
-        )?;
+        let index = match leaf.index_role(self.checked, self.state)? {
+            Some(index_role) => bindings.expression_at(
+                self.checked,
+                self.state,
+                leaf.statement_index(),
+                index_role,
+            )?,
+            // A `&mut collection[index]` view local's index coordinate was
+            // already checked against its establishment: it lowers directly.
+            None => bindings.expression(leaf.index())?,
+        };
         let value = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
         let kind = crate::emission::indexed_write::emit(
             target,

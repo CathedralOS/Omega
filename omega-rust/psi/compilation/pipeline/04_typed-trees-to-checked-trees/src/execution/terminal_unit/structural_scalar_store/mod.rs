@@ -303,6 +303,87 @@ pub(super) fn build_structural_scalar_field_store_sequence(
     )
 }
 
+/// The scalar coordinate one carrier-path runtime index names at this
+/// statement. Every `CheckedRuntimeIndex` variant resolves to the scalar
+/// expression the same selector spells as a value: an assignment selector
+/// keeps its bound row, a parameter or local its dense position's declared
+/// type, and a field snapshot its leaf type below the declared root.
+fn runtime_index_expression(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    index: &checked_trees::CheckedRuntimeIndex,
+) -> Option<checked_trees::CheckedScalarExpression> {
+    match index {
+        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => Some(
+            facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(
+                    state.symbol,
+                    statement_index,
+                    CheckedScalarExpressionRole::AssignmentIndex { depth: *depth },
+                )?
+                .1
+                .clone(),
+        ),
+        checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+            let position = usize::try_from(*position).ok()?;
+            let parameter = program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+                .nth(position)?;
+            Some(checked_trees::CheckedScalarExpression::Parameter {
+                position,
+                primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+            })
+        }
+        checked_trees::CheckedRuntimeIndex::Local { position } => {
+            let position = usize::try_from(*position).ok()?;
+            let mut dense = 0usize;
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                let primitive_type = program
+                    .primitive_type_reference(local.type_reference)
+                    .or_else(|| {
+                        crate::values::shared_loan_place(program, local)
+                            .map(|(_, primitive_type, _)| primitive_type)
+                    });
+                let Some(primitive_type) = primitive_type else {
+                    continue;
+                };
+                if dense == position {
+                    return Some(checked_trees::CheckedScalarExpression::Local {
+                        position,
+                        primitive_type,
+                    });
+                }
+                dense += 1;
+            }
+            None
+        }
+        checked_trees::CheckedRuntimeIndex::StructuralField(selector) => {
+            let (_, _, leaf, _) = crate::values::resolve_structural_parameter_path(
+                program,
+                program.state_parameters(state),
+                selector.parameter_position,
+                &selector.path,
+            )?;
+            Some(
+                checked_trees::CheckedScalarExpression::StructuralParameterField {
+                    parameter_position: selector.parameter_position,
+                    path: selector.path.clone(),
+                    primitive_type: program.primitive_type_reference(leaf)?,
+                },
+            )
+        }
+    }
+}
+
 /// Compose one assignment: resolve the destination, then let the leaf's
 /// declared type select the store its value joins.
 fn plan_assignment(
@@ -532,21 +613,16 @@ fn plan_assignment(
                     checked_trees::CheckedScalarExpression::IntegerLiteral {
                         literal: numerics::literals::IntegerLiteral::from_value(
                             i64::try_from(*index).ok()?,
-                        ),
+                        )
+                        .with_landing(numerics::literals::IntegerLanding {
+                            landed_type: numerics::literals::LandedIntegerType::U64,
+                            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                        }),
                     }
                 }
-                CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-                ) => facts
-                    .values
-                    .scalar_expressions
-                    .bound_expression_at(
-                        state.symbol,
-                        statement_index,
-                        CheckedScalarExpressionRole::AssignmentIndex { depth: *depth },
-                    )?
-                    .1
-                    .clone(),
+                CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
+                    runtime_index_expression(program, facts, state, statement_index, index)?
+                }
                 _ => return None,
             };
             let mut path = projected.to_vec();
