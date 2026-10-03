@@ -370,6 +370,105 @@ nor accept deletes anything. Duplicate identical acceptance is idempotent;
 wrong SHA, blocked checkpoint, unresolved effects, stale observation, missing
 logs, incomplete cleanup or historical-only evidence fail.
 
+## Bind a settled existing session
+
+`bind-existing` attaches one genuinely existing settled session to an already
+admitted new outcome. It performs no host action, launches nothing, creates no
+synthetic create receipt and does not complete the previous outcome. It records
+a separate applied local operation in the same recovery journal, retaining the
+original create, host observation, prior settlement and denial history. An
+identical operation/receipt replay is idempotent; conflicting replays fail.
+
+```sh
+python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION bind-existing --input build/swarm/codex30-20261002/iteration1/bind-slot3.json
+python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json status
+python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION bind-existing --input build/swarm/codex30-20261002/iteration1/bind-slot28.json
+```
+
+Replace `CURRENT_REVISION` with the journal's returned current integer after
+each write. Admit exactly two reviewed new outcomes first, using the existing
+2/5/10 rules, fresh actual claims and serialized landing. Use distinct new
+logical assignment IDs; do not overwrite an old outcome or its acceptance.
+Binding is available only before the new row has any operations or mapping.
+No unfinished controller batch may be hidden by adopting its sessions into a
+new batch. A known prior controller assignment must already have verified landed
+acceptance, no user rescue and completed cleanup. An externally coordinated
+prior assignment may be explicitly released unfinished after preservation;
+that disposition confers no acceptance or promotion credit.
+
+The input object contains `assignment`, unique `operation`, `evidence_root`,
+`receipt_artifact` and `receipt`. `receipt_artifact` is a hashed JSON file exactly
+equal to `receipt`, whose fields are:
+
+- `schema:1`, exact new `assignment`, and `source:{"pool":"RECORDED_POOL_ID",
+  "slot":3}` (28 for the other slot).
+- `creation`: actual original create `tool` matching inspected capabilities,
+  actual original `receipt` locator, exact `thread`, optional actual
+  `environment` and `generation` when originally exposed, and hashed `artifact`.
+  Retrieve the original pool entry and tool result; do not issue a create intent
+  or claim an adoption was a successful create.
+- `observation`: actual supported read `tool` matching capabilities, actual
+  `receipt` locator, fresh `observed_utc`, exact `thread`, `environment`,
+  `generation`, actual `executor`, `identity_evidence`, `prior_assignment`,
+  `runtime` (`idle`, `completed`, `stopped`), `processes_stopped:true`,
+  `active_assignments:[]`, hashed `artifact`, and `recovery` with the prior
+  `assignment`, matching environment/generation, `unknown_operations:[]`,
+  `build_slot_clear:true` and actual `evidence`.
+- `prior`: exact previous `assignment`, different `outcome`, `disposition`
+  (`released` or `accepted`), actual settled `checkpoint` with no active command
+  or session, `approval_required` (exact retained denial or null),
+  `protected_paths`, hashed `artifact`, and `resources` containing fresh
+  `observed_utc`, actual `evidence`, successful actual `claims_state`
+  (`claimed` or `available`), successful actual `landing_state` from `landing.py
+  status`, `claims:[]`, `landing_tickets:[]`, and
+  nonempty `workspaces` inventory. Empty lists refer to this prior assignment's
+  ownership, checked against actual registry receipts, not all global claims.
+  Each workspace has `path`, `owned:true`, actual `evidence` and `state`
+  (`clean`, `removed`, `preserved`). A preserved workspace needs explicit
+  protected repository paths and a confirmed-upload `backup` with `file_id`,
+  `version`, `route`, `sha256`, positive `bytes` and `status:confirmed-upload`.
+
+Each creation/observation/prior artifact is a JSON packet with `normalized`
+exactly equal to that receipt object minus its `artifact` field, and nonempty
+`raw_result` holding recovered actual tool results, child reports, pool records
+and registry/workspace evidence used to derive it. Hashes verify byte identity
+and equality with the normalized receipt. The trusted coordinator adapter still
+must inspect actual schemas, interpret the raw result honestly and correlate
+host and child observations; this is not authentication of peers or automatic
+proof of session identity. Missing executor/incarnation metadata or an
+unavailable process, custody or registry observation is a named prerequisite.
+Do not infer an environment from a thread ID, describe a running scout as idle,
+or replace absent metadata with `unknown` or an invented identity. If original
+create metadata exposed environment/generation, current values must match.
+
+The transition rejects active/unconfirmed operations, active unrelated work,
+stale or mismatched observations, duplicate live pool slots, threads, executor
+identities, environments or outcomes. Binding does not clear a denial. Prior
+protected/denied paths, including earlier bindings of that thread, remain fenced
+against a renamed outcome. Existing records and paused backups stay intact.
+No resource is deleted by this command.
+
+After binding, record a fresh new-assignment `checkpoint` for the actual parent
+binding event (`phase:preflight`, no active command/session, next gate establishing
+the new child recovery lane). Then emit one bounded same-thread `follow_up` with `phase:preflight`
+to establish the new logical child recovery lane. Only this preflight transition
+can use the cleared prior recovery assignment; implementation and acceptance
+require the new assignment identity. Obtain the actual child acknowledgment,
+fresh read, new preflight, ownership and readiness before implementation intent.
+Previously recovered reproduction evidence can be reviewed/reused when its
+complete inputs and actual compiler provenance remain unchanged. Count selection
+and reproduction time before binding and admission, without counting it twice.
+Binding itself is session reuse, not provisioned capacity or a measured speedup.
+
+For slots 3 and 28, the executable order is admit → genuine settled host reads
+and recovered binding packets → bind each → fresh binding checkpoint → bounded preflight continuation →
+read/ingest acknowledgment and new recovery lane → preflight → ownership →
+readiness → fresh runtime read → implementation intent. Each continuation goes
+through the existing durable intent/result protocol; final landing, cleanup review
+and acceptance are unchanged. Wait for the requested wave audit before any live
+implementation admission. A report blocked before compiler checking by cache
+filesystem access or unavailable claims is not a reproduced compiler defect.
+
 ## Scouting and implementation readiness
 
 `admit` reserves a bounded preflight contract; it does not admit implementation.

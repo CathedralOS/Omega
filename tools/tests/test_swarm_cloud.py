@@ -478,6 +478,200 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(RecoveryError, 'digest'): self.scout(value)
         self.request('follow_up', 'independent-ready')
 
+    def binding_input(self, assignment='0', slot=3):
+        prior = 'prior-' + assignment
+        stamp = cloud.now()
+        receipt = dict(schema=1, assignment=assignment, source=dict(pool='recorded-wave',slot=slot),
+            creation=dict(tool='exposed.create',receipt='original-create-'+assignment,thread='thread-'+assignment),
+            observation=dict(tool='exposed.read',receipt='actual-host-read-'+assignment,observed_utc=stamp,
+                thread='thread-'+assignment,environment='env-'+assignment,generation='gen-'+assignment,
+                executor='actual-host-'+assignment,identity_evidence='host metadata and child preflight',
+                runtime='completed',processes_stopped=True,active_assignments=[],prior_assignment=prior,
+                recovery=dict(assignment=prior,environment='env-'+assignment,generation='gen-'+assignment,
+                              unknown_operations=[],build_slot_clear=True,evidence='actual child process/recovery inventory')),
+            prior=dict(assignment=prior,outcome='prior-outcome-'+assignment,disposition='released',
+                checkpoint=checkpoint(),approval_required=None,protected_paths=[],
+                resources=dict(observed_utc=stamp,evidence='fresh claims/landing/workspace inventory',claims_state='claimed',landing_state='available',
+                    claims=[],landing_tickets=[],workspaces=[dict(path='owned-worktree-'+assignment,
+                        state='clean',owned=True,evidence='actual Git inventory')])) )
+        return self.binding_packet(dict(assignment=assignment,operation='bind-'+assignment,
+            receipt=receipt,evidence_root=str(self.root)))
+
+    def binding_packet(self, value):
+        # Fixture normalized packets stand in for actual trusted-adapter tool results.
+        for name in ('creation', 'observation', 'prior'):
+            data=value['receipt'][name]
+            normalized={k:v for k,v in data.items() if k!='artifact'}
+            content=json.dumps(dict(normalized=normalized,raw_result=dict(actual_fixture_result=name)))
+            path='binding-'+value['assignment']+'-'+name+'.json'
+            (self.root/path).write_text(content)
+            data['artifact']=dict(path=path,sha256=hashlib.sha256(content.encode()).hexdigest())
+        content=json.dumps(value['receipt']);path='binding-'+value['assignment']+'.json'
+        (self.root/path).write_text(content)
+        value['receipt_artifact']=dict(path=path,sha256=hashlib.sha256(content.encode()).hexdigest())
+        return value
+
+    def bind(self, value): self.update(lambda r: cloud.bind_existing(r,value))
+
+    def test_existing_session_binding_preserves_provenance_without_create(self):
+        value=self.binding_input(); self.bind(value); revision=self.store.load()['revision'];self.bind(value)
+        self.assertEqual(self.store.load()['revision'],revision)  # Identical binding replay does not rewrite history.
+        self.assertEqual(self.state()['thread'],'thread-0')
+        operation=self.store.load()['cloud']['operations']['bind-0']
+        self.assertEqual(operation['request']['action'],'bind-existing')
+        self.assertEqual(operation['result'],value['receipt'])
+        self.assertEqual(self.state()['readiness'] if 'readiness' in self.state() else None,None)
+        with self.assertRaisesRegex(RecoveryError,'existing thread'): self.request(name='duplicate-create')
+        with self.assertRaisesRegex(RecoveryError,'preflight'): self.request('follow_up','before-new-preflight')
+        request=[]
+        self.update(lambda r:request.append(cloud.intent(r,'0','follow_up','establish-new-lane',dict(phase='preflight'))))
+        self.ingest(self.reply(request[0]));self.read()
+        self.request('follow_up','genuine-new-readiness')
+
+    def test_binding_rejects_unsettled_unknown_stale_and_mismatched_receipts(self):
+        base=self.binding_input()
+        mutations=[('runtime',lambda v:v['observation'].update(runtime='running')),
+            ('process',lambda v:v['observation'].update(processes_stopped=False)),
+            ('active',lambda v:v['observation'].update(active_assignments=['unrelated-active'])),
+            ('unknown',lambda v:v['observation']['recovery'].update(unknown_operations=['unconfirmed-push'])),
+            ('build',lambda v:v['observation']['recovery'].update(build_slot_clear=False)),
+            ('stale',lambda v:v['observation'].update(observed_utc=(datetime.now(timezone.utc)-timedelta(seconds=121)).isoformat())),
+            ('thread',lambda v:v['observation'].update(thread='unknown-thread')),
+            ('generation',lambda v:v['observation'].update(generation='mismatched-generation')),
+            ('identity',lambda v:v['observation'].pop('identity_evidence')),
+            ('handle',lambda v:v['prior']['checkpoint'].update(session=15,active_command='still-scouting')),
+            ('claims',lambda v:v['prior']['resources'].update(claims=['prior-live-ticket'])),
+            ('landing',lambda v:v['prior']['resources'].update(landing_tickets=['prior-landing'])),
+            ('unavailable-claims',lambda v:v['prior']['resources'].update(claims_state='unavailable')),
+            ('unavailable-landing',lambda v:v['prior']['resources'].update(landing_state='unavailable')),
+            ('accept',lambda v:v['prior'].update(disposition='accepted')),
+            ('unknown-create',lambda v:v['creation'].pop('thread')),
+            ('unknown-executor',lambda v:v['observation'].update(executor='unknown')),
+            ('unsupported-read',lambda v:v['observation'].update(tool='invented.endpoint')),
+            ('unsupported-create',lambda v:v['creation'].update(tool='invented.create')),
+            ('original-incarnation',lambda v:v['creation'].update(generation='different-original-generation')),
+            ('stale-resources',lambda v:v['prior']['resources'].update(observed_utc=(datetime.now(timezone.utc)-timedelta(seconds=121)).isoformat()))]
+        for name, mutate in mutations:
+            with self.subTest(name=name):
+                value=copy.deepcopy(base);mutate(value['receipt']);self.binding_packet(value)
+                with self.assertRaises(RecoveryError):self.bind(value)
+                self.assertIsNone(self.state()['thread'])
+        value=self.binding_input();value['receipt']['creation']['thread']='invented-thread'
+        # Updating the outer digest cannot rewrite the recovered inner original receipt.
+        content=json.dumps(value['receipt']);(self.root/value['receipt_artifact']['path']).write_text(content)
+        value['receipt_artifact']['sha256']=hashlib.sha256(content.encode()).hexdigest()
+        with self.assertRaisesRegex(RecoveryError,'normalized'):self.bind(value)
+
+    def test_binding_duplicate_slots_sessions_executors_and_outcomes_are_fenced(self):
+        first=self.binding_input();self.bind(first)
+        for field in ('slot','thread','executor','environment','outcome'):
+            second=self.binding_input('1',28)
+            if field=='slot':second['receipt']['source']=first['receipt']['source']
+            elif field=='thread':
+                second['receipt']['observation']['thread']=first['receipt']['observation']['thread']
+                second['receipt']['creation']['thread']=first['receipt']['creation']['thread']
+            elif field=='environment':
+                second['receipt']['observation']['environment']='env-0'
+                second['receipt']['observation']['recovery']['environment']='env-0'
+            elif field=='outcome': self.update(lambda r:r['cloud']['assignments']['1'].update(outcome='program-0'))
+            else:second['receipt']['observation'][field]=first['receipt']['observation'][field]
+            self.binding_packet(second)
+            with self.subTest(field=field), self.assertRaisesRegex(RecoveryError,'duplicate'):self.bind(second)
+        self.update(lambda r:r['cloud']['assignments']['1'].update(outcome='program-1'))
+        second=self.binding_input('1',28);self.bind(second)
+        self.assertEqual(len(self.store.load()['cloud']['operations']),2)
+
+    def test_binding_preserves_denied_work_and_never_grants_implementation(self):
+        value=self.binding_input(); prior=value['receipt']['prior']
+        prior['approval_required']=dict(operation='original-denial',execution_id='actual-denial-id',
+            action='accept package filesystem authority',error='automatic approval rejected')
+        prior['protected_paths']=['paused/compiler-fixture']
+        prior['checkpoint']=checkpoint('required_approval')
+        prior['resources']['workspaces'][0].update(state='preserved',backup=preflight_receipt()['backup'])
+        self.binding_packet(value);self.bind(value)
+        self.assertEqual(self.store.load()['cloud']['operations']['bind-0']['result']['prior']['approval_required'],prior['approval_required'])
+        with self.assertRaisesRegex(RecoveryError,'preflight'):self.request('follow_up','no-bypass')
+        # A new contract cannot use this transition to resume the denied source under a new label.
+        second=self.binding_input('1',28);second['receipt']['prior']=copy.deepcopy(prior)
+        second['receipt']['observation']['prior_assignment']=prior['assignment']
+        second['receipt']['observation']['recovery']['assignment']=prior['assignment']
+        self.update(lambda r:r['cloud']['assignments']['1'].update(writes=['paused/compiler-fixture/file']))
+        self.binding_packet(second)
+        with self.assertRaisesRegex(RecoveryError,'preserved or denied'):self.bind(second)
+
+    def test_binding_cannot_override_known_history_or_pending_operations(self):
+        value=self.binding_input()
+        self.request('read','unfinished-read')
+        with self.assertRaisesRegex(RecoveryError,'already has operations'):self.bind(value)
+        self.update(lambda r:r['cloud']['operations'].clear())
+        prior=value['receipt']['prior']
+        self.update(lambda r:r['cloud']['assignments'].update({prior['assignment']:dict(id=prior['assignment'],
+            outcome=prior['outcome'],thread='thread-0',environment='env-0',generation='gen-0',accepted=None)}))
+        with self.assertRaisesRegex(RecoveryError,'known prior'):self.bind(value)
+        self.update(lambda r:r['cloud']['assignments'][prior['assignment']].update(accepted=dict(result='landed',cleanup='completed',user_rescue=False)))
+        prior['disposition']='accepted';self.binding_packet(value);self.bind(value)
+        self.assertEqual(self.store.load()['cloud']['assignments'][prior['assignment']]['accepted'],dict(result='landed',cleanup='completed',user_rescue=False))
+
+    def test_bound_prior_recovery_exemption_is_preflight_only(self):
+        self.bind(self.binding_input())
+        self.read()  # Establish genuine preflight/readiness for the new assignment.
+        self.update(lambda r:r['cloud']['assignments']['0']['observation']['recovery'].update(assignment='prior-0'))
+        with self.assertRaisesRegex(RecoveryError,'recovery'): self.request('follow_up','old-identity-implementation')
+        self.assertIsNone(self.state()['accepted'])
+
+    def test_binding_keeps_pending_history_and_requires_backed_preservation(self):
+        value=self.binding_input(); prior=value['receipt']['prior']
+        self.update(lambda r:r['cloud']['operations'].update({'old-unknown':dict(assignment=prior['assignment'],
+            effect='unknown',request=dict(action='follow_up'))}))
+        with self.assertRaisesRegex(RecoveryError,'prior operations'): self.bind(value)
+        self.update(lambda r:r['cloud']['operations'].clear())
+        prior['resources']['workspaces'][0]['state']='preserved';prior['protected_paths']=['paused']
+        self.binding_packet(value)
+        with self.assertRaisesRegex(RecoveryError,'backup'):self.bind(value)
+        prior['resources']['workspaces'][0]['backup']=preflight_receipt()['backup']
+        self.binding_packet(value);self.bind(value)
+        with self.assertRaisesRegex(RecoveryError,'already bound'):
+            duplicate=copy.deepcopy(value);duplicate['operation']='different-operation';self.bind(duplicate)
+
+    def test_binding_cannot_clear_target_denial_or_import_manifest_provenance(self):
+        value=self.binding_input()
+        latch=dict(action='exact denied action',error='automatic approval rejection',operation='denied',execution_id='original-id')
+        self.update(lambda r:r['cloud']['assignments']['0'].update(approval_required=latch))
+        with self.assertRaisesRegex(RecoveryError,'cannot clear'):self.bind(value)
+        self.assertEqual(self.state()['approval_required'],latch)
+        record=dict(cloud=dict(batches={},assignments={},handoffs={},operations={}))
+        candidate=manifest();candidate['assignments'][0]['binding']=dict(prior_assignment='forged-prior')
+        cloud.admit(record,candidate,snapshot())
+        self.assertNotIn('binding',record['cloud']['assignments']['0'])
+
+    def test_historical_denial_fence_survives_an_intervening_accepted_outcome(self):
+        first=self.binding_input()
+        first['receipt']['prior'].update(approval_required=dict(action='denied-action',error='rejected'),protected_paths=['paused'])
+        self.binding_packet(first);self.bind(first)
+        accepted=dict(result='landed',cleanup='completed',user_rescue=False)
+        self.update(lambda r:r['cloud']['assignments']['0'].update(accepted=accepted))
+        new=dict(assignment('new',self.base),thread=None,environment=None,generation=None,accepted=None,batch='batch-2')
+        new['writes']=['paused/file']
+        self.update(lambda r:r['cloud']['assignments'].update(new=new))
+        value=self.binding_input('new')
+        value['receipt']['creation']['thread']='thread-0'
+        value['receipt']['observation'].update(thread='thread-0',environment='env-0',generation='gen-0',executor='actual-host-0',prior_assignment='0')
+        value['receipt']['observation']['recovery'].update(assignment='0',environment='env-0',generation='gen-0')
+        value['receipt']['prior'].update(assignment='0',outcome='program-0',disposition='accepted')
+        self.binding_packet(value)
+        with self.assertRaisesRegex(RecoveryError,'preserved or denied'):self.bind(value)
+        self.assertEqual(self.store.load()['cloud']['operations']['bind-0']['result']['prior']['approval_required'],first['receipt']['prior']['approval_required'])
+
+    def test_binding_cli_requires_receipt_and_current_revision(self):
+        value=self.binding_input();path=self.root/'bind-input.json';atomic_json(path,value)
+        args=[sys.executable,str(ROOT/'tools/swarm/cloud.py'),'--state',str(self.store.path),
+              '--revision',str(self.store.load()['revision']),'bind-existing','--input',str(path)]
+        result=subprocess.run(args,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(json.loads(result.stdout)['assignments'][0]['thread'],'thread-0')
+        changed=copy.deepcopy(value);changed['receipt']['source']['slot']=30;self.binding_packet(changed)
+        with self.assertRaisesRegex(RecoveryError,'conflicting binding'):self.bind(changed)
+
     def test_controller_cli_emits_request_after_durable_intent(self):
         value = self.root / 'intent.json'; atomic_json(value, dict(assignment='0',operation='cli-create',action='create',parameters=dict(model='gpt-6.1-sol',reasoning='medium',phase='preflight')))
         args = [sys.executable,str(ROOT/'tools/swarm/cloud.py'),'--state',str(self.store.path),'--revision',str(self.store.load()['revision']),'intent','--input',str(value)]
