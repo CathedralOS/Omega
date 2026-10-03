@@ -261,9 +261,7 @@ fn return_cleanup_calls_match(
 mod cleanup_tests {
     use super::{retained, return_cleanup_calls_match};
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-    use semantic_vocabulary::{
-        BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralFieldId, StructuralTypeId,
-    };
+    use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
     use target_operations::{CallSiteOwner, TargetStructuralArgument, TargetUnitOperation};
     use terminal_psi::{
         NominalAffineCleanup, StructuralAccess, StructuralAffineDiscard, StructuralPathSegment,
@@ -370,9 +368,7 @@ mod cleanup_tests {
     fn residual() -> StructuralAffineDiscard {
         StructuralAffineDiscard {
             place: PlaceId::new(5).unwrap(),
-            path: vec![StructuralPathSegment::Field(
-                StructuralFieldId::new(1).unwrap(),
-            )],
+            path: vec![StructuralPathSegment::Field("left".into())],
             structural_type: StructuralTypeId::new(2).unwrap(),
         }
     }
@@ -463,11 +459,7 @@ mod cleanup_tests {
                     };
                     match mutation {
                         5 => discard.place = PlaceId::new(6).unwrap(),
-                        6 => {
-                            discard.path = vec![StructuralPathSegment::Field(
-                                StructuralFieldId::new(2).unwrap(),
-                            )]
-                        }
+                        6 => discard.path = vec![StructuralPathSegment::Field("right".into())],
                         _ => discard.structural_type = StructuralTypeId::new(3).unwrap(),
                     }
                 }
