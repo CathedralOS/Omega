@@ -251,6 +251,12 @@ pub fn settle_selected_execution(
             settlement.x86_scalar_fma_provider,
             settlement.selected_target_profile,
         )?;
+    // Stand-down accounting is retained over the settled program's typed
+    // trees: monomorphization and product pruning settle the exact machine
+    // roster package review rederives, so the ledger audits that final
+    // roster rather than the pre-lowering trees.
+    let contract_entailment_stand_downs =
+        validation::collect_contract_entailment_stand_downs(&checked.program.typed);
     if let Some(entry) = settlement.selected_program_entry.as_mut() {
         let establishments = crate::derive_fused_program_entry_establishments(
             &checked.program,
@@ -273,7 +279,7 @@ pub fn settle_selected_execution(
         selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,
         accepted_template_classifications: checked.accepted_template_classifications,
-        contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
+        contract_entailment_stand_downs,
         selected_provider_provenance: settlement.selected_provider_provenance,
         resolved_semantic_bindings: resolved_exit_bindings
             .into_iter()

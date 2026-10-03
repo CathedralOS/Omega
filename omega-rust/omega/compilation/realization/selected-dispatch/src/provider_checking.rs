@@ -17,7 +17,6 @@ pub struct CheckedProviderProgram {
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     pub callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
-    pub contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
 }
 
 /// Build-selected provider inputs. The compiler supplies these; this owner
@@ -43,7 +42,6 @@ pub struct ProviderCheckingRequest<'a> {
 pub struct ProviderCheckingInputs {
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
-    contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
 }
 
 impl ProviderCheckingInputs {
@@ -63,8 +61,6 @@ impl ProviderCheckingInputs {
         }
         let accepted_template_classifications =
             trust_model::AcceptedTemplateClassifications::capture(typed);
-        let contract_entailment_stand_downs =
-            validation::collect_contract_entailment_stand_downs(typed);
         let rederived_opaque_representation_selections =
             representation_planning::rederive_opaque_representation_selections(
                 typed,
@@ -81,7 +77,6 @@ impl ProviderCheckingInputs {
         Ok(Self {
             opaque_property_receipts,
             accepted_template_classifications,
-            contract_entailment_stand_downs,
         })
     }
 
@@ -149,7 +144,6 @@ impl ProviderCheckingInputs {
             selected_provider_grants,
             callback_placements,
             accepted_template_classifications: self.accepted_template_classifications,
-            contract_entailment_stand_downs: self.contract_entailment_stand_downs,
         })
     }
 }
