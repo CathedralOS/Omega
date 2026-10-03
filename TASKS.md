@@ -2557,13 +2557,78 @@ same flow already performed, not the check itself.
   (`TypedTrees::machine_by_symbol`). Acceptance: no whole-program state scan
   remains in that file; corpus `--filter borrows,references/` unchanged.
 
-- **TYPE-IDENTITY-RENDER-ONCE.** (new-scope)
-  `TypedTrees::normalized_type_identity` renders a fresh
-  `NormalizedTypeIdentity(String)` on every call, with no cache, and stages
-  04, 05 and checking call it at about 500 sites. Memoize the rendered
-  identity per `TypeReferenceHandle` inside `TypedTrees` and return it by
-  reference or shared handle. Acceptance: a second call for the same handle
-  does no rendering, and identities and the full check corpus are unchanged.
+- **CALLABLE-IDENTITY-INTERNED.** (new-scope) `NormalizedNamedCallableIdentity`
+  (`typed-trees` `type_system/type_identity/normalized_identities.rs`) holds
+  its `path` and `parameters` as rendered `String`s, escaped text such as
+  `named-callable(path(Console::exit_process),parameters(parameter\(self\(no\)…`.
+  `TypedTrees::machine_by_normalized_overload_identity(&str)` finds a machine
+  by rendering the identity of every machine in the program and comparing
+  strings. The identity functions have 111 call sites. In one commit:
+  - intern each machine, requirement and operator overload identity once
+    during typing, in a table in `TypedTrees` that maps a
+    `CallableIdentityId` handle to its declaration;
+  - replace the string identity type and the `&str` lookup with that handle
+    and an O(1) table read;
+  - render text only for diagnostics and at artifact encoding.
+
+  Acceptance: `NormalizedNamedCallableIdentity` holds no `String`, no
+  function looks a machine up by a string identity, and full check plus native
+  corpus are unchanged.
+
+- **TYPE-IDENTITY-INTERNED.** (new-scope) `NormalizedTypeIdentity(String)` is
+  rendered afresh on every `TypedTrees::normalized_type_identity` call, about
+  500 call sites in stages 04, 05 and checking, and compared as text. Keep a
+  hash-consed table of structural type keys in `TypedTrees` that issues one
+  `TypeIdentityId` handle per distinct type, and switch every comparison and
+  map key to that handle in one commit. Rendering stays only for diagnostics
+  and artifact encoding. This replaces **TYPE-IDENTITY-RENDER-ONCE**, which
+  is deleted. Acceptance: `NormalizedTypeIdentity` holds no `String`, type
+  identity equality is a handle comparison, and full check plus native corpus
+  are unchanged.
+
+- **CHECKED-IDENTITY-IDS.** (new-scope) Depends on the two items above.
+  `checked-trees` declares 59 `*identity: String` fields: 19 in
+  `flow/dynamic_scalar_calls.rs`, 10 in `flow/terminal/structural_type_plans.rs`,
+  and others in composed-unit, affine-cleanup, result-binding, termination and
+  service-parameter plans. Replace each with the callable or type identity
+  handle (or the existing symbol handle) in one commit. Acceptance: no
+  `String`-typed identity field remains in `checked-trees`, enforced by a test
+  in that crate that scans its sources; full check corpus unchanged.
+
+- **TERMINAL-IDENTITY-TABLE.** (new-scope) Depends on **CHECKED-IDENTITY-IDS**.
+  Terminal Psi is the persisted boundary, so its identities must stay
+  content-derived, but they should be stored once. Today 95
+  `*identity: String` fields across `terminal-psi`'s module
+  (`boundary/dynamic_dispatch.rs` 20, `ownership/borrows.rs` 15, placement,
+  conformances, proof declarations, outputs, recursion) and the proof bundle
+  each repeat rendered text. Add one identity table section to the module and
+  the codec. Fields hold indices into it, and the verifier compares indices
+  after checking the table once. Bump the codec version in the same commit.
+  Acceptance: no `String`-typed identity field remains in `terminal-psi`
+  outside the identity table (self-scanning test); canonical artifact replay,
+  verifier controls and the native corpus are unchanged.
+
+- **OMEGA-IDENTITY-INDICES.** (new-scope) Depends on
+  **TERMINAL-IDENTITY-TABLE**. Omega consumes those identities as owned text:
+  - 41 `*identity: String` fields in `omega/compilation/backend/plans`;
+  - 20 in `backend/runtime`;
+  - the `BoundaryNominalIdentity(String)` and `BoundaryTypeIdentity(String)`
+    newtypes in `boundary-applications`.
+
+  Carry Terminal identity-table indices instead, in one commit. Acceptance:
+  none of those crates declares a `String`-typed identity (self-scanning test
+  in each), and the native corpus is unchanged.
+
+- **PROVIDER-SCHEMA-IDENTITY-IDS.** (new-scope) Depends on
+  **CALLABLE-IDENTITY-INTERNED**. `effects`' `ServiceSchema`/`ServiceMethod`
+  carry `trait_name` and `requirement_identity`, and
+  `ProviderBinding::CheckedAdapter` carries `machine_identity`, all as
+  rendered `String`s that selection, dispatch and digest code compare as text.
+  Hold callable identity handles in-process. Only the plan's digest encoder
+  writes the canonical content. Make this switch in one commit. Acceptance:
+  those schema and binding fields hold no `String`, plan digests (and so
+  package-review records) are unchanged, and the provider and native corpus
+  slices are unchanged.
 
 - **PSI-OPTIMIZATION-VALIDATE-ONCE.** (new-scope) Stage 06's
   `psi_optimization.rs` runs the full Terminal verifier through
