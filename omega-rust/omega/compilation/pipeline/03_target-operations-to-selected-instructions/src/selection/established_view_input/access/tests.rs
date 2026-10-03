@@ -380,3 +380,136 @@ fn shared_qualified_byte_subslice_preserves_read_only_source_permission() {
         "mutable qualification preservation needs independent store evidence"
     );
 }
+
+fn copied_byte_field() -> LegalizedScalarFunction {
+    let mut function = byte_views();
+    let container = StructuralTypeId::new(304).unwrap();
+    let signature = function.structural.as_mut().unwrap();
+    let mut types = signature.structural_types.to_vec();
+    types.push(StructuralTypeDeclaration {
+        id: container,
+        identity: "Remainder".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![terminal_psi::StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(304).unwrap(),
+                identity: "bytes".into(),
+                relevance: semantic_vocabulary::BindingRelevance::Relevant,
+                field_type: terminal_psi::StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(A::SharedBorrow),
+                    },
+                ),
+            }],
+        },
+    });
+    signature.structural_types = types.into();
+    let block = function.blocks.last_mut().unwrap();
+    block.structural_parameters[0].structural_type = container;
+    block.structural_parameters[0].access = A::Owned;
+    block.structural_parameters[0].multiplicity = M::Affine;
+    let I::ByteSequenceSubslice { mut result, .. } = block.instructions[0].kind.clone() else {
+        panic!()
+    };
+    result.multiplicity = M::Unrestricted;
+    block.instructions[0].kind = I::StructuralLeafCopy {
+        result,
+        source: place(301),
+        path: abstract_operations::StructuralCopyPath::Ordinary(vec![
+            terminal_psi::StructuralPathSegment::Field("bytes".into()),
+        ]),
+        byte_offset: 0,
+        shape: calling_conventions::ValueShape::borrowed_reference(16, 8),
+        indices: Vec::new(),
+    };
+    function
+}
+
+#[test]
+fn copied_descriptor_selection_replays_field_permission_and_following_subslice() {
+    let function = copied_byte_field();
+    assert_eq!(view_access(&function, place(302)), Some(A::SharedBorrow));
+    assert_eq!(view_access(&function, place(303)), Some(A::SharedBorrow));
+    for mutation in 0..8 {
+        let mut changed = function.clone();
+        let block = changed.blocks.last_mut().unwrap();
+        let row = &mut block.instructions[0];
+        let I::StructuralLeafCopy {
+            result,
+            source,
+            path,
+            byte_offset,
+            ..
+        } = &mut row.kind
+        else {
+            panic!()
+        };
+        match mutation {
+            0 => *source = place(999),
+            1 => {
+                *path = abstract_operations::StructuralCopyPath::Ordinary(vec![
+                    terminal_psi::StructuralPathSegment::Field("other".into()),
+                ])
+            }
+            2 => *byte_offset = 8,
+            3 => result.multiplicity = M::Affine,
+            4 => block.structural_parameters[0].access = A::WriteOnlyBorrow,
+            5 => row.operation = operation(999),
+            6 => {
+                let signature = changed.structural.as_mut().unwrap();
+                let mut types = signature.structural_types.to_vec();
+                let StructuralTypeShape::Record { fields } = &mut types[2].shape else {
+                    panic!()
+                };
+                fields[0].field_type = terminal_psi::StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(A::MutableBorrow),
+                    },
+                );
+                signature.structural_types = types.into();
+            }
+            7 => result.structural_type = StructuralTypeId::new(302).unwrap(),
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            view_access(&changed, place(302)),
+            None,
+            "mutation {mutation}"
+        );
+        assert_eq!(
+            view_access(&changed, place(303)),
+            None,
+            "ancestor mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn copied_descriptor_selection_cannot_copy_mutable_whole_authority() {
+    let mut function = byte_views();
+    let row = &mut function.blocks.last_mut().unwrap().instructions[0];
+    let I::ByteSequenceSubslice {
+        mut result, source, ..
+    } = row.kind.clone()
+    else {
+        panic!()
+    };
+    result.multiplicity = M::Unrestricted;
+    row.kind = I::StructuralLeafCopy {
+        result,
+        source,
+        path: abstract_operations::StructuralCopyPath::Ordinary(Vec::new()),
+        byte_offset: 0,
+        shape: calling_conventions::ValueShape::borrowed_reference(16, 8),
+        indices: Vec::new(),
+    };
+    assert_eq!(view_access(&function, place(302)), None);
+    function.blocks.last_mut().unwrap().structural_parameters[0].access = A::SharedBorrow;
+    assert_eq!(view_access(&function, place(302)), Some(A::SharedBorrow));
+    let I::StructuralLeafCopy { source, .. } =
+        &mut function.blocks.last_mut().unwrap().instructions[0].kind
+    else {
+        panic!()
+    };
+    *source = place(302);
+    assert_eq!(view_access(&function, place(302)), None);
+}
