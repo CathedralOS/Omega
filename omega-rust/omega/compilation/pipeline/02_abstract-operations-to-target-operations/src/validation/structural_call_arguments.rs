@@ -3525,19 +3525,35 @@ fn matches_referent_argument(
     let Some(backing) = roots.get(&actual.place) else {
         return false;
     };
-    let carrier_type = source
-        .structural_places
+    let mut carrier_types = source
+        .operations
         .iter()
-        .find(|place| place.id == semantic.place)
-        .and_then(|place| match place.kind {
-            semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                structural_type, ..
-            } => Some(structural_type),
-            _ => roots.get(&semantic.place).map(|root| root.structural_type),
-        });
-    let Some((reference_type, _)) = carrier_type.and_then(|carrier| {
-        structural_shapes::project_static_path(carrier, carrier_path, declarations).ok()
-    }) else {
+        .filter_map(AbstractOperation::structural_result)
+        .filter(|(_, result)| result.place == semantic.place)
+        .map(|(_, result)| result.structural_type)
+        .chain(
+            source
+                .structural_parameters
+                .iter()
+                .chain(
+                    source
+                        .block_entries
+                        .iter()
+                        .filter(|entry| entry.block != source.entry)
+                        .flat_map(|entry| &entry.structural_parameters),
+                )
+                .filter(|parameter| parameter.place == semantic.place)
+                .map(|parameter| parameter.structural_type),
+        );
+    let Some(carrier_type) = carrier_types.next() else {
+        return false;
+    };
+    if carrier_types.next().is_some() {
+        return false;
+    }
+    let Ok((reference_type, _)) =
+        structural_shapes::project_static_path(carrier_type, carrier_path, declarations)
+    else {
         return false;
     };
     let Some(StructuralTypeShape::Reference { referent, access }) = declarations
