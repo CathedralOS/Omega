@@ -1716,8 +1716,8 @@ pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
 pass/domains/utf8_equals_literal_exit checked 1773ms @55e0349c204c+wt
 pass/domains/utf8_equals_literal_mismatch_exit checked 659ms @54a65e21a512+wt
 pass/domains/utf8_field_read_carries_domain_exit checked 807ms @4e4bfed13aee+wt
-pass/domains/utf8_field_write_from_param rejected 357ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at structural field store: destination parameter, statement 1)") })
+pass/domains/utf8_field_write_from_param rejected 563ms @66aaa8e5bc0
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralByteViewFieldStore(OperationId(5))))
 pass/domains/vacuous_domain_qualification checked 282ms @2d8ed253669f
 pass/domains/view_field_literal_store_reads_exit checked 943ms @4e4bfed13aee+wt
 pass/drops/cleanup_machine_drop_shape checked 240ms @0aa983f6af47+wt
