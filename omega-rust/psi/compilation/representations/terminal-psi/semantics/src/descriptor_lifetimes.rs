@@ -8,7 +8,9 @@ use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralFieldId}
 use std::collections::{BTreeMap, BTreeSet};
 
 mod locations;
-pub use locations::{descriptor_location, descriptor_location_type, descriptor_path};
+pub use locations::{
+    canonical_descriptor_location, descriptor_location, descriptor_location_type, descriptor_path,
+};
 
 pub type DescriptorPosition = (BlockId, u32);
 

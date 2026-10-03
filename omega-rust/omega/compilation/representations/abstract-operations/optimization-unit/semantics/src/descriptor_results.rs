@@ -307,7 +307,14 @@ fn adapt(
                     let destination = DescriptorLocation::whole(result.place);
                     let source = match path {
                         StructuralCopyPath::Ordinary(path) => location(*source, path, None),
-                        _ => None,
+                        StructuralCopyPath::Case(path) => {
+                            terminal_semantics::descriptor_lifetimes::canonical_descriptor_location(
+                                types,
+                                *source,
+                                *graph.place_types.get(source)?,
+                                path,
+                            )
+                        }
                     };
                     if let Some(source) = source {
                         step.inputs = vec![source.clone()];

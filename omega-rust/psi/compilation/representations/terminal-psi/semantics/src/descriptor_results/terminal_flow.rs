@@ -172,9 +172,24 @@ pub(super) fn adapt(
                         Projection::window(*start, *end, position),
                     );
                 }
-                OperationKind::StructuralLeafCopy { source, path } => {
+                OperationKind::StructuralLeafCopy { .. }
+                | OperationKind::StructuralCaseLeafCopy { .. } => {
                     let destination = DescriptorLocation::whole(result?.place);
-                    if let Some(source) = location(*source, path, None) {
+                    let source = match &operation.kind {
+                        OperationKind::StructuralLeafCopy { source, path } => {
+                            location(*source, path, None)
+                        }
+                        OperationKind::StructuralCaseLeafCopy { source, path } => {
+                            crate::descriptor_lifetimes::canonical_descriptor_location(
+                                &module.structural_types,
+                                *source,
+                                *graph.place_types.get(source)?,
+                                path,
+                            )
+                        }
+                        _ => unreachable!("selected structural copy"),
+                    };
+                    if let Some(source) = source {
                         step.inputs = vec![source.clone()];
                         step.derivations.push((source, destination.clone()));
                     } else {

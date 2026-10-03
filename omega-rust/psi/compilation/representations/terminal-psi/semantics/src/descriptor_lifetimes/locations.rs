@@ -1,10 +1,34 @@
 //! Canonical carrier addresses authenticated against the actual type catalog.
 use super::{DescriptorLocation, DescriptorPathSegment};
-use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, PlaceId, StructuralFieldId, StructuralTypeId,
+};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
+
+/// Resolve retained declaration identities without recovering authority from
+/// field spelling. Case liveness remains the operation verifier's obligation.
+pub fn canonical_descriptor_location(
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    root_type: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<DescriptorLocation> {
+    let path = path
+        .iter()
+        .map(|segment| match segment {
+            CanonicalStructuralPathSegment::Field(field) => DescriptorPathSegment::Field(*field),
+            CanonicalStructuralPathSegment::FixedIndex(index) => {
+                DescriptorPathSegment::FixedIndex(*index)
+            }
+            CanonicalStructuralPathSegment::Case(case) => DescriptorPathSegment::Case(*case),
+        })
+        .collect::<Vec<_>>();
+    resolved_path(types, root_type, &path)?;
+    Some(DescriptorLocation { root, path })
+}
 
 pub fn descriptor_location(
     types: &[StructuralTypeDeclaration],

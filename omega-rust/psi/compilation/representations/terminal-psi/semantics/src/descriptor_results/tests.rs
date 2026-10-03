@@ -1436,8 +1436,7 @@ fn descriptor_free_crash_result_does_not_poison_unrelated_slot_replay() {
     assert!(reconstruct_stored_effects(&module.structural_types, &graphs, machine(1)).is_none());
 }
 
-#[test]
-fn returned_case_slots_are_empty_only_for_a_declared_inactive_payload() {
+fn returned_case_module() -> TerminalModule {
     use semantic_vocabulary::{OperationId, StructuralCaseId};
     use terminal_psi::{
         OperationResult, RecordFieldInitializer, RecordFieldValue, StructuralCaseDeclaration,
@@ -1523,11 +1522,21 @@ fn returned_case_slots_are_empty_only_for_a_declared_inactive_payload() {
         trivial_affine_discards: Vec::new(),
     };
     module.machines.push(callee);
+    module
+}
+
+#[test]
+fn returned_case_slots_are_empty_only_for_a_declared_inactive_payload() {
+    use semantic_vocabulary::StructuralCaseId;
+    let sound = StructuralCaseId::new(1).unwrap();
+    let empty = StructuralCaseId::new(2).unwrap();
+    let mut module = returned_case_module();
+    let payload_field = StructuralFieldId::new(1).unwrap();
     let location = DescriptorLocation {
         root: place(3),
         path: vec![
             DescriptorPathSegment::Case(sound),
-            DescriptorPathSegment::Field(payload.id),
+            DescriptorPathSegment::Field(payload_field),
         ],
     };
     let graphs = terminal_graph(&module);
@@ -1571,4 +1580,107 @@ fn returned_case_slots_are_empty_only_for_a_declared_inactive_payload() {
     };
     *result_case = StructuralCaseId::new(99).unwrap();
     assert!(terminal_graph(&module).is_empty());
+}
+
+#[test]
+fn copied_case_aggregate_preserves_nested_descriptor_origins() {
+    use semantic_vocabulary::{CanonicalStructuralPathSegment, OperationId, StructuralCaseId};
+    use terminal_psi::{OperationResult, StructuralFieldType, StructuralOperationResult};
+    let mut module = returned_case_module();
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[2].shape else {
+        unreachable!()
+    };
+    cases[0].fields[0].field_type = StructuralFieldType::Structural(ty(2));
+    let body = &mut module.machines[0];
+    body.structural_parameters[0].structural_type = ty(2);
+    for (identity, structural_type, multiplicity, kind) in [
+        (
+            4,
+            ty(2),
+            StructuralMultiplicity::Affine,
+            OperationKind::StructuralCaseLeafCopy {
+                source: place(3),
+                path: vec![
+                    CanonicalStructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+                    CanonicalStructuralPathSegment::Field(StructuralFieldId::new(1).unwrap()),
+                ],
+            },
+        ),
+        (
+            5,
+            ty(1),
+            StructuralMultiplicity::Unrestricted,
+            OperationKind::StructuralLeafCopy {
+                source: place(4),
+                path: vec![StructuralPathSegment::Field("field1".into())],
+            },
+        ),
+    ] {
+        let producer = OperationId::new(identity).unwrap();
+        body.structural_places.push(StructuralPlaceDeclaration {
+            id: place(identity),
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        });
+        body.blocks[0].operations.push(Operation {
+            id: producer,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Structural(StructuralOperationResult {
+                place: place(identity),
+                structural_type,
+                multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind,
+        });
+    }
+    let graphs = terminal_graph(&module);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graphs);
+    assert_eq!(
+        analysis.symbolic_source_origins(machine(1), pos(3), &whole(5)),
+        Some(vec![DescriptorSourceOrigin::IncomingSlot(slot(1, 1))])
+    );
+    assert_eq!(
+        analysis.source_origins(machine(1), pos(3), &whole(4)),
+        Some(vec![DescriptorCallOrigin::Argument {
+            source: place(4),
+            projection: Projection::new(&[])
+        }])
+    );
+    let flow = analysis.flow(machine(1)).unwrap();
+    assert!(
+        crate::descriptor_lifetimes::descriptor_location_live_positions(
+            &flow,
+            pos(0),
+            &DescriptorLocation {
+                root: place(3),
+                path: vec![
+                    DescriptorPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+                    DescriptorPathSegment::Field(StructuralFieldId::new(1).unwrap()),
+                    DescriptorPathSegment::Field(StructuralFieldId::new(1).unwrap()),
+                ],
+            }
+        )
+        .contains(&pos(2))
+    );
+    // Switching to another declared case cannot borrow the first case's field.
+    let OperationKind::StructuralCaseLeafCopy { path, .. } =
+        &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    path[0] = CanonicalStructuralPathSegment::Case(StructuralCaseId::new(2).unwrap());
+    let graphs = terminal_graph(&module);
+    let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graphs);
+    assert!(
+        analysis
+            .source_origins(machine(1), pos(3), &whole(5))
+            .is_none()
+    );
 }
