@@ -27,6 +27,23 @@ pub(super) fn prove_atomic(
     definitions: &mut DefinitionIndex,
 ) -> Option<Option<ProofNode>> {
     match goal {
+        Proposition::Equal(left, right) => {
+            let ScalarType::Integer(carrier) = left.scalar_type() else {
+                return None;
+            };
+            if carrier.is_address() || right.scalar_type() != left.scalar_type() {
+                return None;
+            }
+            Some(prove_equality_from_orders(
+                context,
+                goal,
+                left,
+                right,
+                assumptions,
+                semantic_axioms,
+                definitions,
+            ))
+        }
         Proposition::Truth => Some(Some(ProofNode {
             conclusion: Proposition::Truth,
             rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
@@ -101,6 +118,44 @@ pub(super) fn prove_atomic(
         )),
         _ => None,
     }
+}
+
+/// Equality can follow from two separately proved orders even when neither
+/// endpoint has a defining equation that rewrites to the other. Reuse the
+/// ordinary bound routes; the finite antisymmetry rule receives exact scalar
+/// endpoints, including when a child proves its order through mathematical
+/// translation and the checked projection back to exact finite terms.
+fn prove_equality_from_orders(
+    context: &PropositionContext,
+    goal: &Proposition,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    super::super::search_context::spend(1)?;
+    let forward = prove_atomic(
+        context,
+        &Proposition::LessOrEqual(left.clone(), right.clone()),
+        assumptions,
+        semantic_axioms,
+        definitions,
+    )??;
+    let backward = prove_atomic(
+        context,
+        &Proposition::LessOrEqual(right.clone(), left.clone()),
+        assumptions,
+        semantic_axioms,
+        definitions,
+    )??;
+    Some(ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerOrderAntisymmetry {
+            forward: Box::new(forward),
+            backward: Box::new(backward),
+        },
+    })
 }
 
 fn prove_math_relation(
