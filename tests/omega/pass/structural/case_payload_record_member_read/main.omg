@@ -35,5 +35,5 @@ machine Main::run(main: &mut Main, s: Shape) reaches Console {
 }
 
 machine Main::main(main: &mut Main) {
-    Main::run(main, Shape::Circle { r: 10 });
+    Main::run(main, Shape::Boxed { inner: Inner { x: 70 } });
 }

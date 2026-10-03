@@ -1419,13 +1419,13 @@ pub(super) fn observation(
     let leaf = match leaf_type {
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
-                source,
+                source: source.into(),
                 path: binding.path.clone(),
                 field: binding.field,
             }),
         },
         ScalarType::Integer(_) => LoweredDirectExpression::StructuralField {
-            source,
+            source: source.into(),
             path: binding.path.clone(),
             field: binding.field,
             scalar_type: leaf_type,

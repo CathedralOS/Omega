@@ -1,7 +1,7 @@
 //! Bind source field identities to the exact emitted receiver declaration.
 //!
 //! Selected structural payloads use the same field-path resolver as ordinary
-//! records after their dispatch establishes the payload member. Retain the
+//! records, carrying a case-leaf copy to the observation's emission point. Retain the
 //! complete canonical carrier path: a leaf declaration may occur below several
 //! siblings, and its identity alone cannot select the observed value. Case
 //! membership and ownership remain obligations of the selecting edge and replay.
@@ -106,22 +106,22 @@ impl StructuralFieldBindings {
 
 /// Whether a read through a case segment may observe this root's payload.
 ///
-/// A whole root's payload is read as a parameter of the block its
+/// A whole root's scalar payload is read as a parameter of the block its
 /// `StructuralCase` dispatch selected for that case, so the verifier's own tag
 /// dispatch is the case knowledge. A read of a root case payload therefore
 /// resolves to an established payload value, is deferred for the guard
 /// decision lowering that will introduce the dispatch, or is refused. A sum
 /// below record fields has no dispatch terminator; `resolve_typed` reads its
 /// payload in place through a carrier ending in the `Case` step instead.
+/// Structural payload members carry their own observation source, independent
+/// of this parameter-binding mode: a case-leaf copy is emitted at the read and
+/// owes the active-case fact there. No successor scanner precomputes the read.
 #[derive(Clone, Default)]
 enum CasePayloadAccess {
     #[default]
     Unavailable,
     Deferred,
-    Established(
-        Vec<EstablishedCasePayload>,
-        Vec<NestedEstablishedCasePayload>,
-    ),
+    Established(Vec<EstablishedCasePayload>),
 }
 
 /// One payload field bound by a dominating `StructuralCase` successor, at its
@@ -134,27 +134,14 @@ pub(crate) struct EstablishedCasePayload {
     pub(crate) position: usize,
 }
 
-/// One scalar leaf below a case payload's record member, observed by the
-/// dominating successor's staged block: the leaf copy of `member` and the
-/// scalar field read of `field` below `path` are minted where the case edge
-/// dominates, and the read's computed value occupies `position`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NestedEstablishedCasePayload {
-    pub(crate) source: PlaceId,
-    pub(crate) case: StructuralCaseId,
-    pub(crate) member: StructuralFieldId,
-    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    pub(crate) field: StructuralFieldId,
-    pub(crate) position: usize,
-}
-
 /// A resolved case-qualified payload read.
 pub(crate) enum CasePayloadRead {
-    /// Awaiting a dispatch on `source` selecting `case`; the lowered read keeps
-    /// the canonical `[Case, Field]` path until that dispatch substitutes it.
-    Deferred {
-        source: PlaceId,
-        case: StructuralCaseId,
+    /// A declaration-resolved read, not an active-case assertion. Scalar
+    /// payloads may bind through a dispatch; structural carriers are copied
+    /// at the observation point under independent active-case validation.
+    Observation {
+        source: crate::emission::operation_emission::expressions::PrimitiveReadSource,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
     /// The dominating dispatch's payload parameter.
@@ -172,7 +159,6 @@ pub(crate) fn defer_case_payloads(fields: &mut [StructuralScalarFieldBinding]) {
 pub(crate) fn establish_case_payloads(
     fields: &mut [StructuralScalarFieldBinding],
     established: &[EstablishedCasePayload],
-    nested: &[NestedEstablishedCasePayload],
 ) {
     for field in fields {
         let rows = established
@@ -180,13 +166,8 @@ pub(crate) fn establish_case_payloads(
             .filter(|row| row.source == field.source)
             .copied()
             .collect::<Vec<_>>();
-        let nested_rows = nested
-            .iter()
-            .filter(|row| row.source == field.source)
-            .cloned()
-            .collect::<Vec<_>>();
-        if !rows.is_empty() || !nested_rows.is_empty() {
-            field.case_payloads = CasePayloadAccess::Established(rows, nested_rows);
+        if !rows.is_empty() {
+            field.case_payloads = CasePayloadAccess::Established(rows);
         }
     }
 }
@@ -409,8 +390,9 @@ pub(crate) fn resolve_typed(
 
 /// Resolve a scalar read below one sum root's selected payload. The selected case
 /// must belong to the root's exact declared sum and the leaf must be a
-/// relevant scalar leaf of the requested carrier; the case itself is known
-/// only through the binding's `CasePayloadAccess`.
+/// relevant scalar leaf of the requested carrier. Scalar payloads retain their
+/// dispatch binding; structural payload members retain a checked copy source.
+/// Resolving a declaration is not evidence that its case is active.
 pub(crate) fn resolve_case_payload(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
@@ -453,7 +435,7 @@ pub(crate) fn resolve_case_payload(
     if selected.next().is_some() {
         return unsupported("case payload observation has an erased or ambiguous payload");
     }
-    let (member, field) = match tail {
+    let field = match tail {
         [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] => {
             let mut payload = case
                 .fields
@@ -475,7 +457,7 @@ pub(crate) fn resolve_case_payload(
             if declared != scalar_type {
                 return unsupported("case payload observation changes its declared scalar type");
             }
-            (None, field.id)
+            field.id
         }
         [
             checked_trees::CheckedStructuralPredicatePathSegment::Field(_),
@@ -489,49 +471,43 @@ pub(crate) fn resolve_case_payload(
             if payload.scalar_type != scalar_type {
                 return unsupported("case payload observation changes its declared scalar type");
             }
-            (Some((payload.member, payload.path)), payload.field)
+            // The observation owns preparation, not the successor argument
+            // scanner. Its carrier copy is emitted only where this expression
+            // executes, and Terminal replay checks the selected case there.
+            return Ok(CasePayloadRead::Observation {
+                source: crate::emission::operation_emission::expressions::PrimitiveReadSource::CaseLeaf {
+                    source: payload.source,
+                    path: vec![
+                        semantic_vocabulary::CanonicalStructuralPathSegment::Case(payload.case),
+                        semantic_vocabulary::CanonicalStructuralPathSegment::Field(payload.member),
+                    ],
+                    structural_type: payload.member_type,
+                },
+                path: payload.path,
+                field: payload.field,
+            });
         }
         _ => {
             return unsupported("case payload observation requires one case and one payload field");
         }
     };
     match &binding.case_payloads {
-        CasePayloadAccess::Deferred => {
-            if member.is_some() {
-                return unsupported("case payload observation requires an established case");
-            }
-            Ok(CasePayloadRead::Deferred {
-                source: binding.source,
-                case: case.id,
-                field,
+        CasePayloadAccess::Deferred => Ok(CasePayloadRead::Observation {
+            source: binding.source.into(),
+            path: vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                case.id,
+            )],
+            field,
+        }),
+        CasePayloadAccess::Established(rows) => rows
+            .iter()
+            .find(|row| row.case == case.id && row.field == field)
+            .map(|row| CasePayloadRead::Established {
+                position: row.position,
             })
-        }
-        CasePayloadAccess::Established(rows, nested) => {
-            if let Some((member, path)) = member {
-                return nested
-                    .iter()
-                    .find(|row| {
-                        row.case == case.id
-                            && row.member == member
-                            && row.path == path
-                            && row.field == field
-                    })
-                    .map(|row| CasePayloadRead::Established {
-                        position: row.position,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "case payload observation requires an established case",
-                    ));
-            }
-            rows.iter()
-                .find(|row| row.case == case.id && row.field == field)
-                .map(|row| CasePayloadRead::Established {
-                    position: row.position,
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "case payload observation requires an established case",
-                ))
-        }
+            .ok_or(LoweringError::Unsupported(
+                "case payload observation requires an established case",
+            )),
         CasePayloadAccess::Unavailable => {
             unsupported("case payload observation requires an established case")
         }
@@ -540,8 +516,8 @@ pub(crate) fn resolve_case_payload(
 
 /// One planned leaf read below a case payload's record member: `member` is
 /// copied where the selecting case edge dominates and `field` is read as an
-/// ordinary scalar leaf of the copy, whose value takes the read's scalar
-/// namespace position.
+/// ordinary scalar leaf of the copy. The shared operation emitter allocates
+/// both at the expression's actual execution point.
 #[derive(Debug, Clone)]
 pub(crate) struct PlannedCasePayloadLeaf {
     pub(crate) source: PlaceId,

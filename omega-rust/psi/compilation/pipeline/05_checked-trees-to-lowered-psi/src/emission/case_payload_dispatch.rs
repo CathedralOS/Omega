@@ -22,7 +22,9 @@
 //! guard's true outcome so the selected edge's arguments may read them.
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, PrimitiveReadSource,
+};
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{allocate_dense, value_id};
@@ -312,16 +314,19 @@ fn substitute_decision(
 
 fn bound_position(
     bound: &[EstablishedCasePayload],
-    source: PlaceId,
+    source: &PrimitiveReadSource,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Option<usize> {
+    let PrimitiveReadSource::Place(source) = source else {
+        return None;
+    };
     let [CanonicalStructuralPathSegment::Case(case)] = path else {
         return None;
     };
     bound
         .iter()
-        .find(|row| row.source == source && row.case == *case && row.field == field)
+        .find(|row| row.source == *source && row.case == *case && row.field == field)
         .map(|row| row.position)
 }
 
@@ -335,7 +340,7 @@ fn substitute_boolean(
             source,
             path,
             field,
-        } => match bound_position(bound, source, &path, field) {
+        } => match bound_position(bound, &source, &path, field) {
             Some(position) => Boolean::Parameter { position },
             None => Boolean::StructuralField {
                 source,
@@ -427,7 +432,7 @@ pub(crate) fn substitute_direct(
             path,
             field,
             scalar_type,
-        } => match bound_position(bound, source, &path, field) {
+        } => match bound_position(bound, &source, &path, field) {
             Some(position) => Direct::Parameter {
                 position,
                 scalar_type,
@@ -594,13 +599,14 @@ fn case_reads<'e>(
 ) {
     use LoweredBooleanReturnExpression as Boolean;
     match expression {
-        // A primitive read's structural path has no case segment; only field
-        // observations can await a payload dispatch.
+        // A prepared case-leaf source emits its own checked copy at the read.
+        // Only a direct field observation still awaits dispatch substitution.
         Boolean::PrimitiveRead { .. } => {}
         Boolean::StructuralField { source, path, .. } => {
-            if path
-                .iter()
-                .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+            if let PrimitiveReadSource::Place(source) = source
+                && path
+                    .iter()
+                    .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
             {
                 reads.push((*source, path));
             }
@@ -719,9 +725,10 @@ fn collect_direct_case_reads<'e>(
     match expression {
         Direct::PrimitiveRead { .. } => {}
         Direct::StructuralField { source, path, .. } => {
-            if path
-                .iter()
-                .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+            if let PrimitiveReadSource::Place(source) = source
+                && path
+                    .iter()
+                    .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
             {
                 reads.push((*source, path));
             }
@@ -888,7 +895,7 @@ mod tests {
             condition: LoweredBooleanReturnExpression::IntegerComparison {
                 kind: LoweredIntegerComparisonKind::Equal,
                 left: Box::new(LoweredDirectExpression::StructuralField {
-                    source: root,
+                    source: root.into(),
                     path: vec![CanonicalStructuralPathSegment::Case(
                         StructuralCaseId::new(1).unwrap(),
                     )],
@@ -951,7 +958,7 @@ mod tests {
         let read = LoweredBooleanReturnExpression::IntegerComparison {
             kind: LoweredIntegerComparisonKind::Equal,
             left: Box::new(LoweredDirectExpression::StructuralField {
-                source: root,
+                source: root.into(),
                 path: vec![
                     CanonicalStructuralPathSegment::Field(StructuralFieldId::new(9).unwrap()),
                     CanonicalStructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),

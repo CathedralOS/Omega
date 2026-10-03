@@ -478,11 +478,11 @@ fn checked_boolean_scalar_term_from_lowered(
             path,
             field,
         } => {
-            let mut path = path.clone();
+            let (source, mut path) = source.field_origin(path);
             path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                 *field,
             ));
-            Ok(ScalarTerm::boolean_field_path(*source, path))
+            Ok(ScalarTerm::boolean_field_path(source, path))
         }
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed crash-predicate lowering")

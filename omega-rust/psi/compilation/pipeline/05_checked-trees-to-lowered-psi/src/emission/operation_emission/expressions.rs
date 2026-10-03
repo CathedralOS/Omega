@@ -51,6 +51,31 @@ impl From<PlaceId> for PrimitiveReadSource {
     }
 }
 
+impl PrimitiveReadSource {
+    /// Canonical origin for symbolic field terms and runtime-input identity.
+    /// This is an identity projection, not evidence that the case is active.
+    pub(crate) fn field_origin(
+        &self,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    ) -> (
+        PlaceId,
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    ) {
+        match self {
+            Self::Place(source) => (*source, path.to_vec()),
+            Self::CaseLeaf {
+                source,
+                path: carrier,
+                ..
+            } => {
+                let mut canonical = carrier.clone();
+                canonical.extend_from_slice(path);
+                (*source, canonical)
+            }
+        }
+    }
+}
+
 /// One element-path step of an `IndexedPrimitiveRead` after lowering: a
 /// static segment spelled verbatim, or a runtime selector evaluated like an
 /// `inner_indexes` operand and emitted as its own `RuntimeIndex` segment in
@@ -75,7 +100,7 @@ pub(crate) enum LoweredDirectExpression {
         scalar_type: ScalarType,
     },
     StructuralField {
-        source: PlaceId,
+        source: PrimitiveReadSource,
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
         scalar_type: ScalarType,
@@ -419,6 +444,49 @@ pub(crate) fn path_with_current_bounds(
         .collect()
 }
 
+/// Establish the selected carrier at the observation point. Both primitive and
+/// declared-field reads use this operation; caller shape supplies no authority.
+/// The emitted case-leaf copy independently owes the current active-case fact.
+pub(super) fn emit_read_source(
+    source: &PrimitiveReadSource,
+    operations: &mut OperationBuffer,
+) -> PlaceId {
+    match source {
+        PrimitiveReadSource::Place(place) => *place,
+        PrimitiveReadSource::CaseLeaf {
+            source,
+            path,
+            structural_type,
+        } => {
+            let producer = operations.allocate();
+            let place = place_id(
+                TERMINAL_HOISTED_ELEMENT_PLACE_BASE
+                    .checked_add(producer.get())
+                    .expect("hoisted leaf places admit a reserved namespace"),
+            );
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: producer,
+                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place,
+                    structural_type: *structural_type,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::StructuralCaseLeafCopy {
+                    source: *source,
+                    path: path.clone(),
+                },
+            });
+            place
+        }
+    }
+}
+
 pub(crate) fn emit_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[ValueDeclaration],
@@ -431,42 +499,7 @@ pub(crate) fn emit_direct_expression(
             path,
             scalar_type,
         } => {
-            let source = match source {
-                PrimitiveReadSource::Place(place) => *place,
-                PrimitiveReadSource::CaseLeaf {
-                    source,
-                    path,
-                    structural_type,
-                } => {
-                    let producer = operations.allocate();
-                    let place = place_id(
-                        TERMINAL_HOISTED_ELEMENT_PLACE_BASE
-                            .checked_add(producer.get())
-                            .expect("hoisted leaf places admit a reserved namespace"),
-                    );
-                    operations.push(Operation {
-                        static_reach_binding: None,
-                        suspension_crossing: None,
-                        id: producer,
-                        result: OperationResult::Structural(
-                            terminal_psi::StructuralOperationResult {
-                                qualification_establishments: Vec::new(),
-                                place,
-                                structural_type: *structural_type,
-                                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                                qualifications: Vec::new(),
-                                projected_qualifications: Vec::new(),
-                                claims: Vec::new(),
-                            },
-                        ),
-                        kind: OperationKind::StructuralCaseLeafCopy {
-                            source: *source,
-                            path: path.clone(),
-                        },
-                    });
-                    place
-                }
-            };
+            let source = emit_read_source(source, operations);
             emit_scalar_leaf(
                 OperationKind::PrimitiveScalarRead {
                     source,
@@ -482,16 +515,19 @@ pub(crate) fn emit_direct_expression(
             path,
             field,
             scalar_type,
-        } => emit_scalar_leaf(
-            OperationKind::IntegerStructuralField {
-                source: *source,
-                path: path.clone(),
-                field: *field,
-            },
-            *scalar_type,
-            next_value_identity,
-            operations,
-        ),
+        } => {
+            let source = emit_read_source(source, operations);
+            emit_scalar_leaf(
+                OperationKind::IntegerStructuralField {
+                    source,
+                    path: path.clone(),
+                    field: *field,
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
         LoweredDirectExpression::ErasedParameter { .. } => {
             unreachable!("erased formal is proof-only and has no runtime operand")
         }

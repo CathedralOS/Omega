@@ -1170,16 +1170,17 @@ the complete product bar; focused successes below do not establish that baseline
   exact application in Stage 02. On macOS ARM64, `python3 tools/corpus_gate.py
   --both --filter generics/foreign_case_membership_dispatch_exit` executes native
   and checked-interpreter exit 70 for two payload types and an empty instance.
-  The stronger unchanged `tests/omega/pending/generics/foreign_case_payload_reads_exit`
-  witness returns payload fields: the interpreter returns 70, but native
-  production rejects `case payload observation requires an established case`.
-  Stage 05 `expression_preparation/bindings/structural_fields::resolve_case_payload`
-  and direct scalar-return evaluation lack the selected nested-payload preparation
-  already present on successor edges. Carry that common observation ordering to
-  the return path and graduate the unchanged witness, then restore application
-  APIs. Boolean-plus-payload or package-local sum replacements do not close the
-  customer. Reproduce the restored application before assigning any further
-  source-signature or structural-argument failure.
+  The unchanged stronger `generics/foreign_case_payload_reads_exit` witness now
+  also executes native and interpreted exit 70: Stage 05's shared scalar-field
+  emission prepares the selected carrier at the read, replacing successor-only
+  precomputation. `structural/selected_record_payload_observations_exit` exercises
+  Boolean sibling fields and short-circuit return evaluation; decoded-artifact
+  replay rejects a substituted inactive case even with the same payload type.
+  Restore and rerun the real application APIs through ordinary package review.
+  Boolean-plus-payload or package-local sum replacements do not close that
+  customer. These fixture runs do not establish application acceptance or
+  authorize package approval. Reproduce the restored application before
+  assigning any further source-signature or structural-argument failure.
 
   Current candidate application `248a79e66025` has six unpublished source-lifetime
   repairs; its remote denies writes, so do not advance the application gitlink.

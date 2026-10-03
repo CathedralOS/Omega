@@ -339,7 +339,8 @@ fn payload_path(carriers: &[&str]) -> Vec<CheckedStructuralPredicatePathSegment>
 
 #[test]
 fn selected_payload_observations_preserve_full_paths_and_case_authority() {
-    use super::{CasePayloadRead, NestedEstablishedCasePayload};
+    use super::CasePayloadRead;
+    use crate::emission::operation_emission::expressions::PrimitiveReadSource;
     let scalar = terminal_scalar_type(PrimitiveType::U64).unwrap();
     let mut declarations = nested_declarations(scalar);
     let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
@@ -349,46 +350,116 @@ fn selected_payload_observations_preserve_full_paths_and_case_authority() {
     sibling.identity = "sibling".into();
     sibling.id = StructuralFieldId::new(8).unwrap();
     fields.push(sibling);
-    let mut bindings = payload_bindings(declarations, StructuralTypeId::new(1).unwrap());
+    let bindings = payload_bindings(declarations, StructuralTypeId::new(1).unwrap());
     let left = payload_path(&["child"]);
     let right = payload_path(&["sibling"]);
     let first = super::plan_case_payload_leaf(&bindings, 3, &left).unwrap();
     let second = super::plan_case_payload_leaf(&bindings, 3, &right).unwrap();
     assert_eq!(first.field, second.field);
     assert_ne!(first.path, second.path);
-    assert!(super::resolve_case_payload(&bindings, 3, &left, scalar).is_err());
-    super::defer_case_payloads(&mut bindings);
-    assert!(super::resolve_case_payload(&bindings, 3, &left, scalar).is_err());
-    let established =
-        |payload: &super::PlannedCasePayloadLeaf, position| NestedEstablishedCasePayload {
-            source: payload.source,
-            case: payload.case,
-            member: payload.member,
-            path: payload.path.clone(),
-            field: payload.field,
-            position,
+    // Declaration resolution describes the read; it grants no case authority.
+    // Both paths prepare their own carrier at execution, where the emitted
+    // copy still owes an independently verified active-case fact.
+    for (path, planned) in [(&left, &first), (&right, &second)] {
+        let CasePayloadRead::Observation {
+            source,
+            path: observed,
+            field,
+        } = super::resolve_case_payload(&bindings, 3, path, scalar).unwrap()
+        else {
+            panic!("nested payload read must retain its observation");
         };
-    super::establish_case_payloads(&mut bindings, &[], &[established(&first, 4)]);
-    assert!(matches!(
-        super::resolve_case_payload(&bindings, 3, &left, scalar),
-        Ok(CasePayloadRead::Established { position: 4 })
-    ));
-    assert!(super::resolve_case_payload(&bindings, 3, &right, scalar).is_err());
-    super::establish_case_payloads(
-        &mut bindings,
-        &[],
-        &[established(&first, 4), established(&second, 5)],
-    );
-    assert!(matches!(
-        super::resolve_case_payload(&bindings, 3, &right, scalar),
-        Ok(CasePayloadRead::Established { position: 5 })
-    ));
+        assert_eq!(observed, planned.path);
+        assert_eq!(field, planned.field);
+        assert!(matches!(source, PrimitiveReadSource::CaseLeaf {
+            source, path, structural_type
+        } if source == planned.source
+            && path == vec![
+                semantic_vocabulary::CanonicalStructuralPathSegment::Case(planned.case),
+                semantic_vocabulary::CanonicalStructuralPathSegment::Field(planned.member),
+            ]
+            && structural_type == planned.member_type));
+    }
     let mut wrong_case = left.clone();
     wrong_case[0] = CheckedStructuralPredicatePathSegment::Case("Other".into());
+    assert!(matches!(
+        super::resolve_case_payload(&bindings, 3, &wrong_case, scalar),
+        Ok(CasePayloadRead::Observation {
+            source: PrimitiveReadSource::CaseLeaf { path, .. }, ..
+        }) if path[0] == semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+            semantic_vocabulary::StructuralCaseId::new(2).unwrap())
+    ));
+    wrong_case[0] = CheckedStructuralPredicatePathSegment::Case("Absent".into());
     assert!(super::resolve_case_payload(&bindings, 3, &wrong_case, scalar).is_err());
     assert!(super::resolve_case_payload(&bindings, 0, &left, scalar).is_err());
     assert!(super::resolve_case_payload(&bindings, 3, &left, ScalarType::Boolean).is_err());
     assert!(super::resolve_case_payload(&bindings, 3, &payload_path(&["absent"]), scalar).is_err());
+}
+
+#[test]
+fn selected_payload_field_copy_rejects_a_well_typed_foreign_case_after_decode() {
+    let checked = crate::front_end::checked_program(
+        "pub data Value { number: i32; }
+         pub data Reply { case First(value: Value); case Second(value: Value); }
+         pub machine read(subject: &Reply) -> i32 {
+             transition subject {
+                 Reply::First { value } -> (value.number)
+                 Reply::Second { value } -> (value.number)
+             }
+         }",
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("read"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .expect("both selected record payloads produce")
+    .into_artifact();
+    let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+    let cases = module
+        .structural_types
+        .iter()
+        .find_map(|declaration| match &declaration.shape {
+            StructuralTypeShape::Sum { cases } if cases.len() == 2 => Some([
+                (cases[0].id, cases[0].fields[0].id),
+                (cases[1].id, cases[1].fields[0].id),
+            ]),
+            _ => None,
+        })
+        .expect("reply case roster");
+    let copy = module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::StructuralCaseLeafCopy { path, .. } => Some(path),
+            _ => None,
+        })
+        .expect("the read establishes its selected carrier");
+    let semantic_vocabulary::CanonicalStructuralPathSegment::Case(selected) = &mut copy[0] else {
+        panic!("copy retains case identity");
+    };
+    let replacement = if *selected == cases[0].0 {
+        cases[1]
+    } else {
+        cases[0]
+    };
+    *selected = replacement.0;
+    copy[1] = semantic_vocabulary::CanonicalStructuralPathSegment::Field(replacement.1);
+    terminal_verifier::validate_module(&module)
+        .expect("the other case has the same declared payload carrier");
+    assert!(
+        terminal_verifier::verify_module(&module, &proof, &profile).is_err(),
+        "matching carrier layout cannot authorize the inactive case"
+    );
 }
 
 #[test]

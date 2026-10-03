@@ -585,7 +585,7 @@ impl ScalarBindings {
                         &field.path,
                     )?;
                 LoweredDirectExpression::StructuralField {
-                    source: selector_source,
+                    source: selector_source.into(),
                     path: selector_path,
                     field: leaf,
                     scalar_type,
@@ -1380,7 +1380,7 @@ impl ScalarBindings {
             return unsupported("runtime index field selector is not an integer read");
         }
         Ok(LoweredDirectExpression::StructuralField {
-            source,
+            source: source.into(),
             path,
             field,
             scalar_type,

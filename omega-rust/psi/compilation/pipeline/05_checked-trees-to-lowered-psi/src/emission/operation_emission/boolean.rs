@@ -51,7 +51,7 @@ pub(crate) enum LoweredBooleanReturnExpression {
         path: Vec<String>,
     },
     StructuralField {
-        source: PlaceId,
+        source: super::expressions::PrimitiveReadSource,
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
@@ -195,6 +195,7 @@ pub(crate) fn emit_boolean_expression(
             path,
             field,
         } => {
+            let source = super::expressions::emit_read_source(source, operations);
             let id = value_id(*next_value_identity);
             *next_value_identity = next_value_identity
                 .checked_add(1)
@@ -210,7 +211,7 @@ pub(crate) fn emit_boolean_expression(
                     scalar_type: ScalarType::Boolean,
                 }),
                 kind: OperationKind::BooleanStructuralField {
-                    source: *source,
+                    source,
                     path: path.clone(),
                     field: *field,
                 },
