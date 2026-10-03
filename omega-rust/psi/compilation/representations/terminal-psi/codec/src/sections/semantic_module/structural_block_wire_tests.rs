@@ -2,6 +2,7 @@
 
 mod fixed_array_views;
 mod owned_record_stores;
+mod projected_constructors;
 mod service_binding;
 use super::{decode_module, encode_module};
 use semantic_vocabulary::{

@@ -188,8 +188,14 @@ pub(super) fn validate_establish_structural_case(
             (
                 terminal_psi::RecordFieldValue::Structural(argument),
                 StructuralFieldType::Structural(_),
-            ) if argument.access == terminal_psi::StructuralAccess::Owned
-                && argument.path.is_empty() => {}
+            ) if argument.access == terminal_psi::StructuralAccess::Owned => {
+                validate_constructor_projection(
+                    module,
+                    machine,
+                    argument,
+                    &declaration.field_type,
+                )?;
+            }
             _ => return malformed("structural case establishment has an invalid field binding"),
         }
     }
@@ -404,12 +410,12 @@ pub(super) fn validate_establish_record(
                                 | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )
                     ))
-                    && argument.access == terminal_psi::StructuralAccess::Owned
-                    && argument.path.is_empty() =>
+                    && argument.access == terminal_psi::StructuralAccess::Owned =>
             {
-                // Predicate wrappers do not change operand custody. The field
-                // takes a whole value or descriptor; independent verification
-                // checks its access, backing lifetime and receiving predicates.
+                validate_constructor_projection(module, machine, argument, field_type)?;
+                // Predicate wrappers do not change whole descriptor custody.
+                // Independent verification checks availability, partial moves,
+                // backing lifetime and receiving predicates.
             }
             _ => return malformed("record field operand differs"),
         }
@@ -470,6 +476,40 @@ pub(super) fn validate_establish_byte_sequence_concatenation(
         })
     {
         return malformed("byte concatenation result differs from its owned carrier declaration");
+    }
+    Ok(())
+}
+
+/// Projection is already part of the canonical StructuralArgument vocabulary.
+/// Constructor transfers select finite owned structural children; runtime
+/// selectors, reference crossings and case inspections carry other authority.
+/// Whole operands retain their existing independent carrier/predicate checks.
+fn validate_constructor_projection(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &terminal_psi::StructuralArgument,
+    field_type: &StructuralFieldType,
+) -> Result<(), CodecError> {
+    if argument.path.is_empty() {
+        return Ok(());
+    }
+    let StructuralFieldType::Structural(expected) = field_type else {
+        return malformed("projected constructor operand requires a structural field");
+    };
+    if !argument.path.iter().all(|segment| {
+        matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return malformed("projected constructor operand requires a finite owned path");
+    }
+    let Some(root) = super::structural_place_type(machine, argument.place) else {
+        return malformed("projected constructor operand has no declared root");
+    };
+    if super::validate_structural_path(module, root, &argument.path)? != *expected {
+        return malformed("projected constructor operand differs from its field carrier");
     }
     Ok(())
 }
