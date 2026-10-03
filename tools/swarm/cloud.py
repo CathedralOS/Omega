@@ -77,6 +77,7 @@ def admit(record, manifest, snapshot):
     require(len(rows) == size and not set(rows) & cloud["assignments"].keys(), "duplicate assignment identity")
     require(len({row["outcome"] for row in rows.values()}) == size, "each session needs a disjoint real outcome")
     for row in rows.values():
+        row.pop("binding", None)  # Session provenance enters only through a verified binding.
         identifier(row["id"])
         sha(row["base"])
         require(row.get("item") and row.get("owner") and row.get("outcome") and row.get("dependency_review") and row.get("acceptance"), "incomplete assignment")
@@ -446,7 +447,8 @@ def intent(record, assignment, action, operation, parameters):
                         "queued dispatch has no child acknowledgment; read existing task")
                 require(row["runtime"] in {"idle", "completed", "stopped"}
                         and row["observation"].get("processes_stopped") is True, "running/uncertain processes; do not resume")
-                recovery_clear(record, row, row["observation"])
+                recovery_clear(record, row, row["observation"],
+                               allow_prior=parameters["phase"] == "preflight" and not row.get("preflight"))
         row["attempts"][action] = attempts + 1
     request = dict(schema=1, operation=operation, execution_id=uuid.uuid4().hex, assignment=assignment,
                    action=action, tool=cloud["capabilities"]["tools"][action], thread=row["thread"],
@@ -554,6 +556,127 @@ def approval(record, assignment, receipt):
     # Caller still needs a new truthful checkpoint and fresh runtime read.
 
 
+def binding_evidence(root, value):
+    artifact(root, value["artifact"])
+    packet = read_json(Path(root) / value["artifact"]["path"])
+    require(packet.get("normalized") == {k: v for k, v in value.items() if k != "artifact"}
+            and packet.get("raw_result"), "binding evidence differs from normalized host/pool receipt")
+
+
+def bind_existing(record, value):
+    """Adopt a settled real session without inventing a create or remote action."""
+    cloud = record["cloud"]
+    assignment, operation = value["assignment"], value["operation"]
+    row = cloud["assignments"][assignment]
+    identifier(operation)
+    receipt = value["receipt"]
+    artifact(value["evidence_root"], value["receipt_artifact"])
+    require(read_json(Path(value["evidence_root"]) / value["receipt_artifact"]["path"]) == receipt,
+            "binding artifact differs from receipt")
+    digest = fingerprint(receipt)
+    old = cloud["operations"].get(operation)
+    if old:
+        require(old["request"]["action"] == "bind-existing" and old["assignment"] == assignment
+                and old.get("receipt") == digest, "conflicting binding operation")
+        return
+    require(receipt.get("schema") == 1 and receipt.get("assignment") == assignment,
+            "binding assignment/schema mismatch")
+    require(row["thread"] is None and not row["accepted"] and not row.get("binding"),
+            "assignment already bound or accepted")
+    require(not row.get("approval_required"), "binding cannot clear an assignment denial")
+    require(not any(o["assignment"] == assignment for o in cloud["operations"].values()),
+            "assignment already has operations; reconcile rather than replace provenance")
+    source, creation, observed, prior = (receipt[k] for k in ("source", "creation", "observation", "prior"))
+    require(set(source) == {"pool", "slot"} and source.get("pool")
+            and type(source.get("slot")) is int and source["slot"] > 0,
+            "recorded original pool/slot required")
+    require(creation.get("tool") == cloud["capabilities"]["tools"]["create"]
+            and creation.get("receipt") and creation.get("thread"), "actual original create provenance required")
+    require(observed.get("tool") == cloud["capabilities"]["tools"]["read"]
+            and observed.get("receipt") and fresh(observed), "fresh supported host read required")
+    for evidence in (creation, observed, prior):
+        binding_evidence(value["evidence_root"], evidence)
+    require(observed.get("thread") == creation["thread"] and observed.get("environment")
+            and observed.get("generation") and observed.get("executor") and observed.get("identity_evidence")
+            and all(isinstance(observed[k], str) and observed[k].strip()
+                    and observed[k] not in {"unknown", "unreported", "unavailable"}
+                    for k in ("thread", "environment", "generation", "executor")),
+            "observed session/executor incarnation must correlate with original create")
+    for key in ("environment", "generation"):
+        require(not creation.get(key) or creation[key] == observed[key], "original create identity mismatch")
+    require(observed.get("runtime") in {"idle", "completed", "stopped"}
+            and observed.get("processes_stopped") is True and observed.get("active_assignments") == [],
+            "existing session still active or assignment ownership unknown")
+    require(prior.get("assignment") and prior["assignment"] != assignment and prior.get("outcome")
+            and prior["outcome"] != row["outcome"] and prior.get("disposition") in {"released", "accepted"}
+            and "approval_required" in prior, "explicit different prior outcome settlement required")
+    require(observed.get("prior_assignment") == prior["assignment"], "prior assignment observation mismatch")
+    require(not any(o["assignment"] == prior["assignment"] and
+                    (o["effect"] == "unknown" or o["request"]["action"] in {"create", "follow_up"}
+                     and o["effect"] == "applied" and not o.get("acknowledgment"))
+                    for o in cloud["operations"].values()), "prior operations/acknowledgments not reconciled")
+    checkpoint({"cloud": {"assignments": {prior["assignment"]: {}}}}, prior["assignment"], prior["checkpoint"])
+    require(prior["checkpoint"]["active_command"] is None and prior["checkpoint"]["session"] is None,
+            "prior scouting/command has not settled")
+    recovery_clear(record, dict(id=prior["assignment"], environment=observed["environment"],
+                                generation=observed["generation"]), observed)
+    resources = prior["resources"]
+    require(fresh(resources) and resources.get("evidence")
+            and resources.get("claims_state") in {"claimed", "available"}
+            and resources.get("landing_state") in {"available", "queued", "reserved", "expired", "legacy_queue", "legacy_reserved"}
+            and resources.get("claims") == []
+            and resources.get("landing_tickets") == [] and isinstance(resources.get("workspaces"), list)
+            and resources["workspaces"], "prior resource ownership not reconciled")
+    protected = paths(prior["protected_paths"])
+    for workspace in resources["workspaces"]:
+        require(workspace.get("path") and workspace.get("evidence") and workspace.get("owned") is True
+                and workspace.get("state") in {"clean", "removed", "preserved"}, "prior workspace inventory required")
+        if workspace["state"] == "preserved":
+            backup = workspace.get("backup", {})
+            require(backup.get("status") == "confirmed-upload" and backup.get("file_id")
+                    and backup.get("version") is not None and backup.get("route")
+                    and isinstance(backup.get("sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", backup["sha256"])
+                    and type(backup.get("bytes")) is int and backup["bytes"] > 0 and protected,
+                    "preserved workspace needs confirmed backup and protected paths")
+    known = cloud["assignments"].get(prior["assignment"])
+    if known:
+        require((known.get("thread"), known.get("environment"), known.get("generation"))
+                == (observed["thread"], observed["environment"], observed["generation"])
+                and known["outcome"] == prior["outcome"]
+                and (known.get("accepted") or {}).get("result") == "landed"
+                and known["accepted"].get("cleanup") == "completed"
+                and known["accepted"].get("user_rescue") is False and prior["disposition"] == "accepted"
+                and known.get("approval_required") == prior["approval_required"],
+                "known prior assignment not accepted or denial history differs")
+    else:
+        require(prior["disposition"] == "released", "external settlement is not controller acceptance")
+    if prior["approval_required"]:
+        require(protected and prior["approval_required"].get("action") and prior["approval_required"].get("error"),
+                "prior denial and affected paths must be preserved")
+    for history in cloud["operations"].values():
+        if history["request"]["action"] == "bind-existing" and history["result"]["observation"]["thread"] == observed["thread"]:
+            protected.extend(history["result"]["prior"]["protected_paths"])
+    require(not any(claims.paths_overlap(a, b) for a in row["writes"] for b in protected),
+            "new outcome overlaps preserved or denied prior work")
+    for other in cloud["assignments"].values():
+        if other["id"] == assignment or other.get("accepted"):
+            continue
+        bound = other.get("binding", {})
+        require(other.get("thread") != observed["thread"] and other.get("environment") != observed["environment"]
+                and bound.get("executor") != observed["executor"] and bound.get("source") != source
+                and other["outcome"] != row["outcome"], "duplicate live session/slot/executor/outcome binding")
+    mapping(row, observed)
+    # Keep the prior recovery identity until the first bounded preflight establishes
+    # the new child lane. Implementation and acceptance never use that exemption.
+    row.update(runtime=observed["runtime"], observation=dict(observed),
+               binding=dict(operation=operation, source=source, executor=observed["executor"],
+                            prior_assignment=prior["assignment"], receipt=digest))
+    cloud["operations"][operation] = dict(assignment=assignment, effect="applied", receipt=digest,
+        request=dict(action="bind-existing", assignment=assignment, operation=operation, created_utc=now()),
+        result=copy.deepcopy(receipt), evidence_root=str(Path(value["evidence_root"]).resolve()),
+        receipt_artifact=copy.deepcopy(value["receipt_artifact"]))
+
+
 def mapping(row, result):
     require(result.get("thread") and result.get("environment") and result.get("generation"), "actual dispatch mapping required")
     require(row["thread"] is None or (row["thread"], row["environment"], row["generation"])
@@ -561,8 +684,12 @@ def mapping(row, result):
     row.update(thread=result["thread"], environment=result["environment"], generation=result["generation"])
 
 
-def recovery_clear(record, row, observation):
+def recovery_clear(record, row, observation, allow_prior=False):
     assignment = row["id"]
+    if allow_prior and row.get("binding"):
+        prior = row["binding"]["prior_assignment"]
+        if observation.get("recovery", {}).get("assignment") == prior:
+            assignment = prior
     recovery = observation.get("recovery", {})
     require((recovery.get("assignment"), recovery.get("environment"), recovery.get("generation"))
             == (assignment, row["environment"], row["generation"])
@@ -662,7 +789,7 @@ def main(argv=None):
     parser.add_argument("--revision", type=int)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
-    for name in ("init", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "approval", "intent", "ingest", "cleanup-review", "accept"):
+    for name in ("init", "admit", "handoff", "checkpoint", "ownership", "preflight", "readiness", "bind-existing", "approval", "intent", "ingest", "cleanup-review", "accept"):
         command = commands.add_parser(name)
         command.add_argument("--input", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -683,6 +810,7 @@ def main(argv=None):
                 elif args.command == "ownership": ownership(record, value["assignment"], value["claims"])
                 elif args.command == "preflight": preflight(record, value["assignment"], value["receipt"])
                 elif args.command == "readiness": readiness(record, value["assignment"], value["receipt"], value["repository"], value["evidence_root"])
+                elif args.command == "bind-existing": bind_existing(record, value)
                 elif args.command == "approval": approval(record, value["assignment"], value["receipt"])
                 elif args.command == "intent": request.append(intent(record, value["assignment"], value["action"], value["operation"], value.get("parameters", {})))
                 elif args.command == "ingest": ingest(record, value)
