@@ -285,7 +285,7 @@ pub(crate) fn validate(
             // range obligation proves it.
             || validation::has_structural_construction_contents(&checked.typed, carrier)
             || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
-            || validation::has_owned_or_shared_view_fields(&checked.typed, carrier)
+            || validation::has_owned_or_shared_view_contents(&checked.typed, carrier)
             || view_carrier.is_some()
             // A `&[T]` view's carrier is the borrowed slice itself: a member
             // projection copies the stored view whole while the elements'

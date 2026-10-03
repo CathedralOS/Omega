@@ -677,7 +677,7 @@ pub(super) fn validate_projection(
     ))?;
     if checked.type_multiplicity(root_reference) != Multiplicity::Affine
         || !(validation::has_linear_owned_contents(&checked.typed, root_reference)
-            || validation::has_owned_or_shared_view_fields(&checked.typed, root_reference))
+            || validation::has_owned_or_shared_view_contents(&checked.typed, root_reference))
     {
         return unsupported("projected selection root is not an affine owner");
     }

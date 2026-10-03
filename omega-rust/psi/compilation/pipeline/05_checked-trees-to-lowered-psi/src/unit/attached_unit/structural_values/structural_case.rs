@@ -1,5 +1,5 @@
 //! Complete fields in authored order before committing a declaration-ordered case.
-use super::super::super::{StructuralAccess, StructuralArgument, StructuralFieldType};
+use super::super::super::StructuralFieldType;
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, Multiplicity, Operation, OperationKind,
     OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
@@ -205,14 +205,10 @@ impl emission::Emission<'_, '_, '_> {
                                 return unsupported("nested case cannot create linear custody");
                             }
                         };
-                    let place = self.record_field_value(value, field.type_reference)?;
+                    let argument = self.constructor_operand(value, field.type_reference)?;
                     self.structural_type = parent_type;
                     self.multiplicity = parent_multiplicity;
-                    terminal_psi::RecordFieldValue::Structural(StructuralArgument {
-                        place,
-                        path: Vec::new(),
-                        access: StructuralAccess::Owned,
-                    })
+                    terminal_psi::RecordFieldValue::Structural(argument)
                 }
             };
             initialized.push((

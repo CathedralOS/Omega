@@ -757,15 +757,55 @@ impl Emission<'_, '_, '_> {
         Ok(completed)
     }
 
-    pub(super) fn record_field_value(
+    /// Complete one constructor operand without erasing an owned projection.
+    /// The consuming constructor moves that subtree under ordinary partial
+    /// custody; siblings remain attached to the original live root.
+    pub(super) fn constructor_operand(
         &mut self,
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
-    ) -> Result<PlaceId, LoweringError> {
-        // A fresh field's continuation joins that field, not the enclosing
-        // selection's result/residual slots. Its constructors leave incoming
-        // owners live on every branch; only the outer completion may displace
-        // a candidate. Source replay still refuses hidden owned child transfers.
+    ) -> Result<StructuralArgument, LoweringError> {
+        let kind = self
+            .checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(value)
+            .kind
+            .clone();
+        if let CheckedStructuralValueKind::Projection {
+            source,
+            path,
+            type_identity,
+        } = kind
+            && matches!(
+                self.checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(source)
+                    .kind,
+                CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Call { .. }
+            )
+        {
+            if path.is_empty()
+                || lookup_type_id(self.type_ids, &type_identity)? != self.structural_type
+                || self.multiplicity != StructuralMultiplicity::Affine
+            {
+                return unsupported("constructor projection changed its affine child carrier");
+            }
+            let projected = self.projected_root(source, path, type_identity)?;
+            return Ok(StructuralArgument {
+                place: projected.root,
+                path: lower_structural_path(&projected.path)?,
+                access: StructuralAccess::Owned,
+            });
+        }
+        // A fresh operand has its own continuation, not the enclosing
+        // selection's result/residual slots. Incoming owners remain live
+        // until their actual consuming operation or outer selection edge.
         let sources = std::mem::take(&mut self.sources);
         let owners = std::mem::take(&mut self.owners);
         let parent_reference = std::mem::replace(&mut self.type_reference, reference);
@@ -773,7 +813,11 @@ impl Emission<'_, '_, '_> {
         self.type_reference = parent_reference;
         self.sources = sources;
         self.owners = owners;
-        result
+        result.map(|place| StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        })
     }
 
     pub(super) fn value(
@@ -894,6 +938,24 @@ impl Emission<'_, '_, '_> {
                     "projected selection requires a structural continuation",
                 ))?;
                 let projected = self.projected_root(source, path, type_identity)?;
+                if matches!(
+                    self.checked
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get(source)
+                        .kind,
+                    CheckedStructuralValueKind::Place(_)
+                ) && !self
+                    .sources
+                    .iter()
+                    .any(|source| source.place == projected.root)
+                {
+                    return unsupported(
+                        "projected selection root is absent from its receipt sources",
+                    );
+                }
                 self.complete_value(projected.root, Some(&projected), continuation)?;
                 Ok(continuation.place)
             }
@@ -1861,11 +1923,6 @@ impl Emission<'_, '_, '_> {
                         return unsupported("projected selection root is not a structural local");
                     }
                 };
-                if !self.sources.iter().any(|source| source.place == place) {
-                    return unsupported(
-                        "projected selection root is absent from its receipt sources",
-                    );
-                }
                 (place, argument.type_identity, root_source)
             }
             CheckedStructuralValueKind::Call { .. } => {

@@ -1416,7 +1416,7 @@ impl Builder<'_, '_> {
             // An owned carrier may retain shared descriptor leaves. Moving
             // that carrier preserves their loans; it does not own the backing.
             || !(validation::has_linear_owned_contents(self.program, expected)
-                || validation::has_owned_or_shared_view_fields(self.program, expected))
+                || validation::has_owned_or_shared_view_contents(self.program, expected))
         {
             return None;
         }
@@ -1475,7 +1475,7 @@ impl Builder<'_, '_> {
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
             || !(validation::has_linear_owned_contents(self.program, reference)
-                || validation::has_owned_or_shared_view_fields(self.program, reference))
+                || validation::has_owned_or_shared_view_contents(self.program, reference))
             || validation::member_type_substitutions(self.program, data, reference).is_none()
         {
             return None;
@@ -1584,7 +1584,7 @@ impl Builder<'_, '_> {
                     self.program,
                     reference,
                 )
-                || validation::has_owned_or_shared_view_fields(self.program, reference)
+                || validation::has_owned_or_shared_view_contents(self.program, reference)
         };
         // A custody domain on the declared type (`Region in Owned`) qualifies
         // the binding, not the record's storage: the shape question is about
