@@ -41,8 +41,13 @@ pub struct DescriptorStoredCallEffect<Origin = DescriptorCallOrigin> {
     pub preserves_incoming: bool,
 }
 #[derive(Clone)]
+struct ResultSlot {
+    path: Vec<DescriptorPathSegment>,
+    origins: Vec<DescriptorStoredOrigin>,
+}
+#[derive(Clone)]
 struct Summary {
-    result: Option<Vec<DescriptorStoredOrigin>>,
+    result: Option<Vec<ResultSlot>>,
     effects: Vec<DescriptorStoredEffect>,
 }
 struct Replay<'a> {
@@ -400,11 +405,20 @@ impl<'a> Replay<'a> {
                     replacements.insert(destination, Some(origins));
                 }
                 if let Some(result) = &call.result {
-                    let mut origins = BTreeSet::new();
-                    for origin in summary.result.as_ref()? {
-                        origins.extend(self.substitute(machine, &before, call, origin)?);
+                    for slot in summary.result.as_ref()? {
+                        let mut destination = result.clone();
+                        destination.path.extend_from_slice(&slot.path);
+                        descriptor_path(
+                            self.types,
+                            *machine.place_types.get(&destination.root)?,
+                            &destination.path,
+                        )?;
+                        let mut origins = BTreeSet::new();
+                        for origin in &slot.origins {
+                            origins.extend(self.substitute(machine, &before, call, origin)?);
+                        }
+                        replacements.insert(destination, Some(origins));
                     }
-                    replacements.insert(result.clone(), Some(origins));
                 }
                 for (destination, value) in replacements {
                     after.retain(|location, _| {
@@ -531,17 +545,51 @@ impl<'a> Replay<'a> {
         self.summaries.insert(identity, None);
         let machine = self.machine(identity)?;
         let states = self.states(identity, depth)?;
-        let mut result = machine.returns.as_ref().map(|_| Vec::new());
-        if let Some(returns) = &machine.returns {
+        // A result's carrier stays local storage. Only its exact descriptor
+        // slots export backing, under the same case/field paths as construction
+        // and copying. Missing live-slot contents are unknown, never empty.
+        let result = if let Some(returns) = &machine.returns {
+            let mut slots: Option<Vec<ResultSlot>> = None;
+            let mut result_type = None;
             for (position, location) in returns {
-                for origin in self.read(machine, states.get(position)?, location)? {
-                    result.as_mut()?.push(self.exported(machine, &origin)?);
+                if !location.path.is_empty() {
+                    return None;
+                }
+                let structural_type = *machine.place_types.get(&location.root)?;
+                if result_type.is_some_and(|previous| previous != structural_type) {
+                    return None;
+                }
+                result_type = Some(structural_type);
+                let returned = descriptor_slots(self.types, location.root, structural_type)?;
+                let accumulated = slots.get_or_insert_with(|| {
+                    returned
+                        .iter()
+                        .map(|slot| ResultSlot {
+                            path: slot.path.clone(),
+                            origins: Vec::new(),
+                        })
+                        .collect()
+                });
+                if accumulated.len() != returned.len() {
+                    return None;
+                }
+                for (slot, location) in accumulated.iter_mut().zip(returned) {
+                    if slot.path != location.path {
+                        return None;
+                    }
+                    let origins = self.read(machine, states.get(position)?, &location)?;
+                    if origins.is_empty() {
+                        return None;
+                    }
+                    for origin in origins {
+                        slot.origins.push(self.exported(machine, &origin)?);
+                    }
                 }
             }
-            if result.as_ref()?.is_empty() {
-                return None;
-            }
-        }
+            Some(slots?)
+        } else {
+            None
+        };
         let mut effects = Vec::new();
         for row in &machine.places {
             let DescriptorDefinition::Parameter {
@@ -743,6 +791,9 @@ pub(super) fn result_origins(
     replay
         .summary(identity, 0)?
         .result?
+        .into_iter()
+        .find(|slot| slot.path.is_empty())?
+        .origins
         .into_iter()
         .map(|origin| result_origin(types, machine, origin))
         .collect()
@@ -1184,7 +1235,12 @@ impl<'a> DescriptorAnalysis<'a> {
         let states = self.replay.snapshots.get(&identity)?.as_ref()?;
         let summary = self.replay.summaries.get(&call.callee)?.as_ref()?;
         let mut origins = BTreeSet::new();
-        for origin in summary.result.as_ref()? {
+        let slot = summary
+            .result
+            .as_ref()?
+            .iter()
+            .find(|slot| slot.path.is_empty())?;
+        for origin in &slot.origins {
             origins.extend(
                 self.replay
                     .substitute(machine, states.get(position)?, call, origin)?,
@@ -1325,7 +1381,11 @@ impl<'a> DescriptorAnalysis<'a> {
                 })
                 .collect::<Option<Vec<_>>>()?;
             if let Some(result) = &call.result {
-                outputs.push((result.clone(), summary.result.as_ref()?.as_slice()));
+                for slot in summary.result.as_ref()? {
+                    let mut destination = result.clone();
+                    destination.path.extend_from_slice(&slot.path);
+                    outputs.push((destination, slot.origins.as_slice()));
+                }
             }
             for (destination, origins) in outputs {
                 let destination = self

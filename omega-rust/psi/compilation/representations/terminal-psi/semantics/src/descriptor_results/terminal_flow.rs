@@ -9,14 +9,7 @@ pub(super) fn adapt(
 ) -> Option<DescriptorMachine> {
     let mut graph = DescriptorMachine {
         id: machine.id,
-        returns: machine
-            .result
-            .structural()
-            .filter(|result| {
-                result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && is_shared_descriptor(module.structural_types.iter(), result.structural_type)
-            })
-            .map(|_| Vec::new()),
+        returns: machine.result.structural().map(|_| Vec::new()),
         places: Vec::new(),
         place_types: BTreeMap::new(),
         entry: (machine.entry, 0),
@@ -279,6 +272,28 @@ pub(super) fn adapt(
                 }
                 OperationKind::EstablishRecord { fields }
                 | OperationKind::EstablishStructuralCase { fields, .. } => {
+                    if let OperationKind::EstablishStructuralCase { result_case, .. } =
+                        &operation.kind
+                    {
+                        // The retained constructor tag proves that sibling-case
+                        // payload slots do not exist in this value. Only those
+                        // slots have no backing; an unresolved live field stays
+                        // unknown and cannot be exported by a result summary.
+                        for slot in replay::descriptor_slots(
+                            &module.structural_types,
+                            result?.place,
+                            result?.structural_type,
+                        )? {
+                            if matches!(slot.path.first(), Some(crate::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
+                            {
+                                graph
+                                    .originations
+                                    .entry(position)
+                                    .or_default()
+                                    .push((slot, DescriptorCallOrigin::Empty));
+                            }
+                        }
+                    }
                     for field in fields {
                         if let RecordFieldValue::Structural(source) = &field.value {
                             let path = match &operation.kind {
@@ -340,7 +355,12 @@ pub(super) fn adapt(
                         arguments.push(argument);
                     }
                     let descriptor_result = result.filter(|result| {
-                        is_shared_descriptor(module.structural_types.iter(), result.structural_type)
+                        replay::descriptor_slots(
+                            &module.structural_types,
+                            result.place,
+                            result.structural_type,
+                        )
+                        .is_some_and(|slots| !slots.is_empty())
                     });
                     if let Some(result) = descriptor_result {
                         let expected = callee.result.structural()?;

@@ -6,8 +6,7 @@ use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::{
@@ -60,14 +59,7 @@ fn adapt(
     let mut graph = DescriptorMachine {
         id: function.machine,
         entry: (function.entry, 0),
-        returns: function
-            .result
-            .structural()
-            .filter(|result| {
-                result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && kernel::is_shared_descriptor(types.iter(), result.structural_type)
-            })
-            .map(|_| Vec::new()),
+        returns: function.result.structural().map(|_| Vec::new()),
         places: Vec::new(),
         place_types: BTreeMap::new(),
         flow: BTreeMap::new(),
@@ -421,6 +413,20 @@ fn adapt(
                 }
                 O::EstablishRecord { result, fields, .. }
                 | O::EstablishCase { result, fields, .. } => {
+                    if let O::EstablishCase { result_case, .. } = operation {
+                        for slot in
+                            kernel::descriptor_slots(types, result.place, result.structural_type)?
+                        {
+                            if matches!(slot.path.first(), Some(terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
+                            {
+                                graph
+                                    .originations
+                                    .entry(position)
+                                    .or_default()
+                                    .push((slot, kernel::DescriptorCallOrigin::Empty));
+                            }
+                        }
+                    }
                     let path = match operation {
                         O::EstablishCase { result_case, .. } => {
                             vec![StructuralPathSegment::Case(*result_case)]
@@ -472,7 +478,8 @@ fn adapt(
                             arguments.push(actual);
                         }
                         let descriptor_result = result.filter(|result| {
-                            kernel::is_shared_descriptor(types.iter(), result.structural_type)
+                            kernel::descriptor_slots(types, result.place, result.structural_type)
+                                .is_some_and(|slots| !slots.is_empty())
                         });
                         if let Some(result) = descriptor_result {
                             let expected = callee.result.structural()?;
