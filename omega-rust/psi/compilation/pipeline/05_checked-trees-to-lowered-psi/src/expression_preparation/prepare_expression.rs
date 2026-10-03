@@ -1321,6 +1321,32 @@ fn lower_checked_boolean_expression_with_parameters(
                 field: None,
             }
         }
+        CheckedBooleanExpression::ByteSequenceEqual { left, right } => {
+            let operand = |field: &checked_trees::CheckedStructuralParameterField| {
+                byte_field_observation(
+                    structural_fields,
+                    scalar_bindings,
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: field.parameter_position,
+                    },
+                    &field.path,
+                )?
+                .map(|(source, path, field)| {
+                    crate::emission::operation_emission::boolean::LoweredByteSequenceOperand {
+                        source,
+                        path,
+                        field: Some(field),
+                    }
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "byte sequence equality requires a live byte descriptor",
+                ))
+            };
+            LoweredBooleanReturnExpression::ByteSequenceEqual {
+                left: operand(left)?,
+                right: operand(right)?,
+            }
+        }
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
             operand: Box::new(lower_checked_boolean_expression_with_parameters(
                 operand,
@@ -1407,7 +1433,6 @@ fn lower_checked_boolean_expression_with_parameters(
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
-        | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
             return unsupported("structural equality is contract-only terminal vocabulary");

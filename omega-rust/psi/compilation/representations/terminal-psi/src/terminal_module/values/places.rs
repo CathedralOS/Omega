@@ -239,26 +239,15 @@ impl OperationKind {
                 *destination = map(*destination, StructuralAccess::WriteOnlyBorrow);
                 value.place = map(value.place, value.access);
             }
-            Self::EstablishByteSequenceConcatenation { left, right, .. } => {
+            Self::EstablishByteSequenceConcatenation { left, right, .. }
+            | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {
-                    match operand {
-                        crate::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                            *source = map(*source, StructuralAccess::SharedBorrow);
-                        }
-                        crate::control_flow::ByteSequenceOperand::Field { source, .. } => {
-                            source.place = map(source.place, source.access);
-                        }
-                    }
+                    map_byte_sequence_operand(operand, map);
                 }
             }
-            Self::ByteSequencePredicate { operand, .. } => match operand {
-                crate::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                    *source = map(*source, StructuralAccess::SharedBorrow);
-                }
-                crate::control_flow::ByteSequenceOperand::Field { source, .. } => {
-                    source.place = map(source.place, source.access);
-                }
-            },
+            Self::ByteSequencePredicate { operand, .. } => {
+                map_byte_sequence_operand(operand, map);
+            }
             Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
                 for field in fields {
                     match &mut field.value {
@@ -368,7 +357,8 @@ impl OperationKind {
     pub fn structural_projections(&self) -> Vec<OperationProjection<'_>> {
         let mut projections = Vec::new();
         match self {
-            Self::EstablishByteSequenceConcatenation { left, right, .. } => {
+            Self::EstablishByteSequenceConcatenation { left, right, .. }
+            | Self::ByteSequenceEqual { left, right } => {
                 for operand in [left, right] {
                     if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand
                     {
@@ -622,6 +612,22 @@ fn argument_projection(argument: &crate::StructuralArgument) -> OperationProject
     OperationProjection {
         root: argument.place,
         path: &argument.path,
+    }
+}
+
+/// The shared read demand of a `ByteSequenceOperand`: a whole operand reads
+/// its root directly while a field operand reads through its spelled access.
+fn map_byte_sequence_operand(
+    operand: &mut crate::control_flow::ByteSequenceOperand,
+    map: &mut impl FnMut(PlaceId, StructuralAccess) -> PlaceId,
+) {
+    match operand {
+        crate::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+            *source = map(*source, StructuralAccess::SharedBorrow);
+        }
+        crate::control_flow::ByteSequenceOperand::Field { source, .. } => {
+            source.place = map(source.place, source.access);
+        }
     }
 }
 

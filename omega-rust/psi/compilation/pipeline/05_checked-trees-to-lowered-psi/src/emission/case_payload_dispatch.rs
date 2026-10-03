@@ -394,12 +394,27 @@ fn substitute_boolean(
             path: substitute_path(path, bound),
             field,
         },
+        Boolean::ByteSequenceEqual { left, right } => Boolean::ByteSequenceEqual {
+            left: substitute_byte_sequence_operand(left, bound),
+            right: substitute_byte_sequence_operand(right, bound),
+        },
         expression @ (Boolean::StructuralCaseMembership { .. }
         | Boolean::PrimitiveRead { .. }
         | Boolean::Constant { .. }
         | Boolean::Parameter { .. }
         | Boolean::Local { .. }
         | Boolean::UnresolvedStructuralParameterField { .. }) => expression,
+    }
+}
+
+fn substitute_byte_sequence_operand(
+    operand: crate::emission::operation_emission::boolean::LoweredByteSequenceOperand,
+    bound: &[EstablishedCasePayload],
+) -> crate::emission::operation_emission::boolean::LoweredByteSequenceOperand {
+    crate::emission::operation_emission::boolean::LoweredByteSequenceOperand {
+        source: operand.source,
+        path: substitute_path(operand.path, bound),
+        field: operand.field,
     }
 }
 
@@ -631,6 +646,20 @@ fn case_reads<'e>(
                     collect_direct_case_reads(selector, reads);
                     if let Some(extent) = extent {
                         collect_direct_case_reads(extent, reads);
+                    }
+                }
+            }
+        }
+        Boolean::ByteSequenceEqual { left, right } => {
+            for operand in [left, right] {
+                for segment in &operand.path {
+                    if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent } =
+                        segment
+                    {
+                        collect_direct_case_reads(selector, reads);
+                        if let Some(extent) = extent {
+                            collect_direct_case_reads(extent, reads);
+                        }
                     }
                 }
             }

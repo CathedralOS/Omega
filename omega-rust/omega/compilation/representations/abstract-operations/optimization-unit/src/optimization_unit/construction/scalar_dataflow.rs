@@ -33,6 +33,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequencePredicate { result, .. }
+        | O::ByteSequenceEqual { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
@@ -151,6 +152,9 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             vec![left.length(), right.length()]
         }
         O::ByteSequencePredicate { operand, .. } => vec![operand.length()],
+        O::ByteSequenceEqual { left, right, .. } => {
+            vec![left.length(), right.length()]
+        }
         O::ByteSequenceStore { length, .. }
         | O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {

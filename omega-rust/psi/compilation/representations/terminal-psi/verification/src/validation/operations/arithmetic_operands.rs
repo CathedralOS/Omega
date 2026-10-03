@@ -294,6 +294,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::ByteSequencePredicate { .. }
+        | OperationKind::ByteSequenceEqual { .. }
         | OperationKind::EstablishElementView { .. }
         | OperationKind::EstablishMutableElementView { .. }
         | OperationKind::ElementViewLength { .. }

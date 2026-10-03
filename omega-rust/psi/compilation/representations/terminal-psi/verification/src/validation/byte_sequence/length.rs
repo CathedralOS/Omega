@@ -119,11 +119,13 @@ pub(in crate::validation) fn validate_source(
             structural_type
         }
         StructuralPlaceKind::OperationResult { .. } => {
-            crate::validation::byte_sequence::subslice::borrowed_result_in_module(module, machine, source)
-                .or_else(|| super::concatenation::owned_result(machine, source))
-                .or_else(|| terminal_semantics::byte_owned_call_result(module, machine, source))
-                .ok_or_else(&invalid)?
-                .structural_type
+            crate::validation::byte_sequence::subslice::borrowed_result_in_module(
+                module, machine, source,
+            )
+            .or_else(|| super::concatenation::owned_result(machine, source))
+            .or_else(|| terminal_semantics::byte_owned_call_result(module, machine, source))
+            .ok_or_else(&invalid)?
+            .structural_type
         }
         _ => return Err(invalid()),
     };

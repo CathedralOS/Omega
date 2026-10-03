@@ -353,6 +353,9 @@ fn select_function(
                     LegalizedScalarInstructionKind::ByteSequencePredicate { .. } => {
                         structural::byte_predicate(source, &mut builder, operation)?
                     }
+                    LegalizedScalarInstructionKind::ByteSequenceEqual { .. } => {
+                        structural::byte_equal(source, &mut builder, operation)?
+                    }
                     LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { .. } => {
                         structural::byte_field_read(source, &mut builder, operation)?
                     }

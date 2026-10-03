@@ -31,7 +31,6 @@ pub use register_model::X86_64_SATURATING_MULTIPLY_CLAMPED;
 pub use register_model::X86_64_SATURATING_MULTIPLY_U64;
 pub use register_model::X86_64_SATURATING_SUBTRACT_CLAMPED;
 pub use register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED;
-pub use register_model::X86_64_SCAN_BYTE_SEQUENCE;
 pub use register_model::X86_64_SHIFT_I64;
 pub use register_model::x86_64_linux_system_call_keys;
 pub use register_model::{
@@ -43,6 +42,7 @@ pub use register_model::{
     X86_64_HOSTED_READ_BYTE, X86_64_IEEE_FLOAT_ARITHMETIC, X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
     X86_64_IEEE_FLOAT_DIRECTED_BINARY, X86_64_IEEE_FLOAT_TERNARY, X86_64_IEEE_FLOAT_UNARY,
 };
+pub use register_model::{X86_64_COMPARE_BYTE_SEQUENCES, X86_64_SCAN_BYTE_SEQUENCE};
 pub use register_model::{
     X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR,
     X86_64_TRAPPING_SHIFT,

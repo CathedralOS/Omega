@@ -60,25 +60,11 @@ pub(super) fn is_structural_boolean_return_expression(
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
         LoweredBooleanReturnExpression::ByteSequencePredicate { path, .. } => {
-            path.iter().all(|segment| match segment {
-                crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex {
-                    selector,
-                    extent,
-                } => {
-                    is_branch_free_structural_scalar_expression(
-                        selector,
-                        scalar_parameters,
-                        available_locals,
-                    ) && extent.as_ref().is_none_or(|extent| {
-                        is_branch_free_structural_scalar_expression(
-                            extent,
-                            scalar_parameters,
-                            available_locals,
-                        )
-                    })
-                }
-                _ => true,
-            })
+            branch_free_operand_path(path, scalar_parameters, available_locals)
+        }
+        LoweredBooleanReturnExpression::ByteSequenceEqual { left, right, .. } => {
+            branch_free_operand_path(&left.path, scalar_parameters, available_locals)
+                && branch_free_operand_path(&right.path, scalar_parameters, available_locals)
         }
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
@@ -198,25 +184,11 @@ pub(super) fn is_branch_free_structural_boolean_expression(
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
         LoweredBooleanReturnExpression::ByteSequencePredicate { path, .. } => {
-            path.iter().all(|segment| match segment {
-                crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex {
-                    selector,
-                    extent,
-                } => {
-                    is_branch_free_structural_scalar_expression(
-                        selector,
-                        scalar_parameters,
-                        available_locals,
-                    ) && extent.as_ref().is_none_or(|extent| {
-                        is_branch_free_structural_scalar_expression(
-                            extent,
-                            scalar_parameters,
-                            available_locals,
-                        )
-                    })
-                }
-                _ => true,
-            })
+            branch_free_operand_path(path, scalar_parameters, available_locals)
+        }
+        LoweredBooleanReturnExpression::ByteSequenceEqual { left, right, .. } => {
+            branch_free_operand_path(&left.path, scalar_parameters, available_locals)
+                && branch_free_operand_path(&right.path, scalar_parameters, available_locals)
         }
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
@@ -263,6 +235,7 @@ pub(super) fn boolean_local_reference_count(
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => 0,
     }
 }
@@ -306,8 +279,37 @@ pub(super) fn inline_boolean_local(
         }
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. }) => expression.clone(),
     }
+}
+
+fn branch_free_operand_path(
+    path: &[crate::emission::operation_emission::expressions::LoweredElementPathSegment],
+    scalar_parameters: usize,
+    available_locals: usize,
+) -> bool {
+    path.iter().all(|segment| {
+        match segment {
+        crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex {
+            selector,
+            extent,
+        } => {
+            is_branch_free_structural_scalar_expression(
+                selector,
+                scalar_parameters,
+                available_locals,
+            ) && extent.as_ref().is_none_or(|extent| {
+                is_branch_free_structural_scalar_expression(
+                    extent,
+                    scalar_parameters,
+                    available_locals,
+                )
+            })
+        }
+        _ => true,
+    }
+    })
 }
 
 pub(super) fn source_distribute_boolean_local(

@@ -783,6 +783,14 @@ pub(super) fn validate(
             },
         ) if operand == expected_operand && predicate == expected_predicate => {}
         (
+            LegalizedScalarInstructionKind::ByteSequenceEqual { left, right },
+            AbstractOperation::ByteSequenceEqual {
+                left: expected_left,
+                right: expected_right,
+                ..
+            },
+        ) if left == expected_left && right == expected_right => {}
+        (
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source,
                 length_byte_offset,

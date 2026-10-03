@@ -1001,7 +1001,8 @@ fn scan_operation(
             let (reads, writes) = declared_access(stored.selection.source.access);
             pending.attribute_argument(context, &stored.selection.source, reads, writes);
         }
-        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+        O::EstablishByteSequenceConcatenation { left, right, .. }
+        | O::ByteSequenceEqual { left, right, .. } => {
             for operand in [left, right] {
                 match operand {
                     ByteSequenceOperand::Whole { source, .. } => {

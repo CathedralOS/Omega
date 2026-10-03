@@ -107,6 +107,7 @@ pub(crate) fn resolve_shared_boolean_member_fields(
         },
         expression @ (LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
@@ -131,6 +132,7 @@ pub(crate) fn normalize_shared_boolean_comparison_leaves(
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => expression.clone(),
         LoweredBooleanReturnExpression::Not { operand } => LoweredBooleanReturnExpression::Not {
             operand: Box::new(normalize_shared_boolean_comparison_leaves(operand)?),

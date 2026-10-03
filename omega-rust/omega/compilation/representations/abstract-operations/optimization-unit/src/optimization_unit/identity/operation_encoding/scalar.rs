@@ -127,24 +127,20 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(100);
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
-            match operand {
-                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
-                    bytes.u8(0);
-                    bytes.id(*source);
-                    bytes.id(*length);
-                }
-                terminal_psi::control_flow::ByteSequenceOperand::Field {
-                    source,
-                    field,
-                    length,
-                } => {
-                    bytes.u8(1);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*field);
-                    bytes.id(*length);
-                }
-            }
+            encode_byte_sequence_operand(bytes, operand);
             bytes.u8(predicate.mask_bit());
+        }
+        O::ByteSequenceEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            bytes.u8(104);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            encode_byte_sequence_operand(bytes, left);
+            encode_byte_sequence_operand(bytes, right);
         }
         O::StructuralByteSequenceFieldRead {
             psi_operation,
@@ -502,5 +498,28 @@ fn integer_arithmetic_tag(arithmetic: IntegerArithmetic) -> u8 {
         (Policy::Saturating, Operator::Divide) => 39,
         (Policy::Saturating, Operator::Remainder) => 40,
         (Policy::Saturating, Operator::Multiply) => 41,
+    }
+}
+
+fn encode_byte_sequence_operand(
+    bytes: &mut CanonicalBytes,
+    operand: &terminal_psi::control_flow::ByteSequenceOperand,
+) {
+    match operand {
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
+            bytes.u8(0);
+            bytes.id(*source);
+            bytes.id(*length);
+        }
+        terminal_psi::control_flow::ByteSequenceOperand::Field {
+            source,
+            field,
+            length,
+        } => {
+            bytes.u8(1);
+            encode_structural_argument(bytes, source);
+            bytes.id(*field);
+            bytes.id(*length);
+        }
     }
 }

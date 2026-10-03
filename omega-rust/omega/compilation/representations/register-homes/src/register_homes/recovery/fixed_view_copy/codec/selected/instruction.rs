@@ -166,6 +166,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::NormalizedForeignCall { .. } => 87,
         SelectedInstructionKind::ByteLiteralImageAddress { .. } => 232,
         SelectedInstructionKind::ScanByteSequence { .. } => 233,
+        SelectedInstructionKind::CompareByteSequences => 234,
         SelectedInstructionKind::ExactMultiplyI64 { .. } => 88,
         SelectedInstructionKind::ExactRemainderU64 { .. } => 89,
         SelectedInstructionKind::WrappingSubtractI64 => 90,
@@ -538,6 +539,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                     .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?
             },
         },
+        234 => SelectedInstructionKind::CompareByteSequences,
         14 => SelectedInstructionKind::Jump,
         0 => SelectedInstructionKind::CompareI64Zero,
         1 => SelectedInstructionKind::MaterializeI64 {

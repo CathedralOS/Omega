@@ -702,6 +702,38 @@ pub(super) fn append_operation(
             .ok_or_else(invalid)?;
             axioms.push(equation);
         }
+        if let terminal_semantics::StructuralEffectObservation::ByteSequenceEqualEvaluated {
+            left,
+            right,
+            ..
+        } = &observation
+        {
+            let invalid = || ModuleError::InvalidByteSequenceEqual(operation.id);
+            let root_type = |operand: &terminal_psi::control_flow::ByteSequenceOperand| {
+                let root = match operand {
+                    terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+                        *source
+                    }
+                    terminal_psi::control_flow::ByteSequenceOperand::Field { source, .. } => {
+                        source.place
+                    }
+                };
+                crate::validation::structural::operations::caller_structural_root_type(
+                    machine, root,
+                )
+                .ok_or_else(invalid)
+            };
+            let left_type = root_type(left)?;
+            let right_type = root_type(right)?;
+            if let Some(equation) = terminal_semantics::byte_equal_equation(
+                &observation,
+                left_type,
+                right_type,
+                &module.structural_types,
+            ) {
+                axioms.push(equation);
+            }
+        }
         if let Some(equation) = observation.local_equation() {
             axioms.push(equation.clone());
         }
@@ -886,6 +918,7 @@ pub(super) fn append_operation(
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::ByteSequencePredicate { .. }
+        | OperationKind::ByteSequenceEqual { .. }
         | OperationKind::EstablishElementView { .. }
         | OperationKind::EstablishMutableElementView { .. }
         | OperationKind::ElementViewLength { .. }

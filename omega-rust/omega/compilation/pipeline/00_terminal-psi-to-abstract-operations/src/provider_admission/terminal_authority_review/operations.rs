@@ -94,6 +94,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::ByteSequenceRead { .. }
         | AbstractOperation::ByteSequencePredicate { .. }
+        | AbstractOperation::ByteSequenceEqual { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::EstablishElementView { .. }

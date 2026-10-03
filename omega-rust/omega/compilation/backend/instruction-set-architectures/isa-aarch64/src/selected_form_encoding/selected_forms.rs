@@ -2,6 +2,7 @@
 //! and emitting the words for every operation family.
 
 use crate::saturating_forms::SaturatingRealization;
+use crate::selected_form_encoding::compare_byte_sequences;
 use crate::selected_form_encoding::copy_bytes;
 use crate::selected_form_encoding::decoding::{decode_words, footprint, validate_decoded};
 use crate::selected_form_encoding::float_bits;
@@ -28,6 +29,9 @@ pub fn encode_aarch64_selected_form(
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::encode(physical, predicate, alternative, operands);
     }
+    if kind == SelectedInstructionKind::CompareByteSequences {
+        return compare_byte_sequences::encode(physical, alternative, operands);
+    }
     if float_bits::is_transfer(kind) {
         return float_bits::encode(physical, kind, alternative, operands);
     }
@@ -50,6 +54,9 @@ pub fn validate_aarch64_selected_form_encoding(
     }
     if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
         return scan_byte_sequence::validate(physical, predicate, alternative, operands, bytes);
+    }
+    if kind == SelectedInstructionKind::CompareByteSequences {
+        return compare_byte_sequences::validate(physical, alternative, operands, bytes);
     }
     if float_bits::is_transfer(kind) {
         return float_bits::validate(physical, kind, alternative, operands, bytes);
@@ -117,6 +124,9 @@ fn family_and_operand_count(
             MachineAlternativeFamily::TrappingInteger(form),
             super::trapping_forms::operand_count(form),
         ),
+        SelectedInstructionKind::CompareByteSequences => {
+            (MachineAlternativeFamily::CompareByteSequences, 8)
+        }
         SelectedInstructionKind::CompareI64Zero => (MachineAlternativeFamily::CompareI64Zero, 1),
         SelectedInstructionKind::CompareI64Immediate { .. } => {
             (MachineAlternativeFamily::CompareI64Immediate, 1)
@@ -657,6 +667,7 @@ fn encode_unchecked(
         | SelectedInstructionKind::BitsToFloat64
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
