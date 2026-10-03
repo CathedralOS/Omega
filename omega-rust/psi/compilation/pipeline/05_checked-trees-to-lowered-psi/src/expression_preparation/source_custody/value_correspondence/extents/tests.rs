@@ -421,6 +421,7 @@ fn retained_subslice(
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_index,
                 },
+            storage_type_identity: _,
         } = transfer.source
         {
             return Some((expression, parameter_index));
@@ -465,6 +466,7 @@ fn retained_subslice(
                             checked_trees::CheckedStorageRoot::Parameter {
                                 index: parameter_index,
                             },
+                        storage_type_identity: _,
                     } = transfer.source
                     {
                         return Some((expression, parameter_index));

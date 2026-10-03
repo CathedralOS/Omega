@@ -2325,8 +2325,7 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 657ms @5676dbe7
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 763ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit checked 2214ms @2d8ed253669f
-pass/text/runtime_owned_string_byte_view_exit rejected 897ms @40866b59e47
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
+pass/text/runtime_owned_string_byte_view_exit checked 1422ms @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit checked 671ms @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit checked 679ms @7f80f93fd214+wt
 pass/text/runtime_slice_indexed_string_guard_exit checked 5408ms @40866b59e47

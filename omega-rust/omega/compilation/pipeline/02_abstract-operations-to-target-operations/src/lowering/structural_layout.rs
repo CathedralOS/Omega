@@ -479,13 +479,25 @@ fn field_path(
                 let field_type = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {
-                        let shape = leaf_shape(leaf)
-                            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-                        *declarations
-                            .iter()
-                            .find(|(_, declaration)| declaration.shape == shape)
-                            .map(|(id, _)| id)
-                            .ok_or(LoweringError::UnknownStructuralType(structural_type))?
+                        let shape = leaf_shape(leaf);
+                        let field_type = match (shape, leaf.byte_sequence_carrier()) {
+                            (Some(shape), _) => declarations
+                                .iter()
+                                .find(|(_, declaration)| declaration.shape == shape)
+                                .map(|(id, _)| *id),
+                            // A byte-carrier field names its collection by
+                            // the carrier itself; the canonical leaf shape
+                            // cannot spell it.
+                            (None, Some(carrier)) => {
+                                terminal_semantics::byte_carrier_field_declaration(
+                                    declarations.values().copied(),
+                                    carrier,
+                                )
+                                .map(|declaration| declaration.id)
+                            }
+                            (None, None) => None,
+                        };
+                        field_type.ok_or(LoweringError::UnknownStructuralType(structural_type))?
                     }
                 };
                 selected = Some((field_type, field_shape, local_offset));

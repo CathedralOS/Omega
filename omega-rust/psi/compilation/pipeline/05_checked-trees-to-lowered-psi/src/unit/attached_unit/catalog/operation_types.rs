@@ -9,12 +9,14 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
     operation: &CheckedUnitEffectOperationPlan,
     roots: &mut Vec<String>,
 ) -> Result<(), LoweringError> {
-    roots.extend(
-        operation
-            .call_structural_arguments()
-            .iter()
-            .map(|argument| argument.type_identity.clone()),
-    );
+    for argument in operation.call_structural_arguments() {
+        roots.push(argument.type_identity.clone());
+        if let Some(storage) = argument.subslice_storage_type_identity()
+            && !storage.is_empty()
+        {
+            roots.push(storage.to_owned());
+        }
+    }
     if let Some((result, _)) = operation.discardable_structural_result() {
         roots.push(result.type_identity.clone());
     }
@@ -24,9 +26,16 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             roots.push(source.type_identity.clone());
         }
         CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => {
             roots.push(result.type_identity.clone());
+        }
+        CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
+            roots.push(result.type_identity.clone());
+            if let Some(storage) = source.subslice_storage_type_identity()
+                && !storage.is_empty()
+            {
+                roots.push(storage.to_owned());
+            }
         }
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
             collect_value_roots(checked, *value, roots)?;

@@ -706,19 +706,26 @@ pub(crate) fn fixed_element_array_view(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u64, u32)> {
     let geometry = collection_view_geometry(source, argument, view_type, declarations)?;
+    // A live-length carrier's descriptor extent is dynamic; this channel
+    // only carries compile-known lengths.
+    let terminal_semantics::CollectionExtent::Fixed(length) = geometry.extent else {
+        return None;
+    };
     (geometry.storage == terminal_semantics::CollectionStorage::Inline).then_some((
         geometry.offset,
-        geometry.length,
+        length,
         geometry.stride,
     ))
 }
 
 /// Native storage coordinates for an ordinary collection establishment.
 /// A borrowed collection stores a pointer at `offset`; its declared backing
-/// extent is independent of the bytes occupied by that pointer cell.
+/// extent is independent of the bytes occupied by that pointer cell. An
+/// owned bounded byte carrier's live-length word precedes `offset`, so its
+/// viewed bytes begin where the descriptor points.
 pub(crate) struct CollectionViewGeometry {
     pub offset: u32,
-    pub length: u64,
+    pub extent: terminal_semantics::CollectionExtent,
     pub stride: u32,
     pub storage: terminal_semantics::CollectionStorage,
 }
@@ -794,7 +801,11 @@ pub(crate) fn collection_view_region_geometry(
         shape if shape.is_borrowed_byte_view() => None,
         _ => return None,
     };
-    let (tip, offset) = project(source.structural_type, field_path, declarations)?;
+    let (tip, offset) =
+        project(source.structural_type, field_path, declarations).or_else(|| {
+            runtime_leaf_copy_projection(source.structural_type, field_path, declarations)
+                .map(|(carrier, offset, _)| (carrier, offset))
+        })?;
     let element = view_element.or_else(|| {
         declarations.iter().find_map(|declaration| {
             matches!(declaration.shape,
@@ -838,7 +849,7 @@ pub(crate) fn collection_view_region_geometry(
             };
             (
                 terminal_semantics::CollectionBacking {
-                    length: byte_extent,
+                    extent: terminal_semantics::CollectionExtent::Fixed(byte_extent),
                     storage,
                 },
                 Some(layout),
@@ -850,7 +861,7 @@ pub(crate) fn collection_view_region_geometry(
     {
         return None;
     }
-    let length = backing.length;
+    let extent = backing.extent;
     let element_stride = align(
         shape(element, declarations)?.byte_size,
         shape(element, declarations)?.alignment,
@@ -866,13 +877,33 @@ pub(crate) fn collection_view_region_geometry(
             return None;
         }
     }
-    let (window_offset, element_count) = match byte_window {
-        Some((start, end)) if start <= end && end <= length => {
+    let (window_offset, element_count, extent) = match (byte_window, extent) {
+        (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length))
+            if start <= end && end <= length =>
+        {
             let byte_offset = start.checked_mul(u64::from(element_stride))?;
-            (u32::try_from(byte_offset).ok()?, end - start)
+            (
+                u32::try_from(byte_offset).ok()?,
+                end - start,
+                terminal_semantics::CollectionExtent::Fixed(end - start),
+            )
         }
-        Some(_) => return None,
-        None => (0, length),
+        // A static window cannot bound a live count; dynamic narrowing is a
+        // following subslice over the established descriptor.
+        (Some(_), _) => return None,
+        // An owned byte carrier's live-length word precedes its elements, so
+        // the viewed bytes start eight bytes into the collection's storage;
+        // capacity bounds the span its live extent counts.
+        (None, terminal_semantics::CollectionExtent::LiveLength { capacity }) => (
+            8,
+            capacity,
+            terminal_semantics::CollectionExtent::LiveLength { capacity },
+        ),
+        (None, terminal_semantics::CollectionExtent::Fixed(length)) => (
+            0,
+            length,
+            terminal_semantics::CollectionExtent::Fixed(length),
+        ),
     };
     let offset = offset.checked_add(window_offset)?;
     let storage_size = match backing.storage {
@@ -891,7 +922,7 @@ pub(crate) fn collection_view_region_geometry(
     }
     Some(CollectionViewGeometry {
         offset,
-        length: element_count,
+        extent,
         stride: element_stride,
         storage: backing.storage,
     })
@@ -2274,7 +2305,10 @@ fn bounded_byte_collection_geometry_separates_capacity_from_pointer_storage() {
         ];
         let geometry = collection_view_geometry(&source, &argument, view, &declarations).unwrap();
         assert_eq!(geometry.offset, 0);
-        assert_eq!(geometry.length, capacity);
+        assert_eq!(
+            geometry.extent,
+            terminal_semantics::CollectionExtent::Fixed(capacity)
+        );
         assert_eq!(geometry.stride, 1);
         assert_eq!(
             geometry.storage,

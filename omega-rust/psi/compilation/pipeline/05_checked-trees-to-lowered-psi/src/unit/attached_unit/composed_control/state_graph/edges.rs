@@ -373,7 +373,8 @@ pub(super) fn validate_bindings(
             }
             continue;
         }
-        if let Some((root, _, collection, expression)) = subslices::transfer_range(&transfer.source)
+        if let Some((root, _, collection, expression, _)) =
+            subslices::transfer_range(&transfer.source)
         {
             // A view subslice narrows a whole view parameter or a view local
             // the state body established; either way the target receives a

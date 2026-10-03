@@ -66,7 +66,7 @@ pub use values::{
     TargetBooleanExpression, TargetByteView, TargetElementView, TargetElementViewRegion,
     TargetIntegerExpression, TargetReferenceResult, TargetScalarBlockValue, TargetScalarExpression,
     TargetScalarImmediate, TargetStructuralArgument, TargetStructuralArgumentSource,
-    TargetStructuralParameter,
+    TargetStructuralParameter, TargetViewExtent,
 };
 pub mod storage;
 pub use storage::{

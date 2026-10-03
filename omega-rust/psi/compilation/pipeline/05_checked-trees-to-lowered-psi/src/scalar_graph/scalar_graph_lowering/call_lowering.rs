@@ -357,6 +357,7 @@ pub(crate) fn lower_scalar_graph_successor(
                         index: parameter_index,
                     },
                 expression,
+                ..
             }
             | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 root:

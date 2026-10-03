@@ -70,6 +70,13 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedScalarExpression>,
         end: Option<CheckedScalarExpression>,
+        /// Exact Terminal type identity of the collection the range reads:
+        /// the peeled carrier of the projected backing, already enrolled in
+        /// the checked structural type table. Naming it keeps the storage
+        /// declaration rooted even when nothing else in the body spells the
+        /// backing type (a whole-extent binding produces no subslice
+        /// computation operands to root it incidentally).
+        storage_type_identity: String,
     },
     /// Exclusive element range over one established immutable `&[T]` view,
     /// T != u8, rooted exactly as a byte range is. Endpoints share the same
@@ -83,6 +90,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedScalarExpression>,
         end: Option<CheckedScalarExpression>,
+        /// Exact Terminal type identity of the collection the range reads.
+        storage_type_identity: String,
     },
 }
 
@@ -158,6 +167,22 @@ impl CheckedUnitStructuralArgumentPlan {
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. } => None,
+        }
+    }
+
+    /// The exact Terminal type identity of the collection a subslice source
+    /// reads; `None` for sources that carry no range.
+    pub fn subslice_storage_type_identity(&self) -> Option<&str> {
+        match &self.source {
+            CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                storage_type_identity,
+                ..
+            }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                storage_type_identity,
+                ..
+            } => (!storage_type_identity.is_empty()).then_some(storage_type_identity.as_str()),
+            _ => None,
         }
     }
 

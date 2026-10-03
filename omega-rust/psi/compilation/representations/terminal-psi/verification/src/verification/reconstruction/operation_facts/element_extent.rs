@@ -173,7 +173,12 @@ pub(super) fn establishment_collection_length(
         element,
         source.access,
     )
-    .map(|backing| backing.length)
+    .and_then(|backing| match backing.extent {
+        terminal_semantics::CollectionExtent::Fixed(length) => Some(length),
+        // An owned carrier's live count is dynamic; no static extent fact
+        // exists to equate the length read with.
+        terminal_semantics::CollectionExtent::LiveLength { .. } => None,
+    })
 }
 
 /// Retain both the source's extent and equality with a previous observation.

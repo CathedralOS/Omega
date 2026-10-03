@@ -376,6 +376,10 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     ByteSequenceSubslice {
         root: crate::CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
+        /// Exact Terminal type identity of the collection the range reads —
+        /// the same backing identity the argument plan's
+        /// `ByteSequenceSubslice` carries for the range at its site.
+        storage_type_identity: String,
     },
     /// Exclusive borrowed `&[T]` element range, T != u8, rooted and keyed
     /// exactly as a byte range is; the extent counts elements. `path` is the
@@ -388,6 +392,8 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         root: crate::CheckedStorageRoot,
         path: Vec<CheckedUnitStructuralPathSegment>,
         expression: typed_trees::expression::ExpressionHandle,
+        /// Exact Terminal type identity of the collection the range reads.
+        storage_type_identity: String,
     },
     /// Authored byte-sequence literal supplied directly to a borrowed
     /// `&[u8]`-shaped parameter. The literal has no custody root: the edge

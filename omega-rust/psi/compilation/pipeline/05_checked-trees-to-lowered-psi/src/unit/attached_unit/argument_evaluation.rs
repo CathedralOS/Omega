@@ -369,6 +369,12 @@ impl Evaluation {
                         checked,
                         local.type_reference,
                     ),
+                )
+                .or(
+                    crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
+                        checked,
+                        local.type_reference,
+                    ),
                 ) {
                 Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
                 None => super::parameters::structural_carrier_type(checked, local.type_reference)?,

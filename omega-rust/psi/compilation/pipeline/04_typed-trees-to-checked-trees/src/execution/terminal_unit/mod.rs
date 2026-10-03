@@ -637,9 +637,15 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     {
         // Every structural argument carrier — a copied `&T` leaf, a `&[T]`
         // view, a moved source or a stored destination — names an identity
-        // that no result type reaches; retain each with its operation.
+        // that no result type reaches; retain each with its operation. A
+        // subslice additionally names the storage it borrows: a constrained
+        // field carrier enrolls its backing type under the peeled carrier
+        // identity, which no record field spelling ever reaches.
         for argument in operation.call_structural_arguments() {
             retained_type_identities.insert(argument.type_identity.as_str());
+            if let Some(storage_type_identity) = argument.subslice_storage_type_identity() {
+                retained_type_identities.insert(storage_type_identity);
+            }
         }
         match operation {
             // An ordinary structural result retains its claim-free realization's
@@ -685,10 +691,19 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 retained_type_identities.insert(source.type_identity.as_str());
             }
             CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
+            }
+            CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
+                retained_type_identities.insert(result.type_identity.as_str());
+                // The subslice's borrowed storage carries its own identity
+                // beside the bound view's — a constrained field carrier
+                // enrolls it under the peeled spelling no record field
+                // reaches, exactly as it does for a call argument.
+                if let Some(storage_type_identity) = source.subslice_storage_type_identity() {
+                    retained_type_identities.insert(storage_type_identity);
+                }
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());
@@ -705,6 +720,27 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 retained_type_identities.insert(source.type_identity.as_str());
             }
             _ => {}
+        }
+    }
+    // Composed machines carry the same operation plans inside their states;
+    // a view subslice bound or passed there borrows the same storage and
+    // names its backing identity the same way.
+    for operation in composed_machines.iter().flat_map(|plan| {
+        plan.states.iter().flat_map(|state| {
+            state
+                .operation_dependencies()
+                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        })
+    }) {
+        for argument in operation.call_structural_arguments() {
+            if let Some(storage_type_identity) = argument.subslice_storage_type_identity() {
+                retained_type_identities.insert(storage_type_identity);
+            }
+        }
+        if let CheckedUnitEffectOperationPlan::EstablishViewSubslice { source, .. } = operation {
+            if let Some(storage_type_identity) = source.subslice_storage_type_identity() {
+                retained_type_identities.insert(storage_type_identity);
+            }
         }
     }
     // A record loan's referee is a structural surface no signature,

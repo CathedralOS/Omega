@@ -137,11 +137,11 @@ pub(super) fn establish(
         return Err(invalid());
     };
     let field_offset = geometry.offset;
-    let element_count = geometry.length;
+    let element_count = geometry.extent;
     // An empty view has no dereferenceable payload. Keep its independently
     // checked backing identity, but do not require a slot for a zero-byte
     // array or invent dummy storage. Its descriptor is the empty (0, 0) view.
-    let base = if element_count == 0
+    let base = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
         && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
     {
         constant(builder, row, 0, 0)?
@@ -188,7 +188,7 @@ pub(super) fn establish(
             byte_size: 16,
             alignment: 8,
         });
-    let backing = if element_count == 0
+    let backing = if element_count == terminal_semantics::CollectionExtent::Fixed(0)
         && matches!(region, terminal_psi::ElementViewRegion::WholeCollection)
     {
         base
@@ -229,7 +229,36 @@ pub(super) fn establish(
             if accepted_fact.is_some() {
                 return Err(invalid());
             }
-            (backing, constant(builder, row, 8, element_count)?)
+            let length = match element_count {
+                terminal_semantics::CollectionExtent::Fixed(length) => {
+                    constant(builder, row, 8, length)?
+                }
+                // An owned byte carrier's live-length word precedes its
+                // viewed bytes at `field_offset`, so the descriptor extent
+                // is the load of the u64 header.
+                terminal_semantics::CollectionExtent::LiveLength { .. } => {
+                    let header = field_offset.checked_sub(8).ok_or_else(invalid)?;
+                    let pointer = transport_register(builder, *destination, 0)?;
+                    memory(
+                        builder,
+                        row,
+                        source.place,
+                        header,
+                        8,
+                        SelectedMemoryAccessRole::ReadPlace,
+                    )?;
+                    builder.emit(
+                        SelectedInstructionKind::Load64 {
+                            byte_offset: header,
+                        },
+                        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
+                        &[base, pointer],
+                        provenance(row),
+                    )?;
+                    pointer
+                }
+            };
+            (backing, length)
         }
         terminal_psi::ElementViewRegion::RepresentationBytes {
             start,

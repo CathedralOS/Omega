@@ -28,16 +28,32 @@ pub(super) fn transfer_range(
     ViewFamily,
     &[checked_trees::CheckedUnitStructuralPathSegment],
     ExpressionHandle,
+    &str,
 )> {
     match source {
-        CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { root, expression } => {
-            Some((*root, ViewFamily::Bytes, &[], *expression))
-        }
+        CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+            root,
+            expression,
+            storage_type_identity,
+        } => Some((
+            *root,
+            ViewFamily::Bytes,
+            &[],
+            *expression,
+            storage_type_identity.as_str(),
+        )),
         CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
             root,
             path,
             expression,
-        } => Some((*root, ViewFamily::Elements, path, *expression)),
+            storage_type_identity,
+        } => Some((
+            *root,
+            ViewFamily::Elements,
+            path,
+            *expression,
+            storage_type_identity.as_str(),
+        )),
         _ => None,
     }
 }
@@ -70,7 +86,9 @@ pub(super) fn emit(
     view_identity: &str,
     access: checked_trees::CheckedStructuralAccess,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let Some((root, family, collection, expression)) = transfer_range(transfer) else {
+    let Some((root, family, collection, expression, storage_type_identity)) =
+        transfer_range(transfer)
+    else {
         return unsupported("Unit graph transfer is not a view subslice");
     };
     let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
@@ -81,6 +99,7 @@ pub(super) fn emit(
                     expression,
                     start: None,
                     end: None,
+                    storage_type_identity: storage_type_identity.to_owned(),
                 }
             }
             ViewFamily::Elements => {
@@ -89,6 +108,7 @@ pub(super) fn emit(
                     expression,
                     start: None,
                     end: None,
+                    storage_type_identity: storage_type_identity.to_owned(),
                 }
             }
         },

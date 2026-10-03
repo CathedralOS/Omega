@@ -1147,6 +1147,7 @@ mod range_claim_tests {
                             expression: Default::default(),
                             start: None,
                             end: None,
+                            storage_type_identity: String::new(),
                         }
                     } else {
                         CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
@@ -1154,6 +1155,7 @@ mod range_claim_tests {
                             expression: Default::default(),
                             start: None,
                             end: None,
+                            storage_type_identity: String::new(),
                         }
                     },
                     path: Vec::new(),

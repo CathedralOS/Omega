@@ -299,7 +299,7 @@ pub(super) fn plan(
             .filter(|result| validation::slice_view_shell(program, *result, &[]).is_some())
             .unwrap_or(local.type_reference)
     };
-    if let Some(subslice) = crate::execution::terminal_unit::calls::view_subslice::admit(
+    let subslice = crate::execution::terminal_unit::calls::view_subslice::admit(
         program,
         facts,
         machine,
@@ -309,7 +309,27 @@ pub(super) fn plan(
         local.initial_value,
         index,
         checked_trees::CheckedSubsliceSite::LocalBinding,
-    ) {
+    )
+    .map(|subslice| (subslice, None))
+    // The `coll[a..b]` spelling declined; the whole-extent spelling
+    // (`let v: &T = coll`) is the same view with both endpoints omitted.
+    // Its element-declared sibling (`let v: u8 = coll`) is not a view
+    // binding at all, so only a view-declared local qualifies here.
+    .or_else(|| {
+        declared_is_view.then(|| {
+            crate::execution::terminal_unit::calls::view_subslice::whole_extent(
+                program,
+                machine,
+                state,
+                structural_parameters,
+                subslice_target,
+                local.initial_value,
+                index,
+            )
+            .map(|(subslice, storage)| (subslice, Some(storage)))
+        })?
+    });
+    if let Some((subslice, storage)) = subslice {
         if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = subslice.range.root
             && !structural_local_symbols.contains(&symbol)
         {
@@ -325,6 +345,11 @@ pub(super) fn plan(
                     .map(|view| program.normalized_type_identity(view.element))?
         {
             return None;
+        }
+        if let Some(storage) = storage {
+            // The whole-extent spelling mints no indexed collection, so
+            // nothing else enrolls the backing's own structural type.
+            shapes.add_type(storage, binders, &[])?;
         }
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,

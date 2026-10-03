@@ -261,6 +261,7 @@ pub(super) fn validate(
                         index: source_index,
                     },
                 expression,
+                ..
             }
             | CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 root:

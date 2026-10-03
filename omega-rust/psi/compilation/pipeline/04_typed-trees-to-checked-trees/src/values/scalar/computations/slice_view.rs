@@ -283,6 +283,10 @@ impl Builder<'_, '_> {
                         expression,
                         start: Some(endpoint(start)?),
                         end: Some(endpoint(end)?),
+                        storage_type_identity: self
+                            .program
+                            .normalized_type_identity(container)
+                            .into_string(),
                     },
                     crate::execution::terminal_unit::types::borrowed_slice_view_type_identity(
                         self.program,
@@ -552,6 +556,9 @@ impl Builder<'_, '_> {
                 expression,
                 start,
                 end,
+                // The narrowed collection is itself a view: its projected
+                // type already spells this range's view identity.
+                storage_type_identity: type_identity.clone(),
             }
         } else {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
@@ -559,6 +566,7 @@ impl Builder<'_, '_> {
                 expression,
                 start,
                 end,
+                storage_type_identity: type_identity.clone(),
             }
         };
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
