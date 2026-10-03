@@ -30,6 +30,7 @@ mod proof_bearing_scalar;
 mod record_field;
 mod reference_views;
 mod scalar_array;
+mod scalar_field_requirements;
 mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
 pub mod scalar_ordering;
@@ -91,6 +92,10 @@ pub use reference_views::{
     reference_source_compatible, scalar_reference_view_is_total, scalar_reference_view_value,
 };
 pub use scalar_array::scalar_array_leaf_shape;
+pub use scalar_field_requirements::{
+    scalar_field_accepts_literal, scalar_field_accepts_zero, scalar_field_requirement,
+    scalar_field_requires_evidence,
+};
 pub use scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
     ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,

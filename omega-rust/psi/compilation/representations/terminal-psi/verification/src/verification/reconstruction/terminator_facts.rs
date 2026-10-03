@@ -159,18 +159,23 @@ pub(super) fn append_terminator(
                         CanonicalStructuralPathSegment::Case(successor.case),
                         CanonicalStructuralPathSegment::Field(*field),
                     ];
-                    if let Some(bounded) =
-                        selected_payload_bound(module, machine, *source, successor.case, *field)
-                    {
-                        let payload = value_term(parameter.id);
-                        // The copied SSA payload keeps its declared range even
+                    if let Some(field_type) = selected_payload_refinement(
+                        module,
+                        machine,
+                        *source,
+                        successor.case,
+                        *field,
+                    ) {
+                        // The copied SSA payload keeps its declared predicate even
                         // after its former storage root is mutated or consumed.
-                        for fact in operation_facts::declared_carrier_bounds(
+                        for fact in operation_facts::declared_scalar_field_facts(
                             proposition_context,
-                            bounded,
-                            payload,
+                            field_type,
+                            parameter.id,
                         ) {
-                            arm_axioms.push(fact.proposition);
+                            if fact.certified {
+                                arm_axioms.push(fact.proposition);
+                            }
                         }
                     }
                     // These are current-storage observations. The ordinary root
@@ -303,19 +308,16 @@ pub(super) fn append_terminator(
     }
 }
 
-fn selected_payload_bound(
-    module: &terminal_psi::TerminalModule,
+fn selected_payload_refinement<'module>(
+    module: &'module terminal_psi::TerminalModule,
     machine: &TerminalMachine,
     source: semantic_vocabulary::PlaceId,
     selected_case: semantic_vocabulary::StructuralCaseId,
     selected_field: semantic_vocabulary::StructuralFieldId,
-) -> Option<semantic_vocabulary::BoundedIntegerType> {
+) -> Option<&'module terminal_psi::StructuralFieldType> {
     // Formation and full-graph dominance have already validated this exact
     // source. Contract field paths deliberately have a narrower parameter scope.
-    let structural_type = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source)
+    let structural_type = terminal_semantics::arrival_parameter(machine, source)
         .map(|parameter| parameter.structural_type)
         .or_else(|| {
             machine
@@ -330,7 +332,9 @@ fn selected_payload_bound(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == structural_type)?;
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+    let (terminal_psi::StructuralTypeShape::Sum { cases }
+    | terminal_psi::StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
+    else {
         return None;
     };
     let field = cases
@@ -339,10 +343,8 @@ fn selected_payload_bound(
         .fields
         .iter()
         .find(|field| field.id == selected_field)?;
-    match field.field_type {
-        terminal_psi::StructuralFieldType::BoundedInteger(bounded) => Some(bounded),
-        _ => None,
-    }
+    terminal_semantics::scalar_field_requires_evidence(&field.field_type)
+        .then_some(&field.field_type)
 }
 
 fn append_nominal_cleanup_obligations(

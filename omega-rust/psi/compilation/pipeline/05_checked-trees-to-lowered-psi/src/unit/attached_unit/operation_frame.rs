@@ -1850,6 +1850,7 @@ impl OperationFrame<'_, '_> {
                 terminal_psi::StructuralFieldType::Scalar(_)
                     | terminal_psi::StructuralFieldType::IeeeFloat(_)
                     | terminal_psi::StructuralFieldType::BoundedInteger(_)
+                    | terminal_psi::StructuralFieldType::RefinedScalar(_)
             ) {
                 return unsupported("case literal operand requires a scalar carrier");
             }
@@ -1887,16 +1888,14 @@ impl OperationFrame<'_, '_> {
             );
             // The verifier reconstructs the declared range against the final
             // SSA initializer; a bounded field requests that proof.
-            let range_obligation = if matches!(
-                target.field_type,
-                terminal_psi::StructuralFieldType::BoundedInteger(_)
-            ) {
-                Some(crate::terminal_identities::obligation_id(allocate_dense(
-                    &mut self.calls.next_obligation_identity,
-                )?))
-            } else {
-                None
-            };
+            let range_obligation =
+                if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
+                    Some(crate::terminal_identities::obligation_id(allocate_dense(
+                        &mut self.calls.next_obligation_identity,
+                    )?))
+                } else {
+                    None
+                };
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {
@@ -1929,16 +1928,14 @@ impl OperationFrame<'_, '_> {
                 self.next_value,
                 self.operations,
             );
-            let range_obligation = if matches!(
-                target.field_type,
-                terminal_psi::StructuralFieldType::BoundedInteger(_)
-            ) {
-                Some(crate::terminal_identities::obligation_id(allocate_dense(
-                    &mut self.calls.next_obligation_identity,
-                )?))
-            } else {
-                None
-            };
+            let range_obligation =
+                if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
+                    Some(crate::terminal_identities::obligation_id(allocate_dense(
+                        &mut self.calls.next_obligation_identity,
+                    )?))
+                } else {
+                    None
+                };
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {

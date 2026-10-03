@@ -2,9 +2,9 @@
 
 use crate::validation::operations::require_defined;
 use crate::validation::{
-    BTreeMap, BTreeSet, ModuleError, OperationKind, PlaceId, ScalarType, StructuralFieldType,
-    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    TerminalMachine, TerminalModule, ValueId,
+    BTreeMap, BTreeSet, ModuleError, OperationKind, PlaceId, ScalarType, StructuralMultiplicity,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    ValueId,
 };
 
 pub(in crate::validation) fn plain_type(
@@ -155,10 +155,8 @@ pub(crate) fn fields<'module>(
         if declaration.id != binding.field
             || declaration.relevance != terminal_psi::BindingRelevance::Relevant
             || declaration.field_type.scalar_type().is_none()
-            || matches!(
-                declaration.field_type,
-                StructuralFieldType::BoundedInteger(_)
-            ) != binding.range_obligation.is_some()
+            || terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+                != binding.range_obligation.is_some()
         {
             return Err(failure());
         }

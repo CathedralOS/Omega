@@ -326,104 +326,134 @@ fn record_field_home_and_producer_corruption_rejects_after_metadata_refresh() {
 }
 
 #[test]
-fn bounded_record_fields_require_exact_current_value_and_interval_authority() {
+fn refined_record_fields_require_exact_current_value_and_predicate_authority() {
     use semantic_vocabulary::{BoundedIntegerType, ObligationId, Proposition, ScalarTerm};
-    let mut original = record_unit(false);
-    let ScalarType::Integer(integer) =
-        original.functions[0].blocks[0].nodes[0].definitions[0].scalar_type
-    else {
-        panic!("integer fixture");
-    };
-    let bounds = BoundedIntegerType::new(
-        integer,
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(10),
-    )
-    .unwrap();
-    let mut declarations = original.structural_types.to_vec();
-    let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
-        panic!("child record")
-    };
-    fields[0].field_type = StructuralFieldType::BoundedInteger(bounds);
-    original.structural_types = declarations.into();
-    let proposition = |value, maximum| {
-        let value = ScalarTerm::value(id(value, ValueId::new), ScalarType::Integer(integer));
-        let endpoint = |value| ScalarTerm::Integer {
-            scalar_type: integer,
-            value: IntegerValue::Unsigned(value),
-        };
-        let mut clauses = vec![
-            Proposition::LessOrEqual(endpoint(0), value.clone()),
-            Proposition::LessOrEqual(value, endpoint(maximum)),
-        ];
-        clauses.sort();
-        terminal_codec::canonical_proposition_order_key(&Proposition::Conjunction(clauses)).unwrap()
-    };
-    let mut facts = Vec::new();
-    for ordinal in 0..2 {
-        let AbstractOperation::EstablishRecord {
-            psi_operation,
-            fields,
-            ..
-        } = &mut original.functions[0].blocks[0].nodes[ordinal + 1].operation
+    for general_predicate in [false, true] {
+        let mut original = record_unit(false);
+        let ScalarType::Integer(integer) =
+            original.functions[0].blocks[0].nodes[0].definitions[0].scalar_type
         else {
+            panic!("integer fixture");
+        };
+        let bounds = BoundedIntegerType::new(
+            integer,
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(10),
+        )
+        .unwrap();
+        let mut declarations = original.structural_types.to_vec();
+        let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
             panic!("child record")
         };
-        let obligation = id(930 + ordinal as u64, ObligationId::new);
-        let RecordFieldValue::Scalar {
-            range_obligation, ..
-        } = &mut fields[0].value
-        else {
-            panic!("scalar field")
-        };
-        *range_obligation = Some(obligation);
-        facts.push((*psi_operation, obligation));
-    }
-    refresh_function_derivatives(&mut original, 0);
-    let facts = facts
-        .into_iter()
-        .map(|(operation, obligation)| {
-            optimization_unit::AcceptedObligationFact::new(
-                original.psi,
-                [42; 32],
-                original.functions[0].machine,
-                operation,
-                obligation,
-                proposition(3, 10),
+        fields[0].field_type = if general_predicate {
+            StructuralFieldType::RefinedScalar(
+                semantic_vocabulary::ScalarRefinement::new(
+                    ScalarType::Integer(integer),
+                    Proposition::LessThan(
+                        ScalarTerm::value(
+                            semantic_vocabulary::ScalarRefinement::SUBJECT,
+                            ScalarType::Integer(integer),
+                        ),
+                        ScalarTerm::Integer {
+                            scalar_type: integer,
+                            value: IntegerValue::Unsigned(10),
+                        },
+                    ),
+                )
+                .unwrap(),
             )
-        })
-        .collect();
-    let original = optimization_unit::attach_accepted_obligation_facts(original, facts).unwrap();
-    assert_eq!(validate_psi_optimization_unit(&original), Ok(()));
-    for mutation in 0..4 {
-        let mut changed = original.clone();
-        let fact = &mut changed.accepted_obligation_facts[0];
-        let changed_proposition = match mutation {
-            0 => proposition(3, 11),
-            1 => proposition(4, 10),
-            _ => fact.proposition.clone(),
+        } else {
+            StructuralFieldType::BoundedInteger(bounds)
         };
-        *fact = optimization_unit::AcceptedObligationFact::new(
-            fact.psi,
-            fact.proof_bundle_fingerprint,
-            fact.machine,
-            if mutation == 2 {
-                id(921, OperationId::new)
-            } else {
-                fact.operation
-            },
-            if mutation == 3 {
-                id(999, ObligationId::new)
-            } else {
-                fact.obligation
-            },
-            changed_proposition,
-        );
-        refresh_function_derivatives(&mut changed, 0);
-        assert!(
-            validate_psi_optimization_unit(&changed).is_err(),
-            "forged canonical authority {mutation}"
-        );
+        original.structural_types = declarations.into();
+        let proposition = |value, maximum| {
+            let value = ScalarTerm::value(id(value, ValueId::new), ScalarType::Integer(integer));
+            let endpoint = |value| ScalarTerm::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(value),
+            };
+            if general_predicate {
+                return terminal_codec::canonical_proposition_order_key(&Proposition::LessThan(
+                    value,
+                    endpoint(maximum),
+                ))
+                .unwrap();
+            }
+            let mut clauses = vec![
+                Proposition::LessOrEqual(endpoint(0), value.clone()),
+                Proposition::LessOrEqual(value, endpoint(maximum)),
+            ];
+            clauses.sort();
+            terminal_codec::canonical_proposition_order_key(&Proposition::Conjunction(clauses))
+                .unwrap()
+        };
+        let mut facts = Vec::new();
+        for ordinal in 0..2 {
+            let AbstractOperation::EstablishRecord {
+                psi_operation,
+                fields,
+                ..
+            } = &mut original.functions[0].blocks[0].nodes[ordinal + 1].operation
+            else {
+                panic!("child record")
+            };
+            let obligation = id(930 + ordinal as u64, ObligationId::new);
+            let RecordFieldValue::Scalar {
+                range_obligation, ..
+            } = &mut fields[0].value
+            else {
+                panic!("scalar field")
+            };
+            *range_obligation = Some(obligation);
+            facts.push((*psi_operation, obligation));
+        }
+        refresh_function_derivatives(&mut original, 0);
+        let facts = facts
+            .into_iter()
+            .map(|(operation, obligation)| {
+                optimization_unit::AcceptedObligationFact::new(
+                    original.psi,
+                    [42; 32],
+                    original.functions[0].machine,
+                    operation,
+                    obligation,
+                    proposition(3, 10),
+                )
+            })
+            .collect();
+        let original =
+            optimization_unit::attach_accepted_obligation_facts(original, facts).unwrap();
+        assert_eq!(validate_psi_optimization_unit(&original), Ok(()));
+        for mutation in 0..4 {
+            let mut changed = original.clone();
+            let fact = &mut changed.accepted_obligation_facts[0];
+            let changed_proposition = match mutation {
+                0 => proposition(3, 11),
+                1 => proposition(4, 10),
+                _ => fact.proposition.clone(),
+            };
+            *fact = optimization_unit::AcceptedObligationFact::new(
+                fact.psi,
+                fact.proof_bundle_fingerprint,
+                fact.machine,
+                if mutation == 2 {
+                    id(921, OperationId::new)
+                } else {
+                    fact.operation
+                },
+                if mutation == 3 {
+                    id(999, ObligationId::new)
+                } else {
+                    fact.obligation
+                },
+                changed_proposition,
+            );
+            refresh_function_derivatives(&mut changed, 0);
+            assert!(
+                validate_psi_optimization_unit(&changed).is_err(),
+                "forged canonical authority {mutation}"
+            );
+        }
     }
 }
 

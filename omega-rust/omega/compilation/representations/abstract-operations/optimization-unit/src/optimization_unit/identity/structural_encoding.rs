@@ -18,7 +18,7 @@ use crate::optimization_unit::identity::carrier_encoding::{
     encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::proposition_encoding::{
-    encode_content_term, encode_float_format,
+    encode_content_term, encode_float_format, encode_proposition,
 };
 use terminal_psi::BoundaryMachineResult;
 
@@ -477,6 +477,11 @@ pub(super) fn encode_structural_field(
         BindingRelevance::Erased => 2,
     });
     match &field.field_type {
+        StructuralFieldType::RefinedScalar(refinement) => {
+            bytes.u8(9);
+            encode_scalar_type(bytes, refinement.carrier());
+            encode_proposition(bytes, refinement.predicate());
+        }
         StructuralFieldType::Atomic(value) => {
             bytes.u8(8);
             encode_scalar_type(bytes, *value);

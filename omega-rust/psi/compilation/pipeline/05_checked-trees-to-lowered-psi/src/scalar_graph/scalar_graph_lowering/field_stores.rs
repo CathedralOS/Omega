@@ -18,6 +18,7 @@ pub(super) struct Prepared {
     destination: PlaceId,
     path: Vec<StructuralPathSegment>,
     field: StructuralFieldId,
+    requires_evidence: bool,
     result_type: QualifiedScalarType,
     expression: Option<LoweredDirectExpression>,
 }
@@ -79,12 +80,10 @@ pub(super) fn prepare(
         types,
     )?;
     let scalar_type = terminal_scalar_type(store.primitive_type)?;
-    // Bounded fields need a separate reconstructed store obligation. An exact
-    // primitive carrier alone cannot authorize violating the declared interval.
-    if field.field_type != StructuralFieldType::Scalar(scalar_type) {
-        return unsupported(
-            "record store field differs from its exact unconstrained scalar carrier",
-        );
+    if matches!(field.field_type, StructuralFieldType::Atomic(_))
+        || field.field_type.scalar_type() != Some(scalar_type)
+    {
+        return unsupported("record store field differs from its declared scalar carrier");
     }
     let expression = match store.value {
         checked_trees::CheckedStoreValue::Pure(_) => Some(bindings.expression_at(
@@ -112,6 +111,7 @@ pub(super) fn prepare(
         destination,
         path,
         field: field.id,
+        requires_evidence: terminal_semantics::scalar_field_requires_evidence(&field.field_type),
         result_type: QualifiedScalarType {
             scalar_type,
             qualifications: Default::default(),
@@ -143,6 +143,7 @@ impl Prepared {
                 field: self.field,
                 value_position: prefix.len(),
                 scalar_type: self.result_type.scalar_type,
+                requires_evidence: self.requires_evidence,
             }],
             terminator: LoweredScalarBranchTerminator::Jump {
                 target,

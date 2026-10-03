@@ -151,7 +151,7 @@ fn local_store_rejects_missing_destination_and_rhs_custody() {
 }
 
 #[test]
-fn bounded_local_field_store_waits_for_a_write_range_obligation() {
+fn bounded_local_field_store_retains_a_write_range_obligation() {
     let checked = check_source(
         "data Value [copy] { value: u64[0..=256]; }
          machine enter() -> u64 {
@@ -166,7 +166,7 @@ fn bounded_local_field_store_waits_for_a_write_range_obligation() {
             .flow
             .terminal_scalar_graphs
             .for_machine(checked.machines()[0].symbol)
-            .is_none()
+            .is_some()
     );
 }
 

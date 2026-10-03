@@ -658,6 +658,7 @@ fn collect_field_leaves(
         }
         StructuralFieldType::Scalar(_)
         | StructuralFieldType::Atomic(_)
+        | StructuralFieldType::RefinedScalar(_)
         | StructuralFieldType::BoundedInteger(_) => {
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, leaf.byte_size, false));
@@ -1071,6 +1072,12 @@ fn field_shape(
         return Err(InvalidStructuralShape);
     }
     match field {
+        StructuralFieldType::RefinedScalar(refinement) => field_shape(
+            &StructuralFieldType::Scalar(refinement.carrier()),
+            declarations,
+            cache,
+            active,
+        ),
         StructuralFieldType::Scalar(ScalarType::Boolean)
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))

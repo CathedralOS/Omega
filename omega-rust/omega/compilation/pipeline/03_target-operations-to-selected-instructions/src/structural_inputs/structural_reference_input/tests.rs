@@ -14,6 +14,31 @@ use crate::structural_inputs::structural_reference_input::shape;
 use crate::structural_inputs::structural_reference_input::store;
 
 #[test]
+fn refined_scalar_geometry_uses_each_exact_carrier() {
+    use semantic_vocabulary::{
+        IeeeFloatFormat, IntegerSign, IntegerType, Proposition, ScalarRefinement,
+    };
+    for scalar in [
+        ScalarType::Boolean,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+    ] {
+        let refined = StructuralFieldType::RefinedScalar(
+            ScalarRefinement::new(scalar, Proposition::Truth).unwrap(),
+        );
+        assert_eq!(
+            field_shape(&refined, &[], &mut Vec::new()),
+            super::scalar_shape(scalar)
+        );
+        assert_eq!(
+            refined.canonical_leaf_shape(),
+            None,
+            "carrier layout grants no plain scalar reference"
+        );
+    }
+}
+
+#[test]
 fn empty_record_array_geometry_validates_the_element_shell() {
     let root = StructuralTypeId::new(1).unwrap();
     let element = StructuralTypeId::new(2).unwrap();

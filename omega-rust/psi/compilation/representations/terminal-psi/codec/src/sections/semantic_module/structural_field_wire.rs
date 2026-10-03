@@ -13,6 +13,7 @@ use terminal_psi::{
 };
 
 use super::CodecError;
+use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
     encode_integer_value, encode_scalar_type,
@@ -235,6 +236,11 @@ pub(crate) fn encode_structural_field(
             encode_integer_value(writer, bounded.minimum());
             encode_integer_value(writer, bounded.maximum());
         }
+        StructuralFieldType::RefinedScalar(refinement) => {
+            writer.u8(9);
+            encode_scalar_type(writer, refinement.carrier());
+            encode_proposition(writer, refinement.predicate(), 0)?;
+        }
         StructuralFieldType::IeeeFloat(format) => {
             writer.u8(4);
             encode_ieee_float_format(writer, *format);
@@ -276,6 +282,17 @@ pub(crate) fn decode_structural_field(
     let field_type = match reader.u8()? {
         1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
         8 => StructuralFieldType::Atomic(decode_scalar_type(reader)?),
+        9 => StructuralFieldType::RefinedScalar(
+            semantic_vocabulary::ScalarRefinement::new(
+                decode_scalar_type(reader)?,
+                decode_proposition(reader, 0)?,
+            )
+            .map_err(|_| {
+                CodecError::MalformedStructuralFoundation(
+                    "scalar field predicate is not closed and carrier-typed",
+                )
+            })?,
+        ),
         2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
         3 => StructuralFieldType::Erased {
             type_identity: reader.string("erased structural field type identity")?,

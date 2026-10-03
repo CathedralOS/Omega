@@ -1,6 +1,6 @@
-use super::{BoundedIntegerType, PropositionContext, ScalarType, declared_carrier_bounds};
+use super::{PropositionContext, ScalarType, declared_scalar_field_facts};
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ValueId,
+    BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ValueId,
 };
 
 fn value(index: u64, scalar_type: ScalarType) -> ScalarTerm {
@@ -42,7 +42,7 @@ fn declared_bounds_carry_accepted_certificates() {
     ] {
         let (bounds, value) = declared(sign, bits, minimum, maximum);
         let integer_type = bounds.integer_type();
-        let expected = [
+        let mut expected = vec![
             Proposition::LessOrEqual(
                 ScalarTerm::integer(integer_type, bounds.minimum()).unwrap(),
                 value.clone(),
@@ -52,10 +52,18 @@ fn declared_bounds_carry_accepted_certificates() {
                 ScalarTerm::integer(integer_type, bounds.maximum()).unwrap(),
             ),
         ];
-        let facts = declared_carrier_bounds(&context(&value), bounds, value);
+        expected.sort();
+        let facts = declared_scalar_field_facts(
+            &context(&value),
+            &terminal_psi::StructuralFieldType::BoundedInteger(bounds),
+            ValueId::new(1).unwrap(),
+        );
         assert_eq!(
-            facts.each_ref().map(|fact| &fact.proposition),
-            expected.each_ref()
+            facts
+                .iter()
+                .map(|fact| &fact.proposition)
+                .collect::<Vec<_>>(),
+            expected.iter().collect::<Vec<_>>()
         );
         assert!(
             facts.iter().all(|fact| fact.certified),
@@ -88,7 +96,7 @@ fn a_bound_outside_the_declared_interval_is_not_certified() {
         value.clone(),
         ScalarTerm::integer(integer_type, IntegerValue::Unsigned(99)).unwrap(),
     );
-    assert!(!super::declared_bound_certified(
+    assert!(!super::declared_fact_certified(
         &context(&value),
         &declared_invariant,
         &foreign

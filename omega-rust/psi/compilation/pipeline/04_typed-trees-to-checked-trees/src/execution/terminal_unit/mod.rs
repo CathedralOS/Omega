@@ -1297,7 +1297,7 @@ pub(super) fn scalar_graph_record_shapes(
             matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields }
             if fields.iter().all(|field| !field.relevance.is_erased()
                 && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
-                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_) | CheckedUnitStructuralFieldType::RefinedScalar { .. }
                     | CheckedUnitStructuralFieldType::Structural { .. })))
         })
     {

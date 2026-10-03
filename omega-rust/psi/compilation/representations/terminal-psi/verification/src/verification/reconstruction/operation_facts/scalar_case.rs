@@ -31,21 +31,12 @@ pub(super) fn append(
         !crate::validation::proposition_observes_places(proposition, &[result.place])
     });
     for (declaration, binding) in declarations.iter().zip(fields) {
-        if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) = declaration.field_type {
+        if let Some(proposition) =
+            terminal_semantics::scalar_field_requirement(&declaration.field_type, binding.value)
+        {
             let id = binding
                 .range_obligation
                 .ok_or(ModuleError::ScalarCaseResultMismatch(operation.id))?;
-            let integer_type = bounds.integer_type();
-            let value = ScalarTerm::value(binding.value, ScalarType::Integer(integer_type));
-            let endpoint = |value| ScalarTerm::Integer {
-                scalar_type: integer_type,
-                value,
-            };
-            let mut bounds = vec![
-                Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()),
-                Proposition::LessOrEqual(value, endpoint(bounds.maximum())),
-            ];
-            bounds.sort();
             obligations.push(ReconstructedOperationObligation {
                 owner: ReconstructedTerminalObligationOwner::Operation {
                     machine: machine.id,
@@ -53,7 +44,7 @@ pub(super) fn append(
                 },
                 obligation: Obligation {
                     id,
-                    proposition: Proposition::Conjunction(bounds),
+                    proposition,
                     class: ObligationClass::Derivable,
                 },
                 semantic_axioms: axioms.clone(),

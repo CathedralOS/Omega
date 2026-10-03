@@ -844,6 +844,9 @@ fn case_dispatch_terminator(
                 terminal_psi::StructuralFieldType::BoundedInteger(integer) => {
                     semantic_vocabulary::ScalarType::Integer(integer.integer_type())
                 }
+                terminal_psi::StructuralFieldType::RefinedScalar(ref refinement) => {
+                    refinement.carrier()
+                }
                 _ => continue,
             };
             if field.relevance.is_erased() {

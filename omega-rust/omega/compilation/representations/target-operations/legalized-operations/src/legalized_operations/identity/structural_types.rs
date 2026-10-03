@@ -30,6 +30,8 @@ pub(super) fn encode_window_root(
 mod block_parameter_tests;
 #[cfg(test)]
 mod parameter_tests;
+#[cfg(test)]
+mod scalar_refinement_tests;
 
 pub(super) fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
@@ -286,6 +288,12 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
             BindingRelevance::Erased => 2,
         });
         match &field.field_type {
+            StructuralFieldType::RefinedScalar(refinement) => {
+                bytes.push(9);
+                let identity = optimization_unit::scalar_refinement_identity_bytes(refinement);
+                encode_len(bytes, identity.len());
+                bytes.extend_from_slice(&identity);
+            }
             StructuralFieldType::Atomic(scalar) => {
                 bytes.push(8);
                 encode_scalar_type(bytes, *scalar);

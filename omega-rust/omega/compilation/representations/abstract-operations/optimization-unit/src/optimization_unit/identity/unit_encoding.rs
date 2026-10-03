@@ -122,9 +122,7 @@ fn encode_root_service_reach(bytes: &mut CanonicalBytes, reach: &TerminalRootSer
 pub(super) enum CanonicalBytes {
     Length(usize),
     Digest(optimization_core::CanonicalIdentityEncoder),
-    /// Byte-level tests still inspect the literal encoding; production
-    /// identities never take this target.
-    #[allow(dead_code)]
+    /// Complete identity payloads used by downstream contracts and byte-level tests.
     Collect(Vec<u8>),
 }
 
@@ -137,12 +135,10 @@ impl CanonicalBytes {
         Self::Digest(encoder)
     }
 
-    #[cfg(test)]
     pub(super) fn collect() -> Self {
         Self::Collect(Vec::new())
     }
 
-    #[cfg(test)]
     pub(super) fn finish(self) -> Vec<u8> {
         match self {
             Self::Collect(bytes) => bytes,
@@ -156,7 +152,7 @@ impl CanonicalBytes {
                 u64::try_from(length).expect("canonical optimization-unit length fits u64")
             }
             Self::Digest(_) => unreachable!("digest pass follows the completed length pass"),
-            Self::Collect(_) => unreachable!("byte collection is test-only"),
+            Self::Collect(_) => unreachable!("length target precedes length inspection"),
         }
     }
 
@@ -164,7 +160,7 @@ impl CanonicalBytes {
         match self {
             Self::Digest(encoder) => encoder,
             Self::Length(_) => unreachable!("length pass precedes the digest pass"),
-            Self::Collect(_) => unreachable!("byte collection is test-only"),
+            Self::Collect(_) => unreachable!("digest target precedes digest inspection"),
         }
     }
 

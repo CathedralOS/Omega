@@ -59,3 +59,33 @@ fn structural_declaration_encoder_matches_the_existing_module_section() {
         module_bytes[declaration_start..declaration_start + declaration.len()]
     );
 }
+
+#[test]
+fn refined_scalar_field_roundtrips_the_complete_predicate_and_identity() {
+    use semantic_vocabulary::{Proposition, ScalarRefinement, ScalarTerm, ScalarType};
+    let mut module = fixture(255);
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum");
+    };
+    let carrier = ScalarType::Integer(i32_type());
+    cases[0].fields[0].field_type = StructuralFieldType::RefinedScalar(
+        ScalarRefinement::new(
+            carrier,
+            Proposition::LessThan(
+                ScalarTerm::integer(i32_type(), IntegerValue::Signed(0)).unwrap(),
+                ScalarTerm::value(ScalarRefinement::SUBJECT, carrier),
+            ),
+        )
+        .unwrap(),
+    );
+    let bytes = encode_module(&module).unwrap();
+    let decoded = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(decoded.structural_types, module.structural_types);
+    assert_eq!(encode_module(&decoded).unwrap(), bytes);
+    assert_ne!(encode_module(&fixture(255)).unwrap(), bytes);
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        panic!("sum");
+    };
+    cases[0].fields[0].relevance = BindingRelevance::Erased;
+    assert!(encode_module(&module).is_err());
+}

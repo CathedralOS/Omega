@@ -2289,6 +2289,7 @@ name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
  "numerics",
+ "proof-admission",
  "semantic-vocabulary",
  "terminal-psi",
 ]

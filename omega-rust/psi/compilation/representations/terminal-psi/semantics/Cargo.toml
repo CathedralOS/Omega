@@ -12,3 +12,4 @@ path = "src/lib.rs"
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 numerics = { path = "../../../../foundation/numerics" }
 terminal-psi = { path = ".." }
+proof-admission = { path = "../../../proof/admission" }

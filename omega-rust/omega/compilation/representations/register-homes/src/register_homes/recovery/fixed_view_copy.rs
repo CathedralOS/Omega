@@ -113,6 +113,7 @@ pub enum FixedViewCopyDecodeError {
     UnknownTerminator(u8),
     UnknownCrashCause(u8),
     InvalidCrashPredicate,
+    InvalidScalarRefinement,
     UnknownValueTransport(u8),
     UnknownBlockOrigin(u8),
     UnknownSuccessorRole(u8),

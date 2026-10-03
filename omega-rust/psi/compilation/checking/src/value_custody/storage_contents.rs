@@ -77,9 +77,8 @@ enum ContentsRequirement {
     /// declared type exists; its contents never materialize.
     CleanupOwned,
     /// `CleanupOwned` contents a structural literal establishes. A scalar member
-    /// may additionally carry a plain domain that means exactly an interval:
-    /// the bounded carrier represents membership completely and the
-    /// construction proves it through the member's own range obligation.
+    /// may additionally carry a complete plain scalar predicate: the field
+    /// retains its restriction and construction proves it for that operand.
     /// Bounded byte members also retain represented primitive predicates; the
     /// constructor must prove these from each completed operand, independently
     /// of this storage classification. Other `CleanupOwned` callers keep
@@ -189,9 +188,9 @@ pub fn has_cleanup_owned_contents(program: &TypedTrees, reference: TypeReference
 
 /// Classify the contents a record or case literal establishes: exactly
 /// [`has_cleanup_owned_contents`], plus scalar members under a plain domain
-/// that means exactly an interval. This is the same storage judgment for both
+/// whose complete scalar predicate is represented. This is the same storage judgment for both
 /// forms; bounded byte members may retain primitive byte predicates too. Each
-/// construction still proves its members' range or byte-predicate obligations;
+/// construction still proves its members' scalar or byte-predicate obligations;
 /// admitting storage never establishes a member's declared qualification.
 pub fn has_structural_construction_contents(
     program: &TypedTrees,
@@ -577,15 +576,12 @@ fn resolve(
                         requirement,
                         ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
                     ) && is_plain_value_domain(program, domain))
-                        // A plain domain that means exactly an interval adds no
-                        // storage, custody or cleanup to its scalar: the
-                        // bounded carrier represents membership completely,
-                        // and construction proves it through the member's own
-                        // range obligation. `NumericOwned` callers admit the
-                        // same interval-valued domain for the same reason —
-                        // the range judgment already tolerates primitive
-                        // numeric restrictions whose correspondence the
-                        // caller rechecks exactly.
+                        // A complete scalar predicate adds no storage or
+                        // cleanup. The field catalog retains it, construction
+                        // and replacement prove it, and source replay checks
+                        // the exact declaration independently. Lending existing
+                        // storage preserves that invariant without proving new
+                        // membership or extending any backing loan.
                         || (matches!(
                             requirement,
                             ContentsRequirement::NumericOwned
@@ -594,7 +590,9 @@ fn resolve(
                                 | ContentsRequirement::BorrowedStorage
                         ) && matches!(contents, ContentType::Scalar(_) | ContentType::Atomic(_))
                             && is_plain_value_domain(program, domain)
-                            && crate::exact_declared_domain_interval(program, domain).is_some())
+                            && (crate::exact_declared_domain_interval(program, domain).is_some()
+                                || matches!(contents, ContentType::Scalar(primitive)
+                                    if crate::scalar_field_domain_predicate(program, domain, primitive).is_some())))
                         || (matches!(requirement,
                                 ContentsRequirement::RepresentedOwned
                                     | ContentsRequirement::StructuralConstruction

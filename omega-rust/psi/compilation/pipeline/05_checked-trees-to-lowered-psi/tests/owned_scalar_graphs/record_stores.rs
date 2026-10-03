@@ -40,6 +40,77 @@ fn integer(value: u128) -> TerminalScalarValue {
 }
 
 #[test]
+fn restricted_local_stores_prove_each_replacement() {
+    for (declaration, field_type, invalid_value) in [
+        (
+            "domain u64::Allowed(value) requires value != 5;",
+            "u64 in Allowed",
+            5,
+        ),
+        ("", "u64 [0..=10]", 15),
+    ] {
+        let source = format!(
+            "{declaration}
+             data Value [copy] {{ number: {field_type}; }}
+             machine changed() -> u64 {{
+                 let mut first: Value = Value {{ number: 7 }};
+                 first.number = 8;
+                 first.number
+             }}"
+        );
+        let (_, module, bytes, proof) = support::publish(&source, "changed");
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::StructuralScalarFieldStore {
+                        range_obligation: Some(_),
+                        ..
+                    }
+                ))
+        );
+        let mut execution = TerminalExecution::start_artifact(
+            &bytes,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs::default(),
+        )
+        .unwrap();
+        let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(10000);
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(integer(8)))
+        );
+        let invalid = source.replace(
+            "first.number = 8",
+            &format!("first.number = {invalid_value}"),
+        );
+        if let Ok(checked) = crate::front_end::checked_program_result(&invalid) {
+            assert!(
+                terminal_production::TerminalProductionRequest::new(
+                    &checked,
+                    TerminalMachineSelection::Name("changed"),
+                )
+                .produce(
+                    terminal_production::TerminalProductionCustody::artifact_only(
+                        &mut terminal_production::TerminalProductionTimings::default(),
+                    )
+                )
+                .is_err(),
+                "replacement must establish the declared restriction"
+            );
+        }
+    }
+}
+
+#[test]
 fn local_stores_preserve_record_copies_and_captured_scalar_values() {
     for source in [
         SOURCE.to_owned(),

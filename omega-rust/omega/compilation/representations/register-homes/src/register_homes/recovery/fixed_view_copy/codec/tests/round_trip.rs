@@ -43,7 +43,7 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
         });
     // Plain wire content only; this altered fixture has no new semantic authority.
     assert_eq!(
-        FixedViewCopyPlan::decode(&original.encode()).unwrap(),
+        FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap(),
         original
     );
 }
@@ -57,7 +57,7 @@ fn successor_transfer_vocabulary_requires_the_current_envelope() {
     // Decode returns plain content; this checks the wire vocabulary, not
     // admission of a fixed-view-copy rewrite over this synthetic payload.
     assert_eq!(
-        FixedViewCopyPlan::decode(&transferred.encode()).unwrap(),
+        FixedViewCopyPlan::decode(&transferred.encode().unwrap()).unwrap(),
         transferred
     );
     for encoded in [
@@ -93,7 +93,10 @@ fn successor_transfer_vocabulary_requires_the_current_envelope() {
             instruction,
             successor: when_nonzero,
         };
-    assert_eq!(FixedViewCopyPlan::decode(&jumped.encode()).unwrap(), jumped);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&jumped.encode().unwrap()).unwrap(),
+        jumped
+    );
     for encoded in [
         with_stale_version(&jumped, 4),
         with_stale_version(&jumped, 5),
@@ -131,7 +134,7 @@ fn artifact_round_trips_every_policy_and_full_transformed_custody() {
         FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
     ] {
         let plan = plan(policy);
-        let decoded = FixedViewCopyPlan::decode(&plan.encode()).unwrap();
+        let decoded = FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap();
         assert_eq!(decoded, plan);
         assert_eq!(decoded.copies[0].destinations.len(), 2);
         assert_eq!(
@@ -154,7 +157,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         ),
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
-    let encoded = plan.encode();
+    let encoded = plan.encode().unwrap();
     assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 42);
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
     for encoded in [
@@ -177,7 +180,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
 #[test]
 fn artifact_current_retains_absent_structural_contracts() {
     let plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
-    let decoded = FixedViewCopyPlan::decode(&plan.encode()).unwrap();
+    let decoded = FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap();
     assert_eq!(decoded, plan);
     assert!(
         decoded
@@ -226,7 +229,10 @@ fn artifact_current_round_trips_u64_less_than_terminator_vocabulary() {
             when_not_less: when_zero,
         };
 
-    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
+        plan
+    );
 }
 
 #[test]
@@ -236,7 +242,10 @@ fn artifact_current_round_trips_scalar_call_callee_vocabulary() {
     std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].instructions[0].kind =
         SelectedInstructionKind::CallScalar { callee };
 
-    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
+        plan
+    );
 }
 
 #[test]
@@ -259,7 +268,10 @@ fn artifact_current_round_trips_signed_less_than_terminator_vocabulary() {
             when_not_less: when_zero,
         };
 
-    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
+        plan
+    );
 
     assert_eq!(
         FixedViewCopyPlan::decode(&with_stale_version(&plan, 9)),

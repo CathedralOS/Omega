@@ -1,4 +1,4 @@
-//! Canonical structural field rows, including exact inclusive integer restrictions.
+//! Canonical structural field rows retain scalar carriers and exact restrictions.
 
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralFieldId, StructuralTypeId,
@@ -11,7 +11,9 @@ use terminal_psi::{
 use crate::installation_record::codec::structural::scalar::{
     access_tag, decode_access, decode_identity, encode_identity,
 };
-use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u16, push_u64};
+use crate::installation_record::{
+    InstallationError, Reader, decode_boolean, push_u16, push_u32, push_u64,
+};
 
 pub(crate) fn encode_structural_field(
     bytes: &mut Vec<u8>,
@@ -21,6 +23,21 @@ pub(crate) fn encode_structural_field(
     encode_identity(bytes, &field.identity)?;
     bytes.push(u8::from(field.relevance.is_erased()));
     match &field.field_type {
+        StructuralFieldType::RefinedScalar(refinement) => {
+            bytes.push(11);
+            crate::installation_record::codec::unit::scalar::encode_scalar_type(
+                bytes,
+                refinement.carrier(),
+            )?;
+            let predicate = terminal_codec::canonical_proposition_order_key(refinement.predicate())
+                .map_err(|_| InstallationError::InvalidStructuralTypeShape)?;
+            push_u32(
+                bytes,
+                u32::try_from(predicate.len())
+                    .map_err(|_| InstallationError::InvalidStructuralTypeShape)?,
+            );
+            bytes.extend_from_slice(&predicate);
+        }
         StructuralFieldType::Atomic(_) => {
             bytes.push(10);
             let scalar = field
@@ -133,6 +150,17 @@ pub(crate) fn decode_structural_field(
         value => return Err(InstallationError::InvalidBoolean(value)),
     };
     let field_type = match reader.u8()? {
+        11 => {
+            let carrier =
+                crate::installation_record::codec::unit::scalar::decode_scalar_type(reader)?;
+            let length = reader.u32()? as usize;
+            let predicate = terminal_codec::decode_canonical_proposition(reader.take(length)?)
+                .map_err(|_| InstallationError::InvalidStructuralTypeShape)?;
+            StructuralFieldType::RefinedScalar(
+                semantic_vocabulary::ScalarRefinement::new(carrier, predicate)
+                    .map_err(|_| InstallationError::InvalidStructuralTypeShape)?,
+            )
+        }
         10 => {
             let field = StructuralFieldType::Atomic(
                 crate::installation_record::codec::unit::scalar::decode_scalar_type(reader)?,
@@ -298,6 +326,42 @@ mod tests {
         decode_structural_field, encode_structural_field,
     };
     use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+
+    #[test]
+    fn installed_scalar_refinements_retain_predicates_and_reject_foreign_subjects() {
+        use semantic_vocabulary::{Proposition, ScalarRefinement, ScalarTerm, ScalarType, ValueId};
+        let carrier = ScalarType::Boolean;
+        let predicate = Proposition::Equal(
+            ScalarTerm::value(ScalarRefinement::SUBJECT, carrier),
+            ScalarTerm::boolean(true),
+        );
+        let field = StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).unwrap(),
+            identity: "enabled".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::RefinedScalar(
+                ScalarRefinement::new(carrier, predicate.clone()).unwrap(),
+            ),
+        };
+        let mut encoded = Vec::new();
+        encode_structural_field(&mut encoded, &field).unwrap();
+        let mut reader = Reader::new(&encoded);
+        assert_eq!(decode_structural_field(&mut reader).unwrap(), field);
+        assert_eq!(reader.remaining(), 0);
+        let predicate_length = terminal_codec::canonical_proposition_order_key(&predicate)
+            .unwrap()
+            .len();
+        let mut foreign = predicate;
+        foreign.remap_value_ids(|_| ValueId::new(2).unwrap());
+        let foreign = terminal_codec::canonical_proposition_order_key(&foreign).unwrap();
+        encoded.truncate(encoded.len() - predicate_length - 4);
+        encoded.extend_from_slice(&u32::try_from(foreign.len()).unwrap().to_le_bytes());
+        encoded.extend_from_slice(&foreign);
+        assert_eq!(
+            decode_structural_field(&mut Reader::new(&encoded)),
+            Err(InstallationError::InvalidStructuralTypeShape)
+        );
+    }
 
     #[test]
     fn installed_predicate_fields_preserve_carrier_access_and_reject_unknown_bits() {

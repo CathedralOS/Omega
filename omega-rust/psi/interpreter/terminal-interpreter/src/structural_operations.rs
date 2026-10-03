@@ -114,15 +114,8 @@ impl TerminalExecution {
             {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
-            if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) =
-                declaration.field_type
-            {
-                let TerminalScalarValue::Integer { value, .. } = value else {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                };
-                if !bounds.contains(value) {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                }
+            if !value.satisfies_field(&declaration.field_type) {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
             payload.push((binding.field, value));
         }
@@ -257,15 +250,8 @@ impl TerminalExecution {
                     {
                         return Err(invalid());
                     }
-                    if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) =
-                        declaration.field_type
-                    {
-                        let TerminalScalarValue::Integer { value: integer, .. } = scalar else {
-                            return Err(invalid());
-                        };
-                        if !bounds.contains(integer) {
-                            return Err(invalid());
-                        }
+                    if !scalar.satisfies_field(&declaration.field_type) {
+                        return Err(invalid());
                     }
                     staged_scalars.insert(
                         StructuralScalarRuntimeField {

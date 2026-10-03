@@ -433,6 +433,14 @@ fn replay_structural_field_shape(
     active: &mut std::collections::BTreeSet<StructuralTypeId>,
 ) -> Option<ValueShape> {
     match field_type {
+        terminal_psi::StructuralFieldType::RefinedScalar(refinement) => {
+            replay_structural_field_shape(
+                &terminal_psi::StructuralFieldType::Scalar(refinement.carrier()),
+                declarations,
+                cache,
+                active,
+            )
+        }
         terminal_psi::StructuralFieldType::Atomic(_) => replay_structural_field_shape(
             &terminal_psi::StructuralFieldType::Scalar(field_type.atomic_scalar_type()?),
             declarations,

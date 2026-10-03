@@ -137,7 +137,8 @@ pub(super) fn field_shape(
             },
             kind,
         ) if kind.scalar_type().is_some() => {
-            if matches!(kind, StructuralFieldType::BoundedInteger(_)) != range_obligation.is_some()
+            if terminal_semantics::scalar_field_requires_evidence(kind)
+                != range_obligation.is_some()
             {
                 return None;
             }

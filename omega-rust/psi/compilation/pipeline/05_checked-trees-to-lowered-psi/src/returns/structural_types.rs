@@ -10,6 +10,8 @@ use super::{
 };
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
 
+mod scalar_refinements;
+
 fn reference_access(
     access: checked_trees::CheckedStructuralAccess,
 ) -> Result<StructuralAccess, LoweringError> {
@@ -65,6 +67,10 @@ pub(crate) fn lower_field_type(
         CheckedUnitStructuralFieldType::BoundedInteger(integer) => {
             StructuralFieldType::BoundedInteger(*integer)
         }
+        CheckedUnitStructuralFieldType::RefinedScalar {
+            primitive,
+            predicate,
+        } => StructuralFieldType::RefinedScalar(scalar_refinements::lower(*primitive, predicate)?),
         CheckedUnitStructuralFieldType::Atomic(primitive) => {
             StructuralFieldType::Atomic(terminal_scalar_type(*primitive)?)
         }

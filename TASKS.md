@@ -2032,39 +2032,21 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
-- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete case payload and record members
-  under non-interval predicate domains. Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
-  and [erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings):
-  evaluate runtime fields once in authored order; establish domains before
-  observation. Arithmetic-policy payloads and direct scalar-domain stores
-  remain controls, not this omission.
-
-  Common fields beside case payloads, erased payload members and
-  interval-domained payload members construct, store, dispatch and read:
-  `pass/structs/case_field_type_store_shapes` exits 70 natively and on the
-  checked interpreter on macOS ARM64 (one check machine per family, failure
-  codes 1-23), as do `ranges/sum_payload_range_arith_narrowed_exit`,
-  `relevance/erased_case_payload_field_exit`, `data/runtime_mixed_shape_exit`,
-  `calls/runtime_enum_self_method_exit`,
-  `generics/runtime_mixed_generic_erased_sum_exit` and
-  `traits/equatable_mixed_shape_equality_exit`; the terminal interpreter
-  establishes mixed cases with payload cells in their own namespace.
-  Record and case literals now share the structural-construction contents
-  rule. `pass/domains/record_interval_domain_member_exit` constructs and stores
-  an interval-qualified member directly and through a local, returning 70
-  natively and on the checked interpreter on macOS ARM64; its out-of-range
-  record control rejects before establishment.
-  `pass/domains/case_payload_predicate_domain_member_exit`
-  (`i32 in NonZero`) stops at `structural field store: case field type`:
-  Terminal Psi's structural field vocabulary carries integer bounds but no
-  general predicate membership, and `EstablishStructuralCase`/`EstablishRecord`
-  roster entries carry only range obligations, so retaining that evidence
-  through lowering needs a trusted-surface extension (field type, roster
-  evidence, verification, codec), not an admission change.
-  Acceptance: the predicate-domain fixture exits 70 natively and on the checked
-  interpreter; preserve the passing interval-member program.
-  `fail/ranges/case_payload_domain_literal_out_of_range` and
-  `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
+- **CASE-FIELD-CALL-MEMBERSHIP.** (split-of:CASE-FIELD-TYPE-STORE-SHAPES)
+  Preserve declaration-derived case-field membership across ordinary helper
+  calls and subsequent case dispatch. Follow
+  [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity);
+  repair the shared call-effect/field-fact flow, not a source-shape recognizer.
+  On macOS ARM64, `omega run --both
+  tests/omega/pass/structs/case_field_type_store_shapes/main.omg` fails at both
+  `def08a434d7a` and the predicate-field candidate `11ed75b597+wt`: after
+  `Main::store_local_level`, calls from `through_local` to `local_value` and
+  `fail` cannot prove `main.level::Lit.amount` belongs to `i32::Ten`.
+  The source obligation is checked in stage 04's
+  `checks/contracts/nominal_inputs.rs`; field construction and Terminal
+  predicate retention are not the missing capability. Acceptance: the unchanged
+  program exits 70 natively and interpreted, while
+  `fail/ranges/sum_payload_non_case_guard_unproven` still rejects.
 
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose the remaining owned-array producers
   into record literals.

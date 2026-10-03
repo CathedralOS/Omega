@@ -1037,6 +1037,7 @@ pub(crate) fn prepare(
                     retained.field_type,
                     StructuralFieldType::Scalar(_)
                         | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::IeeeFloat(_)
                 )
                 || retained.field_type.scalar_type() != Some(leaf_scalar_type)
@@ -1044,7 +1045,7 @@ pub(crate) fn prepare(
                 return unsupported("record read changed its scalar field carrier");
             }
             let bounded_leaf =
-                matches!(retained.field_type, StructuralFieldType::BoundedInteger(_));
+                terminal_semantics::scalar_field_requires_evidence(&retained.field_type);
             if matches!(leaf_scalar_type, ScalarType::IeeeFloat(_)) {
                 primitive_path.push(terminal_psi::StructuralPathSegment::Field(
                     retained.identity.clone(),

@@ -742,11 +742,12 @@ fn validate_boolean_field_terms(
 
         match term {
             ScalarTerm::BooleanField { root, path } => {
-                if !matches!(
-                    structural_leaf_type(module, machine, *root, path),
-                    Some(StructuralFieldType::Scalar(ScalarType::Boolean))
-                ) && crate::validation::structural_element_scalar(module, machine, *root, path)
+                if structural_leaf_type(module, machine, *root, path)
+                    .filter(|field| !matches!(field, StructuralFieldType::Atomic(_)))
+                    .and_then(StructuralFieldType::scalar_type)
                     != Some(ScalarType::Boolean)
+                    && crate::validation::structural_element_scalar(module, machine, *root, path)
+                        != Some(ScalarType::Boolean)
                 {
                     return Err(ModuleError::InvalidBooleanFieldTerm {
                         machine: machine.id,
@@ -760,16 +761,12 @@ fn validate_boolean_field_terms(
                 path,
                 scalar_type,
             } => {
-                if !matches!(
-                    structural_leaf_type(module, machine, *root, path),
-                    Some(StructuralFieldType::Scalar(ScalarType::Integer(actual)))
-                        if actual == scalar_type
-                ) && !matches!(
-                    structural_leaf_type(module, machine, *root, path),
-                    Some(StructuralFieldType::BoundedInteger(bounded))
-                        if bounded.integer_type() == *scalar_type
-                ) && crate::validation::structural_element_scalar(module, machine, *root, path)
+                if structural_leaf_type(module, machine, *root, path)
+                    .filter(|field| !matches!(field, StructuralFieldType::Atomic(_)))
+                    .and_then(StructuralFieldType::scalar_type)
                     != Some(ScalarType::Integer(*scalar_type))
+                    && crate::validation::structural_element_scalar(module, machine, *root, path)
+                        != Some(ScalarType::Integer(*scalar_type))
                 {
                     return Err(ModuleError::InvalidIntegerFieldTerm {
                         machine: machine.id,

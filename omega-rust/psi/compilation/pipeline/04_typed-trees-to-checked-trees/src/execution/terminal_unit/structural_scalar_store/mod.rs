@@ -29,7 +29,7 @@ use super::{
     CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarParameterPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
-    PrimitiveType, StatementNode, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    PrimitiveType, StatementNode, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
@@ -488,24 +488,14 @@ fn plan_assignment(
         trace.phase("structural field store: scalar field type: indexed element destination");
         return None;
     }
-    // A declared domain needs membership evidence the stored value does not
-    // carry, and no store operation retains one -- unless membership is
-    // exactly an interval: the field's bounded carrier then states it, and
-    // the store's range obligation is the whole evidence.
-    if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
-        .is_empty()
-        && !crate::facts::field_domain::domains_are_exact_intervals(program, field.type_reference)
+    // The same complete field declaration governs construction and every
+    // replacement. Retaining its carrier requests the declaration-derived
+    // store obligation; it does not prove the completed right-hand side.
+    if program
+        .primitive_type_reference(field.type_reference)
+        .is_some()
     {
-        trace.phase("structural field store: scalar field type: domain-constrained field");
-        return None;
-    }
-    // An exact-interval domain or arithmetic policy is the store's range
-    // obligation, not its storage shape: peel the constraint shell to the
-    // leaf's carrier the way `primitive_leaf_type_reference` strips the
-    // arithmetic-policy shell on the element lane.
-    let leaf_type = interval_store_carrier(program, field.type_reference);
-    if program.primitive_type_reference(leaf_type).is_some() {
-        let primitive_type = scalar_leaf(program, roots, field)?;
+        let primitive_type = scalar_leaf(program, field)?;
         let value = value::assignment_value(
             program,
             facts,
@@ -612,95 +602,28 @@ fn plan_assignment(
     .map(|store| vec![store])
 }
 
-/// The primitive type of a scalar leaf this planning lane can store.
-///
-/// The statement-sequence emitter retains the field's declaration for both
-/// borrowed parameters and owned local storage, so any
-/// Boolean, IEEE or integer carrier is admitted, bounded integers with their
-/// own range obligation. The scalar-graph lane replaces a local record's
-/// field only through an exact unconstrained carrier: its lowering carries
-/// no range obligation or arithmetic-domain policy for the field.
+/// The shared field retention judgment keeps every restriction independently
+/// of whether the destination is a parameter or an owned local. Atomic storage
+/// retains a different access contract and cannot become an ordinary store.
 fn scalar_leaf(
     program: &TypedTrees,
-    roots: StoreRoots<'_>,
     field: &typed_trees::data::DataField,
 ) -> Option<PrimitiveType> {
-    match roots {
-        // The parameter lane keeps the field's own declaration, so a bound
-        // the store carries as its range obligation peels to the carrier.
-        StoreRoots::Parameters { .. } => {
-            let primitive_type = program
-                .primitive_type_reference(interval_store_carrier(program, field.type_reference))?;
-            (matches!(
-                primitive_type,
-                PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-            ) || primitive_type.accepts_integer_literal())
-            .then_some(primitive_type)
-        }
-        StoreRoots::RecordLocals => {
-            let leaf_type = field.type_reference;
-            let primitive_type = program.primitive_type_reference(leaf_type)?;
-            let TypeReferenceNode::Named { symbol, name } =
-                program.type_reference_table.type_reference(leaf_type)
-            else {
-                return None;
-            };
-            let atom = program.symbols.builtin_type_atom(*symbol)?;
-            let exact_integer = matches!(
-                primitive_type,
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            ) && program.arithmetic_domain_for_type_reference(leaf_type)
-                == numerics::arithmetic::ArithmeticDomain::Exact;
-            (name.as_str() == atom.symbol_name()
-                && (exact_integer
-                    || matches!(
-                        primitive_type,
-                        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-                    )))
-            .then_some(primitive_type)
-        }
-    }
-}
-
-/// The storage carrier under an interval-bounded shell: arithmetic-policy
-/// domains, declared domains, and range bounds are the store's proof
-/// obligation rather than its type, so the leaf's primitive check reads the
-/// base carrier. `Named` constraints name conformance, not bounds, and keep
-/// the shell.
-fn interval_store_carrier(
-    program: &TypedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
-) -> typed_trees::types::TypeReferenceHandle {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } if program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .all(|constraint| {
-                    matches!(
-                        constraint,
-                        TypeConstraintNode::ArithmeticDomain(_)
-                            | TypeConstraintNode::Domain(_)
-                            | TypeConstraintNode::Range { .. }
-                    )
-                }) =>
-            {
-                type_reference = *base_type;
-            }
-            _ => return type_reference,
-        }
-    }
+    let primitive = program.primitive_type_reference(field.type_reference)?;
+    let retained = crate::execution::terminal_unit::types::retain_scalar_field(
+        program,
+        field.type_reference,
+        &[],
+        primitive,
+        None,
+    )?;
+    matches!(
+        retained,
+        checked_trees::CheckedUnitStructuralFieldType::Scalar(_)
+            | checked_trees::CheckedUnitStructuralFieldType::BoundedInteger(_)
+            | checked_trees::CheckedUnitStructuralFieldType::RefinedScalar { .. }
+    )
+    .then_some(primitive)
 }
 
 /// `place.<sum field> = <parameter path>`: an initialized unrestricted-sum

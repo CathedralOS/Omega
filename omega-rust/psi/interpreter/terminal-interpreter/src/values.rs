@@ -138,6 +138,19 @@ impl From<&TerminalStructuralValue> for StructuralRuntimePlace {
 }
 
 impl TerminalScalarValue {
+    /// Supplied runtime contents must satisfy the declared predicate as well as
+    /// the storage carrier. A declaration alone never authenticates host data.
+    pub(crate) fn satisfies_field(self, field: &terminal_psi::StructuralFieldType) -> bool {
+        let literal = match self {
+            Self::Boolean(value) => semantic_vocabulary::ScalarTerm::Boolean(value),
+            Self::Integer { scalar_type, value } => {
+                semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
+            }
+            Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
+        };
+        terminal_semantics::scalar_field_accepts_literal(field, &literal)
+    }
+
     pub const fn scalar_type(self) -> ScalarType {
         match self {
             Self::Boolean(_) => ScalarType::Boolean,

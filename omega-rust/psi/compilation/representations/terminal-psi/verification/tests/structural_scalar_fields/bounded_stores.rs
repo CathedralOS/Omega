@@ -131,6 +131,79 @@ fn fixture(access: StructuralAccess) -> TerminalModule {
     module
 }
 
+#[test]
+fn predicate_store_proves_the_replacement_and_rejects_stale_or_missing_evidence() {
+    use semantic_vocabulary::ScalarRefinement;
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        let mut module = fixture(access);
+        let ScalarType::Integer(integer) = integer_type() else {
+            panic!("integer");
+        };
+        let subject = ScalarTerm::value(ScalarRefinement::SUBJECT, integer_type());
+        let zero = ScalarTerm::integer(integer, IntegerValue::Signed(0)).unwrap();
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+            panic!("record");
+        };
+        fields[0].field_type = StructuralFieldType::RefinedScalar(
+            ScalarRefinement::new(
+                integer_type(),
+                Proposition::Disjunction(vec![
+                    Proposition::LessThan(subject.clone(), zero.clone()),
+                    Proposition::LessThan(zero, subject),
+                ]),
+            )
+            .unwrap(),
+        );
+        let validated = validate_module(&module).unwrap();
+        let context = validated.value_context(&module.machines[0]).unwrap();
+        let obligations = reconstruct_operation_obligations(&module).unwrap();
+        let obligation = &obligations[0];
+        let certificate = proof_admission::produce_predicate_proof(
+            &context,
+            &obligation.obligation.proposition,
+            &[],
+            &obligation.semantic_axioms,
+        )
+        .unwrap();
+        let bundle = ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation: id(1),
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: id(1),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: certificate,
+                }),
+            }],
+            ..ProofBundle::default()
+        };
+        verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
+        assert!(
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err()
+        );
+        let mut invalid = module.clone();
+        invalid.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+            value: IntegerValue::Signed(0),
+        };
+        assert!(verify_module(&invalid, &bundle, &AdmissionProfile::default()).is_err());
+        let OperationKind::StructuralScalarFieldStore {
+            range_obligation, ..
+        } = &mut module.machines[0].blocks[0].operations[1].kind
+        else {
+            panic!("store");
+        };
+        *range_obligation = None;
+        assert!(validate_module(&module).is_err());
+    }
+}
+
 fn proof(module: &TerminalModule) -> ProofBundle {
     let obligations = reconstruct_operation_obligations(module).unwrap();
     let [obligation] = obligations.as_slice() else {

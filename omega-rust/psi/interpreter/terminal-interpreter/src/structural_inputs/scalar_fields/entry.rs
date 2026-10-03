@@ -57,15 +57,15 @@ fn validate_type(
                 if field.relevance.is_erased() {
                     continue;
                 }
-                match field.field_type {
-                    StructuralFieldType::BoundedInteger(bounds) => {
+                match &field.field_type {
+                    field_type
+                        if terminal_semantics::scalar_field_requires_evidence(field_type) =>
+                    {
                         let key = StructuralScalarRuntimeField::member(parent.clone(), field.id);
-                        if !matches!(
-                            values.get(&key),
-                            Some(TerminalScalarValue::Integer { scalar_type, value })
-                                if *scalar_type == bounds.integer_type()
-                                    && bounds.contains(*value)
-                        ) {
+                        if !values
+                            .get(&key)
+                            .is_some_and(|value| value.satisfies_field(field_type))
+                        {
                             return Err(
                                 TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
                                     argument_index,
@@ -78,7 +78,7 @@ fn validate_type(
                         parent
                             .path
                             .push(StructuralPathSegment::Field(field.identity.clone()));
-                        validate_type(types, child, parent, values, argument_index, active)?;
+                        validate_type(types, *child, parent, values, argument_index, active)?;
                         parent.path.pop();
                     }
                     _ => {}
@@ -182,7 +182,9 @@ fn requires_contents(
             .filter(|field| !field.relevance.is_erased())
         {
             match field.field_type {
-                StructuralFieldType::BoundedInteger(_) => return true,
+                StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
+                    return true;
+                }
                 StructuralFieldType::Structural(child) => pending.push(child),
                 _ => {}
             }

@@ -263,6 +263,7 @@ fn plain_type(
                         // they do not make an unobserved scalar payload executable.
                         StructuralFieldType::Scalar(_)
                         | StructuralFieldType::Atomic(_)
+                        | StructuralFieldType::RefinedScalar(_)
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => true,
                         StructuralFieldType::Structural(nested) => {

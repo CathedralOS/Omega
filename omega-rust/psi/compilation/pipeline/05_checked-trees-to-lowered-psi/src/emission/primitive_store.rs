@@ -800,7 +800,7 @@ pub(crate) fn lower_indexed_element_field_path(
     if matching.next().is_some() || field.relevance.is_erased() {
         return unsupported("indexed element field is erased or ambiguous");
     }
-    if let StructuralFieldType::BoundedInteger(bounded) = field.field_type {
+    if terminal_semantics::scalar_field_requires_evidence(&field.field_type) {
         let carrier = canonical_carrier(record, carrier, types)?;
         return Ok((
             super::runtime_elements::static_segments(steps)?,
@@ -809,7 +809,12 @@ pub(crate) fn lower_indexed_element_field_path(
                 carrier,
                 field: field.id,
             },
-            ScalarType::Integer(bounded.integer_type()),
+            field
+                .field_type
+                .scalar_type()
+                .ok_or(LoweringError::Unsupported(
+                    "restricted indexed element field has no scalar carrier",
+                ))?,
         ));
     }
     let scalar_type = match field.field_type {

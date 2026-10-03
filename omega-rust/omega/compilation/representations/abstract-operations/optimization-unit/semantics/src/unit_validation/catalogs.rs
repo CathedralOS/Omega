@@ -566,10 +566,8 @@ fn validate_structural_field_range_authority(
                     .iter()
                     .find(|candidate| candidate.id == *field)
                     .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-                if matches!(
-                    declaration.field_type,
-                    terminal_psi::StructuralFieldType::BoundedInteger(_)
-                ) != range_obligation.is_some()
+                if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+                    != range_obligation.is_some()
                 {
                     return Err(
                         OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
@@ -663,24 +661,13 @@ fn validate_field_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    use semantic_vocabulary::{Proposition, ScalarTerm};
-    let terminal_psi::StructuralFieldType::BoundedInteger(bounds) = declaration.field_type else {
+    let Some(requirement) =
+        terminal_semantics::scalar_field_requirement(&declaration.field_type, value)
+    else {
         return Ok(());
     };
-    let integer_type = bounds.integer_type();
-    let value = ScalarTerm::value(value, ScalarType::Integer(integer_type));
-    let endpoint = |value| ScalarTerm::Integer {
-        scalar_type: integer_type,
-        value,
-    };
-    let mut clauses = vec![
-        Proposition::LessOrEqual(endpoint(bounds.minimum()), value.clone()),
-        Proposition::LessOrEqual(value, endpoint(bounds.maximum())),
-    ];
-    clauses.sort();
-    let proposition =
-        terminal_codec::canonical_proposition_order_key(&Proposition::Conjunction(clauses))
-            .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+    let proposition = terminal_codec::canonical_proposition_order_key(&requirement)
+        .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
     if unit
         .accepted_obligation_facts
         .iter()

@@ -40,9 +40,8 @@ impl LoweredStructuralScalarStore {
             steps,
             field: field.id,
             scalar_type,
-            requires_range_obligation: matches!(
-                field.field_type,
-                StructuralFieldType::BoundedInteger(_)
+            requires_range_obligation: terminal_semantics::scalar_field_requires_evidence(
+                &field.field_type,
             ),
         })
     }

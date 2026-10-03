@@ -20,8 +20,11 @@ use super::primitives::Cursor;
 #[cfg(test)]
 pub(super) use self::instruction::decode_kind;
 
-pub(super) fn encode_ordinary_plan(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
-    scalar::encode(bytes, plan);
+pub(super) fn encode_ordinary_plan(
+    bytes: &mut Vec<u8>,
+    plan: &SelectedInstructionPlan,
+) -> Result<(), terminal_codec::CodecError> {
+    scalar::encode(bytes, plan)
 }
 
 pub(super) fn decode_ordinary_plan(
@@ -30,8 +33,11 @@ pub(super) fn decode_ordinary_plan(
     scalar::decode(cursor)
 }
 
-pub(super) fn encode_selected_plan(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
-    payload::encode(bytes, plan);
+pub(super) fn encode_selected_plan(
+    bytes: &mut Vec<u8>,
+    plan: &SelectedInstructionPlan,
+) -> Result<(), terminal_codec::CodecError> {
+    payload::encode(bytes, plan)
 }
 
 pub(super) fn decode_selected_plan(

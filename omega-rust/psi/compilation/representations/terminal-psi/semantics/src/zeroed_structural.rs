@@ -1,6 +1,5 @@
 use semantic_vocabulary::{
-    BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralCaseId,
-    StructuralTypeId,
+    IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralTypeId,
 };
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
@@ -172,16 +171,9 @@ fn zeroed_field_scalar(field: &StructuralFieldDeclaration) -> Option<ScalarType>
     if field.relevance.is_erased() {
         return None;
     }
-    match field.field_type {
-        StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(format)),
-        StructuralFieldType::Scalar(scalar_type) | StructuralFieldType::Atomic(scalar_type) => {
-            Some(scalar_type)
-        }
-        StructuralFieldType::BoundedInteger(bounds) if admits_zero(bounds) => {
-            Some(ScalarType::Integer(bounds.integer_type()))
-        }
-        _ => None,
-    }
+    crate::scalar_field_accepts_zero(&field.field_type)
+        .then(|| field.field_type.scalar_type())
+        .flatten()
 }
 
 fn zeroed_byte_field(field: &StructuralFieldDeclaration) -> bool {
@@ -312,17 +304,10 @@ pub fn zeroed_structural_leaves<'types>(
     Some(leaves)
 }
 
-fn admits_zero(bounds: BoundedIntegerType) -> bool {
-    bounds.contains(match bounds.integer_type().sign() {
-        IntegerSign::Signed => IntegerValue::Signed(0),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::StructuralFieldId;
+    use semantic_vocabulary::{BoundedIntegerType, IntegerValue, StructuralFieldId};
     use terminal_psi::{BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration};
 
     fn field(id: u64, field_type: StructuralFieldType) -> StructuralFieldDeclaration {

@@ -274,6 +274,42 @@ fn restrict_child(types: &mut BTreeMap<StructuralTypeId, StructuralTypeDeclarati
 }
 
 #[test]
+fn predicate_entry_fields_require_actual_valid_contents_before_custody() {
+    use semantic_vocabulary::{Proposition, ScalarRefinement, ScalarTerm};
+    let (machine, mut types, roots) = fixture();
+    let StructuralTypeShape::Record { fields } = &mut types
+        .get_mut(&StructuralTypeId::new(2).unwrap())
+        .unwrap()
+        .shape
+    else {
+        panic!("record");
+    };
+    let carrier = unsigned(0).scalar_type();
+    let ScalarType::Integer(integer) = carrier else {
+        panic!("integer");
+    };
+    fields[0].field_type = StructuralFieldType::RefinedScalar(
+        ScalarRefinement::new(
+            carrier,
+            Proposition::LessThan(
+                ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                ScalarTerm::value(ScalarRefinement::SUBJECT, carrier),
+            ),
+        )
+        .unwrap(),
+    );
+    let bindings = bind_structural_arguments(&machine.structural_parameters, &roots).unwrap();
+    let mut contents = [0, 1].map(|position| TerminalStructuralScalarFieldValue {
+        path: vec![StructuralPathSegment::Field("child".into())],
+        ..input(position, unsigned(7))
+    });
+    assert!(bind(&machine, &types, &bindings, &contents).is_ok());
+    assert!(bind(&machine, &types, &bindings, &contents[..1]).is_err());
+    contents[1].value = unsigned(0);
+    assert!(bind(&machine, &types, &bindings, &contents).is_err());
+}
+
+#[test]
 fn nested_bounded_fields_require_complete_referent_contents_and_reject_alias_duplicates() {
     let (machine, mut types, mut roots) = fixture();
     restrict_child(&mut types);

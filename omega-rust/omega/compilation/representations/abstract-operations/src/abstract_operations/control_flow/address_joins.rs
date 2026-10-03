@@ -258,6 +258,7 @@ fn plain_fields<'a>(
         match &field.field_type {
             StructuralFieldType::Scalar(_)
             | StructuralFieldType::Atomic(_)
+            | StructuralFieldType::RefinedScalar(_)
             | StructuralFieldType::BoundedInteger(_)
             | StructuralFieldType::IeeeFloat(_) => true,
             StructuralFieldType::Structural(child) => is_plain_referent(*child, lookup, active),

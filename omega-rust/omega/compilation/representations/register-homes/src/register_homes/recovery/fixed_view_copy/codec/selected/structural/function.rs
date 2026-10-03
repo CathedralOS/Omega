@@ -70,12 +70,12 @@ fn decode_slot(
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn encode_contracts(
     bytes: &mut Vec<u8>,
     function: &SelectedFunction,
-) {
+) -> Result<(), terminal_codec::CodecError> {
     match &function.structural {
         None => bytes.push(0),
         Some(value) => {
             bytes.push(1);
-            encode_signature(bytes, value);
+            encode_signature(bytes, value)?;
         }
     }
     length(bytes, function.local_storage_slots.len());
@@ -260,6 +260,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
         bytes.extend_from_slice(&row.instruction_index.to_le_bytes());
         encode_boundary_settlement(bytes, &row.settlement);
     }
+    Ok(())
 }
 pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn decode_contracts(
     cursor: &mut Cursor<'_>,
@@ -537,7 +538,7 @@ mod local_slot_tests {
             });
         }
         let mut bytes = Vec::new();
-        encode_contracts(&mut bytes, &source);
+        encode_contracts(&mut bytes, &source).unwrap();
         let mut cursor = Cursor::new(&bytes);
         let mut decoded = empty();
         decode_contracts(&mut cursor, &mut decoded).unwrap();
@@ -562,7 +563,7 @@ mod local_slot_tests {
                 }
             }
             let mut changed_bytes = Vec::new();
-            encode_contracts(&mut changed_bytes, &changed);
+            encode_contracts(&mut changed_bytes, &changed).unwrap();
             assert_ne!(bytes, changed_bytes);
         }
         for length in 0..bytes.len() {

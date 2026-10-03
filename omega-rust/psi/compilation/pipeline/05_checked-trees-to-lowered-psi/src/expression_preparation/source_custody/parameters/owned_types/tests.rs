@@ -1,5 +1,61 @@
 use super::*;
 
+#[test]
+fn scalar_predicate_reconstruction_rejects_erasure_and_changed_predicates() {
+    use checked_trees::types::PrimitiveType;
+
+    let original = crate::front_end::checked_program(
+        "domain i32::NonZero(value) requires value != 0;
+         data Record { payload: i32 in NonZero; }
+         machine observe(record: &Record) -> i32 { record.payload }",
+    );
+    let machine = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .unwrap();
+    let parameter = &original.state_parameters(&original.machine_states(machine)[0])[0];
+    let TypeReferenceNode::Reference { referee, .. } = *original
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        panic!("borrowed record");
+    };
+    let identity = original.normalized_type_identity(referee).into_string();
+    validate_referent_type(&original, referee, &identity)
+        .expect("source independently reconstructs complete field predicate");
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        let shape = changed
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.identity == identity)
+            .expect("record catalog");
+        let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+            panic!("record fields");
+        };
+        let CheckedUnitStructuralFieldType::RefinedScalar {
+            primitive,
+            predicate,
+        } = &mut fields[0].field_type
+        else {
+            panic!("predicate field");
+        };
+        match mutation {
+            0 => *predicate = checked_trees::CheckedBooleanExpression::Constant(true),
+            1 => *primitive = PrimitiveType::Bool,
+            _ => fields[0].field_type = CheckedUnitStructuralFieldType::Scalar(PrimitiveType::I32),
+        }
+        assert!(
+            validate_referent_type(&changed, referee, &identity).is_err(),
+            "catalog mutation {mutation}"
+        );
+    }
+}
+
 fn fixture() -> (CheckedTrees, TypeReferenceHandle, String) {
     use source::{SourceMap, SourceOrigin};
     use std::path::PathBuf;

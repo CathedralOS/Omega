@@ -330,7 +330,7 @@ pub(super) fn validate_structural_scalar_field_store(
         field,
     )?;
     let actual = value_types[&value];
-    if super::super::structural::scalar_fields::structural_scalar_field_store_range(
+    if super::super::structural::scalar_fields::structural_scalar_field_store_refinement(
         module, machine, operation,
     )
     .is_some()

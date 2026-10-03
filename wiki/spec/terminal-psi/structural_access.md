@@ -267,8 +267,12 @@ Each observation costs one logical operation unit, charged before execution.
 
 `EstablishRecord` produces one exact `OperationResult` record from a complete
 roster of declaration-identified field operands. Scalar operands are dominating
-SSA values of the exact field carrier. Bounded integer fields require an
-independently reconstructed inclusive-range obligation. Nested fields consume
+SSA values of the exact field carrier. Restricted scalar fields require an
+independently reconstructed declaration predicate. `BoundedInteger` retains
+the compact inclusive interval; `RefinedScalar` retains an ordinary proposition
+over one declaration-local scalar formal. It cannot name ambient values,
+structural observations, or opaque propositions. Neither representation changes
+the runtime carrier or grants raw mutable-reference access. Nested fields consume
 already completed whole owned records or reference carriers of the exact type;
 affine children transfer once, while unrestricted children remain available. An unrestricted
 parent cannot absorb an affine child.
@@ -287,6 +291,24 @@ any child transfer or parent publication. A paused or failing operand computatio
 therefore retains the previously completed temporaries under their ordinary
 cleanup rules, rather than exposing a partially initialized destination. Every
 execution creates an independent referent, including nested machine activations.
+
+Record and case construction and scalar-field replacement use the same
+declaration-owned requirement. The obligation binds the initializer or
+replacement SSA value, never the old field contents. A validated field read or
+selected-case payload copy instantiates that invariant on its fresh scalar
+snapshot; other fields and unselected cases provide no premise. The snapshot
+survives later writes, while observations of mutable storage retain ordinary
+invalidation rules. Predicate bytes participate in portable and native artifact
+identities; lowering the carrier does not erase its evidence.
+
+Host-supplied restricted fields must provide valid contents before invocation
+custody is established. Zero provisioning checks the actual carrier-correct zero
+against the complete predicate using the existing checked predicate denotation;
+unknown truth rejects. A zero-selected sum checks only its selected payload.
+This is structural validity, not nominal or routed domain-membership authority.
+The source producer currently projects closed Boolean combinations of supported
+scalar comparisons and exact interval shells. Unsupported source predicates,
+indexed theory, and establishment routes are not silently reduced to raw storage.
 
 ## Store vocabulary
 

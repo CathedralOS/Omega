@@ -35,7 +35,7 @@ fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
     });
     let identity = selected_instructions::selected_instruction_plan_identity(&original.transformed);
     assert_eq!(
-        FixedViewCopyPlan::decode(&original.encode()).unwrap(),
+        FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap(),
         original
     );
     for transport in [
@@ -55,9 +55,9 @@ fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
             selected_instructions::selected_instruction_plan_identity(&changed.transformed),
             identity
         );
-        assert_ne!(changed.encode(), original.encode());
+        assert_ne!(changed.encode().unwrap(), original.encode().unwrap());
         assert_eq!(
-            FixedViewCopyPlan::decode(&changed.encode()).unwrap(),
+            FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap(),
             changed
         );
     }

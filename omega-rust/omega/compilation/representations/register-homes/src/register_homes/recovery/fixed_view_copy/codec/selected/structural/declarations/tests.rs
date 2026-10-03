@@ -11,6 +11,48 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_type;
 
 #[test]
+fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subject() {
+    use semantic_vocabulary::{Proposition, ScalarRefinement, ScalarTerm, ScalarType, ValueId};
+    use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+    let predicate = Proposition::Equal(
+        ScalarTerm::value(ScalarRefinement::SUBJECT, ScalarType::Boolean),
+        ScalarTerm::boolean(true),
+    );
+    let declaration = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(7).unwrap(),
+        identity: "Refined".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                identity: "enabled".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::RefinedScalar(
+                    ScalarRefinement::new(ScalarType::Boolean, predicate.clone()).unwrap(),
+                ),
+            }],
+        },
+    };
+    let mut bytes = Vec::new();
+    encode_type(&mut bytes, &declaration).unwrap();
+    let mut cursor = Cursor::new(&bytes);
+    assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+    assert_eq!(cursor.remaining(), 0);
+    let predicate_length = terminal_codec::canonical_proposition_order_key(&predicate)
+        .unwrap()
+        .len();
+    let mut foreign = predicate;
+    foreign.remap_value_ids(|_| ValueId::new(2).unwrap());
+    let foreign = terminal_codec::canonical_proposition_order_key(&foreign).unwrap();
+    bytes.truncate(bytes.len() - predicate_length - 8);
+    bytes.extend_from_slice(&u64::try_from(foreign.len()).unwrap().to_le_bytes());
+    bytes.extend_from_slice(&foreign);
+    assert_eq!(
+        decode_type(&mut Cursor::new(&bytes)),
+        Err(FixedViewCopyDecodeError::InvalidScalarRefinement)
+    );
+}
+
+#[test]
 fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let declaration = StructuralTypeDeclaration {
         id: StructuralTypeId::new(7).unwrap(),
@@ -18,7 +60,7 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
         shape: StructuralTypeShape::FusedServiceBinding,
     };
     let mut encoded = Vec::new();
-    encode_type(&mut encoded, &declaration);
+    encode_type(&mut encoded, &declaration).unwrap();
     assert_eq!(encoded.last(), Some(&9));
     let mut cursor = Cursor::new(&encoded);
     assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
@@ -27,7 +69,7 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
     let mut record = declaration.clone();
     record.shape = StructuralTypeShape::Record { fields: Vec::new() };
     let mut record_bytes = Vec::new();
-    encode_type(&mut record_bytes, &record);
+    encode_type(&mut record_bytes, &record).unwrap();
     assert_ne!(encoded, record_bytes);
     *encoded.last_mut().unwrap() = 255;
     assert_eq!(
@@ -71,7 +113,7 @@ fn reference_type_and_referent_path_round_trip_without_erasing_custody() {
         },
     };
     let mut bytes = Vec::new();
-    encode_type(&mut bytes, &declaration);
+    encode_type(&mut bytes, &declaration).unwrap();
     let mut cursor = Cursor::new(&bytes);
     assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
     assert_eq!(cursor.remaining(), 0);
@@ -151,7 +193,7 @@ fn byte_view_type_round_trip_retains_its_access() {
             ),
         };
         let mut bytes = Vec::new();
-        encode_type(&mut bytes, &declaration);
+        encode_type(&mut bytes, &declaration).unwrap();
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
         assert_eq!(cursor.remaining(), 0);

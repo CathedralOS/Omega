@@ -492,6 +492,7 @@ pub(crate) fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFie
         field_type,
         CheckedUnitStructuralFieldType::Structural { .. }
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
+            | CheckedUnitStructuralFieldType::RefinedScalar { .. }
             | CheckedUnitStructuralFieldType::ByteSequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )

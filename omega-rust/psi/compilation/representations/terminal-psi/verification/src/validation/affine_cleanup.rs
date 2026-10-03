@@ -840,6 +840,7 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
                 StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
                 | StructuralFieldType::Atomic(ScalarType::IeeeFloat(_))
                 | StructuralFieldType::BoundedInteger(_)
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::PredicateByteSequence { .. }
                 | StructuralFieldType::ByteSequence(_)

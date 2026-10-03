@@ -1,8 +1,5 @@
-//! A write to a field declared `in D` needs D's membership evidence. When D
-//! means exactly an interval, the field's bounded carrier states that
-//! membership and the store's own range obligation is the whole evidence, so
-//! the store is admitted like a bracketed-range field's. Any other predicate
-//! is evidence no store retains, and the body stays unadmitted.
+//! A scalar replacement retains its field's complete predicate and requests
+//! an establishment proof for the completed operand.
 use checked_trees::CheckedUnitEffectMachinePlan;
 
 fn plan(source: &str) -> Option<CheckedUnitEffectMachinePlan> {
@@ -29,15 +26,15 @@ fn program(domain: &str) -> String {
     format!(
         "{domain}
         data Main {{ slot: u64 in Slot; }}
-        machine Main::main(&mut self) {{ self.slot = 3; }}"
+        machine Main::main(main: &mut Main) {{ main.slot = 3; }}"
     )
 }
 
 #[test]
-fn a_store_to_a_domain_beyond_an_interval_stays_unadmitted() {
-    let domain = "domain u64::Slot requires self <= 8 && self != 5;";
+fn a_store_to_a_domain_beyond_an_interval_retains_its_obligation() {
+    let domain = "domain u64::Slot(value) requires value <= 8 && value != 5;";
     assert!(
-        plan(&program(domain)).is_none(),
-        "`self != 5` is evidence no store retains"
+        plan(&program(domain)).is_some(),
+        "the same field declaration governs a non-interval replacement"
     );
 }

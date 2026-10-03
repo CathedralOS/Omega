@@ -391,6 +391,7 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
                 | StructuralFieldType::PredicateByteSequence { .. }
                 | StructuralFieldType::Structural(_)
                 | StructuralFieldType::Erased { .. }
+                | StructuralFieldType::RefinedScalar(_)
                 | StructuralFieldType::BoundedInteger(_) => false,
             }
     })

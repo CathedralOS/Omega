@@ -120,6 +120,12 @@ pub enum CheckedUnitStructuralFieldType {
     /// Atomic storage retains its access contract separately from its carrier.
     Atomic(PrimitiveType),
     BoundedInteger(semantic_vocabulary::BoundedIntegerType),
+    /// Complete scalar restriction over formal parameter zero. This coordinate
+    /// names the field value, never an enclosing machine parameter.
+    RefinedScalar {
+        primitive: PrimitiveType,
+        predicate: crate::CheckedBooleanExpression,
+    },
     ByteSequence(CheckedByteSequenceCarrier),
     PredicateByteSequence {
         carrier: CheckedByteSequenceCarrier,

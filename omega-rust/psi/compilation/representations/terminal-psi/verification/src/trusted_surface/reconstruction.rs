@@ -26,6 +26,7 @@ const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/compilation/representations/t
 const OP_FACTS_RECORD: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/scalar_case.rs";
 const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/structural_case.rs";
+const FIELD_REQUIREMENTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_field_requirements.rs";
 const TERMINATOR_FACTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/terminator_facts.rs";
 const CRASH_FIELD_ORIGINS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/crash_field_origins.rs";
 const SHARED_MUTATION: &str =
@@ -323,8 +324,8 @@ static FACT_SCALAR_CARRIER_BOUNDS: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:scalar-carrier-bounds",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "a successor parameter, payload copy, or field read of a fixed integer or bounded-integer type",
-    conclusion: "LessOrEqual propositions bounding the value by its declared interval's exact minimum and maximum, each emitted only after its fixed-shape elimination certificate is accepted: the declared interval invariant is assumption zero and the bound is eliminated at its conjunct index",
+    premises: "a successor parameter, payload copy, or field read with independently established declared scalar validity",
+    conclusion: "the exact instantiated declaration predicate, or its conjunction members, transported to the scalar snapshot only after an assumption or conjunction-elimination certificate is accepted",
     dependencies: &[
         "formation:structural-scalar-fields",
         "rule:assumption",
@@ -336,9 +337,12 @@ static FACT_SCALAR_CARRIER_BOUNDS: TrustedSurfaceEntry = TrustedSurfaceEntry {
         PATH_FACTS,
         TERMINATOR_FACTS,
         OPERATION_FACTS,
+        FIELD_REQUIREMENTS,
+        "omega-rust/psi/foundation/semantic-vocabulary/src/scalar_refinement.rs",
+        "omega-rust/psi/foundation/semantic-vocabulary/src/proposition/value_ids/remap.rs",
     ],
     soundness: SoundnessStatus::Proved {
-        evidence: "declared_carrier_bounds emits each declared-interval bound under a fixed-shape certificate — the declaration's interval invariant (the conjunction of its minimum and maximum bounds) cited as assumption zero, the bound eliminated at its conjunct index — and proof-admission's certificate checker re-decides the certificate before the fact may join the roster; only an accepted certificate marks the emission under this entry — a rejected certificate leaves the emission under the calling row's licensed premise introductions and never fails the module",
+        evidence: "declared_scalar_field_facts instantiates the closed declaration at the observed SSA value and rechecks assumption or conjunction-elimination certificates before emitting facts. This certifies transport only: storage validity remains the calling row's independently established premise, supplied by checked construction, replacement and entry admission. Rejected certificates emit no fact",
     },
 };
 
@@ -354,6 +358,7 @@ static FACT_RECORD_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     ],
     implementation: &[
         OP_FACTS_RECORD,
+        FIELD_REQUIREMENTS,
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/record_field.rs",
     ],
@@ -372,6 +377,7 @@ static FACT_SCALAR_CASE_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry
     ],
     implementation: &[
         OP_FACTS_SCALAR_CASE,
+        FIELD_REQUIREMENTS,
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/scalar/case.rs",
     ],
@@ -390,6 +396,7 @@ static FACT_STRUCTURAL_CASE_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceE
     ],
     implementation: &[
         OP_FACTS_STRUCTURAL_CASE,
+        FIELD_REQUIREMENTS,
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/case.rs",
     ],
@@ -504,11 +511,11 @@ static FACT_STRUCTURAL_EFFECT_OBSERVATION: TrustedSurfaceEntry = TrustedSurfaceE
 };
 
 static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry {
-    id: "fact:integer-structural-field-read-range",
+    id: "fact:scalar-structural-field-read-refinement",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an integer structural field read over a referent whose declared field interval is valid, including a bounded payload field of a proved-active case and a mixed shape's common field",
-    conclusion: "the read's SSA value carries the declared interval as LessOrEqual bounds, surviving later writes",
+    premises: "a scalar structural field read over a valid referent, including a predicate-bearing payload of a proved-active case or a mixed shape's common field",
+    conclusion: "the read's SSA snapshot carries the instantiated declared predicate, surviving later writes without asserting old storage contents",
     dependencies: &["fact:scalar-carrier-bounds"],
     implementation: &[
         OPERATION_FACTS,
@@ -516,7 +523,7 @@ static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry 
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/record_field.rs",
     ],
     soundness: SoundnessStatus::Proved {
-        evidence: "the row emits no fact of its own shape: each bound it contributes is produced by `declared_carrier_bounds` — the `fact:scalar-carrier-bounds` certifying procedure — and joins the roster only when that fixed-shape `ConjunctionElimination` certificate (declared interval invariant as assumption zero, bound eliminated at its conjunct index) is accepted by proof-admission's checker; a rejected certificate emits nothing rather than joining trusted",
+        evidence: "the row contributes only facts from declared_scalar_field_facts, whose transport certificates are checked independently. The exact declaration and active case are validated before reading; construction, stores, and input admission preserve the storage-validity premise. Rejected transport certificates emit nothing",
     },
 };
 
@@ -758,7 +765,7 @@ static FACT_STRUCTURAL_CASE_ARM: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a structural-case arm's selected case and payload fields bound to target parameters",
-    conclusion: "the StructuralCaseMembership fact, field-path equations for Boolean and integer payloads, and bounded-integer payload bounds on the copied values",
+    conclusion: "the StructuralCaseMembership fact, field-path equations for Boolean and integer payloads, and checked declared predicates on the copied scalar snapshots",
     dependencies: &["fact:scalar-carrier-bounds"],
     implementation: &[TERMINATOR_FACTS],
     soundness: TRUSTED,

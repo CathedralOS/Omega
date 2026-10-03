@@ -14,7 +14,10 @@ use super::{
     function::{decode_function, encode_function},
 };
 
-pub(super) fn encode(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
+pub(super) fn encode(
+    bytes: &mut Vec<u8>,
+    plan: &SelectedInstructionPlan,
+) -> Result<(), terminal_codec::CodecError> {
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -22,8 +25,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
     bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
     length(bytes, plan.functions.len());
     for function in &plan.functions {
-        encode_function(bytes, function);
+        encode_function(bytes, function)?;
     }
+    Ok(())
 }
 
 pub(super) fn decode(

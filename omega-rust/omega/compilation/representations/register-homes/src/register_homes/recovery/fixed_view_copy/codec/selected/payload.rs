@@ -13,11 +13,15 @@ pub(crate) struct DecodedSelectedPlan {
     pub(crate) payload_matches: bool,
 }
 
-pub(super) fn encode(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
-    let payload = canonical_bytes(plan);
+pub(super) fn encode(
+    bytes: &mut Vec<u8>,
+    plan: &SelectedInstructionPlan,
+) -> Result<(), terminal_codec::CodecError> {
+    let payload = canonical_bytes(plan)?;
     bytes.extend_from_slice(&<[u8; 32]>::from(Sha256::digest(&payload)));
     length(bytes, payload.len());
     bytes.extend_from_slice(&payload);
+    Ok(())
 }
 
 pub(super) fn decode(
@@ -32,15 +36,18 @@ pub(super) fn decode(
         return Err(FixedViewCopyDecodeError::TrailingBytes);
     }
     let digest_matches = <[u8; 32]>::from(Sha256::digest(payload)) == expected_digest;
-    let canonical_matches = canonical_bytes(&plan).as_slice() == payload;
+    let canonical_matches = canonical_bytes(&plan)
+        .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?
+        .as_slice()
+        == payload;
     Ok(DecodedSelectedPlan {
         plan,
         payload_matches: digest_matches && canonical_matches,
     })
 }
 
-fn canonical_bytes(plan: &SelectedInstructionPlan) -> Vec<u8> {
+fn canonical_bytes(plan: &SelectedInstructionPlan) -> Result<Vec<u8>, terminal_codec::CodecError> {
     let mut payload = Vec::new();
-    encode_ordinary_plan(&mut payload, plan);
-    payload
+    encode_ordinary_plan(&mut payload, plan)?;
+    Ok(payload)
 }

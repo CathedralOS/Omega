@@ -38,10 +38,11 @@ pub struct LocalScalarRecordField {
 /// writes need not rebind the local, so absence of `mut` does not freeze fields.
 /// The caller must bind the expression to this authored statement's evaluation
 /// graph. Open generic/qualified owners, erased fields and scalar qualifications
-/// not represented by an exact interval require additional facts. Arithmetic
+/// without a complete supported predicate require additional facts. Arithmetic
 /// policy changes operations, not storage: retain it alongside the observation.
-/// Closed ranges and exact interval domains keep their bounded declaration and
-/// construction proof; observing the established field reads its scalar carrier.
+/// Restrictions stay on the independently reconstructed field declaration;
+/// construction and every store prove them. This query grants no membership:
+/// observing the established field reads its scalar carrier.
 pub fn local_scalar_record_field(
     program: &TypedTrees,
     machine: SymbolHandle,
@@ -395,7 +396,8 @@ fn local_plain_record(
 /// Policy-only integer fields use their ordinary scalar storage, while the
 /// returned observation separately retains their arithmetic policy. Closed
 /// ranges and exact declared intervals share the bounded-field storage contract;
-/// other qualifications and bounded non-Exact policies remain unsupported.
+/// complete scalar predicates retain their declaration invariant. Unsupported
+/// predicates and restricted non-Exact policies remain unsupported.
 fn realized_scalar_carrier(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
@@ -423,18 +425,23 @@ fn realized_scalar_carrier(
                 } => {
                     crate::closed_integer_range_bound(program, *minimum)?;
                     crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
+                    bounded = true;
                 }
                 TypeConstraintNode::Domain(domain) => {
-                    let (minimum, maximum) =
-                        crate::exact_declared_domain_carrier_interval(program, primitive, domain)?;
-                    if minimum > maximum {
-                        return None;
+                    if let Some((minimum, maximum)) =
+                        crate::exact_declared_domain_carrier_interval(program, primitive, domain)
+                    {
+                        if minimum > maximum {
+                            return None;
+                        }
+                        bounded = true;
+                    } else {
+                        crate::scalar_field_domain_predicate(program, domain, primitive)?;
                     }
                 }
                 _ => return None,
             }
         }
-        bounded = true;
         reference = *base_type;
     }
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;

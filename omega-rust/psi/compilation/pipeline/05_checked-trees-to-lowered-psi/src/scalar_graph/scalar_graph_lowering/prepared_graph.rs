@@ -155,6 +155,7 @@ pub(crate) enum LoweredScalarEffect {
         field: StructuralFieldId,
         value_position: usize,
         scalar_type: ScalarType,
+        requires_evidence: bool,
     },
     EstablishRecord(scalar_graph_lowering::structural_values::Construction),
     /// A declared-only local's zeroed whole-shape establishment: a fresh home

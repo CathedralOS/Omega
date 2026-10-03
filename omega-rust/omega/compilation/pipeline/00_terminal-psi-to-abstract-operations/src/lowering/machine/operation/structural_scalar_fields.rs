@@ -1,8 +1,8 @@
 //! Exact structural scalar-field preservation after independent Terminal verification.
-//! Bounded reads use the declared integer carrier after constructor/entry range
+//! Refined reads use the declared scalar carrier after constructor/entry predicate
 //! proof reconstruction. A read captures a value; it does not relax the declared
 //! invariant, so stores without their own establishment proof remain rejected.
-//! An integer read may also end its carrier with one `Case` step naming a
+//! A scalar read may also end its carrier with one `Case` step naming a
 //! payload field of that declared case; the payload overlays the sum's own
 //! place, and the carrier and leaf are rebuilt from declarations here.
 
@@ -197,10 +197,8 @@ fn lower_store(
         .iter()
         .find(|candidate| candidate.id == field)
         .ok_or_else(invalid)?;
-    if matches!(
-        declaration.field_type,
-        StructuralFieldType::BoundedInteger(_)
-    ) != range_obligation.is_some()
+    if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+        != range_obligation.is_some()
         || direct_relevant_scalar_field(
             structural_types,
             parent_type,
@@ -557,7 +555,7 @@ fn direct_relevant_scalar_field(
     structural_types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
-    allow_bounded_integer: bool,
+    allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let declaration = exact_structural_type(structural_types, structural_type)?;
     let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
@@ -565,13 +563,13 @@ fn direct_relevant_scalar_field(
     else {
         return None;
     };
-    unique_relevant_scalar_field(fields, field, allow_bounded_integer)
+    unique_relevant_scalar_field(fields, field, allow_refined_scalar)
 }
 
 fn unique_relevant_scalar_field(
     fields: &[terminal_psi::StructuralFieldDeclaration],
     field: StructuralFieldId,
-    allow_bounded_integer: bool,
+    allow_refined_scalar: bool,
 ) -> Option<ScalarType> {
     let mut matching = fields.iter().filter(|candidate| {
         candidate.id == field && candidate.relevance == BindingRelevance::Relevant
@@ -585,11 +583,15 @@ fn unique_relevant_scalar_field(
             Some(*scalar_type)
         }
         StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
-        StructuralFieldType::BoundedInteger(bounds) if allow_bounded_integer => {
+        StructuralFieldType::BoundedInteger(bounds) if allow_refined_scalar => {
             Some(ScalarType::Integer(bounds.integer_type()))
+        }
+        StructuralFieldType::RefinedScalar(refinement) if allow_refined_scalar => {
+            Some(refinement.carrier())
         }
         StructuralFieldType::ByteSequence(_)
         | StructuralFieldType::PredicateByteSequence { .. }
+        | StructuralFieldType::RefinedScalar(_)
         | StructuralFieldType::BoundedInteger(_)
         | StructuralFieldType::Structural(_)
         | StructuralFieldType::Erased { .. } => None,
@@ -941,9 +943,28 @@ mod tests {
                     "nested",
                     StructuralFieldType::Structural(StructuralTypeId::new(9).unwrap()),
                 ),
+                field(
+                    14,
+                    "refined",
+                    StructuralFieldType::RefinedScalar(
+                        semantic_vocabulary::ScalarRefinement::new(
+                            i32_type(),
+                            semantic_vocabulary::Proposition::Truth,
+                        )
+                        .unwrap(),
+                    ),
+                ),
             ],
         )];
         let root = StructuralTypeId::new(1).unwrap();
+        assert_eq!(
+            direct_relevant_scalar_field(&types, root, StructuralFieldId::new(14).unwrap(), false),
+            None
+        );
+        assert_eq!(
+            direct_relevant_scalar_field(&types, root, StructuralFieldId::new(14).unwrap(), true),
+            Some(i32_type())
+        );
         assert_eq!(
             direct_relevant_scalar_field(&types, root, StructuralFieldId::new(10).unwrap(), false),
             Some(i32_type())

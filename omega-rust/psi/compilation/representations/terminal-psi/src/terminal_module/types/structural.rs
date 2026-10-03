@@ -145,6 +145,10 @@ pub enum StructuralFieldType {
     Atomic(ScalarType),
     /// A scalar field whose declaration retains an inclusive integer restriction.
     BoundedInteger(semantic_vocabulary::BoundedIntegerType),
+    /// A scalar carrier with a closed declaration predicate. Construction and
+    /// every replacement prove this predicate; a validated read retains it on
+    /// its fresh snapshot. The predicate grants no raw-reference permission.
+    RefinedScalar(semantic_vocabulary::ScalarRefinement),
     /// Relevant IEEE leaf retained for structural identity and predicates.
     IeeeFloat(IeeeFloatFormat),
     ByteSequence(ByteSequenceCarrier),
@@ -198,6 +202,7 @@ impl StructuralFieldType {
         match self {
             Self::Scalar(scalar_type) | Self::Atomic(scalar_type) => Some(*scalar_type),
             Self::BoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
+            Self::RefinedScalar(refinement) => Some(refinement.carrier()),
             Self::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
             Self::ByteSequence(_)
             | Self::PredicateByteSequence { .. }
@@ -228,6 +233,7 @@ impl StructuralFieldType {
             Self::ByteSequence(_)
             | Self::PredicateByteSequence { .. }
             | Self::BoundedInteger(_)
+            | Self::RefinedScalar(_)
             | Self::Atomic(_)
             | Self::Structural(_)
             | Self::Erased { .. } => None,
