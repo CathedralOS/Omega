@@ -693,35 +693,17 @@ pub(crate) fn loaned_store(
                 "byte record store requires separate semantic field-range evidence",
             );
         }
-        let (_, authored) =
-            crate::expression_preparation::source_custody::authored_state(checked, state)?;
-        let Some(StatementNode::Assignment(assignment)) = checked
-            .statement_table
-            .statements(authored.statement_nodes)
-            .get(store.statement_index as usize)
-        else {
-            return unsupported("record store lost its authored assignment");
-        };
-        let source = validation::local_scalar_record_field(
-            &checked.typed,
-            machine,
-            state,
-            store.statement_index,
-            assignment.target,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "record store lost its declared projection",
-        ))?;
-        if source.local != symbol
-            || source.path != store.carrier_path
-            || source.primitive_type != store.primitive_type
-        {
-            return unsupported("record store substituted its declared projection");
-        }
-        Some(overlay.field(
+        // Source replay has already authenticated the complete authored
+        // destination against this checked path. Resolve normalized geometry
+        // from that path directly; reconstructing a second field recognizer
+        // here would discard the runtime selectors the store retained.
+        let mut scalar_path = store.carrier_path.clone();
+        scalar_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            store.field_identity.clone(),
+        ));
+        Some(overlay.scalar_path(
             checked,
-            &source.path,
-            source.field,
+            &scalar_path,
             terminal_scalar_type(store.primitive_type)?,
         )?)
     } else {
@@ -1768,6 +1750,72 @@ mod tests {
             &proof_admission::AdmissionProfile::default(),
         )
         .expect("every byte owns a checked bound at the end of the backing");
+    }
+
+    #[test]
+    fn runtime_nested_record_overlay_store_retains_array_bounds_and_source() {
+        let source = "data Pair { low: u16; high: u16; }
+             data Packet { tag: u16; entries: [Pair; 2]; }
+             data Main { bytes: [u8; 14]; i: u32 [0..=1]; }
+             machine Main::main(main: &mut Main) {
+                 main.i = 1;
+                 let view: &mut Packet = &mut main.bytes[0] as &mut Packet;
+                 view.tag = 513;
+                 view.entries[main.i].high = 1541;
+             }";
+        let checked = crate::front_end::checked_program(source);
+        let lowered = crate::lower_machine(
+            &checked,
+            crate::TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect("runtime record-array coordinates retain their declared bounds");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("dimension and byte bounds replay independently");
+        let mut changed = checked;
+        let path = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.operations)
+            .find_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+                    store,
+                ) if store.carrier_path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    )
+                }) =>
+                {
+                    Some(&mut store.carrier_path)
+                }
+                _ => None,
+            })
+            .expect("retained runtime array coordinate");
+        let selector = path
+            .iter_mut()
+            .find(|segment| {
+                matches!(
+                    segment,
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                )
+            })
+            .unwrap();
+        *selector = checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0);
+        assert!(
+            crate::lower_machine(
+                &changed,
+                crate::TerminalMachineSelection::Name("Main::main"),
+            )
+            .is_err(),
+            "a valid sibling coordinate cannot replace the authored selector"
+        );
     }
 
     #[test]

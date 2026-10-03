@@ -1334,7 +1334,7 @@ impl OperationFrame<'_, '_> {
             }
             LoanedSource::Local(symbol) => self.local_store_root(symbol)?,
         };
-        crate::emission::representation_view_store::prepare_byte_destination(
+        let mut destination = crate::emission::representation_view_store::prepare_byte_destination(
             place,
             root_type,
             &loan.path,
@@ -1351,7 +1351,42 @@ impl OperationFrame<'_, '_> {
             self.operations,
             self.calls,
             self.structural_types.declarations(),
-        )
+        )?;
+        if let Some(projection) = &loan.byte_overlay {
+            let steps = projection
+                .indices
+                .iter()
+                .map(|index| crate::emission::runtime_elements::selector_step(&index.selector))
+                .collect::<Vec<_>>();
+            let indexes = crate::emission::runtime_elements::evaluate_selectors(
+                &steps,
+                self.checked,
+                self.machine,
+                self.state,
+                statement_index,
+                self.evaluation,
+                self.source_value_count,
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+                self.calls,
+            )?;
+            if indexes.len() != projection.indices.len() {
+                return unsupported("record byte store lost a declared array coordinate");
+            }
+            for (index, dimension) in indexes.into_iter().zip(&projection.indices) {
+                destination.project_index(
+                    index,
+                    dimension.stride,
+                    dimension.extent,
+                    self.next_value,
+                    self.operations,
+                )?;
+            }
+        }
+        Ok(destination)
     }
 
     fn structural_scalar_field_store(

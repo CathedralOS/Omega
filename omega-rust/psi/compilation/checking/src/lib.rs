@@ -244,8 +244,9 @@ pub use value_custody::places::{
     zeroed_structural_parts,
 };
 pub use value_custody::recasts::{
-    RecastLeafSegment, RecastRecordSourceLeaf, RecastScalarLayout, RecastScalarProjection,
-    ValidatedLiteralIndexedRecastFootprint, recast_record_source_leaf, recast_scalar_layout,
+    RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
+    RecastScalarLayout, RecastScalarProjection, ValidatedLiteralIndexedRecastFootprint,
+    recast_record_source_leaf, recast_scalar_layout, recast_scalar_path_geometry,
     recast_scalar_path_projection, recast_scalar_projection,
     validate_literal_indexed_recast_footprint, validate_runtime_indexed_recast_source,
 };
