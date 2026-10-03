@@ -81,12 +81,17 @@ pub(crate) fn bind_local(
     // transfer. It classifies every producer and wrapper (plain arrays,
     // numeric-constrained and byte-predicate-domained owners, Named or
     // Constrained references) rather than per-shape combinations.
-    let represented_owned = validation::has_plain_owned_contents_with_represented_constraints(
-        &checked.typed,
-        local.type_reference,
-    );
+    // A returned nominal owner binds the same local home as any other owned
+    // result. Its eventual cleanup is an edge obligation, not a reason to
+    // omit the live source binding needed by later stores and transfers.
+    let owned_contents =
+        validation::has_cleanup_owned_contents(&checked.typed, local.type_reference)
+            || validation::has_plain_owned_contents_with_represented_constraints(
+                &checked.typed,
+                local.type_reference,
+            );
     if expression.is_some_and(|expression| expression != local.initial_value)
-        || !(borrowed_access.is_some() || represented_owned)
+        || !(borrowed_access.is_some() || owned_contents)
     {
         return Ok(());
     }
@@ -107,7 +112,7 @@ pub(crate) fn bind_local(
             ))
             .into_string(),
     };
-    if (local.is_mutable && !represented_owned)
+    if (local.is_mutable && !owned_contents)
         || !local.symbol.is_valid()
         || locals
             .iter()

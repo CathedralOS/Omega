@@ -434,10 +434,7 @@ fn retired_in_body(
                 .as_str()
                 != result.type_identity
             || !(stored_loan_record
-                || validation::has_plain_owned_contents_with_numeric_constraints(
-                    &checked.typed,
-                    local.type_reference,
-                )
+                || validation::has_cleanup_owned_contents(&checked.typed, local.type_reference)
                 || validation::has_owned_or_shared_view_contents(
                     &checked.typed,
                     local.type_reference,

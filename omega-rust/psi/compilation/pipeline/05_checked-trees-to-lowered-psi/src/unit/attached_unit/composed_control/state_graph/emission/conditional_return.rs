@@ -14,6 +14,9 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 impl StateGraphEmission<'_, '_> {
     /// Lower the return arm of a `ConditionalReturn` terminator and stage
     /// the edge the state's decision takes into it.
+    /// These admitted arms each own a transition statement's target; a false
+    /// decision does not turn that target into a source continuation. Ordered
+    /// structural exits carry actual continuation identity through `guarded`.
     pub(super) fn conditional_return_arm(
         &mut self,
         position: usize,
@@ -23,7 +26,6 @@ impl StateGraphEmission<'_, '_> {
         payload_parameters: &[ValueDeclaration],
         predecessor_discards: &[semantic_vocabulary::PlaceId],
         return_arm: &checked_trees::CheckedConditionalReturnArm,
-        is_continuation: bool,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -85,7 +87,7 @@ impl StateGraphEmission<'_, '_> {
                             .ok_or(LoweringError::Unsupported(
                                 "return arm lost its source coordinate",
                             ))? as usize,
-                        is_continuation,
+                        false,
                     )?,
                     operation,
                     self.catalogs,

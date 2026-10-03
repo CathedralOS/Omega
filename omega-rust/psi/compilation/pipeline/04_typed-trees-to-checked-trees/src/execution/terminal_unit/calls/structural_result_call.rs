@@ -109,9 +109,10 @@ pub(super) fn build(
     } else {
         arena::Handle::invalid()
     };
-    // A result whose contents hold no reference, slice or cleanup owner
-    // cannot retain a loan of its operands: whatever the callee read or wrote
-    // through a borrowed argument stays in the lender's storage.
+    // A result whose contents hold no reference or slice cannot retain a loan
+    // of its operands: whatever the callee read or wrote through a borrowed
+    // argument stays in the lender's storage. A nominal cleanup obligation
+    // travels with the owned result without retaining an operand loan.
     let represented_copy_result = result.multiplicity == Multiplicity::Unrestricted
         && validation::has_plain_owned_contents_with_represented_constraints(
             program,
@@ -122,10 +123,7 @@ pub(super) fn build(
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                target_state.return_type,
-            ))
+            ) && validation::has_cleanup_owned_contents(program, target_state.return_type))
             || (result.multiplicity == Multiplicity::Unrestricted
                 && validation::is_closed_primitive_array_type(program, target_state.return_type)));
     // A result signature is available before its ordinary or graph body plan.
@@ -187,7 +185,7 @@ pub(super) fn build(
                         (validation::is_closed_primitive_array_type(
                                 program,
                                 carrier,
-                            ) || validation::has_plain_owned_contents_with_numeric_constraints(
+                            ) || validation::has_cleanup_owned_contents(
                                 program,
                                 carrier,
                             ) || validation::reference_result_custody::is_reference_record(
@@ -320,11 +318,12 @@ pub(super) fn build(
             // Closed contents and the retained body determine the carrier,
             // including lifetime-only applications. Named syntax is not an
             // extra ownership proof; the classifier still rejects open types,
-            // carried loans, nominal cleanup and unknown qualifications.
+            // carried loans and unknown qualifications. Nominal cleanup remains
+            // attached to the transported owner and is checked at its death.
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_plain_owned_contents_with_numeric_constraints(
+            ) && validation::has_cleanup_owned_contents(
                 program,
                 target_state.return_type,
             ))

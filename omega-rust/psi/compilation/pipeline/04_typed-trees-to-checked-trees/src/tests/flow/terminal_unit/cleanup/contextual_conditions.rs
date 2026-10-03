@@ -166,7 +166,12 @@ fn contextual_condition_retains_exact_normal_edge_cleanup_actions() {
                 .iter()
                 .any(|state| state.structural_parameters.len() == 2)
         })
-        .expect("the general state graph must retain the specialized structural return");
+        .unwrap_or_else(|| {
+            panic!(
+                "the general state graph must retain the specialized structural return: {:?}",
+                checked.facts.flow.terminal_unit_effects.omissions,
+            )
+        });
     let rows = choose
         .states
         .iter()

@@ -864,7 +864,29 @@ impl OmissionLedger {
             // A multi-state body never reaches the ordinary builder's later
             // phases; the general state-graph route's trace explains it.
             let key = omission_key(machine);
-            let stage = match local_construction.get(&key) {
+            // Authored transitions belong to the general graph even in a
+            // single state. Its refusal names the actual control/value join;
+            // an ordinary sequence's generic completion refusal does not.
+            let has_transition = program.machine_by_symbol(machine).is_some_and(|owner| {
+                program.machine_states(owner).iter().any(|state| {
+                    program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .iter()
+                        .any(|statement| {
+                            matches!(
+                                statement,
+                                typed_trees::statement::StatementNode::Transition(_)
+                            )
+                        })
+                })
+            });
+            let preferred = if has_transition {
+                None
+            } else {
+                local_construction.get(&key)
+            };
+            let stage = match preferred {
                 Some(CheckedUnitPlanOmissionStage::LocalConstruction {
                     phase: "single-state body",
                     ..

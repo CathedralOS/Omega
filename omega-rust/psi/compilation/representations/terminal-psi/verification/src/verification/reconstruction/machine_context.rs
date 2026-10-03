@@ -7,7 +7,9 @@
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{BlockId, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule};
+use terminal_psi::{
+    Block, OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator,
+};
 
 pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
@@ -38,8 +40,25 @@ impl<'a> MachineReconstructionContext<'a> {
                 Some(terminal_psi::TerminalRankedScc::Natural(_))
             )
             || machine.blocks.iter().any(|block| {
-                block.operations.iter().any(|operation| {
-                    matches!(
+                // Cleanup calls consume the same selected-edge premises as
+                // operation calls, including when no ordinary call occurs in
+                // the machine. This only enables the shared CFG replay; it
+                // does not supply a condition independently of its edge.
+                let has_cleanup_call = match &block.terminator {
+                    Terminator::Return {
+                        cleanup_actions, ..
+                    }
+                    | Terminator::ReturnStructural {
+                        cleanup_actions, ..
+                    } => cleanup_actions.iter().any(|action| {
+                        matches!(action, TerminalAffineCleanupAction::InvokeNominal(_))
+                    }),
+                    Terminator::ReturnUnitNominalAffine { cleanups, .. } => !cleanups.is_empty(),
+                    _ => false,
+                };
+                has_cleanup_call
+                    || block.operations.iter().any(|operation| {
+                        matches!(
                     &operation.kind,
                     OperationKind::Call { .. }
                         | OperationKind::StructuralCaseLeafCopy { .. }
@@ -87,7 +106,7 @@ impl<'a> MachineReconstructionContext<'a> {
                                 semantic_vocabulary::CanonicalStructuralPathSegment::Case(_)
                             ))
                     )
-                })
+                    })
             });
         let value_types = machine
             .parameters

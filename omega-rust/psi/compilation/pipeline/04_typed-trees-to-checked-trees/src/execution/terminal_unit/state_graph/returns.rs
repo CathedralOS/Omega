@@ -81,6 +81,10 @@ pub(in crate::execution::terminal_unit) fn signature(
     } else {
         parameter_qualifications(program, shapes, reference, &[])?
     };
+    // Returning owned storage transfers its cleanup obligation with the value.
+    // A no-code-disposal classifier would reject that transfer solely because
+    // the declaration has a hook. Exact normal-edge plans account separately
+    // for owners that remain behind; result custody authenticates the transfer.
     let represented_copy = multiplicity == Multiplicity::Unrestricted
         && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
     let owned_bytes = multiplicity == Multiplicity::Unrestricted
@@ -92,9 +96,7 @@ pub(in crate::execution::terminal_unit) fn signature(
             && ((!view_result && !qualifications.is_empty())
                 || (!view_result
                     && !represented_copy
-                    && !validation::has_plain_owned_contents_with_numeric_constraints(
-                        program, reference,
-                    )
+                    && !validation::has_cleanup_owned_contents(program, reference)
                     && !validation::has_owned_or_shared_view_contents(program, reference))))
     {
         return None;
@@ -530,14 +532,17 @@ pub(super) fn return_value_operation(
         )
         .map(|operation| (operation, Vec::new()));
     }
+    trace.phase("state graph: structural return value: retained expression root");
     let root = facts.values.structural_values.root_for_expression(
         state.symbol,
         statement_ordinal,
         expression,
     )?;
+    trace.phase("state graph: structural return value: exact result type");
     if root.machine != machine.symbol || root.type_reference != state.return_type {
         return None;
     }
+    trace.phase("state graph: structural return value: operand calls");
     let mut operand_calls = Vec::new();
     let calls = control::structural_operands::value_calls(
         program,

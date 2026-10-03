@@ -82,3 +82,95 @@ fn slice_rooted_destination_admits_parameter_value() {
         "store",
     );
 }
+
+#[test]
+fn nominal_owned_local_scalar_store_is_independent_of_establishment_source() {
+    for initializer in ["Token { ready: false }", "make()"] {
+        let checked = checked_program(&format!(
+            r#"
+            data Token {{ ready: bool; }}
+            machine Token::drop(owner: &mut Token) requires owner.ready {{}}
+            machine make() -> Token {{ Token {{ ready: false }} }}
+            machine repair() -> Token {{
+                let selected: Token = {initializer};
+                selected.ready = true;
+                selected
+            }}
+        "#
+        ));
+        let program = &checked.typed;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "repair")
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        assert!(program.state_parameters(state).is_empty());
+        let parameters = Vec::new();
+        let stores = super::build_structural_scalar_field_store_sequence(
+            program,
+            &checked.facts,
+            machine,
+            state,
+            &parameters,
+            &[],
+            0,
+            None,
+        )
+        .expect("owned nominal local must support its ordinary scalar field store");
+        let [checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] =
+            stores.as_slice()
+        else {
+            panic!("one authored field store, with no cleanup disguised as a store");
+        };
+        assert_eq!(store.field_identity, "ready");
+        assert!(matches!(
+            store.destination,
+            checked_trees::CheckedStoreRoot::Local { .. }
+        ));
+    }
+}
+
+#[test]
+fn nominal_shared_local_scalar_store_still_requires_exclusive_authority() {
+    let checked = checked_program(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(owner: &mut Token) requires owner.ready {}
+        machine observe(owner: &Token) {
+            let selected: &Token = owner;
+            selected.ready = true;
+        }
+    "#,
+    );
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let mut shapes = super::ShapeCollector::new(program);
+    let (structural, scalar) =
+        crate::execution::terminal_unit::calls::free_structural_scalar_signature(
+            program,
+            &mut shapes,
+            state,
+            &[],
+        )
+        .expect("the shared ingress itself is an ordinary valid signature");
+    assert!(
+        super::build_structural_scalar_field_store_sequence(
+            program,
+            &checked.facts,
+            machine,
+            state,
+            &structural,
+            &scalar,
+            0,
+            None,
+        )
+        .is_none(),
+        "owning the descriptor must not grant mutable referent access"
+    );
+}

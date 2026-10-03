@@ -94,7 +94,7 @@ pub(crate) fn validate(
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
         ) && validation::reference_result_custody::is_reference_record(&checked.typed, source);
     if checked.primitive_type_reference(source).is_some()
-        || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
+        || !(validation::has_cleanup_owned_contents(&checked.typed, source)
             || validation::has_owned_or_shared_view_contents(&checked.typed, source)
             || owned_reference_parameter)
         || checked.normalized_type_identity(source) != checked.normalized_type_identity(expected)

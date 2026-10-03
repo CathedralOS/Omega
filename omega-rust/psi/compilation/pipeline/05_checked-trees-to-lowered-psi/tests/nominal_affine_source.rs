@@ -23,5 +23,7 @@ mod integer_comparison;
 mod scalar_returns;
 #[path = "nominal_affine_source/short_circuit.rs"]
 mod short_circuit;
+#[path = "nominal_affine_source/structural_returns.rs"]
+mod structural_returns;
 #[path = "nominal_affine_source/unit_cleanup.rs"]
 mod unit_cleanup;

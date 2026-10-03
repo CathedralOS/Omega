@@ -21,9 +21,10 @@ fn ordinary_unit_call(operation: &CheckedUnitEffectOperationPlan) -> Option<&Che
 /// Whether a call's result can retain no loan of its operands:
 /// nothing, a scalar, or a structural result that mints no reference loan
 /// or returned claim and whose callee declares contents holding no
-/// reference, slice or cleanup owner. The declared return type is read from
-/// the callee itself rather than from the checked plan's result shape, so a
-/// loan lent into such a call provably ends with it.
+/// reference or slice. Nominal cleanup travels with the owned result without
+/// retaining a loan. The declared return type is read from the callee itself
+/// rather than from the checked plan's result shape, so a loan lent into such
+/// a call provably ends with it.
 fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperationPlan) -> bool {
     let Some(call) = operation.call() else {
         return false;
@@ -47,11 +48,9 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
                 && ((matches!(
                     binding.multiplicity,
                     Multiplicity::Affine | Multiplicity::Unrestricted
-                ) && validation::has_plain_owned_contents_with_numeric_constraints(
-                    &checked.typed,
-                    returned,
-                )) || (binding.multiplicity == Multiplicity::Unrestricted
-                    && validation::is_closed_primitive_array_type(&checked.typed, returned)))
+                ) && validation::has_cleanup_owned_contents(&checked.typed, returned))
+                    || (binding.multiplicity == Multiplicity::Unrestricted
+                        && validation::is_closed_primitive_array_type(&checked.typed, returned)))
         })
 }
 
@@ -2019,14 +2018,14 @@ fn validate_operand_producers(
                     "case argument does not rejoin its exact constructor occurrence",
                 );
             }
-            // The call takes the fresh value whole: unrestricted or affine
-            // plain contents (numeric domains allowed) need no cleanup
-            // beyond the transfer itself; linear values keep claim rules.
+            // The call takes the fresh value whole, including its disposition
+            // obligation. The consuming edge proves transfer; a nominal hook
+            // belongs to whichever owner eventually disposes the value.
             let copied_array = result.multiplicity == Multiplicity::Unrestricted
                 && validation::is_closed_primitive_array_type(&checked.typed, construction_type);
             let whole_owned_contents = copied_array
                 || result.multiplicity != Multiplicity::Linear
-                    && validation::has_plain_owned_contents_with_numeric_constraints(
+                    && validation::has_cleanup_owned_contents(
                         &checked.typed,
                         construction_type,
                     )

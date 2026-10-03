@@ -292,7 +292,8 @@ pub(super) fn resolve<'a>(
 }
 
 /// An owned local store root under the parameter lane: a unique `LocalData`
-/// declaration earlier in the state that establishes its own storage. Unlike the scalar-graph lane's record local this root needs no
+/// declaration earlier in the state that establishes its own storage.
+/// Unlike the scalar-graph lane's record local this root needs no
 /// disposition row — the attached lane's emission writes through the live
 /// home place directly rather than rebuilding the local's scalar ledger.
 fn owned_local_root<'a>(
@@ -348,8 +349,9 @@ fn owned_local_root<'a>(
             || declared_home
             || primitive_local)
         || !(bounded_byte_local || primitive_local || declared_home)
-        || program.type_multiplicity(local.type_reference) == Multiplicity::Linear
-        || !validation::linear_claim_frontier(program, local.type_reference).is_empty()
+        // Cleanup policy does not change the authority to establish fields.
+        // A borrowed root must instead rejoin its exact loan.
+        || validation::reference_shell(program, local.type_reference).is_some()
     {
         return None;
     }

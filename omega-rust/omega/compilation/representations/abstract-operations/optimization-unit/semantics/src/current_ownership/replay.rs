@@ -3,8 +3,7 @@ use crate::current_ownership::cleanup::{
     validate_scalar_cleanup_actions, validate_unit_cleanup_actions,
 };
 use crate::current_ownership::mutations::{
-    apply_edge_trivial_affine_discards, expected_trivial_affine_discards, insert_owned_result,
-    reject_live_linear_claim,
+    apply_edge_trivial_affine_discards, insert_owned_result, reject_live_linear_claim,
 };
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{

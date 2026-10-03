@@ -238,3 +238,43 @@ fn record_replacement_rejects_missing_duplicate_and_redirected_stores() {
         );
     }
 }
+
+#[test]
+fn nominal_owned_local_store_rechecks_declaration_and_reference_authority() {
+    let checked = super::checked_source_with_core_service(
+        r#"
+        data Token { ready: bool; }
+        machine Token::drop(owner: &mut Token) requires owner.ready {}
+        machine identity(owner: Token) -> Token { owner }
+        machine repair(owner: Token) -> Token {
+            let selected: Token = identity(owner);
+            let observed: &Token = &selected;
+            selected.ready = true;
+            selected
+        }
+    "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "repair")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let checked_trees::statement::StatementNode::LocalData(selected) = &statements[0] else {
+        panic!("owned local");
+    };
+    let checked_trees::statement::StatementNode::LocalData(observed) = &statements[1] else {
+        panic!("shared local");
+    };
+    let admit = crate::emission::structural_scalar_store_source::local_destination;
+    assert!(admit(&checked, state, 2, selected.symbol).is_ok());
+    assert!(
+        admit(&checked, state, 0, selected.symbol).is_err(),
+        "the declaration must precede the write"
+    );
+    assert!(
+        admit(&checked, state, 2, observed.symbol).is_err(),
+        "a shared descriptor cannot stand in for the owned home"
+    );
+}

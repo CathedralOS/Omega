@@ -10,9 +10,7 @@ use super::super::super::{
     allocate_dense, edge_id, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
-use super::{
-    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-};
+use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::{CheckedScalarBranchDestination, expression::ExpressionNode};
 
@@ -205,7 +203,6 @@ pub(super) fn validate(
     {
         return unsupported("ordered reference returns do not cover their candidate roster");
     }
-    super::cleanup_admission::validate(checked, plan.machine, source, state)?;
     Ok(())
 }
 
@@ -696,7 +693,13 @@ pub(super) fn emit(
         operations.byte_lengths.clear();
         operations.field_byte_lengths.clear();
     }
-    let fallback_exit = super::cleanup::destination(checked, state, fallback.as_ref().ok_or(LoweringError::Unsupported("ordered return lost its fallback destination"))?)?;
+    let fallback_exit = super::cleanup::destination(
+        checked,
+        state,
+        fallback.as_ref().ok_or(LoweringError::Unsupported(
+            "ordered return lost its fallback destination",
+        ))?,
+    )?;
     let fallback =
         return_values
             .last()

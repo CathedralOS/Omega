@@ -147,7 +147,8 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
         .clone();
 
     let mut stale = original.clone();
-    stale.cleanups[0].source_parameter_index = 1;
+    stale.cleanups[0].source =
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&checked, &stale),
         Err(LoweringError::Unsupported(

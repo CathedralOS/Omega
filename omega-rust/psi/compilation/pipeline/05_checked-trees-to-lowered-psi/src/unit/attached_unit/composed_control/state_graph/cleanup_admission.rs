@@ -347,7 +347,6 @@ fn selected_nominal(
                             )
                     })
                 }
-                _ => false,
             })
     {
         return Err(invalid());

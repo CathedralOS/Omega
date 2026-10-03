@@ -111,6 +111,7 @@ fn finalize_operation_proofs_inner(
                     site.owner,
                     terminal_verifier::ReconstructedTerminalObligationOwner::ContractEnsures { .. }
                         | terminal_verifier::ReconstructedTerminalObligationOwner::CallRequires { .. }
+                        | terminal_verifier::ReconstructedTerminalObligationOwner::NominalCleanupRequires { .. }
                 )) {
             // This invocation borrows an immutable module. Share only machine
             // facts, not site assumptions or proof-search state. Cache failures

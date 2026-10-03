@@ -5,9 +5,7 @@
 //! that authority from its declaration: it must still establish each member.
 //! Both routes retain the exact carrier for the receiving custody replay.
 
-use crate::execution::terminal_unit::types::{
-    ShapeCollector, is_unit, parameter_qualifications, type_graph_requires_nominal_drop,
-};
+use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, parameter_qualifications};
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
 use crate::execution::terminal_unit::{
@@ -238,12 +236,8 @@ fn structural_result_type(
     if is_unit(program, result_type)
         || program.primitive_type_reference(result_type).is_some()
         || is_reference(program, result_type)
-        || type_graph_requires_nominal_drop(program, result_type)
         || (multiplicity != Multiplicity::Linear
-            && (!(validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                result_type,
-            ) || validation::has_cleanup_owned_contents(program, result_type)
+            && (!(validation::has_cleanup_owned_contents(program, result_type)
                 || (!constructed
                     && multiplicity == Multiplicity::Unrestricted
                     && validation::has_plain_owned_contents_with_represented_constraints(

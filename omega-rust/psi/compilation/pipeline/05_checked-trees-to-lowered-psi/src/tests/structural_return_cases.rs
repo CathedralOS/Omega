@@ -3,8 +3,8 @@
 use super::{CheckedTrees, LoweringError, ScalarType, TerminalMachineResult, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::{block_id, place_id, value_id};
+use checked_trees::CheckedScalarExpression;
 use checked_trees::types::PrimitiveType;
-use checked_trees::{CheckedNormalCleanupAction, CheckedScalarExpression};
 use terminal_psi::{
     Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
 };
@@ -29,10 +29,8 @@ fn structural_scalar_return_fails_closed_on_stale_cleanup() {
         .flow
         .terminal_structural_scalar_returns
         .machines[0]
-        .cleanup_actions = vec![
-        CheckedNormalCleanupAction::DiscardRoot(0),
-        CheckedNormalCleanupAction::DiscardRoot(1),
-    ];
+        .cleanup_actions
+        .reverse();
 
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),

@@ -192,10 +192,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             Some(checked_trees::CheckedStructuralAccess::Owned)
         ) && validation::has_owned_or_shared_view_contents(program, state.return_type))
         && !validation::is_closed_primitive_array_type(program, state.return_type)
-        && !validation::has_plain_owned_contents_with_numeric_constraints(
-            program,
-            state.return_type,
-        )
+        && !validation::has_cleanup_owned_contents(program, state.return_type)
         && !(crate::checks::type_multiplicity(program, state.return_type)
             == language_semantics::Multiplicity::Unrestricted
             && validation::has_plain_owned_contents_with_represented_constraints(

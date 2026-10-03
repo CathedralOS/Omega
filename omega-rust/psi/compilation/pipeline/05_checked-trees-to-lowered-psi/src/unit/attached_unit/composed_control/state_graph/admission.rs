@@ -187,6 +187,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     let live = topology::live(plan)?;
     let qualified_invocation = invocation_only_entry(plan, &live);
     for (state_index, ((owner, source), state)) in authored.iter().zip(&plan.states).enumerate() {
+        if live[state_index] {
+            super::cleanup_admission::validate(checked, owner.symbol, source, state)?;
+        }
         crate::unit::attached_unit::claims::validate_entry_claims(
             checked,
             owner.symbol,
@@ -342,6 +345,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         .as_str()
                         != parameter.type_identity
                     || (parameter.multiplicity != Multiplicity::Linear
+                        && !validation::has_cleanup_owned_contents(
+                            &checked.typed,
+                            source.type_reference,
+                        )
                         && !validation::has_plain_owned_contents_with_represented_constraints(
                             &checked.typed,
                             crate::unit::attached_unit::parameters::structural_carrier_type(

@@ -5,7 +5,7 @@ use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueRe
 use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, substituted_formal_type,
 };
-use crate::execution::terminal_unit::types::{is_unit, type_graph_requires_nominal_drop};
+use crate::execution::terminal_unit::types::is_unit;
 use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
     TypedTrees, is_reference,
@@ -103,6 +103,8 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
 /// generic requirement's `Type` result formal resolves to its derived actual
 /// before shape evidence is replayed, and a compound result such as
 /// `Task<T>` substitutes inside the identity comparison itself.
+/// This joins the returned carrier, not its eventual disposal: completion
+/// transfers nominal cleanup obligations with the whole owned value.
 pub(crate) fn boundary_value_result_matches(
     program: &TypedTrees,
     return_type: typed_trees::types::TypeReferenceHandle,
@@ -118,7 +120,6 @@ pub(crate) fn boundary_value_result_matches(
             program.primitive_type_reference(return_type).is_none()
                 && !is_unit(program, return_type)
                 && !is_reference(program, return_type)
-                && !type_graph_requires_nominal_drop(program, return_type)
                 && crate::checks::type_multiplicity(program, return_type) == expected.multiplicity
                 && base_type_identity_with_substitutions(program, return_type, &[], substitutions)
                     .is_some_and(|identity| identity == expected.type_identity)

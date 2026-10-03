@@ -816,8 +816,13 @@ fn build_traced_with(
                     } else {
                         validation::has_owned_or_shared_view_contents(program, reference())
                     };
+                    // A whole arrival carries its owner's eventual cleanup
+                    // obligation. Its hook does not make the storage invalid;
+                    // exact selected normal-edge actions dispose only what
+                    // remains after transfers and returned-value custody.
                     if parameter.multiplicity != Multiplicity::Linear
                         && !owned_sequence
+                        && !validation::has_cleanup_owned_contents(program, reference())
                         && !validation::has_plain_owned_contents_with_represented_constraints(
                             program,
                             reference(),

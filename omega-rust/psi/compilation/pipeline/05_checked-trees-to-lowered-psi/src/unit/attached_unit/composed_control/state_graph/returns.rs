@@ -175,7 +175,7 @@ pub(super) fn signature_matches(
                 && (result.multiplicity == Multiplicity::Linear
                     || (result.multiplicity == Multiplicity::Unrestricted
                         && validation::has_plain_owned_contents_with_represented_constraints(&checked.typed, source.return_type))
-                    || validation::has_plain_owned_contents_with_numeric_constraints(
+                    || validation::has_cleanup_owned_contents(
                     &checked.typed,
                     carrier,
                 ) || validation::has_owned_or_shared_view_contents(&checked.typed, carrier))
