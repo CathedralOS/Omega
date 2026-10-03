@@ -136,7 +136,7 @@ fn declared_interval_write_identity_reaches_generated_wire_decoder() {
         domain i32::WireDelta(value) requires 0 - 10 <= value && value <= 10;
         data Val { v: u32 in WireValue; delta: i32 in WireDelta; }
         data WireVerdict { case Invalid; case Sound; }
-        machine decode_value(value: &mut Val, bytes: &[u8], read: &mut u64, verdict: &mut WireVerdict) {
+        machine decode_value(value: &mut Val, bytes: &[u8; 32], read: &mut u64, verdict: &mut WireVerdict) {
             Msg::decode(value, bytes, read, verdict);
         }
     "#;
