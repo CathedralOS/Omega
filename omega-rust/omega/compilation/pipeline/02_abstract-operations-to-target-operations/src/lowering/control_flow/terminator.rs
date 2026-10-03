@@ -305,6 +305,65 @@ pub(super) fn lower_terminator(
                 .structural()
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             let cleanup_actions = cleanup(live, trivial_affine_discards)?;
+            if terminal_semantics::descriptor_results::is_shared_descriptor(
+                structural_types.values().copied(),
+                result.structural_type,
+            ) {
+                // Descriptor storage is not backing ownership. Every established
+                // view uses the same value-result ABI, including a literal whose
+                // octets live in the image rather than an operation-result home.
+                let source_type = live
+                    .structural_homes
+                    .get(source)
+                    .filter(|home| {
+                        home.multiplicity() == StructuralMultiplicity::Unrestricted
+                            && home.qualifications().is_empty()
+                            && home.projected_qualifications().is_empty()
+                    })
+                    .map(|home| home.structural_type())
+                    .or_else(|| live.views.get(source).map(|(_, identity)| *identity))
+                    .or_else(|| {
+                        function
+                            .arrival_parameter(*source)
+                            .filter(|parameter| {
+                                (function
+                                    .structural_parameters
+                                    .iter()
+                                    .any(|entry| entry.place == *source)
+                                    || live.block_views.contains(source))
+                                    && matches!(
+                                        parameter.access,
+                                        StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                                    )
+                                    && parameter.multiplicity
+                                        == StructuralMultiplicity::Unrestricted
+                                    && !parameter.is_self
+                                    && parameter.qualifications.is_empty()
+                                    && parameter.projected_qualifications.is_empty()
+                            })
+                            .map(|parameter| parameter.structural_type)
+                    });
+                if source_type != Some(result.structural_type)
+                    || result.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !returned_claims.is_empty()
+                    || !trivial_affine_locals.is_empty()
+                    || prepared.call_plan.result.as_ref().is_none_or(|placement| {
+                        placement.shape != calling_conventions::ValueShape::integer(16, 8)
+                    })
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                provenance.edges.push(*psi_edge);
+                return Ok(TargetControlTerminator::ReturnStructural {
+                    psi_edge: *psi_edge,
+                    source: target_operations::TargetStructuralReturnSource::SharedDescriptor {
+                        place: *source,
+                    },
+                    cleanup_actions,
+                });
+            }
             let reference_bearing =
                 super::references::contains_reference(structural_types, result.structural_type);
             if let Some(parameter) = function
@@ -322,24 +381,7 @@ pub(super) fn lower_terminator(
                     .result
                     .as_ref()
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                // A shared descriptor returns its payload, not the address of
-                // the caller's descriptor. Borrowed ingress and value-result
-                // ABI classes therefore differ while their payload is equal.
-                let descriptor = parameter.access == StructuralAccess::SharedBorrow
-                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    && terminal_semantics::descriptor_results::is_shared_descriptor(
-                        structural_types.values().copied(),
-                        parameter.structural_type,
-                    );
-                let result_shape = if descriptor {
-                    calling_conventions::ValueShape::integer(
-                        actual.shape.byte_size,
-                        actual.shape.alignment,
-                    )
-                } else {
-                    actual.shape
-                };
-                if (parameter.access != StructuralAccess::Owned && !descriptor)
+                if parameter.access != StructuralAccess::Owned
                     || parameter.multiplicity == StructuralMultiplicity::Linear
                     || parameter.is_self
                     || parameter.structural_type != result.structural_type
@@ -350,7 +392,7 @@ pub(super) fn lower_terminator(
                     || !result.projected_qualifications.is_empty()
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()
-                    || result_shape != placement.shape
+                    || actual.shape != placement.shape
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }

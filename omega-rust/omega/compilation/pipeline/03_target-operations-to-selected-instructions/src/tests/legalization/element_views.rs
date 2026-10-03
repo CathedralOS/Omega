@@ -1543,21 +1543,29 @@ fn returned_subslice_materializes_descriptor_home_and_replays_its_producer() {
         let mut changed = targeted.clone();
         let graph = &mut changed.functions[0].graph;
         let target_operations::TargetControlTerminator::ReturnStructural {
-            source: target_operations::TargetStructuralReturnSource::Home(home),
+            source: target_operations::TargetStructuralReturnSource::SharedDescriptor { place },
             ..
         } = &mut graph.blocks[0].terminator
         else {
-            panic!("descriptor home return");
+            panic!("descriptor value return");
         };
-        let target_operations::TargetStructuralHomeOrigin::OperationResult { operation, .. } =
-            &mut home.origin
-        else {
-            panic!("operation result home");
-        };
-        *operation = OperationId::new(1).unwrap();
+        *place = PlaceId::new(1).unwrap();
         assert!(
             crate::legalize_target_operations(&changed, &source, &unit).is_err(),
-            "bytes={bytes}: substituted producer"
+            "bytes={bytes}: substituted return source"
+        );
+        let mut changed = legalized.plan().clone();
+        let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+            &mut changed.scalar_functions[0].blocks[0].terminator
+        else {
+            panic!("descriptor return");
+        };
+        returned.value = legalized_operations::LegalizedScalarReturnValue::SharedDescriptor {
+            place: PlaceId::new(1).unwrap(),
+        };
+        assert!(
+            crate::validate_legalized_operations(&targeted, &source, &unit, changed,).is_err(),
+            "bytes={bytes}: replay must retain the exact subslice"
         );
     }
 }

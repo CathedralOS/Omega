@@ -79,9 +79,11 @@ pub enum TargetControlTerminator {
     },
 }
 
-/// A structural return reads either a produced home or the original incoming ABI value.
+/// Owned returns retain custody of their home or ingress. Shared descriptors
+/// return the two-word value at a place, not ownership of its backing storage.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetStructuralReturnSource {
+    SharedDescriptor { place: semantic_vocabulary::PlaceId },
     Home(crate::TargetStructuralHomeRequirement),
     Parameter(TargetStructuralParameter),
 }

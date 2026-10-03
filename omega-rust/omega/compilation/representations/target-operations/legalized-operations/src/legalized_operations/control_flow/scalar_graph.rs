@@ -1228,6 +1228,11 @@ pub struct LegalizedDynamicParameterCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarReturnValue {
     Unit,
+    /// Copy an established shared descriptor; its backing lifetime is checked
+    /// by current-program origin reconstruction, not inferred from its home.
+    SharedDescriptor {
+        place: semantic_vocabulary::PlaceId,
+    },
     /// The exact incoming place; its semantic declaration and ABI placement
     /// remain in the function's structural contract.
     StructuralParameter {

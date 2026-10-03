@@ -229,14 +229,33 @@ pub(super) fn validate(
                         .is_ok()
                     })
                     && match source {
+                        target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => {
+                            place == expected_source
+                                && super::super::byte_views::shared_return(
+                                    optimized, *place, &plan.structural_types,
+                                )
+                                && graph.call_plan.result.as_ref().is_some_and(|result|
+                                    result.shape == calling_conventions::ValueShape::integer(16, 8))
+                                && (optimized.structural_parameters.iter().any(|parameter|
+                                    parameter.place == *place)
+                                    || optimized.blocks.iter().any(|producer| {
+                                        (producer.id == block.block || sources::dominates(
+                                            optimized, producer.id, block.block))
+                                            && (producer.structural_parameters.iter().any(|parameter|
+                                                parameter.place == *place)
+                                                || producer.nodes.iter().any(|node|
+                                                    node.operation.structural_result().is_some_and(
+                                                        |(_, result)| result.place == *place)
+                                                    || matches!(&node.operation,
+                                                        AbstractOperation::EstablishByteSequenceLiteral {
+                                                            place: declaration, ..
+                                                        } if declaration.id == *place)))
+                                    }))
+                        }
                         target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
                             optimized.structural_parameters.iter().any(|semantic| {
                                 semantic.place == *expected_source
-                            && (semantic.access == terminal_psi::StructuralAccess::Owned
-                                || semantic.access == terminal_psi::StructuralAccess::SharedBorrow
-                                    && semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                                    && terminal_semantics::descriptor_results::is_shared_descriptor(
-                                        plan.structural_types.iter(), semantic.structural_type))
+                            && semantic.access == terminal_psi::StructuralAccess::Owned
                             && semantic.multiplicity
                                 != terminal_psi::StructuralMultiplicity::Linear
                             && !semantic.is_self
@@ -258,10 +277,7 @@ pub(super) fn validate(
                                     .result
                                     .as_ref()
                                     .is_some_and(|result| {
-                                        let payload = if parameter.access == terminal_psi::StructuralAccess::SharedBorrow {
-                                            calling_conventions::ValueShape::integer(parameter.shape.byte_size, parameter.shape.alignment)
-                                        } else { parameter.shape };
-                                        result.shape == payload
+                                        result.shape == parameter.shape
                                     })
                         }
                         target_operations::TargetStructuralReturnSource::Home(source) => {

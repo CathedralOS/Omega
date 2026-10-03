@@ -70,7 +70,8 @@ pub(super) fn build(
         LegalizedScalarTerminator::Return(returned) => {
             let (kind, key, operands, values) = match returned.value {
                 LegalizedScalarReturnValue::Structural { .. }
-                | LegalizedScalarReturnValue::StructuralParameter { .. } => {
+                | LegalizedScalarReturnValue::StructuralParameter { .. }
+                | LegalizedScalarReturnValue::SharedDescriptor { .. } => {
                     return super::aggregate_return::build(
                         source,
                         block,
@@ -381,19 +382,22 @@ fn successor(
                     .iter()
                     .find(|block| block.id == next.target)
                     .and_then(|block| {
-                        block.structural_parameters.iter()
+                        block
+                            .structural_parameters
+                            .iter()
                             .find(|parameter| parameter.place == semantic.parameter)
                     })
                     .ok_or(SelectedInstructionError::custody())?;
-                let transport = crate::selection::aggregate_result_input::block_parameter_transport(
-                    source,
-                    next.target,
-                    parameter,
-                    &semantic.argument,
-                    &builder.transport.pointers,
-                    &builder.transport.local_slots,
-                )
-                .ok_or(SelectedInstructionError::custody())?;
+                let transport =
+                    crate::selection::aggregate_result_input::block_parameter_transport(
+                        source,
+                        next.target,
+                        parameter,
+                        &semantic.argument,
+                        &builder.transport.pointers,
+                        &builder.transport.local_slots,
+                    )
+                    .ok_or(SelectedInstructionError::custody())?;
                 Ok(selected_instructions::SelectedStructuralBinding {
                     semantic: semantic.clone(),
                     transport,

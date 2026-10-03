@@ -1745,11 +1745,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `storage/runtime_parameter_slice_forward_exit` both execute with native and
   interpreter exit **70** on macOS ARM64. The latter checks caller-visible
   writes across two states and untouched sibling fields. Shared view results
-  retain original backing through ordinary calls:
-  `slices/runtime_shared_whole_view_return_exit` runs through the prepared
-  `omega run --both` product route with native/interpreter exit **70**.
-  `slices/runtime_shared_subslice_return_exit` also agrees at **70**, retaining
-  a nonzero offset and exact extent through nested helper returns.
+  use one descriptor-value return path, preserving original backing independently
+  of the carrier home. Retain `slices/runtime_shared_whole_view_return_exit`
+  and `slices/runtime_shared_subslice_return_exit` as native/interpreter exit-70
+  controls, including nonzero offset and exact extent through nested returns.
+  On base `e3da317976b`, macOS ARM64,
+  `python3 tools/corpus_gate.py --both --golden tests/omega/corpus_native_macos_arm64.txt
+  --filter slices/runtime_literal_view_return_exit` agrees at **105**:
+  image-backed bytes retain their length and contents through a literal getter,
+  whole-descriptor forwarding, and a returned subslice. Caller arguments rejoin
+  exact checked read access instead of recognizing literal initializers.
+  The unprepared public `omega run --both`
+  route still requires ordinary package review; fixture policy is not owner
+  acceptance. Continue with the remaining producer/read/state compositions.
   Descriptor cleanup remains separate from backing permission; returned shared
   views cannot grant mutation authority or escape activation-owned storage.
   Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.

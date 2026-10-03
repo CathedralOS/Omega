@@ -15,6 +15,8 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
     transferred(source, place)
         || source.blocks.iter().any(|block| matches!(&block.terminator,
             LegalizedScalarTerminator::Return(returned) | LegalizedScalarTerminator::ReturnCleanup { returned, .. } if matches!(&returned.value,
+                legalized_operations::LegalizedScalarReturnValue::SharedDescriptor { place: returned } if *returned == place)
+                || matches!(&returned.value,
                 legalized_operations::LegalizedScalarReturnValue::Structural { source: legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. } } if result.place == place)))
         || source
             .blocks
@@ -104,7 +106,8 @@ fn declared_view_type(
         // A mutable view stays unqualified: its stores would have to preserve them.
         if !matches!(
             parameter.access,
-            terminal_psi::StructuralAccess::SharedBorrow
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
         ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || (!parameter.qualifications.is_empty()
@@ -115,31 +118,24 @@ fn declared_view_type(
         }
         return Some(parameter.structural_type);
     }
-    if let Some((_, result)) = descriptor_result(source, place) {
-        return Some(result.structural_type);
-    }
     source
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
-        .find_map(|row| match &row.kind {
-            LegalizedScalarInstructionKind::ByteSequenceSubslice { result, .. }
-            | LegalizedScalarInstructionKind::ElementViewSubslice { result, .. }
-                if result.place == place =>
+        .find_map(|row| {
+            if let Some(result) = row.kind.get_structural_result()
+                && result.place == place
             {
-                Some(result.structural_type)
+                return Some(result.structural_type);
             }
-            LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
-                destination,
-                structural_type,
-                ..
-            } if destination.id == place => Some(structural_type.id),
-            LegalizedScalarInstructionKind::EstablishElementView { result, .. }
-                if result.place == place =>
-            {
-                Some(result.structural_type)
+            match &row.kind {
+                LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+                    destination,
+                    structural_type,
+                    ..
+                } if destination.id == place => Some(structural_type.id),
+                _ => None,
             }
-            _ => None,
         })
 }
 

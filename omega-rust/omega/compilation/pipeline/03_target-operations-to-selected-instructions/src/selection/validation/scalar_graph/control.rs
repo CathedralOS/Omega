@@ -108,7 +108,8 @@ pub(super) fn validate(
             }
             let (kind, key, operands, values) = match returned.value {
                 LegalizedScalarReturnValue::Structural { .. }
-                | LegalizedScalarReturnValue::StructuralParameter { .. } => {
+                | LegalizedScalarReturnValue::StructuralParameter { .. }
+                | LegalizedScalarReturnValue::SharedDescriptor { .. } => {
                     return super::aggregate_return::validate(
                         source,
                         block,

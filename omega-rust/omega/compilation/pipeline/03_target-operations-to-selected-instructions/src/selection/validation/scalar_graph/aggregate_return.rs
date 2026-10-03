@@ -16,7 +16,11 @@ pub(super) fn validate(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let (place, placement, slot) = if let Some((parameter, placement)) =
+    let (place, placement, slot) = if let Some(descriptor) =
+        crate::selection::aggregate_result_input::returned_descriptor(source, &returned.value)
+    {
+        descriptor
+    } else if let Some((parameter, placement)) =
         crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {
         let place = parameter.semantic.place;

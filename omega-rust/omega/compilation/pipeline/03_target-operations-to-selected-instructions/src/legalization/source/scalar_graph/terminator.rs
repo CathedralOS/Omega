@@ -33,7 +33,13 @@ pub(super) fn project(
         AbstractOperation::ReturnStructural {
             psi_edge, source, ..
         } => {
-            let value = if function
+            let value = if scalar_graph_input::byte_views::shared_return(
+                function,
+                *source,
+                &plan.structural_types,
+            ) {
+                LegalizedScalarReturnValue::SharedDescriptor { place: *source }
+            } else if function
                 .structural_parameters
                 .iter()
                 .any(|parameter| parameter.place == *source)

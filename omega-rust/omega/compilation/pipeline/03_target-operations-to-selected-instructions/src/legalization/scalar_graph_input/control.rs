@@ -31,19 +31,26 @@ pub(super) fn validate(
                 .copied()
                 .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
                 .collect::<Vec<_>>();
+            if terminal_semantics::descriptor_results::is_shared_descriptor(
+                structural_types.iter(),
+                declared.structural_type,
+            ) {
+                if !super::byte_views::shared_return(function, *source, structural_types)
+                    || !returned_claims.is_empty()
+                    || !trivial_affine_locals.is_empty()
+                    || !super::aggregate_results::cleanup(function, &cleanup_actions)
+                {
+                    return Err(LegalizationError::custody());
+                }
+                return terminal_edge(node, *psi_edge);
+            }
             let (structural_type, multiplicity, source_roster_matches) = if let Some(parameter) =
                 function
                     .structural_parameters
                     .iter()
                     .find(|parameter| parameter.place == *source)
             {
-                let descriptor = parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-                    && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                    && terminal_semantics::descriptor_results::is_shared_descriptor(
-                        structural_types.iter(),
-                        parameter.structural_type,
-                    );
-                if (parameter.access != terminal_psi::StructuralAccess::Owned && !descriptor)
+                if parameter.access != terminal_psi::StructuralAccess::Owned
                     || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || parameter.is_self
                     || !parameter.qualifications.is_empty()
