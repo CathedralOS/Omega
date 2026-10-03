@@ -11,7 +11,7 @@ use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule};
 
 pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
-    pub(super) storage: super::super::storage_observations::StorageObservations,
+    pub(super) storage: super::super::storage_observations::StorageObservations<'a>,
     pub(super) value_types: BTreeMap<ValueId, ScalarType>,
     pub(super) blocks: BTreeMap<BlockId, &'a Block>,
     proposition_context: PropositionContext,

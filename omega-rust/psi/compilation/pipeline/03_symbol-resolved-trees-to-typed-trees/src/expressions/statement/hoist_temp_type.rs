@@ -88,7 +88,21 @@ pub(super) fn infer_hoist_temp_type(
                 call.receiver.is_valid(),
             ) =>
         {
-            return builtin_u64_type(lowerer);
+            return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::U64, "u64");
+        }
+        // A primitive byte predicate has a fixed Boolean result, independent
+        // of its operand's carrier. Resolved declarations and receiver calls
+        // retain their own result signatures even when their names coincide.
+        ExpressionNode::Call(call)
+            if !call.target_symbol.is_valid()
+                && !call.receiver.is_valid()
+                && expressions.expression_handles(call.arguments).len() == 1
+                && language_semantics::byte_predicates::ByteSequencePredicate::from_name(
+                    call.target.as_str(),
+                )
+                .is_some() =>
+        {
+            return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::Bool, "bool");
         }
         // A USER value-machine call hoisted out of a guard comparison
         // (`let __hoist = self.dbl(5)`, syntax->symbol-resolved
@@ -1313,19 +1327,18 @@ fn resolved_primitive_type(
     }
 }
 
-/// The builtin `u64` as a typed named reference -- the fixed result type of
-/// `size_of`/`align_of` data-layout queries, which carry no callee signature
-/// to infer a return type from.
-fn builtin_u64_type(
+/// A compiler primitive's fixed result type, selected by its builtin identity
+/// rather than a user declaration with the same diagnostic spelling.
+fn builtin_primitive_type(
     lowerer: &mut Lowerer,
+    atom: symbols::BuiltinTypeAtom,
+    spelling: &'static str,
 ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
     let symbols = &lowerer.source_trees.symbols;
     let Some(symbol) = symbols
         .child_handles(symbols.root())
         .and_then(|mut children| {
-            children.find(|symbol| {
-                symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
-            })
+            children.find(|symbol| symbols.builtin_type_atom(*symbol) == Some(atom))
         })
     else {
         return Ok(None);
@@ -1333,7 +1346,94 @@ fn builtin_u64_type(
     Ok(Some(lowerer.typed_trees.type_reference_table.insert(
         typed::types::TypeReferenceNode::Named {
             symbol,
-            name: typed::name::Identifier::generated_static("u64"),
+            name: typed::name::Identifier::generated_static(spelling),
         },
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use typed_trees::{expression::ExpressionNode, statement::StatementNode, types::PrimitiveType};
+
+    fn hoisted_call_type(source: &str, name: &str) -> (PrimitiveType, bool) {
+        let typed = crate::front_end::typed_program(source);
+        let locals = typed
+            .machines()
+            .iter()
+            .flat_map(|machine| typed.machine_states(machine))
+            .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
+            .filter_map(|statement| {
+                let StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                if !typed
+                    .expression_table
+                    .expression_is_valid(local.initial_value)
+                {
+                    return None;
+                }
+                let ExpressionNode::Call(call) =
+                    typed.expression_table.expression(local.initial_value)
+                else {
+                    return None;
+                };
+                (call.target.as_str() == name).then_some((
+                    typed
+                        .primitive_type_reference(local.type_reference)
+                        .expect("hoisted primitive result"),
+                    call.target_symbol.is_valid(),
+                ))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(locals.len(), 1, "one captured call result");
+        locals[0]
+    }
+
+    #[test]
+    fn byte_predicate_guard_hoists_keep_fixed_boolean_results() {
+        for predicate in ["valid_utf8", "no_nul", "ascii_only", "non_empty"] {
+            let source = format!(
+                "machine check(bytes: &[u8], expected: bool) -> i32 {{
+                transition {predicate}(bytes) == expected {{ true -> (1) _ -> (0) }}
+            }}"
+            );
+            assert_eq!(
+                hoisted_call_type(&source, predicate),
+                (PrimitiveType::Bool, false)
+            );
+        }
+    }
+
+    #[test]
+    fn byte_predicate_guard_hoists_preserve_declared_shadowing() {
+        let source = "machine valid_utf8(bytes: &[u8]) -> u64 { 7 }
+            machine check(bytes: &[u8]) -> i32 {
+                transition valid_utf8(bytes) == 7 { true -> (1) _ -> (0) }
+            }";
+        assert_eq!(
+            hoisted_call_type(source, "valid_utf8"),
+            (PrimitiveType::U64, true)
+        );
+        let receiver = "data Probe {}
+            machine Probe::valid_utf8(&self, bytes: &[u8]) -> u64 { 7 }
+            machine check(probe: &Probe, bytes: &[u8]) -> i32 {
+                transition probe.valid_utf8(bytes) == 7 { true -> (1) _ -> (0) }
+            }";
+        assert_eq!(
+            hoisted_call_type(receiver, "valid_utf8"),
+            (PrimitiveType::U64, true)
+        );
+    }
+
+    #[test]
+    fn byte_predicate_guard_hoists_reject_wrong_builtin_arity() {
+        for arguments in ["", "bytes, bytes"] {
+            let source = format!(
+                "machine check(bytes: &[u8], expected: bool) -> i32 {{
+                transition valid_utf8({arguments}) == expected {{ true -> (1) _ -> (0) }}
+            }}"
+            );
+            assert!(crate::front_end::typed_program_result(&source).is_err());
+        }
+    }
 }

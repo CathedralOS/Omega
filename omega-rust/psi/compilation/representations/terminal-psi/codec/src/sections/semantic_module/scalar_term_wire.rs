@@ -175,6 +175,15 @@ pub(crate) fn encode_scalar_term(
             }
             encode_integer_type(writer, *scalar_type);
         }
+        ScalarTerm::ByteSequencePredicate {
+            predicate,
+            root,
+            path,
+        } => {
+            writer.u8(39);
+            writer.u8(predicate.mask_bit());
+            encode_canonical_structural_field(writer, *root, path, "Byte predicate path")?;
+        }
         ScalarTerm::ViewExtent {
             root,
             path,
@@ -808,6 +817,99 @@ pub(crate) fn decode_scalar_term(
             term.validate().map_err(CodecError::MalformedProposition)?;
             term
         }
+        39 => {
+            let predicate = match reader.u8()? {
+                1 => semantic_vocabulary::ByteSequencePredicate::ValidUtf8,
+                2 => semantic_vocabulary::ByteSequencePredicate::NoNul,
+                4 => semantic_vocabulary::ByteSequencePredicate::AsciiOnly,
+                8 => semantic_vocabulary::ByteSequencePredicate::NonEmpty,
+                tag => return Err(CodecError::InvalidTag("ByteSequencePredicate", tag)),
+            };
+            let (root, path) = decode_canonical_structural_field(reader)?;
+            ScalarTerm::byte_sequence_predicate(predicate, root, path)
+        }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })
+}
+
+#[cfg(test)]
+mod byte_predicate_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        ByteSequencePredicate as Predicate, PlaceId, StructuralCaseId, StructuralFieldId,
+    };
+
+    fn encode(term: &ScalarTerm) -> Vec<u8> {
+        let mut writer = Writer::default();
+        encode_scalar_term(&mut writer, term, 0).unwrap();
+        writer.finish()
+    }
+
+    fn decode(bytes: &[u8]) -> Result<ScalarTerm, CodecError> {
+        decode_scalar_term(&mut Reader::new(bytes), 0)
+    }
+
+    #[test]
+    fn byte_predicate_wire_preserves_whole_and_projected_observation_identity() {
+        let root = PlaceId::new(11).unwrap();
+        let projection = vec![
+            CanonicalStructuralPathSegment::Field(StructuralFieldId::new(12).unwrap()),
+            CanonicalStructuralPathSegment::FixedIndex(13),
+            CanonicalStructuralPathSegment::Case(StructuralCaseId::new(14).unwrap()),
+        ];
+        for predicate in Predicate::ALL {
+            for path in [vec![], projection.clone()] {
+                let term = ScalarTerm::byte_sequence_predicate(predicate, root, path.clone());
+                let bytes = encode(&term);
+                assert_eq!(bytes[0], 39);
+                assert_eq!(decode(&bytes).unwrap(), term);
+                for end in 0..bytes.len() {
+                    assert!(decode(&bytes[..end]).is_err());
+                }
+                let mut changed_path = path.clone();
+                changed_path.push(CanonicalStructuralPathSegment::FixedIndex(99));
+                let changed_kind = if predicate == Predicate::ValidUtf8 {
+                    Predicate::NoNul
+                } else {
+                    Predicate::ValidUtf8
+                };
+                for changed in [
+                    ScalarTerm::byte_sequence_predicate(changed_kind, root, path.clone()),
+                    ScalarTerm::byte_sequence_predicate(predicate, PlaceId::new(21).unwrap(), path),
+                    ScalarTerm::byte_sequence_predicate(predicate, root, changed_path),
+                ] {
+                    assert_ne!(bytes, encode(&changed));
+                    assert_eq!(decode(&encode(&changed)).unwrap(), changed);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn byte_predicate_wire_rejects_unknown_kind_zero_root_and_bad_path() {
+        let term = ScalarTerm::byte_sequence_predicate(
+            Predicate::ValidUtf8,
+            PlaceId::new(1).unwrap(),
+            vec![],
+        );
+        let bytes = encode(&term);
+        for kind in [0, 3, 16, 255] {
+            let mut malformed = bytes.clone();
+            malformed[1] = kind;
+            assert!(decode(&malformed).is_err());
+        }
+        let mut writer = Writer::default();
+        writer.u8(39);
+        writer.u8(1);
+        writer.u64(0);
+        writer.u32(0);
+        assert!(decode(&writer.finish()).is_err());
+        let mut writer = Writer::default();
+        writer.u8(39);
+        writer.u8(1);
+        writer.id(PlaceId::new(1).unwrap());
+        writer.u32(1);
+        writer.u8(255);
+        assert!(decode(&writer.finish()).is_err());
+    }
 }

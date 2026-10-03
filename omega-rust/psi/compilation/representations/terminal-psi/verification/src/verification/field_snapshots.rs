@@ -124,7 +124,8 @@ fn capture_scalar(term: &mut ScalarTerm, captures: &[(ScalarTerm, ScalarTerm)]) 
         }
         // View extents are not entry-snapshotted values — a requires-side
         // extent is discharged against the caller's live view at the callsite.
-        ScalarTerm::ViewExtent { .. } => {}
+        // A saved Boolean result does not preserve the current byte contents.
+        ScalarTerm::ByteSequencePredicate { .. } | ScalarTerm::ViewExtent { .. } => {}
         ScalarTerm::BooleanNot { operand }
         | ScalarTerm::IntegerBitwiseNot { operand, .. }
         | ScalarTerm::IntegerWiden { operand, .. }

@@ -2,7 +2,7 @@
 
 use crate::validation::structural::operations::crash_continuations::caller_structural_root_type;
 use crate::validation::{
-    CanonicalStructuralPathSegment, OperationKind, PlaceId, StructuralAccess, StructuralArgument,
+    CanonicalStructuralPathSegment, OperationKind, PlaceId, StructuralArgument,
     StructuralFieldType, StructuralPathSegment, StructuralTypeShape, TerminalMachine,
     TerminalModule,
 };
@@ -55,19 +55,15 @@ pub(crate) fn structural_argument_canonical_prefix(
                 prefix.push(CanonicalStructuralPathSegment::Field(field.id));
                 match field.field_type {
                     StructuralFieldType::Structural(next) => structural_type = next,
-                    StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)
+                    // This query names the exact actual endpoint after call
+                    // admission has checked its type and access. A byte-field
+                    // descriptor denotes that field's live view; unlike a
+                    // window, its canonical field path loses no information.
+                    StructuralFieldType::Scalar(_)
+                    | StructuralFieldType::IeeeFloat(_)
+                    | StructuralFieldType::ByteSequence(_)
+                    | StructuralFieldType::PredicateByteSequence { .. }
                         if position + 1 == argument.path.len() =>
-                    {
-                        return Some(prefix);
-                    }
-                    StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    )
-                    | StructuralFieldType::PredicateByteSequence {
-                        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                        ..
-                    } if argument.access == StructuralAccess::MutableBorrow
-                        && position + 1 == argument.path.len() =>
                     {
                         return Some(prefix);
                     }

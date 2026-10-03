@@ -8,17 +8,21 @@
 //! Prepare the map once per machine reconstruction and reuse it for stores,
 //! calls, and normal exits. Immutable SSA captures remain owned by field_snapshots.
 
+use crate::validation::ObservationKind;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, PlaceId, Proposition};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use terminal_psi::{StructuralAccess, TerminalMachine, TerminalModule};
+use terminal_semantics::borrowed_storage::{self, AliasSources, Region};
 
-pub(super) struct StorageObservations {
-    origins: crate::validation::BorrowedStorageOrigins,
+pub(super) struct StorageObservations<'a> {
+    module: &'a TerminalModule,
+    machine: &'a TerminalMachine,
+    aliases: AliasSources,
     invocation_origins: BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 }
 
-impl StorageObservations {
-    pub(super) fn new(module: &TerminalModule, machine: &TerminalMachine) -> Self {
+impl<'a> StorageObservations<'a> {
+    pub(super) fn new(module: &'a TerminalModule, machine: &'a TerminalMachine) -> Self {
         let origins = crate::validation::borrowed_storage_origins(module, machine);
         let invocation_origins = origins
             .iter()
@@ -44,7 +48,9 @@ impl StorageObservations {
             })
             .collect();
         Self {
-            origins,
+            module,
+            machine,
+            aliases: crate::validation::borrowed_observation_aliases(module, machine),
             invocation_origins,
         }
     }
@@ -53,24 +59,35 @@ impl StorageObservations {
         &self,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
-        match self.origins.get(&root) {
-            Some(origins) => origins
-                .iter()
-                .map(|origin| {
-                    let mut full = origin.path.clone();
-                    if origin.exact {
-                        full.extend_from_slice(path);
-                    }
-                    (origin.root, full)
-                })
-                .collect(),
-            None => vec![(root, path.to_vec())],
-        }
+        kind: ObservationKind,
+    ) -> Vec<Region> {
+        let projection =
+            crate::validation::observation_projection(self.module, self.machine, root, path, kind);
+        borrowed_storage::resolve(&self.aliases, root, projection)
     }
 
-    fn unresolved(&self, root: PlaceId) -> bool {
-        self.origins.get(&root).is_some_and(BTreeSet::is_empty)
+    fn sites_overlap(
+        &self,
+        sites: impl IntoIterator<
+            Item = (
+                (PlaceId, Option<Vec<CanonicalStructuralPathSegment>>),
+                ObservationKind,
+            ),
+        >,
+        root: PlaceId,
+        written: &[CanonicalStructuralPathSegment],
+        written_kind: ObservationKind,
+    ) -> bool {
+        let written_regions = self.regions(root, written, written_kind);
+        sites.into_iter().any(|((observed, path), kind)| {
+            self.regions(observed, path.as_deref().unwrap_or_default(), kind)
+                .iter()
+                .any(|observation| {
+                    written_regions
+                        .iter()
+                        .any(|written| observation.overlaps(written))
+                })
+        })
     }
 
     pub(super) fn observes_write(
@@ -79,26 +96,29 @@ impl StorageObservations {
         root: PlaceId,
         written: &[CanonicalStructuralPathSegment],
     ) -> bool {
-        let written_regions = self.regions(root, written);
-        crate::validation::proposition_observation_sites(proposition)
-            .into_iter()
-            .any(|(observed, path)| {
-                // An unresolved cyclic origin grants neither disjointness nor
-                // publication identity. Until it resolves, every write may
-                // disturb an observation through that name.
-                if self.unresolved(root) || self.unresolved(observed) {
-                    return true;
-                }
-                self.regions(observed, path.as_deref().unwrap_or_default())
-                    .iter()
-                    .any(|(observed_root, observed_path)| {
-                        written_regions.iter().any(|(written_root, written_path)| {
-                            observed_root == written_root
-                                && (observed_path.starts_with(written_path)
-                                    || written_path.starts_with(observed_path))
-                        })
-                    })
-            })
+        self.sites_overlap(
+            crate::validation::storage_observations(proposition),
+            root,
+            written,
+            ObservationKind::Storage,
+        )
+    }
+
+    /// Replacing an existing byte/element changes payload, not descriptor extent.
+    pub(super) fn observes_payload_write(
+        &self,
+        proposition: &Proposition,
+        root: PlaceId,
+        written: &[CanonicalStructuralPathSegment],
+    ) -> bool {
+        self.sites_overlap(
+            crate::validation::storage_observations(proposition)
+                .into_iter()
+                .filter(|(_, kind)| *kind != ObservationKind::Extent),
+            root,
+            written,
+            ObservationKind::ByteContents,
+        )
     }
 
     pub(super) fn observes_places(&self, proposition: &Proposition, places: &[PlaceId]) -> bool {
@@ -112,26 +132,16 @@ impl StorageObservations {
         proposition: &Proposition,
         places: &[PlaceId],
     ) -> bool {
-        crate::validation::proposition_boolean_field_roots(proposition)
-            .into_iter()
-            .any(|observed| {
-                if self.unresolved(observed) || places.iter().any(|root| self.unresolved(*root)) {
-                    return !places.is_empty();
-                }
-                self.regions(observed, &[])
-                    .iter()
-                    .any(|(observed_root, observed_path)| {
-                        places.iter().any(|written| {
-                            self.regions(*written, &[]).iter().any(
-                                |(written_root, written_path)| {
-                                    observed_root == written_root
-                                        && (observed_path.starts_with(written_path)
-                                            || written_path.starts_with(observed_path))
-                                },
-                            )
-                        })
-                    })
-            })
+        places.iter().any(|root| {
+            self.sites_overlap(
+                crate::validation::storage_observations(proposition)
+                    .into_iter()
+                    .filter(|((_, path), _)| path.is_some()),
+                *root,
+                &[],
+                ObservationKind::Storage,
+            )
+        })
     }
 
     /// Return facts describe the current invocation storage, not entry values.
@@ -158,3 +168,6 @@ impl StorageObservations {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

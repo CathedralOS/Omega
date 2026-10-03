@@ -21,7 +21,7 @@ pub(super) fn root_type(machine: &TerminalMachine, place: PlaceId) -> Option<Str
     crate::validation::structural::operations::caller_structural_root_type(machine, place)
 }
 
-fn argument(
+pub(super) fn argument(
     module: &TerminalModule,
     machine: &TerminalMachine,
     argument: &StructuralArgument,
@@ -587,6 +587,63 @@ pub(super) fn may_escape(
             | OperationKind::EstablishRecord { .. }
             | OperationKind::EstablishStructuralCase { .. }
     )
+}
+
+/// Resolve an observation's canonical identity through the same geometry used
+/// for runtime access. Byte contents cross a nested borrowed carrier; replacing
+/// that carrier's slot or observing its extent does not read its backing.
+pub(crate) fn observation_projection(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+    kind: crate::validation::ObservationKind,
+) -> Projection {
+    let position = (machine.entry, 0);
+    let Some((last, prefix)) = path.split_last() else {
+        return Projection::new(&[]);
+    };
+    match last {
+        CanonicalStructuralPathSegment::Field(field) => {
+            if kind == crate::validation::ObservationKind::ByteContents
+                && let Some(carrier) = root_type(machine, place).and_then(|root| {
+                    terminal_semantics::record_field_carrier(
+                        module.structural_types.iter(),
+                        root,
+                        prefix,
+                    )
+                })
+            {
+                return byte_payload_projection(
+                    module,
+                    root_type(machine, place),
+                    &carrier.path,
+                    *field,
+                    position,
+                );
+            }
+            canonical_projection(module, machine, place, prefix, Some(*field), position)
+        }
+        CanonicalStructuralPathSegment::FixedIndex(index) => {
+            let mut selected = observation_projection(module, machine, place, prefix, kind);
+            if selected.exact {
+                selected
+                    .path
+                    .push(StructuralPathSegment::FixedIndex(*index));
+            }
+            // The common runtime geometry discovers descriptor crossings; a
+            // fixed selector is not proof that nested backing is inline.
+            let (resolved, _) =
+                path_projection(module, root_type(machine, place), &selected.path, position);
+            selected.indirect |= resolved.indirect;
+            selected
+        }
+        CanonicalStructuralPathSegment::Case(_) => {
+            let mut selected = observation_projection(module, machine, place, prefix, kind);
+            selected.exact = false;
+            selected
+        }
+    }
 }
 
 #[cfg(test)]

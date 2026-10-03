@@ -99,6 +99,27 @@ does not discharge the original bounds, summarize an operation chain, or infer
 strict ranking descent. Its reconstruction belongs to the byte-operation
 trust-source identity.
 
+## Evaluated content predicates
+
+`ByteSequencePredicate` evaluates one primitive over an operand's current bytes.
+The operand retains its own dominating length observation, readable access, and
+establishment. Independent reconstruction relates the Boolean result to a
+`ScalarTerm::ByteSequencePredicate` naming that predicate and exact descriptor
+or canonical byte-field path. Branch truth or falsehood then participates in
+ordinary Boolean contract reasoning across calls and state transitions.
+
+The term observes current contents. Replacing bytes invalidates facts that read
+the affected contents, including length-preserving byte or element writes and
+writes through overlapping aliases. The old Boolean result remains an SSA value,
+but its equation to the current contents no longer holds. A saved verdict cannot
+certify bytes written after its evaluation. Extent observations survive a write
+that preserves length. Unknown backing relationships cannot establish disjointness.
+
+Backing overlap is used for invalidation, never predicate equality: a subslice
+can share backing with a valid UTF-8 parent and still cut through an encoded
+scalar. Contract substitution retains the exact actual descriptor or field path;
+it cannot replace a partial window by its whole backing.
+
 ## Calls and control transfers
 
 Ordinary helpers with Unit or scalar results and bodyless boundaries can receive

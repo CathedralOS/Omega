@@ -61,7 +61,7 @@ mod affine_cleanup;
 pub(crate) mod atomic_access;
 mod block_views;
 mod borrowed_windows;
-pub(crate) use borrowed_windows::{BorrowedStorageOrigins, borrowed_storage_origins};
+pub(crate) use borrowed_windows::borrowed_storage_origins;
 pub(crate) mod byte_sequence;
 mod call_graph;
 mod conformance_applications;
@@ -123,10 +123,10 @@ use proof_recursion::validate_proof_recursive_components;
 #[cfg(test)]
 pub(crate) use propositions::proposition_observes_write;
 pub(crate) use propositions::{
-    proposition_boolean_field_roots, proposition_contains_content, proposition_observation_sites,
-    proposition_observes_places, proposition_observes_unversioned_places,
+    ObservationKind, proposition_contains_content, proposition_observes_places,
+    proposition_observes_unversioned_places, storage_observations,
 };
-pub(crate) use references::{argument_owns_references, is_reference_projection};
+pub(crate) use references::is_reference_projection;
 pub use scalar::block_invariants::scalar_block_invariant_scope;
 pub(crate) use structural::byte_sequence_fields::byte_store_goal as structural_byte_sequence_field_byte_store_goal;
 pub(crate) use structural::byte_sequence_fields::length_capacity_bound as structural_byte_sequence_field_length_capacity_bound;
@@ -1223,3 +1223,7 @@ fn insert_unique<T: Ord + Copy>(
 }
 
 pub(crate) use structural::byte_sequence_fields::view_length_is_current;
+
+pub(crate) use frontier::{
+    argument_may_write_unbounded_storage, borrowed_observation_aliases, observation_projection,
+};

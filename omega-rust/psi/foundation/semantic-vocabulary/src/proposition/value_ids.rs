@@ -140,7 +140,8 @@ fn walk(
                 ScalarTerm::BooleanField { .. }
                 | ScalarTerm::IntegerField { .. }
                 | ScalarTerm::IeeeFloatField { .. }
-                | ScalarTerm::ViewExtent { .. } => complete = false,
+                | ScalarTerm::ViewExtent { .. }
+                | ScalarTerm::ByteSequencePredicate { .. } => complete = false,
                 ScalarTerm::Boolean(_)
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_) => {}

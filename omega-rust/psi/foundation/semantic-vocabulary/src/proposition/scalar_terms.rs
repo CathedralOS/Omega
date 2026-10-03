@@ -6,7 +6,7 @@
 use crate::proposition::{
     IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionError,
 };
-use crate::{PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
+use crate::{ByteSequencePredicate, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarType {
@@ -385,6 +385,15 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    /// Boolean observation of the exact byte sequence named by this root and
+    /// canonical projection. An empty path observes the whole descriptor.
+    /// This term grants no predicate truth: operation/arrival evidence must
+    /// independently authenticate the current bytes and their custody.
+    ByteSequencePredicate {
+        predicate: ByteSequencePredicate,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+    },
 }
 
 impl ScalarTerm {
@@ -429,6 +438,18 @@ impl ScalarTerm {
             root,
             path,
             scalar_type,
+        }
+    }
+
+    pub fn byte_sequence_predicate(
+        predicate: ByteSequencePredicate,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+    ) -> Self {
+        Self::ByteSequencePredicate {
+            predicate,
+            root,
+            path,
         }
     }
 
@@ -984,6 +1005,7 @@ impl ScalarTerm {
             }
             Self::Boolean(_)
             | Self::BooleanField { .. }
+            | Self::ByteSequencePredicate { .. }
             | Self::BooleanNot { .. }
             | Self::BooleanEqual { .. }
             | Self::IntegerEqual { .. }
@@ -1443,6 +1465,7 @@ impl ScalarTerm {
                 | Self::IntegerField { .. }
                 | Self::IeeeFloatField { .. }
                 | Self::ViewExtent { .. }
+                | Self::ByteSequencePredicate { .. }
                 | Self::Boolean(_)
                 | Self::Integer { .. }
                 | Self::IeeeFloatLiteral(_) => {}
@@ -1516,6 +1539,7 @@ impl ScalarTerm {
                     | Self::IntegerField { .. }
                     | Self::IeeeFloatField { .. }
                     | Self::ViewExtent { .. }
+                    | Self::ByteSequencePredicate { .. }
                     | Self::Boolean(_)
                     | Self::Integer { .. }
                     | Self::IeeeFloatLiteral(_) => pending.push(Step::Finalize(term)),
@@ -1541,6 +1565,7 @@ impl ScalarTerm {
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }
             | Self::ViewExtent { .. }
+            | Self::ByteSequencePredicate { .. }
             | Self::Boolean(_)
             | Self::IeeeFloatLiteral(_) => Ok(()),
             Self::BooleanNot { operand } => {

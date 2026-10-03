@@ -61,6 +61,7 @@ fn scalar(term: &ScalarTerm, machine: &TerminalMachine) -> bool {
         ScalarTerm::BooleanField { root, .. }
         | ScalarTerm::IntegerField { root, .. }
         | ScalarTerm::IeeeFloatField { root, .. }
+        | ScalarTerm::ByteSequencePredicate { root, .. }
         | ScalarTerm::ViewExtent { root, .. } => {
             // Structural validation has already rejoined the parameter place,
             // field path and declared leaf type. Do not recover another root.

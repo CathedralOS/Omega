@@ -1,0 +1,25 @@
+// Expected: evaluated UTF-8 verdicts survive exact state-parameter rebinding.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    check(main, "\xE2\x82\xAC", true);
+    check(main, "\xE0\x80\x80", false);
+    check(main, "\xED\xA0\x80", false);
+    check(main, "\xF4\x90\x80\x80", false);
+    check(main, "\xF0\x90", false);
+    main.console.exit_process(70);
+}
+
+machine check(main: &mut Main, bytes: &[u8], expected: bool) reaches Console {
+    transition valid_utf8(bytes) == expected {
+        true -> checked(13, expected, bytes)
+        _ -> bad(main)
+    }
+    state checked(tag: u64, expected: bool, bytes: &[u8])
+        requires valid_utf8(bytes) == expected
+    {}
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

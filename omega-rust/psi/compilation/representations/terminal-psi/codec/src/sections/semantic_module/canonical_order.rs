@@ -1080,6 +1080,7 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::IeeeFloatField { .. }
             | ScalarTerm::ViewExtent { .. }
+            | ScalarTerm::ByteSequencePredicate { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
             | ScalarTerm::IeeeFloatLiteral(_) => {}

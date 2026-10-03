@@ -109,6 +109,18 @@ const PROPOSITION_SOURCE: &[u8] =
     include_bytes!("../../../../../foundation/semantic-vocabulary/src/proposition.rs");
 const PROPOSITION_VALUE_IDS_SOURCE: &[u8] =
     include_bytes!("../../../../../foundation/semantic-vocabulary/src/proposition/value_ids.rs");
+const BYTE_PREDICATE_VOCABULARY_SOURCE: &[u8] =
+    include_bytes!("../../../../../foundation/semantic-vocabulary/src/byte_predicates.rs");
+const SCALAR_TERM_VOCABULARY_SOURCE: &[u8] =
+    include_bytes!("../../../../../foundation/semantic-vocabulary/src/proposition/scalar_terms.rs");
+const PROPOSITION_CONTEXT_SOURCE: &[u8] =
+    include_bytes!("../../../../../foundation/semantic-vocabulary/src/proposition/propositions.rs");
+const TERMINAL_BYTE_PREDICATE_SOURCE: &[u8] =
+    include_bytes!("../../semantics/src/structural_effect/byte_predicate.rs");
+const TERMINAL_PRIMITIVE_PLACE_SOURCE: &[u8] =
+    include_bytes!("../../semantics/src/primitive_place.rs");
+const BYTE_PREDICATE_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../verification/src/validation/byte_sequence/predicate.rs");
 const TERMINAL_REPRESENTATION_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
     "/psi-terminal-representation-source-closure.bin"
@@ -184,6 +196,60 @@ const OPERATION_FACTS_SOURCE: &[u8] =
     include_bytes!("../../verification/src/verification/reconstruction/operation_facts.rs");
 const MACHINE_RECONSTRUCTION_CONTEXT_SOURCE: &[u8] =
     include_bytes!("../../verification/src/verification/reconstruction/machine_context.rs");
+
+// A content observation's equation, canonical subject and readable/current
+// operand are one denotation dependency. These semantic/vocabulary sources
+// live outside the generated verifier/representation/codec source closures.
+const BYTE_PREDICATE_DENOTATION_SOURCES: &[(&str, &[u8])] = &[
+    (
+        "terminal-semantics/structural_effect/byte_predicate.rs",
+        TERMINAL_BYTE_PREDICATE_SOURCE,
+    ),
+    (
+        "terminal-semantics/primitive_place.rs",
+        TERMINAL_PRIMITIVE_PLACE_SOURCE,
+    ),
+    (
+        "semantic-vocabulary/byte_predicates.rs",
+        BYTE_PREDICATE_VOCABULARY_SOURCE,
+    ),
+    (
+        "semantic-vocabulary/proposition/scalar_terms.rs",
+        SCALAR_TERM_VOCABULARY_SOURCE,
+    ),
+    (
+        "semantic-vocabulary/proposition/propositions.rs",
+        PROPOSITION_CONTEXT_SOURCE,
+    ),
+    (
+        "terminal-semantics/byte_sequence_predicates.rs",
+        BYTE_PREDICATE_SEMANTICS_SOURCE,
+    ),
+    (
+        "terminal-verifier/validation/byte_sequence/predicate.rs",
+        BYTE_PREDICATE_VALIDATION_SOURCE,
+    ),
+    (
+        "terminal-verifier/validation/byte_sequence/length.rs",
+        BYTE_VIEW_VALIDATION_SOURCE,
+    ),
+    (
+        "terminal-verifier/validation/byte_sequence/read.rs",
+        BYTE_READ_VALIDATION_SOURCE,
+    ),
+    (
+        "terminal-verifier/validation/structural/byte_sequence_fields.rs",
+        BYTE_FIELD_ACCESS_VALIDATION_SOURCE,
+    ),
+    (
+        "terminal-verifier/validation/structural/byte_sequence_fields/freshness.rs",
+        BYTE_FIELD_FRESHNESS_SOURCE,
+    ),
+    (
+        "terminal-verifier/verification/reconstruction/operation_facts.rs",
+        OPERATION_FACTS_SOURCE,
+    ),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TrustDependencyKind {
@@ -486,12 +552,14 @@ fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::
 #[cfg(test)]
 mod tests {
     use super::{
-        CODEC_SOURCE_CLOSURE, CURRENT_ENTRY, OperationSemanticCustody, OperationSemanticRow,
-        OperationSemanticTag, RECONSTRUCTION_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
-        TERMINAL_REPRESENTATION_SOURCE_CLOSURE, TERMINAL_SEMANTICS_SOURCE, TrustAcceptingPolicy,
+        BYTE_PREDICATE_DENOTATION_SOURCES, CODEC_SOURCE_CLOSURE, CURRENT_ENTRY,
+        DISCRETE_PATH_FACTS_SOURCE, OperationSemanticCustody, OperationSemanticRow,
+        OperationSemanticTag, PATH_FACTS_SOURCE, RECONSTRUCTION_SOURCE,
+        TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
+        TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
         TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
         VERIFIER_SOURCE, VERIFIER_VALIDATION_SOURCE, current_terminal_trust_graph, dependencies,
-        validate_terminal_trust_graph,
+        dependency_digest, validate_terminal_trust_graph,
     };
     use std::path::Path;
 
@@ -861,6 +929,74 @@ mod tests {
             validate_terminal_trust_graph("node:leaf", reversed_dependencies),
             Err(TrustGraphError::NonCanonicalDependencyOrder { .. })
         ));
+    }
+
+    #[test]
+    fn byte_predicate_trust_identity_binds_denotation_and_observation_sources() {
+        let graph = current_terminal_trust_graph().expect("current graph");
+        let node = graph
+            .nodes()
+            .iter()
+            .find(|node| node.identity() == "schema:operation:byte-sequence-predicate")
+            .expect("byte predicate operation identity");
+        // Reconstruct the operation's published source commitment independently
+        // of the row builder. Each semantic dependency must affect that digest,
+        // not merely occur as an unused include in this codec's own closure.
+        let mut sources = vec![
+            (
+                "terminal-verifier/verification/reconstruction/path_facts.rs",
+                PATH_FACTS_SOURCE,
+            ),
+            (
+                "terminal-verifier/verification/reconstruction/path_facts/discrete.rs",
+                DISCRETE_PATH_FACTS_SOURCE,
+            ),
+            (
+                "terminal-verifier/validation.rs",
+                VERIFIER_VALIDATION_SOURCE,
+            ),
+            ("terminal-verifier/verification.rs", VERIFIER_SOURCE),
+            (
+                "terminal-verifier/verification/reconstruction.rs",
+                RECONSTRUCTION_SOURCE,
+            ),
+            ("terminal-semantics/lib.rs", TERMINAL_SEMANTICS_SOURCE),
+            (
+                "terminal-semantics/structural_effect.rs",
+                TERMINAL_STRUCTURAL_EFFECT_SOURCE,
+            ),
+        ];
+        sources.extend_from_slice(BYTE_PREDICATE_DENOTATION_SOURCES);
+        let digest = |sources: &[(&str, &[u8])]| {
+            dependency_digest(
+                &node.identity,
+                node.kind,
+                node.status,
+                &node.semantic_subject,
+                &node.version,
+                &node.owner,
+                &node.scope,
+                &node.rationale,
+                node.accepting_policy,
+                sources,
+            )
+        };
+        assert_eq!(digest(&sources), node.digest());
+        for (label, _) in BYTE_PREDICATE_DENOTATION_SOURCES {
+            let index = sources
+                .iter()
+                .position(|(candidate, _)| candidate == label)
+                .unwrap();
+            let mut changed_bytes = sources[index].1.to_vec();
+            changed_bytes[0] ^= 1;
+            let mut changed_sources = sources.clone();
+            changed_sources[index].1 = &changed_bytes;
+            assert_ne!(
+                digest(&changed_sources),
+                node.digest(),
+                "unbound source: {label}"
+            );
+        }
     }
 
     #[test]

@@ -311,18 +311,19 @@ the complete product bar; focused successes below do not establish that baseline
   `data Room [copy] { label: &[u8] in Utf8; }`, then `let room: Room;` and
   `room.label = source.label;`.
 
-  On macOS ARM64 at `91e6ce58a53` plus the decoded-domain repair,
-  `cargo run -p omega -- run --both
+  On macOS ARM64 at `767b982de12` plus the evaluated-predicate repair,
+  `omega run --both
   tests/omega/pass/wire/runtime_wire_utf8_edge_verdicts_exit/main.omg`
-  gets through source checking and rejects `LabelMessage::decode` at
-  `state graph: state signature: predicate lowering failed` (state 32).
-  Generated decoding now validates the exact borrowed view's declared predicates
-  before replacing the field; pure byte-predicate calls retain unrelated facts.
-  Next: carry these byte predicates through state-contract lowering in stage 04
-  `values/scalar/result_contract.rs` and independent Terminal replay. Do not
-  omit the runtime validation or the store-state requirement.
+  gets through predicate lowering and rejects `LabelMessage::decode` at
+  `structural field store: borrowed view field: declared domains`
+  (state 32, statement 0). Evaluated predicates retain the exact descriptor or
+  byte-field identity through state contracts and independent Terminal replay;
+  overlapping writes and mutable calls invalidate current-content equations.
+  `pass/proofs/runtime_byte_predicate_state_contract_exit` exits 70 in both
+  engines for the euro sign and four malformed UTF-8 cases. This control does
+  not supply the decoder's stored-loan lifetime relation.
 
-  The text customers, and the unqualified wire byte decoder, stop at
+  The text customers, and the unqualified wire byte decoder, also stop at
   `structural field store: borrowed view field: declared domains`:
   `structural_scalar_store/view_field_store.rs` admits literals only, not
   another field's view or an input-buffer view. General replacement needs the
@@ -1802,9 +1803,17 @@ crash and native exit behavior. Use affected check/native corpus slices under
   retain `structs/runtime_declared_record_member_fill_exit` exit 70,
   `structs/uninit_record_member_store` exit 77 and the `let mut total: i32;
   total = 1;` control `locals/runtime_deferred_scalar_initialization_exit`
-  exit 1, each with native/interpreter agreement on macOS ARM64. Execute the
-  wire customer with interpreter/native exit 70; it currently stops at
-  `scalar field store sequence: write frame agreement` (state 0).
+  exit 1, each with native/interpreter agreement on macOS ARM64. Those three
+  controls execute with their expected exits. At `767b982de12` plus the
+  evaluated-predicate repair, `omega run --both
+  tests/omega/pass/wire/runtime_wire_utf8_edge_verdicts_exit/main.omg` passes
+  predicate lowering but still stops in `LabelMessage::decode` at
+  `structural field store: borrowed view field: declared domains`
+  (state 32, statement 0). Next: reconstruct exact stored-view origins and
+  normal-return field writeback through source loans and independent Terminal
+  verification before admitting nonliteral descriptor replacement in
+  `structural_scalar_store/view_field_store.rs`. The wire customer's required
+  interpreter/native exit remains 70.
   Euro must decode successfully; overlong, surrogate, out-of-range and truncated
   UTF-8 must fail. Clearing an omission phase alone does not close the task.
 

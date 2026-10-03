@@ -794,6 +794,15 @@ fn validate_boolean_field_terms(
                     });
                 }
             }
+            ScalarTerm::ByteSequencePredicate { root, path, .. } => {
+                if !super::foundation::byte_predicate_leaf_is_bytes(module, machine, *root, path) {
+                    return Err(ModuleError::InvalidByteSequencePredicateTerm {
+                        machine: machine.id,
+                        root: *root,
+                        path: path.clone(),
+                    });
+                }
+            }
             ScalarTerm::ViewExtent {
                 root,
                 path,

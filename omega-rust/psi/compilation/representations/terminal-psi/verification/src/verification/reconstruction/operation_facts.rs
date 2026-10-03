@@ -123,6 +123,15 @@ pub(super) fn append_operation(
                 .observes_places(proposition, &[source.place])
         });
     }
+    if let OperationKind::ByteSequenceWrite { destination, .. }
+    | OperationKind::ElementViewWrite { destination, .. } = &operation.kind
+    {
+        field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+            !context
+                .storage
+                .observes_payload_write(proposition, *destination, &[])
+        });
+    }
     runtime_index::append(
         module,
         machine,
@@ -425,13 +434,33 @@ pub(super) fn append_operation(
                     .observes_places(proposition, &[*destination])
             }),
         }
+    } else if let OperationKind::StructuralByteSequenceFieldByteStore { destination, .. } =
+        &operation.kind
+    {
+        // A byte replacement writes backing rather than the descriptor slot.
+        // Inline bounded bytes retain sibling geometry; borrowed fields may
+        // alias any external backing, independent of the containing root.
+        if let Some((root, written)) =
+            crate::validation::structural_field_store_write_path(module, machine, operation)
+        {
+            field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+                !context
+                    .storage
+                    .observes_payload_write(proposition, root, &written)
+            });
+        } else {
+            field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+                !context
+                    .storage
+                    .observes_places(proposition, &[*destination])
+            });
+        }
     } else if matches!(
         operation.kind,
         OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::ByteSequenceStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteViewFieldStore { .. }
-            | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::MoveStructuralField { .. }
             | OperationKind::StoreStructuralField { .. }
     ) {
@@ -644,6 +673,33 @@ pub(super) fn append_operation(
                 semantic_axioms: axioms.clone(),
                 canonical_certificate: true,
             });
+        }
+        if let terminal_semantics::StructuralEffectObservation::ByteSequencePredicateEvaluated {
+            operand,
+            ..
+        } = &observation
+        {
+            let root = match operand {
+                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => *source,
+                terminal_psi::control_flow::ByteSequenceOperand::Field { source, .. } => {
+                    source.place
+                }
+            };
+            let invalid = || ModuleError::InvalidByteSequencePredicateSource {
+                operation: operation.id,
+                source: root,
+            };
+            let root_type = crate::validation::structural::operations::caller_structural_root_type(
+                machine, root,
+            )
+            .ok_or_else(invalid)?;
+            let equation = terminal_semantics::byte_predicate_equation(
+                &observation,
+                root_type,
+                &module.structural_types,
+            )
+            .ok_or_else(invalid)?;
+            axioms.push(equation);
         }
         if let Some(equation) = observation.local_equation() {
             axioms.push(equation.clone());

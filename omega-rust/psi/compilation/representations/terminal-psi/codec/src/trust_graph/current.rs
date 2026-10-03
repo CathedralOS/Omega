@@ -4,14 +4,16 @@ use super::{
     BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_FIELD_ACCESS_VALIDATION_SOURCE,
     BYTE_FIELD_FRESHNESS_SOURCE, BYTE_FIELD_STORE_VALIDATION_SOURCE,
     BYTE_OWNER_LOAN_SEMANTICS_SOURCE, BYTE_OWNER_STORE_VALIDATION_SOURCE,
-    BYTE_PREDICATE_SEMANTICS_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE,
+    BYTE_PREDICATE_DENOTATION_SOURCES, BYTE_PREDICATE_SEMANTICS_SOURCE,
+    BYTE_PREDICATE_VOCABULARY_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE,
     BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FIELD_STORE_VALIDATION_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
     BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE, DECLARATION_FOUNDATIONS_SOURCE,
     DISCRETE_PATH_FACTS_SOURCE, LITERAL_FOUNDATION_SOURCE, MACHINE_WIRE_SOURCE, PATH_FACTS_SOURCE,
     PREDICATE_VALUE_EQUALITIES_SOURCE, PRIMITIVE_SNAPSHOT_RECONSTRUCTION_SOURCE,
     PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_STRICT_ORDER_SOURCE,
     PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE, PROOF_CODEC_VALIDATION_SOURCE,
-    REACH_APPLICATION_WIRE_SOURCE, STRUCTURAL_SIGNATURE_WIRE_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
+    PROPOSITION_CONTEXT_SOURCE, REACH_APPLICATION_WIRE_SOURCE, SCALAR_TERM_VOCABULARY_SOURCE,
+    STRUCTURAL_SIGNATURE_WIRE_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -118,6 +120,10 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                     "terminal/representation-source-closure",
                     TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
                 ),
+                (
+                    "semantic-vocabulary/byte_predicates.rs",
+                    BYTE_PREDICATE_VOCABULARY_SOURCE,
+                ),
                 ("terminal-codec/build.rs", SOURCE_CLOSURE_BUILD_SOURCE),
             ],
         ),
@@ -134,6 +140,18 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             Vec::new(),
             &[
                 ("semantic-vocabulary/proposition.rs", PROPOSITION_SOURCE),
+                (
+                    "semantic-vocabulary/proposition/scalar_terms.rs",
+                    SCALAR_TERM_VOCABULARY_SOURCE,
+                ),
+                (
+                    "semantic-vocabulary/proposition/propositions.rs",
+                    PROPOSITION_CONTEXT_SOURCE,
+                ),
+                (
+                    "semantic-vocabulary/byte_predicates.rs",
+                    BYTE_PREDICATE_VOCABULARY_SOURCE,
+                ),
                 (
                     "semantic-vocabulary/proposition/value_ids.rs",
                     PROPOSITION_VALUE_IDS_SOURCE,
@@ -608,6 +626,9 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ("terminal-verifier/verification/reconstruction/primitive_snapshots.rs", PRIMITIVE_SNAPSHOT_RECONSTRUCTION_SOURCE),
                     ("terminal-verifier/control_graph.rs", CONTROL_GRAPH_SOURCE),
                 ]);
+            }
+            if row.tag() == terminal_semantics::OperationSemanticTag::ByteSequencePredicate {
+                exact_sources.extend_from_slice(BYTE_PREDICATE_DENOTATION_SOURCES);
             }
             if row.tag() == terminal_semantics::OperationSemanticTag::EstablishScalarArray {
                 exact_sources.push(("terminal-semantics/scalar_array.rs", TERMINAL_SCALAR_ARRAY_SOURCE));

@@ -40,7 +40,8 @@ fn has_scalar_boolean_denotation(
         match predicate {
             CheckedBooleanExpression::Constant(_)
             | CheckedBooleanExpression::Parameter { .. }
-            | CheckedBooleanExpression::StructuralParameterField { .. } => {}
+            | CheckedBooleanExpression::StructuralParameterField { .. }
+            | CheckedBooleanExpression::ByteSequencePredicate { .. } => {}
             CheckedBooleanExpression::Not(operand) => pending.push((operand, depth + 1)),
             CheckedBooleanExpression::Equal { left, right } => {
                 pending.extend([(left.as_ref(), depth + 1), (right.as_ref(), depth + 1)]);
@@ -155,7 +156,8 @@ fn proposition_with_polarity(
         CheckedBooleanExpression::Constant(value) if *value == positive => Ok(Proposition::Truth),
         CheckedBooleanExpression::Constant(_)
         | CheckedBooleanExpression::Parameter { .. }
-        | CheckedBooleanExpression::StructuralParameterField { .. } => {
+        | CheckedBooleanExpression::StructuralParameterField { .. }
+        | CheckedBooleanExpression::ByteSequencePredicate { .. } => {
             canonical_equality(terms.boolean(predicate)?, ScalarTerm::boolean(positive))
         }
         CheckedBooleanExpression::Equal { left, right } => {
