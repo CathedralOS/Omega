@@ -3,7 +3,7 @@
 
 /// Semantic ownership-event roles. Shared by checked flow and every lowered
 /// semantic summary so no stage can reinterpret a generic move/drop marker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum PermissionEventKind {
     Establish,
     #[default]
@@ -16,7 +16,7 @@ pub enum PermissionEventKind {
 /// `Owned`; borrow loans use `Shared` or `Exclusive`. Keeping this axis
 /// separate from multiplicity prevents a shared loan from being mistaken for
 /// a copyable owned value (or an exclusive loan for a linear value).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum PermissionAccess {
     #[default]
     Owned,
@@ -25,7 +25,7 @@ pub enum PermissionAccess {
 }
 
 /// Stable source identity for a permission event across IR stages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum PermissionEventSource {
     #[default]
     StateEntry,
@@ -44,7 +44,7 @@ pub enum PermissionEventSource {
 /// event. Transfers preserve this value; they do not mint a fresh origin.
 /// `Unknown` is retained for permission events whose producer cannot yet
 /// identify where an affine value was established.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum PermissionProvenance {
     #[default]
     Unknown,
@@ -71,7 +71,7 @@ pub enum PermissionProvenance {
 /// The ordinal distinguishes claims established at the same semantic source
 /// (for example, multiple linear fields entering one state). It is allocated
 /// deterministically by the checked ownership pass.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum PermissionClaimIdentity {
     #[default]
     Unknown,

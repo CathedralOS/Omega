@@ -92,6 +92,16 @@ impl<T> PartialEq for HandleSpan<T> {
 
 impl<T> Eq for HandleSpan<T> {}
 
+/// Hashes exactly what `PartialEq` compares, so a span can key a set without
+/// requiring `T` to be hashable -- a span holds a start handle and a count,
+/// never a `T`. `Handle` carries the same pair of impls for the same reason.
+impl<T> std::hash::Hash for HandleSpan<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.start.hash(state);
+        self.count.hash(state);
+    }
+}
+
 impl<T> fmt::Debug for HandleSpan<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
