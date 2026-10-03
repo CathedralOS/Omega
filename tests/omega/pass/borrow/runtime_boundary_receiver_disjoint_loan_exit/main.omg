@@ -5,16 +5,17 @@ data Main { console: Binding<Console>; bytes: [u8; 2]; }
 
 // The boundary writes its capability, not the receiver's borrowed byte field.
 // Keep the loan live through an internal state and a boundary invocation.
-machine Main::publish(&mut self, bytes: &[u8]) reaches Console {
-    transition { _ -> forward(bytes) }
-    state forward(&mut self, bytes: &[u8]) {
-        self.console.write_line(bytes);
+machine Main::publish(main: &mut Main, bytes: &[u8]) reaches Console {
+    transition { _ -> forward(main, bytes) }
+    state forward(main: &mut Main, bytes: &[u8]) {
+        main.console.write_line(bytes);
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.bytes[0] = 79;
-    self.bytes[1] = 75;
-    self.publish(self.bytes[0..2]);
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes[0] = 79;
+    main.bytes[1] = 75;
+    let bytes_0__2_value: u8 = main.bytes[0..2];
+    Main::publish(main, bytes_0__2_value);
+    main.console.exit_process(70);
 }

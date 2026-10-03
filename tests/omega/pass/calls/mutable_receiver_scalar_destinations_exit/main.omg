@@ -10,62 +10,62 @@ data Main {
     saved: u64 in Wrapping;
 }
 
-machine Main::bump(&mut self, value: u64 in Wrapping) -> u64 in Wrapping {
-    self.hits = self.hits + 1;
-    self.trace = self.trace * 10 + value;
+machine Main::bump(main: &mut Main, value: u64 in Wrapping) -> u64 in Wrapping {
+    main.hits = main.hits + 1;
+    main.trace = main.trace * 10 + value;
     value + 1
 }
 
-machine Main::returned(&mut self) -> u64 in Wrapping {
-    self.bump(self.bump(3))
+machine Main::returned(main: &mut Main) -> u64 in Wrapping {
+    Main::bump(main, Main::bump(main, 3))
 }
 
-machine Main::initialized(&mut self) -> u64 in Wrapping {
-    let value: u64 in Wrapping = self.bump(self.bump(5));
+machine Main::initialized(main: &mut Main) -> u64 in Wrapping {
+    let value: u64 in Wrapping = Main::bump(main, Main::bump(main, 5));
     value
 }
 
-machine Main::assigned(&mut self) -> u64 in Wrapping {
+machine Main::assigned(main: &mut Main) -> u64 in Wrapping {
     let mut value: u64 in Wrapping = 0;
-    value = self.bump(self.bump(7));
+    value = Main::bump(main, Main::bump(main, 7));
     value
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.hits = 0;
-    self.trace = 0;
-    let value: u64 in Wrapping = self.returned();
-    transition value == 5 && self.hits == 2 && self.trace == 34 {
-        true -> initializer()
-        false -> bad(71)
+machine Main::main(main: &mut Main) reaches Console {
+    main.hits = 0;
+    main.trace = 0;
+    let value: u64 in Wrapping = Main::returned(main);
+    transition value == 5 && main.hits == 2 && main.trace == 34 {
+        true -> initializer(main)
+        false -> bad(main, 71)
     }
-    state initializer(&mut self) {
-        self.hits = 0;
-        self.trace = 0;
-        let value: u64 in Wrapping = self.initialized();
-        transition value == 7 && self.hits == 2 && self.trace == 56 {
-            true -> assignment()
-            false -> bad(72)
+    state initializer(main: &mut Main) {
+        main.hits = 0;
+        main.trace = 0;
+        let value: u64 in Wrapping = Main::initialized(main);
+        transition value == 7 && main.hits == 2 && main.trace == 56 {
+            true -> assignment(main)
+            false -> bad(main, 72)
         }
     }
-    state assignment(&mut self) {
-        self.hits = 0;
-        self.trace = 0;
-        let value: u64 in Wrapping = self.assigned();
-        transition value == 9 && self.hits == 2 && self.trace == 78 {
-            true -> field_store()
-            false -> bad(73)
+    state assignment(main: &mut Main) {
+        main.hits = 0;
+        main.trace = 0;
+        let value: u64 in Wrapping = Main::assigned(main);
+        transition value == 9 && main.hits == 2 && main.trace == 78 {
+            true -> field_store(main)
+            false -> bad(main, 73)
         }
     }
-    state field_store(&mut self) {
-        self.hits = 0;
-        self.trace = 0;
-        self.saved = self.bump(self.bump(9));
-        transition self.saved == 11 && self.hits == 2 && self.trace == 100 {
-            true -> good()
-            false -> bad(74)
+    state field_store(main: &mut Main) {
+        main.hits = 0;
+        main.trace = 0;
+        main.saved = Main::bump(main, Main::bump(main, 9));
+        transition main.saved == 11 && main.hits == 2 && main.trace == 100 {
+            true -> good(main)
+            false -> bad(main, 74)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 5.78, "load1_start": 3.87, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 29.61, "load1_start": 6.2, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1248,6 +1248,8 @@ pass/atomics/shared_receiver_atomic_store rejected 757ms @2d8ed253669f
 pass/blockexec/blocking_executor_custody_claims_compile checked 693ms @2d8ed253669f
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed253669f
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 293ms @2d8ed253669f
+pass/borrow/runtime_boundary_receiver_disjoint_loan_exit rejected 1019ms @f12f513338f0
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer`
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 907ms @2d8ed253669f
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 1283ms @011fd400e8c1+wt
 pass/borrow/write_only_constrained_record_field checked 305ms @2d8ed253669f
@@ -1316,7 +1318,9 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 763ms @0f26891d9
 pass/calls/case_arm_payload_receiver_arg checked 1332ms @30260e7900cb+wt
 pass/calls/case_payload_clone_observation_exit checked 938ms @bb878591d2fc+wt
 pass/calls/case_scrutinee_param_clone_exit checked 916ms @bb878591d2fc+wt
-pass/calls/case_scrutinee_self_dispatch_exit checked 1513ms @2d8ed253669f
+pass/calls/case_scrutinee_self_dispatch_exit rejected 461ms @f12f513338f0
+	argument `response` for state `get_result_address` expects the `Response` data type but got `ListResponse` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+	argument `response` for state `get_result_address` expects the `Response` data type but got `QueryResponse` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
@@ -1330,8 +1334,8 @@ pass/calls/generic_reference_forwarding_exit checked 1035ms @9782e38b64ab+wt
 pass/calls/guard_call_scalar_argument_exit checked 1210ms @3a0c3ba44cd8+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
 pass/calls/guarded_arm_value_tail_call_exit checked 2342ms @4e4bfed13aee+wt
-pass/calls/guarded_arm_view_range_tail_call_exit rejected 1423ms @9b253f5667e5
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(1), block: BlockId(1), node: 13, place: PlaceId(1) }))
+pass/calls/guarded_arm_view_range_tail_call_exit rejected 737ms @f12f513338f0
+	state `elements` receives `main` while local borrow `items` is still active (borrowed at statement 6; its last use is at statement 7)
 pass/calls/guarded_terminal_call_chain_exit checked 704ms @d30440d3c3f
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/inline_record_scalar_call_arguments_exit checked 791ms @3a2233464b3b
@@ -1354,13 +1358,16 @@ pass/calls/mixed_projection_sources_in_one_call rejected 475ms @5ccafc567049+wt
 	terminal-artifact production failed: Lowering(Unsupported("Unit graph reordered a source effect"))
 pass/calls/mutable_output_host_call checked 2341ms @2d8ed253669f
 pass/calls/mutable_receiver_computation_exit checked 1451ms @2d8ed253669f
-pass/calls/mutable_receiver_scalar_destinations_exit checked 1901ms @2d8ed253669f
+pass/calls/mutable_receiver_scalar_destinations_exit rejected 1054ms @f12f513338f0
+	terminal-artifact production failed: Lowering(Unsupported("scalar storage destination lost its checked source custody"))
 pass/calls/mutual_cycle_tail_admitted_exit checked 1566ms @2d8ed253669f
-pass/calls/named_target_payload_dispatch checked 1279ms @2d8ed253669f
+pass/calls/named_target_payload_dispatch rejected 734ms @f12f513338f0
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Wrap::get_count`, state `get_count` (statement 1)
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 920ms @922ccf420927+wt
-pass/calls/nested_call_tail_roots_exit checked 6210ms @922ccf420927+wt
+pass/calls/nested_call_tail_roots_exit rejected 689ms @f12f513338f0
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Wrap::get_count`, state `get_count` (statement 1)
 pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms @63377f7122bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
@@ -1381,7 +1388,8 @@ pass/calls/runtime_constructor_computed_field_exit checked 1305ms @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms @2d8ed253669f
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 1428ms @2d8ed253669f
 pass/calls/runtime_dispatch_float_terminal_exit checked 4399ms @2d8ed253669f
-pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 1797ms @2d8ed253669f
+pass/calls/runtime_dispatch_machine_array_slice_arg_exit rejected 1025ms @f12f513338f0
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
 pass/calls/runtime_dispatch_result_enum_case_exit checked 1492ms @2d8ed253669f
 pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253669f
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f
@@ -1436,12 +1444,16 @@ pass/calls/static_context_forwarded_twice_exit checked 1319ms @ca8c127c90c5
 pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms @2d8ed253669f
-pass/calls/transition_arg_local_from_embedded_call_exit checked 1627ms @2d8ed253669f
+pass/calls/transition_arg_local_from_embedded_call_exit rejected 449ms @f12f513338f0
+	exact arithmetic in machine `Main::main` state `main` local `r1` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `double_val(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
+	mixed arithmetic domains in machine `Main::main` state `main` local `r1`: one operand is `Wrapping` and the other is `Exact`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.
 pass/calls/transition_tail_call_to_machine checked 1299ms @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit checked 1179ms @2d8ed253669f
 pass/calls/value_call_as_host_arg_exit checked 1198ms @2d8ed253669f
 pass/calls/value_call_element_view_arg_compile checked 285ms @2d8ed253669f
-pass/calls/value_call_embedded_in_binary_exit checked 1631ms @2d8ed253669f
+pass/calls/value_call_embedded_in_binary_exit rejected 450ms @f12f513338f0
+	exact arithmetic in machine `Main::main` state `main` local `r` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `double_val(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
+	mixed arithmetic domains in machine `Main::main` state `main` local `r`: one operand is `Wrapping` and the other is `Exact`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.
 pass/calls/value_call_param_effect_arm checked 1361ms @2d8ed253669f
 pass/calls/value_call_subexpression checked 1244ms @2d8ed253669f
 pass/calls/value_call_transition_argument checked 1269ms @2d8ed253669f
@@ -1635,7 +1647,9 @@ pass/data/runtime_mixed_shape_exit checked 2078ms @ca8c127c90c5
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms @2d8ed253669f
 pass/data/runtime_record_field_value_pattern_exit checked 1016ms @3f4da4527c2d+wt
 pass/dependent/boundary_equality_recast_witness_compile checked 370ms @a3bac00e54bb+wt
-pass/dependent/boundary_requires_caller_field_extent_compile checked 298ms @2d8ed253669f
+pass/dependent/boundary_requires_caller_field_extent_compile rejected 304ms @f12f513338f0
+	cannot prove requires contract for call read from Main::main: 64 <= main.control.len (needs fact `count <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+	cannot prove requires contract for call pump from Main::main: 64 <= main.control.len (needs fact `64 <= buffer.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 292ms @2d8ed253669f
 pass/dependent/case_where_common_field_window checked 288ms @2d8ed253669f
 pass/dependent/case_where_generic_type_bound_coverage checked 292ms @2d8ed253669f
@@ -1685,7 +1699,8 @@ pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit checked 1024ms @bd26d3a01ac1+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
-pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb
+pass/domains/runtime_result_domain_machine_overload_exit rejected 189ms @f12f513338f0
+	store in array literal element of type `i32` implicitly converts `i32` to `i32 in Saturating`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Saturating`)
 pass/domains/semantic_cast_guard_chain_mint checked 341ms @2d8ed253669f
 pass/domains/slice_domain_validator checked 1242ms @2d8ed253669f
 pass/domains/threaded_subject_keeps_established_domains checked 1144ms @cc63aeb9971c+wt
@@ -1861,7 +1876,7 @@ pass/generics/runtime_const_data_machine_call_exit checked 1992ms @2d8ed253669f
 pass/generics/runtime_const_data_multiple_instances_exit checked 1230ms @2d8ed253669f
 pass/generics/runtime_const_data_symbolic_expression_exit checked 1300ms @2d8ed253669f
 pass/generics/runtime_const_data_where_fact_exit checked 1270ms @2d8ed253669f
-pass/generics/runtime_container_setter_matrix_exit checked 1388ms @2d8ed253669f
+pass/generics/runtime_container_setter_matrix_exit checked 931ms @f12f513338f0
 pass/generics/runtime_forwarded_value_contract_exit checked 507ms @fbbbc025398+wt
 pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms @2d8ed253669f
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms @ca8c127c90c5
@@ -2007,7 +2022,8 @@ pass/proofs/kernel_integer_subtract_bound checked 297ms @2d8ed253669f
 pass/proofs/kernel_integer_subtract_order checked 298ms @2d8ed253669f
 pass/proofs/kernel_theorem_equality_certificates checked 1247ms @2d8ed253669f
 pass/proofs/machine_parameterized_data_compile checked 299ms @2d8ed253669f
-pass/proofs/named_witness_static_trait_plural_compile checked 325ms @2d8ed253669f
+pass/proofs/named_witness_static_trait_plural_compile rejected 1ms @f12f513338f0
+	tests/omega/pass/proofs/named_witness_static_trait_plural_compile/main.omg:27:22: `self` receivers are retired; declare an explicit named parameter and type
 pass/proofs/nat_exact_subtraction_compile checked 281ms @2d8ed253669f
 pass/proofs/nat_metric_triangle_compile checked 354ms @2d8ed253669f
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit checked 5104ms @2d8ed253669f
@@ -2037,7 +2053,8 @@ pass/proofs/quotient_lift_managed_compile rejected 393ms @2d8ed253669f
 pass/proofs/ring_full_polynomial_compile checked 1201ms @2d8ed253669f
 pass/proofs/ring_law_conformance checked 1204ms @2d8ed253669f
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 724ms @767b982de12c+wt
-pass/proofs/runtime_decreases_u64_measure_exit checked 1636ms @2d8ed253669f
+pass/proofs/runtime_decreases_u64_measure_exit rejected 82ms @f12f513338f0
+	store in machine `Main::main` state `main` assignment implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
 pass/proofs/runtime_inductive_climbing_sum_exit checked 785ms @08b483f23366+wt
 pass/proofs/runtime_inductive_gauss_sum_exit checked 1055ms @b5a937001475+wt
 pass/proofs/runtime_mutable_ranked_accumulator_exit checked 1078ms @6571128ff286
@@ -2138,8 +2155,8 @@ pass/slices/projected_array_call_exit checked 1035ms @4e4bfed13aee+wt
 pass/slices/qualified_subslice_composition_exit checked 1090ms @a5ac65bf511d+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 728ms @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 1007ms @9b253f5667e5
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentSharedJoinOriginDisturbed { machine: MachineId(2), block: BlockId(7), node: 3, place: PlaceId(2) }))
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 281ms @f12f513338f0
+	cannot prove subslice range start bound `lo..hi` is within slice length 5
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 987ms @5fb2e19e1f1+wt
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms @59aa9580a54d+wt
@@ -2208,7 +2225,8 @@ pass/structural/case_field_local_store checked 1214ms @2d8ed253669f
 pass/structural/case_field_member_store checked 1231ms @2d8ed253669f
 pass/structural/case_payload_record_member_read checked 3162ms @527c7c316c6f+wt
 pass/structural/composed_case_field_store_exit checked 1122ms @ca8c127c90c5
-pass/structural/element_store checked 1287ms @2d8ed253669f
+pass/structural/element_store rejected 238ms @f12f513338f0
+	cannot prove requires contract for call fill from Main::main: 2 < main.nodes.len (needs fact `at < main.nodes.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 pass/structural/local_record_receivers checked 302ms @4e4bfed13aee+wt
 pass/structural/runtime_mutable_record_copy_exit checked 1326ms @ca8c127c90c5
 pass/structural/runtime_provider_payload_array_exit checked 767ms @bbd0a9fdb8d4+wt
@@ -2302,6 +2320,8 @@ pass/text/local_bounded_text_case_result_loan_exit checked 662ms @ca8c127c90c5
 pass/text/local_bounded_text_scalar_loan_exit checked 4200ms @ca8c127c90c5
 pass/text/local_record_byte_field_copy_exit checked 742ms @ca8c127c90c5
 pass/text/mutable_bounded_byte_state_exit checked 712ms @63377f7122bb+wt
+pass/text/nested_mutable_receiver_byte_result_exit rejected 231ms @f12f513338f0
+	state `ordered` receives `main` as mutable more than once
 pass/text/nested_owned_byte_record_literal_exit checked 1087ms @ae42075f1dcc+wt
 pass/text/owned_arrival_view_descriptor_forwarded_exit checked 1094ms @c3ad5f6e051f+wt
 pass/text/owned_byte_call_result_field_exit checked 1039ms @5826c9701ec3+wt
@@ -2360,7 +2380,8 @@ pass/traits/nominal_machine_binder_static_dispatch checked 675ms @a719149128ff+w
 pass/traits/ring_requirement_satisfies_exit checked 3090ms @2d8ed253669f
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1540ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
-pass/traits/runtime_inherited_trait_default_exit checked 713ms @5f978f80e84b+wt
+pass/traits/runtime_inherited_trait_default_exit rejected 1ms @f12f513338f0
+	tests/omega/pass/traits/runtime_inherited_trait_default_exit/main.omg:10:22: `self` receivers are retired; declare an explicit named parameter and type
 pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 1537ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1801ms @2d8ed253669f

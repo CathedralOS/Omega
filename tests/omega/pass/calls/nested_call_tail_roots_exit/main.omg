@@ -43,18 +43,18 @@ data ItemList {
     count: u64;
 }
 
-machine ItemList::get(&self, position: u64) -> Item {
-    transition position < self.count && position < 64 {
-        true -> clone_at(position)
+machine ItemList::get(item_list: &ItemList, position: u64) -> Item {
+    transition position < item_list.count && position < 64 {
+        true -> clone_at(item_list, position)
         false -> (Item::default())
     }
-    state clone_at(&self, position: u64) -> Item {
-        Item::clone(&self.items[position])
+    state clone_at(item_list: &ItemList, position: u64) -> Item {
+        Item::clone(&item_list.items[position])
     }
 }
 
-machine ItemList::get_count(&self) -> u64 {
-    self.count
+machine ItemList::get_count(item_list: &ItemList) -> u64 {
+    item_list.count
 }
 
 data Holder {
@@ -62,19 +62,19 @@ data Holder {
 }
 
 // receiver-form tail on a member-path field, structural return
-machine Holder::get(&self, position: u64) -> Item {
-    self.list.get(position)
+machine Holder::get(holder: &Holder, position: u64) -> Item {
+    ItemList::get(&holder.list, position)
 }
 
 // receiver-form tail on a member-path field, scalar return
-machine Holder::get_count(&self) -> u64 {
-    self.list.get_count()
+machine Holder::get_count(holder: &Holder) -> u64 {
+    ItemList::get_count(&holder.list)
 }
 
 // call spelled directly as a transition Value target
-machine Holder::get_cursor(&self, index: u64) -> Item {
+machine Holder::get_cursor(holder: &Holder, index: u64) -> Item {
     transition index < 64 {
-        true -> (Item::clone(&self.list.items[index]))
+        true -> (Item::clone(&holder.list.items[index]))
         false -> (Item::default())
     }
 }
@@ -85,9 +85,9 @@ data Parse {
 }
 
 // call nested inside a case-payload constructor in a Value target
-machine Holder::parse(&self, index: u64) -> Parse {
-    transition index < 64 && index < self.list.count {
-        true -> (Parse::Parsed { value: Item::clone(&self.list.items[index]) })
+machine Holder::parse(holder: &Holder, index: u64) -> Parse {
+    transition index < 64 && index < holder.list.count {
+        true -> (Parse::Parsed { value: Item::clone(&holder.list.items[index]) })
         false -> (Parse::Refused)
     }
 }
@@ -98,13 +98,13 @@ data Wrap {
 }
 
 // case-payload parameter used as a call receiver, scalar tail
-machine Wrap::get_count(&self) -> u64 {
-    transition self {
+machine Wrap::get_count(wrap: &Wrap) -> u64 {
+    transition wrap {
         Wrap::Has { list } -> at(list)
         _ -> (0)
     }
     state at(list: ItemList) -> u64 {
-        list.get_count()
+        ItemList::get_count(&list)
     }
 }
 
@@ -112,16 +112,16 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let holder: Holder = Holder { list: ItemList { count: 1 } };
-    let out: Item = holder.get(0);
-    let n: u64 = holder.get_count();
-    let c: Item = holder.get_cursor(0);
-    let p: Parse = holder.parse(0);
+    let out: Item = Holder::get(&holder, 0);
+    let n: u64 = Holder::get_count(&holder);
+    let c: Item = Holder::get_cursor(&holder, 0);
+    let p: Parse = Holder::parse(&holder, 0);
     let w: Wrap = Wrap::Has { list: ItemList { count: 2 } };
-    let m: u64 = w.get_count();
+    let m: u64 = Wrap::get_count(&w);
     transition {
-        _ -> done(&mut self)
+        _ -> done(main)
     }
 
     state done(main: &mut Main) {

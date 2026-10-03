@@ -18,15 +18,15 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let qualified: i32 in Saturating = convert(0);
     let qualified_pair: [i32 in Saturating; 1] = [convert(0)];
     let ordinary: i32 = convert(0);
     transition {
-        qualified == (70 as i32 in Saturating) && qualified_pair[0] == (70 as i32 in Saturating) && ordinary == 69 -> good()
-        _ -> bad()
+        qualified == (70 as i32 in Saturating) && qualified_pair[0] == (70 as i32 in Saturating) && ordinary == 69 -> good(main)
+        _ -> bad(main)
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(77); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(77); }
 }

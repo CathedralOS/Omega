@@ -14,24 +14,24 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; hits: i32 in Wrapping; total: i32 in Wrapping; }
-machine Main::count(&mut self, i: u64, j: u64)
+machine Main::count(main: &mut Main, i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {
-    self.hits = self.hits + 1;
+    main.hits = main.hits + 1;
     transition j < i {
-        true -> count(i, j + 1)
-        false -> done_leaf()
+        true -> count(main, i, j + 1)
+        false -> done_leaf(main)
     }
-    state done_leaf(&mut self) -> i32 {
-        let result: i32 = self.hits as i32;
+    state done_leaf(main: &mut Main) -> i32 {
+        let result: i32 = main.hits as i32;
         result
     }
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).
-    self.total = self.count(4, 0);
-    transition self.total == 5 { true -> ck_hits(&mut self) _ -> bad(&mut self, 71) }
+    main.total = Main::count(main, 4, 0);
+    transition main.total == 5 { true -> ck_hits(main) _ -> bad(main, 71) }
     state ck_hits(main: &mut Main) {
         transition main.hits == 5 { true -> good(main) _ -> bad(main, 72) }
     }

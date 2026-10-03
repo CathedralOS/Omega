@@ -48,8 +48,8 @@ data RequiredValue {
 
 RequiredValueRequiredCounter: RequiredValue satisfies RequiredCounter;
 
-machine RequiredValue::set(&mut self, value: i32) {
-    self.value = value;
+machine RequiredValue::set(required_value: &mut RequiredValue, value: i32) {
+    required_value.value = value;
 }
 
 data ParentValue {
@@ -58,8 +58,8 @@ data ParentValue {
 
 ParentValueParentCounter: ParentValue satisfies ParentCounter;
 
-machine ParentValue::set(&mut self, value: i32) {
-    self.value = value;
+machine ParentValue::set(parent_value: &mut ParentValue, value: i32) {
+    parent_value.value = value;
 }
 
 data ResolvedValue {
@@ -68,12 +68,12 @@ data ResolvedValue {
 
 ResolvedValueResolvedCounter: ResolvedValue satisfies ResolvedCounter;
 
-machine ResolvedValue::set(&mut self, value: i32) {
-    self.value = value;
+machine ResolvedValue::set(resolved_value: &mut ResolvedValue, value: i32) {
+    resolved_value.value = value;
 }
 
-machine ResolvedValue::reset(&mut self) {
-    self.set(10);
+machine ResolvedValue::reset(resolved_value: &mut ResolvedValue) {
+    ResolvedValue::set(resolved_value, 10);
 }
 
 data Main {
@@ -86,7 +86,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     main.required_value.reset();
     main.parent_value.reset();
-    main.resolved_value.reset();
+    ResolvedValue::reset(&mut main.resolved_value);
     transition main.required_value.value == 30
         && main.parent_value.value == 30
         && main.resolved_value.value == 10 {

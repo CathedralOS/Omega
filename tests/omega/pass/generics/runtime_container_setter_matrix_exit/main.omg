@@ -14,14 +14,14 @@ data Cell<T> {
     value: T;
     touched: i32 in Wrapping;
 }
-machine Cell::set<T>(&mut self, v: T) {
-    self.value = v;
-    self.touched = self.touched + 1;
+machine Cell::set<T>(cell: &mut Cell<T>, v: T) {
+    cell.value = v;
+    cell.touched = cell.touched + 1;
 }
 // Returning the field through a shared receiver copies it. The container
 // and setter do not need this getter-only bound.
-machine Cell::get<T [copy]>(&self) -> T {
-    transition { _ -> (self.value) }
+machine Cell::get<T [copy]>(cell: &Cell<T>) -> T {
+    transition { _ -> (cell.value) }
 }
 machine Cell::touch_count<T>(cell: &Cell<T>) -> i32 in Wrapping {
     transition { _ -> (cell.touched) }
@@ -31,14 +31,14 @@ data Main {
     a: Cell<i32>;
     b: Cell<bool>;
 }
-machine Main::main(&mut self) reaches Console {
-    self.a.set(41);
-    self.a.set(42);
-    self.b.set(true);
-    let n: i32 = self.a.get();
+machine Main::main(main: &mut Main) reaches Console {
+    Cell::set(&mut main.a, 41);
+    Cell::set(&mut main.a, 42);
+    Cell::set(&mut main.b, true);
+    let n: i32 = Cell::get(&main.a);
     transition n == 42 {
-        true -> check_touches(&mut self)
-        false -> no(&mut self)
+        true -> check_touches(main)
+        false -> no(main)
     }
     state check_touches(main: &mut Main) {
         let t: i32 in Wrapping = Cell::touch_count(&main.a);
@@ -48,7 +48,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state check_bool(main: &mut Main) {
-        let f: bool = main.b.get();
+        let f: bool = Cell::get(&main.b);
         transition f {
             true -> yes(main)
             false -> no(main)
