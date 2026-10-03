@@ -1,18 +1,15 @@
-//! Shared resolution of an encoding-DOMAIN refinement declared on a
-//! machine-attached-data field (`out: &[u8] in Utf8`), used by both the
-//! write-enforcement check (`checks::contracts::writes`) and the flow-stage
-//! re-establishment of the field-domain invariant after a write
-//! (`flow::transfers`). #66.
+//! Declaration-owned field qualifications shared by checking and fact flow.
 //!
-//! This neutral crate-root module also owns the comptime byte-predicate
-//! machinery (`ByteSequencePredicate`, `domain_byte_predicate`,
-//! `string_literal_expression_grants_domain`) so it is reachable from BOTH the
-//! checker (`checks/`, construction-grant discharge) and the fact-producer
-//! (`semantic/`). The policy of which bytes are in a domain lives in the DOMAIN
-//! declaration's body facts; this module only provides the reusable comptime
-//! byte-predicate primitives and evaluates them per-literal. A domain without
-//! exactly one recognized comptime byte-predicate fact grants nothing. There is NO
-//! hardcoded domain name here.
+//! `declared_fields` enumerates one case-aware roster for parameter entry,
+//! return obligations, and post-call restoration. Conditional payload paths
+//! retain exact domain instances; the roster does not establish any value.
+//! Owned-result custody deliberately stops at references, while the readable
+//! referent roster follows them under their declared access.
+//!
+//! Assignment lookup and domain identity/implication queries below serve both
+//! write enforcement and fact transport. Byte predicates come from declared
+//! domain bodies, never recognized domain names. Construction and replacement
+//! still prove membership before publishing the corresponding facts.
 
 use symbols::SymbolHandle;
 pub(crate) use typed_trees::byte_predicates::{ByteSequencePredicate, domain_byte_predicate};
@@ -20,6 +17,11 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
+
+mod declared_fields;
+pub(crate) use declared_fields::{
+    FieldDomainRow, WHOLE_ELEMENT_EXTENT, declared_data_field_domain_rows, readable_slice_element,
 };
 
 #[cfg(test)]
@@ -326,7 +328,7 @@ pub(crate) fn owned_nominal_data_definition(
         .find(|data| data.symbol == symbol && data.type_parameters.is_empty())
 }
 
-/// The declared field `(path, domain)` obligations an OWNED result of
+/// The declared field `(path, domain, instance)` obligations an OWNED result of
 /// `type_reference` carries: nominal data fields directly, or each element of
 /// a fixed array of nominal data at its exact `FixedIndex` prefix. A
 /// `Constrained` return (`-> T in D`) still owns `T` storage; a reference
@@ -336,7 +338,7 @@ pub(crate) fn owned_nominal_data_definition(
 pub(crate) fn declared_result_field_domain_paths(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Vec<(Vec<facts::PlaceSegment>, SymbolHandle)> {
+) -> Vec<FieldDomainIdentity> {
     let mut reference = type_reference;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(reference)
@@ -353,11 +355,11 @@ pub(crate) fn declared_result_field_domain_paths(
     {
         let mut paths = Vec::new();
         for index in 0..*length {
-            for (mut path, domain_symbol) in
+            for (mut path, domain_symbol, semantic_domain) in
                 declared_result_field_domain_paths(program, *element_type)
             {
                 path.insert(0, facts::PlaceSegment::FixedIndex { index });
-                paths.push((path, domain_symbol));
+                paths.push((path, domain_symbol, semantic_domain));
             }
         }
         return paths;
@@ -365,11 +367,15 @@ pub(crate) fn declared_result_field_domain_paths(
     Vec::new()
 }
 
-type OwnedFieldDomainIdentities = Vec<(
+/// Exact field path and declared domain instance; an indexed family symbol
+/// alone cannot identify the membership restored across a call.
+pub(crate) type FieldDomainIdentity = (
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
-)>;
+);
+
+type OwnedFieldDomainIdentities = Vec<FieldDomainIdentity>;
 
 /// Freshness for the scope memo: the program's identity (a process-unique
 /// counter a recycled `TypedTrees` can never inherit) plus the summed
@@ -640,70 +646,24 @@ pub(crate) fn domain_requires_provenance(
     visit(program, symbol, &mut Vec::new())
 }
 
-/// Every `(place path, domain)` pair a nominal value of `data` promises by
-/// declaration: each readable field's predicate-domain constraints, nested
-/// nominal fields, and each element of a fixed-array nominal field at its
-/// exact `FixedIndex`. The paths mirror the state-parameter entry seeding in
-/// `semantic::field_domains` exactly, so the same canonical places discharge
-/// the result/returned-element obligations built from them.
+/// Every `(place path, domain, instance)` a nominal value of `data` promises by
+/// declaration: the predicate-bearing obligations in the same declaration
+/// roster used for state entry. Payload paths remain conditional on their
+/// exact `Case` segments; transporting them does not select a case. Fixed-array
+/// rollup rows are evidence only, while a slice's whole extent is an obligation.
 pub(crate) fn declared_field_domain_paths(
     program: &typed_trees::TypedTrees,
     data: &typed_trees::data::DataDefinition,
-) -> Vec<(Vec<facts::PlaceSegment>, SymbolHandle)> {
-    let mut paths = Vec::new();
-    append_declared_field_domain_paths(program, data, &[], &[data.symbol], &mut paths);
-    paths
-}
-
-fn append_declared_field_domain_paths(
-    program: &typed_trees::TypedTrees,
-    data: &typed_trees::data::DataDefinition,
-    prefix: &[facts::PlaceSegment],
-    visited: &[SymbolHandle],
-    paths: &mut Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>,
-) {
-    for member in program.data_members(data) {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            continue;
-        };
-        if readable_type_reference(program, field.type_reference).is_none() {
-            continue;
-        }
-        let mut field_path = prefix.to_vec();
-        crate::flow::push_field_place_segments(program, &mut field_path, field.symbol);
-        for domain_symbol in predicate_domain_constraint_symbols(program, field.type_reference) {
-            paths.push((field_path.clone(), domain_symbol));
-        }
-        if let Some(nested) = readable_nominal_definition(program, field.type_reference)
-            && !visited.contains(&nested.symbol)
-        {
-            let mut next_visited = visited.to_vec();
-            next_visited.push(nested.symbol);
-            append_declared_field_domain_paths(program, nested, &field_path, &next_visited, paths);
-        }
-        // A fixed array field enumerates each nominal element's declared fields
-        // at `field[i]`; element coverage rides the same paths as one-level
-        // fields and is never encoded at an unresolved runtime index.
-        if let Some((element_type, length)) =
-            readable_fixed_array_elements(program, field.type_reference)
-            && let Some(nested) = readable_nominal_definition(program, element_type)
-            && !visited.contains(&nested.symbol)
-        {
-            let mut next_visited = visited.to_vec();
-            next_visited.push(nested.symbol);
-            for index in 0..length {
-                let mut element_path = field_path.clone();
-                element_path.push(facts::PlaceSegment::FixedIndex { index });
-                append_declared_field_domain_paths(
-                    program,
-                    nested,
-                    &element_path,
-                    &next_visited,
-                    paths,
-                );
-            }
-        }
-    }
+) -> Vec<FieldDomainIdentity> {
+    declared_data_field_domain_rows(program, data)
+        .into_iter()
+        .filter(|row| {
+            !row.transfer
+                && typed_trees::domain::domain_by_symbol(program, row.domain_symbol)
+                    .is_some_and(|domain| domain.predicate_body.is_present())
+        })
+        .map(|row| (row.path, row.domain_symbol, row.semantic_domain))
+        .collect()
 }
 
 /// The data-type name a field's type reference names (peeling `&`/`&mut` and a

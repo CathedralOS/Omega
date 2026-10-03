@@ -13,6 +13,184 @@ const DEFINITIONS: &str = r#"
     data Packet { payload: Text; tag: u64; }
 "#;
 
+const CASE_DEFINITIONS: &str = r#"
+    domain i32::Ten(value) requires 0 <= value && value <= 10;
+    data Lamp { case Dark; case Lit(amount: i32 in Ten); }
+    data Holder { lamp: Lamp; }
+    machine consume(holder: &mut Holder) {}
+"#;
+
+#[test]
+fn mutable_call_restores_conditional_payload_invariants() {
+    let source = format!(
+        r#"{CASE_DEFINITIONS}
+        machine install(holder: &mut Holder) {{
+            let replacement: Lamp = Lamp::Lit {{ amount: 4 }};
+            holder.lamp = replacement;
+        }}
+        machine inspect(holder: &mut Holder) {{
+            install(holder);
+            consume(holder);
+            transition holder.lamp {{
+                Lamp::Lit {{ amount }} -> active(holder, amount)
+                Lamp::Dark -> inactive(holder)
+            }}
+            state active(holder: &mut Holder, amount: i32)
+                requires amount >= 0 && amount <= 10 {{}}
+            state inactive(holder: &mut Holder) {{}}
+        }}
+        "#
+    );
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
+fn inactive_payload_obligations_discharge_at_calls_and_returns() {
+    let source = format!(
+        r#"{CASE_DEFINITIONS}
+        machine extinguish(holder: &mut Holder) {{
+            holder.lamp = Lamp::Dark;
+            consume(holder);
+        }}
+        machine replace(holder: &mut Holder) {{
+            extinguish(holder);
+            consume(holder);
+        }}
+        machine empty() -> Lamp {{ Lamp::Dark }}
+        "#
+    );
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
+fn mutable_return_rejects_a_corrupted_active_payload() {
+    let source = format!(
+        r#"{CASE_DEFINITIONS}
+        machine corrupt(amount: &mut i32) {{ amount = -1; }}
+        machine invalidate(holder: &mut Holder) {{
+            holder.lamp = Lamp::Lit {{ amount: 4 }};
+            corrupt(&mut holder.lamp.amount);
+        }}
+        "#
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .expect_err("a call returning a whole value must restore the active payload");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("default-domain field requirement for return")
+                && diagnostic.message.contains("Ten")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn restored_payload_invariants_do_not_restore_an_old_case_tag() {
+    let source = format!(
+        r#"{CASE_DEFINITIONS}
+        machine extinguish(holder: &mut Holder) {{ holder.lamp = Lamp::Dark; }}
+        machine observe(amount: i32 in Ten) {{}}
+        machine stale(holder: &mut Holder) {{
+            holder.lamp = Lamp::Lit {{ amount: 4 }};
+            extinguish(holder);
+            observe(holder.lamp.amount);
+        }}
+        "#
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .expect_err("a conditional payload invariant grants no live case selection");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("observe") && diagnostic.message.contains("Ten")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn mutable_call_restoration_keeps_exact_indexed_payload_instances() {
+    let source = r#"
+        domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+        data Limits { case Pair(first: u64 in AtMost<10>, second: u64 in AtMost<20>); }
+        machine inspect(limits: &mut Limits) {}
+        machine forward(limits: &mut Limits) { inspect(limits); }
+    "#;
+    let typed = parse_typed_trees(source);
+    let proof_plan = proof::obligations::build_proof_plan(&typed);
+    let operations = validation::infer_operational_may(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let _ = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
+    let forward = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .unwrap();
+    let state = &typed.machine_states(forward)[0];
+    let root = typed.state_parameters(state)[0].symbol;
+    let mut restored = Vec::new();
+    for (_, fact) in semantic.facts.iter() {
+        if !matches!(fact.point, facts::ProgramPoint::CallEnsures { machine_symbol, .. } if machine_symbol == forward.symbol)
+        {
+            continue;
+        }
+        let (
+            facts::FactPlace::Place(place),
+            facts::FactPayload::DomainMembership {
+                domain_symbol,
+                semantic_domain,
+                ..
+            },
+        ) = (fact.place, fact.payload)
+        else {
+            continue;
+        };
+        let place = semantic.places.get(place);
+        if place.root == facts::PlaceRoot::Symbol(root) {
+            restored.push((
+                semantic
+                    .place_segments
+                    .span_or_empty(place.segments)
+                    .to_vec(),
+                domain_symbol,
+                semantic_domain,
+            ));
+        }
+    }
+    let limits = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Limits")
+        .unwrap();
+    let declared = crate::facts::field_domain::declared_data_field_domain_rows(&typed, limits);
+    assert_eq!(
+        restored.len(),
+        2,
+        "each payload instance must be restored once"
+    );
+    for row in declared {
+        assert!(row.semantic_domain.is_valid());
+        assert!(restored.contains(&(row.path, row.domain_symbol, row.semantic_domain)));
+    }
+    assert_ne!(
+        restored[0].2, restored[1].2,
+        "equal domain names cannot merge distinct indices"
+    );
+}
+
 #[test]
 fn boundary_write_preserves_disjoint_declared_field_domains() {
     let source = r#"

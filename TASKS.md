@@ -2032,22 +2032,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
-- **CASE-FIELD-CALL-MEMBERSHIP.** (split-of:CASE-FIELD-TYPE-STORE-SHAPES)
-  Preserve declaration-derived case-field membership across ordinary helper
-  calls and subsequent case dispatch. Follow
-  [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity);
-  repair the shared call-effect/field-fact flow, not a source-shape recognizer.
-  On macOS ARM64, `omega run --both
-  tests/omega/pass/structs/case_field_type_store_shapes/main.omg` fails at both
-  `def08a434d7a` and the predicate-field candidate `11ed75b597+wt`: after
-  `Main::store_local_level`, calls from `through_local` to `local_value` and
-  `fail` cannot prove `main.level::Lit.amount` belongs to `i32::Ten`.
-  The source obligation is checked in stage 04's
-  `checks/contracts/nominal_inputs.rs`; field construction and Terminal
-  predicate retention are not the missing capability. Acceptance: the unchanged
-  program exits 70 natively and interpreted, while
-  `fail/ranges/sum_payload_non_case_guard_unproven` still rejects.
-
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose the remaining owned-array producers
   into record literals.
   Empty record-array fields and their nested array extents now lend through the

@@ -155,24 +155,14 @@ pub(super) fn check(
                 continue;
             }
             let proves = |subject: &crate::flow::CanonicalPlace| {
-                if crate::facts::field_domain::domain_requires_provenance(program, *domain_symbol) {
-                    super::exits::exact_scalar_membership(
-                        program,
-                        facts,
-                        contexts,
-                        subject,
-                        *domain_symbol,
-                        *semantic_domain,
-                    )
-                } else {
-                    super::prover::prove_domain_at_place(
-                        program,
-                        &facts.semantic,
-                        contexts,
-                        subject,
-                        *domain_symbol,
-                    )
-                }
+                prove_declared_field_domain(
+                    program,
+                    facts,
+                    contexts,
+                    subject,
+                    *domain_symbol,
+                    *semantic_domain,
+                )
             };
             let satisfied = argument
                 .and_then(|argument| {
@@ -224,7 +214,15 @@ pub(super) fn check(
                     }
                     let mut subject = actual.clone();
                     subject.extend_segments(segments);
-                    proves(&subject)
+                    crate::flow::place_case_path_is_inactive(
+                        program,
+                        &facts.semantic,
+                        contexts,
+                        state.machine_symbol,
+                        state.state_symbol,
+                        call.statement_index,
+                        &subject,
+                    ) || proves(&subject)
                         || candidate_referents_prove_domain(
                             program,
                             facts,
@@ -293,23 +291,55 @@ fn candidate_referents_prove_domain(
     candidates.iter().all(|candidate| {
         let mut subject = candidate.clone();
         subject.extend_segments(segments);
-        if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol) {
-            super::exits::exact_scalar_membership(
-                program,
-                facts,
-                contexts,
-                &subject,
-                domain_symbol,
-                semantic_domain,
-            )
-        } else {
-            super::prover::prove_domain_at_place(
-                program,
-                &facts.semantic,
-                contexts,
-                &subject,
-                domain_symbol,
-            )
-        }
+        crate::flow::place_case_path_is_inactive(
+            program,
+            &facts.semantic,
+            contexts,
+            state.machine_symbol,
+            state.state_symbol,
+            call.statement_index,
+            &subject,
+        ) || prove_declared_field_domain(
+            program,
+            facts,
+            contexts,
+            &subject,
+            domain_symbol,
+            semantic_domain,
+        )
     })
+}
+
+/// A field qualification carries its complete domain application. Predicate
+/// proof may discharge an atomic domain; it cannot select an indexed instance
+/// or manufacture establishment provenance. Both exact and candidate referents
+/// use this same judgment.
+fn prove_declared_field_domain(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    contexts: &[FactContextHandle],
+    subject: &crate::flow::CanonicalPlace,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
+        || !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol)
+    {
+        super::exits::exact_scalar_membership(
+            program,
+            facts,
+            contexts,
+            subject,
+            domain_symbol,
+            semantic_domain,
+        )
+    } else {
+        super::prover::prove_domain_at_place(
+            program,
+            &facts.semantic,
+            contexts,
+            subject,
+            domain_symbol,
+        )
+    }
 }
