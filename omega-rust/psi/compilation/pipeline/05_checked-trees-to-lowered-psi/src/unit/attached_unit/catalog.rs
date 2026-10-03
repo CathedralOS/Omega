@@ -486,7 +486,55 @@ pub(super) fn lower_unit_structural_types_including(
         );
         roots.extend(boundary.result.structural_identity().map(str::to_owned));
     }
-    lower_unit_structural_type_roots(checked, plans, &roots)
+    let (mut declarations, mut identities) =
+        lower_unit_structural_type_roots(checked, plans, &roots)?;
+    // A captured coordinate is compiler-owned primitive storage, even when
+    // its source is an inline field and no authored signature roots u64.
+    // Publish its ordinary carrier before any emission route borrows this
+    // shared catalog. Loan preparation supplies the need; it grants no access.
+    let scalar = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
+    if !declarations
+        .iter()
+        .any(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar))
+    {
+        let mut needs_coordinate = false;
+        for machine in closure {
+            let states = match UnitBody::find(plans, *machine)? {
+                UnitBody::Ordinary(body) => vec![body.state],
+                UnitBody::Composed(body) => body.states.iter().map(|state| state.state).collect(),
+            };
+            for state in states {
+                let loans =
+                    crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+                        checked,
+                        *machine,
+                        state,
+                        &declarations,
+                    )?;
+                needs_coordinate |= loans.iter().any(|loan| {
+                    loan.capture
+                        .as_ref()
+                        .is_ok_and(|capture| capture.runtime_index.is_some())
+                });
+            }
+        }
+        if needs_coordinate {
+            let identity = "named(name(u64))".to_owned();
+            if identities.iter().any(|(existing, _)| *existing == identity) {
+                return unsupported(
+                    "record coordinate carrier conflicts with its catalog identity",
+                );
+            }
+            let id = structural_type_id(dense_identity(declarations.len())?);
+            identities.push((identity.clone(), id));
+            declarations.push(StructuralTypeDeclaration {
+                id,
+                identity,
+                shape: StructuralTypeShape::PrimitiveScalar(scalar),
+            });
+        }
+    }
+    Ok((declarations, identities))
 }
 
 fn select_from<'a>(

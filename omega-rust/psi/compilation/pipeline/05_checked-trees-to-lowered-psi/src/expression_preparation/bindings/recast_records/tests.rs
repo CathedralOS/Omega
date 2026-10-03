@@ -41,7 +41,7 @@ fn record_overlay_coordinate_requires_its_dimension_bound() {
     )
     .unwrap();
     let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof_bytes = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let proof_bytes = terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     assert!(matches!(
         terminal_interpreter::interpret_terminal_artifact(
             &semantic_bytes,
