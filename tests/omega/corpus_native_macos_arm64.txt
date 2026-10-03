@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 5.99, "load1_start": 5.99, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.6, "load1_start": 7.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1175,8 +1175,7 @@ pass/types/runtime_i16_signed_arith_exit built 560ms exit:70
 pass/versioning/migration_generic_trait built 499ms
 pass/versioning/runtime_version_migration_exit built 1268ms exit:70 @fb2178def922
 pass/wire/numbered_case_identities checked 173ms
-pass/wire/runtime_wire_decode_byte_slice_exit rejected 1562ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
+pass/wire/runtime_wire_decode_byte_slice_exit built 10278ms exit:70 @71ce8919e944
 pass/wire/runtime_wire_decode_ranged_field_exit built 16227ms exit:70 @7d617c5d99b2
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 4092ms exit:70 @1da616075c39+wt
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 45899ms exit:70 @1da616075c39+wt
