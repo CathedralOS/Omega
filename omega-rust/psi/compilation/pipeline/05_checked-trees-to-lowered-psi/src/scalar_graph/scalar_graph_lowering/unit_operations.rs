@@ -67,6 +67,7 @@ pub(super) fn prepare(
     operation: &CheckedUnitEffectOperationPlan,
     bindings: &storage::ScalarBindings,
     value_types: &[QualifiedScalarType],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Prepared, LoweringError> {
     let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
         .call()
@@ -250,7 +251,6 @@ pub(super) fn prepare(
         if parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || parameter.fused_service_erasure.is_some()
-            || !argument.path.is_empty()
             || parameter.access != argument.access
             || parameter.type_identity != argument.type_identity
         {
@@ -303,8 +303,11 @@ pub(super) fn prepare(
                 .ok_or(LoweringError::Unsupported(
                     "scalar Unit borrow is not primitive",
                 ))?;
-        lowered_arguments
-            .push(bindings.primitive_borrow(argument, terminal_scalar_type(primitive)?)?);
+        lowered_arguments.push(bindings.primitive_borrow(
+            argument,
+            terminal_scalar_type(primitive)?,
+            structural_types,
+        )?);
     }
     let argument_types = target
         .scalar_parameters
