@@ -1245,8 +1245,8 @@ pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 1656ms @8778c44008
 pass/atomics/atomic_global_order_operations checked 290ms @2d8ed253669f
 pass/atomics/runtime_atomic_compare_exchange_exit checked 1305ms @2d8ed253669f
 pass/atomics/runtime_atomic_fetch_add_exit checked 1275ms @2d8ed253669f
-pass/atomics/shared_receiver_atomic_store rejected 757ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Cell::publish`), which was itself omitted at local construction at `atomic access: place: shared receiver without atomic cell identity`
+pass/atomics/shared_receiver_atomic_store rejected 1983ms @def08a434d7a+wt
+	native artifact identity physical pipeline failed: common physical staging failed: FunctionRelativeRealization(Encoding(X86_64(UnsupportedAtomicForm)))
 pass/blockexec/blocking_executor_custody_claims_compile checked 693ms @2d8ed253669f
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed253669f
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 293ms @2d8ed253669f
@@ -1902,8 +1902,8 @@ pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 1001ms @2517a050d7b4+wt
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit checked 1291ms @633757114264+wt
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 2289ms @6bd4d1a87ff4+wt
-pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 975ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
+pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 1491ms @def08a434d7a+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: scalar field type: indexed element destination` (state 0, statement 4)
 pass/layouts/runtime_plan_laid_value_field_exit checked 1412ms @2d8ed253669f
 pass/layouts/runtime_size_of_align_of_exit checked 1659ms @2d8ed253669f
 pass/locals/mutable_local_call_initializer_exit checked 1412ms @2d8ed253669f
@@ -2100,8 +2100,7 @@ pass/recast/runtime_mutable_equivalent_range_recast_exit checked 1194ms @a3bac00
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 5307ms @a3bac00e54bb+wt
 pass/recast/runtime_nested_record_byte_store_exit checked 1232ms @a3bac00e54bb+wt
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms @a3bac00e54bb+wt
-pass/recast/runtime_record_array_view_mutable_write_exit rejected 972ms @a3bac00e54bb+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_record_array_view_mutable_write_exit checked 3863ms @def08a434d7a+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 2961ms @9782e38b64ab+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms @a3bac00e54bb+wt
 pass/recast/runtime_shared_record_float_range_weakening_exit checked 3023ms @a3bac00e54bb+wt
