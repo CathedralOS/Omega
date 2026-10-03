@@ -271,6 +271,33 @@ execution and native exit/output. A moved refusal is still unfinished work.
   projections is not a repair either -- it removes the whole-`&mut` subject the
   footprint check exists to judge, so the fixture would pin nothing.
 
+- **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
+  A receiver call on a public boundary requirement reaches it WITHOUT a
+  selected provider; the static qualified call demands one. That is a semantic
+  difference between the two call shapes, not a spelling, and it blocks two
+  green canaries.
+
+  `pass/memory/address_translation_canary` calls `owed.discharge()` four times
+  and `pass/memory/secondary_processor_canary` calls `envelope.confirm()`
+  twice, against `pub boundary requirement Shootdown::discharge(self)` and
+  `StartupEnvelope::confirm(self)`. Both fixtures CHECK today. Naming those
+  by-value subjects (the spelling
+  `pass/blockexec/blocking_executor_custody_claims_compile` establishes) and
+  rewriting the calls to `Shootdown::discharge(owed)` moves them from checked
+  to rejected with "direct call `discharge` names public boundary requirement
+  `Shootdown::discharge`, which has no selected provider; select an admitted
+  provider whose checked machine `satisfies Shootdown::discharge` before
+  calling it". Measured, then reverted: the migration is held, not landed.
+
+  Either the receiver form was lax and these canaries have been reaching an
+  unprovided requirement all along -- in which case the static form is correct
+  and both fixtures need a selected provider, which changes what they pin --
+  or a value-rooted boundary requirement call is meant to stay provider-free
+  and the static spelling for it does not exist yet. Deciding that is the
+  blocker; it is not a fixture-authoring question. The same shape also governs
+  `pass/memory/secondary_processor_canary`'s `request_cancel(&self)`, whose
+  borrow form has no call site in the fixture at all.
+
 - **STATIC-DEPENDENT-BOUND-SUBJECT.** (split-of:STATIC-MACHINE-MIGRATION)
   The R1a dependent-maximum recognizer is keyed to the literal `self`
   spelling, so no dependent bound can be written statically and the diagnostic

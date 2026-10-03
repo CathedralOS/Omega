@@ -2,12 +2,12 @@ use omega::language::core::binding;
 use omega_language_std::console;
 
 pub boundary trait ArrayReader {
-    machine inspect(&mut self, prefix: i32, values: [[u8; 2]; 2], suffix: i32) -> i32;
+    machine inspect(prefix: i32, values: [[u8; 2]; 2], suffix: i32) -> i32;
 }
 
 data ArrayReaderProvider {}
 
-machine ArrayReaderProvider::inspect(provider: &mut ArrayReaderProvider, prefix: i32, values: [[u8; 2]; 2], suffix: i32) -> i32
+machine ArrayReaderProvider::inspect(prefix: i32, values: [[u8; 2]; 2], suffix: i32) -> i32
 satisfies ArrayReader::inspect {
     transition prefix == 30 && suffix == 40 && values[0][0] == 11 && values[0][1] == 22 && values[1][0] == 33 && values[1][1] == 44 {
         true -> (70)

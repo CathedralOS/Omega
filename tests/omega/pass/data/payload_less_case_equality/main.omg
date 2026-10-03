@@ -6,7 +6,7 @@
 // supplies it, matching pass/traits/equatable_sum_payload_equality_exit.
 
 trait Equatable {
-    machine equals(&self, other: &Self) -> bool;
+    machine equals(value: &Self, other: &Self) -> bool;
 }
 
 data Command {

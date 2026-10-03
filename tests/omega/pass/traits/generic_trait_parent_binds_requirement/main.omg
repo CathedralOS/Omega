@@ -1,5 +1,5 @@
 trait Sink<T> {
-    machine put(&mut self, value: T);
+    machine put(sink: &mut Self, value: T);
 }
 
 trait IntSink: Sink<i32> {

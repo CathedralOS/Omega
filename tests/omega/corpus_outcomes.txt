@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 5.93, "load1_start": 5.4, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 25.07, "load1_start": 4.73, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1136,8 +1136,8 @@ fail/termination/rank_range_record_stepped_copy_stale rejected 656ms expected @2
 	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 fail/termination/rank_range_subject_intervening_write rejected 225ms expected @c08960bee2b1+wt
 	terminating machine Main::walk: cannot prove rank range `0..=limit + 1` for the rank produced by the selected view
-fail/termination/requirement_witness_rejected rejected 0ms expected @2d8ed253669f
-	tests/omega/fail/termination/requirement_witness_rejected/main.omg:8:54: a ranking witness (`terminates by ...`) does not belong on a bodyless requirement (decision 23): the requirement authors the guarantee with bare `terminates`; the implementation supplies the witness that discharges it
+fail/termination/requirement_witness_rejected rejected 3ms expected @474542aa7f86
+	tests/omega/fail/termination/requirement_witness_rejected/main.omg:8:62: a ranking witness (`terminates by ...`) does not belong on a bodyless requirement (decision 23): the requirement authors the guarantee with bare `terminates`; the implementation supplies the witness that discharges it
 fail/termination/retired_block_form rejected 0ms expected @2d8ed253669f
 	tests/omega/fail/termination/retired_block_form/main.omg:4:12: the `terminates { decreases ...; }` block form is retired (decision 23): spell the ranking witness as `terminates by <subjects> [-> View] [in <range>];`, or bare `terminates;` for the guarantee alone
 fail/termination/retired_standalone_decreases rejected 0ms expected @2d8ed253669f
@@ -1179,7 +1179,7 @@ fail/traits/trait_contract_undeclared_self_member rejected 256ms expected @2d8ed
 	trait `BrokenCounter` state `increment` ensures contract references undeclared structural member `value`; abstract `Self` has no field namespace -- use an explicit proposition parameter or a declared accessor requirement
 fail/traits/trait_requirement_cycle rejected 237ms expected @2d8ed253669f
 	trait requirement cycle detected: A -> B -> A
-fail/traits/trait_satisfies_parameter_mismatch rejected 256ms expected @2d8ed253669f
+fail/traits/trait_satisfies_parameter_mismatch rejected 119ms expected @474542aa7f86
 	machine `Sprite::draw` state `draw` does not satisfy trait `Drawable` machine `draw` parameter 1: expected `canvas: &mut Canvas`, got `canvas: Canvas`
 fail/traits/transparent_refinement_widening_axis rejected 46ms expected @2d8ed253669f
 	refinement clause asserts `suspends` on `write`, but base trait `Logger` does not declare it — a refinement narrows, it cannot add an axis
@@ -1626,7 +1626,7 @@ pass/data/case_first_payload_zero_established checked 318ms @2d8ed253669f
 pass/data/case_membership_union_guard_exit checked 1336ms @2d8ed253669f
 pass/data/match_exhaustive_by_case_union_domain checked 1449ms @ca8c127c90c5
 pass/data/opaque_copy_selected checked 720ms @2d8ed253669f
-pass/data/payload_less_case_equality checked 304ms @2d8ed253669f
+pass/data/payload_less_case_equality checked 276ms @474542aa7f86
 pass/data/property_carry_declared checked 283ms @2d8ed253669f
 pass/data/record_pattern_let_exit checked 1268ms @2d8ed253669f
 pass/data/runtime_case_reassignment_exit checked 1285ms @2d8ed253669f
@@ -1793,7 +1793,7 @@ pass/filesystem/windows_wrapper_results_exit rejected 15480ms @f136a75fbbc
 pass/filesystem/wrapper_lock_metadata_exit rejected 9876ms @f136a75fbbc
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_open_with_exit rejected 143053ms @40866b59e47
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,ref\(constrained\(slice\(named\(name\(u8\)\)\)\,declared-domain\(name\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\)\)\)\)\)\,parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,named\(name\(i32\)\)\)),result-dispatch())` resolves to 0 selected provider rows
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 5403ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 4056ms @2d8ed253669f
@@ -2066,11 +2066,11 @@ pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms @2d8ed
 pass/providers/local_record_foreign_borrow_exit checked 2194ms @59d57ace39f0+wt
 pass/providers/provider_type_target_default_override checked 653ms @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms @2d8ed253669f
-pass/providers/runtime_boundary_array_construction_exit checked 1070ms @f250efa457cf+wt
-pass/providers/runtime_boundary_array_forwarding_exit checked 1567ms @2d8ed253669f
+pass/providers/runtime_boundary_array_construction_exit checked 1237ms @474542aa7f86
+pass/providers/runtime_boundary_array_forwarding_exit checked 1207ms @474542aa7f86
 pass/providers/runtime_boundary_array_result_exit checked 713ms @c5756d3f7761+wt
-pass/providers/runtime_boundary_primitive_array_argument_exit checked 1521ms @2d8ed253669f
-pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 5321ms @a9f373809a48+wt
+pass/providers/runtime_boundary_primitive_array_argument_exit checked 1198ms @474542aa7f86
+pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 1431ms @474542aa7f86
 pass/providers/runtime_result_domain_requirement_overload_exit checked 1345ms @2d8ed253669f
 pass/providers/same_name_requirement_dispatch_exit checked 670ms @b14cbb25f486+wt
 pass/providers/same_name_requirement_right_dispatch_exit checked 670ms @b14cbb25f486+wt
@@ -2355,7 +2355,7 @@ pass/traits/equatable_record_equality_exit checked 6146ms @2d8ed253669f
 pass/traits/equatable_string_field_equality_exit rejected 1842ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
 pass/traits/generic_reference_forwarding_exit checked 13520ms @f3a79ef091a9
-pass/traits/generic_trait_parent_binds_requirement checked 666ms @2d8ed253669f
+pass/traits/generic_trait_parent_binds_requirement checked 267ms @474542aa7f86
 pass/traits/nominal_generic_reference_forwarding_exit checked 13052ms @f3a79ef091a9
 pass/traits/nominal_machine_binder_static_dispatch checked 675ms @a719149128ff+wt
 pass/traits/ring_requirement_satisfies_exit checked 3090ms @2d8ed253669f

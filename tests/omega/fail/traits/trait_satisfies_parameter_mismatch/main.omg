@@ -1,5 +1,5 @@
 trait Drawable {
-    machine draw(&self, canvas: &mut Canvas);
+    machine draw(sprite: &Self, canvas: &mut Canvas);
 }
 
 data Canvas {
