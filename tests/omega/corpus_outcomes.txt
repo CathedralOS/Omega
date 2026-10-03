@@ -2240,6 +2240,7 @@ pass/structural/runtime_provider_payload_array_exit checked 767ms @bbd0a9fdb8d4+
 pass/structural/runtime_selected_case_record_member_exit checked 1994ms @9f5f12201f80+wt
 pass/structural/runtime_state_local_whole_store_exit checked 1022ms @a917987f9778+wt
 pass/structural/runtime_structural_operand_snapshot_exit checked 1139ms @14f449e5e62b+wt
+pass/structural/runtime_structural_result_crash_branch_exit checked 704ms @77ccbf115d351847b97e16ff03b4e93c8e7a786f
 pass/structural/sum_attachment_receiver_compile checked 288ms @2d8ed253669f
 pass/targets/aarch64_hfa_entry_argument checked 1288ms @2d8ed253669f
 pass/targets/efi_vtable_call checked 638ms @2d8ed253669f

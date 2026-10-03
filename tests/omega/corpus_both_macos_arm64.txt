@@ -60,6 +60,7 @@ pass/structs/runtime_local_array_snapshot_exit built 1454ms exit:70 interpreter-
 pass/structs/runtime_nonzero_array_elements_exit built 2275ms exit:70 interpreter-exit:70 interpreter:agrees @87fbc2ac74c4
 pass/structs/runtime_view_array_elements_exit built 4009ms exit:70 interpreter-exit:70 interpreter:agrees @f1b70212c334
 pass/structs/uninit_record_member_store built 1288ms exit:77 interpreter-exit:77 interpreter:agrees @25d3c2dff582+wt
+pass/structural/runtime_structural_result_crash_branch_exit built 973ms exit:0 interpreter-exit:0 interpreter:agrees @77ccbf115d351847b97e16ff03b4e93c8e7a786f
 pass/text/declared_record_view_field_fill_exit built 1235ms exit:70 interpreter-exit:70 interpreter:agrees @20ff4f468d4e+wt
 pass/text/zii_default_string_equality_exit built 1986ms exit:70 interpreter-exit:70 interpreter:agrees @7e2fff8c80ba+wt
 pass/wire/runtime_wire_decode_byte_slice_exit built 6131ms exit:70 interpreter-exit:70 interpreter:agrees @71ce8919e944
