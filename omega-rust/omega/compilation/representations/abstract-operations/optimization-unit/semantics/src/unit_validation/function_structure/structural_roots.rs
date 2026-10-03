@@ -491,8 +491,8 @@ pub(crate) fn validate_structural_root_operations(
                 } => {
                     // Whole-carrier establishment: the result is an affine
                     // reference over a primitive referent and the source must
-                    // name exactly that referent under authority covering the
-                    // reference's own loan.
+                    // retain that referent or a total shared primitive bit view,
+                    // under authority covering the reference's own loan.
                     let expected = crate::unit_validation::references::referent(
                         structural_types,
                         result.structural_type,
@@ -533,7 +533,14 @@ pub(crate) fn validate_structural_root_operations(
                             function,
                             structural_types,
                             source,
-                        ) == expected
+                        )
+                        .is_some_and(|actual| {
+                            terminal_semantics::reference_source_compatible(
+                                structural_types.values().copied(),
+                                actual,
+                                result.structural_type,
+                            )
+                        })
                         && crate::unit_validation::references::leaf_access_within(
                             structural_types,
                             result.structural_type,

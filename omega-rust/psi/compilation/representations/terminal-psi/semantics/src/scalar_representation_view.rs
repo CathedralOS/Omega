@@ -156,7 +156,7 @@ const fn format_bits(format: IeeeFloatFormat) -> u16 {
 
 /// The stored two's-complement bits of `value` at `integer`'s width, or
 /// `None` when the value is outside the carrier.
-fn integer_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
+pub(crate) fn integer_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
     if !integer.admits(value) || integer.bits() > 64 {
         return None;
     }
@@ -173,7 +173,7 @@ fn integer_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
 
 /// The value whose stored bits at `integer`'s width are the low bits of
 /// `bits`, signed carriers reading them as two's complement.
-fn integer_from_bits(integer: IntegerType, bits: u64) -> IntegerValue {
+pub(crate) fn integer_from_bits(integer: IntegerType, bits: u64) -> IntegerValue {
     let width = u32::from(integer.bits());
     match integer.sign() {
         IntegerSign::Unsigned => {

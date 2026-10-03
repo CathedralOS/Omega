@@ -1291,7 +1291,13 @@ pub(in crate::legalization) fn apply(
                     .leaves
                     .values()
                     .any(|leaf| leaf.identity.0 == result.place)
-                || reference_source_type(function, custody, types, source) != Some(referent)
+                || !reference_source_type(function, custody, types, source).is_some_and(|actual| {
+                    terminal_semantics::reference_source_compatible(
+                        types.iter(),
+                        actual,
+                        result.structural_type,
+                    )
+                })
             {
                 return Err(invalid());
             }

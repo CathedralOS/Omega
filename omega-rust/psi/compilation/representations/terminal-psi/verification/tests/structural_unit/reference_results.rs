@@ -2797,3 +2797,133 @@ fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
     };
     rejects_custody(&module);
 }
+
+fn scalar_reference_view_module(source: ScalarType, target: ScalarType) -> TerminalModule {
+    let mut module = write_only_primitive_store_module();
+    module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(source);
+    module.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: structural_type_id(2),
+            identity: "SharedScalarRepresentation".into(),
+            shape: StructuralTypeShape::Reference {
+                referent: structural_type_id(3),
+                access: StructuralAccess::SharedBorrow,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(3),
+            identity: "ObservedScalar".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(target),
+        },
+    ]);
+    let machine = &mut module.machines[0];
+    machine.parameters[0].scalar_type = source;
+    machine.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    machine.structural_places.push(reference_place(2, 1));
+    machine.blocks[0].operations = vec![
+        establish(
+            1,
+            2,
+            StructuralArgument {
+                place: place_id(1),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+        ),
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(2),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(2),
+                scalar_type: target,
+            }),
+            kind: OperationKind::PrimitiveScalarRead {
+                source: place_id(2),
+                path: vec![StructuralPathSegment::Referent],
+            },
+        },
+        release(3, 2),
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(4),
+            result: OperationResult::Unit,
+            kind: OperationKind::WriteOnlyPrimitiveStore {
+                destination: place_id(1),
+                path: Vec::new(),
+                value: value_id(1),
+            },
+        },
+    ];
+    module
+}
+
+#[test]
+fn shared_scalar_reference_views_preserve_backing_and_release_authority() {
+    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType};
+    let unsigned =
+        |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+    for (source, target) in [
+        (
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            unsigned(32),
+        ),
+        (
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            unsigned(64),
+        ),
+        (
+            unsigned(32),
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        ),
+        (ScalarType::Boolean, unsigned(8)),
+        (signed_i8(), unsigned(8)),
+    ] {
+        verify_module(
+            &scalar_reference_view_module(source, target),
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("a total shared representation keeps its source home and releases its loan");
+    }
+}
+
+#[test]
+fn shared_scalar_reference_views_reject_invalid_formation_and_live_loan_use() {
+    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType};
+    let unsigned =
+        |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+    let f32_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+    for (source, target) in [(f32_type, unsigned(64)), (unsigned(8), ScalarType::Boolean)] {
+        rejects_custody(&scalar_reference_view_module(source, target));
+    }
+    let original = scalar_reference_view_module(f32_type, unsigned(32));
+    for mutation in 0..5 {
+        let mut module = original.clone();
+        match mutation {
+            0 => {
+                let StructuralTypeShape::Reference { access, .. } =
+                    &mut module.structural_types[1].shape
+                else {
+                    unreachable!()
+                };
+                *access = StructuralAccess::MutableBorrow;
+            }
+            1 => {
+                module.machines[0].structural_parameters[0].access =
+                    StructuralAccess::WriteOnlyBorrow
+            }
+            2 => module.machines[0].blocks[0].operations.swap(2, 3),
+            3 => module.machines[0].blocks[0].operations.swap(1, 2),
+            _ => {
+                module.machines[0].blocks[0].operations.remove(2);
+            }
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "invalid formation or loan mutation {mutation}"
+        );
+    }
+}

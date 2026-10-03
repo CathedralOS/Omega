@@ -1025,7 +1025,13 @@ pub(super) fn establish(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    if reference_source_type(function, live, types, source) != Some(referent) {
+    if !reference_source_type(function, live, types, source).is_some_and(|actual| {
+        terminal_semantics::reference_source_compatible(
+            types.values().copied(),
+            actual,
+            result.structural_type,
+        )
+    }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (root, parent) = normalized_source(function, live, types, source)?;

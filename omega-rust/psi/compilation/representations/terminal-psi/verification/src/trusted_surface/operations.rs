@@ -84,6 +84,8 @@ const VAL_DYNAMIC: &str = "omega-rust/psi/compilation/representations/terminal-p
 const VAL_TRAPPING: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/trapping_integer.rs";
 const VAL_FLOAT_POLICY: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/float_result_policy.rs";
 const VAL_ATOMIC: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/atomic_access.rs";
+const TS_REFERENCE_VIEWS: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_views.rs";
 const TS_REPRESENTATION_VIEW: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalar_representation_view.rs";
 const VAL_REPRESENTATION_VIEW: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/scalar_representation_view.rs";
 const VAL_SUSPENSION: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/suspension_call_plan.rs";
@@ -175,7 +177,7 @@ const NO_FACT_SITES: &[&str] = &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS];
 
 static OP_ESTABLISH_REFERENCE: TrustedSurfaceEntry = entry(
     "operation:establish-reference",
-    "a validated source place whose authority covers the declared reference access; every Case/Field ingress projection retains its original root and proves each case active before formation",
+    "a validated source place whose authority covers the declared reference access; exact referent identity or an independently reconstructed total shared primitive representation view preserves the original backing, never a copied scalar; every Case/Field ingress projection retains its original root and proves each case active before formation",
     "the reference-establishment observation publishes no scalar equation; Case premises are checked before invalidation, and mutable record formation retires source-root observations because later writes can use a different carrier identity; release restores permission, not prior contents",
     &[
         "fact:structural-effect-observation",
@@ -189,6 +191,8 @@ static OP_ESTABLISH_REFERENCE: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_REFERENCES,
+        TS_REFERENCE_VIEWS,
+        TS_REPRESENTATION_VIEW,
         OP_FACTS_CASE_HOPS,
         VAL_STRUCTURAL_OPS,
     ],
