@@ -283,3 +283,114 @@ fn reference_replay_residual_rejoins_exact_type_path_and_leaf_exclusion() {
     discard_residual(&source, &declarations, &custody, &other).unwrap();
     assert_eq!(custody.leaves.len(), 1);
 }
+
+#[test]
+fn reference_replay_binds_copied_byte_descriptor_to_direct_byte_field() {
+    let mut declarations = catalog();
+    let carrier = terminal_psi::ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    declarations.push(StructuralTypeDeclaration {
+        id: kind(4),
+        identity: "Bytes".into(),
+        shape: StructuralTypeShape::ByteSequence(carrier),
+    });
+    declarations.push(StructuralTypeDeclaration {
+        id: kind(5),
+        identity: "Remainder".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: StructuralFieldId::new(7).unwrap(),
+                identity: "bytes".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::ByteSequence(carrier),
+            }],
+        },
+    });
+    let mut source = function();
+    let mut input = parameter();
+    input.structural_type = kind(5);
+    source.structural_parameters.push(input);
+    let mut copied = result(40, 4);
+    copied.multiplicity = StructuralMultiplicity::Unrestricted;
+    let copy = AbstractOperation::StructuralLeafCopy {
+        psi_operation: OperationId::new(83).unwrap(),
+        result: copied,
+        source: place(1),
+        path: abstract_operations::StructuralCopyPath::Ordinary(path("bytes")),
+    };
+    let initializer = RecordFieldInitializer {
+        field: StructuralFieldId::new(7).unwrap(),
+        value: RecordFieldValue::Structural(StructuralArgument {
+            place: place(40),
+            path: vec![],
+            access: StructuralAccess::Owned,
+        }),
+    };
+    let mut custody = Custody::default();
+    apply(
+        &mut custody,
+        &mut BTreeMap::new(),
+        &copy,
+        &source,
+        &[],
+        &declarations,
+        &BTreeMap::new(),
+    )
+    .expect("completed leaf copy retains its exact byte descriptor contract");
+    let before_construction = custody.clone();
+    establish_fields(
+        &source,
+        &declarations,
+        &mut custody,
+        &result(41, 5),
+        &[initializer.clone()],
+        None,
+    )
+    .expect("direct byte field consumes the copied descriptor");
+    assert_eq!(
+        custody.homes.get(&place(40)),
+        Some(&(kind(4), StructuralMultiplicity::Unrestricted))
+    );
+    assert_eq!(
+        custody.homes.get(&place(41)),
+        Some(&(kind(5), StructuralMultiplicity::Affine))
+    );
+    assert!(
+        custody.leaves.is_empty(),
+        "byte descriptors never fabricate reference-result leaves"
+    );
+    for mutation in 0..3 {
+        let mut changed = before_construction.clone();
+        let mut changed_types = declarations.clone();
+        match mutation {
+            0 => {
+                changed.homes.remove(&place(40));
+            }
+            1 => {
+                changed
+                    .homes
+                    .insert(place(40), (kind(1), StructuralMultiplicity::Unrestricted));
+            }
+            _ => {
+                changed_types[3].shape = StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::MutableBorrow),
+                    },
+                )
+            }
+        }
+        assert!(
+            establish_fields(
+                &source,
+                &changed_types,
+                &mut changed,
+                &result(41, 5),
+                &[initializer.clone()],
+                None
+            )
+            .is_none(),
+            "substituted byte descriptor {mutation}"
+        );
+    }
+}

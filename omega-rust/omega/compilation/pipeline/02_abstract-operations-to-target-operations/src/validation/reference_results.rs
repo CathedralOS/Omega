@@ -859,9 +859,42 @@ fn establish_fields(
         let RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };
-        let StructuralFieldType::Structural(nested) = declaration.field_type else {
-            return None;
+        let (root_type, multiplicity) = source_contract(function, custody, argument.place)?;
+        let nested = leaf_type(declarations, root_type, &argument.path)?;
+        let source_shape = &lookup(declarations, nested)?.shape;
+        let byte_carrier = declaration.field_type.byte_sequence_carrier();
+        let descriptor_member = matches!(
+            source_shape,
+            StructuralTypeShape::ElementView { .. }
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    }
+                )
+        );
+        let declared_matches = match declaration.field_type {
+            StructuralFieldType::Structural(expected) => nested == expected,
+            _ => match (byte_carrier, source_shape) {
+                (
+                    Some(expected @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }),
+                    StructuralTypeShape::ByteSequence(actual),
+                ) => expected == *actual,
+                (
+                    Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    }),
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        },
+                    ),
+                ) => true,
+                _ => false,
+            },
         };
+        if !declared_matches {
+            return None;
+        }
         let reference_bearing = contains_reference(declarations, nested);
         if result_case.is_some() && reference_bearing {
             return None;
@@ -874,6 +907,8 @@ fn establish_fields(
                     | StructuralTypeShape::Mixed { .. }
             )
         ) && !reference_bearing
+            && byte_carrier.is_none()
+            && !descriptor_member
             && terminal_semantics::scalar_array_leaf_shape(declarations.iter(), nested).is_none()
             && !aggregate_member_storage(declarations, nested)
         {
@@ -886,17 +921,15 @@ fn establish_fields(
                 lookup(declarations, nested).map(|declaration| &declaration.shape),
                 Some(StructuralTypeShape::Reference { .. })
             );
-        let (root_type, multiplicity) = source_contract(function, custody, argument.place)?;
         if argument.access != StructuralAccess::Owned
-            || leaf_type(declarations, root_type, &argument.path) != Some(nested)
             || multiplicity == StructuralMultiplicity::Linear
             || (!argument.path.is_empty()
                 && (multiplicity != StructuralMultiplicity::Affine || reference_bearing))
             || function
                 .arrival_parameter(argument.place)
                 .is_some_and(|parameter| {
-                    parameter.access != StructuralAccess::Owned
-                        || !parameter.qualifications.is_empty()
+                    (!descriptor_member && parameter.access != StructuralAccess::Owned)
+                        || (byte_carrier.is_none() && !parameter.qualifications.is_empty())
                         || !parameter.projected_qualifications.is_empty()
                 })
         {
@@ -1092,17 +1125,6 @@ fn apply(
                 Some(*result_case),
             )?;
         }
-        AbstractOperation::EstablishPrimitiveLocal { result, .. }
-        | AbstractOperation::EstablishZeroedStructural { result, .. }
-        | AbstractOperation::EstablishScalarArray { result, .. } => {
-            if custody
-                .homes
-                .insert(result.place, (result.structural_type, result.multiplicity))
-                .is_some()
-            {
-                return None;
-            }
-        }
         // A call that forwards descriptors moves no argument custody here.
         AbstractOperation::CallStructural {
             dynamic_arguments,
@@ -1181,7 +1203,26 @@ fn apply(
         | AbstractOperation::ReturnUnit { .. }
         | AbstractOperation::ReturnStructural { .. }
         | AbstractOperation::Crash { .. } => return None,
-        _ => {}
+        _ => {
+            if let Some((_, result)) = operation.structural_result() {
+                // Calls, constructors and reference formations replay their
+                // own custody above. Other completed values contribute an
+                // exact typed home, never a fabricated ordinary-reference
+                // leaf roster. Byte descriptor provenance has its own owner.
+                if contains_reference(declarations, result.structural_type)
+                    || custody
+                        .leaves
+                        .keys()
+                        .any(|(carrier, _)| *carrier == result.place)
+                    || custody
+                        .homes
+                        .insert(result.place, (result.structural_type, result.multiplicity))
+                        .is_some()
+                {
+                    return None;
+                }
+            }
+        }
     }
     Some(())
 }
