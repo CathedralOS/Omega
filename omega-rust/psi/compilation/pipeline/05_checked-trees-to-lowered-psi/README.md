@@ -19,12 +19,11 @@ The coordinator does not classify the source shape again. Producers import this
 contract directly, without depending on dispatch.
 
 An included source is not necessarily an exact emitted-machine owner.
-The source-mapping choice is entry-only, scalar-closure order, or exact catalog
-bindings. Catalog-producing paths retain explicit source-to-machine bindings;
-other paths must not invent callee custody from table position. Scalar order can
-join projection sources after checking table lengths, but it is not exact-owner
-evidence. Reborrow publication keeps rejecting when the required exact owner is
-unavailable.
+The source-mapping choice is entry-only or exact catalog bindings.
+Catalog-producing paths, including selected scalar roots, retain explicit
+source-to-machine bindings; other paths must not invent callee custody from
+table position. Reborrow publication keeps rejecting when the required exact
+owner is unavailable.
 
 The plan families beneath the coordinator are concept-owned modules beside
 `lib.rs`; each root file names the work its directory owns:
@@ -53,8 +52,13 @@ presents the Terminal debug companion.
 
 The subordinate owners follow the work:
 
-- [Unit closures](src/unit/attached_unit.rs) assemble calls and storage.
-- [Scalar closures](src/scalar_graph/scalar_call_closure.rs) assemble scalar graphs.
+- [Shared closures](src/unit/attached_unit.rs) assemble operation bodies and
+  scalar graphs in one callee, type, service and qualification catalog. Scalar
+  root selection retains an exact source-to-machine map; it does not choose a
+  second assembler based on whether a body happens to use places or services.
+- [Scalar callees](src/scalar_graph/scalar_call_closure.rs) prepare each graph's
+  body and contract against that namespace. A selected direct result and a
+  result consumed by a caller retain their distinct contract obligations.
 - [Scalar graph preparation](src/scalar_graph/scalar_graph_lowering.rs) produces
   [prepared states](src/scalar_graph/scalar_graph_lowering/prepared_graph.rs):
   ordered bindings, structural effects, transfers, and their contract.

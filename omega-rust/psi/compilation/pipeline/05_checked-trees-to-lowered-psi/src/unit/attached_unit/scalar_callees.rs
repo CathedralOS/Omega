@@ -19,10 +19,10 @@ use super::{
     collect_service_summary, contract_id, lookup_machine_id, lower_declared_service_reach,
     lower_installation_machine_service_ceiling, lower_unit_parameters, unsupported,
 };
+use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::scalar_graph::scalar_graph_lowering::ScalarContractMode;
 use crate::terminal_identities::StructuralDomainBinding;
-use terminal_psi::{
-    ObligationEvidence, ScalarBlockInvariant, ScalarFloatRange, ScalarIntegerRange,
-};
+use terminal_psi::{ObligationEvidence, ScalarBlockInvariant, ScalarQualificationCatalog};
 pub(super) fn retain_catalog_roots<'checked>(
     checked: &'checked CheckedTrees,
     callees: &[CheckedScalarCallee<'checked>],
@@ -161,6 +161,7 @@ pub(super) fn wrapper_domains(callees: &[CheckedScalarCallee<'_>]) -> Vec<Semant
 /// Scalar callees prepared against the closure's shared catalogs.
 pub(super) struct PreparedScalarCallees<'checked> {
     pub(super) machines: Vec<PreparedScalarCallee<'checked>>,
+    qualifications: ScalarQualificationCatalog,
     /// Each callee's structural parameters by source machine, keyed by the
     /// parameter's authored position; only graph callees allocate any here.
     graph_parameters: Vec<(
@@ -174,12 +175,18 @@ pub(super) struct PreparedScalarCallees<'checked> {
 /// against them.
 pub(super) fn prepare<'checked>(
     checked: &'checked CheckedTrees,
+    direct_result: symbols::SymbolHandle,
     callees: Vec<CheckedScalarCallee<'checked>>,
     type_ids: &[(String, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<PreparedScalarCallees<'checked>, LoweringError> {
+    let sources = callees
+        .iter()
+        .map(CheckedScalarCallee::source_machine)
+        .collect::<Vec<_>>();
+    let qualifications = PreparedScalarQualifications::prepare(checked, &sources)?;
     let allocated = callees
         .iter()
         .map(|callee| {
@@ -222,6 +229,12 @@ pub(super) fn prepare<'checked>(
                 ))?;
             callee.prepare(
                 checked,
+                &qualifications,
+                if source == direct_result {
+                    ScalarContractMode::RootDirectResult
+                } else {
+                    ScalarContractMode::ClosedRuntimeValue
+                },
                 source,
                 parameters,
                 locals,
@@ -232,6 +245,7 @@ pub(super) fn prepare<'checked>(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     Ok(PreparedScalarCallees {
         machines,
+        qualifications: qualifications.catalog().clone(),
         graph_parameters: allocated
             .into_iter()
             .map(|(source, _, _, view_roster)| (source, view_roster))
@@ -258,11 +272,9 @@ pub(super) struct EmissionCatalog<'a> {
 pub(super) struct EmittedScalarCallees {
     pub(super) evidence: Vec<ObligationEvidence>,
     pub(super) scalar_block_invariants: Vec<ScalarBlockInvariant>,
-    /// Floating and integer entry ranges are machine-local rows keyed by each
-    /// emitted helper's own identities; they merge into the assembled catalog
-    /// without sharing the qualification namespace this path keeps empty.
-    pub(super) float_entry_ranges: Vec<ScalarFloatRange>,
-    pub(super) integer_entry_ranges: Vec<ScalarIntegerRange>,
+    /// Domains and sets share one prepared namespace. Coercions and entry
+    /// ranges additionally retain their emitted machine-local identities.
+    pub(super) qualifications: ScalarQualificationCatalog,
 }
 
 /// Emit each prepared scalar callee in its own identity range: a structural
@@ -279,8 +291,7 @@ pub(super) fn emit(
     let mut output = EmittedScalarCallees {
         evidence: Vec::new(),
         scalar_block_invariants: Vec::new(),
-        float_entry_ranges: Vec::new(),
-        integer_entry_ranges: Vec::new(),
+        qualifications: prepared.qualifications,
     };
     for (index, machine) in prepared.machines.into_iter().enumerate() {
         let terminal_machine = lookup_machine_id(catalog.machine_ids, machine.source_machine())?;
@@ -383,10 +394,10 @@ pub(super) fn emit(
             structural_types: catalog.structural_types,
             element_views: &element_views,
         };
-        if !machine.scalar_qualifications.domains.is_empty() {
-            return unsupported(
-                "attached scalar graph requires the enclosing qualification catalog namespace",
-            );
+        if machine.scalar_qualifications.domains != output.qualifications.domains
+            || machine.scalar_qualifications.sets != output.qualifications.sets
+        {
+            return unsupported("scalar graph changed the shared qualification namespace");
         }
         let mut lowered =
             crate::scalar_graph::scalar_graph_module::build_scalar_graph_module_in_namespace(
@@ -443,13 +454,17 @@ pub(super) fn emit(
         output
             .scalar_block_invariants
             .append(&mut lowered.semantic_module.scalar_block_invariants);
-        output.float_entry_ranges.append(
+        output
+            .qualifications
+            .coercions
+            .append(&mut lowered.semantic_module.scalar_qualifications.coercions);
+        output.qualifications.float_entry_ranges.append(
             &mut lowered
                 .semantic_module
                 .scalar_qualifications
                 .float_entry_ranges,
         );
-        output.integer_entry_ranges.append(
+        output.qualifications.integer_entry_ranges.append(
             &mut lowered
                 .semantic_module
                 .scalar_qualifications

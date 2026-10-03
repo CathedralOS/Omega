@@ -1,0 +1,22 @@
+machine increment(value: &mut u64) {
+    value = ((value as u64 in Wrapping) + 1) as u64;
+}
+
+machine compute() -> u64 {
+    let mut value: u64 = 41;
+    increment(&mut value);
+    let observed: u64 = value;
+    transition { _ -> report(observed) }
+
+    state report(observed: u64) -> u64 { observed }
+}
+
+machine main() crashes Trap {
+    let result: u64 = compute();
+    transition result == 42 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

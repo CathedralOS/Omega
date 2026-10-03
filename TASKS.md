@@ -50,28 +50,6 @@ replaced special paths with the repair. A new helper around the same exception
 matrix, a source rewrite avoiding the operation, or a passing isolated helper
 does not close an item. Keep independent receiving verification.
 
-- **SCALAR-CLOSURE-CATALOG.** (split-of:LOWERING-ROUTE-CONSOLIDATION)
-  High priority: use the common Unit callee catalog to assemble scalar-machine
-  closures; remove the competing pure assembler, not just its dispatch wrapper.
-  Stage 05 `machine_lowering/machine_dispatch.rs::lower_selected_machine` chooses
-  `lower_scalar_effect_closure` or `checked_scalar_call_closure` /
-  `lower_scalar_call_closure` through `requires_shared_catalog`. The separate
-  assembler's content-effect restriction makes supported calls depend on the
-  caller's chosen family. Owners: `scalar_graph/scalar_call_closure.rs`,
-  `unit/attached_unit/` catalog/closure assembly and machine dispatch. Retain
-  scalar control/results as data, exact signatures, proof obligations, debug
-  maps and source custody. Do not merge unrelated ABI/result semantics or
-  resurrect a fallback after a rejected checked plan.
-  Acceptance: `pass/calls/runtime_dispatch_float_terminal_exit` and
-  `pass/calls/mutual_cycle_tail_admitted_exit` retain their authored exits;
-  a scalar-returning caller composes a mutable-local call with subsequent
-  observation and state forwarding through the same catalog. Check once-only
-  effects, branch-specific result guarantees and invalid transfer rejection.
-  Delete the separate assembler and its eligibility dispatch. General return
-  roster and dynamic-call consolidation remain with the parent item; they are
-  not prerequisites for this bounded cut. Coordinate changes to the shared call
-  catalog and source-custody resolver without claiming all of stage 05.
-
 For each item run its customer with `omega run --both <main.omg>` on a supported
 matching host and the affected registered corpus checks. Record separately:
 source checking, Terminal production/independent verification, interpreted
@@ -494,7 +472,7 @@ the complete product bar; focused successes below do not establish that baseline
   Owners: stage 04 execution planning, checked-tree plan rosters, and stage 05
   `machine_lowering/machine_dispatch.rs`. Dispatch wrappers already share
   publication, but `CheckedReturnPlan::for_machine` precedence, scalar/Unit
-  assembly forks and `CompetingCandidates` still choose among overlapping
+  body precedence and `CompetingCandidates` still choose among overlapping
   bodies. Prioritize operation gaps blocking **STATE-LOCAL-VALUE-FRONTIER**
   and maintained programs; each replacement removes its superseded recognizer.
 
@@ -507,16 +485,15 @@ the complete product bar; focused successes below do not establish that baseline
     literals already have composed emission; keep
     `calls/runtime_value_call_literal_len_arm_guard_exit`'s two distinct results
     and recorded native exit 70 instead of reopening those repairs.
-  - **One scalar closure assembler.** **SCALAR-CLOSURE-CATALOG** owns merging
-    the two assemblers and deleting their eligibility dispatch. The parent
-    retains the broader transfer of multi-state bodies from scalar-owner precedence
-    only with continuation-arm custody, later-state mutable scalar stores and
-    crash predicates, float prefix initializers and debug maps accounted for.
+  - **Multi-state body ownership.** Transfer multi-state bodies from scalar-owner
+    precedence only with continuation-arm custody, later-state mutable scalar
+    stores and crash predicates, float prefix initializers and debug maps
+    accounted for.
     `CheckedStructuralControlSuccessorPlan` still lacks continuation identity.
     Keep result guarantees, including distinct exits returning 20 and 30 under
-    `ensures result >= 20`; the current `composed_scalar_results` guarantee
-    control covers common exit facts. Preserve constant-stack mutual tail
-    fusion and `calls/mutual_cycle_tail_admitted_exit`'s native exit 70.
+    `ensures result >= 20`; `source_selection` covers those distinct results and
+    `composed_scalar_results` covers common exit facts. Preserve constant-stack
+    mutual tail fusion and `calls/mutual_cycle_tail_admitted_exit`'s native exit 70.
   - **Returns and structural control.** Replace structural-scalar,
     boundary-scalar, structural, claim-free affine, trait-operator and guarded
     payloadless return rosters with ordinary operations plus result completion.

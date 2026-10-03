@@ -1420,6 +1420,7 @@ pass/calls/runtime_value_call_terminal_exit checked 37709ms @ca8c127c90c5
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 1888ms @ff6d0c077d78+wt
 pass/calls/scalar_range_argument_exit checked 706ms @4cab6512b4bb
 pass/calls/scalar_return_after_unit_call_exit checked 1343ms @63377f7122bb+wt
+pass/calls/scalar_unit_call_state_forward_exit checked 457ms @66b7a242b367+wt
 pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 2856ms @0508a5426a27+wt

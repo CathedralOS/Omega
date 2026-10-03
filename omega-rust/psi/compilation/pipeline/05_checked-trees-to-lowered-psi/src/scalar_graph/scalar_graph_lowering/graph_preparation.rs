@@ -48,53 +48,22 @@ pub(crate) fn prepare_scalar_graph_machine(
     )
 }
 
-/// Prepare the selected root of a scalar call closure. Its result is the
-/// artifact's direct result, so the one proof-only `FloatMeaning`
-/// reflexivity `ensures` (see
-/// `exact_direct_result_float_meaning_reflexivity_contract`) has no runtime
-/// consumer there and contributes no `MachineContract` value. A callee's
-/// result feeds a caller instead, so callees keep the closed runtime mode,
-/// which rejects that clause rather than erase a guarantee a caller could
-/// cite.
-pub(crate) fn prepare_scalar_graph_root(
-    checked: &CheckedTrees,
-    qualifications: &PreparedScalarQualifications,
-    machine: symbols::SymbolHandle,
-    graph: &CheckedScalarMachineGraph,
-) -> Result<PreparedScalarMachine, LoweringError> {
-    prepare_scalar_graph_machine_with_contract_mode(
-        checked,
-        qualifications,
-        machine,
-        graph,
-        ScalarContractMode::RootDirectResult,
-        &[],
-        &[],
-        &[],
-        &mut 1,
-    )
-}
-
 pub(crate) fn prepare_scalar_graph_in_namespace(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     graph: &CheckedScalarMachineGraph,
+    contract_mode: ScalarContractMode,
     parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<PreparedScalarMachine, LoweringError> {
-    let qualifications = PreparedScalarQualifications::prepare(checked, &[graph.machine])?;
-    if !qualifications.catalog().domains.is_empty() {
-        return unsupported(
-            "embedded scalar qualifications require the enclosing catalog namespace",
-        );
-    }
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
-        &qualifications,
+        qualifications,
         graph.machine,
         graph,
-        ScalarContractMode::ClosedRuntimeValue,
+        contract_mode,
         parameters,
         primitive_locals,
         structural_types,
@@ -103,8 +72,11 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ScalarContractMode {
+pub(crate) enum ScalarContractMode {
     ClosedRuntimeValue,
+    /// The artifact's direct result has no runtime caller. Only this mode
+    /// permits the exact proof-only FloatMeaning reflexivity contract; callees
+    /// retain runtime guarantees instead of silently erasing them.
     RootDirectResult,
 }
 
@@ -750,7 +722,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     // Its checked call identity does not discharge requirements or establish
     // guarantees. Retain the same contract regardless of closure-root position;
     // the root's proof-only float reflexivity clause is the one exception
-    // (`prepare_scalar_graph_root`).
+    // (`ScalarContractMode::RootDirectResult`).
     let contract = if plan.requires().is_empty()
         && plan.ensures().is_empty()
         && !plan.has_outcome_specific_clauses()

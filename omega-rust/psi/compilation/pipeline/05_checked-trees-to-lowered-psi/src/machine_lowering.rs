@@ -134,8 +134,7 @@ fn lower_terminal_selection(
         source_mapping.exact_owners().unwrap_or(&entry_source),
         &mut lowered.semantic_module,
     )?;
-    let projection_sources =
-        source_mapping.projection_sources(&lowered, selection.machine, &source_machines)?;
+    let projection_sources = source_mapping.projection_sources(&lowered, selection.machine)?;
     validation::validate_checked_machine_specialization_commitments(
         checked,
         &selected_closure_specializations(checked, &source_machines, &lowered),

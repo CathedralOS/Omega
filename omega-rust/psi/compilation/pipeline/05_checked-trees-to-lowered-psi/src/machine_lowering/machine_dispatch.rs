@@ -9,12 +9,9 @@ use checked_trees::{
 use crate::lowering_error::LoweringError;
 use crate::producer_result::{
     ConformancePublication, DebugPublication, LoweredSelectedMachine, LoweringCompletion,
-    OperandProofCompletion, SourceMapping,
+    OperandProofCompletion,
 };
 use crate::returns::lower_return_machine;
-use crate::scalar_graph::scalar_call_closure::{
-    checked_scalar_call_closure, lower_scalar_call_closure,
-};
 use crate::unit::attached_unit::lower_unit_effect_closure;
 use crate::unit::dynamic_composed_unit::{LoweredDynamicDispatch, lower_dynamic_dispatch_machine};
 use crate::unit::lower_unit_plan_machine;
@@ -102,8 +99,8 @@ pub(crate) fn lower_selected_machine(
     // only when no scalar graph exists, or, for an attached signature, when a
     // Unit plan competes with the graph. An ordinary free signature without a
     // graph also needs a Unit plan to take the closure. The graph path below
-    // already shares the real structural/Unit callee catalog when it needs
-    // that namespace, and a rejected graph must not fall back to the closure.
+    // shares the real structural/Unit callee catalog unconditionally. The graph
+    // remains its body owner; rejection cannot fall back to another body plan.
     // A machine returning a structural value still mints a scalar control
     // plan — for its guards, locals, and calls — but that plan is control
     // data for the composed path, not a scalar emission: only a graph whose
@@ -164,28 +161,13 @@ pub(crate) fn lower_selected_machine(
         }
         return unsupported(reason);
     }
-    if crate::scalar_graph::scalar_call_closure::requires_shared_catalog(
-        checked,
-        selection.machine,
-    )? {
-        return Ok(LoweredSelectedMachine::source_mapped(
-            crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine)?,
-            LoweringCompletion {
-                operands: OperandProofCompletion::Finalize,
-                ..Default::default()
-            },
-        ));
-    }
-    let closure = checked_scalar_call_closure(checked, selection.machine)?;
-    Ok(LoweredSelectedMachine {
-        terminal: lower_scalar_call_closure(checked, &closure)?,
-        completion: LoweringCompletion {
+    Ok(LoweredSelectedMachine::source_mapped(
+        crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine)?,
+        LoweringCompletion {
             operands: OperandProofCompletion::Finalize,
             ..Default::default()
         },
-        source_machines: closure,
-        source_mapping: SourceMapping::ScalarClosureOrder,
-    })
+    ))
 }
 
 /// The one checked dynamic dispatch plan `selection` lowers, if any. Every

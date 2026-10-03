@@ -23,8 +23,8 @@ use super::{
     CheckedUnitEffectOperationPlan, ClaimTransfer, LoweredPsi, LoweringError, MachineContract,
     MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter, ScalarQualificationCatalog, ScalarType,
-    SemanticDomainId, ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
+    ProviderSignature, ProviderSignatureParameter, ScalarType, SemanticDomainId,
+    ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     StructuralTypeShape, TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
@@ -191,8 +191,8 @@ pub(crate) fn lower_unit_effect_closure(
     crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 
-/// The dispatch-facing product of a scalar entry that needs the shared
-/// callee catalog. The entrance finalizes proofs after the complete module's
+/// The dispatch-facing product of a scalar entry in the common callee catalog.
+/// The entrance finalizes proofs after the complete module's
 /// contracts and installation entries have been retained.
 pub(crate) fn lower_scalar_effect_closure(
     checked: &CheckedTrees,
@@ -433,6 +433,11 @@ pub(crate) fn lower_unit_closure(
     placed_view_inputs.sort();
     let prepared_scalar_callees = scalar_callees::prepare(
         checked,
+        if scalar_entry {
+            entry
+        } else {
+            symbols::SymbolHandle::default()
+        },
         checked_scalar_callees,
         &type_ids,
         &domain_ids,
@@ -612,20 +617,22 @@ pub(crate) fn lower_unit_closure(
     // Publication: one module in canonical roster order.
     call_evidence.append(&mut scalar_output.evidence);
     scalar_block_invariants.append(&mut scalar_output.scalar_block_invariants);
-    let mut float_entry_ranges = scalar_output.float_entry_ranges;
-    let mut integer_entry_ranges = scalar_output.integer_entry_ranges;
-    float_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
-    integer_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
+    let mut scalar_qualifications = scalar_output.qualifications;
+    scalar_qualifications
+        .float_entry_ranges
+        .sort_by_key(|range| (range.machine, range.parameter));
+    scalar_qualifications
+        .integer_entry_ranges
+        .sort_by_key(|range| (range.machine, range.parameter));
+    scalar_qualifications
+        .coercions
+        .sort_by_key(|coercion| (coercion.machine, coercion.edge, coercion.argument_ordinal));
     // The verifier reads the roster in exactly (machine, header) order.
     scalar_block_invariants.sort_by_key(|invariant| (invariant.machine, invariant.header));
 
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
-            scalar_qualifications: ScalarQualificationCatalog {
-                float_entry_ranges,
-                integer_entry_ranges,
-                ..Default::default()
-            },
+            scalar_qualifications,
             scalar_block_invariants,
             operation_crash_contracts: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
