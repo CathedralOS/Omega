@@ -707,3 +707,67 @@ fn scalar_provider_must_supply_each_declared_normal_guarantee() {
         }
     );
 }
+
+#[test]
+fn finite_provider_contract_rejects_laundered_no_guarantee_leaf() {
+    let mut module = provider_candidate_module();
+    let mut leaf = module.boundary_machines[0].clone();
+    leaf.id = boundary_id(2);
+    leaf.identity = "test::opaque_leaf".into();
+    module.boundary_machines.push(leaf);
+    module.machines[1].blocks[0]
+        .operations
+        .push(terminal_psi::Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: super::operation_id(3),
+            result: OperationResult::Unit,
+            kind: terminal_psi::OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
+                boundary: boundary_id(2),
+                arguments: vec![value_id(2)],
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+        });
+    validate_module(&module).expect("ordinary providers may call a NoGuarantee leaf");
+    module.boundary_machines[0].unconditional_termination = true;
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidProviderCandidate {
+            boundary: boundary_id(1),
+            candidate: machine_id(2),
+        },
+    );
+    module.boundary_machines[1].unconditional_termination = true;
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the independently declared finite leaf supplies the missing premise");
+}
+
+#[test]
+fn finite_provider_contract_rejects_ordinary_unranked_control_cycle() {
+    let mut module = provider_candidate_module();
+    module.machines[1].blocks[0].terminator = Terminator::Jump {
+        edge: edge_id(2),
+        target: block_id(2),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        residual_affine_discards: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    validate_module(&module).expect("an ordinary Unit provider may run indefinitely");
+    module.boundary_machines[0].unconditional_termination = true;
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidProviderCandidate {
+            boundary: boundary_id(1),
+            candidate: machine_id(2),
+        },
+    );
+}

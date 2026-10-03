@@ -154,6 +154,7 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
         schema: ServiceSchema {
             trait_name: name.into(),
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "read".into(),
                 requirement_owner: name.into(),
                 requirement_identity: format!("{name}::read"),

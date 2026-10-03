@@ -7,6 +7,7 @@ use effects::provider_plan::{ServiceEntryClaim, ServiceProgressPremise, ServiceR
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyServiceMethod {
+    pub(crate) completion: semantic_vocabulary::BoundaryCompletion,
     pub(crate) name: String,
     pub(crate) requirement_owner: PackageReviewNominalIdentity,
     pub(crate) requirement: PackageReviewNominalIdentity,
@@ -28,6 +29,9 @@ pub struct PackagePolicyServiceMethod {
 }
 
 impl PackagePolicyServiceMethod {
+    pub fn completion(&self) -> semantic_vocabulary::BoundaryCompletion {
+        self.completion
+    }
     pub fn authority(&self) -> &PackagePolicyServiceAuthority {
         &self.authority
     }

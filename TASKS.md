@@ -828,10 +828,10 @@ the complete product bar; focused successes below do not establish that baseline
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Compose contextual nominal
   cleanup with ordinary consuming `drop<T>` and dying local owners under
   [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
-  Stage 05's `unit/unit_cleanup.rs::patch_nominal_cleanup_member` still excludes
-  caller/hook prerequisites; stage 04's
-  `execution/terminal_unit/control/checked_machine.rs` declines nominal locals
-  at return. Preserve exact-place premises without inventing caller demands,
+  Stage 05 retains exact caller/hook prerequisites through ordinary consuming
+  helpers. Stage 04's `execution/terminal_unit/control/checked_machine.rs`
+  still declines nominal locals at return. Preserve exact-place premises without
+  inventing caller demands,
   ordered actions, outgoing result homes and return/successor continuations.
   **CML4** owns residual partitions and mixed-root order.
 
@@ -844,8 +844,19 @@ the complete product bar; focused successes below do not establish that baseline
   initializer work or cleanup. **PROOF-RELEVANCE-MIGRATION** owns erased
   formal/actual transport; owned dynamic descriptors still clean hidden payloads.
 
-  Remaining acceptance: observe nonempty hooks exactly once at early disposal
-  and normal scope exit with contextual prerequisites through encoded,
+  `python3 tools/corpus_gate.py --both --filter drops/contextual_cleanup_exit`
+  verifies exactly `BA\n` and exit 0 from both native execution and the checked
+  interpreter on macOS ARM64. Both invoke the same contextual hook for two
+  distinct owners in reverse order, then return to the caller. Unit and scalar
+  returns share hook closure emission and exact receiver validation; authored
+  contract positions remain correct across interleaved scalar inputs. The fixture
+  explicitly declares finite output as a reviewed external provider premise;
+  the standard library's output contract is unchanged. Source inference follows
+  exact remaining owned places, and portable/native admission retains hook
+  requirements, service reach, finite normal completion, and provider identity.
+
+  Remaining acceptance: compose contextual hooks with generic `drop<T>` and
+  dying local owners at normal scope exit through encoded,
   independently verified Terminal and native artifacts. Reject missing/forged
   hook identity or premises and duplicate consumption; retain helper-call,
   reserved-hook selection and erased-field controls.

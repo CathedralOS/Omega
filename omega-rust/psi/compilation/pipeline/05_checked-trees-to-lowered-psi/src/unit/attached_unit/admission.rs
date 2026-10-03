@@ -14,9 +14,8 @@ pub(super) use calls::{CallerView, admit as admit_call};
 use super::bodies::{UnitBody, UnitPlans};
 use super::composed_control::{self, callable::CallableBody};
 use super::{
-    RuntimeRequirementOwner, reference_results, retain_admitted_unit_boundary,
-    retain_exact_unit_boundary, scalar_completion, structural_completion,
-    validate_unit_operation_sequence,
+    reference_results, retain_admitted_unit_boundary, retain_exact_unit_boundary,
+    scalar_completion, structural_completion, validate_unit_operation_sequence,
 };
 use checked_trees::{CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan};
 use symbols::SymbolHandle;
@@ -41,10 +40,8 @@ impl<'a> AdmittedBody<'a> {
 pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
-    entry: SymbolHandle,
     closure: &[SymbolHandle],
     scalar_closure: &[SymbolHandle],
-    requirements_owner: RuntimeRequirementOwner,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
     // Computation roots belong to both operation bodies and scalar graphs.
@@ -66,7 +63,7 @@ pub(super) fn admit<'a>(
                 AdmittedBody::Composed { source: plan, body }
             }
             UnitBody::Ordinary(plan) => {
-                validate_ordinary(checked, plan, entry, requirements_owner)?;
+                validate_ordinary(checked, plan)?;
                 operations::validate(checked, plans, plan, closure, scalar_closure, boundaries)?;
                 AdmittedBody::Ordinary(plan)
             }
@@ -148,8 +145,6 @@ fn retain_nested_boundary_applications<'a>(
 fn validate_ordinary(
     checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
-    entry: SymbolHandle,
-    requirements_owner: RuntimeRequirementOwner,
 ) -> Result<(), LoweringError> {
     if machine.contract_report_fingerprint == 0 {
         return unsupported("Unit closure contains a null checked contract fingerprint");
@@ -170,16 +165,17 @@ fn validate_ordinary(
     }
     validate_unit_operation_sequence(checked, machine)?;
     reference_results::validate_releases(checked, machine)?;
-    // The nominal-cleanup owner validates a synthetic empty completion for
-    // its entry, then installs the actual scalar result and full contract.
-    // Ordinary entries and every transitive helper retain authored results.
-    let synthetic_cleanup_entry = requirements_owner == RuntimeRequirementOwner::NominalCleanup
-        && machine.machine == entry
-        && machine.structural_result.is_none()
-        && machine.scalar_result.is_none()
-        && machine.scalar_control.is_none()
-        && matches!(machine.operations.as_slice(), [CheckedUnitEffectOperationPlan::Complete { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty());
-    if !synthetic_cleanup_entry {
+    // The checked nominal plan owns its empty completion wherever the machine
+    // occurs in a closure. Its exact plan identity, not entry selection, grants
+    // the shared cleanup finalizer authority to install the return actions.
+    let synthetic_cleanup = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+        .iter()
+        .any(|nominal| nominal.machine == *machine);
+    if !synthetic_cleanup {
         if machine.scalar_result.is_some() || machine.scalar_control.is_some() {
             scalar_completion::validate(checked, machine)?;
         } else {

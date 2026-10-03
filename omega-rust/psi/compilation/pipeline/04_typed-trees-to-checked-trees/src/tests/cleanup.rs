@@ -102,7 +102,7 @@ fn accepts_either_spelling_of_the_cleanup_shape() {
 #[test]
 fn rejects_method_local_cleanup_generic() {
     rejects(
-        "data Wrapper { value: i32; } machine Wrapper::drop<T>(&mut self) {}",
+        "data Wrapper { value: i32; } machine Wrapper::drop<T>(owner: &mut Wrapper) {}",
         "may not declare method-local lifetime or type parameters",
     );
 }

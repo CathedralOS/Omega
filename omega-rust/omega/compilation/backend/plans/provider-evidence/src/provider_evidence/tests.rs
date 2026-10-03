@@ -34,6 +34,7 @@ fn candidate(name: &str, method: &str) -> ProviderPlan {
             trait_name: format!("{name}Service"),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: method.into(),
                 requirement_owner: format!("{name}Service"),
                 requirement_owner_package_identity: None,

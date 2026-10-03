@@ -27,7 +27,7 @@ fn ordinary_unit_call(
 fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
         data Token {}
-        machine Token::drop(&mut self) {}
+        machine Token::drop(owner: &mut Token) {}
         data Root {}
         machine Root::enter(token: Token) {}
     "#;
@@ -37,7 +37,7 @@ fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
 fn nominal_affine_wide_scalar_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
         data Token { flag: bool; tag: u8; delta: i16; payload: u64; address: addr; }
-        machine Token::drop(&mut self) {}
+        machine Token::drop(owner: &mut Token) {}
         data Root {}
         machine Root::enter(token: Token) {}
     "#;
@@ -160,7 +160,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&checked, &stale),
         Err(LoweringError::Unsupported(
-            "ordered nominal cleanup target is not exact and bounded"
+            "nominal cleanup target selection or borrowed subject drifted"
         ))
     ));
 
@@ -238,9 +238,9 @@ fn ordered_nominal_cleanup_lowering_deduplicates_a_shared_helper_across_two_acti
         data Helper {}
         machine Helper::touch() {}
         data First {}
-        machine First::drop(&mut self) { Helper::touch(); }
+        machine First::drop(owner: &mut First) { Helper::touch(); }
         data Second {}
-        machine Second::drop(&mut self) { Helper::touch(); }
+        machine Second::drop(owner: &mut Second) { Helper::touch(); }
         data Root {}
         machine Root::enter(first: First, second: Second) {}
         "#,
@@ -686,4 +686,148 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
             "partial affine Unit cleanup signature or coordinates drifted"
         ))
     ));
+}
+
+#[test]
+fn contextual_nominal_member_contracts_share_the_ordinary_obligation_namespace() {
+    for hook_body in ["", "token.ready = false;"] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Token {{ ready: bool; }}
+             machine Token::drop(token: &mut Token) requires token.ready {{ {hook_body} }}
+             machine consume(first: Token, second: Token)
+                 requires first.ready; second.ready {{}}
+             machine demand(flag: bool) requires flag {{}}
+             machine entry(first: Token, second: Token, flag: bool)
+                 requires first.ready; second.ready; flag {{
+                 demand(flag);
+                 consume(first, second);
+             }}"
+        ));
+        let lowered =
+            crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("entry"))
+                .expect("contextual cleanup is an ordinary called member");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("each ordinary call and cleanup has independent evidence");
+        let module = &lowered.semantic_module;
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        assert_eq!(
+            entry.contract.requires.len(),
+            3,
+            "authored caller demands stay exact"
+        );
+        let (member, cleanups) = module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .find_map(|block| match &block.terminator {
+                        Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
+                            Some((machine, cleanups))
+                        }
+                        _ => None,
+                    })
+            })
+            .expect("consuming member has nominal actions");
+        assert_ne!(member.id, module.entry);
+        assert_eq!(member.contract.requires.len(), 2);
+        assert_eq!(cleanups.len(), 2);
+        assert_eq!(cleanups[0].place, member.structural_parameters[1].place);
+        assert_eq!(cleanups[1].place, member.structural_parameters[0].place);
+        assert_eq!(cleanups[0].cleanup_machine, cleanups[1].cleanup_machine);
+        assert_eq!(cleanups[0].cleanup_receiver, cleanups[1].cleanup_receiver);
+        assert_ne!(
+            cleanups[0].requirement_obligations,
+            cleanups[1].requirement_obligations
+        );
+        let hook = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == cleanups[0].cleanup_machine)
+            .unwrap();
+        let receiver = cleanups[0]
+            .cleanup_receiver
+            .expect("contextual proof subject");
+        assert_eq!(hook.contract.requires.len(), 1);
+        assert_eq!(
+            hook.structural_parameters[0].place, receiver,
+            "the named source receiver remains a runtime parameter even in an empty body"
+        );
+        if hook_body.is_empty() {
+            // Exercise the receiving representation independently: source lowering
+            // retains named parameters, while Terminal also admits a hook whose
+            // receiver exists only as the subject of its cleanup prerequisites.
+            let mut proof_only = module.clone();
+            let target = proof_only
+                .machines
+                .iter_mut()
+                .find(|machine| machine.id == hook.id)
+                .unwrap();
+            assert!(
+                target
+                    .blocks
+                    .iter()
+                    .all(|block| block.operations.is_empty())
+            );
+            target.structural_parameters.clear();
+            target
+                .structural_places
+                .retain(|place| place.id != receiver);
+            terminal_verifier::verify_module(
+                &proof_only,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .expect("proof-only cleanup subjects retain exact per-owner evidence");
+        }
+        let mut identities = cleanups
+            .iter()
+            .flat_map(|cleanup| cleanup.requirement_obligations.iter().copied())
+            .collect::<Vec<_>>();
+        for machine in &module.machines {
+            for block in &machine.blocks {
+                for operation in &block.operations {
+                    if let OperationKind::CallUnit {
+                        requirement_obligations,
+                        ..
+                    } = &operation.kind
+                    {
+                        identities.extend(requirement_obligations.iter().copied());
+                    }
+                }
+            }
+        }
+        assert!(
+            identities.len() >= 5,
+            "ordinary and cleanup clauses coexist"
+        );
+        identities.sort();
+        assert!(identities.windows(2).all(|pair| pair[0] != pair[1]));
+
+        let mut wrong_root = lowered.semantic_module.clone();
+        let consumer = wrong_root
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == member.id)
+            .unwrap();
+        let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+            &mut consumer.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        cleanups[0].place = cleanups[1].place;
+        assert!(
+            terminal_verifier::validate_module(&wrong_root).is_err(),
+            "one owner's prerequisite cannot dispose of another"
+        );
+    }
 }

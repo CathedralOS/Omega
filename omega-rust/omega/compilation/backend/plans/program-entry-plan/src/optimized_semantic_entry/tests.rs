@@ -99,6 +99,7 @@ fn claim(parameter_index: usize) -> ServiceEntryClaim {
 
 fn method(application: &OptimizedProgramStorageSemanticCallingApplication<'_>) -> ServiceMethod {
     ServiceMethod {
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
         name: PROGRAM_STORAGE_ENTRY_METHOD.into(),
         requirement_owner: PROGRAM_STORAGE_ENTRY_OWNER.into(),
         requirement_identity: REQUIREMENT.into(),

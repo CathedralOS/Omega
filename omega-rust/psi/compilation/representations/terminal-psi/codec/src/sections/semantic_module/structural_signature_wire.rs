@@ -44,6 +44,13 @@ pub(crate) fn encode_boundary_machine(
         terminal_psi::BoundaryRequirementKind::Trait => 1,
         terminal_psi::BoundaryRequirementKind::Operator => 2,
     });
+    writer.u8(match declaration.completion {
+        terminal_psi::BoundaryCompletion::NormalReturn => 0,
+        terminal_psi::BoundaryCompletion::External(
+            terminal_psi::ExternalCompletionKind::ProcessExit,
+        ) => 1,
+    });
+    writer.boolean(declaration.unconditional_termination);
     encode_optional_id(writer, declaration.attachment);
     writer.len(
         "boundary parameter order",
@@ -260,6 +267,14 @@ pub(crate) fn decode_boundary_machine(
             2 => terminal_psi::BoundaryRequirementKind::Operator,
             tag => return Err(CodecError::InvalidTag("BoundaryRequirementKind", tag)),
         },
+        completion: match reader.u8()? {
+            0 => terminal_psi::BoundaryCompletion::NormalReturn,
+            1 => terminal_psi::BoundaryCompletion::External(
+                terminal_psi::ExternalCompletionKind::ProcessExit,
+            ),
+            tag => return Err(CodecError::InvalidTag("BoundaryCompletion", tag)),
+        },
+        unconditional_termination: reader.boolean()?,
         attachment: decode_optional_id(reader, "StructuralTypeId")?,
         parameter_order: decode_counted(reader, |reader| match reader.u8()? {
             0 => Ok(terminal_psi::BoundaryParameterKind::Scalar),

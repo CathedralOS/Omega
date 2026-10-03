@@ -3,7 +3,6 @@
 //! Emission and call substitution borrow the same record. Authored parameter
 //! positions are retained separately from dense Terminal structural positions.
 
-use super::RuntimeRequirementOwner;
 use super::admission::AdmittedBody;
 use super::claims::{LoweredUnitClaims, lower_unit_entry_claims};
 use super::ordinary_calls;
@@ -13,7 +12,6 @@ use crate::lowering_error::unsupported;
 use crate::terminal_identities::StructuralDomainBinding;
 use crate::terminal_identities::allocate_dense;
 use crate::terminal_identities::value_id;
-use crate::unit::runtime_requirements::lower_structural_runtime_requirement;
 use checked_trees::CheckedTrees;
 
 use semantic_vocabulary::Proposition;
@@ -37,10 +35,11 @@ pub(super) struct MachineSignature {
     pub erased_proof_parameters: Vec<checked_trees::CheckedErasedProofParameterPlan>,
     pub predicate_parameters: Vec<StructuralParameterDeclaration>,
     pub claims: LoweredUnitClaims,
-    /// Every `requires` row the emitted contract carries, in order: closed
-    /// authored clauses merged into one proposition, then runtime
-    /// requirements. Call sites size their obligation roster from this exact
-    /// slice.
+    /// A hook's actual borrowed parameter or its reserved proof-only subject.
+    pub cleanup_receiver: Option<semantic_vocabulary::PlaceId>,
+    /// Every published `requires` row in canonical contract order, combining
+    /// authored clauses and runtime requirements. Calls allocate their exact
+    /// obligation roster from this slice before any body is emitted.
     pub requires: Vec<Proposition>,
     pub runtime_requirements: Vec<Proposition>,
 }
@@ -77,7 +76,6 @@ pub(super) fn lower(
     type_ids: &[(String, StructuralTypeId)],
     domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
-    requirements_owner: RuntimeRequirementOwner,
     next_place: &mut u64,
     next_value: &mut u64,
 ) -> Result<Vec<MachineSignature>, LoweringError> {
@@ -138,6 +136,7 @@ pub(super) fn lower(
             erased_proof_parameters,
             predicate_parameters: Vec::new(),
             claims,
+            cleanup_receiver: None,
             requires: Vec::new(),
             runtime_requirements: Vec::new(),
         });
@@ -160,119 +159,29 @@ pub(super) fn lower(
     }
 
     for signature in &mut signatures {
-        let Some(contract) = checked.facts.contract_plans.for_machine(signature.source) else {
-            continue;
-        };
-        // Requirements justify body operations and calls independently of
-        // whether the published crash ceiling mentions gated arithmetic.
-        if (requirements_owner == RuntimeRequirementOwner::UnitClosure
-            && contract.crash.structural_runtime_requirements().is_some())
-            || contract.crash.uses_structural_proof_gated_arithmetic()
-        {
-            let checked_requirements = contract.crash.structural_runtime_requirements().ok_or(
-                LoweringError::Unsupported(
-                    "proof-gated structural arithmetic lacks a complete checked requirement package",
-                ),
-            )?;
-            crate::unit::runtime_requirements::validate_runtime_memberships(
-                checked,
-                signature.source,
-            )?;
-            let requirements = checked_requirements
-                .iter()
-                .map(|requirement| {
-                    lower_structural_runtime_requirement(
-                        requirement,
-                        &signature.scalar_parameters,
-                        &signature.erased_scalar_parameters,
-                        &signature.predicate_parameters,
-                        structural_types,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut keyed = requirements
-                .into_iter()
-                .map(|requirement| {
-                    terminal_codec::canonical_proposition_order_key(&requirement)
-                        .map(|key| (key, requirement))
-                        .map_err(|_| {
-                            LoweringError::Unsupported(
-                                "structural runtime requirement is not canonically encodable",
-                            )
-                        })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            keyed.sort_by(|left, right| left.0.cmp(&right.0));
-            keyed.dedup_by(|left, right| left.0 == right.0);
-            signature.runtime_requirements = keyed
-                .into_iter()
-                .map(|(_, requirement)| requirement)
-                .collect();
+        let cleanup_context = crate::unit::unit_cleanup::contexts::prepare_signature(
+            checked,
+            signature.source,
+            &mut signature.predicate_parameters,
+            structural_types,
+            next_place,
+        )?;
+        signature.cleanup_receiver = cleanup_context
+            .as_ref()
+            .and_then(|context| context.receiver);
+        let requirements = super::entry_requirements::lower(
+            checked,
+            signature.source,
+            &signature.scalar_parameters,
+            &signature.erased_scalar_parameters,
+            &signature.predicate_parameters,
+            structural_types,
+        )?;
+        signature.requires = requirements.requires;
+        signature.runtime_requirements = requirements.runtime_requirements;
+        if let Some(context) = cleanup_context {
+            context.validate_contract(&signature.requires)?;
         }
-        // Publish each closed authored `requires` clause as its own row
-        // beside the runtime requirements: a Unit callee's roster has one row
-        // per authored clause, so a caller owes one obligation per clause. A
-        // clause the closed lane never retained keeps the historical
-        // runtime-only contract rather than a partial roster drifting from
-        // the checked plan. Crash-gated arithmetic's runtime requirements can
-        // restate an authored clause; the canonical dedup below keeps one
-        // row per fact, where one merged conjunction beside them would have
-        // published every clause twice.
-        let authored_requires = contract.closed_scalar_values.authored_requires();
-        if authored_requires.iter().all(Option::is_some) {
-            let view_roster: Vec<(u32, StructuralParameterDeclaration)> = signature
-                .predicate_parameters
-                .iter()
-                .map(|parameter| (parameter.position, parameter.clone()))
-                .collect();
-            let element_views = crate::expression_preparation::bindings::element_views(
-                &view_roster,
-                structural_types,
-            );
-            let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
-                parameters: &view_roster,
-                structural_types,
-                element_views: &element_views,
-            };
-            signature.requires = authored_requires
-                .iter()
-                .map(|clause| {
-                    crate::scalar_graph::scalar_contracts::clauses(
-                        std::slice::from_ref(clause),
-                        &signature.scalar_parameters,
-                        &signature.erased_scalar_parameters,
-                        &views,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .flatten()
-                .filter(|clause| *clause != Proposition::Truth)
-                .collect();
-        }
-        signature
-            .requires
-            .extend(signature.runtime_requirements.iter().cloned());
-        // A requires roster is itself a conjunction, so a row that is a
-        // top-level conjunction (crash arithmetic's runtime package restates
-        // the authored clauses that way) is split into its conjuncts. Each
-        // fact is then one row, and the dedup below cannot keep both a
-        // clause and a conjunction containing it.
-        let mut pending = std::mem::take(&mut signature.requires);
-        pending.reverse();
-        while let Some(requirement) = pending.pop() {
-            match requirement {
-                Proposition::Conjunction(conjuncts) => {
-                    pending.extend(conjuncts.into_iter().rev());
-                }
-                other => signature.requires.push(other),
-            }
-        }
-        // The codec publishes requires rows in canonical byte order, so merge
-        // then normalize rather than exposing clause/runtime ordering
-        // accidents. `Proposition`'s derived `Ord` is Rust declaration order,
-        // not the canonical key; the shared helper orders by encoded bytes.
-        crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut signature.requires)?;
     }
     Ok(signatures)
 }

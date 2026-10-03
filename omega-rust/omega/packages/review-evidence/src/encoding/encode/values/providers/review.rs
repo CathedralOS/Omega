@@ -103,6 +103,12 @@ pub(crate) fn encode_service_schema(
             });
             Ok(())
         })?;
+        encoder.byte(match method.completion {
+            semantic_vocabulary::BoundaryCompletion::NormalReturn => 0,
+            semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            ) => 1,
+        });
         encoder.boolean(method.has_result);
         encoder.option(method.result_type_identity.as_ref(), |encoder, identity| {
             encoder.string(identity)

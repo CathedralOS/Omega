@@ -132,6 +132,8 @@ fn view_module(kind: ViewKind) -> TerminalModule {
     let mut module = write_only_primitive_store_module();
     module.structural_types = vec![view_type(kind)];
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

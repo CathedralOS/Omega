@@ -61,6 +61,12 @@ pub enum BoundaryParameterKind {
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
+    /// Exact opaque completion contract; installation must authenticate it.
+    pub completion: semantic_vocabulary::BoundaryCompletion,
+    /// Exact projection of the authored termination contract: true only for
+    /// a guarantee with no progress premises. False makes no finite promise;
+    /// it neither erases nor discharges a conditional guarantee's subjects.
+    pub unconditional_termination: bool,
     pub identity: String,
     pub attachment: Option<StructuralTypeId>,
     /// Exact interleave of the two lanes. Each parameter appears once, in its

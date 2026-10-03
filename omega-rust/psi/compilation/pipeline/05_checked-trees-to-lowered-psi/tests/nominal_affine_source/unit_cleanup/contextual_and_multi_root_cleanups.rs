@@ -35,16 +35,16 @@ fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_art
     };
     let receiver = cleanup
         .cleanup_receiver
-        .expect("finite contextual cleanup carries a proof-only receiver root");
+        .expect("finite contextual cleanup carries the exact receiver root");
     assert_ne!(receiver, parameter.place);
+    let [first_obligation, second_obligation] = cleanup.requirement_obligations.as_slice() else {
+        panic!("each of the two target clauses has an independent obligation")
+    };
+    assert_ne!(first_obligation.get(), 0);
     assert_eq!(
-        cleanup
-            .requirement_obligations
-            .iter()
-            .map(|obligation| obligation.get())
-            .collect::<Vec<_>>(),
-        vec![1, 2],
-        "cleanup obligations are stable and dense in target-clause order",
+        first_obligation.get().checked_add(1),
+        Some(second_obligation.get()),
+        "cleanup obligations follow target-clause order in the shared namespace",
     );
 
     let token_type = lowered
@@ -91,8 +91,11 @@ fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_art
         .iter()
         .find(|machine| machine.id == cleanup.cleanup_machine)
         .expect("cleanup target");
-    assert!(target.structural_parameters.is_empty());
-    assert!(target.structural_places.is_empty());
+    let [target_parameter] = target.structural_parameters.as_slice() else {
+        panic!("the named cleanup receiver remains a runtime parameter")
+    };
+    assert_eq!(target_parameter.place, receiver);
+    assert_eq!(target_parameter.structural_type, cleanup.structural_type);
     assert_eq!(
         target.contract.requires,
         vec![

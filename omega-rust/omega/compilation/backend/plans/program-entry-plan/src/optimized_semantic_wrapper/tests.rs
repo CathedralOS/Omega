@@ -84,6 +84,7 @@ fn contract_with(
         ServiceSchema {
             trait_name: slot.boundary_schema.unwrap().into(),
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "enter".into(),
                 requirement_owner: "ProgramStorageEntry".into(),
                 requirement_identity: REQUIREMENT.into(),
@@ -333,6 +334,7 @@ fn hosted_profiles_cannot_form_the_wrapper_contract() {
             ServiceSchema {
                 trait_name: slot.boundary_schema.unwrap().into(),
                 methods: vec![ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     name: "enter".into(),
                     requirement_owner: "ProgramStorageEntry".into(),
                     requirement_identity: REQUIREMENT.into(),

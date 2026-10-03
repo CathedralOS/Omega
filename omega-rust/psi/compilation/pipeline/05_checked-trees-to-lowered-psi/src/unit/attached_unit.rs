@@ -55,10 +55,12 @@ pub(crate) mod call_parameters;
 pub(crate) mod catalog;
 mod claims;
 mod domain_replay;
+mod entry_requirements;
 mod providers;
 mod scalar_callees;
 pub(crate) mod shared_closure;
 mod signatures;
+pub(crate) use entry_requirements::lower as lower_entry_requirements;
 
 // Body emission: each ordinary body and each composed state graph, through
 // one operation frame and one argument schedule over borrowed body views,
@@ -71,6 +73,7 @@ mod composed_control;
 mod operation_frame;
 pub(crate) use operation_frame::BoundaryParameters;
 mod normal_guarantees;
+pub(crate) use normal_guarantees::lower as lower_normal_guarantees;
 mod ordinary_machine;
 mod provider_attachments;
 
@@ -136,15 +139,6 @@ pub(crate) use provider_attachments::lower_provider_attachment_places;
 pub(crate) use providers::realize_receiver_adapters;
 use providers::{ProviderBody, checked_unit_provider_candidates};
 
-/// Which runtime-requirement roster a closure's machines answer to.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RuntimeRequirementOwner {
-    UnitClosure,
-    /// Nominal cleanup assembles the final caller and cleanup contracts
-    /// itself, after restoring their full scalar and structural namespaces.
-    NominalCleanup,
-}
-
 /// The one closure assembly request. `plans` is the Unit roster the closure
 /// resolves bodies and shapes from; `entry` is the exact machine the closure
 /// begins at; `unit_roots` are its explicit Unit roots (the entry first for
@@ -158,7 +152,6 @@ pub(crate) struct UnitClosureRequest<'a> {
     pub(crate) entry: symbols::SymbolHandle,
     pub(crate) unit_roots: &'a [symbols::SymbolHandle],
     pub(crate) external: Option<shared_closure::ExternalUnitRoots<'a>>,
-    pub(crate) requirements_owner: RuntimeRequirementOwner,
     pub(crate) scalar_entry: bool,
 }
 
@@ -174,7 +167,6 @@ impl<'a> UnitClosureRequest<'a> {
             entry,
             unit_roots: roots,
             external: None,
-            requirements_owner: RuntimeRequirementOwner::UnitClosure,
             scalar_entry: false,
         }
     }
@@ -220,7 +212,6 @@ pub(crate) fn lower_unit_closure(
         entry,
         unit_roots,
         external,
-        requirements_owner,
         scalar_entry,
     } = *request;
     let reserved_prefix = usize::from(external.is_some());
@@ -258,15 +249,8 @@ pub(crate) fn lower_unit_closure(
             retain_admitted_unit_boundary(checked, plans, &mut boundaries, boundary)?;
         }
     }
-    let admitted_bodies = admission::admit(
-        checked,
-        plans,
-        entry,
-        &closure,
-        &scalar_closure,
-        requirements_owner,
-        &mut boundaries,
-    )?;
+    let admitted_bodies =
+        admission::admit(checked, plans, &closure, &scalar_closure, &mut boundaries)?;
     let mut additional_type_roots = external
         .as_ref()
         .map_or_else(Vec::new, |roots| roots.structural_type_roots.to_vec());
@@ -399,7 +383,6 @@ pub(crate) fn lower_unit_closure(
         &type_ids,
         &domain_ids,
         &structural_types,
-        requirements_owner,
         &mut next_place,
         &mut next_value,
     )?;
@@ -569,12 +552,20 @@ pub(crate) fn lower_unit_closure(
             emitted.selected_integer_comparisons,
         );
     }
-    super::unit_cleanup::patch_nominal_cleanup_members(
+    super::unit_cleanup::finalize_nominal_cleanup_actions(
         checked,
-        entry,
         &mut machines,
         &type_ids,
         &machine_ids,
+        &machine_signatures
+            .iter()
+            .filter_map(|signature| {
+                signature
+                    .cleanup_receiver
+                    .map(|receiver| (signature.source, receiver))
+            })
+            .collect::<Vec<_>>(),
+        &mut next_call_obligation,
     )?;
     let first_scalar_callee_index =
         closure

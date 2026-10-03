@@ -19,6 +19,24 @@ pub enum BoundaryRequirementKind {
     Operator,
 }
 
+/// Closed external terminal outcomes. This vocabulary does not grant authority
+/// to invoke an outcome or replace its provider conformance obligations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExternalCompletionKind {
+    ProcessExit,
+}
+
+/// Completion premise of an exact opaque requirement, independent of its
+/// normal-result shape and service ceiling. Provider admission must preserve it.
+/// The transitional Unit exit encoding retains `External(ProcessExit)` here;
+/// this does not supply the still-missing terminal invocation representation.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryCompletion {
+    #[default]
+    NormalReturn,
+    External(ExternalCompletionKind),
+}
+
 /// Opaque commitment to a canonical package name and source lineage.
 ///
 /// Construction of the commitment belongs to the package layer. Psi carries

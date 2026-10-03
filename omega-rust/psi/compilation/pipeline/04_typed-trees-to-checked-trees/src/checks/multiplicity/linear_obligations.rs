@@ -632,7 +632,7 @@ pub(crate) fn nominal_drop_machine_symbol(
     matches.next().is_none().then_some(selected.symbol)
 }
 
-fn move_event_is_production_target(
+pub(super) fn move_event_is_production_target(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,

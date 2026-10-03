@@ -14,6 +14,8 @@ pub struct OperationalPlan {
     pub machines: Arena<MachineOperational>,
     pub states: Arena<StateOperational>,
     pub calls: Arena<CallOperational>,
+    /// Compiler-selected invocations on ownership edges, separate from source calls.
+    pub cleanup_dependencies: Arena<CleanupDependency>,
     pub static_machine_bindings: Arena<StaticMachineCallBinding>,
     /// Machine-symbol lookup owned by the plan; see
     /// [`OperationalMachineIndex`].
@@ -106,4 +108,15 @@ pub struct CallOperational {
     pub transitive_may_suspend: bool,
     pub transitive_may_block: bool,
     pub acknowledgement: language_semantics::CallOperationalAcknowledgement,
+}
+
+/// An executable hook selected for a surviving cleanup subject. This is the
+/// effect graph projection of the ownership plan, not an authored call site or
+/// a runtime action roster: repeated actions may share one dependency edge.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CleanupDependency {
+    pub caller_machine: SymbolHandle,
+    pub caller_state: SymbolHandle,
+    pub target_machine: SymbolHandle,
+    pub target_state: SymbolHandle,
 }

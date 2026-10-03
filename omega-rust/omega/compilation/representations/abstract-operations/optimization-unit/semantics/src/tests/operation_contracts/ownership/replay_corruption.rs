@@ -153,3 +153,65 @@ fn current_owned_place_replay_rejects_double_moves_unequal_joins_and_bad_residua
         Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
     ));
 }
+
+#[test]
+fn nominal_cleanup_rejoins_caller_reach_and_contributes_its_executable_dependency() {
+    for unit_return in [false, true] {
+        let mut unit = boolean_structural_field_unit();
+        if unit_return {
+            unit.functions[0].result = abstract_operations::AbstractFunctionResult::Unit;
+            let AbstractOperation::Return {
+                psi_edge,
+                cleanup_actions,
+                ..
+            } = &unit.functions[0].blocks[0].nodes[1].operation
+            else {
+                unreachable!("fixture returns a scalar")
+            };
+            unit.functions[0].blocks[0].nodes[1].operation = AbstractOperation::ReturnUnit {
+                psi_edge: *psi_edge,
+                cleanup_actions: cleanup_actions.clone(),
+            };
+            refresh_function_derivatives(&mut unit, 0);
+        }
+        let output = id(4_865, semantic_vocabulary::ServiceId::new);
+        let extra = id(4_866, semantic_vocabulary::ServiceId::new);
+        unit.services = vec![
+            terminal_psi::ServiceDeclaration {
+                id: output,
+                identity: "validation::CleanupOutput".into(),
+                parents: Vec::new(),
+            },
+            terminal_psi::ServiceDeclaration {
+                id: extra,
+                identity: "validation::CallerExtra".into(),
+                parents: Vec::new(),
+            },
+        ]
+        .into();
+        unit.functions[0].published_service_ceiling = vec![output, extra];
+        unit.functions[1].published_service_ceiling = vec![output];
+        unit.functions[1].declared_service_reach = vec![output];
+        crate::unit_validation::services::refresh_root_service_reach(&mut unit).unwrap();
+        refresh_identity(&mut unit);
+        validate_psi_optimization_unit(&unit)
+            .expect("cleanup target reach is covered by the caller's authored superset");
+        assert_eq!(unit.root_service_reach.concrete, vec![output]);
+
+        let mut missing_caller_reach = unit.clone();
+        missing_caller_reach.functions[0].published_service_ceiling = vec![extra];
+        refresh_identity(&mut missing_caller_reach);
+        assert!(matches!(
+            validate_psi_optimization_unit(&missing_caller_reach),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+        ));
+
+        let mut omitted_hook_dependency = unit;
+        omitted_hook_dependency.root_service_reach.concrete.clear();
+        refresh_identity(&mut omitted_hook_dependency);
+        assert!(matches!(
+            validate_psi_optimization_unit(&omitted_hook_dependency),
+            Err(OptimizationUnitValidationError::RootConcreteServiceReachMismatch { .. })
+        ));
+    }
+}

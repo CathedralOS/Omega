@@ -296,6 +296,15 @@ pub(crate) fn call_argument_substitution(
                                     .map(|handle| semantic.contexts.get(*handle)),
                                 place,
                             )
+                            .or_else(|| {
+                                crate::checks::contracts::boolean_value_at_place(
+                                    program,
+                                    semantic,
+                                    &entry_contexts,
+                                    place,
+                                )
+                                .map(facts::ScalarValue::Boolean)
+                            })
                         },
                     },
                 )

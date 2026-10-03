@@ -8,7 +8,7 @@ use terminal_psi::VocabularyMarker;
 // at block offset 264 and module offset 309 (end); these are part of the
 // current body, not markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 116, 0, 116, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 117, 0, 117, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -326,6 +326,8 @@ fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
@@ -841,5 +843,40 @@ fn boundary_scalar_guarantees_preserve_bytes_and_exact_result_namespace() {
             ))
         ),
         "a guarantee cannot name a caller value or another result coordinate"
+    );
+}
+
+#[test]
+fn boundary_completion_is_canonical_and_stale_format_rejects() {
+    let mut module = fixed_boundary_service_module();
+    let normal = encode_module(&module).unwrap();
+    module.boundary_machines[0].completion = terminal_psi::BoundaryCompletion::External(
+        terminal_psi::ExternalCompletionKind::ProcessExit,
+    );
+    let external = encode_module(&module).expect("transitional Unit external contract");
+    assert_ne!(normal, external);
+    assert_eq!(decode_module(&external).unwrap(), module);
+    let differences: Vec<_> = normal
+        .iter()
+        .zip(&external)
+        .enumerate()
+        .filter_map(|(index, (left, right))| (left != right).then_some(index))
+        .collect();
+    assert_eq!(
+        differences.len(),
+        1,
+        "only the exact completion tag changed"
+    );
+    let mut malformed = external.clone();
+    malformed[differences[0]] = 2;
+    assert_eq!(
+        decode_module(&malformed),
+        Err(CodecError::InvalidTag("BoundaryCompletion", 2))
+    );
+    let mut stale = external;
+    stale[8..10].copy_from_slice(&(FORMAT_MARKER - 1).to_le_bytes());
+    assert_eq!(
+        decode_module(&stale),
+        Err(CodecError::UnsupportedFormatMarker(FORMAT_MARKER - 1))
     );
 }

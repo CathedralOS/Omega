@@ -9,7 +9,7 @@ pub mod service_reach;
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
 pub use invocations::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
 pub use operational::{
-    CallOperational, MachineOperational, OperationalPlan, StateOperational,
+    CallOperational, CleanupDependency, MachineOperational, OperationalPlan, StateOperational,
     StaticMachineCallBinding,
 };
 pub use service_reach::{

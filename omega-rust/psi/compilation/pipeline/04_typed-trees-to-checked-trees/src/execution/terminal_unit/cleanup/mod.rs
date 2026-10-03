@@ -31,10 +31,10 @@ use super::{
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, StatementNode, TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode, Multiplicity, PermissionAccess,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode,
+    TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature, structural_signature,
@@ -158,17 +158,17 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             .calls
             .span_or_empty(state_flow.calls)
             .is_empty()
-        || !service_reach_is_empty(facts, state_flow.service_reach)
-        || !service_reach_plan_is_empty(
-            facts,
-            facts.service_reaches.plan_for_machine(machine.symbol)?,
-        )
         || !source_parameters
             .iter()
             .all(|parameter| has_exact_root_affine_discard(facts, machine, state, parameter))
     {
         return None;
     }
+    // The consuming body has no authored calls, but its selected cleanup
+    // actions are executable dependencies. Their reach belongs to the ordinary
+    // effect graph prepared before these plans; requiring an empty service row
+    // here would discard that dependency instead of checking it. Publication
+    // below retains both the inferred state reach and callable contract.
     let caller_requirements = nominal_cleanup_caller_boolean_requirements(
         program,
         facts,
@@ -211,29 +211,16 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
             return None;
         };
-        let TypeReferenceNode::Reference { access, .. } = program
-            .type_reference_table
-            .type_reference(cleanup_receiver.type_reference)
-        else {
-            return None;
-        };
-        if !access.is_readable() || !access.is_exclusive() {
-            return None;
-        }
-        if !program.parameter_declares_attached_data(cleanup_machine, cleanup_receiver)
-            || cleanup_receiver.is_const
-            || !cleanup_machine.lifetime_parameters.is_empty()
-            || !program.machine_type_parameters(cleanup_machine).is_empty()
-            || !program.machine_owned_data(cleanup_machine).is_empty()
-            || !program
-                .machine_trait_conformances(cleanup_machine)
-                .is_empty()
-            || !cleanup_machine.conformance_bounds.is_empty()
-            || !program.machine_invokes(cleanup_machine).is_empty()
-            || cleanup_machine.suspends
-            || cleanup_machine.blocks
-            || !is_unit(program, cleanup_state.return_type)
-        {
+        let cleanup_target = plans
+            .iter()
+            .find(|candidate| candidate.machine == cleanup_machine.symbol)?;
+        if !nominal_cleanup_target_matches(
+            program,
+            cleanup_machine,
+            cleanup_state,
+            cleanup_target,
+            &checked_parameter.type_identity,
+        ) {
             return None;
         }
         let cleanup_requirements = nominal_cleanup_boolean_requirements(
@@ -256,42 +243,6 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                 cleanup_machine,
                 missing,
             ));
-            return None;
-        }
-        // The hook body is an ordinary checked Unit body: whatever the body's
-        // statements lowered to is exactly what the edge invokes. The bounded
-        // slice pins lived here only to keep the helper-list recognizer honest;
-        // what remains exact is the selection — the plan must be this owner's
-        // attached `T::drop` state, its structural signature carries at most
-        // the borrowed subject the edge lends, and it takes no scalar arguments.
-        // A named subject has ordinary parameter custody, not implicit
-        // attachment storage. Selection above already joins the exact owner
-        // symbol; neither the receiver spelling nor storage erasure may replace
-        // that identity or make its retained parameter disappear.
-        let cleanup_target = plans
-            .iter()
-            .find(|candidate| candidate.machine == cleanup_machine.symbol)?;
-        let borrowed_receiver = |parameter: &CheckedUnitStructuralParameterPlan| {
-            parameter.position == 0
-                && matches!(
-                    parameter.access,
-                    CheckedStructuralAccess::MutableBorrow
-                        | CheckedStructuralAccess::WriteOnlyBorrow
-                )
-                && parameter.type_identity == checked_parameter.type_identity
-        };
-        if cleanup_target.state != cleanup_state.symbol
-            || cleanup_target
-                .attachment_type_identity
-                .as_deref()
-                .is_some_and(|identity| identity != checked_parameter.type_identity)
-            || cleanup_target.structural_parameters.len() > 1
-            || cleanup_target
-                .structural_parameters
-                .iter()
-                .any(|parameter| !borrowed_receiver(parameter))
-            || !cleanup_target.scalar_parameters.is_empty()
-        {
             return None;
         }
         cleanups.push(CheckedUnitNominalAffineCleanupPlan {
@@ -337,4 +288,56 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         caller_requirements,
         cleanups,
     })
+}
+
+/// The selected owner hook has one ordinary Unit body, regardless of its
+/// caller's result. Source admission already checks finite normal completion
+/// and propagates its actual reach; retaining a borrowed subject or effectful
+/// body does not create a different cleanup operation.
+pub(crate) fn nominal_cleanup_target_matches(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    plan: &CheckedUnitEffectMachinePlan,
+    type_identity: &str,
+) -> bool {
+    let [receiver] = program.state_parameters(state) else {
+        return false;
+    };
+    let TypeReferenceNode::Reference { access, .. } = program
+        .type_reference_table
+        .type_reference(receiver.type_reference)
+    else {
+        return false;
+    };
+    access.is_readable()
+        && access.is_exclusive()
+        && program.parameter_declares_attached_data(machine, receiver)
+        && !receiver.is_const
+        && machine.lifetime_parameters.is_empty()
+        && program.machine_type_parameters(machine).is_empty()
+        && program.machine_owned_data(machine).is_empty()
+        && program.machine_trait_conformances(machine).is_empty()
+        && machine.conformance_bounds.is_empty()
+        && program.machine_invokes(machine).is_empty()
+        && !machine.suspends
+        && !machine.blocks
+        && is_unit(program, state.return_type)
+        && plan.machine == machine.symbol
+        && plan.state == state.symbol
+        && plan
+            .attachment_type_identity
+            .as_deref()
+            .is_none_or(|identity| identity == type_identity)
+        && plan.scalar_parameters.is_empty()
+        && plan.structural_parameters.len() <= 1
+        && plan.structural_parameters.iter().all(|parameter| {
+            parameter.position == 0
+                && matches!(
+                    parameter.access,
+                    CheckedStructuralAccess::MutableBorrow
+                        | CheckedStructuralAccess::WriteOnlyBorrow
+                )
+                && parameter.type_identity == type_identity
+        })
 }

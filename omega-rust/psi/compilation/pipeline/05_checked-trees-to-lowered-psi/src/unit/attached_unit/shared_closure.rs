@@ -35,3 +35,17 @@ pub(crate) struct SharedUnitClosure {
     pub(crate) next_edge: u64,
     pub(crate) next_call_obligation: u64,
 }
+
+impl SharedUnitClosure {
+    /// Exact hook subjects allocated with ordinary callable signatures.
+    pub(crate) fn cleanup_receivers(&self) -> Vec<(symbols::SymbolHandle, super::PlaceId)> {
+        self.signatures
+            .iter()
+            .filter_map(|signature| {
+                signature
+                    .cleanup_receiver
+                    .map(|receiver| (signature.source, receiver))
+            })
+            .collect()
+    }
+}

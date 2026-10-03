@@ -324,10 +324,10 @@ machine build(builder: &mut Build) {
 use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
-    self.console.exit_process(70);
+    main.console.exit_process(70);
 }
 
 pub machine terminate(console: Binding<Console>, return_code: i32)
@@ -523,6 +523,61 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             .dangerous_authorities()
             .is_empty()
     );
+
+    // An explicitly unbound compile has ordinary completion semantics. Its
+    // schema cannot be reused as a discovered external-completion role.
+    let unbound_provider = root_candidate
+        .projection()
+        .selected_providers()
+        .iter()
+        .find(|provider| provider.service_schema() == "Console")
+        .expect("unbound review retains the selected Console plan");
+    let PackageReviewNominalOwner::Package(unbound_owner) =
+        unbound_provider.schema_declaration().owner()
+    else {
+        panic!("Console keeps its package owner without an accepted role")
+    };
+    assert_eq!(
+        unbound_provider
+            .schema()
+            .methods
+            .iter()
+            .find(|method| method.name == "exit_process")
+            .unwrap()
+            .completion,
+        semantic_vocabulary::BoundaryCompletion::NormalReturn,
+    );
+    let stale_binding = AcceptedSemanticBinding::new(
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        unbound_owner,
+        unbound_provider.schema_declaration().path(),
+        unbound_provider.schema().identity_digest(),
+        unbound_provider.selected_plan_digest(),
+    )
+    .unwrap();
+    let stale = compile_resolved_package_reviews(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &temporary.0.join("stale-ordinary-completion-build"),
+        SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
+            root_key.clone(),
+            root_candidate.checked_context(),
+            stale_binding,
+        )]),
+    )
+    .expect_err("ordinary schema cannot authenticate the external-completion role");
+    assert!(format!("{stale:?}").contains(
+        "accepted semantic binding ConsoleExitProcessI32 was not consumed by one exact selected provider plan"
+    ));
+
+    let discovered = compile_resolved_package_reviews(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &temporary.0.join("discovered-build"),
+        SemanticBindingReview::Discover,
+    )
+    .expect("discover the exact completion-dependent Console schema before binding it");
+    let root_candidate = discovered
+        .review(&root_key)
+        .expect("discovered root review");
 
     let provider = root_candidate
         .projection()

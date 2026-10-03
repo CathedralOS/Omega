@@ -44,6 +44,8 @@ fn boundary_loan_module(
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             id: id(1),
             identity: "test::observe_local".into(),
             kind: terminal_psi::BoundaryRequirementKind::Trait,

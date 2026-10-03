@@ -173,6 +173,7 @@ fn import_plan(requirement: &str) -> ProviderPlan {
             trait_name: requirement.to_owned(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: requirement.to_owned(),
                 requirement_owner: requirement.to_owned(),
                 requirement_owner_package_identity: None,

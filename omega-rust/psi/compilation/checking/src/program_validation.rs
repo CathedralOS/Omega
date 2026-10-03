@@ -100,6 +100,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         GenericContracts::Check,
         OpaquePropertyValidation::Required(&[]),
         QuotientRequestAdmission::AtValidation,
+        EffectAdmission::Complete,
     )
     .map(|_| ())
 }
@@ -116,6 +117,7 @@ pub fn validate_specialized_program(
         GenericContracts::Prevalidated,
         opaque_properties,
         QuotientRequestAdmission::AtValidation,
+        EffectAdmission::Complete,
     )
 }
 
@@ -133,7 +135,29 @@ pub fn validate_specialized_program_deferring_quotient_requests(
         GenericContracts::Prevalidated,
         opaque_properties,
         QuotientRequestAdmission::AfterCheckedFacts,
+        EffectAdmission::Complete,
     )
+}
+
+/// Prepare formation and source-flow inputs before ownership selects implicit
+/// execution dependencies. This is not final effect admission.
+pub fn prepare_specialized_program(
+    program: &TypedTrees,
+    opaque_properties: OpaquePropertyValidation<'_>,
+) -> Result<ProgramValidation, Vec<Diagnostic>> {
+    validate(
+        program,
+        GenericContracts::Prevalidated,
+        opaque_properties,
+        QuotientRequestAdmission::AfterCheckedFacts,
+        EffectAdmission::AfterOwnership,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EffectAdmission {
+    Complete,
+    AfterOwnership,
 }
 
 #[derive(Clone, Copy)]
@@ -147,8 +171,12 @@ fn validate(
     generic_contracts: GenericContracts,
     opaque_properties: OpaquePropertyValidation<'_>,
     quotient_admission: QuotientRequestAdmission,
+    effect_admission: EffectAdmission,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    if let Err(message) = crate::validate_boundary_completion_declarations(program) {
+        diagnostics.push(Diagnostic::error(message));
+    }
     literals::validate_anonymous_remainders(program, &mut diagnostics);
     literals::validate_anonymous_divisions(program, &mut diagnostics);
     if !diagnostics.is_empty() {
@@ -187,9 +215,11 @@ fn validate(
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
     let conformance_operational = infer_operational_may(program);
     let conformance_service_reaches = infer_service_reaches(program, &conformance_operational);
-    validate_conformances(program, &conformance_service_reaches, &mut diagnostics);
-    if let Err(mut dynamic_diagnostics) = collect_dynamic_conformance_selections(program) {
-        diagnostics.append(&mut dynamic_diagnostics);
+    if effect_admission == EffectAdmission::Complete {
+        validate_conformances(program, &conformance_service_reaches, &mut diagnostics);
+        if let Err(mut dynamic_diagnostics) = collect_dynamic_conformance_selections(program) {
+            diagnostics.append(&mut dynamic_diagnostics);
+        }
     }
     validate_data_field_types(program, &symbols, &mut diagnostics);
     plan_laid::validate_plans(program, &mut diagnostics);
@@ -200,16 +230,22 @@ fn validate(
     // classification named.
     let proof_only = crate::proof_only_classification(program);
     proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
-    let integer_embedding_calls =
-        proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
+    let integer_embedding_calls = if effect_admission == EffectAdmission::Complete {
+        proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics)
+    } else {
+        Vec::new()
+    };
     quotients::validate_quotients_with_admission(
         program,
         &proof_only,
         quotient_admission,
         &mut diagnostics,
     );
-    let fact_call_projections =
-        fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
+    let fact_call_projections = if effect_admission == EffectAdmission::Complete {
+        fact_call_projections::validate_fact_call_projections(program, &mut diagnostics)
+    } else {
+        Vec::new()
+    };
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
     // Chapter 3 / MR4: runtime call cycles require the constant-stack tail
     // admission; erased proof-only SCCs instead require strict structural descent.
@@ -240,8 +276,10 @@ fn validate(
     recasts::validate_recasts(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
-    machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
-    invocations::validate_invocation_contracts(program, &mut diagnostics);
+    if effect_admission == EffectAdmission::Complete {
+        machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
+        invocations::validate_invocation_contracts(program, &mut diagnostics);
+    }
 
     let call_frames = calls::CallFrameResolver::new(program);
     // The whole-program bound catalog rebuilds eagerly otherwise; one lazy
@@ -310,13 +348,15 @@ fn validate(
             }
             diagnostics.append(&mut machine_diagnostics);
         }
-        validate_machine_trait_conformances(
-            program,
-            &conformance_service_reaches,
-            machine,
-            &symbols,
-            &mut diagnostics,
-        );
+        if effect_admission == EffectAdmission::Complete {
+            validate_machine_trait_conformances(
+                program,
+                &conformance_service_reaches,
+                machine,
+                &symbols,
+                &mut diagnostics,
+            );
+        }
 
         // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
         // realization -- it must never parse and then silently drop. Exactly
@@ -639,4 +679,114 @@ pub(crate) fn finish_diagnostics(diagnostics: Vec<Diagnostic>) -> Result<(), Vec
         eprintln!("{warning}");
     }
     Ok(())
+}
+
+/// Complete effect-sensitive source admission against the dependency graph
+/// retained by the caller's prepared-effect scope. Formation and source flow
+/// have already run; no source is reparsed or revalidated wholesale here.
+pub fn admit_prepared_program_effects(
+    program: &TypedTrees,
+    operational: &flow_effects::OperationalPlan,
+    facts: &mut ProgramValidationFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
+    let service_reaches = infer_service_reaches(program, operational);
+    validate_conformances(program, &service_reaches, &mut diagnostics);
+    if let Err(mut errors) = collect_dynamic_conformance_selections(program) {
+        diagnostics.append(&mut errors);
+    }
+    machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
+    invocations::validate_invocation_contracts(program, &mut diagnostics);
+    for machine in program.machines() {
+        validate_machine_trait_conformances(
+            program,
+            &service_reaches,
+            machine,
+            &symbols,
+            &mut diagnostics,
+        );
+    }
+    facts.integer_embedding_calls =
+        proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
+    facts.fact_call_projections =
+        fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
+    if let Err(error) = crate::validate_static_machine_call_contracts(program, operational) {
+        diagnostics.push(error);
+    }
+    if let Err(mut errors) = crate::validate_behavior_plan(program, operational) {
+        diagnostics.append(&mut errors);
+    }
+    validate_cleanup_normal_completion(program, operational, &mut diagnostics);
+    finish_diagnostics(diagnostics)
+}
+
+/// A hook is an internal invocation, but the cleanup continuation requires a
+/// normal completion. Check the exact selected boundary requirements in its
+/// transitive graph; Console reach alone neither proves nor excludes exit.
+fn validate_cleanup_normal_completion(
+    program: &TypedTrees,
+    operational: &flow_effects::OperationalPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (_, dependency) in operational.cleanup_dependencies.iter() {
+        let mut pending = vec![dependency.target_machine];
+        let mut visited = Vec::new();
+        while let Some(target) = pending.pop() {
+            if target == dependency.caller_machine {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected cleanup dependency from `{}` to `{}` creates a recursive call component without an exact cleanup-edge ranking witness",
+                    program.symbols.name(dependency.caller_machine),
+                    program.symbols.name(dependency.target_machine),
+                )));
+                break;
+            }
+            if visited.contains(&target) {
+                continue;
+            }
+            visited.push(target);
+            let Some(index) = operational.machine_index_by_symbol(target) else {
+                continue;
+            };
+            let machine = &operational.machines()[index];
+            let exits = operational
+                .states
+                .span_or_empty(machine.states)
+                .iter()
+                .any(|state| {
+                    operational
+                        .calls
+                        .span_or_empty(state.calls)
+                        .iter()
+                        .any(|call| {
+                            if call.target_machine_symbol.is_valid() {
+                                pending.push(call.target_machine_symbol);
+                            }
+                            let requirement = crate::exact_external_leaf_boundary_requirement(
+                                program,
+                                call.target_state_symbol,
+                            )
+                            .map_or(call.target_state_symbol, |(requirement, _)| requirement);
+                            matches!(
+                                crate::boundary_requirement_completion(program, requirement),
+                                semantic_vocabulary::BoundaryCompletion::External(_)
+                            )
+                        })
+                });
+            if exits {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cleanup machine `{}` must return normally; its selected call closure permits external process exit",
+                    program.symbols.name(dependency.target_machine))));
+                break;
+            }
+            pending.extend(
+                operational
+                    .cleanup_dependencies
+                    .iter()
+                    .filter_map(|(_, child)| {
+                        (child.caller_machine == target).then_some(child.target_machine)
+                    }),
+            );
+        }
+    }
 }

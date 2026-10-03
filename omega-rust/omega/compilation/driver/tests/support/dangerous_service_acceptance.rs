@@ -1,7 +1,7 @@
-//! Which dangerous standard-library services a checked fixture requires.
+//! Which dangerous package-owned services a checked fixture requires.
 //!
 //! Acceptance is this repository's test policy: every fixture whose program
-//! requires a dangerous standard-library service is accepted for the canary
+//! requires a selected dangerous service is accepted for the canary
 //! run. The requirement is read from the preliminary checked graph — the
 //! provider plans the program selected and the boundary calls it resolved
 //! against them — never from the fixture's spelling. A service imported under
@@ -17,8 +17,8 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
-/// The `Console` operations a program resolves against the standard
-/// library's selected provider. Each flag admits the terminal-authority class
+/// The `Console` operations a program resolves against the selected package's
+/// provider. Each flag admits the terminal-authority class
 /// its methods exercise; an operation the program never resolves is not
 /// permitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -37,7 +37,7 @@ impl ConsoleUse {
     }
 }
 
-/// The dangerous standard-library services one checked program requires.
+/// The dangerous package-owned services one checked program requires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RequiredDangerousServices {
     /// The selected entry's receiver demands the standard library's
@@ -48,26 +48,20 @@ pub struct RequiredDangerousServices {
     /// `TimeHost` boundary through a `Binding<TimeHost>` field, directly or
     /// inside a nested record such as `Time`.
     pub time: bool,
-    /// The operations the program resolves against the standard library's
+    /// The operations the program resolves against this package's
     /// selected `Console` provider; `None` when it selected no such provider
     /// or resolves no operation against it.
     pub console: Option<ConsoleUse>,
-    /// The program resolves `exit_process` against the standard library's
+    /// The program resolves `exit_process` against this package's
     /// selected `ProcessExit` provider.
     pub process_exit: bool,
 }
 
-impl RequiredDangerousServices {
-    pub const fn any(self) -> bool {
-        self.filesystem || self.time || self.console.is_some() || self.process_exit
-    }
-}
-
-/// Project the dangerous services `checked` requires from the standard
-/// library bound under `standard_library`.
+/// Project the dangerous services `checked` requires from the package
+/// bound under `owner`.
 ///
 /// `Console` counts through a selected provider plan whose schema the
-/// standard library owns, and `ProcessExit`, which is toolchain-owned,
+/// nominated package owns, and `ProcessExit`, which is toolchain-owned,
 /// through the selected provider type instead, exactly as the binding
 /// constructors attribute it.
 ///
@@ -90,12 +84,11 @@ impl RequiredDangerousServices {
 /// it accepts nothing.
 pub fn required_dangerous_services(
     checked: &CheckedCompilation,
-    standard_library: PackageKeyIdentity,
+    owner: PackageKeyIdentity,
 ) -> RequiredDangerousServices {
     let program = &checked.typed;
-    let owned_by_standard_library = |symbol: SymbolHandle| {
-        program.symbols.symbol_package_identity(symbol) == Some(standard_library)
-    };
+    let owned_by_package =
+        |symbol: SymbolHandle| program.symbols.symbol_package_identity(symbol) == Some(owner);
     let mut services = RequiredDangerousServices::default();
     let mut console = ConsoleUse::default();
     for (plan, provenance) in checked
@@ -107,7 +100,7 @@ pub fn required_dangerous_services(
     {
         let schema = provenance.provider.schema.symbol();
         match plan.schema.trait_name.as_str() {
-            "Console" if owned_by_standard_library(schema) => {
+            "Console" if owned_by_package(schema) => {
                 for method in resolved_boundary_call_names(program, schema) {
                     match method {
                         "exit_process" => console.exit = true,
@@ -121,7 +114,7 @@ pub fn required_dangerous_services(
                 if provenance
                     .provider
                     .provider_type
-                    .is_some_and(owned_by_standard_library) =>
+                    .is_some_and(owned_by_package) =>
             {
                 services.process_exit |=
                     resolved_boundary_call_names(program, schema).contains(&"exit_process");
@@ -137,7 +130,7 @@ pub fn required_dangerous_services(
         else {
             continue;
         };
-        if !owned_by_standard_library(definition.symbol) {
+        if !owned_by_package(definition.symbol) {
             continue;
         }
         match program

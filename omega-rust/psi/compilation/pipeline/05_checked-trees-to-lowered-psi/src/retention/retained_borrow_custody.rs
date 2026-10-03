@@ -246,6 +246,8 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_ensures: Vec::new(),
             scalar_requires: Vec::new(),
@@ -404,6 +406,8 @@ mod tests {
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: vec![
                 BoundaryMachineDeclaration {
+                    unconditional_termination: false,
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     kind: terminal_psi::BoundaryRequirementKind::Trait,
                     scalar_ensures: Vec::new(),
                     scalar_requires: Vec::new(),
@@ -438,6 +442,8 @@ mod tests {
                     published_service_ceiling: Vec::new(),
                 },
                 BoundaryMachineDeclaration {
+                    unconditional_termination: false,
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     kind: terminal_psi::BoundaryRequirementKind::Trait,
                     scalar_ensures: Vec::new(),
                     scalar_requires: Vec::new(),

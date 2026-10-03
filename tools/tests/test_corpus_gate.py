@@ -405,6 +405,39 @@ class MainVerdicts(unittest.TestCase):
         with patch.object(corpus_gate, "host_target", return_value="linux_x86_64"):
             self.assertEqual(self.run_gate(rows, "--native", "--record"), 0)
 
+    def test_authored_interpreter_output_cannot_be_hidden_by_matching_exit_codes(self):
+        fixture = self.root / "tests" / "omega" / "run" / "a" / "x"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_stdout.txt").write_text("BA\n")
+        for observed in ({"interpreter-exit": "0", "interpreter-stdout": "differs"},
+                         {"interpreter-exit": "0"},
+                         {"interpreter": "declined"},
+                         {"interpreter-stdout": "match"}):
+            for leg in ("--interpret", "--both"):
+                with self.subTest(observed=observed, leg=leg), \
+                     patch.object(corpus_gate, "host_target", return_value="linux_x86_64"):
+                    facts = {"exit": "0", "stdout": "match", **observed}
+                    rows = [record("run/a/x", status="built", facts=facts)]
+                    self.assertEqual(self.run_gate(rows, leg, "--record",
+                                                   "--json", str(self.json_path)), 3)
+                    self.assertEqual(self.golden.read_text(), corpus_records.render(rows))
+                    document = json.loads(self.json_path.read_text())
+                    self.assertIn("interpreter stdout", document["oracle_failures"][0])
+
+    def test_authored_output_records_when_every_requested_engine_matches(self):
+        fixture = self.root / "tests" / "omega" / "run" / "a" / "x"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_stdout.txt").write_text("BA\n")
+        for leg, status in (("--interpret", "checked"), ("--both", "built")):
+            with self.subTest(leg=leg), \
+                 patch.object(corpus_gate, "host_target", return_value="linux_x86_64"):
+                facts = {"interpreter-exit": "0", "interpreter-stdout": "match"}
+                if leg == "--both":
+                    facts.update({"exit": "0", "stdout": "match"})
+                rows = [record("run/a/x", status=status, facts=facts)]
+                self.assertEqual(self.run_gate(rows, leg, "--record"), 0)
+                self.assertEqual(corpus_records.read(self.golden)[0]["facts"], facts)
+
     def test_duplicate_runner_facts_refuse_recording_as_infrastructure_failure(self):
         rows = [record("run/a/x", status="built", facts={"exit": "70"})]
         self.write_golden(rows)

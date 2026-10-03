@@ -13,7 +13,7 @@ use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 
 pub fn candidate_process_exit_binding(
     checked: &CheckedCompilation,
-    standard_library: semantic_vocabulary::PackageKeyIdentity,
+    owner: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let candidates = checked
         .execution()
@@ -25,14 +25,13 @@ pub fn candidate_process_exit_binding(
             plan.schema.trait_name == "ProcessExit"
                 && plan.rows.iter().any(|row| row.method == "exit_process")
                 && provenance.provider.provider_type.is_some_and(|provider| {
-                    checked.typed.symbols.symbol_package_identity(provider)
-                        == Some(standard_library)
+                    checked.typed.symbols.symbol_package_identity(provider) == Some(owner)
                 })
         })
         .collect::<Vec<_>>();
     let [(plan, provenance)] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "repository fixture ProcessExit acceptance resolved {} exact std provider plans instead of one",
+            "repository fixture ProcessExit acceptance resolved {} exact package-owned provider plans instead of one",
             candidates.len()
         ))]);
     };
@@ -42,7 +41,7 @@ pub fn candidate_process_exit_binding(
         .display_path(provenance.provider.schema.symbol(), "::");
     let binding = AcceptedSemanticBinding::new(
         AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-        standard_library,
+        owner,
         declaration_path,
         plan.schema.identity_digest(),
         plan.identity_digest(),

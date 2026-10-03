@@ -50,24 +50,9 @@ pub(super) fn validate_root_service_reach_exact(
             .copied()
             .ok_or(ModuleError::UnknownEntryMachine(machine_id))?;
         concrete.extend(machine.declared_service_reach.iter().copied());
+        pending.extend(super::call_graph::executable_callees(module, machine));
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             match &operation.kind {
-                OperationKind::Call { callee, .. }
-                | OperationKind::CallUnit { callee, .. }
-                | OperationKind::CallStructuralScalar { callee, .. }
-                | OperationKind::CallStructural { callee, .. }
-                | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
-                    pending.push(*callee)
-                }
-                OperationKind::CallDynamicScalar { .. } | OperationKind::CallDynamicUnit { .. } => {
-                    let realization = super::dynamic_dispatch::dynamic_call_realization(
-                        module,
-                        machine.id,
-                        operation.id,
-                    )
-                    .expect("validated dynamic call has one dispatch row");
-                    pending.push(realization);
-                }
                 OperationKind::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
                         ModuleError::UnknownBoundaryCallTarget {

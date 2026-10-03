@@ -11,7 +11,7 @@ const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     machine Helper::touch() {}
 
     data Token {}
-    machine Token::drop(&mut self) { Helper::touch(); }
+    machine Token::drop(owner: &mut Token) { Helper::touch(); }
     data Plain { observed: bool; }
 
     data Root {}
@@ -34,8 +34,8 @@ const MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     machine Helper::touch() {}
 
     data Token { ready: bool; }
-    machine Token::drop(&mut self)
-    requires self.ready
+    machine Token::drop(owner: &mut Token)
+    requires owner.ready
     { Helper::touch(); }
     data Plain { observed: bool; }
 

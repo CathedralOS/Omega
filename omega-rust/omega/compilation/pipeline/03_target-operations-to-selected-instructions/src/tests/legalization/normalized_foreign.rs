@@ -128,6 +128,8 @@ fn declaration(
     result: terminal_psi::BoundaryMachineResult,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -1373,6 +1375,8 @@ fn dominated_result_fixture(placement: ResultPlacement) -> AbstractOperationPlan
     source
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             id: BoundaryMachineId::new(2).unwrap(),
             ..declaration(
                 vec![i32_type],

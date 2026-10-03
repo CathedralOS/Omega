@@ -127,6 +127,8 @@ fn call_unit(callee: MachineId) -> OperationKind {
 
 fn boundary_declaration(raw: u64) -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -235,6 +237,7 @@ fn selected_plan(
             trait_name: "TestService".to_owned(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "call".to_owned(),
                 requirement_owner: "TestService".to_owned(),
                 requirement_owner_package_identity: None,

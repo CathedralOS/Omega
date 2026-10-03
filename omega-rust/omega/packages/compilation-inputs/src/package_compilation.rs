@@ -49,6 +49,7 @@ pub struct PackageCompilationTargetInputs {
     dependency_generated_sources:
         BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageGeneratedSourceBundle>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
+    semantic_role_discovery: bool,
     independent_component_descriptions:
         BTreeMap<PackageKeyIdentity, IndependentComponentDescription>,
 }
@@ -59,6 +60,7 @@ impl Default for PackageCompilationTargetInputs {
             purpose: DependencyPurpose::Product,
             dependency_generated_sources: BTreeMap::new(),
             accepted_semantic_bindings: BTreeMap::new(),
+            semantic_role_discovery: false,
             independent_component_descriptions: BTreeMap::new(),
         }
     }
@@ -164,12 +166,14 @@ impl PackageCompilationInputs {
             purpose,
             dependency_generated_sources,
             accepted_semantic_bindings,
+            semantic_role_discovery,
             independent_component_descriptions,
         } = target;
         let mut inputs = Self {
             source,
             target: PackageCompilationTargetInputs {
                 purpose,
+                semantic_role_discovery,
                 ..PackageCompilationTargetInputs::default()
             },
         };
@@ -200,6 +204,19 @@ impl PackageCompilationInputs {
 
     pub const fn compilation_purpose(&self) -> DependencyPurpose {
         self.target.purpose
+    }
+
+    /// Request semantic-role proposals during package review. A proposal fixes
+    /// the contract being reviewed before its schema and provider commitments
+    /// are derived; it grants no native binding or terminal authority. Ordinary
+    /// compilation uses only the explicitly supplied accepted bindings.
+    pub fn with_semantic_role_discovery(mut self, enabled: bool) -> Self {
+        self.target.semantic_role_discovery = enabled;
+        self
+    }
+
+    pub const fn semantic_role_discovery(&self) -> bool {
+        self.target.semantic_role_discovery
     }
 
     /// Attach the complete consumer-policy semantic bindings admitted for this

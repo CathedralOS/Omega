@@ -949,6 +949,13 @@ fn service_method(reader: &mut Reader<'_>) -> Result<ServiceMethod, Error> {
         parameter_count: reader.usize()?,
         parameter_type_identities: reader.sequence(4, |reader| reader.string())?,
         entry_claims: reader.sequence(12, service_entry_claim)?,
+        completion: match reader.byte()? {
+            0 => semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            1 => semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            ),
+            _ => return Err(Error::InvalidTag),
+        },
         has_result: reader.boolean()?,
         result_type_identity: reader.option(|reader| reader.string())?,
         result_claims: reader.sequence(8, service_result_claim)?,

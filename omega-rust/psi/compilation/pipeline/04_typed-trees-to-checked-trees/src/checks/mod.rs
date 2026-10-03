@@ -50,7 +50,9 @@ mod content;
 mod multiplicity;
 
 // Crash routes.
+mod cleanup_admission;
 mod crashes;
+pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
 
 // Operator resolution, indexed access bounds, and machine termination.
 mod operators;
@@ -61,6 +63,7 @@ use diagnostics::Diagnostic;
 pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
 use symbols::SymbolHandle;
 
+pub(crate) use multiplicity::prepare_permission_events;
 pub(crate) use multiplicity::{
     nominal_drop_machine_symbol, type_carries_linear_obligation, type_multiplicity,
 };
@@ -297,3 +300,5 @@ pub use contracts::{
     derive_contract_entailment_exit_membership_discharges,
     recheck_contract_entailment_exit_membership_discharge,
 };
+
+pub(crate) use multiplicity::CleanupDispositions;

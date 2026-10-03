@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.33, "load1_start": 3.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 5.23, "load1_start": 5.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1720,6 +1720,7 @@ pass/domains/utf8_field_write_from_param rejected 357ms @2d8ed253669f
 pass/domains/vacuous_domain_qualification checked 282ms @2d8ed253669f
 pass/domains/view_field_literal_store_reads_exit checked 943ms @4e4bfed13aee+wt
 pass/drops/cleanup_machine_drop_shape checked 240ms @0aa983f6af47+wt
+pass/drops/contextual_cleanup_exit checked 840ms @db0816c5dcd4+wt
 pass/drops/core_drop_explicit_consume checked 261ms @0aa983f6af47+wt
 pass/drops/core_drop_owner_hook checked 251ms @0aa983f6af47+wt
 pass/drops/core_drop_owner_hook_body checked 240ms @0aa983f6af47+wt

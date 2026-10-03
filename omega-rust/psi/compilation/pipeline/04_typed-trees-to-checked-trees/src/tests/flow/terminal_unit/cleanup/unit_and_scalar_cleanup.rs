@@ -94,7 +94,7 @@ fn no_code_unit_and_scalar_returns_reject_reachable_nominal_cleanup() {
     let checked = checked(
         r#"
         data Nominal {}
-        machine Nominal::drop(&mut self) {}
+        machine Nominal::drop(owner: &mut Nominal) {}
         data Wrapper<T> { value: T; }
         data Plain { value: u64; }
         data Root {}
@@ -139,11 +139,11 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
     let checked = checked(
         r#"
         data First { value: u64; }
-        machine First::drop(&mut self) {}
+        machine First::drop(owner: &mut First) {}
         data Helper {}
         machine Helper::touch() {}
         data Second { value: u64; }
-        machine Second::drop(&mut self) { Helper::touch(); }
+        machine Second::drop(owner: &mut Second) { Helper::touch(); }
         data Root {}
         machine Root::measure(first: First, second: Second) -> u64 { 7u64 }
         "#,
@@ -204,7 +204,7 @@ fn nominal_cleanup_static_helper_does_not_inherit_namespace_fields() {
         data Resource { value: u64; }
         data Helpers { unrelated: u64; }
         machine Helpers::touch() {}
-        machine Resource::drop(&mut self) { Helpers::touch(); }
+        machine Resource::drop(owner: &mut Resource) { Helpers::touch(); }
         data Root {}
         machine Root::measure(resource: Resource) -> u64 { 7u64 }
     "#,

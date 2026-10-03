@@ -241,6 +241,7 @@ impl ProviderPlan {
                 "requirement-owner-package",
                 method.requirement_owner_package_identity,
             );
+            rendered.push_str(&format!("\ncompletion:{:?}", method.completion));
             rendered.push_str(&format!(
                 "\nm:{}/{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}/terminates:{}",
                 method.name,
@@ -612,6 +613,16 @@ impl ProviderPlan {
                         index + 1,
                     ));
                 }
+            }
+            if matches!(
+                method.completion,
+                semantic_vocabulary::BoundaryCompletion::External(_)
+            ) && method.has_result
+            {
+                errors.push(format!(
+                    "plan `{}` external completion requirement `{}` declares a normal result",
+                    self.name, method.requirement_identity
+                ));
             }
             if method.has_result != method.result_type_identity.is_some() {
                 errors.push(format!(

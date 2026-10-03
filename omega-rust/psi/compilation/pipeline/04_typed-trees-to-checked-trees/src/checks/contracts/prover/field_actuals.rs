@@ -1,6 +1,6 @@
 //! Exact referent substitution for supplied Boolean field facts at call entry.
 
-use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint};
+use facts::{FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -16,7 +16,7 @@ mod tests;
 pub(super) fn proves(
     program: &TypedTrees,
     semantic: &FactPlan,
-    context: &facts::FactContext,
+    contexts: &[facts::FactContextHandle],
     caller_state: SymbolHandle,
     statement_index: usize,
     call: &crate::semantic::calls::CallSite<'_>,
@@ -69,58 +69,7 @@ pub(super) fn proves(
         return Some(false);
     };
     actual.segments.append(&mut required.segments);
-    Some(semantic.context_view(context).facts().any(|fact| {
-        let (candidate, value) = match fact.payload {
-            FactPayload::BooleanExpression(expression)
-            | FactPayload::ContractBooleanExpression { expression, .. } => (expression, true),
-            FactPayload::BooleanValue { expression, value } => (expression, value),
-            _ => return false,
-        };
-        let FactPlace::Place(place) = fact.place else {
-            return false;
-        };
-        // The complete invalidation subject must still match the actual, even
-        // when the observation wraps its Boolean leaf in negation or equality.
-        if !crate::flow::canonical_place_from_semantic_place(
-            program,
-            semantic,
-            semantic.places.get(place),
-        )
-        .is_some_and(|place| place == actual)
-        {
-            return false;
-        }
-        let substituted = fact.origin == FactOrigin::CallEnsures
-            && matches!(fact.point, ProgramPoint::CallEnsures { .. });
-        // Call postconditions retain their formal predicate alongside its
-        // substituted FactPlace. Other observations retain the caller's leaf.
-        // Boolean decomposition changes polarity, never either place identity.
-        super::super::direct::guard_value_proves_with(
-            program,
-            candidate,
-            value,
-            expression,
-            true,
-            &|candidate, required| {
-                if required != expression
-                    || !matches!(
-                        program.expression_table.expression(candidate),
-                        ExpressionNode::Member(_)
-                    )
-                {
-                    return false;
-                }
-                let Some(candidate) = checked_place(program, candidate) else {
-                    return false;
-                };
-                if substituted {
-                    actual.segments.ends_with(&candidate.segments)
-                } else {
-                    candidate == actual
-                }
-            },
-        )
-    }))
+    Some(super::boolean_value_at_place(program, semantic, contexts, &actual) == Some(true))
 }
 
 fn has_explicit_formal_root(

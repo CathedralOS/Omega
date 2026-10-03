@@ -494,6 +494,7 @@ pub(super) fn selected_interrupt_completion_for(
             trait_name: "InterruptCompletion".into(),
             trait_package_identity: None,
             methods: vec![ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "complete".into(),
                 requirement_owner: "InterruptCompletion".into(),
                 requirement_owner_package_identity: None,

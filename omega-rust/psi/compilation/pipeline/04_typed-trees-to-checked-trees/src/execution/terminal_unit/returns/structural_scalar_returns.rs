@@ -6,8 +6,8 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::cleanup::{
     checked_requires_expressions, machine_has_content_evidence,
     nominal_cleanup_boolean_requirements, nominal_cleanup_missing_requirement,
-    nominal_scalar_caller_requirements, scalar_nominal_cleanup_missing_requirement_diagnostic,
-    service_reach_is_empty, service_reach_plan_is_empty,
+    nominal_cleanup_target_matches, nominal_scalar_caller_requirements,
+    scalar_nominal_cleanup_missing_requirement_diagnostic,
 };
 use crate::execution::terminal_unit::returns::primitive_effects;
 
@@ -25,12 +25,11 @@ use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTraitOperatorScalarReturnMachinePlan, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitNominalAffineCleanupPlan,
-    CheckedUnitStructuralParameterPlan, Diagnostic, ExpressionNode, MachineSupplyMode,
-    Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource, PrimitiveType,
-    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees, checked_shared_boolean_convergence,
-    is_reference, shared_convergence,
+    CheckedTraitOperatorScalarReturnMachinePlan, CheckedUnitEffectPlans,
+    CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralParameterPlan, Diagnostic,
+    ExpressionNode, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionEventKind,
+    PermissionEventSource, PrimitiveType, StatementNode, TypeReferenceNode, TypedTrees,
+    checked_shared_boolean_convergence, is_reference, shared_convergence,
 };
 
 pub(crate) fn build_trait_operator_scalar_return_machine(
@@ -239,19 +238,6 @@ pub(crate) fn build_structural_scalar_return_machine(
         return None;
     }
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    if !facts
-        .service_reaches
-        .rows
-        .services(flow.service_reach.direct)
-        .is_empty()
-        || !facts
-            .service_reaches
-            .rows
-            .services(flow.service_reach.transitive)
-            .is_empty()
-    {
-        return None;
-    }
     let statements = program.statement_table.statements(state.statement_nodes);
     let has_primitive_effect = matches!(
         statements,
@@ -262,7 +248,7 @@ pub(crate) fn build_structural_scalar_return_machine(
             && primitive_effects::has_plain_primitive_borrows(program, state));
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        if machine.attached_data.is_none() && primitive_reference_body {
+        if machine.attached_data.is_none() {
             let (structural, scalar) =
                 free_structural_scalar_signature(program, shapes, state, &binders)?;
             (None, structural, scalar)
@@ -530,6 +516,23 @@ pub(crate) fn build_structural_scalar_return_machine(
                 type_graph_requires_nominal_drop(program, parameter.type_reference)
             })
     });
+    // Nominal actions lower through the shared Unit closure, which retains and
+    // independently checks the caller's exact reach. The standalone scalar
+    // emitter has no service row yet, so only that representation stays pure.
+    if !has_nominal_cleanup
+        && (!facts
+            .service_reaches
+            .rows
+            .services(flow.service_reach.direct)
+            .is_empty()
+            || !facts
+                .service_reaches
+                .rows
+                .services(flow.service_reach.transitive)
+                .is_empty())
+    {
+        return None;
+    }
     if has_nominal_cleanup
         && (structural_parameters.len() != whole_discards.len()
             || !(bindings_are_branch_free
@@ -598,10 +601,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                     .filter(|candidate| {
                         candidate.supply_mode == MachineSupplyMode::CheckedBody
                             && candidate.name.as_str().ends_with("::drop")
-                            && candidate
-                                .attached_data
-                                .as_ref()
-                                .is_some_and(|attached| attached == &parameter_data.name)
+                            && candidate.attached_data_symbol == parameter_data.symbol
                     })
                     .collect::<Vec<_>>();
                 let [cleanup_machine] = cleanup_machines.as_slice() else {
@@ -638,15 +638,13 @@ pub(crate) fn build_structural_scalar_return_machine(
                     ));
                     return None;
                 }
-                if cleanup_target.attachment_type_identity.as_deref()
-                    != Some(checked_parameter.type_identity.as_str())
-                    || !is_bounded_scalar_nominal_cleanup_target(
-                        facts,
-                        unit_effects,
-                        cleanup_machine.symbol,
-                        cleanup_target,
-                    )
-                {
+                if !nominal_cleanup_target_matches(
+                    program,
+                    cleanup_machine,
+                    cleanup_state,
+                    cleanup_target,
+                    &checked_parameter.type_identity,
+                ) {
                     return None;
                 }
                 Some(CheckedUnitNominalAffineCleanupPlan {
@@ -721,98 +719,4 @@ pub(crate) fn build_structural_scalar_return_machine(
         scalar_requirements,
         cleanup_actions,
     })
-}
-
-pub(crate) fn is_bounded_scalar_nominal_cleanup_target(
-    facts: &CheckFacts,
-    unit_effects: &CheckedUnitEffectPlans,
-    cleanup_machine: SymbolHandle,
-    cleanup_target: &CheckedUnitEffectMachinePlan,
-) -> bool {
-    if !cleanup_target.structural_parameters.is_empty()
-        || !cleanup_target.trivial_affine_locals.is_empty()
-        || !cleanup_target.entry_claims.is_empty()
-        || !cleanup_target.body_qualifications.is_empty()
-        || !service_reach_is_empty(facts, cleanup_target.service_reach)
-        || !service_reach_plan_is_empty(facts, cleanup_target.contract_service_reach)
-    {
-        return false;
-    }
-    let Some((cleanup_return, cleanup_calls)) = cleanup_target.operations.split_last() else {
-        return false;
-    };
-    let CheckedUnitEffectOperationPlan::Complete {
-        statement_index,
-        trivial_affine_local_discard_ordinals,
-        trivial_affine_discards,
-    } = cleanup_return
-    else {
-        return false;
-    };
-    if usize::try_from(*statement_index).ok() != Some(cleanup_calls.len())
-        || !trivial_affine_local_discard_ordinals.is_empty()
-        || !trivial_affine_discards.is_empty()
-    {
-        return false;
-    }
-
-    let mut helpers = Vec::with_capacity(cleanup_calls.len());
-    for (statement_index, operation) in cleanup_calls.iter().enumerate() {
-        // Each cleanup helper is an ordinary Unit call with no operands.
-        let Some(call) = operation.call().filter(|call| {
-            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-        }) else {
-            return false;
-        };
-        let target = call.target;
-        if usize::try_from(call.coordinate.statement_index).ok() != Some(statement_index)
-            || call.coordinate.call_ordinal != 0
-            || target.machine == cleanup_machine
-            || helpers
-                .iter()
-                .any(|(helper, _, _)| *helper == target.machine)
-            || !service_reach_is_empty(facts, target.service_reach)
-            || !call.scalar_arguments.is_empty()
-            || !call.erased_scalar_arguments().is_some_and(<[_]>::is_empty)
-            || !call.erased_proof_arguments().is_some_and(<[_]>::is_empty)
-            || !call.structural_arguments.is_empty()
-            || !call.claim_transfers().is_empty()
-        {
-            return false;
-        }
-        helpers.push((
-            target.machine,
-            target.state,
-            target.contract_report_fingerprint,
-        ));
-    }
-
-    helpers
-        .into_iter()
-        .all(|(helper_machine, helper_state, helper_fingerprint)| {
-            let Some(helper) = unit_effects.for_machine(helper_machine) else {
-                return false;
-            };
-            // A qualified static name supplies no receiver. A no-argument
-            // helper needs no enclosing record, empty or otherwise.
-            helper.machine != cleanup_machine
-                && helper.state == helper_state
-                && helper.contract_report_fingerprint == helper_fingerprint
-                && helper.attachment_type_identity.is_none()
-                && helper.structural_parameters.is_empty()
-                && helper.trivial_affine_locals.is_empty()
-                && helper.entry_claims.is_empty()
-                && helper.body_qualifications.is_empty()
-                && service_reach_is_empty(facts, helper.service_reach)
-                && service_reach_plan_is_empty(facts, helper.contract_service_reach)
-                && matches!(
-                    helper.operations.as_slice(),
-                    [CheckedUnitEffectOperationPlan::Complete {
-                        statement_index: 0,
-                        trivial_affine_local_discard_ordinals,
-                        trivial_affine_discards,
-                    }] if trivial_affine_local_discard_ordinals.is_empty()
-                        && trivial_affine_discards.is_empty()
-                )
-        })
 }

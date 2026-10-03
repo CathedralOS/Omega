@@ -7,15 +7,13 @@
 //! hands the frontier to its successors; every arrival at an already
 //! visited block must match its established entry snapshot.
 
-use super::affine_cleanup::{
-    bounded_nominal_cleanup_receiver_shape, valid_nominal_cleanup_requirements,
-};
+use super::affine_cleanup::{bounded_nominal_cleanup_receiver_shape, valid_nominal_cleanup_target};
 use super::{
     BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, ClaimId, EdgeId, MachineId,
     ModuleError, OperationId, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
-    TerminalModule, partial_affine_residuals, partial_affine_root_type,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalModule,
+    partial_affine_residuals, partial_affine_root_type,
 };
 
 mod block_entry;
@@ -816,20 +814,8 @@ fn valid_scalar_nominal_cleanup(
     let Some(target) = machines.get(&cleanup.cleanup_machine).copied() else {
         return false;
     };
-    cleanup.cleanup_machine != caller.id
-        && bounded_nominal_cleanup_receiver_shape(&source.shape)
-        && target.attachment == Some(cleanup.structural_type)
-        && target.result == TerminalMachineResult::Unit
-        && target.parameters.is_empty()
-        && target.structural_parameters.len() <= 1
-        && target.structural_parameters.iter().all(|parameter| {
-            parameter.is_self
-                && parameter.structural_type == cleanup.structural_type
-                && parameter.access != StructuralAccess::Owned
-        })
-        && target.contract.crash_routes.is_empty()
-        && cleanup.requirement_obligations.len() == target.contract.requires.len()
-        && valid_nominal_cleanup_requirements(module, target, cleanup)
+    bounded_nominal_cleanup_receiver_shape(&source.shape)
+        && valid_nominal_cleanup_target(module, caller.id, target, cleanup)
 }
 
 fn expected_trivial_affine_discards(

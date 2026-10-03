@@ -100,13 +100,15 @@ fn fixed_byte_range_frontier_identity_binds_both_endpoints() {
 }
 
 #[test]
-fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceiling() {
+fn boundary_identity_binds_completion_progress_kind_and_fixed_reach() {
     let source = plan();
     let mut unit =
         reconstruct_psi_optimization_unit_seed(&source, FuelScheduleIdentity::new(1).unwrap())
             .unwrap();
     let service = id(1, ServiceId::new);
     unit.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -126,6 +128,29 @@ fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceil
     });
     let original = recompute_psi_optimization_unit_identity(&unit);
     let published = unit.boundary_machines[0].published_service_ceiling.clone();
+    for (completion, unconditional_termination) in [
+        (terminal_psi::BoundaryCompletion::NormalReturn, true),
+        (
+            terminal_psi::BoundaryCompletion::External(
+                terminal_psi::ExternalCompletionKind::ProcessExit,
+            ),
+            false,
+        ),
+    ] {
+        let mut changed = unit.clone();
+        changed.boundary_machines[0].completion = completion;
+        changed.boundary_machines[0].unconditional_termination = unconditional_termination;
+        let identity = recompute_psi_optimization_unit_identity(&changed);
+        assert_ne!(
+            original, identity,
+            "{completion:?}, finite={unconditional_termination}"
+        );
+        let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&changed);
+        assert_eq!(
+            OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+            identity
+        );
+    }
     unit.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Operator;
     assert_ne!(
         original,
@@ -452,26 +477,26 @@ fn canonical_operation_identity_bytes_are_stable() {
     .unwrap();
     for unit in [&scalar, &structural] {
         let bytes = crate::optimization_unit::identity::collect_unit_canonical_bytes(unit);
-        let prefix = b"omega.psi-optimization-unit-content.v32\0";
+        let prefix = b"omega.psi-optimization-unit-content.v33\0";
         assert_eq!(&bytes[..prefix.len()], prefix);
         assert_eq!(
             &bytes[prefix.len()..prefix.len() + 2],
-            &115_u16.to_le_bytes()
+            &117_u16.to_le_bytes()
         );
     }
     assert_eq!(
         (scalar.identity.bytes(), structural.identity.bytes()),
         (
             [
-                197, 220, 171, 39, 139, 59, 64, 113, 74, 74, 73, 52, 247, 253, 134, 197, 168, 152,
-                148, 206, 189, 5, 43, 200, 255, 12, 134, 199, 32, 140, 203, 88,
+                113, 104, 86, 147, 52, 213, 97, 243, 162, 238, 244, 44, 208, 30, 8, 134, 246, 100,
+                81, 184, 176, 71, 182, 40, 181, 12, 112, 221, 78, 254, 183, 239
             ],
             [
-                123, 53, 209, 225, 64, 170, 191, 70, 185, 238, 213, 57, 239, 110, 22, 12, 252, 132,
-                209, 149, 112, 41, 107, 152, 208, 211, 55, 29, 129, 212, 14, 234,
+                58, 199, 106, 53, 160, 76, 154, 14, 120, 204, 119, 158, 58, 214, 82, 203, 220, 242,
+                106, 7, 97, 195, 38, 51, 92, 81, 64, 112, 80, 137, 29, 39
             ]
         ),
-        "identities bind vocabulary 115 and unit schema 32 alongside unchanged operation tags",
+        "identities bind vocabulary 117 and unit schema 33 alongside unchanged operation tags",
     );
 }
 
@@ -649,8 +674,8 @@ fn descriptor_call_identity_bytes_are_stable() {
                 scalar_result,
             ),
             [
-                3, 132, 95, 175, 180, 243, 139, 166, 188, 210, 84, 113, 36, 20, 10, 40, 205, 118,
-                125, 148, 32, 52, 4, 164, 10, 61, 181, 66, 114, 57, 86, 14,
+                184, 219, 54, 109, 2, 221, 111, 225, 213, 38, 66, 116, 146, 18, 63, 228, 113, 49,
+                183, 84, 22, 134, 178, 73, 27, 188, 252, 162, 125, 163, 109, 190,
             ],
         ),
         (
@@ -660,8 +685,8 @@ fn descriptor_call_identity_bytes_are_stable() {
                 scalar_result,
             ),
             [
-                242, 237, 110, 226, 13, 1, 207, 228, 183, 165, 71, 140, 111, 118, 32, 254, 130, 43,
-                7, 194, 48, 27, 1, 166, 87, 247, 166, 196, 130, 175, 105, 21,
+                199, 197, 135, 63, 172, 224, 163, 153, 33, 226, 162, 35, 34, 99, 183, 102, 232, 77,
+                51, 57, 6, 167, 56, 234, 81, 153, 22, 71, 201, 94, 33, 254,
             ],
         ),
         (
@@ -671,8 +696,8 @@ fn descriptor_call_identity_bytes_are_stable() {
                 unit_result,
             ),
             [
-                34, 246, 84, 145, 81, 27, 1, 48, 1, 152, 66, 251, 64, 137, 234, 184, 162, 226, 30,
-                252, 88, 137, 124, 211, 130, 105, 1, 235, 194, 59, 194, 144,
+                44, 148, 185, 6, 235, 95, 238, 70, 237, 111, 192, 206, 40, 72, 167, 118, 218, 37,
+                153, 25, 248, 133, 174, 49, 136, 182, 151, 16, 255, 214, 114, 54,
             ],
         ),
         (
@@ -682,8 +707,8 @@ fn descriptor_call_identity_bytes_are_stable() {
                 unit_result,
             ),
             [
-                249, 88, 149, 9, 8, 184, 83, 16, 35, 89, 124, 7, 11, 89, 175, 211, 175, 42, 162,
-                188, 204, 84, 92, 234, 153, 189, 125, 230, 79, 136, 95, 151,
+                173, 26, 116, 233, 239, 174, 23, 102, 71, 15, 61, 234, 34, 107, 149, 206, 255, 120,
+                1, 193, 40, 149, 73, 8, 219, 152, 228, 239, 251, 171, 195, 192,
             ],
         ),
         (
@@ -693,8 +718,8 @@ fn descriptor_call_identity_bytes_are_stable() {
                 scalar_result,
             ),
             [
-                232, 101, 161, 225, 5, 129, 16, 43, 245, 143, 130, 98, 236, 19, 207, 143, 181, 1,
-                88, 144, 11, 172, 145, 170, 200, 157, 227, 169, 66, 48, 144, 124,
+                192, 79, 123, 57, 48, 40, 17, 248, 36, 175, 230, 232, 69, 254, 157, 22, 61, 240,
+                88, 18, 3, 211, 111, 167, 218, 225, 43, 84, 125, 8, 17, 71,
             ],
         ),
         // Stage 00 never produces stored custody with a Unit result; the
@@ -706,8 +731,8 @@ fn descriptor_call_identity_bytes_are_stable() {
                 unit_result,
             ),
             [
-                46, 151, 192, 12, 177, 224, 172, 122, 61, 1, 226, 203, 94, 72, 134, 105, 186, 187,
-                158, 68, 52, 244, 111, 214, 207, 134, 161, 31, 67, 8, 63, 25,
+                151, 226, 228, 33, 19, 233, 119, 219, 10, 155, 62, 234, 178, 48, 1, 19, 214, 195,
+                197, 192, 13, 65, 33, 230, 205, 83, 238, 32, 189, 6, 35, 67,
             ],
         ),
     ];
@@ -843,8 +868,8 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 result: AbstractStructuralCallResult::Unit,
             },
             [
-                199, 203, 23, 148, 131, 106, 7, 14, 179, 91, 213, 252, 26, 3, 96, 149, 128, 70, 96,
-                96, 242, 202, 92, 102, 87, 4, 116, 62, 64, 81, 52, 36,
+                99, 179, 223, 48, 230, 158, 20, 62, 68, 13, 60, 90, 168, 142, 239, 196, 122, 64,
+                239, 16, 20, 52, 55, 171, 124, 46, 236, 208, 244, 0, 141, 190,
             ],
         ),
         (
@@ -861,8 +886,8 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 result: AbstractStructuralCallResult::Unit,
             },
             [
-                48, 234, 0, 156, 70, 157, 190, 45, 49, 131, 249, 26, 208, 79, 103, 77, 48, 208,
-                116, 73, 205, 21, 100, 213, 152, 213, 146, 247, 226, 41, 65, 91,
+                0, 100, 37, 181, 243, 194, 185, 204, 175, 152, 158, 205, 90, 128, 88, 181, 34, 89,
+                95, 140, 9, 217, 158, 76, 49, 14, 100, 130, 136, 111, 86, 204,
             ],
         ),
         (
@@ -879,8 +904,8 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 crash_continuations: crashes(),
             },
             [
-                132, 52, 8, 236, 209, 190, 83, 162, 121, 224, 191, 178, 159, 188, 160, 139, 236,
-                252, 19, 20, 198, 158, 15, 186, 39, 152, 212, 251, 54, 19, 127, 5,
+                86, 54, 247, 103, 250, 78, 130, 114, 82, 112, 121, 12, 122, 125, 171, 211, 82, 234,
+                104, 223, 97, 129, 214, 191, 127, 188, 29, 142, 196, 205, 174, 24,
             ],
         ),
         (
@@ -897,8 +922,8 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 crash_continuations: crashes(),
             },
             [
-                181, 156, 207, 108, 132, 226, 157, 153, 172, 216, 197, 62, 85, 205, 145, 132, 100,
-                14, 71, 68, 121, 88, 247, 46, 37, 119, 175, 3, 87, 191, 152, 148,
+                100, 6, 243, 222, 158, 151, 246, 39, 188, 71, 5, 214, 105, 234, 44, 59, 121, 133,
+                172, 20, 153, 234, 29, 1, 18, 207, 62, 122, 148, 68, 33, 115,
             ],
         ),
         // Stage 00 never produces scalar arguments beside descriptor
@@ -917,8 +942,8 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 result: AbstractStructuralCallResult::Unit,
             },
             [
-                242, 135, 138, 54, 174, 255, 67, 214, 138, 200, 141, 228, 168, 85, 21, 88, 29, 110,
-                114, 91, 112, 217, 6, 52, 80, 160, 74, 55, 192, 124, 115, 244,
+                207, 254, 147, 160, 13, 35, 226, 159, 41, 75, 196, 190, 227, 19, 138, 195, 123, 1,
+                188, 184, 135, 87, 12, 61, 213, 242, 32, 152, 201, 65, 252, 117,
             ],
         ),
         (
@@ -935,8 +960,8 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 crash_continuations: crashes(),
             },
             [
-                156, 253, 197, 96, 91, 46, 120, 253, 160, 44, 146, 146, 0, 55, 38, 204, 91, 135,
-                155, 129, 19, 118, 49, 194, 238, 55, 11, 68, 130, 109, 144, 135,
+                185, 160, 141, 117, 231, 5, 6, 65, 23, 246, 187, 94, 137, 224, 44, 194, 194, 94,
+                116, 131, 8, 11, 167, 90, 10, 28, 27, 39, 105, 56, 237, 201,
             ],
         ),
     ];
@@ -1044,8 +1069,8 @@ fn structural_result_call_identity_bytes_are_stable() {
             "structural (tag 5)",
             call(Vec::new()),
             [
-                71, 234, 150, 117, 158, 121, 140, 117, 240, 210, 101, 212, 69, 111, 202, 163, 173,
-                39, 129, 14, 194, 200, 101, 222, 81, 166, 8, 87, 175, 89, 207, 167,
+                207, 131, 239, 19, 235, 135, 26, 15, 132, 246, 254, 80, 246, 161, 145, 166, 75, 93,
+                235, 104, 58, 142, 58, 176, 125, 147, 197, 105, 213, 68, 114, 117,
             ],
         ),
         // Stage 00 never produces a structural result beside descriptor
@@ -1054,8 +1079,8 @@ fn structural_result_call_identity_bytes_are_stable() {
             "structural with descriptor arguments (tag 96)",
             call(forwarded_descriptor_arguments()),
             [
-                136, 221, 189, 218, 59, 95, 88, 71, 117, 40, 138, 124, 4, 128, 0, 214, 76, 114, 33,
-                50, 167, 217, 75, 235, 58, 161, 169, 109, 156, 162, 83, 110,
+                204, 104, 226, 110, 189, 49, 191, 174, 212, 16, 107, 243, 211, 252, 63, 176, 162,
+                97, 54, 127, 255, 91, 114, 183, 36, 171, 126, 195, 107, 101, 93, 58,
             ],
         ),
     ];
@@ -1231,6 +1256,8 @@ fn canonical_identity_binds_every_retained_field_class() {
     mutations.push(("root installation service reach", unit));
     let mut unit = baseline.clone();
     unit.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Machine,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

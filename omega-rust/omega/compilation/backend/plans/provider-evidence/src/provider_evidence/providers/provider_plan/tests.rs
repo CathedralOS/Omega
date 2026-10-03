@@ -66,6 +66,7 @@ fn windows_console_plan() -> ProviderPlan {
         trait_package_identity: None,
         methods: vec![
             ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "write_line".to_owned(),
                 requirement_owner: "Console".to_owned(),
                 requirement_owner_package_identity: None,
@@ -86,6 +87,7 @@ fn windows_console_plan() -> ProviderPlan {
                 calling_plan_commitment: None,
             },
             ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "read_byte".to_owned(),
                 requirement_owner: "Console".to_owned(),
                 requirement_owner_package_identity: None,
@@ -106,6 +108,7 @@ fn windows_console_plan() -> ProviderPlan {
                 calling_plan_commitment: None,
             },
             ServiceMethod {
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                 name: "exit_process".to_owned(),
                 requirement_owner: "Console".to_owned(),
                 requirement_owner_package_identity: None,
@@ -471,12 +474,14 @@ fn result_overloaded_requirements_bind_by_exact_identity() {
     plan.schema.trait_name = "Convert".to_owned();
     plan.schema.methods = vec![
         ServiceMethod {
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             name: "convert".to_owned(),
             requirement_owner: "Convert".to_owned(),
             requirement_identity: "Convert::convert(i32)->i32".to_owned(),
             ..template.clone()
         },
         ServiceMethod {
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
             name: "convert".to_owned(),
             requirement_owner: "Convert".to_owned(),
             requirement_identity: "Convert::convert(i32)->i32 in Saturating".to_owned(),
@@ -1218,4 +1223,16 @@ fn macho_locator_coordinates_enter_provider_plan_identity_atomically() {
     changed_symbol.rows[0].binding =
         normalized_macos_import(b"/usr/lib/libSystem.B.dylib", b"_read");
     assert_ne!(baseline_identity, changed_symbol.identity_digest());
+}
+
+#[test]
+fn completion_contract_changes_exact_provider_schema_and_plan_identity() {
+    let normal = windows_console_plan();
+    let mut external = normal.clone();
+    external.schema.methods[0].completion = semantic_vocabulary::BoundaryCompletion::External(
+        semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+    );
+    assert_ne!(normal, external);
+    assert_ne!(normal.identity_digest(), external.identity_digest());
+    assert_ne!(normal.report_fingerprint(), external.report_fingerprint());
 }

@@ -144,6 +144,10 @@ pub struct TypedTrees {
     /// machine), while the policy type/source body is deliberately absent:
     /// only the validated plan fingerprint is public contract material.
     pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
+    /// Exact source semantic-role inputs supplied by package admission or an
+    /// explicitly proposed review role. These describe callable completion;
+    /// they grant no selected provider or execution authority.
+    pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
     /// Compiler-owned authorizations for erasing one exact routed service
     /// carrier after a Fused provider selection. Ordinary Psi lowering keeps
     /// this empty and therefore cannot erase `Binding<R>` by type shape alone.
@@ -181,6 +185,21 @@ pub struct TypedTrees {
     /// unbounded range.
     pub pending_const_range_endpoints:
         std::collections::HashSet<crate::expression::ExpressionHandle>,
+}
+
+/// A package-scoped declaration whose consumer role supplies its completion
+/// contract before checking. Final provider admission independently rejoins
+/// the accepted role's complete schema and selected-plan commitments.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BoundaryCompletionDeclaration {
+    /// Absent only for the arena's invalid sentinel; every admitted row must
+    /// retain its nonzero package identity.
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub owner: symbols::SymbolHandle,
+    pub owner_path: String,
+    pub requirement: symbols::SymbolHandle,
+    pub requirement_path: String,
+    pub completion: semantic_vocabulary::BoundaryCompletion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -374,6 +393,7 @@ impl TypedTrees {
             machine_specializations: Vec::new(),
             target_machine_families: Vec::new(),
             boundary_calling_plans: Vec::new(),
+            boundary_completion_declarations: Arena::default(),
             fused_service_erasures: Vec::new(),
             open_index_normalizations: Vec::new(),
             evidence_forwardings: Vec::new(),

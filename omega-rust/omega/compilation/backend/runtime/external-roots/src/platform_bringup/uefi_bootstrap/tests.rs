@@ -188,6 +188,7 @@ fn semantic_entry_contract(
         authority_flow: ServiceEntryAuthorityFlow::Accepts,
     };
     let method = ServiceMethod {
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
         name: "enter".into(),
         requirement_owner: "ProgramStorageEntry".into(),
         requirement_identity: REQUIREMENT.into(),

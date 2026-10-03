@@ -342,6 +342,7 @@ mod tests {
                 trait_name: "Scheduler".into(),
                 trait_package_identity: None,
                 methods: vec![ServiceMethod {
+                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                     name: "wait".into(),
                     requirement_owner: "Scheduler".into(),
                     requirement_owner_package_identity: None,

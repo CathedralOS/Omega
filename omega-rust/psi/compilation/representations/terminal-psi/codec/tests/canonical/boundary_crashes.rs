@@ -23,6 +23,8 @@ fn routes(value: u64) -> Vec<CrashRouteBucket> {
 fn boundary_fixture() -> TerminalModule {
     let mut module = fixture();
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -137,5 +139,24 @@ fn boundary_crash_encoding_rejects_cause_actual_formal_type_and_order_tampering(
         } else {
             assert!(encode_module(&changed).is_err(), "mutation {mutation}");
         }
+    }
+}
+
+#[test]
+fn boundary_unconditional_termination_roundtrips_and_changes_semantic_identity() {
+    let ordinary = boundary_fixture();
+    let ordinary_bytes = encode_module(&ordinary).unwrap();
+    let mut finite = ordinary.clone();
+    finite.boundary_machines[0].unconditional_termination = true;
+    let finite_bytes = encode_module(&finite).unwrap();
+    assert_ne!(ordinary_bytes, finite_bytes);
+    assert_ne!(
+        super::semantic_fingerprint(&ordinary).unwrap(),
+        super::semantic_fingerprint(&finite).unwrap(),
+    );
+    for (expected, bytes) in [(ordinary, ordinary_bytes), (finite, finite_bytes)] {
+        let decoded = super::decode_module(&bytes).unwrap();
+        assert_eq!(decoded, expected);
+        assert_eq!(encode_module(&decoded).unwrap(), bytes);
     }
 }

@@ -1,27 +1,29 @@
 //! Structural Unit cleanup lowering.
 //!
-//! Nominal cleanup lowers through one route for one or more roots
-//! (`ordered`); partial-affine cleanup lives in `partial`.
+//! Nominal cleanup contracts are prepared with ordinary callable signatures
+//! (`contexts`), then one finalizer installs the checked actions for entries
+//! and called members alike. `ordered` only admits and roots a selected nominal
+//! entry; partial-affine cleanup lives in `partial`.
 //! Build cleanup requirements and their obligation identities here, but leave
 //! certificates to final operation proof emission. Owned-field requirements are
 //! validity-scoped observations, not permanent assumption slots; their available
 //! premises are known only after the complete caller and cleanup edge exist.
 
 use super::{
-    BTreeSet, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError,
-    MachineId, Multiplicity, NominalAffineCleanup, PlaceId, PrimitiveType, Proposition, ScalarTerm,
-    ScalarType, ServiceReachInterface, ServiceReachPlan, ServiceReachSummary, StructuralFieldType,
-    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalMachineResult, Terminator,
-    checked_unit_call_closure_including, dense_identity, lookup_machine_id, lookup_type_id,
-    lower_unit_closure, machine_id, obligation_id, place_id, unique_unit_machine, unsupported,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
+    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, MachineId, Multiplicity,
+    NominalAffineCleanup, PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType,
+    StructuralFieldType, StructuralTypeId, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, Terminator, lookup_machine_id, lookup_type_id, lower_unit_closure,
+    obligation_id, unique_unit_machine, unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectMachinePlan, CheckedUnitNominalAffineCleanupPlan,
 };
 use symbols::SymbolHandle;
+pub(crate) mod contexts;
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
@@ -39,79 +41,118 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
     lower_ordered_nominal_affine_unit_cleanup_machine(checked, nominal)
 }
 
+/// Selected cleanup operations have the same hook contract for Unit and scalar exits.
+pub(crate) fn selected_cleanups(
+    checked: &CheckedTrees,
+) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
+    checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+        .iter()
+        .flat_map(|nominal| &nominal.cleanups)
+        .chain(
+            checked
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .machines
+                .iter()
+                .flat_map(|plan| &plan.cleanup_actions)
+                .filter_map(|action| match action {
+                    checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                        cleanup,
+                    ) => Some(cleanup),
+                    checked_trees::CheckedStructuralScalarReturnCleanupAction::DiscardRoot(_) => {
+                        None
+                    }
+                }),
+        )
+}
+
+/// Materialize one checked normal-cleanup operation in the shared closure namespace.
+/// The caller owns return value custody; this operation only borrows its exact owner.
+pub(crate) fn lower_nominal_cleanup_action(
+    checked: &CheckedTrees,
+    cleanup: &CheckedUnitNominalAffineCleanupPlan,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    type_ids: &[(String, StructuralTypeId)],
+    machine_ids: &[(SymbolHandle, MachineId)],
+    receivers: &[(SymbolHandle, PlaceId)],
+    next_obligation: &mut u64,
+) -> Result<NominalAffineCleanup, LoweringError> {
+    let target = unique_unit_machine(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        cleanup.cleanup_machine,
+    )?;
+    validate_nominal_cleanup_target(target, cleanup)?;
+    if lookup_type_id(type_ids, &cleanup.type_identity)? != parameter.structural_type {
+        return unsupported("nominal cleanup member target identity drifted");
+    }
+    Ok(NominalAffineCleanup {
+        place: parameter.place,
+        structural_type: parameter.structural_type,
+        cleanup_machine: lookup_machine_id(machine_ids, cleanup.cleanup_machine)?,
+        cleanup_receiver: receivers.iter().find_map(|(source, receiver)| {
+            (*source == cleanup.cleanup_machine).then_some(*receiver)
+        }),
+        requirement_obligations: cleanup
+            .requirements
+            .iter()
+            .map(|_| crate::terminal_identities::allocate_dense(next_obligation).map(obligation_id))
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
 /// A nominal consuming member (a seeded `drop<T>` specialization) emitted the
 /// ordinary complete-only body; its return edge still invokes the exact
 /// owner-attached `::drop` hook the roster selected for each parameter. A hook
 /// that keeps a borrowed subject declares an ordinary structural parameter;
-/// its name and legacy `self` spelling do not select the operand. Retain the
+/// its authored parameter name does not select the operand. Retain the
 /// selected hook's nominal owner independently of implicit attachment storage,
 /// then collect its exact receiver place for the edge's loan.
-pub(super) fn patch_nominal_cleanup_members(
+pub(super) fn finalize_nominal_cleanup_actions(
     checked: &CheckedTrees,
-    entry: SymbolHandle,
     machines: &mut [TerminalMachine],
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
+    receivers: &[(SymbolHandle, PlaceId)],
+    next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
-    for nominal in &checked
-        .facts
-        .flow
-        .terminal_nominal_affine_unit_cleanups
-        .machines
-    {
-        for cleanup in &nominal.cleanups {
-            let Ok(target_id) = lookup_machine_id(machine_ids, cleanup.cleanup_machine) else {
-                continue;
-            };
-            let target = unique_unit_machine(
-                UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-                cleanup.cleanup_machine,
-            )?;
-            validate_nominal_cleanup_target(target, cleanup)?;
-            let owner = lookup_type_id(type_ids, &cleanup.type_identity)?;
-            let emitted = machines
-                .iter_mut()
-                .find(|machine| machine.id == target_id)
-                .ok_or(LoweringError::Unsupported(
-                    "nominal cleanup target was not emitted",
-                ))?;
-            if emitted
-                .attachment
-                .is_some_and(|attachment| attachment != owner)
-            {
-                return unsupported("nominal cleanup target owner identity drifted");
-            }
-            // Terminal attachment names semantic ownership, not an implicit
-            // argument. A static named subject still carries the same selected
-            // T::drop owner while its ordinary parameter carries the storage.
-            emitted.attachment = Some(owner);
-        }
-    }
-    let cleanup_receivers: std::collections::BTreeMap<MachineId, PlaceId> = machines
-        .iter()
-        .filter_map(|machine| {
-            machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| {
-                    matches!(
-                        parameter.access,
-                        terminal_psi::StructuralAccess::MutableBorrow
-                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                    )
-                })
-                .map(|parameter| (machine.id, parameter.place))
-        })
-        .collect();
-    for nominal in &checked
-        .facts
-        .flow
-        .terminal_nominal_affine_unit_cleanups
-        .machines
-    {
-        if nominal.machine.machine == entry || nominal.machine.attachment_type_identity.is_some() {
+    for cleanup in selected_cleanups(checked) {
+        let Ok(target_id) = lookup_machine_id(machine_ids, cleanup.cleanup_machine) else {
             continue;
+        };
+        let target = unique_unit_machine(
+            UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+            cleanup.cleanup_machine,
+        )?;
+        validate_nominal_cleanup_target(target, cleanup)?;
+        let owner = lookup_type_id(type_ids, &cleanup.type_identity)?;
+        let emitted = machines
+            .iter_mut()
+            .find(|machine| machine.id == target_id)
+            .ok_or(LoweringError::Unsupported(
+                "nominal cleanup target was not emitted",
+            ))?;
+        if emitted
+            .attachment
+            .is_some_and(|attachment| attachment != owner)
+        {
+            return unsupported("nominal cleanup target owner identity drifted");
         }
+        // Terminal attachment names semantic ownership, not an implicit
+        // argument. A static named subject still carries the same selected
+        // T::drop owner while its ordinary parameter carries the storage.
+        emitted.attachment = Some(owner);
+    }
+    for nominal in &checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+    {
         let Ok(terminal_member) = lookup_machine_id(machine_ids, nominal.machine.machine) else {
             continue;
         };
@@ -121,41 +162,50 @@ pub(super) fn patch_nominal_cleanup_members(
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup member was not emitted in the terminal closure",
             ))?;
-        patch_nominal_cleanup_member(
+        finalize_nominal_cleanup_machine(
             checked,
             nominal,
             member,
             type_ids,
             machine_ids,
-            &cleanup_receivers,
+            receivers,
+            next_obligation,
         )?;
     }
     Ok(())
 }
 
-fn patch_nominal_cleanup_member(
+fn finalize_nominal_cleanup_machine(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
     machine: &mut TerminalMachine,
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
-    cleanup_receivers: &std::collections::BTreeMap<MachineId, PlaceId>,
+    receivers: &[(SymbolHandle, PlaceId)],
+    next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
     let plan = &nominal.machine;
-    if plan.attachment_type_identity.is_some()
-        || !nominal.caller_requirements.is_empty()
-        || nominal
-            .cleanups
-            .iter()
-            .any(|cleanup| !cleanup.requirements.is_empty())
-    {
-        return unsupported("member nominal affine Unit cleanup requires the isolated entry lane");
+    contexts::validate_requirements(checked, nominal)?;
+    let expected_attachment = plan
+        .attachment_type_identity
+        .as_deref()
+        .map(|identity| lookup_type_id(type_ids, identity))
+        .transpose()?;
+    if machine.attachment != expected_attachment {
+        return unsupported("nominal affine Unit member attachment drifted");
     }
-    if machine.attachment.is_some() {
-        return unsupported("nominal affine Unit member is unexpectedly attached");
+    if nominal.cleanups.len() != plan.structural_parameters.len()
+        || machine.structural_parameters.len() != plan.structural_parameters.len()
+        || !machine.parameters.is_empty()
+        || machine.result != TerminalMachineResult::Unit
+    {
+        return unsupported("nominal affine Unit member signature drifted");
     }
     let mut cleanups = Vec::with_capacity(nominal.cleanups.len());
-    for cleanup in &nominal.cleanups {
+    for (ordinal, cleanup) in nominal.cleanups.iter().enumerate() {
+        if cleanup.source_parameter_index as usize != nominal.cleanups.len() - ordinal - 1 {
+            return unsupported("nominal cleanup action order drifted");
+        }
         let parameter = machine
             .structural_parameters
             .iter()
@@ -163,22 +213,15 @@ fn patch_nominal_cleanup_member(
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup member parameter is absent from its terminal signature",
             ))?;
-        let cleanup_target = unique_unit_machine(
-            UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-            cleanup.cleanup_machine,
-        )?;
-        validate_nominal_cleanup_target(cleanup_target, cleanup)?;
-        if lookup_type_id(type_ids, &cleanup.type_identity)? != parameter.structural_type {
-            return unsupported("nominal cleanup member target identity drifted");
-        }
-        let hook_machine = lookup_machine_id(machine_ids, cleanup.cleanup_machine)?;
-        cleanups.push(NominalAffineCleanup {
-            place: parameter.place,
-            structural_type: parameter.structural_type,
-            cleanup_machine: hook_machine,
-            cleanup_receiver: cleanup_receivers.get(&hook_machine).copied(),
-            requirement_obligations: Vec::new(),
-        });
+        cleanups.push(lower_nominal_cleanup_action(
+            checked,
+            cleanup,
+            parameter,
+            type_ids,
+            machine_ids,
+            receivers,
+            next_obligation,
+        )?);
     }
     let entry_block = machine.entry;
     let [block] = machine.blocks.as_mut_slice() else {

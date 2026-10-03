@@ -621,10 +621,10 @@ impl HostedExitApplicationFixture {
 use omega::language::core::binding;{core_import}
 
 data Main {{ console: Binding<{service}>; }}
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches {service}
 {{
-    self.console.exit_process(70);
+    main.console.exit_process(70);
 }}
 "#
             ),
@@ -757,16 +757,16 @@ fn assert_root_exit_permissions(
     let build = fs::read_to_string(&build_path).unwrap().replace(
         "\n}\n",
         r#"
-    let path: BuildPath = builder.source.resolve("not-an-input.txt");
-    let descriptor: i32 = builder.source.open(path, 0);
+    let path: BuildPath = BuildSource::resolve(&builder.source, "not-an-input.txt");
+    let descriptor: i32 = BuildSource::open(&builder.source, path, 0);
     transition descriptor < 0 {
         true -> admitted()
         _ -> rejected(builder)
     }
     state admitted() {}
     state rejected(builder: &mut Build) {
-        let output: RequiredOutput = builder.output.require("inventory-verdict");
-        builder.output.fail(output, "review pass widened the root input inventory");
+        let output: RequiredOutput = BuildOutput::require(&mut builder.output, "inventory-verdict");
+        BuildOutput::fail(&mut builder.output, output, "review pass widened the root input inventory");
     }
 }
 "#,
@@ -916,7 +916,7 @@ fn assert_root_exit_permissions(
 /// consumer, so the binding-free `plain_marks` package is the carried
 /// occurrence.
 #[test]
-fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
+fn bound_pass_rechecks_discovery_inputs_and_reuses_typed_frontiers() {
     use crate::declarations::DependencyPurpose;
 
     let fixture = HostedExitApplicationFixture::new(
@@ -982,35 +982,32 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     .expect("bound pass");
     let bound_compilations = counters::checked_compilation_call_count() - compilations_before;
     assert_eq!(
-        bound_compilations, 2,
-        "the bound pass recompiled the two binding-consuming occurrences only"
+        bound_compilations, 3,
+        "every occurrence leaves discovery mode; accepted bindings also change two inputs"
     );
     assert_eq!(
-        bound.carried, 1,
-        "the binding-free plain_marks occurrence carried its whole discovery \
-         compile forward; both binding-consuming occurrences recompiled \
-         because every accepted binding reaches provider and execution \
-         settlement"
+        bound.carried, 0,
+        "a discovery-mode review cannot stand in for the final exact inputs, \
+         even when its eventual review bytes are unchanged"
     );
     let bound_frontier_reuses = counters::typed_frontier_reuse_count() - frontiers_before;
     assert_eq!(
-        bound_frontier_reuses, 2,
-        "each recompiled occurrence still re-lowered no source: the discovered \
-         bindings are all post-frontier service roles, so both typed frontiers \
-         carried over from the discovery pass unchanged"
+        bound_frontier_reuses, 3,
+        "discovery and service roles are post-frontier inputs, so every \
+         typed frontier carries over without re-lowering source"
     );
     let (preliminary_calls, _) = counters::preliminary_check_totals();
     let (settled_calls, _) = counters::settled_check_totals();
     assert_eq!(
         preliminary_calls - preliminary_before.0,
-        2,
+        3,
         "each recompiled occurrence still asks the pre-build admission gate for \
          its own checked graph; the exact-input memo, not a skipped gate, is \
          what answers the identical frozen program"
     );
     assert_eq!(
         settled_calls - settled_before.0,
-        2,
+        3,
         "each recompiled occurrence settles its own checked program: the \
          preliminary result cannot feed settlement because the program it \
          checked predates provider settlement and target selection"

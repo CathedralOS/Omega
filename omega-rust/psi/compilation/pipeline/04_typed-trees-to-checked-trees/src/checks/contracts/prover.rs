@@ -39,7 +39,9 @@ pub(super) use scalars::{
 };
 mod booleans;
 pub(in crate::checks) mod call_guarantees;
+mod current_boolean;
 mod field_actuals;
+pub(crate) use current_boolean::boolean_value_at_place;
 #[cfg(test)]
 mod tests;
 
@@ -156,25 +158,20 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         }
     }
 
-    let mut field_handled = false;
-    for entry_context in entry_contexts {
-        if let Some(proven) = field_actuals::proves(
-            program,
-            semantic,
-            semantic.contexts.get(*entry_context),
-            state_flow.state_symbol,
-            call_flow.statement_index,
-            &call_site,
-            target_parameters,
-            expression,
-        ) {
-            field_handled = true;
-            if proven {
-                return true;
-            }
-        }
+    let field_proof = field_actuals::proves(
+        program,
+        semantic,
+        entry_contexts,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        &call_site,
+        target_parameters,
+        expression,
+    );
+    if field_proof == Some(true) {
+        return true;
     }
-    (!field_handled
+    (field_proof.is_none()
         && entry_contexts.iter().any(|entry_context| {
             let context = semantic.contexts.get(*entry_context);
             semantic_context_proves_instantiated_boolean_expression(

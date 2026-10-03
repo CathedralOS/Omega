@@ -230,6 +230,8 @@ fn declaration(
     result: terminal_psi::BoundaryMachineResult,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),
@@ -304,6 +306,8 @@ fn scalar_fixture() -> (AbstractOperationPlan, Execution) {
     source
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            unconditional_termination: false,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
             id: BoundaryMachineId::new(2).unwrap(),
             ..declaration(
                 vec![i32_type],
@@ -1172,6 +1176,8 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
         source
             .boundary_machines
             .push(terminal_psi::BoundaryMachineDeclaration {
+                unconditional_termination: false,
+                completion: terminal_psi::BoundaryCompletion::NormalReturn,
                 id: BoundaryMachineId::new(2).unwrap(),
                 ..declaration(
                     vec![f32_type],

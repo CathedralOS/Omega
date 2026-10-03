@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Atomic field identity survives independently of its scalar carrier.
-        116
+        // Boundary completion is an explicit provider premise.
+        117
     }
 }

@@ -406,6 +406,8 @@ fn boundary_view_call(module: &mut TerminalModule, source: u64) -> Operation {
     parameter.place = id(100, PlaceId::new);
     let boundary = id(1, BoundaryMachineId::new);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        unconditional_termination: false,
+        completion: terminal_psi::BoundaryCompletion::NormalReturn,
         kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_ensures: Vec::new(),
         scalar_requires: Vec::new(),

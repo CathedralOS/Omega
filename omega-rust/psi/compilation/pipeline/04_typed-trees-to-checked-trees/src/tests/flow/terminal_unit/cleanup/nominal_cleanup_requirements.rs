@@ -5,14 +5,14 @@ fn canonicalizes_shallow_boolean_cleanup_requirement_spellings() {
     let checked = checked(
         r#"
         data Token { a: bool; b: bool; c: bool; d: bool; e: bool; f: bool; }
-        machine Token::drop(&mut self)
+        machine Token::drop(owner: &mut Token)
         requires
-            self.a;
-            !self.b;
-            self.c == true;
-            true == self.d;
-            self.e != true;
-            false != self.f
+            owner.a;
+            !owner.b;
+            owner.c == true;
+            true == owner.d;
+            owner.e != true;
+            false != owner.f
         {}
 
         data Root {}
@@ -71,8 +71,8 @@ fn executable_cleanup_still_rejects_a_missing_root_premise() {
         data Helper {}
         machine Helper::touch() {}
         data Token { ready: bool; }
-        machine Token::drop(&mut self)
-        requires self.ready
+        machine Token::drop(owner: &mut Token)
+        requires owner.ready
         { Helper::touch(); }
 
         data Root {}
@@ -93,8 +93,8 @@ fn fences_non_boolean_caller_clauses_out_of_the_bounded_contextual_cleanup_lane(
     let checked = checked(
         r#"
         data Token { count: u64; ready: bool; }
-        machine Token::drop(&mut self)
-        requires self.ready
+        machine Token::drop(owner: &mut Token)
+        requires owner.ready
         {}
 
         data Root {}
@@ -123,24 +123,23 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
         r#"
         data Empty {}
         data Token {}
-        machine Token::drop(&mut self) {}
-        machine Token::self_cleanup(self) {}
+        machine Token::drop(owner: &mut Token) {}
+        machine Token::self_cleanup(owner: Token) {}
         data Leaf {}
         data Structural { value: Leaf; }
-        machine Structural::drop(&mut self) {}
+        machine Structural::drop(owner: &mut Structural) {}
         data Fixed { values: [Leaf; 2]; }
-        machine Fixed::drop(&mut self) {}
+        machine Fixed::drop(owner: &mut Fixed) {}
         data ErasedOnly { proof [erased]: u64; }
-        machine ErasedOnly::drop(&mut self) {}
+        machine ErasedOnly::drop(owner: &mut ErasedOnly) {}
         data ScalarAndErased { value: u64; proof [erased]: u64; }
-        machine ScalarAndErased::drop(&mut self) {}
+        machine ScalarAndErased::drop(owner: &mut ScalarAndErased) {}
         data Float { value: f64; }
-        machine Float::drop(&mut self) {}
+        machine Float::drop(owner: &mut Float) {}
         data Qualified { value: u64; }
         domain Qualified::Owned;
-        machine Qualified::drop(&mut self) {}
-        data Generic<T> {}
-        machine Generic::drop(&mut self) {}
+        machine Qualified::drop(owner: &mut Qualified) {}
+        data Generic<T> { value: T; token: Token; }
         data Wrapper { token: Token; }
         data Sink { marker: u64; }
         machine Sink::take(token: Token) {}
@@ -181,12 +180,23 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
     );
     // Qualification by a nonempty record contributes no argument or storage,
     // so this static machine is the same exact cleanup as `Root::exact`.
-    for machine in ["qualified_nonempty", "take"] {
+    for machine in ["qualified_nonempty", "take", "self_cleanup"] {
         let qualified = plans
             .for_machine(machine_named(&checked, machine))
             .unwrap_or_else(|| panic!("`{machine}` retains no nonempty attachment"));
         assert_eq!(qualified.machine.attachment_type_identity, None);
     }
+    let named_owner = plans
+        .for_machine(machine_named(&checked, "self_cleanup"))
+        .expect("an ordinary named owner parameter retains its cleanup");
+    assert_eq!(named_owner.cleanups.len(), 1);
+    assert_eq!(named_owner.cleanups[0].source_parameter_index, 0);
+    let token_drop = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Token::drop")
+        .expect("the exact Token cleanup declaration remains present");
+    assert_eq!(named_owner.cleanups[0].cleanup_machine, token_drop.symbol);
     let ordered = plans
         .for_machine(machine_named(&checked, "two"))
         .expect("two whole affine roots have an ordered cleanup plan");
@@ -243,7 +253,6 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
         "with_local",
         "with_call",
         "with_contract",
-        "self_cleanup",
         "structural",
         "fixed",
         "erased",
@@ -260,10 +269,11 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
             "`{machine}` must remain outside the exact nominal-cleanup slice"
         );
     }
-    // `exact`, `two`, `three`, `five`, `qualified_nonempty` and `Sink::take`.
+    // Ordinary named owners add no implicit attachment, including Token::self_cleanup.
+    // Generic storage still contains its selected nested Token cleanup; it is not no-code disposal.
     assert_eq!(
         plans.machines.len(),
-        6,
+        7,
         "rejected candidates must not leave partial cleanup plans"
     );
 }

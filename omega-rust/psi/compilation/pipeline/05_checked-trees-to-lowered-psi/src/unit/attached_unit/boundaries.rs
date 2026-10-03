@@ -88,6 +88,8 @@ pub(crate) fn lower_declarations(
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
         declarations.push(BoundaryMachineDeclaration {
+            unconditional_termination: unconditional_termination(checked, plan)?,
+            completion: validation::boundary_requirement_completion(&checked.typed, plan.machine),
             kind: plan.kind,
             scalar_requires,
             scalar_ensures,
@@ -449,4 +451,41 @@ fn retain_unit_boundary_identity<'plans>(
         ));
     }
     Ok(())
+}
+
+/// Transport only the unconditional projection of the exact published
+/// requirement. Conditional progress subjects remain unproved by this bit.
+fn unconditional_termination(
+    checked: &CheckedTrees,
+    plan: &CheckedBoundaryMachinePlan,
+) -> Result<bool, LoweringError> {
+    use language_semantics::TerminationGuarantee;
+    use semantic_vocabulary::BoundaryRequirementKind;
+    let guarantee = match plan.kind {
+        BoundaryRequirementKind::Machine => checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == plan.machine)
+            .and_then(|machine| machine.termination_plan.interface.published()),
+        BoundaryRequirementKind::Trait => checked
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == plan.contract_owner)
+            .and_then(|definition| {
+                checked
+                    .typed
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.symbol == plan.machine)
+            })
+            .map(|signature| &signature.termination_guarantee),
+        // The current operator requirement vocabulary publishes no progress
+        // contract. Its result type or chosen implementation cannot supply one.
+        BoundaryRequirementKind::Operator => None,
+    };
+    Ok(
+        matches!(guarantee, Some(TerminationGuarantee::Terminates { premises }) if premises.is_empty()),
+    )
 }

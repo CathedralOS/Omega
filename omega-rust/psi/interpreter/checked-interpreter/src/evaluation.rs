@@ -19,7 +19,7 @@ impl EvaluationSemanticsIdentity {
 }
 
 pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
-    EvaluationSemanticsIdentity(2);
+    EvaluationSemanticsIdentity(3);
 
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.

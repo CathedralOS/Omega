@@ -11,8 +11,8 @@ use terminal_interpreter::TerminalStructuralInputs;
 
 const MIXED_CONTEXTUAL_SCALAR_BINDINGS_SOURCE: &str = r#"
     data Token { ready: bool; }
-    machine Token::drop(&mut self)
-    requires self.ready
+    machine Token::drop(owner: &mut Token)
+    requires owner.ready
     {}
 
     data Plain { observed: bool; }
@@ -29,8 +29,8 @@ const MIXED_CONTEXTUAL_SCALAR_BINDINGS_SOURCE: &str = r#"
 
 const MIXED_CONTEXTUAL_SCALAR_INPUTS_SOURCE: &str = r#"
     data Token { ready: bool; }
-    machine Token::drop(&mut self)
-    requires self.ready
+    machine Token::drop(owner: &mut Token)
+    requires owner.ready
     {}
 
     data Plain { observed: bool; }
@@ -56,7 +56,7 @@ const MIXED_NOMINAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     machine Helper::touch() {}
 
     data Token {}
-    machine Token::drop(&mut self) { Helper::touch(); }
+    machine Token::drop(owner: &mut Token) { Helper::touch(); }
     data Plain { observed: bool; }
 
     data Root {}
@@ -77,7 +77,7 @@ const MIXED_NOMINAL_NESTED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     machine Helper::touch() {}
 
     data Token {}
-    machine Token::drop(&mut self) { Helper::touch(); }
+    machine Token::drop(owner: &mut Token) { Helper::touch(); }
     data Plain { observed: bool; }
 
     data Root {}
@@ -99,7 +99,7 @@ const MIXED_NOMINAL_SHARED_BOOLEAN_CONVERGENCE_SOURCE: &str = r#"
     machine Helper::touch() {}
 
     data Token { ready: bool; }
-    machine Token::drop(&mut self) { Helper::touch(); }
+    machine Token::drop(owner: &mut Token) { Helper::touch(); }
     data Root {}
     machine Root::measure(token: Token, left: bool) -> bool {
         let staged: bool = token.ready && !left;
@@ -137,15 +137,6 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
             .windows(2)
             .all(|pair| pair[0].id < pair[1].id)
     );
-    let max_cleanup_obligation = lowered
-        .proof_bundle
-        .evidence
-        .iter()
-        .filter(|evidence| evidence.obligation.get() <= 2)
-        .map(|evidence| evidence.obligation.get())
-        .max()
-        .expect("both contextual cleanup obligations remain present");
-    assert!(ready.id.get() > max_cleanup_obligation);
     let Terminator::Return {
         value,
         cleanup_actions,
@@ -166,11 +157,36 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
             && first_cleanup.place == first.place
             && second_cleanup.cleanup_machine == first_cleanup.cleanup_machine
     ));
+    let obligations: Vec<_> = cleanup_actions
+        .iter()
+        .filter_map(|action| match action {
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup),
+            _ => None,
+        })
+        .flat_map(|cleanup| cleanup.requirement_obligations.iter().copied())
+        .collect();
+    assert_eq!(obligations.len(), 2);
+    assert_ne!(obligations[0], obligations[1]);
+    for obligation in obligations {
+        assert!(
+            lowered
+                .proof_bundle
+                .evidence
+                .iter()
+                .any(|evidence| { evidence.obligation == obligation })
+        );
+        assert!(
+            entry.blocks[0]
+                .operations
+                .iter()
+                .all(|operation| { operation.id.get() != obligation.get() })
+        );
+    }
     assert_eq!(entry.contract.requires.len(), 3);
     assert_eq!(
         lowered.proof_bundle.evidence.len(),
         2,
-        "proof obligations remain disjoint from the later value-operation namespace",
+        "each cleanup invocation retains its own proof obligation",
     );
 
     terminal_verifier::verify_module(
@@ -441,7 +457,6 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
     else {
         panic!("mixed cleanup has one no-code action and one nominal action")
     };
-    assert!(token_cleanup.cleanup_receiver.is_none());
     assert!(token_cleanup.requirement_obligations.is_empty());
     let cleanup_target = lowered
         .semantic_module
@@ -449,6 +464,16 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
         .iter()
         .find(|machine| machine.id == token_cleanup.cleanup_machine)
         .expect("nominal cleanup target remains in the terminal closure");
+    let [receiver] = cleanup_target.structural_parameters.as_slice() else {
+        panic!("named borrowed cleanup receiver remains in the target signature")
+    };
+    assert_eq!(token_cleanup.cleanup_receiver, Some(receiver.place));
+    assert_eq!(receiver.position, 0);
+    assert_eq!(receiver.structural_type, token.structural_type);
+    assert_eq!(
+        receiver.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+    );
     assert!(matches!(
         cleanup_target.blocks[0].operations.as_slice(),
         [terminal_psi::Operation {
@@ -773,5 +798,108 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
             TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(ready_value && !left))
         );
         assert!(measured.effects().is_empty());
+    }
+}
+
+#[test]
+fn named_receiver_scalar_cleanup_preserves_executable_places_through_artifacts() {
+    for effectful in [false, true] {
+        let reach = if effectful { "reaches Audit" } else { "" };
+        let effect = if effectful { "Audit::note();" } else { "" };
+        let source = format!(
+            "boundary trait Audit {{ machine note() reaches Audit terminates; }}
+         data Token {{ ready: bool; }}
+         machine Token::drop(token: &mut Token) requires token.ready {reach} {{
+             {effect}
+             token.ready = false;
+         }}
+         machine observed(keep: bool, first: Token, second: Token) -> bool
+         requires first.ready; second.ready {reach} {{ keep }}",
+        );
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("observed"),
+        )
+        .expect("scalar cleanup retains ordinary named receiver custody");
+        let semantics = encode_module(&lowered.semantic_module).expect("named cleanup encodes");
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("named cleanup proof encodes");
+        let module = decode_module(&semantics).expect("named cleanup decodes");
+        let proof = decode_proof_bundle(&proof).expect("named cleanup proof decodes");
+        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+            .expect("named receiver remains the executable hook argument after independent replay");
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let Terminator::Return {
+            cleanup_actions, ..
+        } = &entry.blocks[0].terminator
+        else {
+            panic!("scalar result retains its cleanup stream")
+        };
+        let [
+            TerminalAffineCleanupAction::InvokeNominal(second),
+            TerminalAffineCleanupAction::InvokeNominal(first),
+        ] = cleanup_actions.as_slice()
+        else {
+            panic!("two owners retain two ordered cleanup calls")
+        };
+        assert_eq!(second.place, entry.structural_parameters[1].place);
+        assert_eq!(first.place, entry.structural_parameters[0].place);
+        assert_eq!(first.cleanup_machine, second.cleanup_machine);
+        let hook = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == first.cleanup_machine)
+            .unwrap();
+        assert_eq!(
+            first.cleanup_receiver,
+            Some(hook.structural_parameters[0].place)
+        );
+        assert_eq!(second.cleanup_receiver, first.cleanup_receiver);
+        assert_eq!(!entry.declared_service_reach.is_empty(), effectful);
+        let mut wrong_receiver = module.clone();
+        let altered_entry = wrong_receiver
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let Terminator::Return {
+            cleanup_actions, ..
+        } = &mut altered_entry.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        let TerminalAffineCleanupAction::InvokeNominal(cleanup) = &mut cleanup_actions[0] else {
+            unreachable!()
+        };
+        cleanup.cleanup_receiver = Some(first.place);
+        assert!(
+            terminal_verifier::validate_module_representation(&wrong_receiver).is_err(),
+            "cleanup must lend to the hook's declared receiver, not another owner's place"
+        );
+        let mut shared_receiver = module.clone();
+        shared_receiver
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == hook.id)
+            .unwrap()
+            .structural_parameters[0]
+            .access = terminal_psi::StructuralAccess::SharedBorrow;
+        assert!(
+            terminal_verifier::validate_module_representation(&shared_receiver).is_err(),
+            "a shared parameter cannot receive an exclusive cleanup loan"
+        );
+        if effectful {
+            assert!(
+                module
+                    .boundary_machines
+                    .iter()
+                    .any(|boundary| boundary.unconditional_termination)
+            );
+        }
     }
 }

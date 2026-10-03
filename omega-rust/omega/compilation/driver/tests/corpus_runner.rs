@@ -351,6 +351,12 @@ fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
         facts.push(if actual == expected.replace("\r\n", "\n") {
             "interpreter-stdout:match".to_owned()
         } else {
+            eprintln!(
+                "corpus_runner: {} interpreter stdout mismatch: expected {:?}, actual {:?}",
+                fixture_dir.display(),
+                expected.chars().take(200).collect::<String>(),
+                actual.chars().take(200).collect::<String>(),
+            );
             "interpreter-stdout:differs".to_owned()
         });
     }

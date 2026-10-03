@@ -6,18 +6,18 @@ use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-pub(crate) struct ValidatedTypedProgram<'program> {
+pub(crate) struct PreparedTypedProgram<'program> {
     pub(crate) proof_plan: ProofPlan<'program>,
     pub(crate) operational: OperationalPlan,
     pub(crate) service_reaches: ServiceReachInferencePlan,
     pub(crate) validation_facts: validation::ProgramValidationFacts,
 }
 
-pub(crate) fn validate_typed_program<'program>(
+pub(crate) fn prepare_typed_program<'program>(
     program: &'program TypedTrees,
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
-) -> Result<ValidatedTypedProgram<'program>, Vec<Diagnostic>> {
+) -> Result<PreparedTypedProgram<'program>, Vec<Diagnostic>> {
     validate_atomic_result_custody(program)?;
 
     let opaque_properties = if allow_pending_opaque_copy {
@@ -28,20 +28,15 @@ pub(crate) fn validate_typed_program<'program>(
     // Quotient requests are judged after the checked termination facts exist
     // (`lower_typed_trees` calls `admit_checked_quotient_requests` beside
     // `build_check_facts`); validation keeps formation checking here.
-    let validated = validation::validate_specialized_program_deferring_quotient_requests(
-        program,
-        opaque_properties,
-    )?;
+    let validated = validation::prepare_specialized_program(program, opaque_properties)?;
 
     let proof_plan = proof::obligations::build_proof_plan(program);
     proof::checker::check_proof_plan(&proof_plan)?;
 
     let operational = validated.operational;
-    validation::validate_behavior_plan(program, &operational)?;
-    crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
     validate_no_bare_boundary_trait_values(program)?;
 
-    Ok(ValidatedTypedProgram {
+    Ok(PreparedTypedProgram {
         proof_plan,
         operational,
         validation_facts: validated.facts,

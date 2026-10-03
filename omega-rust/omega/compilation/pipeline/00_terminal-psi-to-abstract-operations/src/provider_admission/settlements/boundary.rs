@@ -90,6 +90,38 @@ pub(super) fn settle_boundary<'request>(
             ),
         })]);
     };
+    if !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
+        boundary,
+        selected_plan,
+        requirement,
+    ) {
+        return Err(vec![Diagnostic::error(format!(
+            "provider completion for `{requirement}` disagrees with its exact retained requirement contract"
+        ))]);
+    }
+    if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
+        let completion = match builtin {
+            target_operations::BoundaryRealization::HostedExitProcessI32(_) => {
+                semantic_vocabulary::BoundaryCompletion::External(
+                    semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+                )
+            }
+            target_operations::BoundaryRealization::MetadataOnlyPort(_)
+            | target_operations::BoundaryRealization::DirectPortReadU8(_)
+            | target_operations::BoundaryRealization::LinuxWriteLine(_)
+            | target_operations::BoundaryRealization::HostedReadByte(_)
+            | target_operations::BoundaryRealization::HostedWriteByteI32(_)
+            | target_operations::BoundaryRealization::ClaimCompletionOnly(_)
+            | target_operations::BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
+                semantic_vocabulary::BoundaryCompletion::NormalReturn
+            }
+        };
+        if boundary.completion != completion {
+            return Err(vec![Diagnostic::error(format!(
+                "provider builtin for `{requirement}` contradicts its retained completion contract"
+            ))]);
+        }
+    }
     Ok((
         AdmittedBoundarySettlement {
             boundary: boundary.id,
