@@ -35,8 +35,10 @@ machine f64_total_order_key(bits: &u64) -> u64 {
 pub machine F32::TotalOrder(left: Self, right: Self) -> bool
 satisfies Order::before
 {
-    let left_bits: &u32 = &left as &u32;
-    let right_bits: &u32 = &right as &u32;
+    let left_f32: f32 = left;
+    let right_f32: f32 = right;
+    let left_bits: &u32 = &left_f32 as &u32;
+    let right_bits: &u32 = &right_f32 as &u32;
     let left_key: u32 = f32_total_order_key(left_bits);
     let right_key: u32 = f32_total_order_key(right_bits);
     left_key < right_key
@@ -45,8 +47,10 @@ satisfies Order::before
 pub machine F64::TotalOrder(left: Self, right: Self) -> bool
 satisfies Order::before
 {
-    let left_bits: &u64 = &left as &u64;
-    let right_bits: &u64 = &right as &u64;
+    let left_f64: f64 = left;
+    let right_f64: f64 = right;
+    let left_bits: &u64 = &left_f64 as &u64;
+    let right_bits: &u64 = &right_f64 as &u64;
     let left_key: u64 = f64_total_order_key(left_bits);
     let right_key: u64 = f64_total_order_key(right_bits);
     left_key < right_key
