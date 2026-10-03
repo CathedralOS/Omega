@@ -1159,3 +1159,174 @@ fn scalar_return_requires_exact_affine_discards() {
         }
     );
 }
+
+fn projected_constructor_module(case: bool, descriptor_child: bool) -> TerminalModule {
+    use terminal_psi::{
+        BindingRelevance, ByteSequenceCarrier, RecordFieldInitializer, RecordFieldValue,
+        StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralOperationResult, StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let mut module = multiple_move_partial_affine_field_module();
+    let child_type = if descriptor_child {
+        let child = structural_type_id(5);
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: child,
+            identity: "RetainedBytes".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(5).unwrap(),
+                    identity: "bytes".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::SharedBorrow),
+                        },
+                    ),
+                }],
+            },
+        });
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+            unreachable!()
+        };
+        fields[2].field_type = StructuralFieldType::Structural(child);
+        child
+    } else {
+        structural_type_id(1)
+    };
+    let field = StructuralFieldDeclaration {
+        id: semantic_vocabulary::StructuralFieldId::new(4).unwrap(),
+        identity: "kept".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(child_type),
+    };
+    let case_id = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(4),
+        identity: "Replacement".into(),
+        shape: if case {
+            StructuralTypeShape::Sum {
+                cases: vec![StructuralCaseDeclaration {
+                    id: case_id,
+                    identity: "Kept".into(),
+                    fields: vec![field.clone()],
+                }],
+            }
+        } else {
+            StructuralTypeShape::Record {
+                fields: vec![field.clone()],
+            }
+        },
+    });
+    let caller = &mut module.machines[0];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &caller.blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    let fields = vec![RecordFieldInitializer {
+        field: field.id,
+        value: RecordFieldValue::Structural(structural_arguments[0].clone()),
+    }];
+    caller.blocks[0].operations[0].kind = if case {
+        OperationKind::EstablishStructuralCase {
+            result_case: case_id,
+            fields,
+        }
+    } else {
+        OperationKind::EstablishRecord { fields }
+    };
+    caller.blocks[0].operations[0].result =
+        OperationResult::Structural(StructuralOperationResult {
+            place: place_id(4),
+            structural_type: structural_type_id(4),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        });
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(1),
+            structural_type: structural_type_id(4),
+        },
+    });
+    let Terminator::ReturnUnitPartialAffine {
+        trivial_affine_discards,
+        ..
+    } = &mut caller.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    trivial_affine_discards.push(place_id(4));
+    module
+}
+
+#[test]
+fn projected_constructor_operands_preserve_siblings_and_exact_residuals() {
+    for case in [false, true] {
+        for descriptor_child in [false, true] {
+            let module = projected_constructor_module(case, descriptor_child);
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            )
+            .expect("constructor moves one child, then an ordinary call moves its live sibling");
+
+            let mut retargeted = module.clone();
+            let (OperationKind::EstablishRecord { fields }
+            | OperationKind::EstablishStructuralCase { fields, .. }) =
+                &mut retargeted.machines[0].blocks[0].operations[0].kind
+            else {
+                unreachable!()
+            };
+            let terminal_psi::RecordFieldValue::Structural(argument) = &mut fields[0].value else {
+                unreachable!()
+            };
+            argument.path = vec![StructuralPathSegment::Field("left".into())];
+            assert!(
+                validate_module(&retargeted).is_err(),
+                "the retained complement cannot describe a different selected child"
+            );
+
+            let mut repeated = module.clone();
+            let OperationKind::CallUnit {
+                structural_arguments,
+                ..
+            } = &mut repeated.machines[0].blocks[0].operations[1].kind
+            else {
+                unreachable!()
+            };
+            structural_arguments[0].path = vec![StructuralPathSegment::Field("right".into())];
+            assert!(
+                validate_module(&repeated).is_err(),
+                "constructor transfer makes the selected child unavailable"
+            );
+
+            let mut missing = module.clone();
+            let Terminator::ReturnUnitPartialAffine {
+                residual_affine_discards,
+                ..
+            } = &mut missing.machines[0].blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            residual_affine_discards.clear();
+            assert!(
+                validate_module(&missing).is_err(),
+                "constructing a result does not dispose the source complement"
+            );
+
+            let mut borrowed = module;
+            borrowed.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            assert!(
+                validate_module(&borrowed).is_err(),
+                "a shared root cannot donate owned constructor storage"
+            );
+        }
+    }
+}

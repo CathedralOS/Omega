@@ -3,8 +3,8 @@
 use super::{
     BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, PlaceId, StructuralAccess,
     StructuralMultiplicity, StructuralPathSegment, StructuralTypeId, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, exact_fixed_array_element_sink,
-    partial_affine_residuals, partial_affine_root_type, resolve_structural_path,
+    TerminalMachineResult, TerminalModule, Terminator, partial_affine_residuals,
+    partial_affine_root_type, resolve_structural_path,
 };
 pub(super) fn validate(
     module: &TerminalModule,
@@ -53,63 +53,19 @@ pub(super) fn validate(
     };
     let mut call_lane = false;
     for operation in &block.operations {
-        let OperationKind::CallUnit {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } = &operation.kind
-        else {
-            continue;
-        };
-        for (index, argument) in structural_arguments
-            .iter()
-            .enumerate()
-            .filter(|(_, argument)| {
-                argument.access == StructuralAccess::Owned
-                    && !argument.path.is_empty()
-                    && partial_affine_root_type(machine, argument.place).is_some()
-            })
-        {
-            // A machine parameter's complement stays with the caller and
-            // dies on the machine's own return edge, not on this
-            // continuation — only temporaries close here. The operand's
-            // callee contract still applies below.
-            let root_type =
-                partial_affine_root_type(machine, argument.place).ok_or_else(invalid)?;
+        let arguments =
+            super::projected_transfers(module, machine, machines, operation).ok_or_else(invalid)?;
+        call_lane |=
+            matches!(operation.kind, OperationKind::CallUnit { .. }) && !arguments.is_empty();
+        for argument in arguments {
+            // Parameter complements belong to the machine return; other roots
+            // close on their exact continuation edge after the operand transfer.
             if machine
                 .structural_parameters
                 .iter()
                 .all(|parameter| parameter.place != argument.place)
             {
                 record_move(&mut roots, &mut moved, argument.place, &argument.path)?;
-            }
-            if !claim_transfers.is_empty() {
-                return Err(invalid());
-            }
-            call_lane = true;
-            let moved_type =
-                resolve_structural_path(module, root_type, &argument.path).ok_or_else(invalid)?;
-            let target = machines.get(callee).copied().ok_or_else(invalid)?;
-            let Some(parameter) = target.structural_parameters.get(index) else {
-                return Err(invalid());
-            };
-            if target.result != TerminalMachineResult::Unit
-                || !target.parameters.is_empty()
-                || parameter.structural_type != moved_type
-                || parameter.multiplicity != StructuralMultiplicity::Affine
-                || parameter.position != index as u32
-                || parameter.is_self
-                || parameter.access != StructuralAccess::Owned
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || (argument
-                    .path
-                    .iter()
-                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-                    && !exact_fixed_array_element_sink(target, moved_type))
-            {
-                return Err(invalid());
             }
         }
     }

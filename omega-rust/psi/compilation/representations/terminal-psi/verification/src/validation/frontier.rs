@@ -376,7 +376,16 @@ fn validate_owned_reads(
                     place: argument.place,
                 });
             }
-            if frontier.partial_custody_paths.contains_key(&argument.place) {
+            if frontier
+                .partial_custody_paths
+                .get(&argument.place)
+                .is_some_and(|moved| {
+                    argument.path.is_empty()
+                        || moved.iter().any(|path| {
+                            path.starts_with(&argument.path) || argument.path.starts_with(path)
+                        })
+                })
+            {
                 return Err(
                     ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
                         operation: operation.id,

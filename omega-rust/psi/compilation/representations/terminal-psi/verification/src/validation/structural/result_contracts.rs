@@ -88,6 +88,37 @@ pub(in crate::validation) fn source_signature(
         })
 }
 
+/// A constructor's owned operand uses the same finite affine projection
+/// contract as an ordinary call. Its root stays live with partial custody;
+/// this signature names only the selected child and grants no new claims.
+pub(in crate::validation) fn constructor_argument_signature<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    argument: &terminal_psi::StructuralArgument,
+) -> Option<StructuralResultSignature<'a>> {
+    let source = source_signature(machine, argument.place)?;
+    if argument.path.is_empty() {
+        return Some(source);
+    }
+    if argument.access != terminal_psi::StructuralAccess::Owned
+        || !argument.path.iter().all(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            )
+        })
+    {
+        return None;
+    }
+    let root = crate::validation::partial_affine_root_type(machine, argument.place)?;
+    let structural_type = crate::validation::resolve_structural_path(module, root, &argument.path)?;
+    Some(StructuralResultSignature {
+        structural_type,
+        ..source
+    })
+}
+
 pub(in crate::validation) fn matches_function_result(
     signature: StructuralResultSignature<'_>,
     result: &terminal_psi::StructuralResultDeclaration,

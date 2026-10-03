@@ -307,11 +307,11 @@ pub(crate) fn fields<'a>(
                 }
             }
             (StructuralFieldType::Structural(expected), RecordFieldValue::Structural(argument)) => {
-                let source =
-                    super::structural::result_contracts::source_signature(machine, argument.place)
-                        .ok_or_else(failure)?;
+                let source = super::structural::result_contracts::constructor_argument_signature(
+                    module, machine, argument,
+                )
+                .ok_or_else(failure)?;
                 if argument.access != StructuralAccess::Owned
-                    || !argument.path.is_empty()
                     || argument.place == result.place
                     || source.structural_type != *expected
                     || !source.qualifications.is_empty()

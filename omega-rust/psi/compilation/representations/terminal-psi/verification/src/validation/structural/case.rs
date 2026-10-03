@@ -145,13 +145,13 @@ pub(crate) fn fields<'a>(
         }
         match (&declaration.field_type, &binding.value) {
             (StructuralFieldType::Structural(expected), RecordFieldValue::Structural(argument)) => {
-                let source = crate::validation::structural::result_contracts::source_signature(
+                let source = crate::validation::structural::result_contracts::constructor_argument_signature(
+                    module,
                     machine,
-                    argument.place,
+                    argument,
                 )
                 .ok_or_else(member_failure)?;
                 if argument.access != StructuralAccess::Owned
-                    || !argument.path.is_empty()
                     || argument.place == result.place
                     || source.structural_type != *expected
                     || !source.qualifications.is_empty()
