@@ -79,6 +79,29 @@ fn mutate_first_binding(
 }
 
 #[test]
+fn write_only_state_store_keeps_the_arriving_storage_authority() {
+    let candidate = source_machine_unit(
+        "machine run(destination: &write i32) {
+            transition { _ -> arrived(&write destination) }
+            state arrived(destination: &write i32) { destination = 42; }
+        }",
+        "run",
+        true,
+    );
+    validate_psi_optimization_unit(&candidate).expect("write-only state store preserves its loan");
+    let mut widened = candidate.clone();
+    let parameter = widened.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.structural_parameters)
+        .find(|parameter| parameter.access == StructuralAccess::WriteOnlyBorrow)
+        .expect("write-only arrival");
+    parameter.access = StructuralAccess::MutableBorrow;
+    validate_psi_optimization_unit(&widened)
+        .expect_err("an arrival cannot gain readable authority");
+}
+
+#[test]
 fn projected_and_whole_address_joins_validate() {
     for source in [PRIMITIVE_CALL_SOURCE, RECORD_CALL_SOURCE] {
         let candidate = unit(source);

@@ -137,4 +137,55 @@ fn an_exclusive_join_on_one_diamond_arm_pins_its_owner_at_the_merge() {
         ),
         "the possible exclusive loan must pin its backing beyond dominance: {result:?}"
     );
+
+    // Isolate ownership replay from operation-specific non-observation checks:
+    // attenuating this exclusive loan cannot unpin the forged backing read.
+    // Full validation independently rejects observing through the loan itself.
+    for block in &mut candidate.functions[0].blocks {
+        for parameter in &mut block.structural_parameters {
+            if parameter.place == loan {
+                parameter.access = StructuralAccess::WriteOnlyBorrow;
+            }
+        }
+        for node in &mut block.nodes {
+            match &mut node.operation {
+                AbstractOperation::Jump {
+                    structural_bindings,
+                    ..
+                } => {
+                    for binding in structural_bindings {
+                        if binding.parameter == loan {
+                            binding.argument.access = StructuralAccess::WriteOnlyBorrow;
+                        }
+                    }
+                }
+                AbstractOperation::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    for edge in [when_true, when_false] {
+                        for binding in &mut edge.structural_bindings {
+                            if binding.parameter == loan {
+                                binding.argument.access = StructuralAccess::WriteOnlyBorrow;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    for block in 0..candidate.functions[0].blocks.len() {
+        for node in 0..candidate.functions[0].blocks[block].nodes.len() {
+            refresh_node_derivatives(&mut candidate, 0, block, node);
+        }
+    }
+    let result = validate_address_join_ownership(&candidate);
+    assert!(
+        matches!(result,
+        Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { block, place, .. })
+            if block == merge_id && place == owner),
+        "write-only attenuation must not release exclusive backing: {result:?}"
+    );
 }
