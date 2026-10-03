@@ -17,8 +17,8 @@ use omega_language_std::console;
 use omega_language_std::macos_gui;
 use omega::language::core::binding;
 use omega::language::core::float_operations;
-pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes DarwinClock; }
-pub boundary trait Input { machine key_state(&mut self, virtual_key: u32) -> u64 invokes CoreGraphics; }
+pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
+pub boundary trait Input { machine key_state(virtual_key: u32) -> u64 invokes CoreGraphics; }
 pub boundary trait Gui {
     machine window_create(&mut self, class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
         invokes ObjectiveC; invokes CoreGraphics;
@@ -288,20 +288,18 @@ reaches ObjectiveC
     state ret(window_gui_provider: &mut WindowGuiProvider) -> u64 { window_gui_provider.rc }
 }
 
-data WindowInputProvider {
-    keycode: u64;
-    rc: u64;}
+data WindowInputProvider { }
 macos_arm64 machine WindowInputProvider::provider_defaults(defaults: &mut WindowInputProvider) {
     defaults.select_provider<Input, WindowInputProvider>();
 }
-macos_arm64 machine WindowInputProvider::key_state(window_input_provider: &mut WindowInputProvider, virtual_key: u32) -> u64 satisfies Input::key_state
+macos_arm64 machine WindowInputProvider::key_state(virtual_key: u32) -> u64 satisfies Input::key_state
 reaches CoreGraphics
 {
-    window_input_provider.keycode = WindowInputProvider::map_keycode(virtual_key);
-    window_input_provider.rc = cg_event_source_key_state(1, window_input_provider.keycode);
-    transition window_input_provider.keycode == 65535 { true -> not_down() _ -> ret(window_input_provider) }
+    let keycode: u64 = WindowInputProvider::map_keycode(virtual_key);
+    let rc: u64 = cg_event_source_key_state(1, keycode);
+    transition keycode == 65535 { true -> not_down() _ -> ret(rc) }
     state not_down() -> u64 { 0 }
-    state ret(window_input_provider: &mut WindowInputProvider) -> u64 { window_input_provider.rc }
+    state ret(rc: u64) -> u64 { rc }
 }
 macos_arm64 machine WindowInputProvider::map_keycode(virtual_key: u32) -> u64 
 {
@@ -360,18 +358,14 @@ macos_arm64 machine WindowInputProvider::map_keycode(virtual_key: u32) -> u64
     state unmapped() -> u64 { 65535 }
 }
 
-data WindowClockProvider {
-    rc: i32;
-    ns: u64;
-    scaled: u64;
-    timeout: i32;}
+data WindowClockProvider { }
 macos_arm64 machine WindowClockProvider::provider_defaults(defaults: &mut WindowClockProvider) {
     defaults.select_provider<Clock, WindowClockProvider>();
 }
-macos_arm64 machine WindowClockProvider::sleep(window_clock_provider: &mut WindowClockProvider, milliseconds: u32) satisfies Clock::sleep
+macos_arm64 machine WindowClockProvider::sleep(milliseconds: u32) satisfies Clock::sleep
 {
-    window_clock_provider.timeout = narrow_u32_to_i32_wrapping(milliseconds);
-    window_clock_provider.rc = darwin_poll(0, 0, window_clock_provider.timeout);
+    let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
+    let rc: i32 = darwin_poll(0, 0, timeout);
 }
 
 data Main {
