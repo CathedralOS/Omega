@@ -442,6 +442,14 @@ fn address_joins_reject_widened_access_windows_and_descriptor_projections() {
     let mut exclusive = address_join_fixture(Vec::new());
     exclusive.machines[0].blocks[1].structural_parameters[0].access =
         StructuralAccess::WriteOnlyBorrow;
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut exclusive.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::WriteOnlyBorrow;
     assert_eq!(validate_structural_block_bindings(&exclusive), Ok(()));
     // A projected argument may not widen the join's shared access.
     let mut widened = address_join_fixture(vec![terminal_psi::StructuralPathSegment::Field(

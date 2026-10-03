@@ -204,7 +204,7 @@ impl AddressJoinPins {
         // exclusive name holds its address, including write-only loans. Lack
         // of read authority never releases the backing or its disposal debt.
         // Pin every possible local origin; name availability handles forwarding.
-        let mutable_joins = function
+        let exclusive_joins = function
             .blocks
             .iter()
             .flat_map(|block| {
@@ -220,7 +220,7 @@ impl AddressJoinPins {
                     .map(|parameter| parameter.place)
             })
             .collect::<Vec<_>>();
-        if mutable_joins.is_empty() {
+        if exclusive_joins.is_empty() {
             return Self {
                 borrowed_regions,
                 descriptor_loans,
@@ -289,7 +289,7 @@ impl AddressJoinPins {
             structural_types,
         );
         let mut exclusive = BTreeMap::<BlockId, BTreeSet<PlaceId>>::new();
-        for join in mutable_joins {
+        for join in exclusive_joins {
             let roots = origins
                 .get(&join)
                 .into_iter()
