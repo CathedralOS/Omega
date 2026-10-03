@@ -35,6 +35,8 @@ pub(super) fn check(
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
     let encoding_rows = unique_encoding_rows(selected, encoding.program())?;
+    // Every row below resolves its bytes and footprint through this store.
+    let encoded = encoding.encoded();
     let layout_rows = unique_layout_rows(layout)?;
     let mut seen = BTreeSet::new();
     for (claimed, function) in contract.functions.iter().zip(&selected.functions) {
@@ -136,7 +138,7 @@ pub(super) fn check(
                     ));
                 }
                 let key = (claimed.machine, instruction.id);
-                let encoded = encoding_rows.get(&key).ok_or(
+                let encoding_row = encoding_rows.get(&key).ok_or(
                     WholeFunctionExitContractError::MissingInstruction(instruction.id),
                 )?;
                 let (resolved_block, resolved) = layout_rows.get(&key).ok_or(
@@ -158,7 +160,7 @@ pub(super) fn check(
                     && resolved.alternative.family == actual.alternative.key.family
                     && resolved.alternative.variant == 1;
                 if resolved_block.block != block.id
-                    || encoded.alternative != actual.alternative.key
+                    || encoding_row.alternative != actual.alternative.key
                     || (resolved.alternative != actual.alternative.key && !relaxed_comparison)
                 {
                     return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
@@ -167,13 +169,14 @@ pub(super) fn check(
                 }
                 validate_preservation_writes(
                     actual,
-                    encoded,
+                    encoding_row,
                     &context.callee_saved,
                     &context.link_units,
                     &allowed,
                     link_write,
                     instruction.id,
                     &mut modified,
+                    encoded,
                 )?;
                 let terminal = index == block.instructions.len();
                 if let SelectedTerminator::Crash {
@@ -192,9 +195,10 @@ pub(super) fn check(
                         physical,
                         instruction,
                         actual,
-                        encoded,
+                        encoding_row,
                         resolved,
                         end,
+                        encoded,
                     )?;
                     require(
                         crash.block == block.id
@@ -215,7 +219,11 @@ pub(super) fn check(
                         .iter()
                         .chain(&actual.unit_clobbers)
                         .any(|unit| context.stack_units.contains(unit))
-                        || transformed_implicit_writes_any(encoded, &context.stack_units)
+                        || transformed_implicit_writes_any(
+                            encoding_row,
+                            &context.stack_units,
+                            encoded,
+                        )
                     {
                         return Err(WholeFunctionExitContractError::NonReturnStackEffect(
                             instruction.id,
@@ -228,7 +236,7 @@ pub(super) fn check(
                         .offset
                         .checked_add(resolved_block.byte_count)
                         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
-                    validate_process_exit(instruction, encoded, resolved, end)?;
+                    validate_process_exit(instruction, encoding_row, resolved, end, encoded)?;
                     require(
                         exited.block == block.id
                             && exited.nominal_return_edge == *nominal_return_edge
@@ -258,10 +266,11 @@ pub(super) fn check(
                         edge,
                         instruction,
                         actual,
-                        encoded,
+                        encoding_row,
                         resolved,
                         end,
                         claimed_return,
+                        encoded,
                     )?;
                 } else if matches!(
                     instruction.kind,
@@ -278,8 +287,9 @@ pub(super) fn check(
                         machine.target,
                         context.stack_pointer,
                         instruction.id,
-                        encoded,
+                        encoding_row,
                         resolved,
+                        encoded,
                     )?;
                 } else if matches!(
                     instruction.kind,
@@ -298,8 +308,9 @@ pub(super) fn check(
                         context.stack_pointer,
                         instruction.id,
                         instruction.constraint,
-                        encoded,
+                        encoding_row,
                         resolved,
+                        encoded,
                     )?;
                 } else {
                     if actual
@@ -307,13 +318,23 @@ pub(super) fn check(
                         .iter()
                         .chain(&actual.unit_clobbers)
                         .any(|unit| context.stack_units.contains(unit))
-                        || transformed_implicit_writes_any(encoded, &context.stack_units)
+                        || transformed_implicit_writes_any(
+                            encoding_row,
+                            &context.stack_units,
+                            encoded,
+                        )
                     {
                         return Err(WholeFunctionExitContractError::NonReturnStackEffect(
                             instruction.id,
                         ));
                     }
-                    validate_non_return(instruction.id, instruction.kind, encoded, resolved)?;
+                    validate_non_return(
+                        instruction.id,
+                        instruction.kind,
+                        encoding_row,
+                        resolved,
+                        encoded,
+                    )?;
                 }
             }
         }

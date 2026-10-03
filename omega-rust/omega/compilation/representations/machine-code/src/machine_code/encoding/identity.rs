@@ -9,8 +9,9 @@ use sha2::{Digest, Sha256};
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
 use super::{
-    DeferredControlEncodingReason, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
+    SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
+    SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
 const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v22";
@@ -20,6 +21,7 @@ pub(super) fn encoding_identity(
     machine: PostAllocationMachineIdentity,
     post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     rows: &[SelectedFormEncodingRow],
+    encoded: &SelectedFormEncodedRowStore,
     frame: Option<&crate::TargetFrameLayoutPlan>,
     counts: SelectedFormEncodingCounts,
 ) -> SelectedFormEncodingIdentity {
@@ -43,7 +45,7 @@ pub(super) fn encoding_identity(
     }
     hasher.update((rows.len() as u64).to_le_bytes());
     for row in rows {
-        encode_encoding_row(&mut hasher, row);
+        encode_encoding_row(&mut hasher, row, encoded);
     }
     match frame {
         None => hasher.update([0]),
@@ -56,7 +58,11 @@ pub(super) fn encoding_identity(
     SelectedFormEncodingIdentity::from_bytes(hasher.finalize().into())
 }
 
-fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
+fn encode_encoding_row(
+    hasher: &mut Sha256,
+    row: &SelectedFormEncodingRow,
+    encoded: &SelectedFormEncodedRowStore,
+) {
     hasher.update(row.instruction.0.to_le_bytes());
     selected_instructions::encode_machine_alternative_key_identity(hasher, row.alternative);
     match row.address {
@@ -204,19 +210,14 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
         }
     }
     encode_machine_disposition(hasher, &row.machine_disposition);
+    // Each row still signs its own bytes and footprint through its span and
+    // handle, so the retained identity is independent of how the encoding
+    // stores them.
+    let bytes = encoded.bytes(row.code);
     match &row.state {
-        SelectedFormEncodingState::Encoded { bytes, footprint } => {
+        SelectedFormEncodingState::Encoded => {
             hasher.update([0]);
-            hasher.update((bytes.len() as u64).to_le_bytes());
-            hasher.update(bytes);
-            encode_views(hasher, &footprint.register_reads);
-            encode_views(hasher, &footprint.register_writes);
-            encode_units(hasher, &footprint.implicit_defs);
-            encode_units(hasher, &footprint.implicit_clobbers);
-            selected_instructions::encode_machine_encoded_effects_identity(
-                hasher,
-                &footprint.encoded,
-            );
+            encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
         }
         SelectedFormEncodingState::DeferredControl { reason } => {
             hasher.update([1]);
@@ -224,64 +225,48 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                 DeferredControlEncodingReason::RequiresResolvedBranchLayout => 0,
             }]);
         }
-        SelectedFormEncodingState::UnresolvedInternalMachineCall {
-            bytes,
-            footprint,
-            fixup,
-        } => {
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } => {
             hasher.update([2]);
-            hasher.update((bytes.len() as u64).to_le_bytes());
-            hasher.update(bytes);
-            encode_views(hasher, &footprint.register_reads);
-            encode_views(hasher, &footprint.register_writes);
-            encode_units(hasher, &footprint.implicit_defs);
-            encode_units(hasher, &footprint.implicit_clobbers);
-            selected_instructions::encode_machine_encoded_effects_identity(
-                hasher,
-                &footprint.encoded,
-            );
+            encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
             encode_internal_fixup(hasher, *fixup);
         }
-        SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
-            bytes,
-            footprint,
-            fixup,
-        } => {
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
             hasher.update([3]);
-            hasher.update((bytes.len() as u64).to_le_bytes());
-            hasher.update(bytes);
-            encode_views(hasher, &footprint.register_reads);
-            encode_views(hasher, &footprint.register_writes);
-            encode_units(hasher, &footprint.implicit_defs);
-            encode_units(hasher, &footprint.implicit_clobbers);
-            selected_instructions::encode_machine_encoded_effects_identity(
-                hasher,
-                &footprint.encoded,
-            );
+            encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
             encode_normalized_foreign_fixup(hasher, fixup);
         }
-        SelectedFormEncodingState::UnresolvedByteLiteralAddress {
-            bytes,
-            footprint,
-            fixup,
-        } => {
+        SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup } => {
             hasher.update([4]);
-            hasher.update((bytes.len() as u64).to_le_bytes());
-            hasher.update(bytes);
-            encode_views(hasher, &footprint.register_reads);
-            encode_views(hasher, &footprint.register_writes);
-            encode_units(hasher, &footprint.implicit_defs);
-            encode_units(hasher, &footprint.implicit_clobbers);
-            selected_instructions::encode_machine_encoded_effects_identity(
-                hasher,
-                &footprint.encoded,
-            );
+            encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
             let mut identity = Vec::new();
             fixup.literal.encode_identity(&mut identity);
             fixup.fields.encode_identity(&mut identity);
             hasher.update(identity);
         }
     }
+}
+
+/// An encoded row signs its byte count, its bytes, then its decoded
+/// footprint, in the order every earlier schema version used. A row whose
+/// state claims bytes while naming no footprint signs only its bytes; no
+/// well-formed encoding produces one, and an absent footprint must still
+/// hash rather than panic because validation routes consume proposed
+/// artifacts.
+fn encode_row_contents(
+    hasher: &mut Sha256,
+    bytes: &[u8],
+    footprint: Option<&SelectedFormDecodedFootprint>,
+) {
+    hasher.update((bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+    let Some(footprint) = footprint else {
+        return;
+    };
+    encode_views(hasher, &footprint.register_reads);
+    encode_views(hasher, &footprint.register_writes);
+    encode_units(hasher, &footprint.implicit_defs);
+    encode_units(hasher, &footprint.implicit_clobbers);
+    selected_instructions::encode_machine_encoded_effects_identity(hasher, &footprint.encoded);
 }
 
 pub(super) fn encode_normalized_foreign_fixup(

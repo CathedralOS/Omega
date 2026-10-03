@@ -20,6 +20,7 @@ pub(in super::super) fn layout(
     machine_rows: &BTreeMap<SelectedInstructionId, &PostAllocationMachineInstruction>,
     physical: &ValidatedPhysicalRegisterModel,
     policy: SelectedFunctionLayoutPolicy,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<ResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
     let ordered = order::derive(function, policy)?;
     let layout = plan::derive(architecture, &ordered, pre_rows)?;
@@ -56,6 +57,7 @@ pub(in super::super) fn layout(
                 pre,
                 physical,
                 layout.widened_branches.contains(&instruction.id),
+                encoded,
             )?;
             let byte_count = u64::try_from(bytes.len())
                 .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;

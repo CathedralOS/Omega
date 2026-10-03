@@ -159,6 +159,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             };
             let resolved = crate::frame_address::resolve(&function, None, &machine).unwrap();
             crate::frame_address::validate_address(&function, None, &machine, resolved).unwrap();
+            let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
             let row = encode_row(
                 target,
                 &selected,
@@ -166,6 +167,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 &physical,
                 &selected_function(),
                 resolved,
+                &mut encoded,
             )
             .unwrap();
             crate::validation::row::validate(
@@ -175,6 +177,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 &machine,
                 &physical,
                 &row,
+                &encoded,
             )
             .unwrap();
             assert_eq!(
@@ -187,6 +190,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             for mutation in 0..5 {
                 let mut changed_machine = machine.clone();
                 let mut changed_row = row.clone();
+                let mut changed_encoded = encoded.clone();
                 match mutation {
                     0 => {
                         changed_machine.alternative.encoded.memory =
@@ -198,12 +202,11 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                     1 => changed_row.address.as_mut().unwrap().displacement = 4,
                     2 => changed_machine.operands[0].view = machine.operands[1].view,
                     3 => {
-                        let SelectedFormEncodingState::Encoded { bytes, .. } =
-                            &mut changed_row.state
-                        else {
-                            panic!("load bytes");
-                        };
-                        bytes[0] ^= 1;
+                        assert!(matches!(
+                            changed_row.state,
+                            SelectedFormEncodingState::Encoded
+                        ));
+                        changed_encoded.bytes_mut(changed_row.code)[0] ^= 1;
                     }
                     _ => {
                         changed_machine.alternative.key.family =
@@ -217,7 +220,8 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                         &selected,
                         &changed_machine,
                         &physical,
-                        &changed_row
+                        &changed_row,
+                        &changed_encoded,
                     )
                     .is_err(),
                     "{target:?} {kind:?} mutation {mutation}"
@@ -249,7 +253,8 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                     &foreign_machine,
                     &physical,
                     &selected_function(),
-                    foreign
+                    foreign,
+                    &mut encoded.clone(),
                 ),
                 Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
             ));
@@ -262,7 +267,8 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                     &selected,
                     &foreign_machine,
                     &physical,
-                    &changed_row
+                    &changed_row,
+                    &encoded,
                 )
                 .is_err()
             );

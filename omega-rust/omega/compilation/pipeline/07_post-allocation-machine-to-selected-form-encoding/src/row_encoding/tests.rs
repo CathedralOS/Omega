@@ -103,6 +103,7 @@ pub(super) fn selected_function() -> selected_instructions::SelectedFunction {
 
 #[test]
 fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_dispositions() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let row = encode_row(
@@ -112,12 +113,14 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
-    let SelectedFormEncodingState::Encoded { bytes, .. } = &row.state else {
-        panic!("ordinary materialization must own bytes")
-    };
-    assert_eq!(bytes, &[0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert!(matches!(row.state, SelectedFormEncodingState::Encoded));
+    assert_eq!(
+        encoded.bytes(row.code),
+        &[0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0]
+    );
     crate::validation::row::validate(
         target,
         &selected_function(),
@@ -125,6 +128,7 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
         &machine,
         &physical,
         &row,
+        &encoded,
     )
     .unwrap();
     let mut changed = row.clone();
@@ -138,15 +142,13 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
             &selected,
             &machine,
             &physical,
-            &changed
+            &changed,
+            &encoded,
         )
         .is_err()
     );
-    let mut changed = row;
-    let SelectedFormEncodingState::Encoded { bytes, .. } = &mut changed.state else {
-        unreachable!()
-    };
-    bytes[0] ^= 1;
+    let changed = row;
+    encoded.bytes_mut(changed.code)[0] ^= 1;
     assert!(
         crate::validation::row::validate(
             target,
@@ -154,7 +156,8 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
             &selected,
             &machine,
             &physical,
-            &changed
+            &changed,
+            &encoded,
         )
         .is_err()
     );
@@ -162,6 +165,7 @@ fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_disposi
 
 #[test]
 fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, mut selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let ordinary = encode_row(
@@ -171,6 +175,7 @@ fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     selected.kind = SelectedInstructionKind::NormalizedForeignCall {
@@ -185,7 +190,8 @@ fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
             &machine,
             &physical,
             &selected_function(),
-            None
+            None,
+            &mut encoded,
         )
         .is_err()
     );
@@ -197,6 +203,7 @@ fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
             &machine,
             &physical,
             &ordinary,
+            &encoded,
         )
         .is_err()
     );
@@ -207,6 +214,7 @@ fn system_call_encoding_rejects_a_detached_selected_custody_roster() {
 /// independent replay, even when the address equation is self-consistent.
 #[test]
 fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let unrouted = Some(machine_code::ResolvedPhysicalAddress {
@@ -223,7 +231,8 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
             &machine,
             &physical,
             &selected_function(),
-            unrouted
+            unrouted,
+            &mut encoded,
         ),
         Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
@@ -234,6 +243,7 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     let mut changed = row;
@@ -245,7 +255,8 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
             &selected,
             &machine,
             &physical,
-            &changed
+            &changed,
+            &encoded,
         )
         .is_err()
     );
@@ -255,6 +266,7 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
 /// address rejects in the producer and in the independent replay.
 #[test]
 fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, mut selected, machine) = fixture();
     selected.kind = SelectedInstructionKind::Jump;
     let target = target::NativeTarget::linux_x64();
@@ -272,7 +284,8 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
             &machine,
             &physical,
             &selected_function(),
-            unrouted
+            unrouted,
+            &mut encoded,
         ),
         Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
@@ -283,6 +296,7 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     assert!(matches!(
@@ -296,6 +310,7 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
         &machine,
         &physical,
         &row,
+        &encoded,
     )
     .unwrap();
     let mut changed = row;
@@ -307,7 +322,8 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
             &selected,
             &machine,
             &physical,
-            &changed
+            &changed,
+            &encoded,
         )
         .is_err()
     );

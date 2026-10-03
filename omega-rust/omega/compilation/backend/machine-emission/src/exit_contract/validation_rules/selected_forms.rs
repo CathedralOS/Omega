@@ -130,22 +130,19 @@ pub(in crate::exit_contract) fn unique_layout_rows(
 pub(in crate::exit_contract) fn transformed_implicit_writes_any(
     encoding: &machine_code::SelectedFormEncodingRow,
     units: &BTreeSet<RegisterUnitId>,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> bool {
-    match &encoding.state {
-        SelectedFormEncodingState::Encoded { footprint, .. } => footprint
-            .implicit_defs
-            .iter()
-            .chain(&footprint.implicit_clobbers)
-            .any(|unit| units.contains(unit)),
-        SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedByteLiteralAddress { footprint, .. } => footprint
-            .implicit_defs
-            .iter()
-            .chain(&footprint.implicit_clobbers)
-            .any(|unit| units.contains(unit)),
-        SelectedFormEncodingState::DeferredControl { .. } => false,
-    }
+    // A deferred control row names no footprint, so the zero handle reads as
+    // absent and the row writes no implicit unit.
+    encoded
+        .footprint(encoding.footprint)
+        .is_some_and(|footprint| {
+            footprint
+                .implicit_defs
+                .iter()
+                .chain(&footprint.implicit_clobbers)
+                .any(|unit| units.contains(unit))
+        })
 }
 
 pub(in crate::exit_contract) fn validate_non_return(
@@ -153,6 +150,7 @@ pub(in crate::exit_contract) fn validate_non_return(
     kind: SelectedInstructionKind,
     encoding: &machine_code::SelectedFormEncodingRow,
     layout: &machine_code::ResolvedSelectedFormRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
         SelectedInstructionKind::FloatResultPolicy { form } if form.can_trap() => {
@@ -191,19 +189,10 @@ pub(in crate::exit_contract) fn validate_non_return(
         MachineEncodedControlEffect::ConditionalRelativeBranchV1
             | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
     );
-    let effects = match &encoding.state {
-        SelectedFormEncodingState::Encoded { footprint, bytes }
-        | SelectedFormEncodingState::UnresolvedInternalMachineCall {
-            footprint, bytes, ..
-        }
-        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
-            footprint, bytes, ..
-        }
-        | SelectedFormEncodingState::UnresolvedByteLiteralAddress {
-            footprint, bytes, ..
-        } => {
+    let effects = match encoded.encoded(encoding) {
+        Some((bytes, footprint)) => {
             let disposition_matches = match encoding.machine_disposition {
-                SelectedFormMachineDisposition::RetainedV1 => bytes == &layout.bytes,
+                SelectedFormMachineDisposition::RetainedV1 => bytes == layout.bytes,
                 SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { .. }
                 | SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { .. } => {
                     layout.bytes.is_empty()
@@ -217,7 +206,7 @@ pub(in crate::exit_contract) fn validate_non_return(
             }
             &footprint.encoded
         }
-        SelectedFormEncodingState::DeferredControl { .. } => {
+        None => {
             if !branch_terminator {
                 return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
                     instruction,
@@ -557,6 +546,7 @@ pub(in crate::exit_contract) fn validate_return(
     encoding: &machine_code::SelectedFormEncodingRow,
     layout: &machine_code::ResolvedSelectedFormRow,
     layout_block_end: u64,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<WholeFunctionReturnEvidence, WholeFunctionExitContractError> {
     let value = match selected.kind {
         SelectedInstructionKind::ReturnAggregate { fragment_count } => {
@@ -635,21 +625,17 @@ pub(in crate::exit_contract) fn validate_return(
             ));
         }
     };
-    let (bytes, effects): (&[u8], &MachineEncodedEffects) = match &encoding.state {
-        SelectedFormEncodingState::Encoded { bytes, footprint } => (bytes, &footprint.encoded),
-        SelectedFormEncodingState::DeferredControl { .. } => {
-            return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
-                selected.id,
-            ));
-        }
-        SelectedFormEncodingState::UnresolvedInternalMachineCall { .. }
-        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. }
-        | SelectedFormEncodingState::UnresolvedByteLiteralAddress { .. } => {
-            return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
-                selected.id,
-            ));
-        }
-    };
+    let (bytes, effects): (&[u8], &MachineEncodedEffects) =
+        match (&encoding.state, encoded.encoded(encoding)) {
+            (SelectedFormEncodingState::Encoded, Some((bytes, footprint))) => {
+                (bytes, &footprint.encoded)
+            }
+            _ => {
+                return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
+                    selected.id,
+                ));
+            }
+        };
     if bytes != layout.bytes || layout.branch.is_some() || effects != &machine.alternative.encoded {
         return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
             selected.id,

@@ -41,8 +41,8 @@ use target::{Architecture, NativeTarget};
 
 use super::OptimizedSelectedFormEncodingError;
 use machine_code::{
-    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
+    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
+    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
 mod normalized_foreign;
@@ -58,6 +58,52 @@ mod tests;
 
 use route::{HostedChannel, RowRoute};
 
+/// One row's encoded bytes and decoded footprint before they are interned
+/// into the encoding's shared store, beside the state the row retains. This
+/// is construction scratch: the durable row names a span and a handle, and
+/// nothing outside `encode_row` holds a draft past interning.
+pub(super) struct SelectedFormEncodedRowDraft {
+    state: SelectedFormEncodingState,
+    bytes: Vec<u8>,
+    footprint: Option<SelectedFormDecodedFootprint>,
+}
+
+impl SelectedFormEncodedRowDraft {
+    pub(super) const fn encoded(
+        state: SelectedFormEncodingState,
+        bytes: Vec<u8>,
+        footprint: SelectedFormDecodedFootprint,
+    ) -> Self {
+        Self {
+            state,
+            bytes,
+            footprint: Some(footprint),
+        }
+    }
+
+    /// A deferred control row encodes nothing until resolved layout supplies
+    /// its branch displacement, so it carries no bytes and no footprint.
+    pub(super) const fn deferred(reason: DeferredControlEncodingReason) -> Self {
+        Self {
+            state: SelectedFormEncodingState::DeferredControl { reason },
+            bytes: Vec::new(),
+            footprint: None,
+        }
+    }
+
+    /// Restate an encoded draft under the unresolved field its route owns.
+    /// The bytes and footprint are the ones the ISA already produced.
+    pub(super) fn retagged(
+        self,
+        state: SelectedFormEncodingState,
+    ) -> Result<Self, OptimizedSelectedFormEncodingError> {
+        if !matches!(self.state, SelectedFormEncodingState::Encoded) {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        Ok(Self { state, ..self })
+    }
+}
+
 pub(super) fn encode_row(
     target: NativeTarget,
     selected: &SelectedInstruction,
@@ -65,10 +111,11 @@ pub(super) fn encode_row(
     physical: &ValidatedPhysicalRegisterModel,
     selected_function: &SelectedFunction,
     address: Option<machine_code::ResolvedPhysicalAddress>,
+    encoded: &mut SelectedFormEncodedRowStore,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
     let alternative = machine.alternative.key;
     let route = route::route_of(selected.kind);
-    let state = match route {
+    let draft = match route {
         RowRoute::ResolvedAddress { operation, channel } => {
             // The declared route binds both the address's presence and its
             // symbolic operation family: a missing address, or one naming a
@@ -110,9 +157,9 @@ pub(super) fn encode_row(
         }
         RowRoute::DeferredControlFlow => {
             reject_unrouted_address(address)?;
-            SelectedFormEncodingState::DeferredControl {
-                reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-            }
+            SelectedFormEncodedRowDraft::deferred(
+                DeferredControlEncodingReason::RequiresResolvedBranchLayout,
+            )
         }
         RowRoute::Ordinary { channel } => {
             reject_unrouted_address(address)?;
@@ -127,12 +174,18 @@ pub(super) fn encode_row(
             )?
         }
     };
+    let (code, footprint) = match draft.footprint {
+        Some(footprint) => encoded.intern(&draft.bytes, footprint),
+        None => Default::default(),
+    };
     Ok(SelectedFormEncodingRow {
         instruction: selected.id,
         alternative,
         machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-        state,
+        state: draft.state,
         address,
+        code,
+        footprint,
     })
 }
 
@@ -145,11 +198,11 @@ fn byte_literal_address(
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let SelectedInstructionKind::ByteLiteralImageAddress { operation, place } = kind else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
-    let SelectedFormEncodingState::Encoded { bytes, footprint } = encode_scalar(
+    encode_scalar(
         target,
         instruction,
         kind,
@@ -158,12 +211,7 @@ fn byte_literal_address(
         machine,
         physical,
     )?
-    else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    };
-    Ok(SelectedFormEncodingState::UnresolvedByteLiteralAddress {
-        bytes,
-        footprint,
+    .retagged(SelectedFormEncodingState::UnresolvedByteLiteralAddress {
         fixup: machine_code::SelectedFormByteLiteralAddressFixup {
             literal: machine_code::ByteLiteralReference { operation, place },
             fields: byte_literal_address_fields(target.architecture),
@@ -212,7 +260,7 @@ fn encode_address_routed(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     address: machine_code::ResolvedPhysicalAddress,
-) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let views = machine
         .operands
         .iter()
@@ -310,16 +358,17 @@ fn encode_address_routed(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     validate_size(instruction, machine.alternative.size, bytes.len())?;
-    Ok(SelectedFormEncodingState::Encoded {
+    Ok(SelectedFormEncodedRowDraft::encoded(
+        SelectedFormEncodingState::Encoded,
         bytes,
-        footprint: Box::new(SelectedFormDecodedFootprint {
+        SelectedFormDecodedFootprint {
             register_reads: reads,
             register_writes: writes,
             implicit_defs: encoded_effects.implicit_unit_defs.clone(),
             implicit_clobbers: encoded_effects.implicit_unit_clobbers.clone(),
             encoded: encoded_effects,
-        }),
-    })
+        },
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -331,7 +380,7 @@ fn encode_scalar(
     alternative: MachineAlternativeKey,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let views = machine
         .operands
         .iter()
@@ -398,16 +447,17 @@ fn encode_scalar(
         return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction));
     }
     validate_size(instruction, machine.alternative.size, bytes.len())?;
-    Ok(SelectedFormEncodingState::Encoded {
+    Ok(SelectedFormEncodedRowDraft::encoded(
+        SelectedFormEncodingState::Encoded,
         bytes,
-        footprint: Box::new(SelectedFormDecodedFootprint {
+        SelectedFormDecodedFootprint {
             register_reads: reads,
             register_writes: writes,
             implicit_defs: encoded_effects.implicit_unit_defs.clone(),
             implicit_clobbers: encoded_effects.implicit_unit_clobbers.clone(),
             encoded: encoded_effects,
-        }),
-    })
+        },
+    ))
 }
 
 fn validate_operand_footprint(

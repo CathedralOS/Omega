@@ -96,6 +96,11 @@ impl StagedOptimizedSelectedFormEncoding {
         &self.program.rows
     }
 
+    /// The byte image and footprint table the rows above name.
+    pub fn encoded(&self) -> &machine_code::SelectedFormEncodedRowStore {
+        self.program.encoded()
+    }
+
     pub fn counts(&self) -> SelectedFormEncodingCounts {
         self.program.counts
     }

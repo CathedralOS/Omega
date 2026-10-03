@@ -14,14 +14,18 @@ pub(in crate::exit_contract) fn validate_process_exit(
     encoding: &SelectedFormEncodingRow,
     layout: &ResolvedSelectedFormRow,
     block_end: u64,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
-    let SelectedFormEncodingState::Encoded { bytes, footprint } = &encoding.state else {
+    if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+        return Err(Error::InstructionRosterMismatch(instruction.id));
+    }
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
         return Err(Error::InstructionRosterMismatch(instruction.id));
     };
     if instruction.kind != SelectedInstructionKind::HostedExitProcessI32
         || encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
         || bytes.is_empty()
-        || bytes != &layout.bytes
+        || bytes != layout.bytes
         || layout.branch.is_some()
         || encoding.address.is_some()
         || layout.offset.checked_add(bytes.len() as u64) != Some(block_end)

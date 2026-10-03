@@ -5,7 +5,7 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::{super::OptimizedSelectedFormEncodingError, row};
-use machine_code::SelectedFormEncodingRow;
+use machine_code::{SelectedFormEncodedRowStore, SelectedFormEncodingRow};
 
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -13,6 +13,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
     rows: &[SelectedFormEncodingRow],
+    encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let selected_plan = selected.selected_plan();
     let machine = staged.machine().plan();
@@ -64,6 +65,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                     machine_instruction,
                     physical,
                     candidate,
+                    encoded,
                 )?;
             }
         }

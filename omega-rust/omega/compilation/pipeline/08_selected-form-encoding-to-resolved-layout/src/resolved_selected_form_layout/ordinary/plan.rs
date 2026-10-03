@@ -185,7 +185,7 @@ fn instruction_size(
         SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { .. } => {
             if architecture == Architecture::Aarch64
                 && matches!(instruction.kind, SelectedInstructionKind::CompareI64Zero)
-                && matches!(row.state, SelectedFormEncodingState::Encoded { .. })
+                && matches!(row.state, SelectedFormEncodingState::Encoded)
             {
                 return Ok(0);
             }
@@ -202,7 +202,7 @@ fn instruction_size(
         SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { .. } => {
             if architecture == Architecture::Aarch64
                 && matches!(instruction.kind, SelectedInstructionKind::CopyI64)
-                && matches!(row.state, SelectedFormEncodingState::Encoded { .. })
+                && matches!(row.state, SelectedFormEncodingState::Encoded)
             {
                 return Ok(0);
             }
@@ -210,10 +210,11 @@ fn instruction_size(
         }
         SelectedFormMachineDisposition::RetainedV1 => {}
     }
+    // An encoded row's size is its interned byte span's count; no row owns a
+    // byte vector whose length has to be narrowed.
     match &row.state {
-        SelectedFormEncodingState::Encoded { bytes, .. } => u64::try_from(bytes.len())
-            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow),
-        SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, .. } => {
+        SelectedFormEncodingState::Encoded => Ok(row.code.byte_count),
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
             if !matches!(
                 instruction.kind,
                 SelectedInstructionKind::CallScalar { .. }
@@ -222,28 +223,25 @@ fn instruction_size(
             ) {
                 return unexpected(instruction);
             }
-            u64::try_from(bytes.len())
-                .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
+            Ok(row.code.byte_count)
         }
-        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { bytes, .. } => {
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. } => {
             if !matches!(
                 instruction.kind,
                 SelectedInstructionKind::NormalizedForeignCall { .. }
             ) {
                 return unexpected(instruction);
             }
-            u64::try_from(bytes.len())
-                .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
+            Ok(row.code.byte_count)
         }
-        SelectedFormEncodingState::UnresolvedByteLiteralAddress { bytes, .. } => {
+        SelectedFormEncodingState::UnresolvedByteLiteralAddress { .. } => {
             if !matches!(
                 instruction.kind,
                 SelectedInstructionKind::ByteLiteralImageAddress { .. }
             ) {
                 return unexpected(instruction);
             }
-            u64::try_from(bytes.len())
-                .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
+            Ok(row.code.byte_count)
         }
         SelectedFormEncodingState::DeferredControl {
             reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,

@@ -48,6 +48,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
             policy,
             &mut pre_rows,
             candidate,
+            pre_layout.encoded(),
         )?;
     }
     if pre_rows.next().is_some() {

@@ -6,8 +6,8 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 
 use crate::{OptimizedSelectedFormEncodingError, row_encoding::encode_row};
 use machine_code::{
-    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
+    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
 };
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
@@ -29,6 +29,9 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
     }
     let mut rows = Vec::new();
+    // Every row's bytes and footprint land in these two buffers; a row keeps
+    // only its span and handle into them.
+    let mut encoded = SelectedFormEncodedRowStore::new();
     for (selected_function, machine_function) in
         selected_plan.functions.iter().zip(&machine.functions)
     {
@@ -63,6 +66,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                     physical,
                     selected_function,
                     crate::frame_address::resolve(machine_function, frame, machine_instruction)?,
+                    &mut encoded,
                 )?);
             }
         }
@@ -76,6 +80,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         post_allocation_machine_optimization: None,
         identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
         rows,
+        encoded,
         frame: frame.cloned(),
         counts,
     };
@@ -89,7 +94,7 @@ fn encoding_counts(
     let mut counts = SelectedFormEncodingCounts::default();
     for row in rows {
         let count = match row.state {
-            SelectedFormEncodingState::Encoded { .. } => &mut counts.ordinary_encoded,
+            SelectedFormEncodingState::Encoded => &mut counts.ordinary_encoded,
             SelectedFormEncodingState::DeferredControl { .. } => {
                 &mut counts.ordinary_deferred_control
             }

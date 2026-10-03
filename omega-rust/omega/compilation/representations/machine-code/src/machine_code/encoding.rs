@@ -13,6 +13,7 @@ use physical_instructions::{
 };
 pub use rows::{
     DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
+    SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,
     SelectedFormEncodingCounts, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
 };
@@ -26,6 +27,9 @@ pub struct SelectedFormEncoding {
     pub post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     pub identity: SelectedFormEncodingIdentity,
     pub rows: Vec<SelectedFormEncodingRow>,
+    /// The one byte image and footprint table every row above names. Rows
+    /// hold spans and handles into it, never their own allocations.
+    pub encoded: SelectedFormEncodedRowStore,
     /// Raw frame geometry is explicit replay input, never a frame admission token.
     pub frame: Option<crate::TargetFrameLayoutPlan>,
     pub counts: SelectedFormEncodingCounts,
@@ -96,6 +100,10 @@ impl SelectedFormEncoding {
         &self.rows
     }
 
+    pub const fn encoded(&self) -> &SelectedFormEncodedRowStore {
+        &self.encoded
+    }
+
     pub const fn counts(&self) -> SelectedFormEncodingCounts {
         self.counts
     }
@@ -107,6 +115,7 @@ impl SelectedFormEncoding {
             self.machine,
             self.post_allocation_machine_optimization,
             &self.rows,
+            &self.encoded,
             self.frame.as_ref(),
             self.counts,
         )

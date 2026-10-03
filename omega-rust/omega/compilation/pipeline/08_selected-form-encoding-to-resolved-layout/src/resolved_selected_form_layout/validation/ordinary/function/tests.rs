@@ -193,7 +193,9 @@ fn footprint(alternatives: &Alternatives) -> SelectedFormDecodedFootprint {
 fn encoded_row(
     instruction: &SelectedInstruction,
     footprint: &SelectedFormDecodedFootprint,
+    encoded: &mut machine_code::SelectedFormEncodedRowStore,
 ) -> SelectedFormEncodingRow {
+    let (code, interned) = encoded.intern(&[0; 4], footprint.clone());
     SelectedFormEncodingRow {
         instruction: instruction.id,
         alternative: MachineAlternativeKey {
@@ -201,11 +203,10 @@ fn encoded_row(
             variant: 0,
         },
         machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-        state: SelectedFormEncodingState::Encoded {
-            bytes: vec![0; 4],
-            footprint: Box::new(footprint.clone()),
-        },
+        state: SelectedFormEncodingState::Encoded,
         address: None,
+        code,
+        footprint: interned,
     }
 }
 
@@ -221,6 +222,8 @@ fn deferred_row(
             reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
         },
         address: None,
+        code: machine_code::SelectedFormEncodedByteSpan::default(),
+        footprint: machine_code::SelectedFormDecodedFootprintHandle::default(),
     }
 }
 
@@ -259,11 +262,12 @@ fn pre_layout_rows(
     function: &SelectedFunction,
     footprint: &SelectedFormDecodedFootprint,
     alternatives: &Alternatives,
+    encoded: &mut machine_code::SelectedFormEncodedRowStore,
 ) -> Vec<SelectedFormEncodingRow> {
     let mut rows = Vec::new();
     for block in &function.blocks {
         for instruction in &block.instructions {
-            rows.push(encoded_row(instruction, footprint));
+            rows.push(encoded_row(instruction, footprint, encoded));
         }
         let terminator = terminator_row(&block.terminator);
         rows.push(match &block.terminator {
@@ -271,7 +275,7 @@ fn pre_layout_rows(
             | SelectedTerminator::ConditionalBranchU64LessThan { .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { .. }
             | SelectedTerminator::Jump { .. } => deferred_row(terminator, alternatives),
-            _ => encoded_row(terminator, footprint),
+            _ => encoded_row(terminator, footprint, encoded),
         });
     }
     rows
@@ -326,7 +330,8 @@ fn produce_and_admit(
         plain: plain_alternative(),
     };
     let footprint = footprint(&alternatives);
-    let rows = pre_layout_rows(selected, &footprint, &alternatives);
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
+    let rows = pre_layout_rows(selected, &footprint, &alternatives, &mut encoded);
     let machine = machine_function(selected, &alternatives);
     let pre_rows: std::collections::BTreeMap<_, _> =
         rows.iter().map(|row| (row.instruction, row)).collect();
@@ -343,6 +348,7 @@ fn produce_and_admit(
         &machine_rows,
         &physical(),
         SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
+        &encoded,
     )
     .unwrap();
     let mut iter = rows.iter();
@@ -354,6 +360,7 @@ fn produce_and_admit(
         SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
         &mut iter,
         &produced,
+        &encoded,
     )
     .unwrap();
     assert!(iter.next().is_none());

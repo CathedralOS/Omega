@@ -1,6 +1,7 @@
 use super::{
     DeferredControlEncodingReason, PostAllocationMachineIdentity, ResolvedPhysicalAddress,
-    SelectedFormDecodedFootprint, SelectedFormEncoding, SelectedFormEncodingCounts,
+    SelectedFormDecodedFootprint, SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan,
+    SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
     SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
 };
@@ -26,7 +27,10 @@ fn deferred_program() -> SelectedFormEncoding {
             state: SelectedFormEncodingState::DeferredControl {
                 reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
             },
+            code: SelectedFormEncodedByteSpan::default(),
+            footprint: SelectedFormDecodedFootprintHandle::default(),
         }],
+        encoded: SelectedFormEncodedRowStore::new(),
         frame: None,
         counts: SelectedFormEncodingCounts {
             ordinary_deferred_control: 1,
@@ -61,16 +65,19 @@ fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
     };
     effects.trap = MachineEncodedTrapBehavior::HostedReadFailureV1;
     effects.control = MachineEncodedControlEffect::HostedReadReturnOrTrapV1;
-    program.rows[0].state = SelectedFormEncodingState::Encoded {
-        bytes: vec![1],
-        footprint: Box::new(SelectedFormDecodedFootprint {
+    program.rows[0].state = SelectedFormEncodingState::Encoded;
+    let (code, footprint) = program.encoded.intern(
+        &[1],
+        SelectedFormDecodedFootprint {
             register_reads: Vec::new(),
             register_writes: Vec::new(),
             implicit_defs: Vec::new(),
             implicit_clobbers: Vec::new(),
             encoded: effects,
-        }),
-    };
+        },
+    );
+    program.rows[0].code = code;
+    program.rows[0].footprint = footprint;
     let identity = program.recomputed_identity();
     for mutation in 0..7 {
         let mut changed = program.clone();
@@ -87,11 +94,8 @@ fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
                     }
             }
             _ => {
-                let SelectedFormEncodingState::Encoded { footprint, .. } =
-                    &mut changed.rows[0].state
-                else {
-                    unreachable!()
-                };
+                let handle = changed.rows[0].footprint;
+                let footprint = changed.encoded.footprint_mut(handle).unwrap();
                 match mutation {
                     3 => {
                         footprint.encoded.memory = MachineEncodedMemoryEffect::HostedWriteByteV1 {

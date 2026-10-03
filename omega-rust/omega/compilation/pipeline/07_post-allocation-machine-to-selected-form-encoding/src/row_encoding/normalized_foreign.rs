@@ -12,7 +12,7 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
-use super::{validate_operand_footprint, validate_size};
+use super::{SelectedFormEncodedRowDraft, validate_operand_footprint, validate_size};
 use crate::OptimizedSelectedFormEncodingError;
 use machine_code::{
     SelectedFormDecodedFootprint, SelectedFormEncodingState,
@@ -35,7 +35,7 @@ pub(super) fn encode(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     selected_function: &SelectedFunction,
-) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
@@ -107,10 +107,11 @@ pub(super) fn encode(
             &footprint.register_writes,
         )?;
         validate_size(instruction, machine.alternative.size, bytes.len())?;
-        return Ok(SelectedFormEncodingState::Encoded {
+        return Ok(SelectedFormEncodedRowDraft::encoded(
+            SelectedFormEncodingState::Encoded,
             bytes,
-            footprint: Box::new(footprint),
-        });
+            footprint,
+        ));
     }
     let destinations = callback_destinations(selected_function, instruction, kind)?;
     let (bytes, effects, fixup) = match target.architecture {
@@ -292,11 +293,11 @@ pub(super) fn encode(
         &footprint.register_writes,
     )?;
     validate_size(instruction, machine.alternative.size, bytes.len())?;
-    Ok(SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
+    Ok(SelectedFormEncodedRowDraft::encoded(
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup },
         bytes,
-        footprint: Box::new(footprint),
-        fixup,
-    })
+        footprint,
+    ))
 }
 
 /// Resolve the instruction's `{boundary, ordinal}` to its custody roster row

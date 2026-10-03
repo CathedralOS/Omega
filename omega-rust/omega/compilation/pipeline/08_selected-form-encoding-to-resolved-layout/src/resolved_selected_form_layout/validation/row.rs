@@ -27,6 +27,7 @@ pub(super) fn validate(
     block_offsets: &BTreeMap<SelectedBlockId, u64>,
     candidate: &ResolvedSelectedFormRow,
     widened: bool,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
     if candidate.instruction != instruction.id
         || candidate.alternative != pre.alternative
@@ -35,12 +36,12 @@ pub(super) fn validate(
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
+    // The layout row restates the encoding row's interned bytes; the span
+    // resolves them once for every disposition below.
+    let bytes = encoded.bytes(pre.code);
     match (&pre.machine_disposition, &pre.state) {
-        (
-            SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::Encoded { bytes, .. },
-        ) => {
-            if candidate.bytes != *bytes
+        (SelectedFormMachineDisposition::RetainedV1, SelectedFormEncodingState::Encoded) => {
+            if candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()
@@ -52,10 +53,10 @@ pub(super) fn validate(
         }
         (
             SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, fixup, .. },
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
         ) => {
             if !matches!(instruction.kind, SelectedInstructionKind::CallScalar { callee } | SelectedInstructionKind::CallUnit { callee } | SelectedInstructionKind::CallAggregate { callee } if callee == fixup.callee)
-                || candidate.bytes != *bytes
+                || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup != Some(*fixup)
                 || candidate.normalized_foreign_call_fixup.is_some()
@@ -67,10 +68,10 @@ pub(super) fn validate(
         }
         (
             SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { bytes, fixup, .. },
+            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup },
         ) => {
             if !matches!(instruction.kind, SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } if boundary == fixup.boundary && ordinal == fixup.ordinal)
-                || candidate.bytes != *bytes
+                || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.as_ref() != Some(fixup)
@@ -82,10 +83,10 @@ pub(super) fn validate(
         }
         (
             SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedByteLiteralAddress { bytes, fixup, .. },
+            SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup },
         ) => {
             if !matches!(instruction.kind, SelectedInstructionKind::ByteLiteralImageAddress { operation, place } if fixup.literal == (machine_code::ByteLiteralReference { operation, place }))
-                || candidate.bytes != *bytes
+                || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()

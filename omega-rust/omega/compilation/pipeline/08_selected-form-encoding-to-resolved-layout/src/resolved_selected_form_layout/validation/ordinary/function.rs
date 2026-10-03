@@ -21,6 +21,7 @@ pub(super) fn validate(
     policy: SelectedFunctionLayoutPolicy,
     pre_rows: &mut PreLayoutRows<'_>,
     candidate: &ResolvedSelectedFunctionLayout,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
     if selected.machine != machine.machine
         || selected.machine != candidate.machine
@@ -80,6 +81,7 @@ pub(super) fn validate(
                 &layout.block_offsets,
                 candidate_row,
                 layout.widened_branches.contains(&instruction.id),
+                encoded,
             )?;
             instruction_offset = instruction_offset
                 .checked_add(

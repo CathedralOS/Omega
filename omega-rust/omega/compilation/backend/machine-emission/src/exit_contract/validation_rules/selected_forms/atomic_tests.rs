@@ -34,21 +34,25 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
         .unwrap();
         let instruction = SelectedInstructionId(1);
         let effects = &encoded.footprint().encoded;
+        let mut store = machine_code::SelectedFormEncodedRowStore::new();
+        let (code, interned_footprint) = store.intern(
+            encoded.bytes(),
+            SelectedFormDecodedFootprint {
+                register_reads: encoded.footprint().register_reads.clone(),
+                register_writes: encoded.footprint().register_writes.clone(),
+                implicit_defs: effects.implicit_unit_defs.clone(),
+                implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+                encoded: effects.clone(),
+            },
+        );
         let encoding = SelectedFormEncodingRow {
             instruction,
             alternative,
             machine_disposition: SelectedFormMachineDisposition::RetainedV1,
             address: None,
-            state: SelectedFormEncodingState::Encoded {
-                bytes: encoded.bytes().to_vec(),
-                footprint: Box::new(SelectedFormDecodedFootprint {
-                    register_reads: encoded.footprint().register_reads.clone(),
-                    register_writes: encoded.footprint().register_writes.clone(),
-                    implicit_defs: effects.implicit_unit_defs.clone(),
-                    implicit_clobbers: effects.implicit_unit_clobbers.clone(),
-                    encoded: effects.clone(),
-                }),
-            },
+            state: SelectedFormEncodingState::Encoded,
+            code,
+            footprint: interned_footprint,
         };
         let layout = ResolvedSelectedFormRow {
             instruction,
@@ -60,12 +64,10 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
         };
-        validate_non_return(instruction, kind, &encoding, &layout).unwrap();
+        validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
         for mutation in 0..7 {
-            let mut changed = encoding.clone();
-            let SelectedFormEncodingState::Encoded { footprint, .. } = &mut changed.state else {
-                unreachable!()
-            };
+            let mut changed = store.clone();
+            let footprint = changed.footprint_mut(encoding.footprint).unwrap();
             match mutation {
                 0 => footprint.encoded.memory = MachineEncodedMemoryEffect::NoneV1,
                 1 => {
@@ -96,7 +98,7 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
                 _ => footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1,
             }
             assert!(
-                validate_non_return(instruction, kind, &changed, &layout).is_err(),
+                validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err(),
                 "{form:?}, mutation {mutation}"
             );
         }

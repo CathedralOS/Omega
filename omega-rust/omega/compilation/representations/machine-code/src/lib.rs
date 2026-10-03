@@ -68,6 +68,7 @@ pub use machine_code::{
     ScalarStackMutation, ScalarStackMutationKind, ScalarStructuralScalarFieldStoreRecord,
     SelectedFormByteLiteralAddressFixup, SelectedFormCallbackMaterialization,
     SelectedFormCallbackMaterializationEncoding, SelectedFormDecodedFootprint,
+    SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,
     SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormInternalMachineFixup,
     SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,

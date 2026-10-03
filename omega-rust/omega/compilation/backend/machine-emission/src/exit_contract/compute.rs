@@ -155,6 +155,8 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
     };
 
     let encoding_rows = unique_encoding_rows(selected_plan, encoding.program())?;
+    // Every row below resolves its bytes and footprint through this store.
+    let encoded = encoding.encoded();
     let layout_rows = unique_layout_rows(layout)?;
     let machine_functions = machine
         .functions
@@ -336,6 +338,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     allow_link_write,
                     instruction.id,
                     &mut modified_callee_saved,
+                    encoded,
                 )?;
                 if let SelectedTerminator::Crash {
                     psi_edge,
@@ -356,6 +359,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         encoding_row,
                         resolved_row,
                         end,
+                        encoded,
                     )?;
                     crashes.push(machine_code::WholeFunctionCrashEvidence {
                         block: block.id,
@@ -376,7 +380,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         .iter()
                         .chain(&machine_instruction.unit_clobbers)
                         .any(|unit| stack_units.contains(unit))
-                        || transformed_implicit_writes_any(encoding_row, &stack_units)
+                        || transformed_implicit_writes_any(encoding_row, &stack_units, encoded)
                     {
                         return Err(WholeFunctionExitContractError::NonReturnStackEffect(
                             instruction.id,
@@ -386,7 +390,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         .offset
                         .checked_add(resolved_block.byte_count)
                         .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
-                    validate_process_exit(instruction, encoding_row, resolved_row, end)?;
+                    validate_process_exit(instruction, encoding_row, resolved_row, end, encoded)?;
                     process_exits.push(machine_code::WholeFunctionProcessExitEvidence {
                         block: block.id,
                         nominal_return_edge: *nominal_return_edge,
@@ -417,6 +421,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         encoding_row,
                         resolved_row,
                         layout_block_end,
+                        encoded,
                     )?);
                 } else {
                     if matches!(
@@ -436,6 +441,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             instruction.id,
                             encoding_row,
                             resolved_row,
+                            encoded,
                         )?;
                         continue;
                     }
@@ -458,6 +464,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             instruction.constraint,
                             encoding_row,
                             resolved_row,
+                            encoded,
                         )?;
                         continue;
                     }
@@ -466,7 +473,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         .iter()
                         .chain(&machine_instruction.unit_clobbers)
                         .any(|unit| stack_units.contains(unit))
-                        || transformed_implicit_writes_any(encoding_row, &stack_units)
+                        || transformed_implicit_writes_any(encoding_row, &stack_units, encoded)
                     {
                         return Err(WholeFunctionExitContractError::NonReturnStackEffect(
                             instruction.id,
@@ -477,6 +484,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         instruction.kind,
                         encoding_row,
                         resolved_row,
+                        encoded,
                     )?;
                 }
             }
