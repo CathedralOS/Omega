@@ -365,23 +365,18 @@ pub(crate) fn structural_call_arguments(
             continue;
         }
         arm("call operation: structural arguments: view local");
-        // A view local's whole-name argument loans its established carrier
-        // through the same source vocabulary the scalar-computation lane
-        // plans; projected spellings still resolve through the parameter and
-        // alias arms below.
-        if place.segments.is_empty()
-            && let Some(plan) = computation_arguments::borrowed_view_argument(
-                program,
-                &facts.borrow,
-                caller_machine.symbol,
-                caller_state,
-                call,
-                &place,
-                source_symbol,
-                target,
-                view_subslice::ViewKind::Elements,
-            )
-        {
+        // Forward an existing descriptor through the same exact root/endpoint
+        // operation as a computed call. Array-to-view formation remains with
+        // the parameter presentation below: it borrows backing storage instead.
+        if let Some(plan) = computation_arguments::borrowed_view_argument(
+            program,
+            &facts.borrow,
+            caller_machine.symbol,
+            caller_state,
+            call,
+            &place,
+            target,
+        ) {
             output.push(plan);
             continue;
         }

@@ -60,6 +60,7 @@ impl TerminalExecution {
         let mut staged = BTreeMap::new();
         let mut staged_referents = BTreeMap::new();
         let mut staged_bytes = BTreeMap::new();
+        let mut staged_views = BTreeMap::new();
         let mut consumed = BTreeSet::new();
         for (binding, declaration) in fields.iter().zip(declarations) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
@@ -86,6 +87,65 @@ impl TerminalExecution {
                         .structural_values
                         .get(&argument.place)
                         .ok_or_else(invalid)?;
+                    if matches!(
+                        declaration.field_type.byte_sequence_carrier(),
+                        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        })
+                    ) {
+                        let bytes = self
+                            .byte_sequence_values
+                            .get(&argument.place)
+                            .ok_or_else(invalid)?
+                            .immutable()?;
+                        if argument.access != StructuralAccess::Owned
+                            || !argument.path.is_empty()
+                            || !self
+                                .program
+                                .structural_types
+                                .get(&child.structural_type)
+                                .is_some_and(|row| {
+                                    matches!(
+                                        row.shape,
+                                        StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                                access: None | Some(StructuralAccess::SharedBorrow),
+                                            }
+                                        )
+                                    )
+                                })
+                            || !terminal_semantics::byte_literal_qualifications_hold_in(
+                                self.program.catalogs.structural_domains.iter(),
+                                child.structural_type,
+                                &child.qualifications,
+                                bytes.bytes(),
+                            )
+                            || !declaration
+                                .field_type
+                                .byte_predicates()
+                                .holds_for(bytes.bytes())
+                        {
+                            return Err(invalid());
+                        }
+                        let affine = self
+                            .live_affine_frontier
+                            .iter()
+                            .any(|entry| entry.place == argument.place && entry.path.is_empty());
+                        if affine
+                            && (!consumed.insert(argument.place)
+                                || result.multiplicity == StructuralMultiplicity::Unrestricted)
+                        {
+                            return Err(invalid());
+                        }
+                        staged_bytes.insert(
+                            crate::values::StructuralByteSequenceRuntimeField {
+                                parent: StructuralRuntimePlace::from(&value),
+                                field: binding.field,
+                            },
+                            bytes.clone(),
+                        );
+                        continue;
+                    }
                     if let Some(
                         carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
                     ) = declaration.field_type.byte_sequence_carrier()
@@ -146,6 +206,41 @@ impl TerminalExecution {
                             || result.multiplicity == StructuralMultiplicity::Unrestricted)
                     {
                         return Err(invalid());
+                    }
+                    let mut member_path = value.path.clone();
+                    member_path.push(StructuralPathSegment::Field(declaration.identity.clone()));
+                    if self
+                        .program
+                        .structural_types
+                        .get(&child.structural_type)
+                        .is_some_and(|row| {
+                            matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                        })
+                    {
+                        let descriptor = self.element_view_argument(argument, child)?;
+                        let descriptor = descriptor.clone();
+                        staged_views.insert(
+                            StructuralRuntimePlace {
+                                opaque_identity: value.opaque_identity,
+                                path: member_path.clone(),
+                            },
+                            descriptor,
+                        );
+                    }
+                    for (home, descriptor) in &self.structural_element_view_fields {
+                        if home.opaque_identity == child.opaque_identity
+                            && home.path.starts_with(&child.path)
+                        {
+                            let mut path = member_path.clone();
+                            path.extend_from_slice(&home.path[child.path.len()..]);
+                            staged_views.insert(
+                                StructuralRuntimePlace {
+                                    opaque_identity: value.opaque_identity,
+                                    path,
+                                },
+                                descriptor.clone(),
+                            );
+                        }
                     }
                     // Move permission descriptors into the new owner's field
                     // coordinates, retaining their original backing unchanged.
@@ -212,6 +307,10 @@ impl TerminalExecution {
         }
         for place in consumed {
             if let Some(child) = self.structural_values.remove(&place) {
+                self.structural_element_view_fields.retain(|home, _| {
+                    home.opaque_identity != child.opaque_identity
+                        || !home.path.starts_with(&child.path)
+                });
                 self.reference_referents.retain(|carrier, _| {
                     carrier.opaque_identity != child.opaque_identity
                         || !carrier.path.starts_with(&child.path)
@@ -229,6 +328,7 @@ impl TerminalExecution {
         }
         self.structural_scalar_fields.extend(staged);
         self.structural_byte_sequence_fields.extend(staged_bytes);
+        self.structural_element_view_fields.extend(staged_views);
         self.reference_referents.extend(staged_referents);
         self.structural_values.insert(result.place, value);
         if result.multiplicity == StructuralMultiplicity::Affine {

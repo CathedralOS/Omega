@@ -1,8 +1,6 @@
 //! Structural parameters, projected borrowed operands, and primitive referents
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
-use super::super::CheckedUnitStructuralFieldPlan;
-use super::super::CheckedUnitStructuralFieldType;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
@@ -74,6 +72,11 @@ pub(crate) fn structural_computation_argument(
     if target.is_self {
         return None;
     }
+    if let Some(argument) =
+        borrowed_view_argument(program, borrow, machine, state, call, &place, target)
+    {
+        return Some(argument);
+    }
     let ExpressionNode::Name(name) = program.expression_table.expression(named) else {
         return None;
     };
@@ -98,32 +101,6 @@ pub(crate) fn structural_computation_argument(
         return owned_parameter_argument(program, state, name.symbol, target).or_else(|| {
             owned_copy_local_argument(program, state, call.statement_index, name.symbol, target)
         });
-    }
-    if matches!(
-        target_access,
-        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-    ) {
-        let kind =
-            if super::super::types::byte_sequence_carrier(program, target.type_reference, &[])
-                .is_some_and(|carrier| carrier.is_borrowed_view())
-            {
-                ViewKind::Bytes
-            } else {
-                ViewKind::Elements
-            };
-        if let Some(argument) = borrowed_view_argument(
-            program,
-            borrow,
-            machine,
-            state,
-            call,
-            &place,
-            name.symbol,
-            target,
-            kind,
-        ) {
-            return Some(argument);
-        }
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
     if super::super::structural_scalar_store::primitive_local_before(
@@ -560,45 +537,12 @@ pub(crate) fn borrowed_nominal_argument(
     } else {
         (shapes.add_type(reference, &[], &[]))?
     };
-    // Whole structural sums use the same established-place observation as
-    // records. No payload is extracted, copied, or reconstructed to borrow
-    // the sum; its source declaration and dominating call result remain
-    // separate evidence. Collecting the receiver's shape also collects every
-    // type its transitive structural fields name, so the loan observes that
-    // whole closure in place: the referent itself must be a record, a
-    // non-empty sum or mixed sum, or a fixed array, and each collected member
-    // type must be one of those or a primitive scalar leaf. A provider field
-    // stays part of the borrowed record: this operation neither copies its
-    // value nor establishes a binding. Shape collection retains its exact
-    // provider identity and selected erasure receipt; source replay and entry
-    // establishment independently check those obligations. Requiring plain
-    // owned contents here would wrongly distinguish an explicit context loan
-    // from the same loan spelled `self`. A scalar root stays with the primitive
-    // scalar/local source plans below. A borrow projected into a payload
-    // keeps requiring its own channel.
-    // Bounded-owned byte fields are existing storage too. Their declared
-    // predicates remain on the collected field; borrowing the enclosing
-    // record neither constructs bytes nor changes those invariants. Admit
-    // that carrier explicitly, without granting byte-view fields a new loan
-    // route or broadening any owned construction/copy classifier.
-    let borrowed_field = |field: &CheckedUnitStructuralFieldPlan| {
-        !field.relevance.is_erased()
-            && matches!(
-                field.field_type,
-                CheckedUnitStructuralFieldType::Scalar(_)
-                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
-                    | CheckedUnitStructuralFieldType::Structural { .. }
-                    | CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                    | CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
-                    | CheckedUnitStructuralFieldType::ByteSequence(
-                        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                    | CheckedUnitStructuralFieldType::PredicateByteSequence {
-                        carrier: checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
-                        ..
-                    }
-            )
-    };
+    // Borrow the established endpoint in place, including its shared view and
+    // provider members. Contents are classified recursively from authored types:
+    // the old shape whitelist erased slice access and made valid loans depend
+    // on which field families appeared together. This grants no copy, provider
+    // establishment or extended backing lifetime; exact source/type/access and
+    // call-occurrence replay still own those obligations.
     let structural_root = shapes.types.get(&identity).is_some_and(|shape| {
         matches!(
             shape.shape,
@@ -619,34 +563,7 @@ pub(crate) fn borrowed_nominal_argument(
             program.type_multiplicity(reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
         )
-        && shapes.types.values().all(|shape| match &shape.shape {
-            CheckedUnitStructuralTypeShape::Sum { cases } => {
-                !cases.is_empty()
-                    && cases
-                        .iter()
-                        .flat_map(|case| case.fields.iter())
-                        .all(&borrowed_field)
-            }
-            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
-                !cases.is_empty()
-                    && fields
-                        .iter()
-                        .chain(cases.iter().flat_map(|case| case.fields.iter()))
-                        .all(&borrowed_field)
-            }
-            CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(&borrowed_field),
-            // A `FusedServiceBacked` field registers its binding carrier as
-            // its own payload-free member type. The structural root check
-            // above excludes it as the borrowed referent, so it enters this
-            // closure only through a field `borrowed_field` already admits.
-            CheckedUnitStructuralTypeShape::FixedArray { .. }
-            | CheckedUnitStructuralTypeShape::FusedServiceBinding
-            | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-            | CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
-            ) => true,
-            _ => false,
-        });
+        && validation::has_borrowed_storage_contents(program, reference);
     // A whole primitive referent observes the same existing storage when the
     // forwarded source is itself a `&T` carrier. The loan names the carrier's
     // place and access rows directly; nothing materializes an owned scalar
@@ -678,13 +595,7 @@ pub(crate) fn borrowed_nominal_argument(
             && !validation::has_plain_owned_contents_with_represented_constraints(
                 program, reference,
             ))
-        || (!receiver_argument
-            && !structural_referent
-            && !whole_primitive_scalar
-            && !shapes.types.values().all(|shape| {
-                matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
-                if fields.iter().all(&borrowed_field))
-            }))
+        || (!receiver_argument && !structural_referent && !whole_primitive_scalar)
     {
         return None;
     }
@@ -785,7 +696,7 @@ pub(crate) fn borrowed_nominal_argument(
 }
 
 /// A whole shared or mutable borrowed-view actual loans its established
-/// view carrier: an authored view local's slot or a view parameter's own loan.
+/// view carrier: a parameter, local or projected descriptor in existing storage.
 /// The reference shell is the loan itself — the same presentation the
 /// call-statement lane gives a borrowed view — while this lane names the
 /// view's established home. Source and access rules are identical for both
@@ -797,10 +708,18 @@ pub(in crate::execution) fn borrowed_view_argument(
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
-    symbol: SymbolHandle,
     target: &StateParameter,
-    kind: ViewKind,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let kind = if super::super::types::byte_sequence_carrier(program, target.type_reference, &[])
+        .is_some_and(|carrier| carrier.is_borrowed_view())
+    {
+        ViewKind::Bytes
+    } else {
+        ViewKind::Elements
+    };
     let target_access = structural_access_for_type_reference(program, target.type_reference)?;
     if !matches!(
         target_access,
@@ -818,12 +737,11 @@ pub(in crate::execution) fn borrowed_view_argument(
     }
     let identity = view_identity(program, kind, target.type_reference)?;
     let parameters = program.state_parameters(state);
-    let (source, source_type) = if let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
-    {
+    let (source, source_type) = if let Some(position) = parameters.iter().position(|parameter| {
+        super::parameter_argument_paths::parameter_is_root(machine, parameter, symbol)
+    }) {
         let parameter = &parameters[position];
-        if parameter.is_const || parameter.is_self {
+        if parameter.is_const || (parameter.is_self && place.segments.is_empty()) {
             return None;
         }
         (
@@ -845,6 +763,15 @@ pub(in crate::execution) fn borrowed_view_argument(
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
             local.type_reference,
         )
+    };
+    // The declaration identifies the storage owner; the projection identifies
+    // the descriptor being lent. Whole and field views use one operation, and
+    // the endpoint's own reference shell supplies access (never the containing
+    // record's mutability). Source replay independently rejoins this exact path.
+    let (source_type, path) = if place.segments.is_empty() {
+        (source_type, Vec::new())
+    } else {
+        projected_borrowed_path(program, machine, state.symbol, call.statement_index, place)?
     };
     let source_access = structural_access_for_type_reference(program, source_type)?;
     if !is_view(source_type)
@@ -873,7 +800,7 @@ pub(in crate::execution) fn borrowed_view_argument(
     }
     Some(CheckedUnitStructuralArgumentPlan {
         source,
-        path: Vec::new(),
+        path,
         type_identity: identity,
         access: target_access,
     })

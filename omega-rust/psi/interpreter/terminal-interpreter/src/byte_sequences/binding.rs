@@ -163,8 +163,10 @@ impl TerminalExecution {
         ) {
             return Err(invalid());
         }
-        if let ByteSequenceBinding::Immutable(_) = binding {
-            return if access == StructuralAccess::SharedBorrow {
+        if let ByteSequenceBinding::Immutable(view) = binding {
+            return if access == StructuralAccess::SharedBorrow
+                && view.matches_descriptor_home(value)
+            {
                 Ok(binding.clone())
             } else {
                 Err(invalid())
@@ -193,7 +195,9 @@ impl TerminalExecution {
                 .clone(),
             ByteSequenceBinding::Immutable(_) => unreachable!(),
         };
-        Ok(ByteSequenceBinding::Immutable(snapshot))
+        Ok(ByteSequenceBinding::Immutable(
+            snapshot.with_descriptor_home(value.clone()),
+        ))
     }
 
     pub(crate) fn prepare_structural_call_arguments(

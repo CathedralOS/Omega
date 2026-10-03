@@ -495,7 +495,10 @@ impl TerminalExecution {
             }
             ByteSequenceBinding::MutableArray { .. } => return Err(invalid()),
         };
-        Ok((value.clone(), ByteSequenceBinding::Immutable(bytes)))
+        Ok((
+            value.clone(),
+            ByteSequenceBinding::Immutable(bytes.with_descriptor_home(value.clone())),
+        ))
     }
 
     /// Bind a shared byte-view argument to one initialized inline byte field.
@@ -534,9 +537,16 @@ impl TerminalExecution {
             .iter()
             .find(|field| field.identity == *identity && !field.relevance.is_erased())
             .ok_or_else(invalid)?;
+        let carrier = field
+            .field_type
+            .byte_sequence_carrier()
+            .ok_or_else(invalid)?;
         if !matches!(
-            field.field_type.byte_sequence_carrier(),
-            Some(ByteSequenceCarrier::BoundedOwned { .. })
+            carrier,
+            ByteSequenceCarrier::BoundedOwned { .. }
+                | ByteSequenceCarrier::BorrowedView {
+                    access: None | Some(StructuralAccess::SharedBorrow)
+                }
         ) {
             return Err(invalid());
         }
@@ -547,17 +557,21 @@ impl TerminalExecution {
         let bytes = self
             .structural_byte_sequence_fields
             .get(&source)
-            .ok_or_else(invalid)?
-            .bytes();
+            .ok_or_else(invalid)?;
+        let bytes = match carrier {
+            ByteSequenceCarrier::BorrowedView { .. } => bytes.clone(),
+            ByteSequenceCarrier::BoundedOwned { .. } => {
+                ByteSequenceView::new(bytes.bytes().to_vec())
+            }
+            ByteSequenceCarrier::BoundedView { .. } => return Err(invalid()),
+        };
         parent.structural_type = parameter.structural_type;
         parent.qualifications = parameter.qualifications.clone();
         parent
             .path
             .push(StructuralPathSegment::Field(identity.clone()));
-        Ok((
-            parent,
-            ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes.to_vec())),
-        ))
+        let bytes = bytes.with_descriptor_home(parent.clone());
+        Ok((parent, ByteSequenceBinding::Immutable(bytes)))
     }
 }
 

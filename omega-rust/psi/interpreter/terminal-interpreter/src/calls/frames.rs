@@ -167,20 +167,17 @@ impl TerminalExecution {
                     parameter.access,
                     StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                 )
-                || !resolved.path.is_empty()
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || !resolved.qualifications.is_empty()
-                || !argument.path.is_empty()
             {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
-            let view = self.element_view_values.get(&argument.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
-            )?;
+            let view = self.element_view_argument(argument, resolved)?;
             let presented = view
                 .subslice(0, view.len(), parameter.access)
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            let presented = presented.with_descriptor_home(resolved.clone());
             if values.insert(parameter.place, presented).is_some() {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }

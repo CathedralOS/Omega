@@ -104,6 +104,10 @@ pub struct TerminalExecution {
     /// parameter. Immutable backing implements a logical copy of the live prefix.
     pub(crate) structural_byte_sequence_fields:
         BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView>,
+    /// Stored element descriptors retain their original backing and window.
+    /// Their field homes survive borrowed calls independently of frame-local IDs.
+    pub(crate) structural_element_view_fields:
+        BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     pub(crate) structural_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
@@ -310,6 +314,7 @@ impl TerminalExecution {
             values,
             structural_values,
             reference_referents: BTreeMap::new(),
+            structural_element_view_fields: BTreeMap::new(),
             structural_primitive_storage,
             structural_primitive_entry_places,
             local_structural_identities,

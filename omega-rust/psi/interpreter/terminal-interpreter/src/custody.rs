@@ -25,6 +25,7 @@ pub(crate) fn commit_cleanup_actions(
     machines: &BTreeMap<MachineId, ExecutableMachine>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     reference_referents: &mut BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
+    element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     scalar_case_values: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
@@ -37,6 +38,7 @@ pub(crate) fn commit_cleanup_actions(
                 if (reference::discard_structural_value(
                     structural_values,
                     reference_referents,
+                    element_views,
                     *place,
                 )
                 .is_none()
@@ -65,6 +67,7 @@ pub(crate) fn commit_cleanup_actions(
                     reference::discard_structural_value(
                         structural_values,
                         reference_referents,
+                        element_views,
                         discard.place,
                     );
                 }

@@ -91,10 +91,25 @@ impl SourceTypes<'_> {
     ) -> Result<String, LoweringError> {
         let checked = self.checked;
         let reference = resolve(checked, reference, substitutions)?;
+        // Element-view fields retain their slice carrier, not an owned
+        // reference shell. Reconstruct that carrier from the authored type
+        // before looking it up; the element declaration is replayed below too.
+        // The current stored descriptor has shared custody. A mutable shell
+        // cannot silently become the same access-free slice shape.
+        let element_view = validation::slice_view_shell(&checked.typed, reference, substitutions)
+            .filter(|view| {
+                checked.primitive_type_reference(view.element)
+                    != Some(checked_trees::types::PrimitiveType::U8)
+            });
+        if element_view
+            .is_some_and(|view| view.access != language_semantics::ReferenceAccess::Shared)
+        {
+            return unsupported("stored element-view type requires shared descriptor custody");
+        }
         let identity = checked
             .type_identity(TypeIdentityRequest {
                 substitutions,
-                ..TypeIdentityRequest::ordinary(reference)
+                ..TypeIdentityRequest::ordinary(element_view.map_or(reference, |view| view.slice))
             })
             .into_string();
         if self.complete.contains(&identity) {
@@ -132,7 +147,11 @@ impl SourceTypes<'_> {
             "owned type custody lost a source structural declaration",
         ))?;
         self.active.push(identity.clone());
-        let expected = if let Some(primitive) = checked.primitive_type_reference(reference) {
+        let expected = if let Some(view) = element_view {
+            CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                element_type_identity: self.validate_type(view.element, substitutions)?,
+            }
+        } else if let Some(primitive) = checked.primitive_type_reference(reference) {
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
         } else {
             match checked.type_reference_table.type_reference(reference) {

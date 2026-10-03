@@ -575,6 +575,11 @@ the complete product bar; focused successes below do not establish that baseline
     owns typed recasts. Preserve
     the local's loan identity and exact backing through every consumer,
     including local-rooted stores and borrowed-record calls followed by reads.
+    Preserve `calls/scalar_local_record_view_call_exit` at native/interpreter
+    exit 70: a scalar helper lends a local record containing an interior view,
+    forwards that field through another scalar call, and disposes the record
+    exactly once on return. Stored descriptor transport must retain its window,
+    backing and access; it does not transfer ownership of the backing.
     `structural_values::is_record_value` still gates on StructLiteral/Match
     roots; generalize the operation instead of rewriting a local observation
     into a different source subject. Primitive borrowed-local mutation already

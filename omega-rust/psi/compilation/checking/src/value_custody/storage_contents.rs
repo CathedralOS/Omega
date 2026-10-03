@@ -37,12 +37,15 @@ enum ContentType {
     /// A closed const argument. It fills a const parameter's slot so data
     /// arguments stay positional, and is never itself a member's contents.
     ConstValue,
+    /// An existing provider handle; borrowing it neither installs a provider
+    /// nor authorizes erasure. Shape collection retains that separate receipt.
+    Provider,
 }
 
 impl ContentType {
     fn size(&self) -> usize {
         match self {
-            Self::Scalar(_) | Self::Atomic(_) | Self::ConstValue | Self::View => 1,
+            Self::Scalar(_) | Self::Atomic(_) | Self::ConstValue | Self::View | Self::Provider => 1,
             Self::Array(element, _) => 1 + element.size(),
             Self::Slice(element) | Self::Shared(element) => 1 + element.size(),
             Self::Data(_, arguments) => 1 + arguments.iter().map(Self::size).sum::<usize>(),
@@ -92,6 +95,11 @@ enum ContentsRequirement {
     /// mutate, no erased or generic members, no linear declarations, no
     /// drop carriers.
     OwnedOrSharedView,
+    /// Established storage lent in place, with shared descriptors and provider
+    /// handles classified per member. This is neither a copy nor a stable
+    /// observation judgment. Exact access, lifetime, qualifications and provider
+    /// custody remain with the borrowing operation.
+    BorrowedStorage,
     StableObservation,
     /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
     /// a caller-owned ABI copy while the observed place keeps custody of the
@@ -100,6 +108,20 @@ enum ContentsRequirement {
     /// stays with the observed place, so it only resolves to its declared
     /// storage instead of needing stable contents of its own.
     SeamMarshal,
+}
+
+/// Classify an existing aggregate's supported contents for an in-place loan.
+/// Shared descriptors keep their backing loans; providers keep their installation
+/// custody; nominal cleanup stays with the owner. Inspect authored reference
+/// access before lowering erases it from slice shapes. This grants no copy,
+/// construction, stable-observation or lifetime-extension authority.
+pub fn has_borrowed_storage_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    check_contents_requirement(
+        program,
+        reference,
+        &[],
+        ContentsRequirement::BorrowedStorage,
+    )
 }
 
 pub fn has_plain_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
@@ -350,6 +372,11 @@ fn resolve(
     if !reference.is_valid() {
         return None;
     }
+    if requirement == ContentsRequirement::BorrowedStorage
+        && typed_trees::service::exact_bound_service_requirement(program, reference).is_some()
+    {
+        return Some(ContentType::Provider);
+    }
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some((_, argument)) = arguments
@@ -372,6 +399,11 @@ fn resolve(
                     return Some(ContentType::Atomic(primitive));
                 }
                 return Some(ContentType::Scalar(primitive));
+            }
+            if requirement == ContentsRequirement::BorrowedStorage
+                && is_boundary_provider(program, *symbol)
+            {
+                return Some(ContentType::Provider);
             }
             let data = definition(program, *symbol)?;
             program
@@ -432,6 +464,7 @@ fn resolve(
                         requirement,
                         ContentsRequirement::CleanupOwned
                             | ContentsRequirement::StructuralConstruction
+                            | ContentsRequirement::BorrowedStorage
                     ) && owns_drop_hook(program, *base_symbol))
                 {
                     return None;
@@ -478,7 +511,9 @@ fn resolve(
             ..
         } if matches!(
             requirement,
-            ContentsRequirement::OwnedOrSharedView | ContentsRequirement::StructuralConstruction
+            ContentsRequirement::OwnedOrSharedView
+                | ContentsRequirement::StructuralConstruction
+                | ContentsRequirement::BorrowedStorage
         ) && matches!(
             program
                 .type_reference_table
@@ -487,6 +522,21 @@ fn resolve(
         ) =>
         {
             Some(ContentType::View)
+        }
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Mutable,
+            referee,
+            ..
+        } if requirement == ContentsRequirement::BorrowedStorage => matches!(
+            resolve(program, *referee, arguments, requirement)?,
+            ContentType::Provider
+        )
+        .then_some(ContentType::Provider),
+        TypeReferenceNode::DynamicTrait { symbol, .. }
+            if requirement == ContentsRequirement::BorrowedStorage
+                && is_boundary_provider(program, *symbol) =>
+        {
+            Some(ContentType::Provider)
         }
         TypeReferenceNode::Slice { element_type }
             if matches!(
@@ -541,12 +591,14 @@ fn resolve(
                             ContentsRequirement::NumericOwned
                                 | ContentsRequirement::RepresentedOwned
                                 | ContentsRequirement::StructuralConstruction
+                                | ContentsRequirement::BorrowedStorage
                         ) && matches!(contents, ContentType::Scalar(_) | ContentType::Atomic(_))
                             && is_plain_value_domain(program, domain)
                             && crate::exact_declared_domain_interval(program, domain).is_some())
                         || (matches!(requirement,
                                 ContentsRequirement::RepresentedOwned
-                                    | ContentsRequirement::StructuralConstruction)
+                                    | ContentsRequirement::StructuralConstruction
+                                    | ContentsRequirement::BorrowedStorage)
                             && matches!(&contents, ContentType::Array(element, _)
                                 if matches!(element.as_ref(), ContentType::Scalar(PrimitiveType::U8)))
                             && is_plain_value_domain(program, domain)
@@ -611,6 +663,13 @@ pub(crate) fn is_plain_value_domain(
         })
 }
 
+fn is_boundary_provider(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    program
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == symbol && definition.is_boundary)
+}
+
 fn definition(
     program: &TypedTrees,
     symbol: SymbolHandle,
@@ -649,7 +708,9 @@ fn check_contents(
             // the loan. Owned storage classification is not observation authority.
             ContentType::Atomic(_) => !matches!(
                 requirement,
-                ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
+                ContentsRequirement::StableObservation
+                    | ContentsRequirement::SeamMarshal
+                    | ContentsRequirement::BorrowedStorage
             ),
             ContentType::Array(element, _)
             | ContentType::Slice(element)
@@ -658,7 +719,7 @@ fn check_contents(
             }
             // A view descriptor is a terminal leaf — the member's custody is
             // the descriptor alone.
-            ContentType::View => true,
+            ContentType::View | ContentType::Provider => true,
             // A const parameter named where a member type belongs is not
             // storage the classifier understands.
             ContentType::ConstValue => false,
@@ -681,7 +742,9 @@ fn check_contents(
         })
         || (!matches!(
             requirement,
-            ContentsRequirement::CleanupOwned | ContentsRequirement::StructuralConstruction
+            ContentsRequirement::CleanupOwned
+                | ContentsRequirement::StructuralConstruction
+                | ContentsRequirement::BorrowedStorage
         ) && owns_drop_hook(program, *symbol))
     {
         return false;

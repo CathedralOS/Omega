@@ -1,0 +1,39 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Sample { readings: &[i32]; }
+data Main { console: Binding<Console>; }
+
+machine inspect(sample: &Sample) -> bool {
+    let observed: bool = inspect_values(sample.readings);
+    observed
+}
+
+machine inspect_values(values: &[i32]) -> bool {
+    transition 1 < values.len {
+        true -> read(values)
+        false -> (false)
+    }
+    state read(values: &[i32]) -> bool
+        requires 1 < values.len;
+    {
+        values.len == 2 && values[0] == 11 && values[1] == 13
+    }
+}
+
+machine run() -> bool {
+    let backing: [i32; 4] = [7, 11, 13, 17];
+    let sample: Sample = Sample { readings: backing[1..3] };
+    let observed: bool = inspect(&sample);
+    observed
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let observed: bool = run();
+    transition observed {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &Main) { main.console.exit_process(70); }
+    state bad(main: &Main) { main.console.exit_process(71); }
+}

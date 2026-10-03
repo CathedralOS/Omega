@@ -91,7 +91,6 @@ impl TerminalExecution {
             || start > end
             || end > length
             || source_value.structural_type != result.structural_type
-            || (!source_mutable && !source_value.path.is_empty())
             || !source_value.qualifications.is_empty()
             || !matches!(
                 result.multiplicity,
@@ -183,7 +182,7 @@ impl TerminalExecution {
         }
         let narrowed = match binding {
             ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
-                if !source.path.is_empty() {
+                if !bytes.matches_descriptor_home(source) {
                     return Err(invalid());
                 }
                 ByteSequenceBinding::Immutable(
@@ -239,6 +238,12 @@ impl TerminalExecution {
             ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableField { .. } => {
                 return Err(invalid());
             }
+        };
+        let narrowed = match narrowed {
+            ByteSequenceBinding::Immutable(bytes) => {
+                ByteSequenceBinding::Immutable(bytes.with_descriptor_home(destination.clone()))
+            }
+            binding => binding,
         };
         Ok((destination, narrowed))
     }

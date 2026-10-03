@@ -30,12 +30,16 @@ use terminal_psi::{Operation, StructuralResultDeclaration};
 pub(crate) fn discard_structural_value(
     values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     referents: &mut BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
+    element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     place: PlaceId,
 ) -> Option<TerminalStructuralValue> {
     let value = values.remove(&place)?;
     // Carrier paths belong to the discarded owner. Captured backing values
     // are map payloads, not descendants to dispose along with that owner.
     referents.retain(|carrier, _| {
+        carrier.opaque_identity != value.opaque_identity || !carrier.path.starts_with(&value.path)
+    });
+    element_views.retain(|carrier, _| {
         carrier.opaque_identity != value.opaque_identity || !carrier.path.starts_with(&value.path)
     });
     Some(value)
@@ -142,6 +146,7 @@ impl TerminalExecution {
         discard_structural_value(
             &mut self.structural_values,
             &mut self.reference_referents,
+            &mut self.structural_element_view_fields,
             source,
         );
         self.live_affine_frontier.remove(&frontier);

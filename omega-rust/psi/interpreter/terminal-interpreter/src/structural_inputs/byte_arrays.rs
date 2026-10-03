@@ -311,7 +311,9 @@ impl TerminalExecution {
                     *referent = value.clone();
                     binding.validate_mutable_referent(&self.program.structural_types, &value)?;
                 }
-                ByteSequenceBinding::Immutable(_) => {}
+                ByteSequenceBinding::Immutable(bytes) => {
+                    *bytes = bytes.clone().with_descriptor_home(value.clone());
+                }
                 ByteSequenceBinding::MutableField { .. } => return Err(invalid()),
             }
             return Ok((value, binding));
@@ -437,7 +439,8 @@ impl TerminalExecution {
             {
                 return Err(invalid());
             }
-            return Ok(Some((value.clone(), binding.clone())));
+            let binding = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
+            return Ok(Some((value.clone(), binding)));
         }
         if argument.path.is_empty()
             && let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
@@ -592,12 +595,10 @@ impl TerminalExecution {
                     .ok_or_else(invalid)?,
             )
             .map_err(|_| invalid())?;
-            return Ok(Some((
-                referent,
-                ByteSequenceBinding::Immutable(
-                    self.stored_byte_array_snapshot(&array, start, end)?,
-                ),
-            )));
+            let descriptor = self
+                .stored_byte_array_snapshot(&array, start, end)?
+                .with_descriptor_home(referent.clone());
+            return Ok(Some((referent, ByteSequenceBinding::Immutable(descriptor))));
         }
         Ok(Some((
             referent.clone(),

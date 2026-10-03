@@ -678,18 +678,19 @@ fn validate_scalar_cleanup_actions(
     let max_residuals = actions.len();
     let mut actions = actions.iter();
 
-    // Scalar-case temporaries follow the same reverse producer order as
-    // ordinary edge and Unit-return disposal, before older named roots.
+    // Every live, claim-free affine operation result follows the same reverse
+    // producer order as edge and Unit-return disposal. A record containing a
+    // loan still owns its carrier: eligibility comes from the independently
+    // reconstructed frontier, not the payload classifier for owned transfers.
+    // Parameters and declared locals keep their separate ordering below.
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
-        if !super::scalar::case::plain_return_source(module, machine, place)
-            && super::record::completed_source(module, machine, place).is_none()
-            && super::element_view::view_loan_result_in_module(module, machine, place).is_none()
-            && super::references::carrier_type(module, machine, place).is_none()
-            && !frontier
-                .references
-                .iter()
-                .any(|reference| reference.carrier == place)
-        {
+        if !machine.structural_places.iter().any(|declaration| {
+            declaration.id == place
+                && matches!(
+                    declaration.kind,
+                    StructuralPlaceKind::OperationResult { .. }
+                )
+        }) {
             continue;
         }
         if frontier.partial_custody_paths.contains_key(&place)

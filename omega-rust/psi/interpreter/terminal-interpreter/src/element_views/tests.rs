@@ -1441,3 +1441,62 @@ fn representation_byte_view_rejects_bounds_and_access_before_publication() {
         );
     }
 }
+
+#[test]
+fn shared_whole_bounded_collection_uses_its_published_descriptor_home_when_narrowed() {
+    let (mut execution, mut operation) = bounded_byte_collection();
+    let OperationKind::EstablishMutableElementView {
+        destination,
+        mut source,
+        element,
+        region,
+    } = operation.kind.clone()
+    else {
+        panic!("bounded collection establishment");
+    };
+    source.access = StructuralAccess::SharedBorrow;
+    operation.kind = OperationKind::EstablishElementView {
+        destination,
+        source,
+        element,
+        region,
+    };
+    let OperationResult::Structural(result) = &mut operation.result else {
+        panic!("descriptor result");
+    };
+    result.multiplicity = StructuralMultiplicity::Unrestricted;
+    execution
+        .execute_establish_element_view(&operation)
+        .unwrap();
+    let source = &execution.structural_values[&destination];
+    let binding = &execution.byte_sequence_values[&destination];
+    execution
+        .reborrow_byte_sequence_binding(binding, source, StructuralAccess::SharedBorrow)
+        .expect("the published descriptor has its own exact home");
+    let mut result = source.clone();
+    result.opaque_identity = 9001;
+    let (_, narrowed) = execution
+        .narrow_byte_sequence_binding(
+            binding,
+            source,
+            1..3,
+            StructuralAccess::SharedBorrow,
+            result,
+        )
+        .expect("whole borrowed collection formation composes with subsequent narrowing");
+    assert_eq!(narrowed.immutable().unwrap().bytes(), &[128, 255]);
+    let mut forged = source.clone();
+    forged.path.push("invented".into());
+    assert!(
+        execution
+            .narrow_byte_sequence_binding(
+                binding,
+                &forged,
+                1..3,
+                StructuralAccess::SharedBorrow,
+                source.clone(),
+            )
+            .is_err(),
+        "an invented path does not supply descriptor custody"
+    );
+}

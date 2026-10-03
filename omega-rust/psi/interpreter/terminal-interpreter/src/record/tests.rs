@@ -897,3 +897,289 @@ fn admitted_case_descriptor_copy_uses_the_current_payload_cell() {
         "another discriminator cannot select the same-spelled payload cell"
     );
 }
+
+#[test]
+fn stored_element_descriptor_keeps_window_across_borrow_retirement_and_owner_disposal() {
+    use crate::element_views::ElementView;
+    use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+    let mut module = unit_module();
+    let holder = StructuralTypeId::new(1).unwrap();
+    let view = StructuralTypeId::new(2).unwrap();
+    let element = StructuralTypeId::new(3).unwrap();
+    let field = StructuralFieldId::new(1).unwrap();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: holder,
+            identity: "Holder".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "values".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(view),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "view".into(),
+            shape: StructuralTypeShape::ElementView { element },
+        },
+        StructuralTypeDeclaration {
+            id: element,
+            identity: "element".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(unsigned(0).scalar_type()),
+        },
+    ];
+    let (mut execution, _) = run(&module, &[]);
+    let source = PlaceId::new(20).unwrap();
+    let owner = PlaceId::new(21).unwrap();
+    let borrowed = PlaceId::new(22).unwrap();
+    let window = ElementView::new(vec![unsigned(7), unsigned(11), unsigned(13), unsigned(17)])
+        .subslice(1, 3, StructuralAccess::SharedBorrow)
+        .unwrap();
+    execution.structural_values.insert(
+        source,
+        TerminalStructuralValue {
+            opaque_identity: 9000,
+            structural_type: view,
+            qualifications: vec![],
+            path: vec![],
+        },
+    );
+    execution.element_view_values.insert(source, window.clone());
+    execution
+        .establish_record(
+            &StructuralOperationResult {
+                place: owner,
+                structural_type: holder,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: vec![],
+                projected_qualifications: vec![],
+                qualification_establishments: vec![],
+                claims: vec![],
+            },
+            &[RecordFieldInitializer {
+                field,
+                value: RecordFieldValue::Structural(StructuralArgument {
+                    place: source,
+                    path: vec![],
+                    access: StructuralAccess::Owned,
+                }),
+            }],
+        )
+        .unwrap();
+    let argument = StructuralArgument {
+        place: owner,
+        path: vec![StructuralPathSegment::Field("values".into())],
+        access: StructuralAccess::SharedBorrow,
+    };
+    let resolved = execution
+        .resolve_reference_call_arguments(std::slice::from_ref(&argument))
+        .unwrap();
+    let parameter = StructuralParameterDeclaration {
+        place: borrowed,
+        position: 0,
+        is_self: false,
+        structural_type: view,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+    };
+    let bindings = execution
+        .bind_element_view_arguments(
+            std::slice::from_ref(&parameter),
+            std::slice::from_ref(&argument),
+            &resolved,
+        )
+        .unwrap();
+    assert_eq!(bindings[&borrowed].len(), 2);
+    assert_eq!(bindings[&borrowed].get(0), Some(&unsigned(11)));
+    assert_eq!(bindings[&borrowed].get(1), Some(&unsigned(13)));
+    assert!(
+        std::ptr::eq(bindings[&borrowed].get(0).unwrap(), window.get(0).unwrap()),
+        "field and call transport copy descriptors, not their backing"
+    );
+    let mut exclusive_parameter = parameter.clone();
+    exclusive_parameter.access = StructuralAccess::MutableBorrow;
+    let mut exclusive_argument = argument.clone();
+    exclusive_argument.access = StructuralAccess::MutableBorrow;
+    assert!(
+        execution
+            .bind_element_view_arguments(&[exclusive_parameter], &[exclusive_argument], &resolved,)
+            .is_err(),
+        "a stored shared descriptor cannot acquire exclusive access"
+    );
+
+    let home = StructuralRuntimePlace::from(&resolved[0]);
+    execution
+        .structural_values
+        .insert(borrowed, resolved[0].clone());
+    execution.element_view_values.extend(bindings);
+    execution.retire_unrestricted_views();
+    assert!(
+        execution.structural_element_view_fields.contains_key(&home),
+        "retiring a borrowed frame binding leaves the owner's field intact"
+    );
+    crate::reference::discard_structural_value(
+        &mut execution.structural_values,
+        &mut execution.reference_referents,
+        &mut execution.structural_element_view_fields,
+        owner,
+    )
+    .unwrap();
+    assert!(!execution.structural_element_view_fields.contains_key(&home));
+    assert_eq!(
+        window.get(0),
+        Some(&unsigned(11)),
+        "carrier disposal never disposes backing"
+    );
+}
+
+#[test]
+fn qualified_shared_byte_field_rejects_invalid_contents_before_constructor_commit() {
+    use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
+    use crate::values::TerminalStructuralValue;
+    let mut module = unit_module();
+    let carrier = StructuralTypeId::new(1).unwrap();
+    let record = StructuralTypeId::new(2).unwrap();
+    let domain = StructuralDomainId::new(1).unwrap();
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: carrier,
+            identity: "view".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: None,
+            }),
+        },
+        StructuralTypeDeclaration {
+            id: record,
+            identity: "text".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "count".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(unsigned(0).scalar_type()),
+                    },
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(2).unwrap(),
+                        identity: "text".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::PredicateByteSequence {
+                            carrier: ByteSequenceCarrier::BorrowedView {
+                                access: Some(StructuralAccess::SharedBorrow),
+                            },
+                            predicates,
+                        },
+                    },
+                ],
+            },
+        },
+    ];
+    module.structural_domains.push(StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: DomainSemanticId::new(1).unwrap(),
+        identity: "Utf8".into(),
+        carrier,
+        byte_predicate: Some(ByteSequencePredicate::ValidUtf8),
+        content_projection: None,
+        establishment_routes: vec![],
+    });
+    let (mut execution, _) = run(&module, &[]);
+    let source = PlaceId::new(20).unwrap();
+    let destination = PlaceId::new(21).unwrap();
+    execution
+        .values
+        .insert(ValueId::new(99).unwrap(), unsigned(7));
+    execution.structural_values.insert(
+        source,
+        TerminalStructuralValue {
+            opaque_identity: 9000,
+            structural_type: carrier,
+            qualifications: vec![],
+            path: vec![],
+        },
+    );
+    execution.byte_sequence_values.insert(
+        source,
+        ByteSequenceBinding::Immutable(ByteSequenceView::new(vec![0xff])),
+    );
+    execution
+        .live_affine_frontier
+        .insert(StructuralAffineDiscard {
+            place: source,
+            path: vec![],
+            structural_type: carrier,
+        });
+    let result = StructuralOperationResult {
+        place: destination,
+        structural_type: record,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+        qualification_establishments: vec![],
+        claims: vec![],
+    };
+    let fields = [
+        RecordFieldInitializer {
+            field: StructuralFieldId::new(1).unwrap(),
+            value: RecordFieldValue::Scalar {
+                value: ValueId::new(99).unwrap(),
+                range_obligation: None,
+            },
+        },
+        RecordFieldInitializer {
+            field: StructuralFieldId::new(2).unwrap(),
+            value: RecordFieldValue::Structural(StructuralArgument {
+                place: source,
+                path: vec![],
+                access: StructuralAccess::Owned,
+            }),
+        },
+    ];
+    let values = execution.structural_values.clone();
+    let frontier = execution.live_affine_frontier.clone();
+    let scalars = execution.structural_scalar_fields.clone();
+    execution
+        .establish_record(&result, &fields)
+        .expect_err("invalid UTF8 cannot inhabit the qualified shared field");
+    assert_eq!(execution.structural_values, values);
+    assert_eq!(execution.live_affine_frontier, frontier);
+    assert_eq!(execution.structural_scalar_fields, scalars);
+    assert!(execution.structural_byte_sequence_fields.is_empty());
+    assert_eq!(
+        execution.byte_sequence_values[&source]
+            .immutable()
+            .unwrap()
+            .bytes(),
+        &[0xff]
+    );
+    execution
+        .structural_values
+        .get_mut(&source)
+        .unwrap()
+        .qualifications = vec![domain];
+    execution.byte_sequence_values.insert(
+        source,
+        ByteSequenceBinding::Immutable(ByteSequenceView::new(b"ok".to_vec())),
+    );
+    execution
+        .establish_record(&result, &fields)
+        .expect("valid qualified descriptor transfers only after every field validates");
+    assert!(!execution.structural_values.contains_key(&source));
+    assert!(execution.structural_values.contains_key(&destination));
+    assert_eq!(
+        execution
+            .structural_byte_sequence_fields
+            .values()
+            .next()
+            .unwrap()
+            .bytes(),
+        b"ok"
+    );
+}

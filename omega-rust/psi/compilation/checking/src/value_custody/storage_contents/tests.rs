@@ -521,3 +521,65 @@ fn closed_const_instances_preserve_template_cleanup_and_properties() {
         application
     ));
 }
+
+#[test]
+fn borrowed_storage_composes_views_constraints_and_provider_members() {
+    let declarations = "
+        domain [u8; 16]::Text(bytes) requires valid_utf8(bytes);
+        boundary trait Port { machine send(value: u32) reaches Port; }
+        data Packet {
+            readings: &[i32];
+            label: &[u8];
+            text: [u8; 16] in Text;
+            count: u32 [0..=10];
+            port: &mut Port;
+        }
+        data Wrapper<T> { value: T; }
+        data Choice { case Missing; case Present(packet: Packet); }
+        machine Packet::drop(packet: &mut Packet) {}
+    ";
+    for carrier in [
+        "Packet",
+        "Wrapper<Wrapper<Packet>>",
+        "[Packet; 2]",
+        "Choice",
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "{declarations} machine inspect(value: {carrier}) {{}}"
+        ));
+        let reference = input(&program);
+        assert!(
+            super::has_borrowed_storage_contents(&program, reference),
+            "{carrier}"
+        );
+        assert!(!super::has_plain_owned_contents(&program, reference));
+        assert!(!super::has_owned_or_shared_view_contents(
+            &program, reference
+        ));
+        assert!(!super::has_stable_observable_contents(&program, reference));
+    }
+}
+
+#[test]
+fn borrowed_storage_does_not_erase_exclusive_access_or_opaque_members() {
+    for declaration in [
+        "data Packet { readings: &mut [i32]; }",
+        "data Packet { readings: &write [i32]; }",
+        "data Packet { readings: &mut [u8]; }",
+        "data Packet { readings: &mut i32; }",
+        "data Packet { readings [erased]: &[i32]; }",
+        "data Packet [linear] { readings: &[i32]; }",
+        "data Packet { count: AtomicU64; }",
+        "data Packet { value: i32 in NonZero; }",
+        "data Packet { value: Packet; }",
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "domain i32::NonZero(value) requires value != 0;
+             {declaration} machine inspect(value: Packet) {{}}"
+        ));
+        assert!(
+            !super::has_borrowed_storage_contents(&program, input(&program)),
+            "{declaration}"
+        );
+    }
+}
