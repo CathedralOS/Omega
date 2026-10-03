@@ -21,18 +21,18 @@ data Main {
     calc: Calc;
 }
 
-machine Calc::double_val(&mut self, n: i32 in Wrapping) -> i32 {
+machine Calc::double_val(n: i32 in Wrapping) -> i32 {
     transition {
         _ -> ((n * 2) as i32)
     }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut base: i32 in Wrapping = 10;
-    let r: i32 in Wrapping = base + self.calc.double_val(6) * 3;  // 10 + 12 * 3 = 46
+    let r: i32 in Wrapping = base + Calc::double_val(6) * 3;  // 10 + 12 * 3 = 46
     transition r == 46 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }

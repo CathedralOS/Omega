@@ -20,9 +20,9 @@ data Main {
     n: i64;
 }
 
-machine Main::main(&mut self) reaches ByteHost {
-    self.n = self.host.read(0, &mut self.control, 64);
-    transition { _ -> pump(&mut self.host, &mut self.control) }
+machine Main::main(main: &mut Main) reaches ByteHost {
+    main.n = main.host.read(0, &mut main.control, 64);
+    transition { _ -> pump(&mut main.host, &mut main.control) }
 
     state pump(host: &mut Binding<ByteHost>, buffer: &mut [u8])
         requires 64 <= buffer.len;

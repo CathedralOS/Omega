@@ -12,24 +12,25 @@ data Main {
     arr: [i32; 5];
 }
 
-machine Main::main(&mut self) {
-    transition { _ -> self.view(1, 4) }
+machine Main::main(main: &mut Main) {
+    transition { _ -> Main::view(main, 1, 4) }
 }
 
-machine Main::view(&mut self, lo: u64, hi: u64) reaches Console {
-    transition lo <= hi && hi <= self.arr.len {
-        true -> self.consume(self.arr[lo..hi])
-        false -> bad()
+machine Main::view(main: &mut Main, lo: u64, hi: u64) reaches Console {
+    let arr_lo__hi_value: i32 = main.arr[lo..hi];
+    transition lo <= hi && hi <= main.arr.len {
+        true -> Main::consume(main, arr_lo__hi_value)
+        false -> bad(main)
     }
-    state bad(&mut self) { self.console.exit_process(8); }
+    state bad(main: &mut Main) { main.console.exit_process(8); }
 }
 
-machine Main::consume(&mut self, sub: &[i32]) reaches Console {
+machine Main::consume(main: &mut Main, sub: &[i32]) reaches Console {
     let n: u64 = sub.len;
     transition n == 3 {
-        true -> matched()
-        false -> unmatched()
+        true -> matched(main)
+        false -> unmatched(main)
     }
-    state matched(&mut self) { self.console.exit_process(3); }
-    state unmatched(&mut self) { self.console.exit_process(0); }
+    state matched(main: &mut Main) { main.console.exit_process(3); }
+    state unmatched(main: &mut Main) { main.console.exit_process(0); }
 }

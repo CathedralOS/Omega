@@ -131,11 +131,16 @@ execution and native exit/output. A moved refusal is still unfinished work.
   build that may never terminate is not an improvement the sample rule -- a
   migration may not make a sample fail earlier -- can bless.
   Next step, and it is a PERFORMANCE question rather than a migration one:
-  profile where the native build spends its time on this app. An 18-file
-  application whose checking costs 62 seconds and whose lowering costs more
-  than 3000 is a compiler cost defect that the migration exposes rather than
-  causes; the receiver spelling never reached lowering here, so it never paid
-  it. The rewrite itself is ready to land the moment that build terminates.
+  profile where the native build spends its time on this app. The deadline has
+  since been raised to 5400 seconds and the run still returned
+  `{"state": "timeout"}`, so 90 minutes is not enough and the bound is open.
+  Read that JSON carefully when re-measuring: `state` is the verdict and a
+  `detail` of `>Ns` is a lower bound on an unfinished run, never a duration.
+  An 18-file application whose checking costs 62 seconds and whose lowering
+  costs more than 5400 is a compiler cost defect that the migration exposes
+  rather than causes; the receiver spelling never reached lowering here, so it
+  never paid it. The rewrite itself is ready to land the moment that build
+  terminates.
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
@@ -148,9 +153,14 @@ execution and native exit/output. A moved refusal is still unfinished work.
     a fixture stopped by that diagnostic is unfinished migration, not evidence
     that its underlying ownership or execution behavior was checked.
     Build declarations obey the same cut: use `Build::package(builder, name)`
-    and `Build::depend(builder, source)`, not receiver-style calls. Migrate the
-    remaining build files and package-manager fixtures; do not restore implicit
-    builder insertion in their projector or generated prelude.
+    and `Build::depend(builder, source)`, not receiver-style calls. The authored
+    build files and the package-manager fixtures are migrated: 1118 `build.omg`
+    and 220 embedded sources, 2847 call sites. Do not restore implicit builder
+    insertion in their projector or generated prelude; two negatives in
+    `build-declarations/src/dependencies/mod.rs` assert the receiver form still
+    rejects. What remains here is the shape the projector has not moved: the
+    generic `builder.select_provider<...>()` recognizer and the `builder.roots`,
+    `.optimizations`, `.output`, `.source` and `.log` field paths.
     `STATIC-DERIVED-ACCESSOR-SUBJECT` owns generated placed-accessor parameter
     substitution and the remaining accessor call sites.
   - Replace special receiver signatures, lookup, argument insertion, state carry

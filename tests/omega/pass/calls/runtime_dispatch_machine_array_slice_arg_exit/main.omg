@@ -12,33 +12,33 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; nums: [i32; 4]; picked: i32; }
-machine Main::pick(&mut self, s: &[i32], i: u64, j: u64)
+machine Main::pick(main: &mut Main, s: &[i32], i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {
     transition j < i {
-        true -> pick(s, i, j + 1)
-        false -> leaf(s, j)
+        true -> pick(main, s, i, j + 1)
+        false -> leaf(main, s, j)
     }
-    state leaf(&mut self, s: &[i32], j: u64) -> i32 {
-        transition j < s.len { true -> leaf_go(s, j) _ -> leaf_zero() }
+    state leaf(main: &mut Main, s: &[i32], j: u64) -> i32 {
+        transition j < s.len { true -> leaf_go(main, s, j) _ -> leaf_zero() }
     }
-    state leaf_go(&mut self, s: &[i32], j: u64) -> i32 {
+    state leaf_go(main: &mut Main, s: &[i32], j: u64) -> i32 {
         // The canonical idiom: element -> FIELD, field-read terminal.
-        self.picked = s[j];
-        transition true { _ -> leaf_out() }
+        main.picked = s[j];
+        transition true { _ -> leaf_out(main) }
     }
-    state leaf_out(&mut self) -> i32 { self.picked }
-    state leaf_zero(&mut self) -> i32 { 0 }
+    state leaf_out(main: &mut Main) -> i32 { main.picked }
+    state leaf_zero() -> i32 { 0 }
 }
-machine Main::main(&mut self) reaches Console {
-    self.nums[0] = 5;
-    self.nums[1] = 6;
-    self.nums[2] = 7;
-    self.nums[3] = 8;
+machine Main::main(main: &mut Main) reaches Console {
+    main.nums[0] = 5;
+    main.nums[1] = 6;
+    main.nums[2] = 7;
+    main.nums[3] = 8;
     // Loop to j == 2, then return s[2] == 7.
-    let n: i32 = self.pick(self.nums, 2, 0);
-    transition n == 7 { true -> good(&mut self) _ -> bad(&mut self) }
+    let n: i32 = Main::pick(main, main.nums, 2, 0);
+    transition n == 7 { true -> good(main) _ -> bad(main) }
     state good(main: &mut Main) { main.console.exit_process(70); }
     state bad(main: &mut Main) { main.console.exit_process(71); }
 }

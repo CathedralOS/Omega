@@ -12,8 +12,8 @@ data ItemList {
     count: u64;
 }
 
-machine ItemList::get_count(&self) -> u64 {
-    self.count
+machine ItemList::get_count(item_list: &ItemList) -> u64 {
+    item_list.count
 }
 
 data Wrap {
@@ -21,13 +21,13 @@ data Wrap {
     case Empty;
 }
 
-machine Wrap::get_count(&self) -> u64 {
-    transition self {
+machine Wrap::get_count(wrap: &Wrap) -> u64 {
+    transition wrap {
         Wrap::Has { list } -> at(list)
         _ -> (0)
     }
     state at(list: ItemList) -> u64 {
-        list.get_count()
+        ItemList::get_count(&list)
     }
 }
 
@@ -35,9 +35,9 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     transition {
-        _ -> done(&mut self)
+        _ -> done(main)
     }
     state done(main: &mut Main) {
         main.console.exit_process(0);

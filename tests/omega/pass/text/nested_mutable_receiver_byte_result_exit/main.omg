@@ -5,9 +5,9 @@ domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
 data Labels [copy] { first: [u8; 8] in Utf8; second: [u8; 8] in Utf8; }
 data Main { console: Binding<Console>; generated: u64 in Wrapping; observed: Labels; }
 
-machine Main::next_label(&mut self) -> [u8; 8] in Utf8 {
-    self.generated = self.generated + 1;
-    transition self.generated == 1 {
+machine Main::next_label(main: &mut Main) -> [u8; 8] in Utf8 {
+    main.generated = main.generated + 1;
+    transition main.generated == 1 {
         true -> "North"
         false -> "N"
     }
@@ -18,16 +18,16 @@ machine ordered(first: [u8; 8] in Utf8, second: [u8; 8] in Utf8, destination: &m
     destination.second = second;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let mut labels: Labels;
-    ordered(self.next_label(), self.next_label(), &mut labels);
-    self.observed.first = labels.first;
-    self.observed.second = labels.second;
-    transition self.observed.first == "North" && self.observed.first.len == 5
-        && self.observed.second == "N" && self.observed.second.len == 1
-        && self.generated == 2 {
-        true -> finish(70)
-        false -> finish(1)
+    ordered(Main::next_label(main), Main::next_label(main), &mut labels);
+    main.observed.first = labels.first;
+    main.observed.second = labels.second;
+    transition main.observed.first == "North" && main.observed.first.len == 5
+        && main.observed.second == "N" && main.observed.second.len == 1
+        && main.generated == 2 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
     }
-    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

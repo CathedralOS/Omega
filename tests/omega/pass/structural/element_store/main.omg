@@ -27,20 +27,20 @@ data Main {
     cursor: u64;
 }
 
-machine Main::fill(&mut self, at: u64, node: Node)
-    requires at < self.nodes.len
+machine Main::fill(main: &mut Main, at: u64, node: Node)
+    requires at < main.nodes.len
 {
-    self.nodes[at] = node;
+    main.nodes[at] = node;
 }
 
-machine Main::fill_local(&mut self) {
+machine Main::fill_local(main: &mut Main) {
     let node: Node = Node { tag: 9, fmt: Fmt::Hex };
-    self.nodes[0] = node;
-    self.fmts[1] = Fmt::Octal;
+    main.nodes[0] = node;
+    main.fmts[1] = Fmt::Octal;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.fill(2, Node { tag: 4, fmt: Fmt::Decimal });
-    self.fill_local();
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) reaches Console {
+    Main::fill(main, 2, Node { tag: 4, fmt: Fmt::Decimal });
+    Main::fill_local(main);
+    main.console.exit_process(0);
 }

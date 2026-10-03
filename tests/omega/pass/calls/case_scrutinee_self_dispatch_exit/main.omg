@@ -12,16 +12,16 @@ data ListResponse {
     value: u64;
 }
 
-machine ListResponse::get_result_address(&self, position: u64) -> u64 {
-    self.value
+machine ListResponse::get_result_address(list_response: &ListResponse, position: u64) -> u64 {
+    list_response.value
 }
 
 data QueryResponse {
     value: u64;
 }
 
-machine QueryResponse::get_result_address(&self, position: u64) -> u64 {
-    self.value
+machine QueryResponse::get_result_address(query_response: &QueryResponse, position: u64) -> u64 {
+    query_response.value
 }
 
 data Response {
@@ -30,17 +30,17 @@ data Response {
     case Empty;
 }
 
-machine Response::get_result_address(&self, position: u64) -> u64 {
-    transition self {
+machine Response::get_result_address(response: &Response, position: u64) -> u64 {
+    transition response {
         Response::List { response } -> at(response, position)
         Response::Query { response } -> at_query(response, position)
         _ -> (0)
     }
     state at(response: ListResponse, position: u64) -> u64 {
-        response.get_result_address(position)
+        Response::get_result_address(response, position)
     }
     state at_query(response: QueryResponse, position: u64) -> u64 {
-        response.get_result_address(position)
+        Response::get_result_address(response, position)
     }
 }
 
@@ -48,11 +48,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let response: Response = Response::List { response: ListResponse { value: 7 } };
-    let address: u64 = response.get_result_address(0);
+    let address: u64 = Response::get_result_address(&response, 0);
     transition {
-        _ -> done(&mut self)
+        _ -> done(main)
     }
 
     state done(main: &mut Main) {

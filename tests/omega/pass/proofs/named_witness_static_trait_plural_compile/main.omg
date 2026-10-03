@@ -11,7 +11,7 @@ proposition second_ready() evidence Evidence;
 proposition third_ready() evidence Evidence;
 
 trait Producer {
-    machine Self::produce(&self)
+    machine Self::produce()
     requires first: first_ready()
     requires second: second_ready()
     requires third: third_ready()

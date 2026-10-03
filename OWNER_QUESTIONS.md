@@ -251,10 +251,17 @@ parameter of another data type from filling the position. Those satisfiers can
 migrate ahead of this decision, one at a time, leaving only the requirement side
 here.
 
-`source/library/core/layout.omg` is the smallest case: `pub trait Readable<T>
-{ machine read(&self) -> T; }` with `boundary machine PlacedField::read<T>(&self)
--> T satisfies Readable<T>::read;`, and the same for `DestructiveRead::take`
-and `Writable::write`.
+`source/library/core/layout.omg` is no longer a customer: `ad23841ea8 psi:
+reject retired self receivers and implicit self expressions` migrated all three
+of its requirements to spelling (2) in the same change that made `self` reject,
+and they now read `machine read(placed_field: &Self) -> T`,
+`machine take(placed_field: &mut Self) -> T` and
+`machine write(placed_field: &mut Self, value: T)`. The bundled core library
+therefore already ships spelling (2) while this question still records both as
+open and recommends (1). Seven pass fixtures spell it the same way. The
+remaining fail-tier trait requirements cannot be migrated without choosing, and
+every one of them would follow whichever spelling is confirmed, so the cheapest
+close is to ratify (2) as landed or to say that `layout.omg` is to be moved back.
 
 The widest is the boundary-trait clock in the samples. Thirteen of them --
 `cli/algorithms/{sort_visualizer,binary_search_viz}`,
