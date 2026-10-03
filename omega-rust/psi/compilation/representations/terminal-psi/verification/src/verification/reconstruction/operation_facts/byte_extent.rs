@@ -130,6 +130,48 @@ fn length_fact(
             .map_err(ModuleError::OperationSemanticSchema);
     }
     if let StructuralPlaceKind::BlockParameter { block, position } = place_kind {
+        // An owned bounded byte block parameter observes the same carrier
+        // bound a machine parameter does: its live length never exceeds the
+        // declared capacity. Borrowed extents have no static capacity and
+        // keep the descriptor-transport equation.
+        let owned_capacity = machine
+            .blocks
+            .iter()
+            .find(|candidate| candidate.id == block)
+            .and_then(|declaration| declaration.structural_parameters.get(position as usize))
+            .and_then(|parameter| {
+                module
+                    .structural_types
+                    .iter()
+                    .find_map(|declaration| match declaration.shape {
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                            capacity,
+                        }) if declaration.id == parameter.structural_type => Some(capacity),
+                        _ => None,
+                    })
+            });
+        if let Some(capacity) = owned_capacity
+            && let Some(result) = current.result.scalar()
+        {
+            let integer_type = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            )
+            .expect("u64 is valid");
+            let bound = ScalarTerm::integer(
+                integer_type,
+                semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
+            )
+            .map_err(|error| {
+                ModuleError::OperationSemanticSchema(
+                    terminal_semantics::OperationSemanticError::InvalidProposition(error),
+                )
+            })?;
+            return Ok(Some(Proposition::LessOrEqual(
+                ScalarTerm::value(result.id, result.scalar_type),
+                bound,
+            )));
+        }
         return Ok(block_length_equation(
             module,
             machine,

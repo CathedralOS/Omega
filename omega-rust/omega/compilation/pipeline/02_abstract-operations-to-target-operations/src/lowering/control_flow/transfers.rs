@@ -149,9 +149,9 @@ fn address_join_argument(
     if abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
         parameter,
         |identity| structural_types.get(&identity).copied(),
-    ) {
-        return argument.path.is_empty()
-            && !live.structural_homes.contains_key(&argument.place)
+    ) && argument.path.is_empty()
+    {
+        return !live.structural_homes.contains_key(&argument.place)
             && function
                 .structural_parameters
                 .iter()
@@ -343,6 +343,47 @@ pub(super) fn validate_successors(
                                         == parameter.projected_qualifications
                             })
                     });
+                let leaf_copy_owned_contract = || {
+                    // A whole leaf copy moves the exact carrier: its result
+                    // mints the standalone type and clears every roster — the
+                    // destination's qualifications were already proven against
+                    // the leaf's declared predicates upstream.
+                    function
+                        .operations
+                        .iter()
+                        .find_map(|operation| match operation {
+                            AbstractOperation::StructuralLeafCopy {
+                                source: backing,
+                                path: abstract_operations::StructuralCopyPath::Ordinary(path),
+                                result,
+                                ..
+                            } if result.place == place
+                                && result.structural_type == parameter.structural_type
+                                && result.multiplicity
+                                    == terminal_psi::StructuralMultiplicity::Unrestricted
+                                && result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && result.claims.is_empty() =>
+                            {
+                                let root = function
+                                    .arrival_parameter(*backing)
+                                    .map(|root| root.structural_type)
+                                    .or_else(|| {
+                                        function
+                                            .block_entries
+                                            .iter()
+                                            .flat_map(|entry| &entry.structural_parameters)
+                                            .find(|source| source.place == *backing)
+                                            .map(|source| source.structural_type)
+                                    });
+                                Some(root.is_some_and(|root| {
+                                    structural_types.subtree(root, path)
+                                        == Some(parameter.structural_type)
+                                }))
+                            }
+                            _ => None,
+                        })
+                };
                 let argument_type = source_type.and_then(|root| {
                     if binding.argument.path.is_empty() {
                         Some(root)
@@ -361,7 +402,8 @@ pub(super) fn validate_successors(
                 });
                 if binding.parameter != parameter.place
                     || (parameter.access == terminal_psi::StructuralAccess::Owned
-                        && exact_source_owned_contract != Some(true))
+                        && exact_source_owned_contract != Some(true)
+                        && leaf_copy_owned_contract() != Some(true))
                     || !argument_type.is_some_and(|actual| {
                         if parameter.access == terminal_psi::StructuralAccess::Owned {
                             actual == parameter.structural_type
@@ -376,8 +418,20 @@ pub(super) fn validate_successors(
                     || binding.argument.access != parameter.access
                     || moved_loan_leaf
                     || (!binding.argument.path.is_empty()
-                        && (parameter.access != terminal_psi::StructuralAccess::Owned
-                            || references::is_suspended_root(live, place)))
+                        && (references::is_suspended_root(live, place)
+                            || (parameter.access != terminal_psi::StructuralAccess::Owned
+                                && !structural_types.get(&parameter.structural_type).is_some_and(
+                                    |declaration| {
+                                        matches!(
+                                            declaration.shape,
+                                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                                terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                                    ..
+                                                },
+                                            )
+                                        )
+                                    },
+                                ))))
                     || !matches!(
                         parameter.access,
                         terminal_psi::StructuralAccess::SharedBorrow

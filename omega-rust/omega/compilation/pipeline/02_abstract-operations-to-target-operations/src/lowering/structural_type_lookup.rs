@@ -77,7 +77,7 @@ impl<'a> StructuralTypeLookup<'a> {
                     match &field.field_type {
                         StructuralFieldType::Structural(child) => *child,
                         leaf => {
-                            let shape = leaf.canonical_leaf_shape()?;
+                            let shape = leaf.leaf_copy_shape()?;
                             *self
                                 .iter()
                                 .find(|(_, declaration)| declaration.shape == shape)

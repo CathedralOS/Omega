@@ -12,7 +12,7 @@ use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -22,6 +22,7 @@ use terminal_psi::{
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch;
     let mut places = function
@@ -99,8 +100,13 @@ pub(super) fn validate(
                     // parameter. Owned transfer moves the value and roster;
                     // the loan instead retains its exact access. Only shared
                     // access freezes contents; mutable arrival changes no
-                    // declared predicate or currentness requirement.
-                    binding.argument.path.is_empty()
+                    // declared predicate or currentness requirement. The same
+                    // evidence arrives projected: the argument names one
+                    // declared byte leaf whose carrier is the parameter's and
+                    // whose field predicates imply the parameter's roster, or
+                    // copies that leaf whole — the producer's recorded path
+                    // carries the qualification's provenance.
+                    let forwarded = binding.argument.path.is_empty()
                         && function
                             .structural_parameters
                             .iter()
@@ -118,7 +124,54 @@ pub(super) fn validate(
                                     && source.qualifications == parameter.qualifications
                                     && source.projected_qualifications.is_empty()
                                     && !source.is_self
-                            })
+                            });
+                    let copied = binding.argument.path.is_empty()
+                        && binding.argument.access == StructuralAccess::Owned
+                        && function
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.nodes)
+                            .any(|node| match &node.operation {
+                                O::StructuralLeafCopy {
+                                    source: backing,
+                                    path: abstract_operations::StructuralCopyPath::Ordinary(path),
+                                    result,
+                                    ..
+                                } => {
+                                    result.place == binding.argument.place
+                                        && result.structural_type == parameter.structural_type
+                                        && result.multiplicity
+                                            == StructuralMultiplicity::Unrestricted
+                                        && result.qualifications.is_empty()
+                                        && result.projected_qualifications.is_empty()
+                                        && result.claims.is_empty()
+                                        && function.arrival_parameter(*backing).is_some_and(
+                                            |root| {
+                                                byte_leaf_predicates(
+                                                    types,
+                                                    domains,
+                                                    root.structural_type,
+                                                    path,
+                                                    parameter,
+                                                )
+                                            },
+                                        )
+                                }
+                                _ => false,
+                            });
+                    let projected = !binding.argument.path.is_empty()
+                        && function
+                            .arrival_parameter(binding.argument.place)
+                            .is_some_and(|root| {
+                                byte_leaf_predicates(
+                                    types,
+                                    domains,
+                                    root.structural_type,
+                                    &binding.argument.path,
+                                    parameter,
+                                )
+                            });
+                    forwarded || copied || projected
                 } else if address_join(parameter, types) {
                     // The root lends its address; it neither changes owner nor
                     // widens past shared access, and the path names the join's
@@ -210,6 +263,54 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+/// The declared byte evidence a projected path ends at: its last segment
+/// names a field of the resolved parent whose byte carrier is the expected
+/// parameter's carrier and whose declared predicates imply the parameter's
+/// roster — the same storage facts a forwarded declaration states inline.
+fn byte_leaf_predicates(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    root_type: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    parameter: &StructuralParameterDeclaration,
+) -> bool {
+    let Some((terminal_psi::StructuralPathSegment::Field(identity), prefix)) = path.split_last()
+    else {
+        return false;
+    };
+    let Some(field) =
+        terminal_semantics::runtime_structural_path_tip(types.values().copied(), root_type, prefix)
+            .and_then(|parent| match &parent.shape {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased()),
+                _ => None,
+            })
+    else {
+        return false;
+    };
+    field
+        .field_type
+        .byte_sequence_carrier()
+        .is_some_and(|carrier| {
+            types
+                .get(&parameter.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(declared) if declared == carrier
+                    )
+                })
+        })
+        && terminal_semantics::byte_qualification_predicates_in(
+            domains.values().copied(),
+            parameter.structural_type,
+            &parameter.qualifications,
+        )
+        .is_some_and(|required| field.field_type.byte_predicates().implies(required))
 }
 
 fn address_join(

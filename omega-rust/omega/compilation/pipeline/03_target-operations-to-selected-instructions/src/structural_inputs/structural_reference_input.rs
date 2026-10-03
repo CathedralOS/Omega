@@ -1491,6 +1491,21 @@ pub(crate) fn project(
     )
 }
 
+/// Byte-carrier leaves resolve to the standalone declaration a leaf copy of
+/// them mints — the same storage projection, extended past plain leaves.
+pub(crate) fn leaf_copy_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, u32)> {
+    project_with_leaf_shape(
+        root,
+        path,
+        declarations,
+        StructuralFieldType::leaf_copy_shape,
+    )
+}
+
 fn project_with_leaf_shape(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
