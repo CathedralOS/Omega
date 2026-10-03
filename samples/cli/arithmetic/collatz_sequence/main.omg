@@ -1,73 +1,57 @@
 // Collatz ("hailstone") sequence length. Starting at N = 27, count the steps to
 // reach 1, where each step is `n/2` when n is even and `3n+1` when n is odd. 27
 // is the famous small seed: it takes 111 steps and peaks at 9232 before falling
-// to 1. The `3n+1` step is GENUINELY unbounded math (whether any seed's orbit
-// stays bounded is the open Collatz conjecture itself), so the arithmetic
-// DECLARES honest modular semantics with `in Wrapping` -- no proof of a bound
-// exists to make it Exact. Drives a pure self-transition loop with no host I/O
-// until the final exit.
+// to 1. The sample retains modular arithmetic with `in Wrapping`; it does not
+// claim termination or an overflow bound for arbitrary seeds. Loop values are
+// explicit state arguments, not persistent fields.
 // Expected exit: 111.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Collatz [copy] {
-    value: i32 in Wrapping; // Wrapping DECLARED: 3n+1 growth is the open Collatz conjecture -- no bound is provable.
-    steps: i32 in Wrapping; // Wrapping DECLARED: the step count has no provable ceiling (termination is the conjecture).
-}
-
-data Main {
-    console: Binding<Console>;
-    collatz: Collatz;
-    pause: [u8; 256];
-}
-
-machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("collatz_sequence: count hailstone steps from 27 down to 1");
-    main.collatz.value = 27;
-    main.collatz.steps = 0;
+machine main() reaches Console {
+    Console::write_line("collatz_sequence: count hailstone steps from 27 down to 1");
 
     transition {
-        _ -> step(main)
+        _ -> step(27, 0)
     }
 
     // One hailstone step, or stop once the sequence has collapsed to 1.
-    state step(main: &mut Main) {
-        transition main.collatz.value == 1 {
-            true -> done(main)
-            _ -> advance(main)
+    state step(value: i32 in Wrapping, steps: i32 in Wrapping) {
+        transition value == 1 {
+            true -> done(steps)
+            _ -> advance(value, steps)
         }
     }
 
-    // Count this step, then branch on parity (computed into a local so the guard
-    // compares a plain value, never inline arithmetic).
-    state advance(main: &mut Main) {
-        main.collatz.steps = main.collatz.steps + 1;
-        let remainder: i32 = (main.collatz.value % 2) as i32;
+    // Count this step, then branch on parity.
+    state advance(value: i32 in Wrapping, steps: i32 in Wrapping) {
+        let next_steps: i32 in Wrapping = steps + 1;
+        let remainder: i32 = (value % 2) as i32;
         transition remainder == 0 {
-            true -> halve(main)
-            _ -> climb(main)
+            true -> halve(value, next_steps)
+            _ -> climb(value, next_steps)
         }
     }
 
-    state halve(main: &mut Main) {
-        main.collatz.value = main.collatz.value / 2;
+    state halve(value: i32 in Wrapping, steps: i32 in Wrapping) {
+        let next: i32 in Wrapping = value / 2;
         transition {
-            _ -> step(main)
+            _ -> step(next, steps)
         }
     }
 
-    state climb(main: &mut Main) {
-        main.collatz.value = main.collatz.value * 3 + 1;
+    state climb(value: i32 in Wrapping, steps: i32 in Wrapping) {
+        let next: i32 in Wrapping = value * 3 + 1;
         transition {
-            _ -> step(main)
+            _ -> step(next, steps)
         }
     }
 
-    state done(main: &mut Main) {
-        main.console.write_line("result: the step count, 111 for seed 27 (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.collatz.steps as i32);
+    state done(steps: i32 in Wrapping) {
+        Console::write_line("result: the step count, 111 for seed 27 (the exit code)");
+        Console::write_line("[press Enter to close]");
+        let mut pause: [u8; 256];
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(steps as i32);
     }
 }
