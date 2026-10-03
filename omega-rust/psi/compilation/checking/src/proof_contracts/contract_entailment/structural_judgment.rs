@@ -101,6 +101,111 @@ mod case_premise_tests {
     use super::{StructuralJudge, StructuralTerm};
 
     #[test]
+    fn nat_field_citation_substitution_matches_authored_hypotheses() {
+        let program = crate::front_end::typed_program(
+            r#"
+            data Nat { case Zero; case Succ(previous: Nat); }
+            data Pair { positive: Nat; negative: Nat; }
+            machine add(left: Nat, right: Nat) -> Nat
+            terminates by left;
+            {
+                transition left {
+                    Nat::Zero -> (right)
+                    Nat::Succ { previous } -> Nat::Succ { previous: add(previous, right) }
+                }
+            }
+            machine cited(source: Pair)
+            requires (add(source.positive, source.negative)) == (add(source.negative, source.positive))
+            ensures (add(source.positive, source.negative)) == (add(source.negative, source.positive))
+            {}
+            machine caller(actual: Pair)
+            requires (add(actual.positive, actual.negative)) == (add(actual.negative, actual.positive))
+            { cited(actual); }
+        "#,
+        );
+        let machine = |name: &str| {
+            program
+                .machines()
+                .iter()
+                .find(|row| row.name.as_str() == name)
+                .unwrap()
+        };
+        let cited = machine("cited");
+        let caller = machine("caller");
+        let caller_requires = super::super::citations::machine_requires_facts(&program, caller);
+        let cited_requires = super::super::citations::machine_requires_facts(&program, cited);
+        let judge = StructuralJudge::from_requires(&program, caller, &caller_requires);
+        let super::ExpressionNode::Binary(cited_fact) =
+            program.expression_table.expression(cited_requires[0])
+        else {
+            panic!("citation equation")
+        };
+        let super::ExpressionNode::Binary(caller_fact) =
+            program.expression_table.expression(caller_requires[0])
+        else {
+            panic!("caller equation")
+        };
+        let environment = [(
+            "source".to_owned(),
+            StructuralTerm::Variable("actual".to_owned()),
+        )];
+        let left = judge.callee_term(cited_fact.left, &environment, 0).unwrap();
+        let right = judge
+            .callee_term(cited_fact.right, &environment, 0)
+            .unwrap();
+        assert_eq!(
+            left,
+            super::structural_term(&program, caller_fact.left).unwrap()
+        );
+        assert_eq!(
+            right,
+            super::structural_term(&program, caller_fact.right).unwrap()
+        );
+        assert!(matches!(
+            judge.judge_equation(judge.resolve(left.clone()), judge.resolve(right), 0),
+            super::StructuralJudgment::Proven
+        ));
+        let wrong_environment = [(
+            "source".to_owned(),
+            StructuralTerm::Variable("other".to_owned()),
+        )];
+        let wrong = judge
+            .callee_term(cited_fact.right, &wrong_environment, 0)
+            .unwrap();
+        assert!(!matches!(
+            judge.judge_equation(judge.resolve(left), judge.resolve(wrong), 0),
+            super::StructuralJudgment::Proven
+        ));
+    }
+
+    #[test]
+    fn declared_length_citation_keeps_substitutable_projection() {
+        let program = crate::front_end::typed_program(
+            r#"
+            machine extent(buffer: &[u8; 4]) requires buffer.len == 4 {}
+        "#,
+        );
+        let machine = &program.machines()[0];
+        let requires = super::super::citations::machine_requires_facts(&program, machine);
+        let super::ExpressionNode::Binary(fact) = program.expression_table.expression(requires[0])
+        else {
+            panic!("length equality")
+        };
+        let term = super::structural_term(&program, fact.left).unwrap();
+        let substituted = StructuralJudge::substitute_term(
+            &term,
+            &[(
+                "buffer".to_owned(),
+                StructuralTerm::Opaque("actual.storage".into()),
+            )],
+        );
+        assert!(
+            matches!(substituted, StructuralTerm::Projection { subject, path }
+            if *subject == StructuralTerm::Opaque("actual.storage".into()) && path == "len")
+        );
+    }
+
+    #[test]
     fn completed_result_projection_substitution_keeps_its_binding() {
         let program = crate::front_end::typed_program("machine caller() {}");
         let subject = program.machines()[0].symbol;
