@@ -886,37 +886,51 @@ fn establish_fields(
                 lookup(declarations, nested).map(|declaration| &declaration.shape),
                 Some(StructuralTypeShape::Reference { .. })
             );
-        let multiplicity = if bare_carrier {
-            custody
+        let (root_type, multiplicity) = source_contract(function, custody, argument.place)?;
+        if argument.access != StructuralAccess::Owned
+            || leaf_type(declarations, root_type, &argument.path) != Some(nested)
+            || multiplicity == StructuralMultiplicity::Linear
+            || (!argument.path.is_empty()
+                && (multiplicity != StructuralMultiplicity::Affine || reference_bearing))
+            || function
+                .arrival_parameter(argument.place)
+                .is_some_and(|parameter| {
+                    parameter.access != StructuralAccess::Owned
+                        || !parameter.qualifications.is_empty()
+                        || !parameter.projected_qualifications.is_empty()
+                })
+        {
+            return None;
+        }
+        if bare_carrier
+            && custody
                 .leaves
-                .get(&(argument.place, Vec::new()))
-                .filter(|leaf| leaf.structural_type == nested)?
-                .multiplicity
-        } else if let Some(&(structural_type, multiplicity)) = custody.homes.get(&argument.place) {
-            if structural_type != nested {
-                return None;
-            }
-            multiplicity
-        } else {
-            let mut parameters = function
-                .structural_parameters
+                .get(&(argument.place, Vec::new()))?
+                .structural_type
+                != nested
+        {
+            return None;
+        }
+        if multiplicity == StructuralMultiplicity::Affine {
+            if consumed
                 .iter()
-                .filter(|parameter| parameter.place == argument.place);
-            let parameter = parameters.next()?;
-            if parameters.next().is_some()
-                || parameter.structural_type != nested
-                || parameter.access != StructuralAccess::Owned
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
+                .any(|(place, path): &(PlaceId, Vec<StructuralPathSegment>)| {
+                    *place == argument.place
+                        && (path.starts_with(&argument.path) || argument.path.starts_with(path))
+                })
             {
                 return None;
             }
-            parameter.multiplicity
-        };
-        if argument.access != StructuralAccess::Owned
-            || !argument.path.is_empty()
-            || multiplicity == StructuralMultiplicity::Linear
-            || (multiplicity == StructuralMultiplicity::Affine && !consumed.insert(argument.place))
+            consumed.insert((argument.place, argument.path.clone()));
+        }
+        // Projected non-reference storage does not move an unrelated sibling's
+        // loan. Reference-bearing constructors keep the producer's existing
+        // complete-carrier relocation contract below.
+        if !reference_bearing
+            && custody.leaves.keys().any(|(carrier, path)| {
+                *carrier == argument.place
+                    && (path.starts_with(&argument.path) || argument.path.starts_with(path))
+            })
         {
             return None;
         }
@@ -956,8 +970,10 @@ fn establish_fields(
     {
         return None;
     }
-    for place in consumed {
-        custody.homes.remove(&place);
+    for (place, path) in consumed {
+        if path.is_empty() {
+            custody.homes.remove(&place);
+        }
     }
     for (from, to) in relocations {
         if let Some(leaf) = custody.leaves.remove(&from) {
@@ -990,6 +1006,31 @@ fn discard_owned(
         custody.leaves.remove(&(source, path.clone()))?;
     }
     if custody.leaves.keys().any(|(carrier, _)| *carrier == source) {
+        return None;
+    }
+    Some(())
+}
+
+/// A residual retires only its selected storage subtree. The native producer
+/// admits non-reference residuals; other siblings may still retain live loans.
+/// Whole ownership conservation is replayed upstream, while this pass checks
+/// the exact type/path and refuses any overlap with its current reference map.
+fn discard_residual(
+    function: &AbstractFunction,
+    declarations: &[StructuralTypeDeclaration],
+    custody: &Custody,
+    discard: &terminal_psi::StructuralAffineDiscard,
+) -> Option<()> {
+    let (root, multiplicity) = source_contract(function, custody, discard.place)?;
+    if discard.path.is_empty()
+        || multiplicity != StructuralMultiplicity::Affine
+        || leaf_type(declarations, root, &discard.path) != Some(discard.structural_type)
+        || contains_reference(declarations, discard.structural_type)
+        || custody.leaves.keys().any(|(carrier, path)| {
+            *carrier == discard.place
+                && (path.starts_with(&discard.path) || discard.path.starts_with(path))
+        })
+    {
         return None;
     }
     Some(())
@@ -1164,10 +1205,13 @@ fn apply_terminator(
             cleanup_actions, ..
         } => {
             for action in cleanup_actions {
-                let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
-                    return None;
-                };
-                discards.push(*place);
+                match action {
+                    TerminalAffineCleanupAction::DiscardRoot(place) => discards.push(*place),
+                    TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                        discard_residual(function, declarations, custody, discard)?;
+                    }
+                    _ => return None,
+                }
             }
         }
         AbstractOperation::Jump {
@@ -1175,8 +1219,8 @@ fn apply_terminator(
             residual_affine_discards,
             ..
         } => {
-            if !residual_affine_discards.is_empty() {
-                return None;
+            for discard in residual_affine_discards {
+                discard_residual(function, declarations, custody, discard)?;
             }
             discards.extend(trivial_affine_discards.iter().copied());
         }
@@ -1302,22 +1346,8 @@ pub(super) fn expected(
         ranges.push(entry.operation_offset..end);
         let targets = match &function.operations[end - 1] {
             AbstractOperation::ReturnStructural { .. } => Vec::new(),
-            AbstractOperation::Return {
-                cleanup_actions, ..
-            }
-            | AbstractOperation::ReturnUnit {
-                cleanup_actions, ..
-            } if cleanup_actions
-                .iter()
-                .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_))) =>
-            {
-                Vec::new()
-            }
-            AbstractOperation::Jump {
-                target,
-                residual_affine_discards,
-                ..
-            } if residual_affine_discards.is_empty() => vec![*target],
+            AbstractOperation::Return { .. } | AbstractOperation::ReturnUnit { .. } => Vec::new(),
+            AbstractOperation::Jump { target, .. } => vec![*target],
             AbstractOperation::Conditional {
                 when_true,
                 when_false,
@@ -1371,3 +1401,6 @@ pub(super) fn expected(
     }
     Some(expected)
 }
+
+#[cfg(test)]
+mod tests;
