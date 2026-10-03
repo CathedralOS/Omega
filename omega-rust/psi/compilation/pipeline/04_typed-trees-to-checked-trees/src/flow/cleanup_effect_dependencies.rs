@@ -5,13 +5,12 @@
 //! set: an unknown active case contributes its possible remaining variants;
 //! repeated array elements contribute one target edge, not invented call sites.
 use super::carried_semantic_dependencies::{event_statement_index, event_type_reference};
-use crate::checks::CleanupDispositions;
 use arena::Arena;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use facts::PlaceSegment;
 use flow_effects::{CleanupDependency, OperationalPlan};
-use language_semantics::{MachineSupplyMode, PermissionAccess, PermissionEventKind};
+use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
@@ -23,8 +22,8 @@ pub(crate) fn derive_cleanup_effect_dependencies(
     program: &TypedTrees,
     operational: &OperationalPlan,
     facts: &CheckFacts,
-    dispositions: &CleanupDispositions,
 ) -> Result<Arena<CleanupDependency>, Vec<Diagnostic>> {
+    let dispositions = &facts.contextual_cleanup;
     let mut dependencies = Arena::default();
     let proof_only = validation::proof_only_classification(program);
     // Specialization retains authored templates and their symbolic custody
@@ -53,25 +52,26 @@ pub(crate) fn derive_cleanup_effect_dependencies(
             }
         }
     }
-    for (_, disposition) in dispositions.rows.iter() {
-        let event = &disposition.event;
-        if event.kind != PermissionEventKind::AffineDrop
-            || event.access != PermissionAccess::Owned
-            || !program
-                .machine_by_symbol(event.machine_symbol)
-                .is_some_and(|machine| {
-                    machine.supply_mode == MachineSupplyMode::CheckedBody
+    for (_, disposition) in dispositions.dispositions.iter() {
+        if !program
+            .machine_by_symbol(disposition.machine)
+            .is_some_and(|machine| {
+                machine.supply_mode == MachineSupplyMode::CheckedBody
                         // The source ledger still owns the template's symbolic
                         // disposition. Each exact instance has its own substituted
                         // body and custody rows; never union instance effects back
                         // onto the template or another application.
                         && program.machine_type_parameters(machine).is_empty()
                         && !proof_only.is_proof_machine(program, machine)
-                })
+            })
         {
             continue;
         }
-        let path = facts.flow.ownership.segments.span_or_empty(event.segments);
+        let path = facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(disposition.path);
         let removed = dispositions
             .exclusions
             .span_or_empty(disposition.exclusions)
@@ -85,9 +85,9 @@ pub(crate) fn derive_cleanup_effect_dependencies(
             .iter()
             .filter_map(|removed| removed.strip_prefix(path))
             .collect::<Vec<_>>();
-        let statement = event_statement_index(program, event.state_symbol, event.source);
+        let statement = event_statement_index(program, disposition.state, disposition.source);
         let Some(reference) =
-            event_type_reference(program, event.state_symbol, statement, event.root, &[])
+            event_type_reference(program, disposition.state, statement, disposition.root, &[])
         else {
             return Err(vec![Diagnostic::error(
                 "selected cleanup has no exact source storage type",
@@ -108,7 +108,7 @@ pub(crate) fn derive_cleanup_effect_dependencies(
         }) {
             return Err(vec![Diagnostic::error(format!(
                 "cleanup effect dependency in `{}` has no exact structural residual disposition",
-                program.symbols.name(event.machine_symbol),
+                program.symbols.name(disposition.machine),
             ))]);
         }
         for target in targets {
@@ -119,8 +119,8 @@ pub(crate) fn derive_cleanup_effect_dependencies(
                 continue;
             };
             let edge = CleanupDependency {
-                caller_machine: event.machine_symbol,
-                caller_state: event.state_symbol,
+                caller_machine: disposition.machine,
+                caller_state: disposition.state,
                 target_machine: target,
                 target_state: entry.symbol,
             };

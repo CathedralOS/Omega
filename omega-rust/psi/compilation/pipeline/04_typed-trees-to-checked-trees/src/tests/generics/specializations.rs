@@ -4,6 +4,72 @@ use crate::tests::front_end::{checked_program, checked_program_result, typed_pro
 use crate::tests::lower_typed_trees;
 
 #[test]
+fn specialization_children_retain_exact_template_origins() {
+    let checked = checked_program(
+        r#"
+        machine carry<T>(value: T) -> T {
+            let saved: T = value;
+            saved
+        }
+        machine integer(value: i32) -> i32 { carry(value) }
+        machine boolean(value: bool) -> bool { carry(value) }
+        "#,
+    );
+    let template = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "carry")
+        .unwrap();
+    let original_state = &checked.machine_states(template)[0];
+    let original_parameter = checked.state_parameters(original_state)[0].symbol;
+    let original_local = checked
+        .statement_table
+        .statements(original_state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+            _ => None,
+        })
+        .unwrap();
+    let instances = checked
+        .machine_specializations
+        .iter()
+        .filter(|row| row.template == template.symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 2);
+    for instance in instances {
+        let machine = checked.machine_by_symbol(instance.instance).unwrap();
+        assert_eq!(
+            checked.symbols.get(machine.symbol).generated_from,
+            template.symbol
+        );
+        let state = &checked.machine_states(machine)[0];
+        assert_eq!(
+            checked.symbols.get(state.symbol).generated_from,
+            original_state.symbol
+        );
+        let parameter = checked.state_parameters(state)[0].symbol;
+        assert_eq!(
+            checked.symbols.get(parameter).generated_from,
+            original_parameter
+        );
+        let local = checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(checked.symbols.get(local).generated_from, original_local);
+        assert_eq!(checked.symbols.authored_origin(local), original_local);
+        assert_eq!(checked.symbols.get(parameter).parent, state.symbol);
+        assert_eq!(checked.symbols.get(local).parent, state.symbol);
+    }
+}
+
+#[test]
 fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
     let source = r#"
         pub data Index {

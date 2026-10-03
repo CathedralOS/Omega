@@ -6,6 +6,62 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[test]
+fn generated_children_retain_individual_origins_and_contiguous_parentage() {
+    let package = PackageKeyIdentity::from_digest([8; 32]).unwrap();
+    let (mut symbols, authored) = sourced_symbol_table([
+        (SourceOrigin::User, Some(package)),
+        (SourceOrigin::Toolchain, None),
+    ]);
+    let parent = symbols.insert_generated_root_from(authored[0], SymbolKind::Machine, "clone");
+    let children = symbols.insert_generated_children_from(
+        parent,
+        [
+            (authored[0], SymbolKind::Parameter, "first"),
+            (authored[1], SymbolKind::Local, "second"),
+        ],
+    );
+    let handles = SymbolTableBuilder::child_handles(children).collect::<Vec<_>>();
+    assert_eq!(symbols.get(parent).children, children);
+    assert_eq!(handles[1].arena_index(), handles[0].arena_index() + 1);
+    for (child, origin) in handles.iter().copied().zip(authored.iter().copied()) {
+        assert_eq!(symbols.get(child).parent, parent);
+        assert_eq!(symbols.get(child).generated_from, origin);
+        assert_eq!(symbols.authored_origin(child), origin);
+        assert_eq!(
+            symbols.symbol_package_identity(child),
+            symbols.symbol_package_identity(origin)
+        );
+        assert_eq!(
+            symbols.symbol_source_origin(child),
+            symbols.symbol_source_origin(origin)
+        );
+    }
+    let next = symbols.insert_generated_root_from(parent, SymbolKind::Machine, "next");
+    let descendant = SymbolTableBuilder::child_handles(
+        symbols.insert_generated_children_from(next, [(handles[1], SymbolKind::Local, "second")]),
+    )
+    .next()
+    .unwrap();
+    assert_eq!(symbols.get(descendant).generated_from, handles[1]);
+    assert_eq!(symbols.authored_origin(descendant), authored[1]);
+}
+
+#[test]
+#[should_panic(expected = "existing derivation origins")]
+fn generated_children_reject_absent_derivation_origin() {
+    let (mut symbols, authored) = sourced_symbol_table([(SourceOrigin::User, None)]);
+    let parent = symbols.insert_generated_root_from(authored[0], SymbolKind::Machine, "clone");
+    symbols.insert_generated_children_from(
+        parent,
+        [(
+            crate::SymbolHandle::invalid(),
+            SymbolKind::Parameter,
+            "value",
+        )],
+    );
+}
+
+#[test]
 fn product_package_identity_excludes_the_build_checked_instance() {
     let package_identity =
         PackageKeyIdentity::from_digest([6; 32]).expect("nonzero package identity");

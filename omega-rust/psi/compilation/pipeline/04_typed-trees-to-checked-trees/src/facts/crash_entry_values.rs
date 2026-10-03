@@ -40,7 +40,9 @@ use validation::has_stable_observable_contents;
 
 mod checked_projection;
 mod literal_projection;
+mod places;
 pub(super) use checked_projection::entry_value as checked_projected_entry_value;
+pub(super) use places::entry_place;
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};
@@ -430,15 +432,25 @@ fn member_entry_name(
     member: &typed_trees::expression::TableMemberExpression,
     field_symbol: SymbolHandle,
 ) -> String {
+    field_entry_name(
+        program,
+        field_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    )
+}
+
+fn field_entry_name(
+    program: &TypedTrees,
+    field_symbol: SymbolHandle,
+    field_name: &str,
+    authored_case: Option<&str>,
+) -> String {
     let Some(variant) = facts::payload_variant_for_field(program, field_symbol) else {
-        return member.member.as_str().to_owned();
+        return field_name.to_owned();
     };
-    let case = member
-        .case_variant
-        .as_ref()
-        .map(|case| case.as_str())
-        .unwrap_or_else(|| program.symbols.name(variant));
-    format!("{case}::{}", member.member.as_str())
+    let case = authored_case.unwrap_or_else(|| program.symbols.name(variant));
+    format!("{case}::{field_name}")
 }
 
 /// The `PlaceSegment` projection `members` spells below a formal's declared
@@ -816,11 +828,40 @@ fn entry_operand_name_at(
     }
     let (machine, state) =
         crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
+    let symbol = receiver_parameter_symbol(program, machine, state, path).unwrap_or(path.symbol);
+    entry_operand_symbol_at(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        symbol,
+        field_path,
+        depth,
+    )
+}
+
+/// Shared provenance for an already resolved binding. Expression callers
+/// validate their name syntax first; canonical places already retain the symbol.
+fn entry_operand_symbol_at(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    symbol: SymbolHandle,
+    field_path: &[PlaceSegment],
+    depth: u32,
+) -> Option<CrashPredicateExpression> {
+    if depth >= MAX_ENTRY_PROVENANCE_DEPTH || !symbol.is_valid() {
+        return None;
+    }
+    let (machine, state) =
+        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
     if let Some((ordinal, local)) = program
-        .state_local_declaration(state, path.symbol)
+        .state_local_declaration(state, symbol)
         .filter(|&(ordinal, _)| ordinal < before_statement)
     {
-        let mutable_storage = observation_requires_write_scan(program, local.type_reference)?;
+        let mutable_storage =
+            observation_requires_write_scan(program, local.type_reference, field_path)?;
         if (local.is_mutable || mutable_storage)
             && !storage_holds_bound_value(
                 program,
@@ -858,7 +899,7 @@ fn entry_operand_name_at(
         machine,
         machine_symbol,
         state_symbol,
-        receiver_parameter_symbol(program, machine, state, path).unwrap_or(path.symbol),
+        symbol,
         before_statement,
         field_path,
         depth,
@@ -949,15 +990,20 @@ fn builtin_binary_meaning(
 fn observation_requires_write_scan(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
+    field_path: &[PlaceSegment],
 ) -> Option<bool> {
-    match program.type_reference_table.type_reference(type_reference) {
+    let stable = match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable,
             referee,
             ..
         } => has_stable_observable_contents(program, *referee).then_some(true),
         _ => has_stable_observable_contents(program, type_reference).then_some(false),
+    };
+    if stable.is_some() || field_path.is_empty() {
+        return stable;
     }
+    places::projection_requires_write_scan(program, type_reference, field_path)
 }
 
 /// A state parameter's saved actual is whatever every arrival binds to it:
@@ -1030,7 +1076,8 @@ fn state_parameter_entry_operand(
             u32::try_from(entry_ordinal).ok()?,
         ));
     }
-    let mutable_storage = observation_requires_write_scan(program, parameter.type_reference)?;
+    let mutable_storage =
+        observation_requires_write_scan(program, parameter.type_reference, field_path)?;
     let mutable = parameter.is_mutable || mutable_storage;
     if mutable
         && !storage_holds_bound_value(

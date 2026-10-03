@@ -12,6 +12,7 @@
 mod canonical_encoding;
 pub(crate) mod capabilities;
 mod carry;
+pub(crate) mod contextual_cleanup;
 pub(crate) mod contract_occurrences;
 mod contract_plan_facts;
 mod crash_calls;
@@ -215,13 +216,9 @@ pub(crate) fn build_check_facts(
         flow,
         ..CheckFacts::default()
     };
-    let cleanup_dispositions = crate::checks::prepare_permission_events(program, &mut prepared)?;
-    let dependencies = crate::flow::derive_cleanup_effect_dependencies(
-        program,
-        &operational,
-        &prepared,
-        &cleanup_dispositions,
-    )?;
+    crate::checks::prepare_permission_events(program, &mut prepared)?;
+    let dependencies =
+        crate::flow::derive_cleanup_effect_dependencies(program, &operational, &prepared)?;
     let operational =
         validation::infer_operational_may_with_cleanup_dependencies(program, &dependencies);
     let service_reach_inference = validation::infer_service_reaches(program, &operational);
@@ -243,6 +240,7 @@ pub(crate) fn build_check_facts(
         domains,
         operators,
         mut flow,
+        contextual_cleanup,
         ..
     } = prepared;
     flow.terminal_scalar_graphs =
@@ -396,6 +394,7 @@ pub(crate) fn build_check_facts(
     Ok((
         CheckFacts {
             operational,
+            contextual_cleanup,
             semantic,
             borrow,
             proof,

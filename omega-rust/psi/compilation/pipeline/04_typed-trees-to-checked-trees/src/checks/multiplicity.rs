@@ -12,7 +12,6 @@ mod borrowed_windows;
 mod claim_outcomes;
 mod cleanup_dispositions;
 mod consumed_owners;
-pub(crate) use cleanup_dispositions::CleanupDispositions;
 mod linear_obligations;
 mod linear_validation;
 mod owned_selection;

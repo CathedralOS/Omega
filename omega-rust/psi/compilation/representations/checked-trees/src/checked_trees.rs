@@ -50,6 +50,10 @@ pub use borrow::{
     ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::{
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupFacts,
+};
+
+pub use facts::{
     BlockingFacts, BuildBoundProgressDemand, CallServiceReachRows, CarryFacts, CheckFacts,
     CheckedBoundaryAdapterDispatch, CheckedCallbackPlacementIdentity,
     CheckedCallbackResourceReceipt, CheckedCrashCallSite, CheckedCrashOperatorSite,

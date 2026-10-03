@@ -300,5 +300,3 @@ pub use contracts::{
     derive_contract_entailment_exit_membership_discharges,
     recheck_contract_entailment_exit_membership_discharge,
 };
-
-pub(crate) use multiplicity::CleanupDispositions;

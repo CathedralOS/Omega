@@ -11,6 +11,7 @@
 
 // `CheckFacts`, the root that holds every fact family.
 mod collection;
+mod contextual_cleanup;
 
 // Machine contract and interface axes: contract and crash plans with
 // operator crash sites, termination, blocking, suspension, synchronous
@@ -58,6 +59,9 @@ pub use content::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite, ContentProjectionFacts, RetainedBorrowCustodyFact,
+};
+pub use contextual_cleanup::{
+    ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupFacts,
 };
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,

@@ -3,23 +3,12 @@
 //! This is a projection of the permission producer's occurrence order, not a
 //! second control-flow analysis. The producer forks this state alongside its
 //! ordinary ownership state for each outgoing edge.
-use arena::{Arena, HandleSpan};
-use checked_trees::FlowPermissionEventFact;
+use arena::Arena;
+use checked_trees::{
+    ContextualCleanupDisposition, ContextualCleanupFacts, FlowPermissionEventFact,
+};
 use facts::{Place, PlaceRoot, PlaceSegment};
 use language_semantics::{PermissionAccess, PermissionEventKind};
-
-#[derive(Default)]
-pub(crate) struct CleanupDispositions {
-    pub(crate) rows: Arena<CleanupDisposition>,
-    pub(crate) exclusions: Arena<Place>,
-    pub(crate) segments: Arena<PlaceSegment>,
-}
-
-#[derive(Default)]
-pub(crate) struct CleanupDisposition {
-    pub(crate) event: FlowPermissionEventFact,
-    pub(crate) exclusions: HandleSpan<Place>,
-}
 
 #[derive(Clone, Default)]
 pub(super) struct RemainingCustody {
@@ -31,7 +20,7 @@ impl RemainingCustody {
         &mut self,
         events: &[FlowPermissionEventFact],
         segments: &Arena<PlaceSegment>,
-        output: &mut CleanupDispositions,
+        output: &mut ContextualCleanupFacts,
     ) {
         for event in events {
             if event.access != PermissionAccess::Owned {
@@ -48,8 +37,12 @@ impl RemainingCustody {
                         segments: output.segments.insert_many(path.iter().copied()),
                     })
                     .collect::<Vec<_>>();
-                output.rows.append(CleanupDisposition {
-                    event: event.clone(),
+                output.dispositions.append(ContextualCleanupDisposition {
+                    machine: event.machine_symbol,
+                    state: event.state_symbol,
+                    source: event.source,
+                    root: event.root,
+                    path: event.segments,
                     exclusions: output.exclusions.insert_many(exclusions),
                 });
             }

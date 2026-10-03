@@ -480,19 +480,43 @@ impl SymbolTable {
         parent: SymbolHandle,
         children: impl IntoIterator<Item = (SymbolKind, &'name str)>,
     ) -> HandleSpan<Symbol> {
+        self.insert_generated_children_from(
+            parent,
+            children
+                .into_iter()
+                .map(|(kind, name)| (parent, kind, name)),
+        )
+    }
+
+    /// Mint one contiguous child range while retaining each child's exact
+    /// existing derivation origin. Lexical parentage still belongs to `parent`;
+    /// specialization provenance belongs to the corresponding source child.
+    pub fn insert_generated_children_from<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolHandle, SymbolKind, &'name str)>,
+    ) -> HandleSpan<Symbol> {
+        let children = children.into_iter().collect::<Vec<_>>();
+        assert!(
+            children.iter().all(|(origin, _, _)| origin.is_valid()
+                && self.symbols.get(*origin).kind != SymbolKind::Unknown),
+            "compiler-generated symbols require existing derivation origins"
+        );
         self.root_names.clear();
         self.module_path_index.clear();
         self.module_scope_index.clear();
         let names = &mut self.names;
         self.symbols.insert_generated_children(
             parent,
-            children.into_iter().map(|(kind, name)| Symbol {
-                parent,
-                children: HandleSpan::empty(),
-                kind,
-                name: names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
-                generated_from: parent,
-            }),
+            children
+                .into_iter()
+                .map(|(generated_from, kind, name)| Symbol {
+                    parent,
+                    children: HandleSpan::empty(),
+                    kind,
+                    name: names.insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name))),
+                    generated_from,
+                }),
         )
     }
 

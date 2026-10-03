@@ -39,7 +39,7 @@ pub(super) fn clone_specialized_machine(
         .to_vec();
     let specialized_attached_data =
         specialized_attached_data(source.unwrap_or(program), candidate, &source_machine);
-    let inherited_field_names = specialized_attached_data
+    let inherited_fields = specialized_attached_data
         .as_ref()
         .map(|(name, _)| name)
         .into_iter()
@@ -52,7 +52,9 @@ pub(super) fn clone_specialized_machine(
         })
         .flat_map(|data| source.unwrap_or(program).data_members(data))
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field.name.as_str().to_owned()),
+            typed_trees::data::DataMember::Field(field) => {
+                Some((field.name.as_str().to_owned(), field.symbol))
+            }
             typed_trees::data::DataMember::Variant(_) => None,
         })
         .collect::<Vec<_>>();
@@ -133,26 +135,6 @@ pub(super) fn clone_specialized_machine(
         &generated_name,
     );
 
-    let machine_children = program.symbols.insert_generated_children(
-        machine_symbol,
-        inherited_field_names
-            .iter()
-            .map(|name| (SymbolKind::Field, name.as_str()))
-            .chain(
-                source_owned
-                    .iter()
-                    .map(|item| (SymbolKind::Field, item.name.as_str())),
-            )
-            .chain(
-                source_states
-                    .iter()
-                    .map(|state| (SymbolKind::State, state.name.as_str())),
-            ),
-    );
-    let machine_children: Vec<SymbolHandle> =
-        symbols::SymbolTableBuilder::child_handles(machine_children).collect();
-    let mut next_child = machine_children.into_iter();
-    let mut symbol_map = vec![(source_machine.symbol, machine_symbol)];
     let source_machine_children = source_machine
         .symbol
         .is_valid()
@@ -166,7 +148,42 @@ pub(super) fn clone_specialized_machine(
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
-    for field_name in &inherited_field_names {
+    let inherited_origins = inherited_fields
+        .iter()
+        .map(|(name, declared)| {
+            let mut originals = source_machine_children.iter().copied().filter(|symbol| {
+                source.unwrap_or(program).symbols.get(*symbol).kind == SymbolKind::Field
+                    && source.unwrap_or(program).symbols.name(*symbol) == name
+            });
+            let first = originals.next();
+            let origin = if originals.next().is_none() {
+                first.unwrap_or(*declared)
+            } else {
+                *declared
+            };
+            (origin, SymbolKind::Field, name.as_str())
+        })
+        .collect::<Vec<_>>();
+    let machine_children = program.symbols.insert_generated_children_from(
+        machine_symbol,
+        inherited_origins
+            .into_iter()
+            .chain(
+                source_owned
+                    .iter()
+                    .map(|item| (item.symbol, SymbolKind::Field, item.name.as_str())),
+            )
+            .chain(
+                source_states
+                    .iter()
+                    .map(|state| (state.symbol, SymbolKind::State, state.name.as_str())),
+            ),
+    );
+    let machine_children: Vec<SymbolHandle> =
+        symbols::SymbolTableBuilder::child_handles(machine_children).collect();
+    let mut next_child = machine_children.into_iter();
+    let mut symbol_map = vec![(source_machine.symbol, machine_symbol)];
+    for (field_name, _) in &inherited_fields {
         let cloned_field = next_child.next().expect("inherited-field clone symbol");
         let source_fields = source_machine_children
             .iter()
@@ -233,20 +250,26 @@ pub(super) fn clone_specialized_machine(
                 _ => None,
             })
             .collect();
-        let children = program.symbols.insert_generated_children(
+        let children = program.symbols.insert_generated_children_from(
             *state_symbol,
             parameters
                 .iter()
-                .map(|parameter| (SymbolKind::Parameter, parameter.name.as_str()))
+                .map(|parameter| {
+                    (
+                        parameter.symbol,
+                        SymbolKind::Parameter,
+                        parameter.name.as_str(),
+                    )
+                })
                 .chain(
                     realized_parameters
                         .iter()
-                        .map(|(_, name, _)| (SymbolKind::Parameter, name.as_str())),
+                        .map(|(binder, name, _)| (*binder, SymbolKind::Parameter, name.as_str())),
                 )
                 .chain(
                     locals
                         .iter()
-                        .map(|local| (SymbolKind::Local, local.name.as_str())),
+                        .map(|local| (local.symbol, SymbolKind::Local, local.name.as_str())),
                 ),
         );
         let mut children = symbols::SymbolTableBuilder::child_handles(children);

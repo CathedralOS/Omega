@@ -88,6 +88,46 @@ fn selected_cleanup_dependency_specializes_generic_consumers_independently() {
         "the retained template keeps its symbolic source disposition",
     );
 
+    let dispositions = &checked.facts.contextual_cleanup.dispositions;
+    let selected_roots = |machine| {
+        dispositions
+            .iter()
+            .filter(|(_, row)| row.machine == machine)
+            .map(|(_, row)| row.root)
+            .collect::<Vec<_>>()
+    };
+    let template_state = &checked.machine_states(checked.machine_by_symbol(template).unwrap())[0];
+    let template_parameter = &checked.state_parameters(template_state)[0];
+    assert_eq!(
+        selected_roots(template),
+        [facts::PlaceRoot::Symbol(template_parameter.symbol)],
+        "the symbolic death edge remains available after concrete effect selection",
+    );
+    for instance in &instances {
+        let state = &checked.machine_states(checked.machine_by_symbol(*instance).unwrap())[0];
+        assert_eq!(
+            selected_roots(*instance),
+            [facts::PlaceRoot::Symbol(
+                checked.state_parameters(state)[0].symbol
+            )],
+            "each closed application retains its own owner rather than the template's place",
+        );
+    }
+
+    let applications = &checked.facts.contextual_cleanup.applications;
+    assert_eq!(applications.len(), 2);
+    for (_, application) in applications.iter() {
+        let original = dispositions.get(application.template);
+        let concrete = dispositions.get(application.instance);
+        assert_eq!(original.machine, template);
+        assert!(instances.contains(&concrete.machine));
+        assert_eq!(
+            checked.symbols.get(concrete.state).generated_from,
+            original.state,
+            "state identity comes from specialization's retained source",
+        );
+    }
+
     let mut incomplete = checked.facts.operational.clone();
     let call = incomplete
         .calls
@@ -102,7 +142,6 @@ fn selected_cleanup_dependency_specializes_generic_consumers_independently() {
         &checked.typed,
         &incomplete,
         &checked.facts,
-        &crate::checks::CleanupDispositions::default(),
     )
     .expect_err("a retained template cannot stand in for executable instance effects");
     assert!(
@@ -132,6 +171,15 @@ fn selected_cleanup_dependency_specialized_forwarding_preserves_transfer() {
         .expect("a closed forwarding application")
         .instance;
     assert!(inferred_services_for(&checked, instance).is_empty());
+    assert!(
+        !checked
+            .facts
+            .contextual_cleanup
+            .dispositions
+            .iter()
+            .any(|(_, row)| { row.machine == template || row.machine == instance }),
+        "returning an owner transfers custody; it creates no cleanup obligation",
+    );
     assert!(
         !checked
             .facts

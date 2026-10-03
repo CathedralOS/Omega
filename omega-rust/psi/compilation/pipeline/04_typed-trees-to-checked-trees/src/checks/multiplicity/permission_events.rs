@@ -1,7 +1,7 @@
 //! Recording permission events: crash frontiers, proven case membership
 //! and the statically inactive call results that shape which events count.
 
-use super::cleanup_dispositions::{CleanupDispositions, RemainingCustody};
+use super::cleanup_dispositions::RemainingCustody;
 use crate::checks::multiplicity::claim_outcomes::{
     apply_claim_origin_rewrites, call_result_origin_rewrites, derive_checked_claim_outcome_maps,
     publish_claim_outcome_maps, publish_conditional_claim_joins,
@@ -16,7 +16,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
-use checked_trees::{CheckFacts, FlowPermissionEventFact};
+use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -40,8 +40,8 @@ pub(crate) fn record_permission_events_with_incoming_guards(
 pub(crate) fn prepare_permission_events(
     program: &typed_trees::TypedTrees,
     facts: &mut CheckFacts,
-) -> Result<CleanupDispositions, Vec<Diagnostic>> {
-    let mut cleanup_dispositions = CleanupDispositions::default();
+) -> Result<(), Vec<Diagnostic>> {
+    let mut cleanup_dispositions = ContextualCleanupFacts::default();
     let mut permission_events = Vec::new();
     let mut conditional_carrier_transfers = Vec::new();
     let mut selection_diagnostics = Vec::new();
@@ -305,7 +305,13 @@ pub(crate) fn prepare_permission_events(
         derive_checked_claim_outcome_maps(program, &facts.flow.ownership, &joined_events);
     publish_claim_outcome_maps(facts, joined_maps);
     if selection_diagnostics.is_empty() {
-        Ok(cleanup_dispositions)
+        crate::facts::contextual_cleanup::bind_applications(
+            program,
+            &facts.flow,
+            &mut cleanup_dispositions,
+        );
+        facts.contextual_cleanup = cleanup_dispositions;
+        Ok(())
     } else {
         Err(selection_diagnostics)
     }

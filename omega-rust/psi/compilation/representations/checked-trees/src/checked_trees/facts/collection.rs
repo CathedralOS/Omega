@@ -15,6 +15,9 @@ pub struct CheckFacts {
     pub operational: flow_effects::OperationalPlan,
     pub semantic: facts::FactPlan,
     pub borrow: BorrowFacts,
+    /// Selected source death edges and their remaining custody, retained for
+    /// symbolic templates as well as concrete execution.
+    pub contextual_cleanup: crate::ContextualCleanupFacts,
     pub proof: ProofFacts,
     pub values: CheckedValueFacts,
     pub domains: DomainFacts,
