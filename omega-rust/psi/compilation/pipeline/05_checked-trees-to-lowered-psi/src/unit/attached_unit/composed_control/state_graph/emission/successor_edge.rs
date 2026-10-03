@@ -673,8 +673,9 @@ impl StateGraphEmission<'_, '_> {
                         // A whole shared loan of unrestricted storage, such
                         // as a byte literal local, has no death to place and
                         // records no home, so any state may lend it.
-                        let needs_home = target_parameter.access
-                            == checked_trees::CheckedStructuralAccess::MutableBorrow
+                        let needs_home = matches!(target_parameter.access,
+                            checked_trees::CheckedStructuralAccess::MutableBorrow
+                                | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
                             || result.multiplicity() == StructuralMultiplicity::Affine
                             || backing.is_some()
                             || !matches!(
@@ -709,8 +710,8 @@ impl StateGraphEmission<'_, '_> {
                 structural_arguments.push(StructuralArgument {
                     place,
                     path: argument_path,
-                    // Not `terminal_access`: a write-only target parameter
-                    // receives a shared argument on this edge.
+                    // The arrival retains its exact permission, except for
+                    // the explicit owned/exclusive handoffs below.
                     access: match target_parameter.access {
                         _ if chain_arrival
                             == Some(super::loan_chains::ChainArrival::Transferred) =>
@@ -731,7 +732,12 @@ impl StateGraphEmission<'_, '_> {
                         checked_trees::CheckedStructuralAccess::MutableBorrow => {
                             StructuralAccess::MutableBorrow
                         }
-                        _ => StructuralAccess::SharedBorrow,
+                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                            StructuralAccess::WriteOnlyBorrow
+                        }
+                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                            StructuralAccess::SharedBorrow
+                        }
                     },
                 });
                 continue;

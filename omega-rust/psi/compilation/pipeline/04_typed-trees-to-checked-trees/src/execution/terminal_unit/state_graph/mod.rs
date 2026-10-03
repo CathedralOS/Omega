@@ -847,24 +847,24 @@ fn build_traced_with(
                         return None;
                     }
                 }
-                (false, access) => {
+                (false, _) => {
                     if parameter.multiplicity != Multiplicity::Unrestricted {
                         trace.phase(
                             "state graph: state signature: parameter custody shape: borrowed restricted parameter",
                         );
                         return None;
                     }
-                    if !matches!(
-                        access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                    ) {
-                        trace.phase(
-                            "state graph: state signature: parameter custody shape: write-only borrow",
-                        );
-                        return None;
-                    }
                     let reference = reference();
+                    // A primitive referent is storage just like a record leaf.
+                    // State arrivals retain the loan's declared access; they
+                    // do not need readable contents to carry its address.
+                    let borrowed_primitive_referent = matches!(
+                        shapes
+                            .types
+                            .get(&parameter.type_identity)
+                            .map(|plan| &plan.shape),
+                        Some(checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
+                    );
                     let borrowed_named_referent = matches!(
                         program.type_reference_table.type_reference(reference),
                         TypeReferenceNode::Reference { referee, .. }
@@ -897,6 +897,7 @@ fn build_traced_with(
                     // A borrowed bounded owner (`&[u8; N] in Utf8`) names the
                     // owner's carrier; the reference is this parameter's loan.
                     if !borrowed_named_referent
+                        && !borrowed_primitive_referent
                         && !borrowed_array_referent
                         && parameter.fused_service_erasure.is_none()
                         && !byte_sequence_carrier(program, reference, &[]).is_some_and(|carrier| {
@@ -2356,7 +2357,8 @@ fn successor_bindings(
             // argument never forwards a same-typed unrelated parameter.
             if target.multiplicity == Multiplicity::Unrestricted
                 && matches!(target.access,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow)
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+                        | CheckedStructuralAccess::WriteOnlyBorrow)
                 && validation::checked_argument_matches_type_reference(
                     program,
                     expression,
@@ -2423,22 +2425,28 @@ fn successor_bindings(
                             program.state_local_declaration(source, root_symbol)?;
                         Some((local, result_subject(index)?))
                     };
-                    let mutable_loan_permitted = match expected_access {
-                        CheckedStructuralAccess::MutableBorrow => {
-                            |root_access| {
-                                matches!(
-                                    root_access,
-                                    CheckedStructuralAccess::Owned
-                                        | CheckedStructuralAccess::MutableBorrow
-                                )
-                            }
-                        }
-                        _ => |_| true,
+                    let loan_permitted = |root_access| match expected_access {
+                        CheckedStructuralAccess::SharedBorrow => matches!(
+                            root_access,
+                            CheckedStructuralAccess::Owned
+                                | CheckedStructuralAccess::SharedBorrow
+                                | CheckedStructuralAccess::MutableBorrow
+                        ),
+                        CheckedStructuralAccess::MutableBorrow => matches!(
+                            root_access,
+                            CheckedStructuralAccess::Owned | CheckedStructuralAccess::MutableBorrow
+                        ),
+                        CheckedStructuralAccess::WriteOnlyBorrow => matches!(
+                            root_access,
+                            CheckedStructuralAccess::Owned
+                                | CheckedStructuralAccess::MutableBorrow
+                                | CheckedStructuralAccess::WriteOnlyBorrow
+                        ),
+                        CheckedStructuralAccess::Owned => false,
                     };
                     if let Some((source_index, source_parameter)) = parameter_subject
                     {
-                        if mutable_loan_permitted(source_parameter.access)
-                            && source_parameter.access != CheckedStructuralAccess::WriteOnlyBorrow
+                        if loan_permitted(source_parameter.access)
                             && let Some((projected_type, path)) =
                                 calls::projected_borrowed_path(
                                     program,
@@ -2478,7 +2486,8 @@ fn successor_bindings(
                                 // still make it ineligible for this transfer.
                                 let identity = match source_parameter.access {
                                     CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow => {
+                                    | CheckedStructuralAccess::MutableBorrow
+                                    | CheckedStructuralAccess::WriteOnlyBorrow => {
                                         source_parameter.type_identity.clone()
                                     }
                                     _ => program
@@ -2515,7 +2524,7 @@ fn successor_bindings(
                         }
                     } else if let Some((local, result)) = local_subject() {
                         let mutable_local_loan = expected_access
-                            != CheckedStructuralAccess::MutableBorrow
+                            == CheckedStructuralAccess::SharedBorrow
                             || (local.is_mutable
                                 && matches!(
                                     result.multiplicity,

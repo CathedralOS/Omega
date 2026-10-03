@@ -1,0 +1,35 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair { left: i32; right: i32; }
+data Main { console: Binding<Console>; pair: Pair; }
+
+machine replace(destination: &write i32, value: i32) {
+    destination = value;
+}
+
+machine forward(destination: &write Pair, choose_left: bool, value: i32) {
+    transition choose_left {
+        true -> left(&write destination, value)
+        false -> right(&write destination, value)
+    }
+    state left(destination: &write Pair, value: i32) {
+        replace(&write destination.left, value);
+    }
+    state right(destination: &write Pair, value: i32) {
+        replace(&write destination.right, value);
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.pair.left = 7;
+    main.pair.right = 19;
+    forward(&write main.pair, true, 42);
+    forward(&write main.pair, false, -31);
+    transition main.pair.left == 42 && main.pair.right == -31 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

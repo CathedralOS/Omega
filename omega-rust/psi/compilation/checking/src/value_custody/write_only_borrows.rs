@@ -710,7 +710,12 @@ fn write_only_call_subloan(
     if let Some(field_type) = write_only_record_field_type(program, target, roots) {
         return match declared_referee {
             Some(declared) => {
-                write_only_assignment_leaf(program, field_type)
+                // Lending a field does not displace its current value. Use
+                // the same referent contract as a whole-parameter loan; the
+                // callee's actual stores still owe discardability and validity.
+                // Requiring replacement here incorrectly rejects affine records
+                // whose fields can be written without replacing the whole record.
+                is_supported_checked_referee(program, field_type)
                     && (subloan_referee_matches(program, field_type, declared)
                         || reject_subloan_referee_mismatch(
                             program,

@@ -5,6 +5,9 @@
 //! the producer's access lineage before admitting the transfer, and intersect
 //! availability over every incoming edge. Dominance alone cannot resurrect
 //! the original name after a successor took its exclusive permission.
+//! Write-only loans participate in that same exclusive-name fixed point;
+//! forwarding them never supplies readable authority. Operation validation
+//! independently checks which accesses each current name permits.
 
 use super::{
     BTreeMap, BTreeSet, BlockId, EdgeId, ModuleError, OperationKind, PlaceId, StructuralAccess,
@@ -13,6 +16,13 @@ use super::{
     Terminator,
 };
 pub(super) mod mutable_records;
+
+fn exclusive_access(access: StructuralAccess) -> bool {
+    matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    )
+}
 
 pub(super) fn parameter(
     machine: &TerminalMachine,
@@ -50,7 +60,9 @@ pub(super) fn validate_declarations(
                 || !matches!(
                     (declaration.access, declaration.multiplicity),
                     (
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                        StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                            | StructuralAccess::WriteOnlyBorrow,
                         StructuralMultiplicity::Unrestricted
                     ) | (
                         StructuralAccess::Owned,
@@ -273,7 +285,7 @@ pub(super) fn validate_successor(
         // argument below records for its root. A whole-view argument transfers
         // the name itself: once an edge has moved it, `available` no longer
         // holds it, and a machine parameter gets no exemption to move it again.
-        if expected.access == StructuralAccess::MutableBorrow
+        if exclusive_access(expected.access)
             && ((!available.contains(&argument.place)
                 && (argument.path.is_empty()
                     || !machine
@@ -402,7 +414,7 @@ pub(super) fn validate_successor(
             }
             continue;
         }
-        if expected.access == StructuralAccess::MutableBorrow && !argument.path.is_empty() {
+        if exclusive_access(expected.access) && !argument.path.is_empty() {
             // An exclusive projected loan joins the rooted place and its
             // projection path as the continuation argument: the subtree
             // under the path stays exclusively bound to the parameter for
@@ -412,7 +424,7 @@ pub(super) fn validate_successor(
             if expected.multiplicity != StructuralMultiplicity::Unrestricted
                 || !expected.qualifications.is_empty()
                 || !expected.projected_qualifications.is_empty()
-                || argument.access != StructuralAccess::MutableBorrow
+                || argument.access != expected.access
                 || !super::structural::operations::is_static_borrow_path(&argument.path)
                 || mutable_loan_root(module, machine, argument, available).and_then(|root| {
                     super::foundation::resolve_structural_path(module, root, &argument.path)
@@ -469,11 +481,16 @@ pub(super) fn validate_successor(
             });
         let exact_source = if let Some(source) = source {
             source.structural_type == expected.structural_type
-                && source.access == expected.access
+                && (source.access == expected.access
+                    || exclusive_access(expected.access)
+                        && super::structural::operations::structural_access_can_supply(
+                            source.access,
+                            expected.access,
+                        ))
                 && source.multiplicity == expected.multiplicity
                 && source.qualifications == expected.qualifications
                 && source.projected_qualifications == expected.projected_qualifications
-        } else if expected.access == StructuralAccess::MutableBorrow {
+        } else if exclusive_access(expected.access) {
             expected.multiplicity == StructuralMultiplicity::Unrestricted
                 && expected.qualifications.is_empty()
                 && expected.projected_qualifications.is_empty()
@@ -550,7 +567,7 @@ pub(super) fn validate_successor(
             continue;
         }
         for (mutable_index, mutable) in target.structural_parameters.iter().enumerate() {
-            if mutable.access != StructuralAccess::MutableBorrow
+            if !exclusive_access(mutable.access)
                 || arguments[shared_index].place != arguments[mutable_index].place
             {
                 continue;
@@ -691,10 +708,10 @@ fn shared_loan_root(
 
 /// The declared type at an exclusive successor loan's root. A signature or
 /// block parameter presents writable custody only through the access
-/// lattice — `Owned` or `MutableBorrow` storage can lend exclusively —
-/// while a produced home or view supplies its independently checked type and
-/// access. Linear
-/// custody cannot lend at all. Non-signature roots must still dominate the
+/// lattice: owned or mutable storage can lend either exclusive permission;
+/// a write-only source can only supply another write-only name.
+/// A produced home or view supplies its independently checked type and access.
+/// Linear custody cannot lend at all. Non-signature roots must still dominate the
 /// edge through `available`; machine parameters are established at entry
 /// and dominate every block.
 fn mutable_loan_root(
@@ -713,14 +730,23 @@ fn mutable_loan_root(
     {
         return (super::structural::operations::structural_access_can_supply(
             parameter.access,
-            StructuralAccess::MutableBorrow,
+            argument.access,
         ) && parameter.multiplicity != StructuralMultiplicity::Linear
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty())
         .then_some(parameter.structural_type);
     }
     mutable_records::owned_home(module, machine, argument.place)
-        .or_else(|| mutable_view_result(module, machine, argument.place))
+        .or_else(|| {
+            super::element_view::view_loan_result_in_module(module, machine, argument.place)
+                .filter(|(_, access)| {
+                    super::structural::operations::structural_access_can_supply(
+                        *access,
+                        argument.access,
+                    )
+                })
+                .map(|(result, _)| result)
+        })
         .filter(|_| available.contains(&argument.place))
         .map(|result| result.structural_type)
 }
@@ -735,7 +761,7 @@ fn mutable_view_result<'a>(
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
     super::element_view::view_loan_result_in_module(module, machine, place)
-        .filter(|(_, access)| *access == StructuralAccess::MutableBorrow)
+        .filter(|(_, access)| exclusive_access(*access))
         .map(|(result, _)| result)
 }
 
@@ -748,7 +774,7 @@ pub(super) fn mutable_availability(
 ) -> BTreeMap<BlockId, BTreeSet<PlaceId>> {
     let mutable_parameter = |parameter: &StructuralParameterDeclaration| {
         mutable_records::parameter_type(module, parameter)
-            || (parameter.access == StructuralAccess::MutableBorrow
+            || (exclusive_access(parameter.access)
                 && module.structural_types.iter().any(|declaration| {
                     declaration.id == parameter.structural_type
                         && (matches!(
@@ -981,6 +1007,6 @@ pub(super) fn is_mutable_name(
         .iter()
         .find(|parameter| parameter.place == place)
         .or_else(|| parameter(machine, place))
-        .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)
+        .is_some_and(|parameter| exclusive_access(parameter.access))
         || mutable_view_result(module, machine, place).is_some()
 }

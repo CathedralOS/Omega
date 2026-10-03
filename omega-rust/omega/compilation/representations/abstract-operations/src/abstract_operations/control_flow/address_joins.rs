@@ -1,9 +1,9 @@
 //! Borrowed joins whose runtime carrier is the referent's address.
 //!
 //! Shared joins admit primitive scalars, service binding leaves and plain records
-//! through static projections. Mutable joins admit the same plain referents,
+//! through static projections. Exclusive joins admit the same plain referents,
 //! whole or statically projected, while transferring the exact incoming
-//! mutable permission. Neither carrier copies the referent.
+//! mutable or write-only permission. Neither carrier copies the referent.
 //! A shared or mutable bounded byte owner loan (`owner_loans`) is carried as its
 //! owner's address; it keeps the owner's plain byte qualifications, and each
 //! stage requires its edges to forward an identically qualified loan whole.
@@ -11,8 +11,9 @@
 //!
 //! This is a type rule, not producer evidence. Each stage independently replays
 //! the sources, type, access and origin custody. Exclusive name availability
-//! and shared-loan origin pinning remain separate receiving checks. Write-only
-//! joins and referents containing loans or descriptors remain unsupported.
+//! and shared-loan origin pinning remain separate receiving checks. Carrying
+//! an address grants no readable authority to a write-only loan. Referents
+//! containing loans or descriptors remain unsupported.
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
@@ -38,7 +39,9 @@ fn is_plain_address_join<'a>(
 ) -> bool {
     matches!(
         parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && !parameter.is_self
         && parameter.qualifications.is_empty()

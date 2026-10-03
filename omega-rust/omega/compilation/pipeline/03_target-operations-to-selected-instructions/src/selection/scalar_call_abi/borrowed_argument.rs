@@ -318,12 +318,7 @@ pub(super) fn validate_borrowed_argument(
     let shape = if byte_field.is_some() {
         destination_shape
     } else if let Some((_, joined)) = address_join {
-        if !matches!(
-            semantic.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) || semantic.access == StructuralAccess::MutableBorrow
-            && joined.access != StructuralAccess::MutableBorrow
-        {
+        if !borrow_access_permitted(joined.access, semantic.access) {
             return None;
         }
         if let Some(offset) = window {
@@ -716,6 +711,20 @@ fn validate_returned_record_projection(
     .then_some(())
 }
 
+/// Entry and block loans retain identical authority at a call. An address
+/// or matching ABI shape cannot supply permission absent from that loan.
+fn borrow_access_permitted(source: StructuralAccess, requested: StructuralAccess) -> bool {
+    use StructuralAccess::{MutableBorrow, SharedBorrow, WriteOnlyBorrow};
+    matches!(
+        (source, requested),
+        (
+            MutableBorrow,
+            SharedBorrow | MutableBorrow | WriteOnlyBorrow
+        ) | (SharedBorrow, SharedBorrow)
+            | (WriteOnlyBorrow, WriteOnlyBorrow)
+    )
+}
+
 /// Reconstruct the pointer displacement from source layout, never from a
 /// coincidentally matching destination ABI or supplied byte offset alone.
 fn exclusive_projection_shape(
@@ -728,21 +737,7 @@ fn exclusive_projection_shape(
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == semantic.place)?;
-    if !matches!(
-        (parameter.semantic.access, semantic.access),
-        (
-            StructuralAccess::MutableBorrow,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ) | (
-            StructuralAccess::WriteOnlyBorrow,
-            StructuralAccess::WriteOnlyBorrow
-        ) | (
-            StructuralAccess::SharedBorrow,
-            StructuralAccess::SharedBorrow
-        )
-    ) {
+    if !borrow_access_permitted(parameter.semantic.access, semantic.access) {
         return None;
     }
     let (referent, offset) = crate::structural_inputs::structural_reference_input::project(

@@ -226,7 +226,8 @@ pub(in crate::validation) fn validate_structural_argument(
                             // block-view and argument-pair replays.
                             || (allow_projected
                                 && (is_unrestricted_shared_subloan(module, caller, expected, argument)
-                                    || is_unrestricted_mutable_subloan(module, caller, expected, argument)))
+                                    || is_unrestricted_mutable_subloan(module, caller, expected, argument)
+                                    || is_unrestricted_write_only_subloan(module, caller, expected, argument)))
                             // A runtime-indexed borrow of a block parameter is
                             // the same per-element loan the machine-parameter
                             // arm admits: the path predicate keeps Referent and
@@ -237,24 +238,19 @@ pub(in crate::validation) fn validate_structural_argument(
                                     argument.access,
                                     StructuralAccess::SharedBorrow
                                         | StructuralAccess::MutableBorrow
+                                        | StructuralAccess::WriteOnlyBorrow
                                 )
                                 && is_runtime_indexed_borrow_path(&argument.path)))
-                            // A mutable view lends itself for one call, ordinary
-                            // or boundary alike: a host `read_bytes(region)` is
-                            // the same call-scoped loan as `region.set(..)`. The
-                            // view must itself be mutable. Custody is not decided
-                            // here: argument pairs refuse a second overlapping
-                            // loan, the mutable-view availability replay refuses
-                            // a name an edge already transferred, and boundary
-                            // results cannot carry a reference, so the loan ends
-                            // with the call. An owned view never reaches a host.
-                            && (argument.access == StructuralAccess::SharedBorrow
-                                || (ordinary_call && argument.access == StructuralAccess::Owned)
-                                || ((ordinary_call
-                                    || matches!(call_kind, Some(OperationKind::BoundaryCall { .. })))
-                                    && argument.access == StructuralAccess::MutableBorrow
-                                    && crate::validation::block_views::parameter(caller, argument.place)
-                                        .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)))
+                            // A state arrival retains its declared authority;
+                            // it is not a separate kind of call operand. The
+                            // common access check below rejects widening, and
+                            // availability and argument-pair replay retain loan
+                            // lifetime and exclusivity. Opaque boundaries still
+                            // cannot receive owned or write-only authority.
+                            && (ordinary_call
+                                || (matches!(call_kind, Some(OperationKind::BoundaryCall { .. }))
+                                    && matches!(argument.access,
+                                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)))
                             && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                                 || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
                     {

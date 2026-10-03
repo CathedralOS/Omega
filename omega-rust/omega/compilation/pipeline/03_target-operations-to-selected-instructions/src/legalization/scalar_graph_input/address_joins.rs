@@ -103,12 +103,8 @@ pub(in crate::legalization) fn call_argument(
         .parameters
         .get(parameter_ordinal)
         .ok_or(LegalizationError::custody())?;
-    if !matches!(
-        semantic.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || destination.access != semantic.access
-        || semantic.access == StructuralAccess::MutableBorrow
-            && parameter.access != StructuralAccess::MutableBorrow
+    if !loan_access_permitted(parameter.access, semantic.access)
+        || destination.access != semantic.access
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || destination.structural_type != selected
         || !dominates(caller, block, call_block)
@@ -293,6 +289,18 @@ fn forwarded_owner_loan(
 
 /// The readable, non-linear, unqualified root type `place` names on an edge
 /// leaving `block`, when its owner dominates that edge.
+fn loan_access_permitted(source: StructuralAccess, destination: StructuralAccess) -> bool {
+    use StructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
+    matches!(
+        (source, destination),
+        (
+            Owned | MutableBorrow,
+            SharedBorrow | MutableBorrow | WriteOnlyBorrow
+        ) | (SharedBorrow, SharedBorrow)
+            | (WriteOnlyBorrow, WriteOnlyBorrow)
+    )
+}
+
 fn root_type(
     function: &PsiOptimizationFunction,
     block: BlockId,
@@ -313,32 +321,29 @@ fn root_type(
         // `self` is a valid join root: its referent record is the attached
         // data, and the projection below resolves through that record's
         // declared field types like any other root.
-        return ((if access == StructuralAccess::MutableBorrow {
-            source.access == StructuralAccess::MutableBorrow
-        } else {
-            source.access != StructuralAccess::WriteOnlyBorrow
-        }) && plain(
-            source.multiplicity,
-            &source.qualifications,
-            &source.projected_qualifications,
-        ))
+        return (loan_access_permitted(source.access, access)
+            && plain(
+                source.multiplicity,
+                &source.qualifications,
+                &source.projected_qualifications,
+            ))
         .then_some(source.structural_type);
     }
     if let Some((owner, joined)) = parameter(function, place, plan) {
         return ((owner == block || dominates(function, owner, block))
-            && (access != StructuralAccess::MutableBorrow
-                || joined.access == StructuralAccess::MutableBorrow))
-            .then_some(joined.structural_type);
+            && loan_access_permitted(joined.access, access))
+        .then_some(joined.structural_type);
     }
-    if access == StructuralAccess::MutableBorrow
-        && !function.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && matches!(
-                    declaration.kind,
-                    StructuralPlaceKind::OperationResult { .. }
-                )
-        })
-    {
+    if matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) && !function.structural_places.iter().any(|declaration| {
+        declaration.id == place
+            && matches!(
+                declaration.kind,
+                StructuralPlaceKind::OperationResult { .. }
+            )
+    }) {
         return None;
     }
     let (operation, result) = if let Some((operation, result, _)) =

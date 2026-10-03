@@ -671,6 +671,7 @@ pub(super) fn validate_bindings(
                 subject.access,
                 checked_trees::CheckedStructuralAccess::SharedBorrow
                     | checked_trees::CheckedStructuralAccess::MutableBorrow
+                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             );
             let source_permitted = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -679,7 +680,17 @@ pub(super) fn validate_bindings(
                     .structural_parameters
                     .get(parameter_index as usize)
                     .is_some_and(|parameter| {
-                        parameter.access != checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                        use checked_trees::CheckedStructuralAccess as Access;
+                        matches!(
+                            (parameter.access, subject.access),
+                            (
+                                Access::Owned | Access::MutableBorrow,
+                                Access::SharedBorrow
+                                    | Access::MutableBorrow
+                                    | Access::WriteOnlyBorrow
+                            ) | (Access::SharedBorrow, Access::SharedBorrow)
+                                | (Access::WriteOnlyBorrow, Access::WriteOnlyBorrow)
+                        )
                     }),
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     ..
@@ -1802,7 +1813,9 @@ fn validate_projected_loan_source(
             root_type,
             expression,
         )?;
-    use checked_trees::CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow};
+    use checked_trees::CheckedStructuralAccess::{
+        MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow,
+    };
     if (actual_root != root_symbol && Some(actual_root) != receiver_root)
         || actual_path != subject.path
         || actual_access.is_some_and(|access| {
@@ -1810,9 +1823,13 @@ fn validate_projected_loan_source(
         })
         || !matches!(
             (root_access, subject.access),
-            (Owned, SharedBorrow | MutableBorrow)
+            (Owned, SharedBorrow | MutableBorrow | WriteOnlyBorrow)
                 | (SharedBorrow, SharedBorrow)
-                | (MutableBorrow, SharedBorrow | MutableBorrow)
+                | (
+                    MutableBorrow,
+                    SharedBorrow | MutableBorrow | WriteOnlyBorrow
+                )
+                | (WriteOnlyBorrow, WriteOnlyBorrow)
         )
     {
         return unsupported(

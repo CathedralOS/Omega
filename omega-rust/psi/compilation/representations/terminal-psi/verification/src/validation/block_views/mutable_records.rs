@@ -22,7 +22,7 @@ pub(crate) fn parameter_type(
     module: &TerminalModule,
     parameter: &StructuralParameterDeclaration,
 ) -> bool {
-    parameter.access == StructuralAccess::MutableBorrow
+    super::exclusive_access(parameter.access)
         && borrowed_carrier_type(module, parameter.structural_type)
 }
 

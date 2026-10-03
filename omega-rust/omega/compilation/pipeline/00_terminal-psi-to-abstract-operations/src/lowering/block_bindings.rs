@@ -57,7 +57,8 @@ pub(super) fn validate_structural_block_bindings(
                                             | terminal_psi::StructuralMultiplicity::Unrestricted
                                     ),
                                     terminal_psi::StructuralAccess::SharedBorrow
-                                    | terminal_psi::StructuralAccess::MutableBorrow => {
+                                    | terminal_psi::StructuralAccess::MutableBorrow
+                                    | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
                                         abstract_operations::control_flow::address_joins::is_address_join_in(
                                             parameter,
                                             &module.structural_types,
@@ -70,7 +71,6 @@ pub(super) fn validate_structural_block_bindings(
                                                 || matches!(declaration.shape,
                                                     terminal_psi::StructuralTypeShape::ElementView { .. }))
                                     }
-                                    terminal_psi::StructuralAccess::WriteOnlyBorrow => false,
                                 }
                         })
                 })
@@ -157,6 +157,7 @@ fn unsupported_argument(
         argument.access,
         terminal_psi::StructuralAccess::SharedBorrow
             | terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow
     )
         && abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         && parameter.is_some_and(|parameter| {
@@ -165,11 +166,5 @@ fn unsupported_argument(
                     parameter, types,
                 )
         });
-    (!argument.path.is_empty() && !projected_address)
-        || !matches!(
-            argument.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::Owned
-        )
+    !argument.path.is_empty() && !projected_address
 }

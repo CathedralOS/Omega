@@ -15,6 +15,13 @@ use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 #[cfg(test)]
 mod tests;
 
+fn exclusive_access(access: StructuralAccess) -> bool {
+    matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    )
+}
+
 /// Exact exclusive spellings live at each block entrance. Ownership pins and
 /// operand validation consume the same replay, so a descriptor address cannot
 /// keep retired authority alive after an explicit whole-name handoff.
@@ -88,7 +95,7 @@ fn prepare_transfers(
                     && argument.path.is_empty()
                     && (descriptor_views.contains(&argument.place)
                         || attenuated_block_name
-                        || argument.access == StructuralAccess::MutableBorrow)
+                        || exclusive_access(argument.access))
                 {
                     retired.insert(argument.place);
                 }
@@ -132,7 +139,7 @@ pub(crate) fn current_mutable_borrows(
                             &node.operation,
                         )?;
                     let result = source.operation_result()?;
-                    (source.access == StructuralAccess::MutableBorrow
+                    (exclusive_access(source.access)
                         && types
                             .get(&source.structural_type)
                             .is_some_and(|declaration| {
@@ -159,7 +166,7 @@ pub(crate) fn current_mutable_borrows(
                 .flat_map(|block| &block.structural_parameters),
         )
         .filter(|parameter| {
-            parameter.access == StructuralAccess::MutableBorrow
+            exclusive_access(parameter.access)
                 && types
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {

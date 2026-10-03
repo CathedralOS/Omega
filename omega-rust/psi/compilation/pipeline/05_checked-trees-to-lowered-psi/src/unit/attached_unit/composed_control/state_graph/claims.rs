@@ -14,20 +14,20 @@
 //! names a source parameter whose place is already resolved; cyclic pairs
 //! settle through their entry-seeded edges and the final pass rechecks every
 //! edge, so two edges feeding one claim from different places still reject.
+//!
+//! Ordinary borrowed referents use the address-arrival path, not this claim
+//! identity resolution. Requiring primitive loans to alias an entry parameter
+//! would incorrectly require every arrival to originate at that same place.
 use std::collections::BTreeMap;
 
 use super::super::super::{Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, successors};
-use checked_trees::{
-    CheckedComposedUnitControlStatePlan, CheckedStructuralAccess,
-    CheckedStructuralControlTransferSourcePlan, CheckedUnitStructuralParameterPlan,
-};
+use checked_trees::CheckedStructuralControlTransferSourcePlan;
 use language_semantics::{
     CarryPolicy, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PermissionProvenance,
 };
-use typed_trees::types::TypeReferenceNode;
 
 /// Resolved claim custody for one composed machine. `aliased[position][dense]`
 /// names the entry structural parameter whose place that successor parameter
@@ -461,137 +461,8 @@ pub(super) fn resolve(
             }
         }
     }
-    // A mutable or write-only borrow of a primitive scalar has no Terminal
-    // block-parameter form: its place is the referent, so a successor
-    // parameter that receives the borrow whole keeps the entry parameter's
-    // place the same way a claim keeps its identity's place. Resolve those
-    // bindings through the same edge transport; an edge that does not carry
-    // the parameter whole leaves it unbound for emission to refuse.
-    let scalar_borrowed =
-        |state: &CheckedComposedUnitControlStatePlan,
-         parameter: &CheckedUnitStructuralParameterPlan| {
-            if parameter.is_self
-                || !matches!(
-                    parameter.access,
-                    CheckedStructuralAccess::MutableBorrow
-                        | CheckedStructuralAccess::WriteOnlyBorrow
-                )
-            {
-                return false;
-            }
-            let Some(source) = source_states
-                .iter()
-                .find(|source| source.symbol == state.state)
-            else {
-                return false;
-            };
-            let Some(source_parameter) = checked
-                .state_parameters(source)
-                .get(parameter.position as usize)
-            else {
-                return false;
-            };
-            let TypeReferenceNode::Reference { referee, .. } = checked
-                .typed
-                .type_reference_table
-                .type_reference(source_parameter.type_reference)
-            else {
-                return false;
-            };
-            checked.typed.primitive_type_reference(*referee).is_some()
-        };
-    for (index, parameter) in plan.states[0].structural_parameters.iter().enumerate() {
-        if scalar_borrowed(&plan.states[0], parameter) {
-            aliased[0].insert(index as u32, index as u32);
-        }
-    }
-    loop {
-        let mut progress = false;
-        for position in 1..plan.states.len() {
-            if !live[position] {
-                continue;
-            }
-            for (index, parameter) in plan.states[position]
-                .structural_parameters
-                .iter()
-                .enumerate()
-            {
-                if !scalar_borrowed(&plan.states[position], parameter)
-                    || aliased[position].contains_key(&(index as u32))
-                {
-                    continue;
-                }
-                let mut root = None;
-                for (source_position, edge) in incoming(plan.states[position].state) {
-                    let Some(transfer) = edge
-                        .transfers
-                        .iter()
-                        .find(|transfer| transfer.target_parameter_index == index as u32)
-                    else {
-                        continue;
-                    };
-                    let CheckedStructuralControlTransferSourcePlan::Parameter {
-                        index: source_index,
-                    } = transfer.source
-                    else {
-                        continue;
-                    };
-                    let Some(candidate) = resolved_root(&aliased, source_position, source_index)
-                    else {
-                        continue;
-                    };
-                    if let Some(existing) = root
-                        && existing != candidate
-                    {
-                        return unsupported(
-                            "Unit graph borrowed parameter carried from divergent entry places",
-                        );
-                    }
-                    root = Some(candidate);
-                }
-                if let Some(root) = root {
-                    aliased[position].insert(index as u32, root);
-                    progress = true;
-                }
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
-    // Every incoming edge of every bound borrowed parameter must resolve to
-    // the one entry place that parameter keeps; unbound ones stay refused.
-    for (position, state) in plan.states.iter().enumerate() {
-        for (index, parameter) in state.structural_parameters.iter().enumerate() {
-            if !scalar_borrowed(state, parameter) {
-                continue;
-            }
-            let Some(&root) = aliased[position].get(&(index as u32)) else {
-                continue;
-            };
-            for (source_position, edge) in incoming(state.state) {
-                let Some(transfer) = edge
-                    .transfers
-                    .iter()
-                    .find(|transfer| transfer.target_parameter_index == index as u32)
-                else {
-                    return unsupported("Unit graph borrowed parameter transfer row is missing");
-                };
-                let CheckedStructuralControlTransferSourcePlan::Parameter {
-                    index: source_index,
-                } = transfer.source
-                else {
-                    return unsupported(
-                        "Unit graph borrowed parameter successor is not a whole parameter transfer",
-                    );
-                };
-                if resolved_root(&aliased, source_position, source_index) != Some(root) {
-                    return unsupported(
-                        "Unit graph borrowed parameter carried from divergent entry places",
-                    );
-                }
-            }
-        }
-    }
+    // Ordinary loans use the shared address-arrival machinery. Only real
+    // claim custody can require an invocation-place alias here; primitive
+    // referents do not introduce a second identity-preservation algorithm.
     Ok(ClaimTransport { aliases, aliased })
 }
