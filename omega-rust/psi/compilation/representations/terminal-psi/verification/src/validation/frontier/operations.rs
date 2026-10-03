@@ -277,6 +277,9 @@ fn consumed_places(walk: &FrontierWalk<'_>, operation: &terminal_psi::Operation)
                 let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
                     return None;
                 };
+                if !argument.path.is_empty() {
+                    return None;
+                }
                 super::super::structural::result_contracts::source_signature(
                     machine,
                     argument.place,
@@ -379,10 +382,10 @@ fn transferred_claims(operation: &terminal_psi::Operation) -> Vec<ClaimId> {
     }
 }
 
-/// The structural arguments a call or boundary call passes.
+/// Structural operands whose projected custody is transferred by this operation.
 pub(super) fn projected_arguments(
     operation: &terminal_psi::Operation,
-) -> &[terminal_psi::StructuralArgument] {
+) -> Vec<&terminal_psi::StructuralArgument> {
     match &operation.kind {
         OperationKind::CallUnit {
             structural_arguments,
@@ -403,7 +406,19 @@ pub(super) fn projected_arguments(
         | OperationKind::BoundaryCall {
             structural_arguments,
             ..
-        } => structural_arguments.as_slice(),
-        _ => &[],
+        } => structural_arguments.iter().collect(),
+        OperationKind::EstablishRecord { fields }
+        | OperationKind::EstablishStructuralCase { fields, .. } => fields
+            .iter()
+            .filter_map(|field| match &field.value {
+                terminal_psi::RecordFieldValue::Structural(argument)
+                    if !argument.path.is_empty() =>
+                {
+                    Some(argument)
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }

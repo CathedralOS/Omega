@@ -55,6 +55,84 @@ pub(super) fn nominal_cleanups(
     }
 }
 
+/// Reconstruct each operation's finite owned transfer before residual cleanup.
+/// Calls bind the selected subtree to a callee formal; constructors bind it to
+/// a declared field. Both leave the same partial root for frontier replay.
+fn projected_transfers<'a>(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    operation: &'a terminal_psi::Operation,
+) -> Option<Vec<&'a terminal_psi::StructuralArgument>> {
+    let mut arguments = Vec::new();
+    match &operation.kind {
+        OperationKind::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => {
+            let projected = structural_arguments
+                .iter()
+                .enumerate()
+                .filter(|(_, argument)| {
+                    argument.access == StructuralAccess::Owned
+                        && !argument.path.is_empty()
+                        && partial_affine_root_type(machine, argument.place).is_some()
+                })
+                .collect::<Vec<_>>();
+            if projected.is_empty() {
+                return Some(arguments);
+            }
+            let callee = machines.get(callee)?;
+            if !claim_transfers.is_empty()
+                || callee.result != TerminalMachineResult::Unit
+                || !callee.parameters.is_empty()
+            {
+                return None;
+            }
+            for (index, argument) in projected {
+                let root = partial_affine_root_type(machine, argument.place)?;
+                let moved_type = resolve_structural_path(module, root, &argument.path)?;
+                let parameter = callee.structural_parameters.get(index)?;
+                if parameter.structural_type != moved_type
+                    || parameter.multiplicity != StructuralMultiplicity::Affine
+                    || parameter.position != index as u32
+                    || parameter.is_self
+                    || parameter.access != StructuralAccess::Owned
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || (argument
+                        .path
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+                        && !exact_fixed_array_element_sink(callee, moved_type))
+                {
+                    return None;
+                }
+                arguments.push(argument);
+            }
+        }
+        OperationKind::EstablishRecord { fields }
+        | OperationKind::EstablishStructuralCase { fields, .. } => {
+            for field in fields {
+                let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+                    continue;
+                };
+                if argument.path.is_empty() {
+                    continue;
+                }
+                super::structural::result_contracts::constructor_argument_signature(
+                    module, machine, argument,
+                )?;
+                arguments.push(argument);
+            }
+        }
+        _ => {}
+    }
+    Some(arguments)
+}
+
 pub(super) fn validate_partial_affine_cleanup_shape(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -159,7 +237,19 @@ pub(super) fn validate_partial_affine_cleanup_shape(
                         .any(|parameter| parameter.place == argument.place)
             })
         });
-    if root_is_parameter {
+    let constructor_projection = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .any(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishStructuralCase { .. }
+            ) && projected_transfers(module, machine, machines, operation)
+                .is_some_and(|arguments| !arguments.is_empty())
+        });
+    if root_is_parameter || constructor_projection {
         return validate_parameter_partial_affine_shape(
             module,
             machine,
@@ -370,9 +460,8 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     Ok(())
 }
 
-/// The parameter-rooted lane of `validate_partial_affine_cleanup_shape`.
-/// An ordinary body may project subtrees out of a structural parameter
-/// into Unit calls; the untouched complement then dies as residual rows
+/// Reconstruct cleanup for operation transfers across an ordinary body.
+/// A call or constructor may take a subtree from a structural owner; the untouched complement then dies as residual rows
 /// on the machine's own return terminator — or the covering moves consume
 /// the root completely and owe no residual at all. Parameter custody is
 /// machine-scoped, so projected operands are collected from every block,
@@ -390,8 +479,8 @@ fn validate_parameter_partial_affine_shape(
     invalid: impl Fn(BlockId) -> ModuleError,
 ) -> Result<(), ModuleError> {
     // Every owned projection onto a partial-affine root contributes its
-    // path to that root's moved set; each projected operand's callee
-    // contract is checked positionally. The machine's own parameter roots
+    // path to that root's moved set; each operand's call or constructor
+    // contract is checked by the common transfer roster. The machine's own parameter roots
     // are what the return terminator may close — result roots keep their
     // shared continuation evidence instead. Moves inside a block whose
     // terminator crashes are abandoned with that block's frontier, so
@@ -404,59 +493,11 @@ fn validate_parameter_partial_affine_shape(
     let mut indexed_projection = false;
     for block in &machine.blocks {
         for operation in &block.operations {
-            let OperationKind::CallUnit {
-                callee,
-                structural_arguments,
-                claim_transfers,
-                ..
-            } = &operation.kind
-            else {
-                continue;
-            };
-            if !structural_arguments.iter().any(|argument| {
-                argument.access == StructuralAccess::Owned
-                    && !argument.path.is_empty()
-                    && partial_affine_root_type(machine, argument.place).is_some()
-            }) {
-                continue;
-            }
-            let callee = machines
-                .get(callee)
-                .copied()
+            let arguments = projected_transfers(module, machine, machines, operation)
                 .ok_or_else(|| invalid(block.id))?;
-            if !claim_transfers.is_empty()
-                || callee.result != TerminalMachineResult::Unit
-                || !callee.parameters.is_empty()
-            {
-                return Err(invalid(block.id));
-            }
-            for (index, argument) in structural_arguments.iter().enumerate() {
-                if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
-                    continue;
-                }
-                let Some(root_type) = partial_affine_root_type(machine, argument.place) else {
-                    continue;
-                };
-                let moved_type = resolve_structural_path(module, root_type, &argument.path)
+            for argument in arguments {
+                let root_type = partial_affine_root_type(machine, argument.place)
                     .ok_or_else(|| invalid(block.id))?;
-                let Some(parameter) = callee.structural_parameters.get(index) else {
-                    return Err(invalid(block.id));
-                };
-                if parameter.structural_type != moved_type
-                    || parameter.multiplicity != StructuralMultiplicity::Affine
-                    || parameter.position != index as u32
-                    || parameter.is_self
-                    || parameter.access != StructuralAccess::Owned
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                    || (argument
-                        .path
-                        .iter()
-                        .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-                        && !exact_fixed_array_element_sink(callee, moved_type))
-                {
-                    return Err(invalid(block.id));
-                }
                 indexed_projection |= argument
                     .path
                     .iter()
