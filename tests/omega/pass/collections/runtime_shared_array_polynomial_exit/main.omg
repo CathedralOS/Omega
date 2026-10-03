@@ -1,0 +1,61 @@
+// Evaluate a polynomial with Horner's method: p(x) = a_n x^n + ... + a_1 x + a_0, computed as
+// (((a_n) x + a_{n-1}) x + ... ) x + a_0 -- the standard, numerically-stable evaluation that
+// needs only n multiply-adds and no powers. A single indexed-array loop carries the running
+// result through a multiply-add recurrence (`r = r * x + coeffs[i]`).
+//
+// For coefficients [1, 2, 3, 4, 5] (the polynomial x^4 + 2x^3 + 3x^2 + 4x + 5) at x = 2:
+//   r = 1
+//   r = 1*2 + 2  = 4
+//   r = 4*2 + 3  = 11
+//   r = 11*2 + 4 = 26
+//   r = 26*2 + 5 = 57
+// which is 16 + 16 + 12 + 8 + 5 = 57. The result is checked against 57; exit 70 on success.
+// Expected exit: 70.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
+    let coefficients: [i32 in Wrapping; 5] = [1, 2, 3, 4, 5];
+    let result: i32 in Wrapping = evaluate_polynomial(&coefficients, 2);
+    transition result == 57 {
+        true -> good(context)
+        _ -> bad(context, result)
+    }
+    state good(context: &mut Main) {
+        context.console.write_line("PASS: p(2) == 57 (exit 70)");
+        context.console.write_line("[press Enter to close]");
+        let mut pause: [u8; 256];
+        _ = block context.console.read_line(&mut pause);
+        context.console.exit_process(70);
+    }
+    state bad(context: &mut Main, result: i32 in Wrapping) {
+        context.console.write_line("FAIL: p(2) != 57 (exits the wrong value it computed)");
+        context.console.write_line("[press Enter to close]");
+        let mut pause: [u8; 256];
+        _ = block context.console.read_line(&mut pause);
+        context.console.exit_process(result as i32);
+    }
+}
+
+machine evaluate_polynomial(coefficients: &[i32 in Wrapping; 5], argument: i32 in Wrapping) -> i32 in Wrapping {
+    // Seed with the leading coefficient. Only the cursor and accumulator
+    // change between steps; the coefficients remain borrowed caller storage.
+    transition { _ -> evaluate(coefficients, argument, 1, coefficients[0]) }
+
+    state evaluate(coefficients: &[i32 in Wrapping; 5], argument: i32 in Wrapping, coefficient_index: i32, accumulated: i32 in Wrapping) -> i32 in Wrapping {
+        transition coefficient_index >= 0 && coefficient_index < 5 {
+            true -> step(coefficients, argument, coefficient_index, accumulated)
+            _ -> accumulated
+        }
+    }
+    state step(coefficients: &[i32 in Wrapping; 5], argument: i32 in Wrapping, coefficient_index: i32, accumulated: i32 in Wrapping) -> i32 in Wrapping {
+        let next: i32 in Wrapping = accumulated * argument + coefficients[coefficient_index];
+        transition { _ -> evaluate(coefficients, argument, coefficient_index + 1, next) }
+    }
+}
