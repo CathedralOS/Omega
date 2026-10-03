@@ -34,7 +34,7 @@ satisfies Content<CountedQuantity<ByteUnit>>::project
 
 boundary trait PortIo {}
 
-boundary machine Region::read_status(self) -> u8
+boundary machine Region::read_status(region: Region) -> u8
 reaches PortIo
 ensures true;
 
@@ -43,7 +43,7 @@ data Root {}
 machine Root::enter(region: Region in Owned) -> u8
 reaches PortIo
 {
-    let status: u8 = region.read_status();
+    let status: u8 = Region::read_status(region);
     status
 }
 

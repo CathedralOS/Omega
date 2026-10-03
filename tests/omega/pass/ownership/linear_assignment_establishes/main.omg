@@ -4,7 +4,7 @@
 // obligation's authorized terminal disposition is the consuming contract —
 // the call edge transfers custody and the requirement discharges it.
 data Receipt [linear] { code: i32; }
-boundary requirement Receipt::ack(self);
+boundary requirement Receipt::ack(receipt: Receipt);
 data Main {}
 
 machine Main::main() -> i32 {

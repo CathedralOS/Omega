@@ -46,7 +46,7 @@ data Token {
 // value. Build composition picks the concrete provider.
 pub boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(
-        &self,
+        subject: &Self,
         arguments: Arguments
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
@@ -128,7 +128,7 @@ data Executor [linear] {
 // Reclaim helper: consume a submission whose custody came back through
 // `Rejected`. `Submission` is hook-less linear, so the contract edge is the
 // authorized terminal disposition — `drop` has no cleanup plan to apply.
-boundary requirement Submission::release(self);
+boundary requirement Submission::release(submission: Submission);
 
 // Cancellation request authority: borrows the claim and retains it — the
 // request asks for a transition, it is not proof the worker stopped and it
@@ -147,10 +147,10 @@ boundary trait IsolatedWorkerProvider: WorkerProvider {}
 // Declared `suspends; blocks` because settlement is a blocking wait, not a
 // semantic safe point. The boundary contract owns the park and consumes the
 // ticket exactly once at the call edge.
-boundary requirement Ticket::settle(self, wait_word: u64) -> ExecutorOutcome suspends; blocks;
+boundary requirement Ticket::settle(ticket: Ticket, wait_word: u64) -> ExecutorOutcome suspends; blocks;
 
 // Terminal consumption of the executor itself.
-boundary requirement Executor::close(self);
+boundary requirement Executor::close(executor: Executor);
 
 // Consume a terminal lifecycle outcome — affine, so `drop` remains the
 // ordinary early-disposal call and the edge applies trivial cleanup.
@@ -160,11 +160,11 @@ machine ExecutorOutcome::release(executor_outcome: ExecutorOutcome) {
 
 // Consume an admission outcome — whichever linear case is active is
 // discharged by the consuming contract, sum and claim together.
-boundary requirement SubmitOutcome::release(self);
+boundary requirement SubmitOutcome::release(outcome: SubmitOutcome);
 
 // Consume an unvended claim — the refusal path retires the claim through
 // the declared contract rather than returning it.
-boundary requirement Ticket::release(self);
+boundary requirement Ticket::release(ticket: Ticket);
 
 // The package's `Submission::submit` contract shape instantiated at
 // concrete types: admission moves the submission's custody in by value and
@@ -227,7 +227,7 @@ machine Main::probe(main: &mut Main) reaches WorkerProvider suspends; blocks; {
     // discharges exactly once at `settle` below.
     Ticket::request_cancel();
     let settled: ExecutorOutcome =
-        suspend block ticket.settle(main.executor.wait_word);
+        suspend block Ticket::settle(ticket, main.executor.wait_word);
     ExecutorOutcome::release(settled);
 
     // Call-returned sum carrying a linear claim on either arm: binding the

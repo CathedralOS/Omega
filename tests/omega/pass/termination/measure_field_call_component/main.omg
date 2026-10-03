@@ -13,25 +13,25 @@ measure Countdown::Remaining(countdown: Countdown) -> u64
 
 data Main {}
 
-machine Main::main(&mut self) -> u64
+machine Main::main(main: &mut Main) -> u64
 {
-    transition { _ -> self.scan_a(Countdown { remaining: 2 }) }
+    transition { _ -> Main::scan_a(main, Countdown { remaining: 2 }) }
 }
 
-machine Main::scan_a(&mut self, countdown: Countdown)
+machine Main::scan_a(main: &mut Main, countdown: Countdown)
 terminates by countdown -> Countdown::Remaining in 0..=5;
 -> u64 {
     transition countdown.remaining > 0 {
-        true -> self.scan_b(countdown)
+        true -> Main::scan_b(main, countdown)
         false -> countdown.remaining
     }
 }
 
-machine Main::scan_b(&mut self, pending: Countdown)
+machine Main::scan_b(main: &mut Main, pending: Countdown)
 terminates by pending -> Countdown::Remaining in 0..=5;
 -> u64 {
     transition pending.remaining > 0 {
-        true -> self.scan_a(Countdown { remaining: pending.remaining - 1 })
+        true -> Main::scan_a(main, Countdown { remaining: pending.remaining - 1 })
         false -> pending.remaining
     }
 }

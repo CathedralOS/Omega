@@ -1,7 +1,7 @@
 // An enum-attached machine with omitted erased evidence matching BARE `self`
 // (the enum-method idiom):
-// `transition self { Signal::Green -> .. }` inside `Signal::go_value(&self)`,
-// called as `Signal::go_value(&self.s)`. The guard subject resolves to the attached
+// `transition signal { Signal::Green -> .. }` inside `Signal::go_value(signal: &Signal)`,
+// called as `Signal::go_value(&main.s)`. The guard subject resolves to the attached
 // value's TAG at the receiver's storage base
 // (resolve_machine_owned_self_case_tag_place_in_table, threaded to the
 // CALLEE's machine via the expansion's branch_key -- the caller's machine
