@@ -2080,40 +2080,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
-- **RECORD-LITERAL-ARRAY-FIELD.** Finish source observations of completed
-  view-bearing array elements. At `87fbc2ac74c` on macOS ARM64, completing two
-  `Tag { label: &[u8] in Utf8; weight: i32; }` values with literal labels,
-  moving them into `Envelope { elements: [left, right] }`, then comparing
-  `envelope.elements[0].weight` and `[1].weight` still omits the unit plan at
-  `state graph: terminator: conditional successors: guard expression`.
-  Comparing the labels fails at the same phase. This is stage 04's retained
-  guard construction in `execution/terminal_unit/state_graph/terminator.rs`,
-  before Terminal publication; byte equality alone is not the cause, and
-  construction execution for this source composition remains unverified.
-  Reproduce with the `Tag` declaration from
-  `pass/domains/record_literal_view_member_store_exit`, two completed owners
-  labelled `"amulet"`/`"ring"` with weights 3/4, and a `[Tag; 2]` record member.
-  Acceptance is `omega run --both` observing both labels and scalar neighbors
-  with exit **70**, retaining descriptor backing and ownership checks.
-
-  Completed owned places and ordinary call products now compose into fixed
-  record-array members, including fields whose numeric domain excludes zero:
-  `omega run --both tests/omega/pass/structs/runtime_completed_array_elements_exit/main.omg`
-  and `runtime_nonzero_array_elements_exit/main.omg` exit **70** in both engines.
-  Exact element type, extent, authored order, projected custody and restricted
-  field reads are independently checked. Keep these and the existing literal,
-  case-payload and array-snapshot controls green. Literal labels, borrowed
-  descriptors, reference-bearing elements and padded byte elements have
-  representation-level coverage; that does not close their source-to-run work.
-
-  Wire acceptance remains unchanged `samples/cli/systems/wire_protocol` and
-  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit **70** with
-  13-byte encode/decode, room 300, samples [150, -2], depth -64. Both run with
-  native/interpreter agreement at `87fbc2ac74c`; retain them as controls.
-  The former blanket zero-establishment/interpreter refusal is no longer the
-  frontier. Remaining owned byte-sequence and element-policy compositions need
-  a current failing program before selecting another implementation slice.
-
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under
   [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `020c1dd8933`
@@ -4772,8 +4738,10 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `fail/slices` fixtures reject. Byte and element readers share the observation
   rule; structural state arguments substitute by exact root/projection, not type
   equality. Existing backing/arrival equations retain precedence over the added
-  descriptor alias in first-definition inference. Other wire customers and
-  interpreter agreement remain under **RECORD-LITERAL-ARRAY-FIELD**.
+  descriptor alias in first-definition inference. Preserve the nested/repeated
+  wire fixture and `samples/cli/systems/wire_protocol` at native/interpreter
+  exit 70; completed record-array construction and view-bearing observations
+  now compose through their ordinary source-to-run path.
 
   At `4202376a2d`, including literal-custody repair `eb36ac8f6a`, macOS ARM64
   `python3 tools/corpus_gate.py --both --golden tests/omega/corpus_native_macos_arm64.txt
