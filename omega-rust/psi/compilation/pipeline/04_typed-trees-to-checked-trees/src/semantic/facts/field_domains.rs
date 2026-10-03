@@ -4,7 +4,8 @@
 //! obligations over the current incoming values before reusing an entry fact.
 //!
 //! Zero-initialized storage requires its ZII value to satisfy the domain.
-//! Nominal input storage, including `self`, relies on the checked incoming argument.
+//! Nominal input storage relies on the checked incoming argument, independently
+//! of whether its machine declaration has a qualified name.
 //! Write-only input views supply no facts read from incoming contents, but
 //! they do carry the caller's declared field invariants as entry premises —
 //! the same rows a readable borrow gets, since every admitted write through
@@ -77,10 +78,10 @@ const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
 
 /// Seed only domains established by a local's zero initialization. Incoming
 /// nominal values use the declared parameter obligations instead: zero validity
-/// says nothing about an established argument, regardless of receiver spelling.
+/// says nothing about an established argument or its machine's qualification.
 ///
 /// Fixed-array fields additionally enumerate every element at its exact
-/// `FixedIndex` place: `self.rows[i].label` is live evidence for the single
+/// `FixedIndex` place: `value.rows[i].label` is live evidence for the single
 /// element `i`, invalidated only by writes overlapping that index. Collection
 /// fields (fixed array or slice) also carry the whole-extent `0..usize::MAX`
 /// row `self.rows[*].label`, the only elementwise spelling that survives a

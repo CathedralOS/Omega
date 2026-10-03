@@ -1,14 +1,14 @@
-// Established receiver and named arguments carry the same nonzero field domain.
+// Qualification contributes no storage: both explicit inputs owe the same domain.
 domain [u8; 8]::NonEmpty(bytes) requires non_empty(bytes);
 data Label { text: [u8; 8] in NonEmpty; }
 data Packet { label: Label; }
 
 machine observe(text: &[u8; 8] in NonEmpty) -> bool { text.len > 0 }
 
-machine Packet::replace(&mut self) -> bool {
-    let before: bool = observe(&self.label.text);
-    self.label.text = "method";
-    before && observe(&self.label.text)
+machine Packet::replace(packet: &mut Packet) -> bool {
+    let before: bool = observe(&packet.label.text);
+    packet.label.text = "method";
+    before && observe(&packet.label.text)
 }
 
 machine replace(packet: &mut Packet) -> bool {
@@ -19,9 +19,9 @@ machine replace(packet: &mut Packet) -> bool {
 
 machine main() crashes Trap {
     let mut packet: Packet = Packet { label: Label { text: "start" } };
-    let method: bool = packet.replace();
+    let qualified: bool = Packet::replace(&mut packet);
     let named: bool = replace(&mut packet);
-    transition method && named && packet.label.text == "named" {
+    transition qualified && named && packet.label.text == "named" {
         true -> done()
         _ -> bad()
     }

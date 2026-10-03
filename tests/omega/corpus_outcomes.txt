@@ -573,8 +573,6 @@ fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejec
 	cannot prove index `index` is within length 2 in Main::main::main
 fail/domains/module_domain_broad_import_hides_leaf rejected 236ms expected @2d8ed253669f
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
-fail/domains/mutable_receiver_invalid_field rejected 245ms expected @6e3c4685f8cb
-	cannot prove default-domain field requirement for call consume from main::entry: parameter self.label.text requires [u8; N]::NonEmpty
 fail/domains/nested_field_domain_write_unestablished rejected 297ms expected @c08960bee2b1+wt
 	cannot prove the value assigned to `main.inner.tag` in Main::main is in domain `[u8]::Ascii`; a place declared `in [u8]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/domains/nonboolean_member_predicate rejected 274ms expected @2d8ed253669f
@@ -1680,7 +1678,6 @@ pass/domains/explicit_domain_erasure checked 288ms @2d8ed253669f
 pass/domains/local_alias_domain_transfer checked 275ms @4e4bfed13aee+wt
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
-pass/domains/mutable_receiver_declared_field_exit checked 1763ms @6e3c4685f8cb
 pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
 pass/domains/record_literal_view_member_store_exit checked 1024ms @bd26d3a01ac1+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
@@ -1695,8 +1692,8 @@ pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
 pass/domains/utf8_equals_literal_exit checked 1773ms @55e0349c204c+wt
 pass/domains/utf8_equals_literal_mismatch_exit checked 659ms @54a65e21a512+wt
 pass/domains/utf8_field_read_carries_domain_exit checked 807ms @4e4bfed13aee+wt
-pass/domains/utf8_field_write_from_param rejected 331ms @6e3c4685f8cb
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at structural field store: borrowed view field: declared domains, statement 1)") })
+pass/domains/utf8_field_write_from_param rejected 357ms @2d8ed253669f
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`Main::main` calls `store`, which has no plan; `store` has no admitted body (local construction stopped at structural field store: destination parameter, statement 1)") })
 pass/domains/vacuous_domain_qualification checked 282ms @2d8ed253669f
 pass/domains/view_field_literal_store_reads_exit checked 943ms @4e4bfed13aee+wt
 pass/drops/cleanup_machine_drop_shape checked 240ms @0aa983f6af47+wt

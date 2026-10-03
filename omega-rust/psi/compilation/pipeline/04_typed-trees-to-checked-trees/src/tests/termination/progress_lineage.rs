@@ -8,7 +8,7 @@ use language_semantics::{MachineTerminationPlan, TerminationGuarantee};
 mod qualifications;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
-    let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
+    let source = format!("data Main {{}} machine Main::run(main: &mut Main) {{}} {source}");
     typed_program(&source)
 }
 

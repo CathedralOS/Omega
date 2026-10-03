@@ -1420,21 +1420,25 @@ the complete product bar; focused successes below do not establish that baseline
   suffix-recommending diagnostics; require suffix rejection in every type
   position, preserve the unrelated range constructs, and delete the recipe.
 
-- **NOMINAL-FIELD-FLOW.** Unify receiver and named mutable-argument field
-  obligations under [ordinary mutable-receiver contracts](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains).
-  An established `&mut self` owes the same declared field/default domains as
-  `&mut T` at call admission, entry, return and fact handback, including domains
-  that reject zero. This is an implementation gap, not an unsettled design.
+- **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution
+  acceptance under [ordinary mutable-argument contracts](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
+  and [static declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
+  Qualified machine names contribute no storage or arguments. Established
+  mutable inputs owe their declared field/default domains at call admission,
+  entry, return and fact handback, including domains that reject zero.
 
   Owner: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees`.
-  `src/semantic/facts/field_domains.rs` still seeds receiver rows through
-  `append_data_field_domain_facts`' zero-validity filter, while
-  `append_state_parameter_domain_facts` skips `self` and seeds named parameters
-  without that filter. `src/checks/contracts/nominal_inputs.rs`,
-  `src/checks/contracts/exits/result_domains.rs` and `src/flow/call_phases/referents.rs`
-  consume the split rows. Replace the receiver exception with shared declared
-  obligations; retain zero-validity checks for actual ZII storage establishment.
-  Nominal annotations cannot resurrect facts retired by mutation.
+  `src/semantic/facts/field_domains.rs` now supplies shared parameter obligations;
+  the separate machine-field origin and threaded-subject admission exemption
+  are removed. Zero-validity remains an actual storage-establishment check.
+  `domains/qualified_mutable_field_exit` and
+  `domains/threaded_subject_keeps_established_domains` execute with native exit
+  0 on macOS ARM64 on the `02d98c7f59`-based candidate. The first observes nested
+  NonEmpty fields before and after qualified and free-machine mutations; the
+  second retains an established record across explicit state transitions.
+  Nominal annotations cannot resurrect facts retired by mutation; unknown writes
+  remain conservative, and an exclusive whole-record loan still conflicts with
+  a live read-only projection even when its callee writes nothing.
 
   Transition argument transport already exists in `src/flow/state_values.rs` and
   `src/flow/state_values/fields.rs`: live literal, byte-predicate and integer-bound
@@ -1444,12 +1448,12 @@ the complete product bar; focused successes below do not establish that baseline
   only with the necessary carrier/byte evidence: `ValidUtf8` alone does not
   imply `AsciiOnly`.
 
-  Acceptance: paired method/free-machine cases over the same established
+  Acceptance: paired qualified/free-machine cases over the same established
   `&mut T` agree for nested non-ZII domains, valid mutation and return through
   the shared path. Invalid arrivals, unclosed invariant windows and stale aliases
   reject at calls, transitions and returns. Extra input-only `requires` are not
   implicit postconditions; preserve explicit `ensures`. Verify equally initialized
-  ASCII carriers and guarded stores through receiver and named transition
+  ASCII carriers and guarded stores through ordinary parameters and transition
   arguments, retaining the poisoned-edge/missing-fact controls in
   `tests/element_field_flow_probe.rs` and the join/mutation controls in
   `src/tests/contracts/state_field_values.rs`. Preserve indexing, view, copy and
@@ -1458,11 +1462,15 @@ the complete product bar; focused successes below do not establish that baseline
   require exact finite candidate-origin coverage, never universal coverage from
   unresolved selectors.
 
-  Keep the unchanged Dungeon Crawler as application regression coverage:
+  Remaining application dependency: the checked-in Dungeon Crawler still uses
+  retired `self` syntax. **STATIC-DUNGEON-NATIVE-BUILD-COST** and
+  **STATIC-MACHINE-MIGRATION** own its explicit-parameter migration. Earlier
+  EOF/help native runs used the old language surface and do not establish
+  acceptance after its retirement. On the migrated application,
   run closed stdin and `help`/`exit` through the commands and output oracle in
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
-  Both routes now have full macOS ARM64 native acceptance; the receiver/domain
-  obligation above remains unfinished. Preserve the view-membership and
+  require fresh native exit/output evidence for both routes before closing this
+  application row. Preserve the view-membership and
   returned-reference controls, including
   `control_flow/element_view_enum_equality_exit`,
   `borrows/indexed_record_field_replacement_exit`,

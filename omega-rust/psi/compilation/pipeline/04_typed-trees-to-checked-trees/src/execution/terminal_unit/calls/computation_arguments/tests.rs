@@ -32,7 +32,7 @@ machine enter(limits: Limits, marker: u64) -> u64 {
 fn qualified_byte_field_calls_retain_their_short_circuit_return_owner() {
     let checked = checked(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/omega/pass/domains/mutable_receiver_declared_field_exit/main.omg"
+        "/../../../../../tests/omega/pass/domains/qualified_mutable_field_exit/main.omg"
     )));
     for name in ["replace", "Packet::replace"] {
         let owner = machine(&checked.typed, name);
