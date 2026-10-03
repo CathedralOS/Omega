@@ -174,3 +174,64 @@ fn a_denied_guard_negates_one_comparison_only() {
         StrictArithmeticImplicationJudgment::Unknown
     );
 }
+
+#[test]
+fn scoped_value_relation_rejects_noncomparisons_even_with_false_premises() {
+    use numerics::bignum::BigInt;
+    let mut program = TypedTrees::default();
+    let zero = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
+    let one = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+    let impossible =
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: one,
+                operator: BinaryOperator::Less,
+                right: zero,
+            }));
+    let hypotheses = [ScopedArithmeticHypothesis {
+        proposition: ScopedArithmeticExpression {
+            expression: impossible,
+            bindings: Vec::new(),
+        },
+        holds: true,
+    }];
+    let left = ScopedArithmeticValue::Integer(BigInt::from_i64(0));
+    let right = ScopedArithmeticValue::Integer(BigInt::from_i64(1));
+    // Pin the inconsistent context: it can discharge a comparison, so the
+    // refusals below specifically exercise the operator boundary.
+    assert_eq!(
+        super::scoped_arithmetic_values_relation(
+            &program,
+            &Machine::default(),
+            &hypotheses,
+            BinaryOperator::Equal,
+            &left,
+            &right,
+        ),
+        StrictArithmeticImplicationJudgment::Proven
+    );
+    for operator in [
+        BinaryOperator::Add,
+        BinaryOperator::Subtract,
+        BinaryOperator::Multiply,
+        BinaryOperator::And,
+        BinaryOperator::Or,
+    ] {
+        assert_eq!(
+            super::scoped_arithmetic_values_relation(
+                &program,
+                &Machine::default(),
+                &hypotheses,
+                operator,
+                &left,
+                &right,
+            ),
+            StrictArithmeticImplicationJudgment::Unknown
+        );
+    }
+}

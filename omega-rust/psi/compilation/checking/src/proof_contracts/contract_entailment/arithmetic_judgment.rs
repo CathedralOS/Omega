@@ -569,6 +569,31 @@ impl<'program> Engine<'program> {
         }
     }
 
+    /// Normalize a scoped value without manufacturing a source expression for
+    /// an implicit successor or a current storage observation.
+    pub(super) fn normalize_scoped_value(
+        &mut self,
+        value: &super::ScopedArithmeticValue,
+    ) -> Option<Polynomial> {
+        use super::ScopedArithmeticValue;
+        Some(match value {
+            ScopedArithmeticValue::Atom { identity, unsigned } => {
+                self.declare_atom(identity, *unsigned);
+                Polynomial::atom(identity.clone())
+            }
+            ScopedArithmeticValue::Integer(value) => Polynomial::constant(value.clone()),
+            ScopedArithmeticValue::Term(term) => {
+                if !self.install_scoped_bindings(&term.bindings) { return None; }
+                self.normalize(term.expression)?
+            }
+            ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
+                if !self.install_scoped_bindings(&term.bindings) { return None; }
+                self.bind_strict_integer_division(term.expression)?;
+                self.normalize(term.expression)?
+            }
+        })
+    }
+
     /// Replace the strict symbol, result and projection tables with one scoped
     /// roster. Every bound term is read under its own nested roster, so
     /// no term can see the roster it is bound into. Declared atoms, installed
@@ -579,7 +604,7 @@ impl<'program> Engine<'program> {
         &mut self,
         bindings: &[super::ScopedArithmeticBinding],
     ) -> bool {
-        use super::{ScopedArithmeticBinder, ScopedArithmeticValue};
+        use super::ScopedArithmeticBinder;
         if !self.strict_symbol_bindings_valid {
             return false;
         }
@@ -590,32 +615,8 @@ impl<'program> Engine<'program> {
         let mut domain_self = Vec::new();
         let mut result = None;
         for binding in bindings {
-            let polynomial = match &binding.value {
-                ScopedArithmeticValue::Atom { identity, unsigned } => {
-                    self.declare_atom(identity, *unsigned);
-                    Polynomial::atom(identity.clone())
-                }
-                ScopedArithmeticValue::Integer(value) => Polynomial::constant(value.clone()),
-                ScopedArithmeticValue::Term(term) => {
-                    if !self.install_scoped_bindings(&term.bindings) {
-                        return false;
-                    }
-                    let Some(polynomial) = self.normalize(term.expression) else {
-                        return false;
-                    };
-                    polynomial
-                }
-                ScopedArithmeticValue::AdmittedIntegerRemainder(term) => {
-                    if !self.install_scoped_bindings(&term.bindings)
-                        || self.bind_strict_integer_division(term.expression).is_none()
-                    {
-                        return false;
-                    }
-                    let Some(polynomial) = self.normalize(term.expression) else {
-                        return false;
-                    };
-                    polynomial
-                }
+            let Some(polynomial) = self.normalize_scoped_value(&binding.value) else {
+                return false;
             };
             match binding.binder {
                 ScopedArithmeticBinder::Symbol(symbol) => {

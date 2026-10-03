@@ -98,34 +98,7 @@ pub fn scoped_arithmetic_implication(
     if !engine.install_scoped_bindings(&goal.bindings) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
-    let mut comparisons = Vec::new();
-    for hypothesis in hypotheses {
-        // Weakening an asserted conjunction is sound; negating that weakened
-        // conjunction is not. Inspect the authored shape before flattening so
-        // an unread conjunct cannot turn !(A && B) into !A.
-        if !hypothesis.holds
-            && !matches!(
-                program.expression_table.expression(hypothesis.proposition.expression),
-                ExpressionNode::Binary(binary) if negated_comparison(binary.operator).is_some()
-            )
-        {
-            return StrictArithmeticImplicationJudgment::Unknown;
-        }
-        let Some(mut read) = read_comparisons(&mut engine, &hypothesis.proposition) else {
-            return StrictArithmeticImplicationJudgment::Unknown;
-        };
-        if !hypothesis.holds {
-            let [(operator, left, right)] = read.as_slice() else {
-                return StrictArithmeticImplicationJudgment::Unknown;
-            };
-            let Some(negated) = negated_comparison(*operator) else {
-                return StrictArithmeticImplicationJudgment::Unknown;
-            };
-            read = vec![(negated, left.clone(), right.clone())];
-        }
-        comparisons.extend(read);
-    }
-    if !engine.install_hypotheses(comparisons) {
+    if !install_hypotheses(program, &mut engine, hypotheses) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
     if engine.requires_unsatisfiable {
@@ -155,4 +128,98 @@ fn read_comparisons(
     let mut comparisons = Vec::new();
     engine.collect_comparisons(&[proposition.expression], &mut comparisons);
     Some(comparisons)
+}
+
+fn install_hypotheses(
+    program: &TypedTrees,
+    engine: &mut Engine<'_>,
+    hypotheses: &[ScopedArithmeticHypothesis],
+) -> bool {
+    let mut comparisons = Vec::new();
+    for hypothesis in hypotheses {
+        // Weakening an asserted conjunction is sound; negating that weakened
+        // conjunction is not. Inspect the authored shape before flattening so
+        // an unread conjunct cannot turn !(A && B) into !A.
+        if !hypothesis.holds
+            && !matches!(
+                program.expression_table.expression(hypothesis.proposition.expression),
+                ExpressionNode::Binary(binary) if negated_comparison(binary.operator).is_some()
+            )
+        {
+            return false;
+        }
+        let Some(mut read) = read_comparisons(engine, &hypothesis.proposition) else {
+            return false;
+        };
+        if !hypothesis.holds {
+            let [(operator, left, right)] = read.as_slice() else {
+                return false;
+            };
+            let Some(negated) = negated_comparison(*operator) else {
+                return false;
+            };
+            read = vec![(negated, left.clone(), right.clone())];
+        }
+        comparisons.extend(read);
+    }
+    if !engine.install_hypotheses(comparisons) {
+        return false;
+    }
+    true
+}
+
+/// Compare independent scoped values through the existing integer judgment.
+/// The caller retains exact source carrier, policy and observation custody.
+pub fn scoped_arithmetic_values_relation(
+    program: &TypedTrees,
+    context_machine: &Machine,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    operator: BinaryOperator,
+    left: &ScopedArithmeticValue,
+    right: &ScopedArithmeticValue,
+) -> StrictArithmeticImplicationJudgment {
+    use numerics::bignum::BigInt;
+    // An inconsistent premise set entails propositions, but does not turn an
+    // arithmetic or Boolean operator into a comparison judgment.
+    if !matches!(
+        operator,
+        BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Equal
+    ) {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    }
+    let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, &[]);
+    let Some(left) = engine.normalize_scoped_value(left) else {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    };
+    let Some(right) = engine.normalize_scoped_value(right) else {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    };
+    if !install_hypotheses(program, &mut engine, hypotheses) {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    }
+    let left = engine.substituted(&left);
+    let right = engine.substituted(&right);
+    let zero = BigInt::from_i64(0);
+    let one = BigInt::from_i64(1);
+    let proven = engine.requires_unsatisfiable
+        || match operator {
+            BinaryOperator::Less => engine.prove_at_least(&right.sub(&left), &one),
+            BinaryOperator::LessOrEqual => engine.prove_at_least(&right.sub(&left), &zero),
+            BinaryOperator::Greater => engine.prove_at_least(&left.sub(&right), &one),
+            BinaryOperator::GreaterOrEqual => engine.prove_at_least(&left.sub(&right), &zero),
+            BinaryOperator::Equal => {
+                engine.prove_at_least(&right.sub(&left), &zero)
+                    && engine.prove_at_least(&left.sub(&right), &zero)
+            }
+            _ => false,
+        };
+    if proven {
+        StrictArithmeticImplicationJudgment::Proven
+    } else {
+        StrictArithmeticImplicationJudgment::Unknown
+    }
 }

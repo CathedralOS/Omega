@@ -39,6 +39,7 @@
 //! crate.
 
 // Call obligations: contract requirements and guarantees, and borrows.
+pub(crate) mod current_scalar_values;
 mod borrows;
 pub(crate) mod contracts;
 

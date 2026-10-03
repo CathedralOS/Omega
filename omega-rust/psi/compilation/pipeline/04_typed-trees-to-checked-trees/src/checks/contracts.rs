@@ -58,6 +58,7 @@ pub(in crate::checks) mod prover;
 // Provers the call requirement and exit checks consult directly.
 mod call_bounds;
 mod content_preservation;
+mod current_values;
 mod entailment;
 mod guard_operands;
 mod integer_embeddings;
@@ -213,6 +214,7 @@ pub(super) fn check_flow_call_contracts(
             program,
             facts,
             state_flow,
+            call_frames,
             &mut diagnostics,
         );
         // #66 write-enforcement: every assignment into a domain-refined field must

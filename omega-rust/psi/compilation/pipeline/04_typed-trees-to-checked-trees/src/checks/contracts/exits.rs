@@ -228,6 +228,7 @@ pub(super) fn check_exit_ensures(
                 || evidence_assignment
                 || (missing_origins.is_empty()
                     && (proved
+                        || super::current_values::proves_exit(program, exit_flow, fact, call_frames)
                         || result_domains::proves_result_domain(
                             program,
                             facts,
