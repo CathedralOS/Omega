@@ -1,7 +1,7 @@
 This accumulator decrements mutable current storage and increments a second
-parameter before taking `-> self`. Its arrival contract preserves the total;
+parameter before explicitly passing both current values into the next arrival. Its arrival contract preserves the total;
 its rank must compare the incoming counter with the actual updated successor.
-`accumulate(3, 4, 7)` returns 7, and Main exits 70.
+`accumulate(3, 4, 7)` returns 7, and the program exits 70.
 
 After normal package review, run from the repository root:
 

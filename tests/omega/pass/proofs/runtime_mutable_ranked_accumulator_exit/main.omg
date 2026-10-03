@@ -1,24 +1,19 @@
-// Expected: accumulate(3, 4, 7) returns 7, so Main exits 70.
+// Expected: accumulate(3, 4, 7) returns 7, so the program exits 70.
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Main {
-    console: Binding<Console>;
-}
-
-machine Main::main(main: &mut Main) reaches Console {
+machine main() reaches Console {
     let floor: u64 = accumulate(3, 4, 7);
     transition floor == 7 {
-        true -> good(main)
-        _ -> bad(main)
+        true -> good()
+        _ -> bad()
     }
 
-    state good(main: &mut Main) {
-        main.console.exit_process(70);
+    state good() {
+        Console::exit_process(70);
     }
 
-    state bad(main: &mut Main) {
-        main.console.exit_process(71);
+    state bad() {
+        Console::exit_process(71);
     }
 }
 
@@ -32,7 +27,7 @@ ensures result == total
     remaining = remaining - 1;
     accumulator = accumulator + 1;
     transition remaining > 0 {
-        true -> self
+        true -> accumulate(remaining, accumulator, total)
         false -> accumulator
     }
 }

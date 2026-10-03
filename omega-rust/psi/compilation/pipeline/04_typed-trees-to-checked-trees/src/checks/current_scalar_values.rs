@@ -333,13 +333,6 @@ impl<'program> CurrentScalarValues<'program> {
             .value
             .clone()
     }
-    pub(crate) fn current_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
-        self.current
-            .iter()
-            .find(|binding| binding.symbol == symbol)?
-            .value
-            .clone()
-    }
     pub(crate) fn current(
         &self,
         expression: ExpressionHandle,

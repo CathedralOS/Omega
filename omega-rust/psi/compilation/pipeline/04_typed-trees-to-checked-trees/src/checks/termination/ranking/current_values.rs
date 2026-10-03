@@ -148,9 +148,6 @@ fn prove_edge(
     )?;
     let previous = values.initial_symbol(source_rank.parameter)?;
     let next = match program.statement_table.transition_target(selected) {
-        TransitionTargetNode::SelfTarget if source.symbol == target.symbol => {
-            values.current_symbol(target_rank.parameter)?
-        }
         TransitionTargetNode::Named { .. } => {
             let position = program
                 .state_parameters(target)
