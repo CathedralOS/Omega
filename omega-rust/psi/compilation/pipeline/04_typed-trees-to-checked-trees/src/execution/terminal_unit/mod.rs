@@ -532,6 +532,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                 .map(|argument| argument.type_identity.as_str())
                                 .collect();
                             match operation {
+                                CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+                                    seeded.push(result.type_identity.as_str());
+                                    seeded.push(source.type_identity.as_str());
+                                }
                                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                                     type_identity,
                                     ..
@@ -673,8 +677,13 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 }
                 _ => {}
             },
-            CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
+            CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+                // A materialized view and its original scalar backing need not
+                // occur in any signature; both are operation dependencies.
+                retained_type_identities.insert(result.type_identity.as_str());
+                retained_type_identities.insert(source.type_identity.as_str());
+            }
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
