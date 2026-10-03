@@ -199,7 +199,7 @@ pub(crate) fn derive_normalized_foreign_child(
             // roster row's result-home requirement carries the same custody
             // the object route proves through its emitted durable-home record.
             let Some(home) =
-                fragment_rejoin.and_then(|rejoin| rejoin.record.call.result_home.as_ref())
+                fragment_rejoin.and_then(|rejoin| rejoin.record.call.result.scalar_home())
             else {
                 return Err("normalized foreign D41 child changed its scalar result custody");
             };
@@ -218,10 +218,72 @@ pub(crate) fn derive_normalized_foreign_child(
             }
             Some(shape)
         }
-        _ => return Err("normalized foreign D41 child changed its scalar result custody"),
+        (
+            terminal_psi::OperationResult::Structural(result),
+            terminal_psi::BoundaryMachineResult::Structural(declared),
+            None,
+        ) => {
+            // The admitted fragment retains the complete typed home and independently
+            // replayed capture. It is not represented by the legacy scalar record.
+            let Some(rejoin) = fragment_rejoin else {
+                return Ok(None);
+            };
+            let target_operations::TargetBoundaryResult::Structural(home) =
+                &rejoin.record.call.result
+            else {
+                return Err("normalized foreign D41 child changed its structural result custody");
+            };
+            let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout
+            else {
+                return Err("normalized foreign D41 child changed its structural result layout");
+            };
+            // Fragment admission independently classifies the complete public
+            // declaration under the retained calling policy. Rejoin those exact
+            // declarations below, retaining that admitted ABI class: activation
+            // storage carries only ordinary geometry, not SysV/HFA classification.
+            let placement = foreign
+                .binding
+                .boundary_entry_plan
+                .call
+                .result
+                .as_ref()
+                .ok_or("normalized foreign D41 child lost its structural result placement")?;
+            let retained_types = publication
+                .and_then(|binding| {
+                    binding
+                        .selected_plan()
+                        .functions
+                        .iter()
+                        .find(|function| function.machine == occurrence.machine())
+                })
+                .and_then(|function| function.structural.as_ref())
+                .ok_or("normalized foreign D41 child lost its structural declarations")?;
+            if home.operation_result() != Some((occurrence.operation(), result))
+                || result.structural_type != declared.structural_type
+                || result.multiplicity != declared.multiplicity
+                || result.qualifications != declared.qualifications
+                || !retained_types
+                    .structural_types
+                    .iter()
+                    .any(|item| item.id == result.structural_type)
+                || retained_types
+                    .structural_types
+                    .iter()
+                    .any(|item| !module.structural_types.iter().any(|source| source == item))
+                || placement.shape.byte_size != shape.byte_size
+                || placement.shape.alignment != shape.alignment
+            {
+                return Err("normalized foreign D41 child changed its structural result custody");
+            }
+            Some(placement.shape)
+        }
+        _ => return Err("normalized foreign D41 child changed its result custody"),
     };
     if let Some(rejoin) = fragment_rejoin
-        && rejoin.record.call.result_home.is_some() != result_shape.is_some()
+        && matches!(
+            rejoin.record.call.result,
+            target_operations::TargetBoundaryResult::Unit
+        ) != result_shape.is_none()
     {
         return Err("normalized foreign D41 child changed its scalar result custody");
     }

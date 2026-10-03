@@ -851,6 +851,13 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishElementView { result, .. }
             | Self::ElementViewSubslice { result, .. } => Some(result),
             Self::Call(call) => call.structural_result.as_ref(),
+            Self::NormalizedForeignCall(call) => match &call.result {
+                target_operations::TargetBoundaryResult::Structural(home) => {
+                    home.operation_result().map(|(_, result)| result)
+                }
+                target_operations::TargetBoundaryResult::Unit
+                | target_operations::TargetBoundaryResult::Scalar(_) => None,
+            },
             Self::FloatResultPolicy { .. }
             | Self::AtomicAccess { .. }
             | Self::IeeeFloatCompare { .. }
@@ -887,7 +894,6 @@ impl LegalizedScalarInstructionKind {
             | Self::ScalarRepresentationView { .. }
             | Self::IntegerExactCast { .. }
             | Self::BoundarySettlement(_)
-            | Self::NormalizedForeignCall(_)
             | Self::DynamicParameterCall(_)
             | Self::SaturatingAdd { .. }
             | Self::SaturatingSubtract { .. }
@@ -1215,9 +1221,8 @@ impl LegalizedScalarArgument {
 /// `provider_execution` and `binding` keep the exact admitted execution and
 /// the evaluated locator/entry-plan pair; they are evidence, not ambient
 /// lookup authority. `scalar_arguments` and `structural_arguments` retain the
-/// evaluated plan's exact ordered placements; `result_home` requires
-/// downstream assignment to preserve an optional fixed-integer result for
-/// later Unit operations. `callbacks` carries the retained registrar
+/// evaluated plan's exact ordered placements; `result` retains the completion's
+/// exact scalar or structural storage identity. `callbacks` carries the retained registrar
 /// callback roster rows this call consumes — one per private materialization
 /// the evaluated plan declares, in roster order — and is empty otherwise.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1227,7 +1232,7 @@ pub struct LegalizedNormalizedForeignCall {
     pub binding: target_operations::NormalizedForeignCallBinding,
     pub scalar_arguments: Vec<target_operations::NormalizedForeignScalarArgument>,
     pub structural_arguments: Vec<target_operations::NormalizedForeignStructuralArgument>,
-    pub result_home: Option<target_operations::TargetUnitScalarHomeRequirement>,
+    pub result: target_operations::TargetBoundaryResult,
     pub callbacks: Vec<target_operations::TargetNativeCallbackArgument>,
 }
 

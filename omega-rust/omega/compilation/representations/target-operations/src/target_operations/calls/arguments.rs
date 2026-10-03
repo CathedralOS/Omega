@@ -6,9 +6,9 @@ use semantic_vocabulary::{
     IeeeFloatValue, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
 
-/// Closed result role of one compiler-builtin boundary settlement in a Unit
-/// body. Unit is explicit rather than encoded as an absent scalar or absent
-/// structural home.
+/// Closed result role of a boundary call. Builtin and foreign realizations
+/// retain the same semantic storage contract; their entry mechanisms differ.
+/// Unit is explicit rather than encoded as an absent scalar or structural home.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetBoundaryResult {
     Unit,
@@ -19,6 +19,15 @@ pub enum TargetBoundaryResult {
     /// register placement stays a derived downstream fact, replayed from the
     /// evaluated call plan rather than authored here.
     Scalar(TargetUnitScalarHomeRequirement),
+}
+
+impl TargetBoundaryResult {
+    pub const fn scalar_home(&self) -> Option<&TargetUnitScalarHomeRequirement> {
+        match self {
+            Self::Scalar(home) => Some(home),
+            Self::Unit | Self::Structural(_) => None,
+        }
+    }
 }
 
 /// Exact source of one scalar argument in an ordered Unit body or graph.

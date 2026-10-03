@@ -15,7 +15,7 @@ pub(crate) mod installed_calls;
 mod reference_results;
 mod structural_argument_sources;
 mod structural_call_arguments;
-mod structural_shapes;
+pub(crate) mod structural_shapes;
 mod structural_signatures;
 mod whole_plan;
 

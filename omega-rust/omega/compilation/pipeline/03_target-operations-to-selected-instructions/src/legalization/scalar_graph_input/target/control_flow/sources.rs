@@ -197,7 +197,7 @@ pub(in crate::legalization::scalar_graph_input) fn definition(
             ..
         }
         | TargetUnitOperation::NormalizedForeignCall {
-            result_home: Some(result_home),
+            result: target_operations::TargetBoundaryResult::Scalar(result_home),
             ..
         } => Some((result_home.source_value, Source::Home(*result_home))),
         _ => None,

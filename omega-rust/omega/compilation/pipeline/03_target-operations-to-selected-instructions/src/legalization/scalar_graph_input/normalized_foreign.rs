@@ -14,6 +14,86 @@ use target_operations::{
     TargetUnitOperation,
 };
 
+/// Reconstruct completion custody from the boundary declaration and source
+/// operation, never from the target row's proposed home. ABI classification
+/// differs from storage geometry: both are required for a foreign result.
+pub(in crate::legalization) fn result_at(
+    result: &abstract_operations::AbstractBoundaryResult,
+    declaration: &terminal_psi::BoundaryMachineResult,
+    operation: OperationId,
+    optimized: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+    policy: calling_conventions::CallingPolicy,
+) -> Result<(target_operations::TargetBoundaryResult, Option<ValueShape>), LegalizationError> {
+    use target_operations::TargetBoundaryResult;
+    match (result, declaration) {
+        (
+            abstract_operations::AbstractBoundaryResult::Unit,
+            terminal_psi::BoundaryMachineResult::Unit,
+        ) => Ok((TargetBoundaryResult::Unit, None)),
+        (
+            abstract_operations::AbstractBoundaryResult::Scalar(result),
+            terminal_psi::BoundaryMachineResult::Scalar(declared),
+        ) => {
+            if result.scalar_type != *declared
+                || super::value_type(optimized, result.value) != Some(result.scalar_type)
+            {
+                return Err(LegalizationError::custody());
+            }
+            let shape =
+                super::scalar_shape(result.scalar_type).ok_or(LegalizationError::custody())?;
+            Ok((
+                TargetBoundaryResult::Scalar(target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape,
+                }),
+                Some(shape),
+            ))
+        }
+        (
+            abstract_operations::AbstractBoundaryResult::Structural(result),
+            terminal_psi::BoundaryMachineResult::Structural(declared),
+        ) => {
+            if result.structural_type != declared.structural_type
+                || result.multiplicity != declared.multiplicity
+                || result.qualifications != declared.qualifications
+                || !result.projected_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || !result.claims.is_empty()
+                || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            {
+                return Err(LegalizationError::custody());
+            }
+            let storage = crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                &plan.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
+            let shape = abstract_operations_to_target_operations::classified_boundary_shape(
+                result.structural_type,
+                &plan.structural_types,
+                policy,
+            )
+            .map_err(|_| LegalizationError::custody())?;
+            Ok((
+                TargetBoundaryResult::Structural(
+                    target_operations::TargetStructuralHomeRequirement {
+                        origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            operation,
+                            result: result.clone(),
+                        },
+                        layout: target_operations::TargetStructuralHomeLayout::Aggregate(storage),
+                    },
+                ),
+                Some(shape),
+            ))
+        }
+        _ => Err(LegalizationError::custody()),
+    }
+}
+
 /// The unique normalized foreign row one boundary call emitted, if any.
 /// Duplicate rows for one source operation are a custody failure, not an
 /// ambiguous match.

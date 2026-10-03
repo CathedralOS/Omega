@@ -616,6 +616,64 @@ pub(super) fn lower_normalized_foreign_scalar_arguments(
     )
 }
 
+/// Rejoin normal completion to its semantic result and physical storage.
+/// The selected entry plan supplies ABI classification; storage geometry is
+/// derived from the declared carrier. Translation replay independently checks
+/// that classification, so equal byte size cannot substitute a calling class.
+pub(super) fn lower_normalized_foreign_result(
+    boundary: BoundaryMachineId,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    defining_operation: OperationId,
+    result: &abstract_operations::AbstractBoundaryResult,
+    boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> Result<target_operations::TargetBoundaryResult, LoweringError> {
+    if let abstract_operations::AbstractBoundaryResult::Structural(result) = result {
+        let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result else {
+            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+        };
+        if result.structural_type != expected.structural_type
+            || result.multiplicity != expected.multiplicity
+            || result.qualifications != expected.qualifications
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || !result.qualification_establishments.is_empty()
+        {
+            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+        }
+        let home = crate::lowering::control_flow::aggregate_results::home(
+            defining_operation,
+            result,
+            structural_types,
+        )?;
+        let placement = boundary_entry_plan
+            .call
+            .result
+            .as_ref()
+            .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+        let shape = home.layout.shape();
+        if placement.locations.is_empty()
+            || placement.shape.byte_size != shape.byte_size
+            || placement.shape.alignment != shape.alignment
+            || placement.shape.class == ValueClass::BorrowedReference
+        {
+            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+        }
+        return Ok(target_operations::TargetBoundaryResult::Structural(home));
+    }
+    let scalar = lower_normalized_foreign_scalar_result(
+        boundary,
+        declaration,
+        defining_operation,
+        result.scalar(),
+        boundary_entry_plan,
+    )?;
+    Ok(scalar.map_or(
+        target_operations::TargetBoundaryResult::Unit,
+        target_operations::TargetBoundaryResult::Scalar,
+    ))
+}
+
 pub(super) fn lower_normalized_foreign_scalar_result(
     boundary: BoundaryMachineId,
     declaration: &terminal_psi::BoundaryMachineDeclaration,

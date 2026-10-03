@@ -16,7 +16,7 @@ use terminal_psi::{
 };
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct InvalidStructuralShape;
+pub struct InvalidStructuralShape;
 
 #[cfg(test)]
 mod tests;
@@ -507,7 +507,7 @@ pub(super) fn boundary_formal_shape(
 /// Microsoft x64. Scalar and descriptor carriers keep their semantic shape;
 /// carriers with no by-value boundary encoding refuse, matching the upstream
 /// materialization that produced the plan being replayed.
-fn classified_boundary_shape(
+pub fn classified_boundary_shape(
     structural_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
     policy: CallingPolicy,

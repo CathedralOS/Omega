@@ -202,6 +202,34 @@ pub fn derive_normalized_foreign_call_custody(
             let (Some(frame), None) = (frames.next(), frames.next()) else {
                 return Err(invalid());
             };
+            if let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result {
+                let slot = selected_instructions::LocalStorageSlotId::Structural {
+                    operation: record.operation,
+                    place: home.place(),
+                };
+                let mut homes = frame
+                    .local_storage_slots
+                    .iter()
+                    .filter(|home| home.id == slot);
+                let Some(placed) = homes.next() else {
+                    return Err(invalid());
+                };
+                let shape = home.layout.shape();
+                if homes.next().is_some()
+                    || placed.size_bytes != shape.byte_size
+                    || placed.alignment_bytes != shape.alignment
+                    || placed.frame_offset_bytes < frame.outgoing_abi_area.byte_size
+                    || !placed
+                        .frame_offset_bytes
+                        .is_multiple_of(u64::from(shape.alignment))
+                    || placed
+                        .frame_offset_bytes
+                        .checked_add(u64::from(shape.byte_size))
+                        .is_none_or(|end| end > frame.frame_size_bytes)
+                {
+                    return Err(invalid());
+                }
+            }
             let committed = frame
                 .frame_size_bytes
                 .checked_sub(frame.red_zone_resident_bytes)
@@ -319,7 +347,7 @@ fn durable_home_offsets(
         }
     }
     for record in &function.normalized_foreign_calls {
-        if let Some(home) = &record.call.result_home {
+        if let Some(home) = record.call.result.scalar_home() {
             producers.push((
                 record.instruction,
                 home.defining_operation,
@@ -595,9 +623,29 @@ where
             })
             .count();
     if instruction.operands.len()
-        != register_arguments + usize::from(record.call.result_home.is_some())
+        != register_arguments + foreign_result_operand_count(record).ok_or_else(invalid)?
     {
         return Err(invalid());
+    }
+    if let target_operations::TargetBoundaryResult::Structural(_) = record.call.result {
+        let placement = plan.result.as_ref().ok_or_else(invalid)?;
+        for (location, operand) in placement
+            .locations
+            .iter()
+            .zip(&instruction.operands[register_arguments..])
+        {
+            let register = match *location {
+                ValueLocation::Register { register, .. } => register,
+                ValueLocation::Indirect {
+                    pointer: calling_conventions::IndirectPointerLocation::Register(register),
+                    ..
+                } => register,
+                _ => return Err(invalid()),
+            };
+            if !fixed_view(operand, register) {
+                return Err(invalid());
+            }
+        }
     }
     // A callback materialization with a `Parameter` destination claims the
     // parameter's register placement without occupying a call-row operand —
@@ -733,6 +781,298 @@ where
     Ok(scalar_arguments)
 }
 
+/// Reconstruct completed aggregate storage from the retained ABI and selected
+/// memory effects. Plain aggregates use their real place/slot, never a scalar
+/// home or a fabricated sum layout. Physical instruction replay has already
+/// checked these selected instructions against their placed bytes.
+fn structural_result_capture(
+    function: &selected_instructions::SelectedFunction,
+    block: &selected_instructions::SelectedBlock,
+    fragment: &machine_code::PlacedFunctionFragment,
+    record: &selected_instructions::SelectedNormalizedForeignCall,
+    instruction: &selected_instructions::SelectedInstruction,
+) -> Option<()> {
+    use selected_instructions::{
+        FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionKind as Kind,
+        SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, VirtualRegisterOrigin,
+    };
+    let target_operations::TargetBoundaryResult::Structural(home) = &record.call.result else {
+        return None;
+    };
+    let (operation, result) = home.operation_result()?;
+    let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout else {
+        return None;
+    };
+    let placement = record
+        .call
+        .binding
+        .boundary_entry_plan
+        .call
+        .result
+        .as_ref()?;
+    let contract = function.structural.as_ref()?;
+    if operation != record.operation
+        || placement.shape.byte_size != shape.byte_size
+        || placement.shape.alignment != shape.alignment
+        || !contract.structural_places.iter().any(|place| {
+            place.id == result.place
+                && place.kind
+                    == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: result.structural_type,
+                    }
+        })
+        || !contract
+            .structural_types
+            .iter()
+            .any(|declared| declared.id == result.structural_type)
+    {
+        return None;
+    }
+    let slot = LocalStorageSlotId::Structural {
+        operation,
+        place: result.place,
+    };
+    let mut slots = function
+        .local_storage_slots
+        .iter()
+        .filter(|candidate| candidate.id == slot);
+    let storage = slots.next()?;
+    if slots.next().is_some()
+        || storage.byte_size != shape.byte_size
+        || storage.alignment != shape.alignment
+    {
+        return None;
+    }
+    let result_operands = foreign_result_operand_count(record)?;
+    let operands = instruction
+        .operands
+        .get(instruction.operands.len().checked_sub(result_operands)?..)?;
+    let call_position = block
+        .instructions
+        .iter()
+        .position(|candidate| candidate.id == instruction.id)?;
+    let mut position = call_position.checked_add(1)?;
+    if record.call.binding.import().is_some() {
+        let restore = block.instructions.get(position)?;
+        if restore.kind
+            != (Kind::RestoreFloatingControl {
+                slot: LocalStorageSlotId::Boundary { operation },
+            })
+        {
+            return None;
+        }
+        position = position.checked_add(1)?;
+    }
+    let address = block.instructions.get(position)?;
+    if address.kind
+        != (Kind::FrameAddress {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        })
+    {
+        return None;
+    }
+    let [pointer] = address.operands.as_slice() else {
+        return None;
+    };
+    let indirect = matches!(
+        placement.locations.as_slice(),
+        [ValueLocation::Indirect { .. }]
+    );
+    let origin = if indirect {
+        SelectedMemoryAccessOrigin::Operation(operation)
+    } else {
+        SelectedMemoryAccessOrigin::Block(block.source_block())
+    };
+    let memory_matches =
+        |selected: selected_instructions::SelectedInstructionId, offset, width, role| {
+            let mut accesses = function
+                .memory_accesses
+                .iter()
+                .filter(|access| access.instruction == selected);
+            let Some(access) = accesses.next() else {
+                return false;
+            };
+            accesses.next().is_none()
+                && access.origin == origin
+                && access.place == result.place
+                && access.byte_offset == offset
+                && access.byte_count == width
+                && access.role == role
+        };
+    let transport_matches = |register: selected_instructions::VirtualRegisterId,
+                             selected: selected_instructions::SelectedInstructionId,
+                             offset| {
+        function
+            .virtual_registers
+            .get(register.0 as usize)
+            .is_some_and(|value| {
+                value.origin
+                    == VirtualRegisterOrigin::AbiTransport {
+                        instruction: selected,
+                        place: result.place,
+                        byte_offset: offset,
+                    }
+            })
+    };
+    if !transport_matches(pointer.virtual_register, address.id, 0)
+        || !memory_matches(
+            address.id,
+            0,
+            shape.byte_size,
+            SelectedMemoryAccessRole::AddressLocal { slot },
+        )
+    {
+        return None;
+    }
+    let (call_offset, call_bytes) = instruction_span(fragment, instruction.id)?;
+    let (address_offset, address_bytes) = instruction_span(fragment, address.id)?;
+    if address_bytes == 0 || address_offset < call_offset.checked_add(call_bytes)? {
+        return None;
+    }
+    if indirect {
+        let [argument] = operands else { return None };
+        let origin = function
+            .virtual_registers
+            .get(argument.virtual_register.0 as usize)?
+            .origin;
+        let VirtualRegisterOrigin::AbiTransport {
+            instruction: prepared,
+            place,
+            byte_offset: 0,
+        } = origin
+        else {
+            return None;
+        };
+        let preparation = block
+            .instructions
+            .iter()
+            .take(call_position)
+            .find(|candidate| candidate.id == prepared)?;
+        let [output] = preparation.operands.as_slice() else {
+            return None;
+        };
+        let (prepared_offset, prepared_bytes) = instruction_span(fragment, prepared)?;
+        return (place == result.place
+            && output.virtual_register == argument.virtual_register
+            && preparation.kind == address.kind
+            && memory_matches(
+                prepared,
+                0,
+                shape.byte_size,
+                SelectedMemoryAccessRole::AddressLocal { slot },
+            )
+            && prepared_bytes != 0
+            && prepared_offset.checked_add(prepared_bytes)? <= call_offset)
+            .then_some(());
+    }
+    let mut previous_end = address_offset.checked_add(address_bytes)?;
+    position = position.checked_add(1)?;
+    for (location, operand) in placement.locations.iter().zip(operands) {
+        let ValueLocation::Register {
+            value_byte_offset,
+            byte_size,
+            ..
+        } = *location
+        else {
+            return None;
+        };
+        if value_byte_offset.checked_add(byte_size)? > shape.byte_size
+            || !transport_matches(operand.virtual_register, instruction.id, value_byte_offset)
+        {
+            return None;
+        }
+        let mut value = operand.virtual_register;
+        let mut store = block.instructions.get(position)?;
+        if matches!(store.kind, Kind::Float32ToBits | Kind::Float64ToBits) {
+            let expected = match byte_size {
+                4 => Kind::Float32ToBits,
+                8 => Kind::Float64ToBits,
+                _ => return None,
+            };
+            let [input, output] = store.operands.as_slice() else {
+                return None;
+            };
+            if store.kind != expected
+                || input.virtual_register != value
+                || !transport_matches(output.virtual_register, store.id, value_byte_offset)
+            {
+                return None;
+            }
+            let (offset, width) = instruction_span(fragment, store.id)?;
+            if width == 0 || offset < previous_end {
+                return None;
+            }
+            previous_end = offset.checked_add(width)?;
+            value = output.virtual_register;
+            position = position.checked_add(1)?;
+            store = block.instructions.get(position)?;
+        }
+        let actual = match store.kind {
+            Kind::Store {
+                byte_offset,
+                byte_size,
+            } => (byte_offset, u32::from(byte_size)),
+            Kind::StorePacked { byte_offset, width } => (byte_offset, u32::from(width.byte_size())),
+            _ => return None,
+        };
+        if actual != (value_byte_offset, byte_size)
+            || store.operands.first()?.virtual_register != pointer.virtual_register
+            || store.operands.get(1)?.virtual_register != value
+            || !memory_matches(
+                store.id,
+                value_byte_offset,
+                byte_size,
+                SelectedMemoryAccessRole::WritePlace,
+            )
+        {
+            return None;
+        }
+        let (offset, width) = instruction_span(fragment, store.id)?;
+        if width == 0 || offset < previous_end {
+            return None;
+        }
+        previous_end = offset.checked_add(width)?;
+        position = position.checked_add(1)?;
+    }
+    Some(())
+}
+
+/// ABI result fragments and hidden destination pointers are real operands;
+/// Unit and aggregate results cannot be inferred from an optional scalar home.
+fn foreign_result_operand_count(
+    record: &selected_instructions::SelectedNormalizedForeignCall,
+) -> Option<usize> {
+    match (
+        &record.call.result,
+        &record.call.binding.boundary_entry_plan.call.result,
+    ) {
+        (target_operations::TargetBoundaryResult::Unit, None) => Some(0),
+        (target_operations::TargetBoundaryResult::Scalar(_), Some(_)) => Some(1),
+        (target_operations::TargetBoundaryResult::Structural(_), Some(placement)) => {
+            match placement.locations.as_slice() {
+                [
+                    ValueLocation::Indirect {
+                        pointer: calling_conventions::IndirectPointerLocation::Register(_),
+                        ..
+                    },
+                ] => Some(1),
+                locations
+                    if !locations.is_empty()
+                        && locations
+                            .iter()
+                            .all(|location| matches!(location, ValueLocation::Register { .. })) =>
+                {
+                    Some(locations.len())
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Scalar-result custody for one roster row: the caller's durable-home slot
 /// the result occupies, its plan placement, and the exact normalization
 /// instruction that produces the durable definition.
@@ -755,8 +1095,20 @@ fn foreign_scalar_result_custody(
 ) -> Result<Option<machine_code::ForeignCallScalarResultRecord>, ObjectError> {
     let invalid = || ObjectError::InvalidForeignCallArgument { caller, owner };
     let plan = &record.call.binding.boundary_entry_plan.call;
-    let (Some(home), Some(placement)) = (&record.call.result_home, &plan.result) else {
-        if record.call.result_home.is_none() && plan.result.is_none() {
+    if matches!(
+        record.call.result,
+        target_operations::TargetBoundaryResult::Structural(_)
+    ) {
+        structural_result_capture(function, block, fragment, record, instruction)
+            .ok_or_else(invalid)?;
+        return Ok(None);
+    }
+    let (Some(home), Some(placement)) = (record.call.result.scalar_home(), &plan.result) else {
+        if matches!(
+            record.call.result,
+            target_operations::TargetBoundaryResult::Unit
+        ) && plan.result.is_none()
+        {
             return Ok(None);
         }
         return Err(invalid());
@@ -1050,7 +1402,7 @@ fn scalar_call_result_producer(
     let (producer, result_home) = match (internal.next(), foreign.next()) {
         (Some(contract), None) if internal.next().is_none() => (contract.instruction, None),
         (None, Some(record)) if foreign.next().is_none() => {
-            (record.instruction, Some(record.call.result_home.as_ref()))
+            (record.instruction, Some(record.call.result.scalar_home()))
         }
         (None, None) => {
             // Observation-produced homes live outside the call rosters: a

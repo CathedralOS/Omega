@@ -17,6 +17,10 @@ pub(super) fn encode(
     layout: &ConventionalSumLayout,
 ) {
     encode_result(bytes, result);
+    encode_layout(bytes, layout);
+}
+
+pub(super) fn encode_layout(bytes: &mut Vec<u8>, layout: &ConventionalSumLayout) {
     encode_shape(bytes, layout.shape);
     bytes.extend_from_slice(&layout.tag_byte_offset.to_le_bytes());
     encode_shape(bytes, layout.tag_shape);
@@ -75,6 +79,12 @@ pub(super) fn decode(
     cursor: &mut Cursor<'_>,
 ) -> Result<(StructuralOperationResult, ConventionalSumLayout), FixedViewCopyDecodeError> {
     let result = decode_result(cursor)?;
+    Ok((result, decode_layout(cursor)?))
+}
+
+pub(super) fn decode_layout(
+    cursor: &mut Cursor<'_>,
+) -> Result<ConventionalSumLayout, FixedViewCopyDecodeError> {
     let shape = decode_shape(cursor)?;
     let tag_byte_offset = cursor.u32()?;
     let tag_shape = decode_shape(cursor)?;
@@ -87,17 +97,14 @@ pub(super) fn decode(
             fields: decode_fields(cursor)?,
         });
     }
-    Ok((
-        result,
-        ConventionalSumLayout {
-            shape,
-            tag_byte_offset,
-            tag_shape,
-            common_fields,
-            payload_byte_offset,
-            cases,
-        },
-    ))
+    Ok(ConventionalSumLayout {
+        shape,
+        tag_byte_offset,
+        tag_shape,
+        common_fields,
+        payload_byte_offset,
+        cases,
+    })
 }
 
 fn encode_fields(bytes: &mut Vec<u8>, fields: &[PackedFieldLayout]) {

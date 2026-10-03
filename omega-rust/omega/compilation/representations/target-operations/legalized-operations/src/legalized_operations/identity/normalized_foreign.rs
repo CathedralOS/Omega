@@ -27,12 +27,43 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
     for argument in &call.structural_arguments {
         encode_target_structural_argument(bytes, argument);
     }
-    match &call.result_home {
-        Some(home) => {
+    match &call.result {
+        target_operations::TargetBoundaryResult::Scalar(home) => {
             bytes.push(1);
             encode_scalar_home(bytes, home);
         }
-        None => bytes.push(0),
+        target_operations::TargetBoundaryResult::Unit => bytes.push(0),
+        target_operations::TargetBoundaryResult::Structural(home) => {
+            bytes.push(2);
+            match &home.origin {
+                target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation,
+                    result,
+                } => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&operation.get().to_le_bytes());
+                    super::structural_result::encode_operation_result(bytes, result);
+                }
+                target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                    block,
+                    declaration,
+                } => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&block.get().to_le_bytes());
+                    super::structural_types::encode_structural_parameter(bytes, declaration);
+                }
+            }
+            match &home.layout {
+                target_operations::TargetStructuralHomeLayout::Aggregate(shape) => {
+                    bytes.push(0);
+                    encode_shape(bytes, *shape);
+                }
+                target_operations::TargetStructuralHomeLayout::Sum(layout) => {
+                    bytes.push(1);
+                    super::read_byte::encode_layout(bytes, layout);
+                }
+            }
+        }
     }
     encode_len(bytes, call.callbacks.len());
     for callback in &call.callbacks {

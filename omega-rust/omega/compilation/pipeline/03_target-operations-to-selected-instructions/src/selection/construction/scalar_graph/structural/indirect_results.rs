@@ -1,8 +1,7 @@
 //! Hidden result storage uses the declared result place and the native CallPlan.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    PlaceId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-    VirtualRegisterId,
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, PlaceId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -66,19 +65,14 @@ pub(in crate::selection) fn prepare_call(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return Err(invalid());
-    };
-    let Some(placement) = call.result_placement.as_ref() else {
+    let Some((result, placement, policy)) =
+        crate::selection::aggregate_result_input::call_completion(source, row)
+    else {
         return Ok(None);
     };
-    if crate::selection::aggregate_result_input::indirect_result(placement, call.call_plan.policy)
-        .is_none()
-    {
+    if crate::selection::aggregate_result_input::indirect_result(placement, policy).is_none() {
         return Ok(None);
     }
-    let (result, placement) = crate::selection::aggregate_result_input::call_result(source, call)
-        .ok_or_else(|| invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,
@@ -109,11 +103,9 @@ pub(in crate::selection) fn finish_call(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return Err(invalid());
-    };
-    let (result, placement) = crate::selection::aggregate_result_input::call_result(source, call)
-        .ok_or_else(|| invalid())?;
+    let (result, placement, _) =
+        crate::selection::aggregate_result_input::call_completion(source, row)
+            .ok_or_else(|| invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,

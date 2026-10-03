@@ -336,7 +336,7 @@ fn decode_byte_sequence_carrier(
     }
 }
 
-fn encode_semantic_parameter(
+pub(super) fn encode_semantic_parameter(
     bytes: &mut Vec<u8>,
     parameter: &StructuralParameterDeclaration,
     retain_projected_qualifications: bool,
@@ -358,7 +358,7 @@ fn encode_semantic_parameter(
     );
 }
 
-fn decode_semantic_parameter(
+pub(super) fn decode_semantic_parameter(
     cursor: &mut Cursor<'_>,
     retain_projected_qualifications: bool,
 ) -> Result<StructuralParameterDeclaration, FixedViewCopyDecodeError> {

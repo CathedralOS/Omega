@@ -109,7 +109,7 @@ enum EmbeddedCall<'a> {
         binding: &'a NormalizedForeignCallBinding,
         scalar_arguments: &'a [TargetUnitScalarCallArgument],
         structural_arguments: &'a [TargetStructuralArgument],
-        result_home: &'a Option<TargetUnitScalarHomeRequirement>,
+        result: &'a TargetBoundaryResult,
     },
     /// `BoundarySettlement`: a compiler-builtin settlement retains its closed
     /// realization, admitted execution custody, verbatim semantic rosters,
@@ -345,7 +345,7 @@ pub(super) fn validate(
                     binding,
                     scalar_arguments,
                     structural_arguments,
-                    result_home,
+                    result,
                 } => (
                     *psi_operation,
                     EmbeddedCall::NormalizedForeign {
@@ -354,7 +354,7 @@ pub(super) fn validate(
                         binding,
                         scalar_arguments,
                         structural_arguments,
-                        result_home,
+                        result,
                     },
                 ),
                 TargetUnitOperation::BoundarySettlement {
@@ -924,7 +924,7 @@ impl Replay<'_> {
             binding,
             scalar_arguments: actual_scalar,
             structural_arguments: actual_structural,
-            result_home,
+            result: actual_result,
         } = call
         else {
             return Err(psi_operation);
@@ -1035,8 +1035,10 @@ impl Replay<'_> {
                 structural_signatures::fixed_native_scalar_shape(*parameter).ok_or(psi_operation)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let expected_result = match (result, &declaration.result) {
-            (AbstractBoundaryResult::Unit, terminal_psi::BoundaryMachineResult::Unit) => None,
+        let (expected_result, result_shape) = match (result, &declaration.result) {
+            (AbstractBoundaryResult::Unit, terminal_psi::BoundaryMachineResult::Unit) => {
+                (TargetBoundaryResult::Unit, None)
+            }
             (
                 AbstractBoundaryResult::Scalar(result),
                 terminal_psi::BoundaryMachineResult::Scalar(declared),
@@ -1050,15 +1052,42 @@ impl Replay<'_> {
                 }
                 let shape = structural_signatures::fixed_native_scalar_shape(*declared)
                     .ok_or(psi_operation)?;
-                Some((
-                    TargetUnitScalarHomeRequirement {
+                (
+                    TargetBoundaryResult::Scalar(TargetUnitScalarHomeRequirement {
                         defining_operation: psi_operation,
                         source_value: result.value,
                         scalar_type: result.scalar_type,
                         shape,
-                    },
-                    shape,
-                ))
+                    }),
+                    Some(shape),
+                )
+            }
+            (
+                AbstractBoundaryResult::Structural(result),
+                terminal_psi::BoundaryMachineResult::Structural(declared),
+            ) => {
+                if result.structural_type != declared.structural_type
+                    || result.multiplicity != declared.multiplicity
+                    || result.qualifications != declared.qualifications
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                {
+                    return Err(psi_operation);
+                }
+                let home = structural_shapes::structural_result_home(
+                    psi_operation,
+                    result,
+                    self.declarations,
+                )
+                .map_err(|_| psi_operation)?;
+                let shape = structural_shapes::classified_boundary_shape(
+                    declared.structural_type,
+                    self.declarations,
+                    binding.boundary_entry_plan.call.policy,
+                )
+                .map_err(|_| psi_operation)?;
+                (TargetBoundaryResult::Structural(home), Some(shape))
             }
             _ => return Err(psi_operation),
         };
@@ -1109,7 +1138,7 @@ impl Replay<'_> {
         }
         let signature = CallSignature {
             parameters: parameter_shapes,
-            result: expected_result.as_ref().map(|(_, shape)| *shape),
+            result: result_shape,
         };
         let validated = match registrar_context {
             Some(registrar_context) => {
@@ -1128,14 +1157,11 @@ impl Replay<'_> {
         if validated.plan() != &binding.boundary_entry_plan
             || binding.boundary_entry_plan.call.parameters.len()
                 != scalar_shapes.len() + structural_arguments.len() + parameter_slot_callbacks
-            || expected_result.as_ref().map(|(home, _)| home) != result_home.as_ref()
+            || &expected_result != *actual_result
         {
             return Err(psi_operation);
         }
-        match (
-            &binding.boundary_entry_plan.call.result,
-            expected_result.as_ref().map(|(_, shape)| *shape),
-        ) {
+        match (&binding.boundary_entry_plan.call.result, result_shape) {
             (None, None) => {}
             (Some(placement), Some(shape)) => {
                 let placed = matches!(
@@ -1146,7 +1172,9 @@ impl Replay<'_> {
                         ..
                     }] if *byte_size == shape.byte_size
                 );
-                if placement.shape != shape || !placed {
+                if placement.shape != shape
+                    || (matches!(expected_result, TargetBoundaryResult::Scalar(_)) && !placed)
+                {
                     return Err(psi_operation);
                 }
             }
@@ -1177,8 +1205,10 @@ impl Replay<'_> {
                 | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(*result_home),
                 TargetUnitOperation::Call { result, .. } => result.scalar_home().copied(),
                 TargetUnitOperation::CallDynamic { result, .. } => result.scalar_home().copied(),
-                TargetUnitOperation::AtomicAccess { result_home, .. }
-                | TargetUnitOperation::NormalizedForeignCall { result_home, .. } => *result_home,
+                TargetUnitOperation::AtomicAccess { result_home, .. } => *result_home,
+                TargetUnitOperation::NormalizedForeignCall { result, .. } => {
+                    result.scalar_home().copied()
+                }
                 TargetUnitOperation::StructuralScalarFieldRead {
                     psi_operation,
                     result,
