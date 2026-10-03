@@ -1,6 +1,7 @@
-// The release overlay selects the sole redundant-compare removal, so
+// The build selects the sole redundant-compare removal by exact name, so
 // compilation exercises its execution through the pre-allocation stage
-// catalog.
+// catalog and the native run observes the result: the program exits 0
+// when `probe(7i64, 9i64)` still returns 1 and traps otherwise.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "redundant_compare_selection_compile");
@@ -8,7 +9,8 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);
-    builder.optimizations.enable(
+    Optimizations::enable(
+        &mut builder.optimizations,
         Optimization::SelectedRedundantCompareRemovalV1,
     );
 }

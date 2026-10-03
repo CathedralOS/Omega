@@ -1,5 +1,7 @@
-// The release overlay selects the sole constant-branch fold, so compilation
-// exercises its execution through the pre-allocation stage catalog.
+// The build selects the sole constant-branch fold by exact name, so
+// compilation exercises its execution through the pre-allocation stage
+// catalog and the native run observes the decided branch: the program
+// exits 0 when `decide(7i64)` still returns 43 and traps otherwise.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "constant_branch_selection_compile");
@@ -7,7 +9,8 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);
-    builder.optimizations.enable(
+    Optimizations::enable(
+        &mut builder.optimizations,
         Optimization::SelectedConstantBranchFoldV1,
     );
 }

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "unsupported_optimizer_component");
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
-    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+    Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
 }

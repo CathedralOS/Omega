@@ -1,7 +1,9 @@
-// The release overlay selects the constant-flag folds and dead-compare
-// removal, so compilation exercises their composed execution through the
-// pre-allocation stage catalog: folding the branch leaves the compare's
-// flag publication unread, and the dead-compare pass removes it.
+// The build selects the constant-flag folds and dead-compare removal by
+// exact name, so compilation exercises their composed execution through
+// the pre-allocation stage catalog — folding the branch leaves the
+// compare's flag publication unread, and the dead-compare pass removes
+// it — and the native run observes the decided branch: the program exits
+// 0 when `decide(7i64)` still returns 43 and traps otherwise.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "dead_compare_selection_compile");
@@ -9,13 +11,16 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(linux_arm64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);
-    builder.optimizations.enable(
+    Optimizations::enable(
+        &mut builder.optimizations,
         Optimization::SelectedConstantBooleanFoldV1,
     );
-    builder.optimizations.enable(
+    Optimizations::enable(
+        &mut builder.optimizations,
         Optimization::SelectedConstantBranchFoldV1,
     );
-    builder.optimizations.enable(
+    Optimizations::enable(
+        &mut builder.optimizations,
         Optimization::SelectedDeadCompareRemovalV1,
     );
 }

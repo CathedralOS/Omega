@@ -3,5 +3,8 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, main);
     builder.roots.bind(windows_x86_64::ProgramEntry, main);
     builder.roots.bind(macos_arm64::ProgramEntry, main);
-    builder.optimizations.enable(Optimization::SelectedStoredLoadForwardingV1);
+    Optimizations::enable(
+        &mut builder.optimizations,
+        Optimization::SelectedStoredLoadForwardingV1,
+    );
 }

@@ -843,7 +843,8 @@ fn callback_thunks_follow_the_entrys_effective_optimization_selection() {
     let build = fs::read_to_string(&build_path).expect("read callback build");
     let build = build.replacen(
         "builder.roots.bind(",
-        "builder.optimizations.enable(Optimization::ControlFlowCleanup);\n    builder.roots.bind(",
+        "Optimizations::enable(&mut builder.optimizations, \
+         Optimization::ControlFlowCleanup);\n    builder.roots.bind(",
         1,
     );
     fs::write(build_path, build).expect("select callback optimization");
@@ -927,7 +928,8 @@ fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelec
         .iter()
         .map(|optimization| {
             format!(
-                "builder.optimizations.enable(Optimization::{});\n    ",
+                "Optimizations::enable(&mut builder.optimizations, \
+                 Optimization::{});\n    ",
                 optimization.build_case_name()
             )
         })

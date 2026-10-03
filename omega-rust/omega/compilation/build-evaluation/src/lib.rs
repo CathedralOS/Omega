@@ -26,7 +26,7 @@
 //! machine build(build: &mut Build) {
 //!     build.subsystem = Subsystem::EfiApplication;
 //!     build.freestanding = true;
-//!     build.optimizations.enable(Optimization::ControlFlowCleanup);
+//!     Optimizations::enable(&mut build.optimizations, Optimization::ControlFlowCleanup);
 //! }
 //! ```
 //!
