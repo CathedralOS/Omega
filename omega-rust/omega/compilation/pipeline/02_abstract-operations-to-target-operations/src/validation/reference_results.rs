@@ -1513,7 +1513,9 @@ pub(super) fn expected(
         ranges.push(entry.operation_offset..end);
         let targets = match &function.operations[end - 1] {
             AbstractOperation::ReturnStructural { .. } => Vec::new(),
-            AbstractOperation::Return { .. } | AbstractOperation::ReturnUnit { .. } => Vec::new(),
+            AbstractOperation::Return { .. }
+            | AbstractOperation::ReturnUnit { .. }
+            | AbstractOperation::Crash { .. } => Vec::new(),
             AbstractOperation::Jump { target, .. } => vec![*target],
             AbstractOperation::Conditional {
                 when_true,
