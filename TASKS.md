@@ -142,6 +142,34 @@ execution and native exit/output. A moved refusal is still unfinished work.
   never paid it. The rewrite itself is ready to land the moment that build
   terminates.
 
+- **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
+  Three migrated pass fixtures now clear CHECKING and are then omitted in
+  lowering, which makes stage 05 the migration's remaining frontier for call
+  shapes rather than the borrow checker. Each one passes a borrowed projection
+  where the receiver form passed a whole subject implicitly, and lowering has
+  no admitted plan for it:
+
+  `calls/case_scrutinee_self_dispatch_exit` stops at `state graph: terminator:
+  guarded jump successors: parameter transfer, state 0, statement 2` -- a
+  borrowed case payload (`&ListResponse`, bound by a case arm) transferred into
+  a named state. `calls/guarded_arm_view_range_tail_call_exit` stops at `scalar
+  field store sequence: write frame agreement` (state 2) on a scalar store
+  through a borrowed scalar state parameter; the same store lowers from an
+  ENTRY body, which `tests/omega/pass/calls/runtime_local_scalar_array_element_loan_exit`
+  (`machine write_marker(value: &mut u32) { value = 70; }`) demonstrates, so the
+  asymmetry is entry-versus-state, not the store itself. Moving that zero ahead
+  of the guard only relocates the omission to `statement sequence: call count
+  agreement`, so it is not an authoring workaround.
+  `calls/nested_call_tail_roots_exit` stops at `InvalidUnitMachinePlan` on
+  `Wrap::get_count` after its case payload became `&ItemList`.
+
+  None of the three is an authoring defect: the authored programs are the
+  disjoint-projection forms STATIC-CALL-ARGUMENT-LENT-ROOT requires, and their
+  golden rows pin where each stops. Acceptance is that all three check AND
+  produce a terminal artifact, with the two `*_exit` ones executing their
+  authored exits. Do not close this by deforming the fixtures; the entry-versus-
+  state asymmetry above is the concrete lead.
+
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
   [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
