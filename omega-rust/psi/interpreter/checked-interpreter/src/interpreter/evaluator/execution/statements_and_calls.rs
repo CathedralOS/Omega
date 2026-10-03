@@ -354,12 +354,29 @@ impl<'program> Evaluator<'program> {
                 // This runs after guard selection. Provider dispatch owns operand
                 // evaluation and returns the same value an ordinary call produces;
                 // the enclosing activation then performs its normal completion.
+                // The head is the receiver identity only for a one-component
+                // receiver path. Nested paths retain the root and callable, but
+                // no receiver leaf symbol; they cannot select an adapter by root.
+                let receiver_symbol = if receiver_members.len() == 1 {
+                    path.head_symbol
+                } else {
+                    SymbolHandle::invalid()
+                };
                 if let Some(value) = self.try_selected_named_call(
-                    path.head_symbol,
+                    receiver_symbol,
                     path.head_symbol,
                     receiver_members,
                     path.symbol,
                     &[],
+                    self.program.statement_table.expression_handles(*arguments),
+                    frame,
+                )? {
+                    return Ok(TransitionDecision::Value(value));
+                }
+
+                if let Some(value) = self.try_host_invocation(
+                    path.symbol,
+                    state_name,
                     self.program.statement_table.expression_handles(*arguments),
                     frame,
                 )? {

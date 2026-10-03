@@ -78,38 +78,46 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Statement-position host boundary call. Authority comes from the call's
-    /// resolved target alone: an exact canonical filesystem requirement, an
-    /// exact compiler-intrinsic Console leaf, or a requirement of a declared
-    /// `boundary trait` (`Console::exit_process(code);`). The receiver path
-    /// is never consulted: a qualifier names a declaration, and neither its
-    /// spelling nor the current instance's field types select a host
-    /// operation.
+    /// Adapt the statement table's argument span to the shared host invocation.
     pub(in crate::interpreter::evaluator) fn try_host_call(
         &mut self,
         call: &TableCall,
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if let Some(value) = self.try_virtual_clock_operation(
+        self.try_host_invocation(
             call.target_symbol,
+            call.target.as_str(),
             self.program
                 .statement_table
                 .expression_handles(call.arguments),
             frame,
-        )? {
+        )
+    }
+
+    /// Host boundary invocation, shared by statement and selected terminal calls.
+    /// Authority comes from the resolved target alone: an exact canonical
+    /// filesystem requirement, an exact compiler-intrinsic Console leaf, or a
+    /// requirement of a declared `boundary trait`. The receiver path is never
+    /// consulted; names route within a host boundary only after identity admits it.
+    pub(in crate::interpreter::evaluator) fn try_host_invocation(
+        &mut self,
+        target_symbol: SymbolHandle,
+        target_name: &str,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        if let Some(value) = self.try_virtual_clock_operation(target_symbol, arguments, frame)? {
             return Ok(Some(value));
         }
-        let filesystem_operation = self.exact_filesystem_host_operation(call.target_symbol)?;
+        let filesystem_operation = self.exact_filesystem_host_operation(target_symbol)?;
         let intrinsic_method = if filesystem_operation.is_none() {
-            self.exact_console_intrinsic_host_method(call.target_symbol)
+            self.exact_console_intrinsic_host_method(target_symbol)
         } else {
             None
         };
         if filesystem_operation.is_none()
             && intrinsic_method.is_none()
-            && self
-                .boundary_trait_requirement(call.target_symbol)
-                .is_none()
+            && self.boundary_trait_requirement(target_symbol).is_none()
         {
             return Ok(None);
         }
@@ -117,27 +125,22 @@ impl<'program> Evaluator<'program> {
         // evaluation entry uses this as a DYNAMIC purity backstop (the static
         // effect surface does not fold host-authority audit facts in yet).
         self.host_boundary_touched = true;
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments)
-            .to_vec();
 
         // Filesystem authority is selected only by the exact canonical
         // toolchain requirement symbol. The trusted requirement leaf routes
         // within the provider after that selection; package-controlled names
         // cannot enter this branch.
         if let Some(filesystem_operation) = filesystem_operation {
-            let value = self.try_filesystem_call(filesystem_operation, &arguments, frame)?;
+            let value = self.try_filesystem_call(filesystem_operation, arguments, frame)?;
             return Ok(Some(value));
         }
 
-        let target = intrinsic_method.unwrap_or(call.target.as_str());
+        let target = intrinsic_method.unwrap_or(target_name);
         let Some(operation) = HostOperation::from_name(target) else {
             self.non_fs_host_boundary_touched = true;
             return unsupported(format!("host boundary call `{target}` not yet supported"));
         };
-        self.serve_host_operation(operation, call.target_symbol, &arguments, frame)
+        self.serve_host_operation(operation, target_symbol, arguments, frame)
             .map(Some)
     }
 

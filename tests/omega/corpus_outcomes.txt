@@ -983,6 +983,14 @@ fail/ranges/subject_guard_compound_index_mutated rejected 310ms expected @f64782
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/ranges/sum_payload_non_case_guard_unproven rejected 142ms expected @7f4f399bb74b+wt
 	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
+fail/recast/field_precondition_call_invalidated_before_capture rejected 79ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
+	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/field_precondition_invalidated_before_capture rejected 81ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
+	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/incoming_offset_call_invalidated_before_capture rejected 79ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
+	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/incoming_offset_invalidated_before_capture rejected 87ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
+	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: the recast target `u32` needs 4 bytes at offset 9, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/interior_slice_exclusive_backing_read rejected 168ms expected @57fc72937714+wt

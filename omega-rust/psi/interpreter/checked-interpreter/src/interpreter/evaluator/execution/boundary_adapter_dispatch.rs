@@ -16,8 +16,9 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if let Some(dispatch) =
-            self.selected_boundary_adapter(receiver_symbol, target_symbol, machine_arguments)
+        if receiver_symbol.is_valid()
+            && let Some(dispatch) =
+                self.selected_boundary_adapter(receiver_symbol, target_symbol, machine_arguments)
         {
             let receiver = if dispatch.forward_receiver {
                 Some(self.eval_boundary_receiver_path(receiver_root, receiver_members, frame)?)
