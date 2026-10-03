@@ -654,6 +654,7 @@ fn record_loan_subject(
 }
 
 pub(crate) struct LoanedStore {
+    pub symbol: symbols::SymbolHandle,
     pub source: LoanedSource,
     pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     pub byte_overlay: Option<ByteOverlayField>,
@@ -711,6 +712,7 @@ pub(crate) fn loaned_store(
         None
     };
     Ok(Some(LoanedStore {
+        symbol,
         source: loan.source,
         path,
         byte_overlay,
@@ -743,6 +745,7 @@ pub(crate) fn loaned_primitive_store(
     let (_, scalar_type) =
         crate::emission::primitive_store::lower_destination_path(loan.terminal, path, types)?;
     Ok(Some(LoanedStore {
+        symbol: *symbol,
         source: loan.source,
         path: captured_store_path(&loan)?,
         byte_overlay: Some(overlay.scalar_path(checked, path, scalar_type)?),
@@ -757,9 +760,10 @@ fn captured_store_path(
         path.push(checked_path_segment(segment)?);
     }
     if let Some(selector) = &loan.runtime_index {
-        // Reloading a mutable field would not recover the loan's captured
-        // coordinate. Such loans need a retained formation-time snapshot.
-        if !matches!(
+        // Byte overlays resolve this authored coordinate through their
+        // formation-time snapshot. Other record loans still require an
+        // immutable coordinate; neither path may reload a mutable selector.
+        if loan.byte_overlay.is_none() && !matches!(
             selector,
             checked_trees::CheckedRuntimeIndex::Parameter { .. }
                 | checked_trees::CheckedRuntimeIndex::Local { .. }
@@ -1290,19 +1294,22 @@ pub(super) fn observation(
         return unsupported("record view carrier change needs a static source leaf");
     }
     if let Some(selector) = binding.runtime_index.clone() {
-        // A loan captures its selector at formation. Immutable scalar
-        // coordinates retain that value, while a field coordinate here would
-        // reload possibly changed storage at the later member observation.
-        // Supporting that source needs an explicit captured scalar binding.
-        if binding.byte_overlay.is_some()
-            && !matches!(
-                selector,
-                checked_trees::CheckedRuntimeIndex::Parameter { .. }
-                    | checked_trees::CheckedRuntimeIndex::Local { .. }
-            )
-        {
-            return unsupported(
-                "runtime byte overlay loan requires an immutable captured selector",
+        if let Some(overlay) = &binding.byte_overlay {
+            if binding.view_container {
+                return unsupported("record byte overlay requires fixed-array backing");
+            }
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+                binding.subject.source
+            else {
+                return unsupported("record byte overlay lost its captured loan identity");
+            };
+            return byte_overlay_read(
+                source,
+                &binding.carrier_path,
+                bindings.byte_record_coordinate(symbol)?,
+                overlay.offset,
+                overlay.stored_type,
+                binding.scalar_type,
             );
         }
         // The canonical read path has no runtime segment: the loan's element
@@ -1339,19 +1346,6 @@ pub(super) fn observation(
         };
         let index = crate::expression_preparation::prepare_expression::exact_u64_index(index)?;
         let scalar_type = binding.scalar_type;
-        if let Some(overlay) = &binding.byte_overlay {
-            if binding.view_container {
-                return unsupported("record byte overlay requires fixed-array backing");
-            }
-            return byte_overlay_read(
-                source,
-                &binding.carrier_path,
-                index,
-                overlay.offset,
-                overlay.stored_type,
-                scalar_type,
-            );
-        }
         return Ok(if binding.view_container {
             if !binding.carrier_path.is_empty() || binding.bounded_leaf {
                 return unsupported(
