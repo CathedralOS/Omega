@@ -195,6 +195,16 @@ pub struct CheckedNamedRequirementUseFact {
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
 }
 
+/// One crash-qualified selected use, identified by the exact `uses` or
+/// `named_uses` row its Terminal carrier must answer for. Named calls mint no
+/// `uses` row, so both handle spaces stay distinct rather than sharing an
+/// occurrence key that does not exist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedCrashQualifiedUse {
+    Spelled(CheckedOperatorUseHandle),
+    Named(Handle<CheckedNamedOperatorUseFact>),
+}
+
 /// One checked boundary-operator application at one exact use. The empty
 /// argument vector is the canonical monomorphic application.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -735,43 +745,51 @@ impl CheckedOperatorRealizationContract {
 }
 
 impl CheckedOperatorFacts {
-    /// Whether an actually selected occurrence requires operator crash replay.
-    /// Candidate contracts survive provider adapter rewrites of expression nodes.
-    /// Named calls select their operator directly; the authored declaration
-    /// contracts are the requirement.
-    pub fn has_crash_qualified_uses(&self, program: &typed_trees::TypedTrees) -> bool {
-        self.uses.iter().any(|(_, operator_use)| {
-            self.selected_candidate(operator_use)
-                .is_some_and(|selected| {
-                    program
-                        .signature_contracts
-                        .span_or_empty(selected.contracts)
-                        .iter()
-                        .any(|contract| {
-                            matches!(
-                                contract.kind,
-                                typed_trees::signature::SignatureContractKind::Crashes { .. }
-                            )
-                        })
+    /// The actually selected occurrences that require operator crash replay,
+    /// identified by their exact arena rows. Candidate contracts survive
+    /// provider adapter rewrites of expression nodes. Named calls select
+    /// their operator directly; the authored declaration contracts are the
+    /// requirement.
+    pub fn crash_qualified_uses<'facts>(
+        &'facts self,
+        program: &'facts typed_trees::TypedTrees,
+    ) -> impl Iterator<Item = CheckedCrashQualifiedUse> + 'facts {
+        let publishes_crash = |contracts: HandleSpan<SignatureContract>| {
+            program
+                .signature_contracts
+                .span_or_empty(contracts)
+                .iter()
+                .any(|contract| {
+                    matches!(
+                        contract.kind,
+                        typed_trees::signature::SignatureContractKind::Crashes { .. }
+                    )
                 })
-        }) || self.named_uses.iter().any(|(_, named_use)| {
-            typed_trees::operator::declaration_by_symbol(
-                program,
-                named_use.selected_operator_symbol,
-            )
-            .is_some_and(|operator| {
-                program
-                    .signature_contracts
-                    .span_or_empty(operator.contracts)
-                    .iter()
-                    .any(|contract| {
-                        matches!(
-                            contract.kind,
-                            typed_trees::signature::SignatureContractKind::Crashes { .. }
-                        )
-                    })
+        };
+        self.uses
+            .iter()
+            .filter_map(move |(handle, operator_use)| {
+                self.selected_candidate(operator_use)
+                    .is_some_and(|selected| publishes_crash(selected.contracts))
+                    .then_some(CheckedCrashQualifiedUse::Spelled(handle))
             })
-        })
+            .chain(
+                self.named_uses
+                    .iter()
+                    .filter_map(move |(handle, named_use)| {
+                        typed_trees::operator::declaration_by_symbol(
+                            program,
+                            named_use.selected_operator_symbol,
+                        )
+                        .is_some_and(|operator| publishes_crash(operator.contracts))
+                        .then_some(CheckedCrashQualifiedUse::Named(handle))
+                    }),
+            )
+    }
+
+    /// Whether an actually selected occurrence requires operator crash replay.
+    pub fn has_crash_qualified_uses(&self, program: &typed_trees::TypedTrees) -> bool {
+        self.crash_qualified_uses(program).next().is_some()
     }
 
     pub fn with_roots(
