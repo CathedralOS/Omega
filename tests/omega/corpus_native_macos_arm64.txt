@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.6, "load1_start": 7.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 5.5, "load1_start": 5.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -53,6 +53,7 @@ pass/borrow/copyable_array_view_survives_owner_pass_compile checked 209ms
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 209ms
 pass/borrow/runtime_exclusive_loan_local_write_exit built 629ms exit:70
 pass/borrow/runtime_method_view_write_after_last_use_exit built 1212ms exit:70 @011fd400e8c1+wt
+pass/borrow/write_only_composed_forward_exit built 1037ms exit:70 @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 188ms
 pass/borrow/write_only_whole_scalar_replace checked 204ms
 pass/borrows/borrow_domain_window_write_and_call built 551ms exit:0 @db95cfee9b79
@@ -1192,6 +1193,7 @@ pass/wire/wire_compatibility_migration_across_shapes built 448ms
 pass/wire/wire_data_reserved_field built 242ms
 pass/wire/wire_preserving_decode_relay_exit rejected 878ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 3)
+pass/write_only/state_forwarded_scalar_store_exit built 1019ms exit:70 @2bde2a770491
 run/borrows/direct_runtime_index_write built 1114ms exit:9 @48008365d839
 run/borrows/indexed_loan_element_write built 1123ms exit:0 @48008365d839
 run/borrows/local_mut_borrow built 1142ms exit:9 @48008365d839

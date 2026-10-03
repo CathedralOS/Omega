@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.45, "load1_start": 3.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 5.5, "load1_start": 5.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1252,6 +1252,7 @@ pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 293ms @2d8ed253669f
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 907ms @2d8ed253669f
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 1283ms @011fd400e8c1+wt
+pass/borrow/write_only_composed_forward_exit checked 1023ms @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 305ms @2d8ed253669f
 pass/borrow/write_only_whole_scalar_replace checked 293ms @2d8ed253669f
 pass/borrows/borrow_domain_window_write_and_call checked 292ms @2d8ed253669f
@@ -2395,6 +2396,7 @@ pass/wire/wire_compatibility_migration_across_shapes checked 971ms @2d8ed253669f
 pass/wire/wire_data_reserved_field checked 842ms @2d8ed253669f
 pass/wire/wire_preserving_decode_relay_exit rejected 1224ms @40866b59e47
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: claim-free affine result` (state 0, statement 3)
+pass/write_only/state_forwarded_scalar_store_exit checked 999ms @2bde2a770491
 run/borrows/direct_runtime_index_write checked 2883ms @2d8ed253669f
 run/borrows/indexed_loan_element_write checked 748ms @ca8c127c90c5
 run/borrows/local_mut_borrow checked 2688ms @2d8ed253669f
