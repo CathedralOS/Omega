@@ -205,3 +205,112 @@ pub(super) fn has_guarded_machine_arm(
                 if invoked_callable(program, machine, transition).is_some())
         })
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn conditional_requirement_calls_retain_callable_targets_and_plans() {
+        for source in [
+            r#"
+            boundary trait Host { machine send(value: i32); }
+            machine choose(value: bool) reaches Host {
+                transition value {
+                    true -> Host::send(70)
+                    _ -> Host::send(74)
+                }
+            }
+            "#,
+            r#"
+            data Value {}
+            boundary requirement Value::read(value: i32) -> i32;
+            machine choose(value: i32) -> i32 {
+                transition value == 70 {
+                    true -> Value::read(value)
+                    _ -> Value::read(71)
+                }
+            }
+            "#,
+        ] {
+            let checked = crate::tests::front_end::checked_program(source);
+            let program = &checked.typed;
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "choose")
+                .expect("caller");
+            let state = &program.machine_states(machine)[0];
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let typed_trees::statement::StatementNode::Transition(transition) = statement
+                else {
+                    continue;
+                };
+                let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
+                    program.statement_table.transition_target(transition.target)
+                else {
+                    panic!("named requirement call");
+                };
+                assert!(
+                    super::control::terminal_callable_target(program, machine, path.symbol)
+                        .is_some(),
+                    "missing callable target {:?}: {:?}",
+                    path,
+                    program.symbols.get(path.symbol),
+                );
+                assert!(super::invoked_callable(program, machine, transition).is_some());
+            }
+            assert!(super::has_guarded_machine_arm(program, machine, state));
+            for statement_ordinal in 0..2 {
+                let role = checked_trees::CheckedScalarExpressionRole::BoundaryCallArgument {
+                    call_ordinal: 0,
+                    argument_ordinal: 0,
+                };
+                assert!(
+                    checked
+                        .facts
+                        .values
+                        .scalar_computations
+                        .root_at(state.symbol, statement_ordinal, role,)
+                        .is_some()
+                        || checked
+                            .facts
+                            .values
+                            .scalar_expressions
+                            .bound_expression_at(state.symbol, statement_ordinal, role,)
+                            .is_some(),
+                    "missing boundary argument at {statement_ordinal}; source: {source}",
+                );
+            }
+            let trace = super::control::LocalConstructionTrace::default();
+            let plan = super::super::build_traced(
+                program,
+                &checked.facts,
+                super::ScalarCalleePlans {
+                    boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+                },
+                &mut crate::execution::terminal_unit::types::ShapeCollector::new(program),
+                machine,
+                None,
+                &trace,
+            )
+            .unwrap_or_else(|| {
+                panic!(
+                    "requirement terminal call plan: {:?}; source: {source}",
+                    trace.stage()
+                )
+            });
+            assert_eq!(
+                plan.states.len(),
+                1,
+                "bodyless requirements own no graph states"
+            );
+            assert_eq!(
+                plan.states[0]
+                    .operation_dependencies()
+                    .filter(|operation| operation.call().is_some())
+                    .count(),
+                2,
+            );
+        }
+    }
+}

@@ -98,6 +98,25 @@ pub(crate) fn find_machine_head(
         .then_some((machine, state))
 }
 
+/// Resolve one exact call destination and its result contract. A stored
+/// body contributes its executable state; a requirement contributes its
+/// declaration. States owned by this activation remain internal control edges,
+/// including a machine-named re-entry of this activation's entry state.
+pub(crate) fn terminal_callable_target(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    target: SymbolHandle,
+) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
+    if let Some(owner) = program.machine_by_symbol(target) {
+        let entry = program.machine_states(owner).first()?;
+        return (owner.symbol != machine.symbol).then_some((entry.symbol, entry.return_type));
+    }
+    if let Some((owner, state)) = crate::semantic::calls::find_state_with_machine(program, target) {
+        return (owner.symbol != machine.symbol).then_some((state.symbol, state.return_type));
+    }
+    crate::flow::call_target_return_type(program, target).map(|return_type| (target, return_type))
+}
+
 /// The machine whose entry state `state_symbol` names, with that state. The
 /// scalar call-lowering gates spell a call's target as the entry state
 /// itself: `find_machine_head` also admits the machine's own symbol, which

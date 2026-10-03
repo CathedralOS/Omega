@@ -94,6 +94,11 @@ fn fused_states<'program>(
                 else {
                     continue;
                 };
+                // A bodyless callable contributes a contract and a call
+                // operation, never an executable state to this graph.
+                if !target_owner.body_is_present {
+                    continue;
+                }
                 for owner_state in program.machine_states(target_owner) {
                     if !fused
                         .iter()
