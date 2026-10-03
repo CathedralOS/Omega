@@ -1060,7 +1060,8 @@ mod tests {
                 &[],
                 ElementViewBackings::new(&homes, &absent),
                 &argument,
-                element
+                element,
+                terminal_psi::ElementViewRegion::WholeCollection
             )
             .is_err(),
             "a declaration without dominating live custody cannot supply backing"

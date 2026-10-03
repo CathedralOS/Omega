@@ -154,9 +154,10 @@ fn writable_field(
     )
 }
 
-/// Replace a shared view field's descriptor with an established literal
-/// view's. The verifier admitted only literal sources; this lowering keeps
-/// that join rather than relocating an arbitrary live view into the field.
+/// Replace a shared view field from a readable descriptor value. Construction
+/// and replacement share storage availability: a copied descriptor is an
+/// ordinary value home, not a new backing allocation. Independent abstract
+/// replay owns the source loan's lifetime and the destination's predicates.
 pub(super) fn replace_view_descriptor(
     operation: &AbstractOperation,
     function: &AbstractFunction,
@@ -196,22 +197,7 @@ pub(super) fn replace_view_descriptor(
     // The source is an already available two-word descriptor. Its backing
     // lifetime is independently replayed on the current optimization graph;
     // native lowering must not infer that lifetime from a producer family.
-    let source_type = live
-        .views
-        .get(source)
-        .map(|(_, identity)| *identity)
-        .or_else(|| {
-            function
-                .arrival_parameter(*source)
-                .filter(|parameter| {
-                    matches!(
-                        parameter.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    ) && (live.block_views.contains(source)
-                        || prepared.parameters.iter().any(|row| row.place == *source))
-                })
-                .map(|parameter| parameter.structural_type)
-        });
+    let source_type = live.structural_observation_type(function, *source);
     if source == destination
         || !source_type.is_some_and(|identity| {
             structural_types

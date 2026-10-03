@@ -1,0 +1,31 @@
+// Declaring a record reserves storage; filling its view member establishes
+// that descriptor without inventing a zero reference or copying its backing.
+domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Room [copy] { label: &[u8] in Utf8; }
+
+data Main {
+    console: Binding<Console>;
+    source: Room;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.label = "Gate";
+    transition { _ -> observe(main) }
+
+    state observe(main: &mut Main) {
+        let room: Room;
+        room.label = main.source.label;
+        transition room.label == "Gate" {
+            true -> good(main)
+            false -> bad(main)
+        }
+    }
+
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
