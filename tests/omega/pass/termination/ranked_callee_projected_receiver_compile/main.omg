@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). Ranked callee entered through a projected
 // receiver: `engine.cursor.step(...)` borrows the `cursor` field as the
 // callee's whole receiver, and the callee's ranked backedge keeps that
-// same projected referent as its `self`
+// same projected referent as its subject
 // (wiki/spec/language/termination.md "Ranked callees on projected
 // receivers"). The caller/callee join preserves the exact projection,
 // callee identity, return/cleanup, and the caller-visible write: `main`

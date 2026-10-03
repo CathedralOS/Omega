@@ -1,4 +1,4 @@
-// The mint's PREDICATE face: `5 as i64 in Km` with `self >= 10` is a
+// The mint's PREDICATE face: `5 as i64 in Km` with `value >= 10` is a
 // FALSE fact at the literal -- decision 19's "predicate obligation not
 // discharged" refusal class.
 use omega::language::std::console;

@@ -1,4 +1,4 @@
-// Reproducer: `transition self { Case { p } -> (p.method()) }` — a method call
+// Reproducer: `transition subject { Case { p } -> (p.method()) }` — a method call
 // on an arm-bound payload inside the transition's result expression. The
 // payload is itself a union (the Squalr ScanResultsResponse shape), so the
 // arm result needs custody/binding rows that name the arm binder, and the

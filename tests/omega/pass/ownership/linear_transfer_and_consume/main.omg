@@ -1,5 +1,5 @@
 // PASS canary (decision 21): one established linear obligation transfers
-// through multiple bindings and is terminally consumed by a by-value-self
+// through multiple bindings and is terminally consumed by a by-value-subject
 // consuming contract — the call edge transfers custody and the requirement
 // discharges it. `Receipt` declares no `Receipt::drop` plan, so no edge
 // cleanup may retire the claim.

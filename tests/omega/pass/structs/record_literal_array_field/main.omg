@@ -17,9 +17,9 @@
 //   `main.outer`    the array inside the nested `inner` record;
 //   `main.stored`   a second negative operand, `0 - 6`.
 //
-// Observation goes through `self` fields. Same-state reads of a record local
+// Observation goes through subject fields. Same-state reads of a record local
 // that carries an array member, element reads of a record state parameter, and
-// moving such a local into a `self` field are separate gaps, as are a named
+// moving such a local into a subject field are separate gaps, as are a named
 // array source (`Packet { samples: bare }`) and array payloads of a case
 // literal.
 use omega_language_std::console;

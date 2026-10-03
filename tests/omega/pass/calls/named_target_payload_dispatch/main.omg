@@ -1,4 +1,4 @@
-// Named-target arm-bound payload dispatch: `transition self` binds the case
+// Named-target arm-bound payload dispatch: `transition wrap` binds the case
 // payload `list` and forwards it as the structural argument of the named
 // state's block parameter. The argument roster registers it and the machine
 // verifies end-to-end (the documented `UnknownStructuralArgument` on this

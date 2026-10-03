@@ -1,4 +1,4 @@
-// Case-scrutinee transition on `self` with Named at-state targets plus a
+// Case-scrutinee transition on the subject with Named at-state targets plus a
 // scalar `(0)` Value fallback (ScanResultsResponse::get_result_address shape).
 // The `statement sequence: unsupported statement kind` gate is admitted past
 // it; this shape clears both stage-04 routes and declines in Terminal

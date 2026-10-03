@@ -1,6 +1,6 @@
 // Field-path byte-range argument on a self-receiver call:
 // `Sink::fill(&mut main.sink, &mut main.buf[..])` — the range projects a fixed byte
-// array below the `self` parameter, so the call's argument is an exclusive
+// array below the subject parameter, so the call's argument is an exclusive
 // byte range rooted at a parameter path.
 
 use omega_language_std::console;

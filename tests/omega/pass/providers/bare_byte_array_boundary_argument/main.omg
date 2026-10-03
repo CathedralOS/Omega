@@ -4,7 +4,7 @@
 // and the native leg exercises the full argument path end to end.
 //
 // The domain-carrying spelling (`take(name: [u8; 7] in CName)` under
-// `pub domain [u8; 7]::CName requires self[6] == 0`) remains the supported
+// `pub domain [u8; 7]::CName(name) requires name[6] == 0`) remains the supported
 // contract surface — it engages the requires-contract check by name when the
 // caller has not discharged the domain obligation.
 

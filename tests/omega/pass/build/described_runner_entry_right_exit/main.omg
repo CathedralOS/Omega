@@ -7,7 +7,7 @@
 // `builder.roots.bind` consumes the delegated description -- never a
 // re-looked-up name. The selected identity must be the right module's exact
 // machine: `run` observes its provider's computed result through the
-// ordinary `self.reader.read()` call and the state branch, then exits with
+// ordinary `main.reader.read()` call and the state branch, then exits with
 // it, so a swapped or leaf-only selection would exit 11 or 65 instead of 37.
 // The sibling's attached data carry tagged leaves on purpose: same-leaf
 // `Runner`/`Provider` declarations still trip leaf-keyed attachment lookups
