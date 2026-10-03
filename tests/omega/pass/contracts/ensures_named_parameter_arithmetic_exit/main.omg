@@ -1,4 +1,5 @@
-// A named exclusive parameter carries the same live field guarantees as self.
+// A named exclusive parameter carries the same live field guarantees the
+// retired receiver did.
 // arm(4) stores 5; tick consumes both guarantees and returns 4.
 // Normal exit is 0; an incorrect observed result traps.
 data Countdown { remaining: u32 in Wrapping; }

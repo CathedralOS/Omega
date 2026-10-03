@@ -2,7 +2,7 @@
 // flipped from fail/calls/param_receiver_multi_instance_rejected): a
 // spliced helper takes `&mut Tally` and calls through the param while
 // TWO Tally instances exist; the caller passes the SECOND. The receiver
-// chain walk binds `t := &mut self.second` at the descent (param
+// chain walk binds `t := &mut main.second` at the descent (param
 // environment) and resolves the param-receiver hop to second's storage
 // -- the by-type walk read FIRST (silent-wrong 7-for-9 before the
 // fence, then fenced, now SERVED). Tally::get(&mut t) = 9 -> exit 70.

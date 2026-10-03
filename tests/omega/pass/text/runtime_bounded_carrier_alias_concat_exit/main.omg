@@ -1,10 +1,10 @@
 // #66 owned `[u8; N] in Utf8` carrier multi-segment concat into a `&mut` OUT-PARAM
-// (the dungeon render-line shape): `out_line = "== " + self.label + " =="` writes
+// (the dungeon render-line shape): `out_line = "== " + formatter.label + " =="` writes
 // across a machine boundary into a borrowed carrier. The first literal initializes
-// the target carrier (len + bytes), the source carrier `self.label` is appended at
+// the target carrier (len + bytes), the source carrier `formatter.label` is appended at
 // the running length, then the trailing literal is appended -- three segments, no
-// `String`, no `{ptr, len}` descriptor. `self.line = ""` establishes the
-// out-param's `in Utf8` domain before the call. `self.line == "== Gate =="` matches
+// `String`, no `{ptr, len}` descriptor. `main.line = ""` establishes the
+// out-param's `in Utf8` domain before the call. `main.line == "== Gate =="` matches
 // (length 10, every byte) -> exit 70.
 domain [u8]::Utf8(bytes)
 requires

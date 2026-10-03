@@ -6,10 +6,10 @@
 // roster cannot silently fall back to the Jump-only guarded-roster arm.
 //
 // The arms spell guards as `subject == literal` patterns (the transition
-// subject `self.n` compared to each integer literal), matching the same
+// subject `counter.n` compared to each integer literal), matching the same
 // guarded-roster desugar the corpus' guarded_jump fixtures use. A
-// comparison written as a *pattern* (e.g. `self.n < 4 -> ..`) would bind
-// `subject == (self.n < 4)` — an ill-typed nested equality — which is a
+// comparison written as a *pattern* (e.g. `counter.n < 4 -> ..`) would bind
+// `subject == (counter.n < 4)` — an ill-typed nested equality — which is a
 // pattern-grammar spelling distinction, not a state-graph admission wall.
 
 use omega_language_std::console;

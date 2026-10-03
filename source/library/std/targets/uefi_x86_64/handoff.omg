@@ -281,10 +281,10 @@ pub machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiO
 //
 // The cyclic-custody envelope admits only the bare persistent `&mut self`
 // receiver with empty structural paths, so calls out of the cycle must not
-// name `self.legs`/`self.terminal` receivers directly. Each leg and terminal
+// name `uefi_os_handoff_cycle.legs`/`uefi_os_handoff_cycle.terminal` receivers directly. Each leg and terminal
 // machine gains a thin acyclic forwarder on this record; projected receivers
 // are legal inside the acyclic forwarding bodies, and field reads/writes
-// through `self.legs.*`/`self.terminal.*` stay admitted inside the cycle.
+// through `uefi_os_handoff_cycle.legs.*`/`uefi_os_handoff_cycle.terminal.*` stay admitted inside the cycle.
 pub data UefiOsHandoffCycle {
     legs: UefiOsHandoffLegs;
     terminal: UefiOsHandoffTerminal;

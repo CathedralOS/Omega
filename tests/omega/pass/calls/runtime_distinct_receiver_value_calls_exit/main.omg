@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70). One state makes two inline value calls into the same
 // data family through DIFFERENT receivers. Each call must read its own
-// receiver: `b` is `self.second`'s 9, not `self.first`'s 7. A by-type
+// receiver: `b` is `holder.second`'s 9, not `holder.first`'s 7. A by-type
 // fallback that resolves both calls to the first matching base returns 7 for
 // `b` and exits 71, which is the silent wrong answer this canary exists to
 // catch -- it is a value check, not a refusal.

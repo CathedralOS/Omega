@@ -4,9 +4,9 @@
 // tail calls returning the state's non-Unit type now mint their root. Each
 // shape below declines at a deeper wall instead, and this fixture pins the
 // first one:
-//   * tails passing `&self.items[i]` — InvalidStructuralArgumentPath in
+//   * tails passing `&item_list.items[i]` — InvalidStructuralArgumentPath in
 //     terminal-psi verification (indexed-member borrow argument paths)
-//   * `x.f()` / `self.f[i].f()` receiver tails — StructuralCallContractMismatch
+//   * `x.f()` / `wrap.f[i].f()` subject tails — StructuralCallContractMismatch
 //     in abstract-operations initial validation
 //   * calls as or inside transition Value targets with runtime indexes — the
 //     authored walk's Indexed arm now admits runtime selectors (nested.rs);

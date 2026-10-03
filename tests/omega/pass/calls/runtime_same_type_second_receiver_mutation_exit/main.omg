@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70) -- the ORIGINAL same-type contained-receiver
 // aliasing repro, PROMOTED from the fail fence 2026-07-10r when
-// per-instance receiver dispatch landed: `Counter::increment(&mut self.b)` used to
-// mutate `self.a` (by-TYPE storage resolution picked the first Counter;
+// per-instance receiver dispatch landed: `Counter::increment(&mut main.b)` used to
+// mutate `main.a` (by-TYPE storage resolution picked the first Counter;
 // memory: contained-machine-same-type-aliasing). The dispatch clone now
 // runs on the RECEIVER's storage (BackendPlan::receiver_bases), so a x1 +
 // b x1 leaves b.value == 1. Statement-position method calls dispatch, so

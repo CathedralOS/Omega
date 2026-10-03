@@ -6,7 +6,7 @@
 // completion (never a transition guard on the raw host result). No C shim — Omega
 // calls Cocoa directly, the same way the fs seam calls libc.
 //
-// The samples call `self.gui.window_create(cls, title, style, x, y, w, h)` etc.
+// The samples call `main.gui.window_create(cls, title, style, x, y, w, h)` etc.
 // through a `boundary trait Gui` field; on darwin that field is provided by this
 // `MacosGui`. Its ordinary value-call signatures exactly match the samples'
 // `Gui` trait, making target-selected substitution transparent to source callers.
@@ -287,7 +287,7 @@ pub macos_arm64 machine MacosGui::get_dc(window: u64) -> u64 {
 
 // `Gui::msg_peek` — non-blocking event dequeue. `[NSApp nextEventMatchingMask:0xffffffff
 // untilDate:[NSDate distantPast] inMode:kCFRunLoopDefaultMode dequeue:YES]`. Stashes
-// the NSEvent in `self.evt` for `msg_dispatch`; returns 1 if an event was dequeued
+// the NSEvent in `macos_gui.evt` for `msg_dispatch`; returns 1 if an event was dequeued
 // (the sample's `have`), 0 otherwise. The Win32 `message: [u64;6]` buffer is unused
 // on macOS (the event is an NSEvent object, not a copied-out MSG struct).
 pub macos_arm64 machine MacosGui::msg_peek(macos_gui: &mut MacosGui, message: [u64; 6]) -> u32
@@ -318,7 +318,7 @@ pub macos_arm64 machine MacosGui::msg_translate(macos_gui: &mut MacosGui, messag
 }
 
 // `Gui::msg_dispatch` — route the dequeued event back to the app: `[NSApp sendEvent:
-// self.evt]` (drives window dragging, the close button, key handling). Returns 0
+// macos_gui.evt]` (drives window dragging, the close button, key handling). Returns 0
 // (Win32 DispatchMessage's LRESULT; the sample ignores it).
 pub macos_arm64 machine MacosGui::msg_dispatch(macos_gui: &mut MacosGui, message: [u64; 6]) -> u64
 reaches ObjectiveC
@@ -369,7 +369,7 @@ reaches ObjectiveC
 // keycode and asking Core Graphics whether that physical key is currently down
 // (`CGEventSourceKeyState`, HID system state = 1). On darwin the samples' `input:
 // Input` boundary field is provided by this `MacosInput` (the boundary→provider
-// substitution), so `self.input.key_state(27)` (ESC) dispatches here as an ordinary
+// substitution), so `main.input.key_state(27)` (ESC) dispatches here as an ordinary
 // value-call. Unmapped virtual-keys report "not down" (0) rather than querying a
 // wrong keycode.
 pub data MacosInput {

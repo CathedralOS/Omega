@@ -1,5 +1,5 @@
 // A guarantee over a `Wrapping` field keeps the field's own arithmetic:
-// `self.remaining - 1` subtracts modulo 2^32 in the contract exactly as it
+// `countdown.remaining - 1` subtracts modulo 2^32 in the contract exactly as it
 // does in the body. The exit proof of `remaining - 1 < 8` therefore needs
 // the no-wrap fact `1 <= remaining` before it may map `remaining < 9` down
 // by one; `remaining = start + 1` with `start < 8` supplies both.

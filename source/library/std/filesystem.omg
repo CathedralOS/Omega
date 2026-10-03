@@ -429,7 +429,7 @@ pub data Filesystem {
     // best-effort mkdir (D-cda).
     mkall_scratch: [u8; 256];
     // Scratch for the STAT-based query host-call result. Held in a FIELD + consumed
-    // by TERMINAL VALUE COMPLETION (`self.stat_rc == 0` as the machine's final value),
+    // by TERMINAL VALUE COMPLETION (`filesystem.stat_rc == 0` as the machine's final value),
     // NOT a `transition` guard: an inlined value-call's transition GUARD is scheduled
     // before the callee's entry body (the read_metadata store), so the guard reads
     // the pre-store ZII value (confirmed at the instruction level, TASKS_FS.md). A

@@ -1,13 +1,13 @@
 // RUN CANARY (exit 70). Ranked callee entered through a projected
-// receiver: `self.cursor.step(...)` borrows the `cursor` field as the
+// receiver: `engine.cursor.step(...)` borrows the `cursor` field as the
 // callee's whole receiver, and the callee's ranked backedge keeps that
 // same projected referent as its `self`
 // (wiki/spec/language/termination.md "Ranked callees on projected
 // receivers"). The caller/callee join preserves the exact projection,
 // callee identity, return/cleanup, and the caller-visible write: `main`
 // starts the cursor at 5 so `step` iterates five times before `done`
-// zeroes `self.remaining` on the projected referent, `run` reads it back
-// through `self.cursor`, and `main` exits 70 only when that composed
+// zeroes `cursor.remaining` on the projected referent, `run` reads it back
+// through `engine.cursor`, and `main` exits 70 only when that composed
 // write is observed (an unwritten cursor still reads 5 and exits 71).
 use omega_language_std::console;
 use omega::language::core::binding;

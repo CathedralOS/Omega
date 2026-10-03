@@ -1,5 +1,5 @@
 // P1b: an exact authorized route establishes provenance, not its predicates.
-// The checked conformer must still prove `self.value > 0` on the result.
+// The checked conformer must still prove `owner.value > 0` on the result.
 
 data Token {
     value: u64;

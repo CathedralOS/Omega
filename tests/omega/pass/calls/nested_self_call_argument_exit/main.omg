@@ -1,11 +1,11 @@
 // Byte-sequence subslice argument on a self-receiver call:
-// `Sink::probe(&self.sink, bytes[..])` — probe is a `&self` method whose whole-view
+// `Sink::probe(&main.sink, bytes[..])` — probe is a `&self` method whose whole-view
 // slice argument lowers as a byte-sequence subslice, so the call's arguments
 // walk the nested argument schedule. The exact-positional gate must
 // materialize the implicit receiver as a positional argument instead of
 // declining ("no exact positional signature").
 //
-// Mirrors mini-probe's `self.reader.read_bytes(&self.info, 0, &mut self.buf)`
+// Mirrors mini-probe's `Reader::read_bytes(&main.reader, &main.info, 0, &mut main.buf)`
 // receiver calls carrying byte-view arguments.
 
 use omega_language_std::console;

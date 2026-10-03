@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70). A value-returning call EMBEDDED in a binary expression
-// bound to a local: `let r = base + self.calc.double_val(6) * 3`. The
+// bound to a local: `let r = base + main.calc.double_val(6) * 3`. The
 // binding's value (46) lives in its own local slot; the call's result (12) is
 // scratch for the embedded call. A read of `r` (here the guard `r == 46`) must
 // resolve to the LOCAL, not the call-result scratch.
