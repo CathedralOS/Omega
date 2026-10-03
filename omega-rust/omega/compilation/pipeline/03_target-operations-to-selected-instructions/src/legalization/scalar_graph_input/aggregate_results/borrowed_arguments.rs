@@ -116,6 +116,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
                     .position(|node| {
                         matches!(&node.operation,
                 AbstractOperation::EstablishRecord { psi_operation, .. }
+                | AbstractOperation::EstablishStructuralArray { psi_operation, .. }
                 | AbstractOperation::EstablishScalarArray { psi_operation, .. }
                 | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
                 | AbstractOperation::EstablishStructuralLocal { psi_operation, .. }

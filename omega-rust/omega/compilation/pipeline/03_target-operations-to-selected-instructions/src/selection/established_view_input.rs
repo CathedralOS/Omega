@@ -33,6 +33,8 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                 | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => fields.iter().any(|field|
                     matches!(&field.value, terminal_psi::RecordFieldValue::Structural(argument)
                         if argument.place == place)),
+                LegalizedScalarInstructionKind::EstablishStructuralArray { elements, .. } =>
+                    elements.iter().any(|argument| argument.place == place),
                 LegalizedScalarInstructionKind::StructuralByteViewFieldStore { source, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
                 LegalizedScalarInstructionKind::StoreStructuralField { value, .. } => *value == place,

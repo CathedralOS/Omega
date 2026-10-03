@@ -303,6 +303,7 @@ impl<'a> PrimitiveSnapshots<'a> {
                 | StructuralEffectAction::ReadIntegerField
                 | StructuralEffectAction::EmitPortWrite
                 | StructuralEffectAction::EstablishAffinePlace
+                | StructuralEffectAction::EstablishStructuralArray
                 | StructuralEffectAction::EstablishRecord
                 | StructuralEffectAction::EstablishScalarCase
                 | StructuralEffectAction::EstablishStructuralCase

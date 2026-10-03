@@ -330,7 +330,7 @@ fn operation_effect(
         // consumers but never erasable, duplicable, or reorderable.
         | O::StructuralLeafCopy { .. }
         | O::StoreDynamicDescriptor { .. }
-        | O::EstablishScalarArray { .. }
+        | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishByteSequenceConcatenation { .. }

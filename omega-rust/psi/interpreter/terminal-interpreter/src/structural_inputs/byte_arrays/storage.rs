@@ -84,7 +84,7 @@ impl TerminalExecution {
     ) -> Result<usize, TerminalInterpretError> {
         match storage.home {
             ArrayStorageHome::Runtime => self
-                .structural_byte_arrays
+                .structural_byte_storage
                 .get(&storage.referent)
                 .map(ByteSequenceView::len)
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed),
@@ -102,7 +102,7 @@ impl TerminalExecution {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         match storage.home {
             ArrayStorageHome::Runtime => self
-                .structural_byte_arrays
+                .structural_byte_storage
                 .get(&storage.referent)
                 .and_then(|bytes| bytes.get(index))
                 .copied()
@@ -131,7 +131,7 @@ impl TerminalExecution {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         match storage.home {
             ArrayStorageHome::Runtime => self
-                .structural_byte_arrays
+                .structural_byte_storage
                 .get_mut(&storage.referent)
                 .and_then(|bytes| bytes.replace_byte(index, byte))
                 .ok_or_else(invalid),
@@ -170,7 +170,7 @@ impl TerminalExecution {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if let ArrayStorageHome::Runtime = storage.home {
             return self
-                .structural_byte_arrays
+                .structural_byte_storage
                 .get(&storage.referent)
                 .and_then(|bytes| bytes.subslice(start, end))
                 .ok_or_else(invalid);

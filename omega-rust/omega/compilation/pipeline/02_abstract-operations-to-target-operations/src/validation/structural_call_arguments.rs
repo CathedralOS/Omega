@@ -3748,7 +3748,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
     let mut roots = BTreeMap::new();
     for operation in &source.operations {
         let (place, structural_type, multiplicity, operation_home) = match operation {
-            AbstractOperation::EstablishScalarArray { result, .. }
+            AbstractOperation::EstablishScalarArray { result, .. } | AbstractOperation::EstablishStructuralArray { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },

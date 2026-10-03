@@ -18,6 +18,7 @@ use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
 
 mod operands;
+mod structural_array;
 
 #[cfg(test)]
 mod tests;
@@ -62,9 +63,9 @@ impl TerminalExecution {
             path: Vec::new(),
         };
         let mut staged = BTreeMap::new();
-        let mut staged_referents = BTreeMap::new();
+        let mut storage = structural_array::ConstructorStorage::default();
         let mut staged_bytes = BTreeMap::new();
-        let mut staged_views = BTreeMap::new();
+
         let mut consumed = Vec::new();
         let mut frontier = self.live_affine_frontier.clone();
         for (binding, declaration) in fields.iter().zip(declarations) {
@@ -206,107 +207,23 @@ impl TerminalExecution {
                     }
                     let mut member_path = value.path.clone();
                     member_path.push(StructuralPathSegment::Field(declaration.identity.clone()));
-                    if self
-                        .program
-                        .structural_types
-                        .get(&child.structural_type)
-                        .is_some_and(|row| {
-                            matches!(row.shape, StructuralTypeShape::ElementView { .. })
-                        })
-                    {
-                        let descriptor = self.element_view_argument(argument, &child)?;
-                        let descriptor = descriptor.clone();
-                        staged_views.insert(
-                            StructuralRuntimePlace {
-                                opaque_identity: value.opaque_identity,
-                                path: member_path.clone(),
-                            },
-                            descriptor,
-                        );
-                    }
-                    for (home, descriptor) in &self.structural_element_view_fields {
-                        if home.opaque_identity == child.opaque_identity
-                            && home.path.starts_with(&child.path)
-                        {
-                            let mut path = member_path.clone();
-                            path.extend_from_slice(&home.path[child.path.len()..]);
-                            staged_views.insert(
-                                StructuralRuntimePlace {
-                                    opaque_identity: value.opaque_identity,
-                                    path,
-                                },
-                                descriptor.clone(),
-                            );
-                        }
-                    }
-                    // Move permission descriptors into the new owner's field
-                    // coordinates, retaining their original backing unchanged.
-                    // Stage all fields before consuming any child so a bad
-                    // later operand cannot partially move a loan.
-                    for (carrier, referent) in &self.reference_referents {
-                        if carrier.opaque_identity == child.opaque_identity
-                            && carrier.path.starts_with(&child.path)
-                        {
-                            if !affine {
-                                return Err(invalid());
-                            }
-                            let mut path =
-                                vec![StructuralPathSegment::Field(declaration.identity.clone())];
-                            path.extend_from_slice(&carrier.path[child.path.len()..]);
-                            staged_referents.insert(
-                                StructuralRuntimePlace {
-                                    opaque_identity: value.opaque_identity,
-                                    path,
-                                },
-                                referent.clone(),
-                            );
-                        }
-                    }
-                    // Copy exact completed leaf storage into the parent's nested home. The
-                    // child retains its independent identity until the entire roster passes.
-                    for (field, scalar) in &self.structural_scalar_fields {
-                        if field.parent.opaque_identity == child.opaque_identity
-                            && field.parent.path.starts_with(&child.path)
-                        {
-                            let mut path =
-                                vec![StructuralPathSegment::Field(declaration.identity.clone())];
-                            path.extend_from_slice(&field.parent.path[child.path.len()..]);
-                            staged.insert(
-                                field.relocated(StructuralRuntimePlace {
-                                    opaque_identity: value.opaque_identity,
-                                    path,
-                                }),
-                                *scalar,
-                            );
-                        }
-                    }
-                    for (field, bytes) in &self.structural_byte_sequence_fields {
-                        if field.parent.opaque_identity == child.opaque_identity
-                            && field.parent.path.starts_with(&child.path)
-                        {
-                            let mut path =
-                                vec![StructuralPathSegment::Field(declaration.identity.clone())];
-                            path.extend_from_slice(&field.parent.path[child.path.len()..]);
-                            staged_bytes.insert(
-                                crate::values::StructuralByteSequenceRuntimeField {
-                                    parent: StructuralRuntimePlace {
-                                        opaque_identity: value.opaque_identity,
-                                        path,
-                                    },
-                                    field: field.field,
-                                },
-                                bytes.clone(),
-                            );
-                        }
-                    }
+                    storage.stage(
+                        self,
+                        argument,
+                        &child,
+                        &StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: member_path,
+                        },
+                        affine,
+                    )?;
                 }
             }
         }
         self.commit_constructor_operands(frontier, &consumed)?;
         self.structural_scalar_fields.extend(staged);
         self.structural_byte_sequence_fields.extend(staged_bytes);
-        self.structural_element_view_fields.extend(staged_views);
-        self.reference_referents.extend(staged_referents);
+        storage.publish(self);
         self.structural_values.insert(result.place, value);
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {

@@ -270,13 +270,12 @@ fn consumed_places(walk: &FrontierWalk<'_>, operation: &terminal_psi::Operation)
     } = *walk;
     match &operation.kind {
         OperationKind::ReleaseReference { source } => vec![*source],
-        OperationKind::EstablishRecord { fields }
-        | OperationKind::EstablishStructuralCase { fields, .. } => fields
-            .iter()
-            .filter_map(|field| {
-                let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-                    return None;
-                };
+        OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishStructuralArray { .. } => operation
+            .kind
+            .constructor_arguments()
+            .filter_map(|argument| {
                 if !argument.path.is_empty() {
                     return None;
                 }
@@ -407,17 +406,12 @@ pub(super) fn projected_arguments(
             structural_arguments,
             ..
         } => structural_arguments.iter().collect(),
-        OperationKind::EstablishRecord { fields }
-        | OperationKind::EstablishStructuralCase { fields, .. } => fields
-            .iter()
-            .filter_map(|field| match &field.value {
-                terminal_psi::RecordFieldValue::Structural(argument)
-                    if !argument.path.is_empty() =>
-                {
-                    Some(argument)
-                }
-                _ => None,
-            })
+        OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishStructuralArray { .. } => operation
+            .kind
+            .constructor_arguments()
+            .filter(|argument| !argument.path.is_empty())
             .collect(),
         _ => Vec::new(),
     }

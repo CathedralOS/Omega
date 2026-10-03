@@ -3057,3 +3057,68 @@ fn shared_scalar_reference_views_keep_the_complete_cohort_frozen() {
         Err(ModuleError::UnitReturnAffineDiscardsMismatch { .. })
     ));
 }
+
+#[test]
+fn completed_structural_array_relocates_reference_custody_without_reborrowing() {
+    let mut module = record_reference_module();
+    module.structural_types[2].shape = StructuralTypeShape::FixedArray {
+        element: structural_type_id(2),
+        length: 1,
+    };
+    let operation = &mut module.machines[0].blocks[0].operations[1];
+    operation.kind = OperationKind::EstablishStructuralArray {
+        elements: vec![StructuralArgument {
+            place: place_id(2),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        }],
+    };
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        panic!("borrowed writer")
+    };
+    structural_arguments[0].path = vec![
+        StructuralPathSegment::FixedIndex(0),
+        StructuralPathSegment::Referent,
+    ];
+    validate_module(&module)
+        .expect("the array relocates the same live reference under its fixed index");
+    for corruption in 0..3 {
+        let mut wrong = module.clone();
+        match corruption {
+            0 => {
+                let OperationKind::EstablishStructuralArray { elements } =
+                    &mut wrong.machines[0].blocks[0].operations[1].kind
+                else {
+                    unreachable!()
+                };
+                elements[0].place = place_id(1);
+            }
+            1 => {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } = &mut wrong.machines[0].blocks[0].operations[2].kind
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].path[0] = StructuralPathSegment::FixedIndex(1);
+            }
+            _ => {
+                let OperationResult::Structural(result) =
+                    &mut wrong.machines[0].blocks[0].operations[1].result
+                else {
+                    unreachable!()
+                };
+                result.multiplicity = StructuralMultiplicity::Unrestricted;
+            }
+        }
+        assert!(
+            validate_module(&wrong).is_err(),
+            "reference custody corruption {corruption}"
+        );
+    }
+}

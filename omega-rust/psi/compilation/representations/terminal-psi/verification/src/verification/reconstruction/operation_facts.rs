@@ -268,6 +268,12 @@ pub(super) fn append_operation(
         }
         return Ok(());
     }
+    if matches!(
+        operation.kind,
+        OperationKind::EstablishStructuralArray { .. }
+    ) {
+        return record::append_array(module, machine, operation, axioms);
+    }
     if matches!(operation.kind, OperationKind::EstablishRecord { .. }) {
         return record::append(module, machine, operation, axioms, operation_obligations);
     }
@@ -981,6 +987,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishZeroedStructural { .. }
         | OperationKind::EstablishStructuralLocal { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
+        | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::MoveStructuralField { .. }
         | OperationKind::StoreStructuralField { .. }

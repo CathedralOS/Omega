@@ -513,3 +513,52 @@ fn validate_constructor_projection(
     }
     Ok(())
 }
+
+pub(super) fn validate_establish_structural_array(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishStructuralArray { elements } = &operation.kind else {
+        unreachable!("array dispatch")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("array has no structural result");
+    };
+    if !matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
+        || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() || !result.claims.is_empty()
+        || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
+        return malformed("array result custody is noncanonical");
+    }
+    let Some(StructuralTypeShape::FixedArray { element, length }) = module
+        .structural_types
+        .iter()
+        .find(|row| row.id == result.structural_type)
+        .map(|row| &row.shape)
+    else {
+        return malformed("structural array result is not a fixed array");
+    };
+    if u64::try_from(elements.len()).ok() != Some(*length) {
+        return malformed("array element count differs");
+    }
+    for argument in elements {
+        if argument.access != terminal_psi::StructuralAccess::Owned
+            || argument.place == result.place
+        {
+            return malformed("array element is not an independent owned source");
+        }
+        let Some(root) = super::structural_place_type(machine, argument.place) else {
+            return malformed("array element source is absent");
+        };
+        if super::validate_structural_path(module, root, &argument.path)? != *element {
+            return malformed("array element type differs");
+        }
+        validate_constructor_projection(
+            module,
+            machine,
+            argument,
+            &StructuralFieldType::Structural(*element),
+        )?;
+    }
+    Ok(())
+}

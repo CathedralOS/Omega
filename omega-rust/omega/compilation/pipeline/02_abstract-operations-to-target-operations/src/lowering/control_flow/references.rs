@@ -450,6 +450,25 @@ pub(super) fn leaf_paths(
                     }
                 }
             }
+            StructuralTypeShape::FixedArray { element, length } => {
+                if !contains_reference(types, *element) {
+                    continue;
+                }
+                let count = usize::try_from(*length).ok()?;
+                if pending
+                    .len()
+                    .checked_add(output.len())?
+                    .checked_add(count)?
+                    > maximum_leaves
+                {
+                    return None;
+                }
+                for index in (0..*length).rev() {
+                    let mut child_path = path.clone();
+                    child_path.push(StructuralPathSegment::FixedIndex(index));
+                    pending.push((*element, child_path));
+                }
+            }
             _ => {}
         }
     }
@@ -1289,7 +1308,7 @@ pub(super) fn record_field_leaves(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     live: &LiveDefinitions,
-    field_identity: &str,
+    destination: StructuralPathSegment,
     nested: StructuralTypeId,
     argument: &StructuralArgument,
     relocations: &mut Vec<(
@@ -1313,7 +1332,7 @@ pub(super) fn record_field_leaves(
         if !moved.insert(leaf.identity.clone()) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let mut destination = vec![StructuralPathSegment::Field(field_identity.to_owned())];
+        let mut destination = vec![destination.clone()];
         destination.extend(path.iter().cloned());
         relocations.push(((argument.place, path.clone()), destination));
     }
@@ -1591,6 +1610,28 @@ fn constructible_record(types: &StructuralTypeLookup<'_>, root: StructuralTypeId
         }
         if !active.insert(current) {
             return false;
+        }
+        if referent(types, current).is_some() || plain_record_referent(types, current).is_some() {
+            active.remove(&current);
+            complete.insert(current);
+            continue;
+        }
+        match types
+            .get(&current)
+            .copied()
+            .map(|declaration| &declaration.shape)
+        {
+            Some(StructuralTypeShape::FixedArray { element, .. }) => {
+                pending.push((current, true));
+                pending.push((*element, false));
+                continue;
+            }
+            Some(StructuralTypeShape::PrimitiveScalar(_)) => {
+                active.remove(&current);
+                complete.insert(current);
+                continue;
+            }
+            _ => {}
         }
         let Some(terminal_psi::StructuralTypeDeclaration {
             shape: StructuralTypeShape::Record { fields },

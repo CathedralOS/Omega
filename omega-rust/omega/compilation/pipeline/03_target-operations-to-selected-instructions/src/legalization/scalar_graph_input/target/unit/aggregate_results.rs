@@ -16,6 +16,54 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     match (target, abstracted) {
         (
+            TargetUnitOperation::EstablishStructuralArray {
+                psi_operation,
+                result_home,
+                elements,
+            },
+            AbstractOperation::EstablishStructuralArray {
+                psi_operation: expected_operation,
+                result,
+                elements: expected_elements,
+            },
+        ) => {
+            let declaration = plan
+                .structural_types
+                .iter()
+                .find(|entry| entry.id == result.structural_type)
+                .ok_or(LegalizationError::custody())?;
+            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
+                declaration.shape
+            else {
+                return Err(LegalizationError::custody());
+            };
+            if psi_operation != expected_operation
+                || elements != expected_elements
+                || u64::try_from(elements.len()).ok() != Some(length)
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+            {
+                return Err(LegalizationError::custody());
+            }
+            for argument in elements {
+                let (actual, multiplicity) =
+                    owned_projected_field_source(optimized, argument, &unit.structural_types)?;
+                if argument.access != terminal_psi::StructuralAccess::Owned
+                    || argument.place == result.place
+                    || actual != element
+                    || (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
+                {
+                    return Err(LegalizationError::custody());
+                }
+            }
+        }
+
+        (
             TargetUnitOperation::EstablishRecord {
                 psi_operation,
                 result_home,
@@ -343,6 +391,23 @@ fn owned_projected_field_source(
     ),
     LegalizationError,
 > {
+    // A shared descriptor is an owned value whose backing remains borrowed.
+    // Rejoin its exact declaration; this does not turn a borrowed aggregate
+    // into an owned element or grant mutable access to descriptor backing.
+    if argument.path.is_empty()
+        && argument.access == terminal_psi::StructuralAccess::Owned
+        && let Some(parameter) = function.arrival_parameter(argument.place)
+        && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+        && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && terminal_semantics::descriptor_results::is_shared_descriptor(
+            types.iter(),
+            parameter.structural_type,
+        )
+    {
+        return Ok((parameter.structural_type, parameter.multiplicity));
+    }
     let (root, multiplicity) = owned_field_source(function, argument.place)?;
     if argument.path.is_empty() {
         return Ok((root, multiplicity));

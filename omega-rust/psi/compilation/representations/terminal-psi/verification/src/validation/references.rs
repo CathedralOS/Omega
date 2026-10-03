@@ -148,8 +148,12 @@ pub(super) fn contains_reference(module: &TerminalModule, root: StructuralTypeId
                     fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. }
-            | StructuralTypeShape::ElementView { element } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, length } => {
+                if *length != 0 {
+                    pending.push(*element);
+                }
+            }
+            StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::FusedServiceBinding => {}
@@ -165,47 +169,92 @@ fn leaf_paths(
     root: StructuralTypeId,
     maximum_leaves: usize,
 ) -> Option<Vec<Vec<StructuralPathSegment>>> {
-    let mut output = Vec::new();
-    let mut pending = vec![(root, Vec::new())];
-    while let Some((current, path)) = pending.pop() {
-        // A type DAG can describe exponentially many occurrences. Existing
-        // live descriptors bound the possible roster; do not expand an absent
-        // roster or recurse through repeated reference-free payload subtrees.
-        if !contains_reference(module, current) {
+    // Count the type DAG before expanding repeated occurrences. Bounds come
+    // from the actual live reference roster, not an arbitrary array cutoff;
+    // zero extents owe no leaves and never expand their element type.
+    let mut counts = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let mut pending = vec![(root, false)];
+    while let Some((current, complete)) = pending.pop() {
+        if counts.contains_key(&current) {
             continue;
         }
-        let Some(declaration) = module
+        let declaration = module
             .structural_types
             .iter()
-            .find(|item| item.id == current)
-        else {
-            continue;
+            .find(|row| row.id == current)?;
+        let children: Vec<_> = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields
+                .iter()
+                .filter_map(|field| match field.field_type {
+                    StructuralFieldType::Structural(child) => Some(child),
+                    _ => None,
+                })
+                .collect(),
+            StructuralTypeShape::FixedArray { element, length } if *length != 0 => vec![*element],
+            _ => Vec::new(),
         };
-        match &declaration.shape {
-            StructuralTypeShape::Reference { .. } => {
-                if output.len() == maximum_leaves {
-                    return None;
-                }
-                output.push(path);
+        if !complete {
+            if !active.insert(current) {
+                return None;
             }
+            pending.push((current, true));
+            pending.extend(children.iter().rev().map(|child| (*child, false)));
+            continue;
+        }
+        let count = match &declaration.shape {
+            StructuralTypeShape::Reference { .. } => 1usize,
+            StructuralTypeShape::Record { .. } => children
+                .iter()
+                .try_fold(0usize, |sum, child| sum.checked_add(*counts.get(child)?))?,
+            StructuralTypeShape::FixedArray { length: 0, .. } => 0,
+            StructuralTypeShape::FixedArray { element, length } => {
+                let child = *counts.get(element)?;
+                if child == 0 {
+                    0
+                } else {
+                    child.checked_mul(usize::try_from(*length).ok()?)?
+                }
+            }
+            _ => 0,
+        };
+        if count > maximum_leaves {
+            return None;
+        }
+        active.remove(&current);
+        counts.insert(current, count);
+    }
+    let mut output = Vec::with_capacity(*counts.get(&root)?);
+    let mut pending = vec![(root, Vec::new())];
+    while let Some((current, path)) = pending.pop() {
+        if counts.get(&current).copied()? == 0 {
+            continue;
+        }
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|row| row.id == current)?;
+        match &declaration.shape {
+            StructuralTypeShape::Reference { .. } => output.push(path),
             StructuralTypeShape::Record { fields } => {
                 for field in fields.iter().rev() {
-                    if let StructuralFieldType::Structural(child) = field.field_type {
-                        if !contains_reference(module, child) {
-                            continue;
-                        }
-                        // Every pending owned subtree owes at least one leaf.
-                        // Bound the worklist before a wide DAG can amplify it.
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
-                            return None;
-                        }
-                        let mut child_path = path.clone();
-                        child_path.push(StructuralPathSegment::Field(field.identity.clone()));
-                        pending.push((child, child_path));
+                    if let StructuralFieldType::Structural(child) = field.field_type
+                        && counts.get(&child).copied()? != 0
+                    {
+                        let mut target = path.clone();
+                        target.push(StructuralPathSegment::Field(field.identity.clone()));
+                        pending.push((child, target));
                     }
                 }
             }
-            _ => {}
+            StructuralTypeShape::FixedArray { element, length } => {
+                for index in (0..*length).rev() {
+                    let mut target = path.clone();
+                    target.push(StructuralPathSegment::FixedIndex(index));
+                    pending.push((*element, target));
+                }
+            }
+            _ => return None,
         }
     }
     Some(output)
@@ -540,7 +589,8 @@ pub(super) fn validate_machine(
             && !is_reference(result.structural_type)
             && (!matches!(
                 operation.kind,
-                OperationKind::EstablishRecord { .. }
+                OperationKind::EstablishStructuralArray { .. }
+                    | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
@@ -1466,145 +1516,102 @@ pub(super) fn discard_owned(
     Ok(())
 }
 
-/// Record construction moves carriers, not referents. Exact static bindings
-/// and the owning frontier are checked in this same operation transaction;
-/// relocation cannot turn an owned move into a second, child loan.
-fn establish_record(
+/// Complete construction relocates each selected carrier, never its referent.
+/// All destinations are staged before updating the live reference roster.
+fn establish_constructor(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     live: &mut [LiveReference],
 ) -> Result<(), ModuleError> {
-    let declarations = super::record::fields(module, machine, operation)?;
-    let OperationKind::EstablishRecord { fields } = &operation.kind else {
-        return Err(invalid(
-            machine,
-            "record transfer requires a record establishment",
-        ));
-    };
-    let result = operation
-        .result
-        .structural()
-        .ok_or_else(|| invalid(machine, "record result is absent"))?;
-    if live.iter().any(|reference| {
-        reference.carrier == result.place || reference.identity.place == result.place
-    }) {
-        return Err(invalid(
-            machine,
-            "record destination still owns live reference custody",
-        ));
-    }
-    let mut relocations = Vec::new();
-    let mut moved = BTreeSet::new();
-    for (declaration, field) in declarations.zip(fields) {
-        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-            continue;
-        };
-        let signature =
-            super::structural::result_contracts::source_signature(machine, argument.place)
-                .ok_or_else(|| invalid(machine, "record operand has no structural source"))?;
-        let paths = leaf_paths(module, signature.structural_type, live.len()).ok_or_else(|| {
-            invalid(
-                machine,
-                "record operand requires more reference leaves than are live",
-            )
-        })?;
-        for path in paths {
-            let position = live
+    let mut bindings = Vec::new();
+    match &operation.kind {
+        OperationKind::EstablishRecord { fields } => {
+            for (declaration, field) in
+                super::record::fields(module, machine, operation)?.zip(fields)
+            {
+                if let terminal_psi::RecordFieldValue::Structural(argument) = &field.value {
+                    bindings.push((
+                        argument,
+                        vec![StructuralPathSegment::Field(declaration.identity.clone())],
+                    ));
+                }
+            }
+        }
+        OperationKind::EstablishStructuralCase { fields, .. } => {
+            for (entry, field) in super::structural::case::fields(module, machine, operation)?
                 .iter()
-                .position(|reference| {
-                    reference.carrier == argument.place && reference.carrier_path == path
-                })
-                .ok_or_else(|| {
-                    invalid(machine, "record operand does not own its reference leaf")
-                })?;
-            if !moved.insert(position) {
-                return Err(invalid(
-                    machine,
-                    "record cannot duplicate reference custody",
+                .zip(fields)
+            {
+                if let terminal_psi::RecordFieldValue::Structural(argument) = &field.value {
+                    bindings.push((
+                        argument,
+                        vec![StructuralPathSegment::Field(
+                            entry.declaration.identity.clone(),
+                        )],
+                    ));
+                }
+            }
+        }
+        OperationKind::EstablishStructuralArray { elements } => {
+            super::structural_array::operands(module, machine, operation)?;
+            for (index, argument) in elements.iter().enumerate() {
+                bindings.push((
+                    argument,
+                    vec![StructuralPathSegment::FixedIndex(
+                        u64::try_from(index)
+                            .map_err(|_| invalid(machine, "array index is unrepresentable"))?,
+                    )],
                 ));
             }
-            let mut destination = vec![StructuralPathSegment::Field(declaration.identity.clone())];
-            destination.extend(path);
-            relocations.push((position, destination));
         }
-        if live.iter().enumerate().any(|(position, reference)| {
-            reference.carrier == argument.place && !moved.contains(&position)
-        }) {
-            return Err(invalid(
-                machine,
-                "record operand reference roster differs from its type",
-            ));
-        }
+        _ => return Err(invalid(machine, "expected complete structural constructor")),
     }
-    for (position, path) in relocations {
-        live[position].carrier = result.place;
-        live[position].carrier_path = path;
-    }
-    Ok(())
-}
-
-fn establish_structural_case(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &terminal_psi::Operation,
-    live: &mut [LiveReference],
-) -> Result<(), ModuleError> {
-    let declarations = super::structural::case::fields(module, machine, operation)?;
-    let OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind else {
-        return Err(invalid(
-            machine,
-            "case transfer requires a structural-case establishment",
-        ));
-    };
     let result = operation
         .result
         .structural()
-        .ok_or_else(|| invalid(machine, "case result is absent"))?;
+        .ok_or_else(|| invalid(machine, "constructor result is absent"))?;
     if live.iter().any(|reference| {
         reference.carrier == result.place || reference.identity.place == result.place
     }) {
         return Err(invalid(
             machine,
-            "case destination still owns live reference custody",
+            "constructor destination still owns reference custody",
         ));
     }
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
-    for (entry, field) in declarations.iter().zip(fields) {
-        let declaration = entry.declaration;
-        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-            continue;
-        };
-        let signature =
-            super::structural::result_contracts::source_signature(machine, argument.place)
-                .ok_or_else(|| invalid(machine, "case operand has no structural source"))?;
-        let paths = leaf_paths(module, signature.structural_type, live.len()).ok_or_else(|| {
-            invalid(
-                machine,
-                "case operand requires more reference leaves than are live",
-            )
-        })?;
+    for (argument, destination) in bindings {
+        let signature = super::structural::result_contracts::constructor_argument_signature(
+            module, machine, argument,
+        )
+        .ok_or_else(|| invalid(machine, "constructor operand has no exact source"))?;
+        let paths = leaf_paths(module, signature.structural_type, live.len())
+            .ok_or_else(|| invalid(machine, "constructor reference roster exceeds live leaves"))?;
         for path in paths {
+            let mut source_path = argument.path.clone();
+            source_path.extend_from_slice(&path);
             let position = live
                 .iter()
                 .position(|reference| {
-                    reference.carrier == argument.place && reference.carrier_path == path
+                    reference.carrier == argument.place && reference.carrier_path == source_path
                 })
-                .ok_or_else(|| invalid(machine, "case operand does not own its reference leaf"))?;
+                .ok_or_else(|| invalid(machine, "constructor does not own its reference leaf"))?;
             if !moved.insert(position) {
-                return Err(invalid(machine, "case cannot duplicate reference custody"));
+                return Err(invalid(machine, "constructor duplicates reference custody"));
             }
-            let mut destination = vec![StructuralPathSegment::Field(declaration.identity.clone())];
-            destination.extend(path);
-            relocations.push((position, destination));
+            let mut target = destination.clone();
+            target.extend(path);
+            relocations.push((position, target));
         }
         if live.iter().enumerate().any(|(position, reference)| {
-            reference.carrier == argument.place && !moved.contains(&position)
+            reference.carrier == argument.place
+                && reference.carrier_path.starts_with(&argument.path)
+                && !moved.contains(&position)
         }) {
             return Err(invalid(
                 machine,
-                "case operand reference roster differs from its type",
+                "constructor reference roster differs from selected type",
             ));
         }
     }
@@ -1736,11 +1743,11 @@ pub(super) fn apply_operation(
 ) -> Result<(), ModuleError> {
     match &operation.kind {
         OperationKind::ReleaseReference { source } => return release(machine, live, *source),
-        OperationKind::EstablishRecord { .. } => {
-            return establish_record(module, machine, operation, live);
+        OperationKind::EstablishStructuralArray { .. } | OperationKind::EstablishRecord { .. } => {
+            return establish_constructor(module, machine, operation, live);
         }
         OperationKind::EstablishStructuralCase { .. } => {
-            return establish_structural_case(module, machine, operation, live);
+            return establish_constructor(module, machine, operation, live);
         }
         OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. } => {
@@ -2307,3 +2314,6 @@ pub(super) fn validate_return_coverage(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod array_tests;

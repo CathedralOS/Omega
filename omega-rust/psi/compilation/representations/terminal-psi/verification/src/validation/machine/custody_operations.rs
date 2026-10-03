@@ -150,6 +150,10 @@ pub(super) fn register_custody_operation(
         }
         return Ok(true);
     }
+    if let OperationKind::EstablishStructuralArray { .. } = &operation.kind {
+        super::super::structural_array::operands(module, machine, operation)?;
+        return Ok(true);
+    }
     if let OperationKind::EstablishRecord { fields } = &operation.kind {
         let _ = super::super::record::fields(module, machine, operation)?;
         for obligation in fields.iter().filter_map(|field| match field.value {

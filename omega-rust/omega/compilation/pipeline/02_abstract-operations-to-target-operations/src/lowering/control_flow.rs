@@ -291,6 +291,7 @@ pub(super) fn lower(
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::EstablishScalarArray { result, .. }
+            | AbstractOperation::EstablishStructuralArray { result, .. }
             | AbstractOperation::EstablishByteSequenceConcatenation { result, .. }
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }

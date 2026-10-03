@@ -179,6 +179,7 @@ operation_semantic_rows! {
     StructuralByteViewFieldStore => ("schema:operation:structural-byte-view-field-store", LeafDenotation, None),
     EstablishScalarCase => ("schema:operation:establish-scalar-case", LeafDenotation, None),
     EstablishStructuralCase => ("schema:operation:establish-structural-case", LeafDenotation, None),
+    EstablishStructuralArray => ("schema:operation:establish-structural-array", LeafDenotation, None),
     EstablishScalarArray => ("schema:operation:establish-scalar-array", LeafDenotation, None),
     EstablishZeroedStructural => ("schema:operation:establish-zeroed-structural", LeafDenotation, None),
     EstablishStructuralLocal => ("schema:operation:establish-structural-local", LeafDenotation, None),

@@ -132,6 +132,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::EstablishStructuralLocal { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::ElementViewSubslice { .. }
+        | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::StoreDynamicDescriptor { .. }

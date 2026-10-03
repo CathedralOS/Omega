@@ -58,7 +58,8 @@ pub(super) fn partial_affine_root_type(
             // its affine children is moved out through a projected successor
             // argument (for example an owned match arm selecting `pair.first`);
             // the leftover complement is discarded as residuals on that edge.
-            | OperationKind::EstablishRecord { .. }
+            | OperationKind::EstablishStructuralArray { .. }
+        | OperationKind::EstablishRecord { .. }
             | OperationKind::EstablishStructuralCase { .. }
     ) {
         return None;

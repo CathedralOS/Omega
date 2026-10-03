@@ -172,6 +172,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::EstablishRecord { .. }
         | AbstractOperation::EstablishReference { .. }
         | AbstractOperation::EstablishZeroedStructural { .. }
+        | AbstractOperation::EstablishStructuralArray { .. }
         | AbstractOperation::EstablishScalarArray { .. }
         | AbstractOperation::EstablishStructuralLocal { .. }
         | AbstractOperation::EstablishCase { .. }

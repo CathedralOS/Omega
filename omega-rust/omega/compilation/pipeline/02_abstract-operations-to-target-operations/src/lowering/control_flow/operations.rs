@@ -379,16 +379,16 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::EstablishRecord { .. } | AbstractOperation::EstablishCase { .. } => {
-            super::records::establish(
-                operation,
-                function,
-                structural_types,
-                live,
-                operations,
-                provenance,
-            )
-        }
+        AbstractOperation::EstablishRecord { .. }
+        | AbstractOperation::EstablishStructuralArray { .. }
+        | AbstractOperation::EstablishCase { .. } => super::records::establish(
+            operation,
+            function,
+            structural_types,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::EstablishReference { .. } => super::references::establish(
             operation,
             function,

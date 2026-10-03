@@ -436,6 +436,7 @@ pub(in crate::selection) fn validate_with_environment(
                     }
                     LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishCase { .. }
+                    | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
                     | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }

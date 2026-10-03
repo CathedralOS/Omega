@@ -166,15 +166,12 @@ pub(in crate::validation) fn operation_regions(
         | OperationKind::ElementViewWrite { destination, .. } => {
             vec![(*destination, Vec::new())]
         }
-        OperationKind::EstablishRecord { fields }
-        | OperationKind::EstablishStructuralCase { fields, .. } => fields
-            .iter()
-            .filter_map(|field| match &field.value {
-                terminal_psi::RecordFieldValue::Structural(argument) => {
-                    Some(argument_region(module, machine, argument))
-                }
-                terminal_psi::RecordFieldValue::Scalar { .. } => None,
-            })
+        OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishStructuralArray { .. } => operation
+            .kind
+            .constructor_arguments()
+            .map(|argument| argument_region(module, machine, argument))
             .collect(),
         OperationKind::CallUnit {
             structural_arguments,

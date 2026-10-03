@@ -6,7 +6,6 @@
 //! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
 //! a carrier across an edge retains its original disposal debt until exit.
 //! Cyclic descriptor forwarding and nominal cleanup remain outside this pass.
-use crate::direct_calls::call_structural_arguments;
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::BlockId;
 use std::collections::VecDeque;
@@ -230,7 +229,7 @@ fn complete_carriers(
         }
         entries[position] = live.clone();
         for operation in &blocks[position].operations {
-            let arguments = call_structural_arguments(&operation.kind);
+            let arguments = projected_transfers::operands(&operation.kind);
             for argument in arguments.iter().filter(|argument| {
                 argument.access == StructuralAccess::Owned && managed.contains(&argument.place)
             }) {
@@ -242,7 +241,7 @@ fn complete_carriers(
                 let Some(live_position) = live.iter().position(|place| *place == argument.place)
                 else {
                     return unsupported(
-                        "scalar graph owned call transfers an unavailable affine parameter",
+                        "scalar graph owned operand transfers an unavailable affine parameter",
                     );
                 };
                 live.remove(live_position);

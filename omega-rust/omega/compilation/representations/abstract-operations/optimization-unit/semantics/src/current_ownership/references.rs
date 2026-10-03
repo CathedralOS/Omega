@@ -683,6 +683,35 @@ fn establish_record(
             "record transfer field roster differs from its type",
         ));
     }
+    let operands = declarations.zip(fields).filter_map(|(declaration, field)| {
+        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+            return None;
+        };
+        Some((
+            terminal_psi::StructuralPathSegment::Field(declaration.identity.clone()),
+            argument,
+        ))
+    });
+    establish_constructor(
+        function,
+        structural_types,
+        block,
+        node,
+        result,
+        operands,
+        live,
+    )
+}
+
+fn establish_constructor<'a>(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    node: u32,
+    result: &terminal_psi::StructuralOperationResult,
+    operands: impl Iterator<Item = (terminal_psi::StructuralPathSegment, &'a StructuralArgument)>,
+    live: &mut [LiveReference],
+) -> Result<(), OptimizationUnitValidationError> {
     if live.iter().any(|reference| {
         reference.carrier == result.place || reference.identity.place == result.place
     }) {
@@ -695,10 +724,7 @@ fn establish_record(
     }
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
-    for (declaration, field) in declarations.zip(fields) {
-        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
-            continue;
-        };
+    for (destination, argument) in operands {
         let signature = structural_source_contract(function, argument.place).ok_or_else(|| {
             invalid(
                 function,
@@ -738,9 +764,7 @@ fn establish_record(
                     "record cannot duplicate reference custody",
                 ));
             }
-            let mut destination = vec![terminal_psi::StructuralPathSegment::Field(
-                declaration.identity.clone(),
-            )];
+            let mut destination = vec![destination.clone()];
             destination.extend(path);
             relocations.push((position, destination));
         }
@@ -835,6 +859,24 @@ pub(super) fn apply_operation(
                     check_root_access(function, block, node, live, argument.place)?;
                 }
             }
+        }
+        O::EstablishStructuralArray {
+            result, elements, ..
+        } => {
+            return establish_constructor(
+                function,
+                structural_types,
+                block,
+                node,
+                result,
+                elements.iter().enumerate().map(|(index, argument)| {
+                    (
+                        terminal_psi::StructuralPathSegment::FixedIndex(index as u64),
+                        argument,
+                    )
+                }),
+                live,
+            );
         }
         O::EstablishRecord { result, fields, .. } => {
             return establish_record(

@@ -201,6 +201,25 @@ fn leaf_paths(
                     }
                 }
             }
+            StructuralTypeShape::FixedArray { element, length } => {
+                if !contains_reference(declarations, *element) {
+                    continue;
+                }
+                let count = usize::try_from(*length).ok()?;
+                if pending
+                    .len()
+                    .checked_add(output.len())?
+                    .checked_add(count)?
+                    > maximum_leaves
+                {
+                    return None;
+                }
+                for index in (0..*length).rev() {
+                    let mut child_path = path.clone();
+                    child_path.push(StructuralPathSegment::FixedIndex(index));
+                    pending.push((*element, child_path));
+                }
+            }
             _ => {}
         }
     }
@@ -332,6 +351,26 @@ fn constructible_record(
         }
         if !active.insert(current) {
             return false;
+        }
+        if referent(declarations, current).is_some()
+            || plain_record_referent(declarations, current).is_some()
+        {
+            active.remove(&current);
+            complete.insert(current);
+            continue;
+        }
+        match lookup(declarations, current).map(|declaration| &declaration.shape) {
+            Some(StructuralTypeShape::FixedArray { element, .. }) => {
+                pending.push((current, true));
+                pending.push((*element, false));
+                continue;
+            }
+            Some(StructuralTypeShape::PrimitiveScalar(_)) => {
+                active.remove(&current);
+                complete.insert(current);
+                continue;
+            }
+            _ => {}
         }
         let Some(StructuralTypeDeclaration {
             shape: StructuralTypeShape::Record { fields },
@@ -838,11 +877,39 @@ fn establish_fields(
     fields: &[terminal_psi::RecordFieldInitializer],
     result_case: Option<semantic_vocabulary::StructuralCaseId>,
 ) -> Option<()> {
+    establish_constructor(
+        function,
+        declarations,
+        custody,
+        result,
+        fields,
+        result_case,
+        None,
+    )
+}
+
+fn establish_constructor(
+    function: &AbstractFunction,
+    declarations: &[StructuralTypeDeclaration],
+    custody: &mut Custody,
+    result: &StructuralOperationResult,
+    fields: &[terminal_psi::RecordFieldInitializer],
+    result_case: Option<semantic_vocabulary::StructuralCaseId>,
+    elements: Option<&[terminal_psi::StructuralArgument]>,
+) -> Option<()> {
     let shape = &lookup(declarations, result.structural_type)?.shape;
     let declared = match (shape, result_case) {
-        (StructuralTypeShape::Record { fields }, None) => fields,
-        (StructuralTypeShape::Sum { cases }, Some(result_case)) => {
-            &cases.iter().find(|case| case.id == result_case)?.fields
+        (StructuralTypeShape::Record { fields }, None) => fields.as_slice(),
+        (StructuralTypeShape::Sum { cases }, Some(result_case)) => cases
+            .iter()
+            .find(|case| case.id == result_case)?
+            .fields
+            .as_slice(),
+        (StructuralTypeShape::FixedArray { length, .. }, None)
+            if elements
+                .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>
+        {
+            &[]
         }
         _ => return None,
     };
@@ -852,17 +919,37 @@ fn establish_fields(
     }
     let mut consumed = BTreeSet::new();
     let mut relocations = Vec::new();
+    let element_type = match shape {
+        StructuralTypeShape::FixedArray { element, .. } => {
+            Some(StructuralFieldType::Structural(*element))
+        }
+        _ => None,
+    };
+    let mut operands = Vec::new();
     for (field, declaration) in fields.iter().zip(declared) {
         if field.field != declaration.id || declaration.relevance.is_erased() {
             return None;
         }
-        let RecordFieldValue::Structural(argument) = &field.value else {
-            continue;
-        };
+        if let RecordFieldValue::Structural(argument) = &field.value {
+            operands.push((
+                &declaration.field_type,
+                StructuralPathSegment::Field(declaration.identity.clone()),
+                argument,
+            ));
+        }
+    }
+    for (index, argument) in elements.into_iter().flatten().enumerate() {
+        operands.push((
+            element_type.as_ref()?,
+            StructuralPathSegment::FixedIndex(index as u64),
+            argument,
+        ));
+    }
+    for (field_type, destination, argument) in operands {
         let (root_type, multiplicity) = source_contract(function, custody, argument.place)?;
         let nested = leaf_type(declarations, root_type, &argument.path)?;
         let source_shape = &lookup(declarations, nested)?.shape;
-        let byte_carrier = declaration.field_type.byte_sequence_carrier();
+        let byte_carrier = field_type.byte_sequence_carrier();
         let descriptor_member = matches!(
             source_shape,
             StructuralTypeShape::ElementView { .. }
@@ -872,8 +959,8 @@ fn establish_fields(
                     }
                 )
         );
-        let declared_matches = match declaration.field_type {
-            StructuralFieldType::Structural(expected) => nested == expected,
+        let declared_matches = match field_type {
+            StructuralFieldType::Structural(expected) => nested == *expected,
             _ => match (byte_carrier, source_shape) {
                 (
                     Some(expected @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }),
@@ -979,7 +1066,7 @@ fn establish_fields(
             if !custody.leaves.contains_key(&(argument.place, path.clone())) {
                 return None;
             }
-            let mut destination = vec![StructuralPathSegment::Field(declaration.identity.clone())];
+            let mut destination = vec![destination.clone()];
             destination.extend(path.iter().cloned());
             relocations.push(((argument.place, path.clone()), destination));
         }
@@ -1106,6 +1193,19 @@ fn apply(
         }
         AbstractOperation::ReleaseReference { source, .. } => {
             custody.leaves.remove(&(*source, Vec::new()))?;
+        }
+        AbstractOperation::EstablishStructuralArray {
+            result, elements, ..
+        } => {
+            establish_constructor(
+                function,
+                declarations,
+                custody,
+                result,
+                &[],
+                None,
+                Some(elements),
+            )?;
         }
         AbstractOperation::EstablishRecord { result, fields, .. } => {
             establish_fields(function, declarations, custody, result, fields, None)?;

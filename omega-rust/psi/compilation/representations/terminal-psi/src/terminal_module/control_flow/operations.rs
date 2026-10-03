@@ -214,6 +214,12 @@ pub enum OperationKind {
     EstablishScalarArray {
         elements: Vec<ValueId>,
     },
+    /// Atomically establish a complete fixed array from its ordered owned
+    /// structural elements. The result declaration supplies the exact element
+    /// type and length; projected operands retain their original custody.
+    EstablishStructuralArray {
+        elements: Vec<StructuralArgument>,
+    },
     /// Atomically establish an owned, unrestricted structural place whose every
     /// runtime leaf begins zero. No operands: the result type names the whole
     /// type to zero — admitted only for shapes whose zero value needs no
@@ -957,6 +963,25 @@ pub enum OperationKind {
 }
 
 impl OperationKind {
+    /// Ordered structural operands of complete aggregate construction. Scalar
+    /// fields have no ownership transfer and are deliberately absent here.
+    pub fn constructor_arguments(&self) -> impl Iterator<Item = &StructuralArgument> {
+        let (elements, fields): (&[StructuralArgument], &[crate::RecordFieldInitializer]) =
+            match self {
+                Self::EstablishStructuralArray { elements } => (elements, &[]),
+                Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
+                    (&[], fields)
+                }
+                _ => (&[], &[]),
+            };
+        elements
+            .iter()
+            .chain(fields.iter().filter_map(|field| match &field.value {
+                crate::RecordFieldValue::Structural(argument) => Some(argument),
+                crate::RecordFieldValue::Scalar { .. } => None,
+            }))
+    }
+
     /// Rewrite every scalar operand `ValueId` use site through `map`.
     ///
     /// This is a mechanical inventory of direct scalar uses, not a semantic
@@ -1152,6 +1177,7 @@ impl OperationKind {
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }
+            | Self::EstablishStructuralArray { .. }
             | Self::EstablishZeroedStructural { .. }
             | Self::EstablishStructuralLocal { .. }
             | Self::BooleanStructuralField { .. }

@@ -94,6 +94,7 @@ mod qualification_establishments;
 pub(crate) mod record;
 mod root_service_reach;
 pub(crate) mod scalar_representation_view;
+pub(crate) mod structural_array;
 mod suspension_call_plan;
 pub(crate) mod trapping_integer;
 

@@ -215,3 +215,89 @@ fn scalar_array_rewrites_preserve_every_leaf_occurrence_and_result_identity() {
     );
     assert_eq!(parameter_rewrite, expected);
 }
+
+fn completed_array_unit() -> PsiOptimizationUnit {
+    let mut unit = array_unit(2);
+    let element = unit.structural_types[1].id;
+    unit.structural_types.make_mut()[1].shape = StructuralTypeShape::Record { fields: Vec::new() };
+    let function = &mut unit.functions[0];
+    let place = id(30_020, PlaceId::new);
+    let operation = id(30_021, OperationId::new);
+    function.declared_places.insert(place);
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: element,
+            },
+        });
+    function.blocks[0].nodes[0].operation = O::EstablishRecord {
+        psi_operation: operation,
+        result: terminal_psi::StructuralOperationResult {
+            place,
+            structural_type: element,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        },
+        fields: Vec::new(),
+    };
+    let O::EstablishScalarArray {
+        psi_operation,
+        result,
+        ..
+    } = function.blocks[0].nodes[1].operation.clone()
+    else {
+        panic!("array fixture");
+    };
+    function.blocks[0].nodes[1].operation = O::EstablishStructuralArray {
+        psi_operation,
+        result,
+        elements: vec![
+            terminal_psi::StructuralArgument {
+                place,
+                access: terminal_psi::StructuralAccess::Owned,
+                path: Vec::new()
+            };
+            2
+        ],
+    };
+    for index in 0..unit.functions.len() {
+        refresh_function_derivatives(&mut unit, index);
+    }
+    unit
+}
+
+#[test]
+fn completed_structural_array_preserves_owned_call_and_element_contracts() {
+    let unit = completed_array_unit();
+    assert_eq!(validate_psi_optimization_unit(&unit), Ok(()));
+    for mutation in 0..4 {
+        let mut changed = unit.clone();
+        let O::EstablishStructuralArray { elements, .. } =
+            &mut changed.functions[0].blocks[0].nodes[1].operation
+        else {
+            panic!("array fixture");
+        };
+        match mutation {
+            0 => {
+                elements.pop();
+            }
+            1 => elements[0].place = id(30_999, PlaceId::new),
+            2 => elements[0].access = terminal_psi::StructuralAccess::SharedBorrow,
+            3 => elements[0]
+                .path
+                .push(terminal_psi::StructuralPathSegment::Field("missing".into())),
+            _ => unreachable!(),
+        }
+        refresh_function_derivatives(&mut changed, 0);
+        assert!(
+            validate_psi_optimization_unit(&changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}

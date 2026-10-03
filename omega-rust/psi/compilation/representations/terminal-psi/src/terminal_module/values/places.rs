@@ -248,6 +248,9 @@ impl OperationKind {
             Self::ByteSequencePredicate { operand, .. } => {
                 map_byte_sequence_operand(operand, map);
             }
+            Self::EstablishStructuralArray { elements } => {
+                for argument in elements { argument.place = map(argument.place, argument.access); }
+            }
             Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
                 for field in fields {
                     match &mut field.value {
@@ -422,6 +425,9 @@ impl OperationKind {
                 });
                 projections.push(argument_projection(value));
             }
+            Self::EstablishStructuralArray { elements } => {
+                projections.extend(elements.iter().map(argument_projection));
+            }
             Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
                 projections.extend(fields.iter().filter_map(|field| match &field.value {
                     crate::RecordFieldValue::Structural(value) => Some(argument_projection(value)),
@@ -558,6 +564,9 @@ impl OperationKind {
             Self::StoreStructuralField { path, value, .. } => {
                 paths.push(path);
                 paths.push(&mut value.path);
+            }
+            Self::EstablishStructuralArray { elements } => {
+                paths.extend(elements.iter_mut().map(|argument| &mut argument.path));
             }
             Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
                 paths.extend(

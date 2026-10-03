@@ -609,6 +609,7 @@ fn cycle_operation_eligible(
         // still pinned by a shared loan. No source-arrangement roster belongs
         // here. Affine construction retains its separate disposal rules.
         OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
@@ -637,12 +638,17 @@ fn cycle_operation_eligible(
                     // check every move, selected cleanup and exact arrival;
                     // neither empty fields nor unrestricted contents are an
                     // extra requirement for the same transaction in a cycle.
-                    OperationKind::EstablishRecord { .. } => true,
+                    OperationKind::EstablishStructuralArray { .. }
+                    | OperationKind::EstablishRecord { .. } => true,
                     _ => false,
                 };
             lifetime_valid && match &operation.kind {
                 OperationKind::EstablishScalarCase { .. } => {
                     crate::validation::scalar::case::fields(module, machine, operation).is_ok()
+                }
+                OperationKind::EstablishStructuralArray { .. } => {
+                    crate::validation::structural_array::operands(module, machine, operation)
+                        .is_ok()
                 }
                 OperationKind::EstablishRecord { .. } => {
                     crate::validation::record::fields(module, machine, operation).is_ok()

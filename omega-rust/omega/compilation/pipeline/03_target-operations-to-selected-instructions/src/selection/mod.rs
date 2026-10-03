@@ -31,6 +31,7 @@ mod reference_input;
 mod returned_view_input;
 mod scalar_array_input;
 mod scalar_call_abi;
+mod structural_array_input;
 mod structural_local_input;
 mod validation;
 pub(crate) mod value_transport;

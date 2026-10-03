@@ -1016,6 +1016,12 @@ fn scan_operation(
                 }
             }
         }
+        O::EstablishStructuralArray { elements, .. } => {
+            for argument in elements {
+                let (reads, writes) = declared_access(argument.access);
+                pending.attribute_argument(context, argument, reads, writes);
+            }
+        }
         O::EstablishRecord { fields, .. } | O::EstablishCase { fields, .. } => {
             for field in fields {
                 if let RecordFieldValue::Structural(argument) = &field.value {

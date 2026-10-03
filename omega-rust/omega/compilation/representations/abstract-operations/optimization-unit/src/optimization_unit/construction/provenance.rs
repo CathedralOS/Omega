@@ -38,6 +38,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::AtomicEvent { psi_operation, .. }
         | O::StoreDynamicDescriptor { psi_operation, .. }
         | O::EstablishScalarArray { psi_operation, .. }
+        | O::EstablishStructuralArray { psi_operation, .. }
         | O::EstablishCase { psi_operation, .. }
         | O::EstablishByteSequenceConcatenation { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }

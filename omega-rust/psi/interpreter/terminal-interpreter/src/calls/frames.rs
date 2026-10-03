@@ -110,6 +110,14 @@ impl TerminalExecution {
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
                 continue;
             };
+            if let Some((value, binding)) =
+                self.prepare_shared_descriptor_argument(parameter, argument)?
+            {
+                if value != *resolved || values.insert(parameter.place, binding).is_some() {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                }
+                continue;
+            }
             if !carrier.is_borrowed()
                 || parameter.structural_type != resolved.structural_type
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted

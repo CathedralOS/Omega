@@ -239,6 +239,14 @@ impl TerminalExecution {
         let mut local_array_roots = BTreeMap::new();
         for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
         {
+            if let Some((referent, binding)) =
+                self.prepare_shared_descriptor_argument(parameter, argument)?
+            {
+                resolved.values.push(referent);
+                resolved.byte_sequences.push(Some(binding));
+                resolved.element_views.push(None);
+                continue;
+            }
             // Reuse the ordinary call's exact initialized-array binding. It can
             // enter a checked provider and be forwarded again, but never enters
             // the external field-replacement staging/writeback protocol.

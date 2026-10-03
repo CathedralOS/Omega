@@ -552,6 +552,26 @@ static OP_ESTABLISH_STRUCTURAL_CASE: TrustedSurfaceEntry = entry(
         VAL_STRUCTURAL_CASE,
     ],
 );
+static OP_ESTABLISH_STRUCTURAL_ARRAY: TrustedSurfaceEntry = entry(
+    "operation:establish-structural-array",
+    "completed owned elements in declared fixed-array order, with exact element identity and extent, available affine custody and finite projected paths",
+    "one complete destination after all operands exist; element transfer retains current descriptor backing and reference origins under its exact fixed index, without inventing permission or qualification evidence",
+    &[
+        "fact:structural-effect-observation",
+        "fact:structural-array-establishment",
+        "formation:structural-array",
+        "formation:operation-validation",
+        "formation:references",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural_array.rs",
+    ],
+);
 static OP_ESTABLISH_SCALAR_ARRAY: TrustedSurfaceEntry = entry(
     "operation:establish-scalar-array",
     "a validated scalar array with complete typed initialization",
@@ -1421,6 +1441,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_READ,
     OP_ESTABLISH_SCALAR_CASE,
     OP_ESTABLISH_STRUCTURAL_CASE,
+    OP_ESTABLISH_STRUCTURAL_ARRAY,
     OP_ESTABLISH_SCALAR_ARRAY,
     OP_ESTABLISH_BYTE_SEQUENCE_CONCATENATION,
     OP_ESTABLISH_BYTE_SEQUENCE_LITERAL,
@@ -1524,6 +1545,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         }
         OperationSemanticTag::EstablishScalarCase => &OP_ESTABLISH_SCALAR_CASE,
         OperationSemanticTag::EstablishStructuralCase => &OP_ESTABLISH_STRUCTURAL_CASE,
+        OperationSemanticTag::EstablishStructuralArray => &OP_ESTABLISH_STRUCTURAL_ARRAY,
         OperationSemanticTag::EstablishScalarArray => &OP_ESTABLISH_SCALAR_ARRAY,
         OperationSemanticTag::EstablishZeroedStructural => &OP_ESTABLISH_ZEROED_STRUCTURAL,
         OperationSemanticTag::EstablishStructuralLocal => &OP_ESTABLISH_STRUCTURAL_LOCAL,

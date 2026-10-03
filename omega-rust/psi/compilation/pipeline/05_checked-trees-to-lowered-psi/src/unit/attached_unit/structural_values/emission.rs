@@ -866,7 +866,7 @@ impl Emission<'_, '_, '_> {
                 Ok(place)
             }
             CheckedStructuralValueKind::FixedArray { elements } => {
-                let place = self.fixed_array(&elements)?;
+                let place = self.fixed_array(&elements, self.type_reference)?;
                 if let Some(continuation) = continuation {
                     self.complete_value(place, None, continuation)?;
                 }

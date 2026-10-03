@@ -106,6 +106,9 @@ pub(super) fn validate_operation_operands(
         OperationKind::EstablishScalarCase { .. } => {
             super::scalar::case::operands(module, machine, operation, value_types, defined)
         }
+        OperationKind::EstablishStructuralArray { .. } => {
+            super::structural_array::operands(module, machine, operation)
+        }
         OperationKind::EstablishRecord { .. } => {
             super::record::operands(module, machine, operation, value_types, defined)
         }

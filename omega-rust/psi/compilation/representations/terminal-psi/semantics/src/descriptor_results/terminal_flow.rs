@@ -296,6 +296,19 @@ pub(super) fn adapt(
                     }
                     step.inputs = vec![DescriptorLocation::whole(*source)];
                 }
+                OperationKind::EstablishStructuralArray { elements } => {
+                    for (index, source) in elements.iter().enumerate() {
+                        let destination = location(
+                            result?.place,
+                            &[StructuralPathSegment::FixedIndex(
+                                u64::try_from(index).ok()?,
+                            )],
+                            None,
+                        )?;
+                        let source = location(source.place, &source.path, None)?;
+                        step.derivations.push((source, destination));
+                    }
+                }
                 OperationKind::EstablishRecord { fields }
                 | OperationKind::EstablishStructuralCase { fields, .. } => {
                     if let OperationKind::EstablishStructuralCase { result_case, .. } =

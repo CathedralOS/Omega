@@ -13,6 +13,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         }
     };
     match operation {
+        O::EstablishStructuralArray { .. } => {}
         O::EstablishScalarArray { elements, .. } => {
             for element in elements {
                 replace(element);

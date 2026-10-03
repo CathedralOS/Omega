@@ -415,7 +415,7 @@ fn operation_observations(
         // into ordinary scalar computation.
         | O::AtomicEvent { .. }
         | O::StoreDynamicDescriptor { .. }
-        | O::EstablishScalarArray { .. }
+        | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }

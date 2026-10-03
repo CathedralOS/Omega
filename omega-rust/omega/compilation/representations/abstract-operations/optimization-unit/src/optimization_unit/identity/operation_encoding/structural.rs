@@ -43,6 +43,16 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             }
             bytes.id(*capacity_obligation);
         }
+        O::EstablishStructuralArray {
+            psi_operation,
+            result,
+            elements,
+        } => {
+            bytes.u8(105);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.slice(elements, encode_structural_argument);
+        }
         O::EstablishScalarArray {
             psi_operation,
             result,

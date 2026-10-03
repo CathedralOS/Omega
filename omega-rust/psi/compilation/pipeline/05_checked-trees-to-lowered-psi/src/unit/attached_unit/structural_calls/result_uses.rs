@@ -883,6 +883,9 @@ pub(crate) fn validate_usage(
                                 if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value { pending.push(value); }
                             }
                         }
+                        checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+                            pending.extend(elements.iter().rev().copied());
+                        }
                         checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => pending.extend(values.dispatch_arms.span(*arms).ok_or(LoweringError::Unsupported("record consumption arm roster missing"))?.iter().map(|arm| arm.value)),
                         _ => {}
                     }

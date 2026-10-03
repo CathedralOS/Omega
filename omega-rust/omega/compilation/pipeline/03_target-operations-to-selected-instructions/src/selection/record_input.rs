@@ -72,11 +72,34 @@ pub(super) fn field_shape(
     if field.field != expected.id || expected.relevance.is_erased() {
         return None;
     }
+    match &field.value {
+        RecordFieldValue::Scalar {
+            range_obligation, ..
+        } => {
+            if terminal_semantics::scalar_field_requires_evidence(&expected.field_type)
+                != range_obligation.is_some()
+            {
+                return None;
+            }
+            super::scalar_call_abi::scalar_shape(expected.field_type.scalar_type()?)
+        }
+        RecordFieldValue::Structural(argument) => {
+            structural_operand_shape(source, parent, argument, &expected.field_type)
+        }
+    }
+}
+
+/// Completed structural operands share one type, permission and storage query
+/// across record members, selected payloads and fixed-array elements.
+pub(super) fn structural_operand_shape(
+    source: &LegalizedScalarFunction,
+    parent: &terminal_psi::StructuralOperationResult,
+    argument: &terminal_psi::StructuralArgument,
+    field_type: &StructuralFieldType,
+) -> Option<ValueShape> {
     let declarations = &source.structural.as_ref()?.structural_types;
-    if let RecordFieldValue::Structural(argument) = &field.value
-        && !argument.path.is_empty()
-    {
-        let StructuralFieldType::Structural(expected_type) = expected.field_type else {
+    if !argument.path.is_empty() {
+        let StructuralFieldType::Structural(expected_type) = *field_type else {
             return None;
         };
         let (selected, _) = projected_operand(source, argument)?;
@@ -88,8 +111,8 @@ pub(super) fn field_shape(
         }
         return crate::structural_inputs::structural_reference_input::shape(selected, declarations);
     }
-    let shape = match (&field.value, &expected.field_type) {
-        (RecordFieldValue::Structural(argument), field_type)
+    let shape = match field_type {
+        field_type
             if matches!(
                 field_type.byte_sequence_carrier(),
                 Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
@@ -147,22 +170,7 @@ pub(super) fn field_shape(
             }
             crate::structural_inputs::structural_reference_input::shape(child_type, declarations)?
         }
-        (
-            RecordFieldValue::Scalar {
-                range_obligation, ..
-            },
-            kind,
-        ) if kind.scalar_type().is_some() => {
-            if terminal_semantics::scalar_field_requires_evidence(kind)
-                != range_obligation.is_some()
-            {
-                return None;
-            }
-            super::scalar_call_abi::scalar_shape(kind.scalar_type()?)?
-        }
-        (RecordFieldValue::Structural(argument), field_type)
-            if descriptor_shape(field_type, declarations).is_some() =>
-        {
+        field_type if descriptor_shape(field_type, declarations).is_some() => {
             // A shared view member stores its two-word descriptor: the
             // initializer moves the descriptor value with owned access, the
             // backing's custody stays with the source's loan. `Structural`
@@ -201,7 +209,7 @@ pub(super) fn field_shape(
             }
             crate::structural_inputs::structural_reference_input::shape(child_type, declarations)?
         }
-        (RecordFieldValue::Structural(argument), StructuralFieldType::Structural(nested)) => {
+        StructuralFieldType::Structural(nested) => {
             // Owned aggregates copy their bytes; a reference child copies its
             // one address word, never the referent's storage or permission.
             if crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
@@ -330,7 +338,7 @@ fn descriptor_family(actual: Option<&StructuralTypeShape>, expected: &Structural
 /// Exact static constructor selection over the original owned affine home.
 /// Return the source displacement as well as its type so construction and replay
 /// cannot accidentally copy the root's leading bytes for a later field.
-fn projected_operand(
+pub(super) fn projected_operand(
     source: &LegalizedScalarFunction,
     argument: &terminal_psi::StructuralArgument,
 ) -> Option<(semantic_vocabulary::StructuralTypeId, u32)> {

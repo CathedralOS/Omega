@@ -468,6 +468,7 @@ pub(super) fn lower(
             })
         }
         OperationKind::EstablishScalarArray { .. }
+        | OperationKind::EstablishStructuralArray { .. }
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }

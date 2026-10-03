@@ -340,8 +340,9 @@ pub(super) fn complete(
     Ok(())
 }
 
-fn operands(kind: &OperationKind) -> Vec<&StructuralArgument> {
+pub(super) fn operands(kind: &OperationKind) -> Vec<&StructuralArgument> {
     match kind {
+        OperationKind::EstablishStructuralArray { elements } => elements.iter().collect(),
         OperationKind::EstablishRecord { fields }
         | OperationKind::EstablishStructuralCase { fields, .. } => fields
             .iter()

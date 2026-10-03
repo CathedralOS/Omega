@@ -108,7 +108,10 @@ pub struct TerminalExecution {
     /// Their field homes survive borrowed calls independently of frame-local IDs.
     pub(crate) structural_element_view_fields:
         BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
-    pub(crate) structural_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
+    /// Completed byte payloads addressed by exact typed storage home. Fixed
+    /// byte arrays and stored shared descriptors reuse the backing representation;
+    /// each observing operation separately authenticates its declared carrier.
+    pub(crate) structural_byte_storage: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.
     pub(crate) structural_cases: BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
@@ -320,7 +323,7 @@ impl TerminalExecution {
             local_structural_identities,
             structural_scalar_fields,
             structural_byte_sequence_fields: BTreeMap::new(),
-            structural_byte_arrays: BTreeMap::new(),
+            structural_byte_storage: BTreeMap::new(),
             structural_cases: BTreeMap::new(),
             scalar_case_values: BTreeMap::new(),
             scalar_array_values: BTreeMap::new(),
@@ -529,6 +532,9 @@ impl TerminalExecution {
                     }
                     OperationKind::EstablishTrivialAffineLocal { .. } => {
                         self.execute_establish_trivial_affine_local(operation)?
+                    }
+                    OperationKind::EstablishStructuralArray { .. } => {
+                        self.execute_establish_structural_array(operation)?
                     }
                     OperationKind::EstablishRecord { .. } => {
                         self.execute_establish_record(operation)?

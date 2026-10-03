@@ -148,6 +148,125 @@ pub(crate) struct StructuralCallArguments {
 }
 
 impl TerminalExecution {
+    /// Observe a shared descriptor at its exact current home, whether frame-local
+    /// or relocated into an aggregate. The map supplies contents only; exact
+    /// carrier type, immutable access and home correspondence remain mandatory.
+    pub(crate) fn shared_byte_descriptor(
+        &self,
+        argument: &StructuralArgument,
+        value: &TerminalStructuralValue,
+    ) -> Result<&ByteSequenceView, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if !matches!(
+            argument.access,
+            StructuralAccess::Owned | StructuralAccess::SharedBorrow
+        ) || !self
+            .program
+            .structural_types
+            .get(&value.structural_type)
+            .is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow)
+                        }
+                    )
+                )
+            })
+        {
+            return Err(invalid());
+        }
+        let root = self
+            .structural_values
+            .get(&argument.place)
+            .ok_or_else(invalid)?;
+        let selected = crate::custody::project_structural_value(
+            &self.program.structural_types,
+            root,
+            &argument.path,
+        )?;
+        if selected != *value {
+            return Err(invalid());
+        }
+        if argument.path.is_empty()
+            && let Some(binding) = self.byte_sequence_values.get(&argument.place)
+        {
+            let view = binding.immutable()?;
+            return view
+                .matches_descriptor_home(value)
+                .then_some(view)
+                .ok_or_else(invalid);
+        }
+        self.structural_byte_storage
+            .get(&crate::values::StructuralRuntimePlace::from(value))
+            .ok_or_else(invalid)
+    }
+
+    pub(crate) fn prepare_shared_descriptor_argument(
+        &self,
+        parameter: &terminal_psi::StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+    ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
+    {
+        if argument.path.is_empty()
+            && self
+                .byte_sequence_values
+                .get(&argument.place)
+                .is_some_and(|binding| !matches!(binding, ByteSequenceBinding::Immutable(_)))
+        {
+            // Exclusive descriptors retain their existing reborrow/attenuation
+            // owner; a shared shape alone cannot recategorize that authority.
+            return Ok(None);
+        }
+        let Some(root) = self.structural_values.get(&argument.place) else {
+            return Ok(None);
+        };
+        let Ok(value) = crate::custody::project_structural_value(
+            &self.program.structural_types,
+            root,
+            &argument.path,
+        ) else {
+            return Ok(None);
+        };
+        if !self
+            .program
+            .structural_types
+            .get(&value.structural_type)
+            .is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow)
+                        }
+                    )
+                )
+            })
+        {
+            return Ok(None);
+        }
+        if parameter.structural_type != value.structural_type
+            || parameter.access != StructuralAccess::SharedBorrow
+            || argument.access != parameter.access
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !value.qualifications.is_empty()
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(argument.place))
+        {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        let bytes = self
+            .shared_byte_descriptor(argument, &value)?
+            .clone()
+            .with_descriptor_home(value.clone());
+        Ok(Some((value, ByteSequenceBinding::Immutable(bytes))))
+    }
+
     /// Reborrow a live byte descriptor, retaining its home for exclusive use
     /// and exposing only an immutable snapshot when authority is attenuated.
     pub(crate) fn reborrow_byte_sequence_binding(

@@ -67,7 +67,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::PrimitiveScalarRead { .. }
         | AbstractOperation::StructuralCaseMembership { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }
-        | AbstractOperation::EstablishScalarArray { .. }
+        | AbstractOperation::EstablishScalarArray { .. } | AbstractOperation::EstablishStructuralArray { .. }
         | AbstractOperation::EstablishCase { .. }
         | AbstractOperation::EstablishByteSequenceLiteral { .. }
         | AbstractOperation::EstablishByteSequenceConcatenation { .. }

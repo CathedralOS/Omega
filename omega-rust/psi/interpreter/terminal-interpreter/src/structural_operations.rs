@@ -377,7 +377,7 @@ impl TerminalExecution {
                             );
                         }
                     }
-                    for (carrier, view) in &self.structural_byte_arrays {
+                    for (carrier, view) in &self.structural_byte_storage {
                         if let Some(place) = retarget(carrier) {
                             staged_byte_arrays.insert(place, view.clone());
                         }
@@ -395,7 +395,7 @@ impl TerminalExecution {
         self.structural_cases.extend(staged_cases);
         self.structural_byte_sequence_fields
             .extend(staged_byte_fields);
-        self.structural_byte_arrays.extend(staged_byte_arrays);
+        self.structural_byte_storage.extend(staged_byte_arrays);
         self.structural_primitive_storage.extend(staged_primitives);
         self.reference_referents.extend(staged_referents);
         self.structural_element_view_fields
@@ -429,7 +429,7 @@ impl TerminalExecution {
             cell.parent.opaque_identity != from.opaque_identity
                 || !cell.parent.path.starts_with(&from.path)
         });
-        self.structural_byte_arrays.retain(|carrier, _| {
+        self.structural_byte_storage.retain(|carrier, _| {
             carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
         });
         self.structural_cases.retain(|carrier, _| {
@@ -639,7 +639,7 @@ impl TerminalExecution {
                             )
                     {
                         let length = usize::try_from(length).map_err(|_| invalid())?;
-                        self.structural_byte_arrays
+                        self.structural_byte_storage
                             .entry(StructuralRuntimePlace {
                                 opaque_identity: value.opaque_identity,
                                 path: parent.to_vec(),
@@ -1125,7 +1125,7 @@ impl TerminalExecution {
             })
             .collect();
         let staged_arrays: Vec<_> = self
-            .structural_byte_arrays
+            .structural_byte_storage
             .iter()
             .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
             .collect();
@@ -1161,7 +1161,7 @@ impl TerminalExecution {
             cell.parent.opaque_identity != from.opaque_identity
                 || !cell.parent.path.starts_with(&from.path)
         });
-        self.structural_byte_arrays.retain(|carrier, _| {
+        self.structural_byte_storage.retain(|carrier, _| {
             carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
         });
         self.structural_cases.retain(|carrier, _| {
@@ -1179,7 +1179,7 @@ impl TerminalExecution {
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_byte_sequence_fields
             .extend(staged_byte_fields);
-        self.structural_byte_arrays.extend(staged_arrays);
+        self.structural_byte_storage.extend(staged_arrays);
         self.structural_cases.extend(staged_cases);
         self.reference_referents.extend(staged_referents);
         self.structural_element_view_fields
@@ -1226,7 +1226,7 @@ impl TerminalExecution {
             })
             .collect();
         let staged_arrays: Vec<_> = self
-            .structural_byte_arrays
+            .structural_byte_storage
             .iter()
             .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
             .collect();
@@ -1257,7 +1257,7 @@ impl TerminalExecution {
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_byte_sequence_fields
             .extend(staged_byte_fields);
-        self.structural_byte_arrays.extend(staged_arrays);
+        self.structural_byte_storage.extend(staged_arrays);
         self.structural_cases.extend(staged_cases);
         self.reference_referents.extend(staged_referents);
         self.structural_element_view_fields
@@ -1420,6 +1420,11 @@ impl TerminalExecution {
                     return Err(invalid());
                 }
                 bytes.clone()
+            } else if let Some(bytes) = self
+                .structural_byte_storage
+                .get(&StructuralRuntimePlace::from(&leaf))
+            {
+                bytes.clone()
             } else {
                 let mut parent = StructuralRuntimePlace::from(&leaf);
                 parent.path.pop().ok_or_else(invalid)?;
@@ -1540,7 +1545,7 @@ impl TerminalExecution {
             path: parent_path.to_vec(),
         };
         let bytes = self
-            .structural_byte_arrays
+            .structural_byte_storage
             .get(&array)
             .ok_or_else(invalid)?;
         let layout = terminal_semantics::byte_carrier_scalar_layout(

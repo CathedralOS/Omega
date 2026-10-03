@@ -462,6 +462,22 @@ fn adapt(
                     }
                     step.inputs = vec![DescriptorLocation::whole(*source)];
                 }
+                O::EstablishStructuralArray {
+                    result, elements, ..
+                } => {
+                    for (index, argument) in elements.iter().enumerate() {
+                        let destination = location(
+                            result.place,
+                            &[StructuralPathSegment::FixedIndex(index as u64)],
+                            None,
+                        )?;
+                        if let Some(source) = location(argument.place, &argument.path, None) {
+                            step.derivations.push((source, destination));
+                        } else {
+                            step.may_escape = true;
+                        }
+                    }
+                }
                 O::EstablishRecord { result, fields, .. }
                 | O::EstablishCase { result, fields, .. } => {
                     if let O::EstablishCase { result_case, .. } = operation {

@@ -1,0 +1,36 @@
+// Nonzero element fields compose from a completed owner and a call result.
+// Construction cannot depend on an admissible zero value. Expected exit: 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain u64::Positive(value) requires 1 <= value;
+
+data Point {
+    value: u64 in Positive;
+}
+
+data Envelope {
+    elements: [Point; 2];
+}
+
+machine make_point(value: u64 in Positive) -> Point {
+    Point { value: value }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: Point = make_point(30);
+    let envelope: Envelope = Envelope {
+        elements: [first, make_point(40)],
+    };
+    transition envelope.elements[0].value == 30
+        && envelope.elements[1].value == 40 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

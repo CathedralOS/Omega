@@ -36,6 +36,18 @@ pub(super) fn lower(
                 capacity_obligation,
             }
         }
+        OperationKind::EstablishStructuralArray { elements } => {
+            let result = operation
+                .result
+                .structural()
+                .cloned()
+                .ok_or(LoweringError::UnsupportedScalarArray(operation.id))?;
+            AbstractOperation::EstablishStructuralArray {
+                psi_operation: operation.id,
+                result,
+                elements,
+            }
+        }
         OperationKind::EstablishScalarArray { elements } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedScalarArray(operation.id));

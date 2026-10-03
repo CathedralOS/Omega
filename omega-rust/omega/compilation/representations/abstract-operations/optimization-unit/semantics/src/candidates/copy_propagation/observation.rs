@@ -108,6 +108,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
     };
 
     match &mut normalized {
+        O::EstablishStructuralArray { .. } => {}
         O::EstablishScalarArray { elements, .. } => {
             for element in elements {
                 replace(element);

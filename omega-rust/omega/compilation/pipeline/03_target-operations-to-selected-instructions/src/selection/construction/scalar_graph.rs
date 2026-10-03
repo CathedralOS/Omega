@@ -410,6 +410,7 @@ fn select_function(
                     }
                     LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishCase { .. }
+                    | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
                     | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }

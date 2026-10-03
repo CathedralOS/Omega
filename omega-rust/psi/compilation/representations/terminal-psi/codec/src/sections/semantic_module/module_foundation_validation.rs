@@ -596,6 +596,9 @@ fn validate_operation_foundation(
         OperationKind::EstablishTrivialAffineLocal { .. } => {
             value_foundations::validate_establish_trivial_affine_local(module, machine, operation)?
         }
+        OperationKind::EstablishStructuralArray { .. } => {
+            value_foundations::validate_establish_structural_array(module, machine, operation)?
+        }
         OperationKind::EstablishRecord { .. } => {
             value_foundations::validate_establish_record(module, machine, operation)?
         }
@@ -1090,6 +1093,7 @@ fn is_plain_affine_call_result(
             operation.kind,
             OperationKind::CallStructuralWithScalarArguments { .. }
                 | OperationKind::BoundaryCall { .. }
+                | OperationKind::EstablishStructuralArray { .. }
                 | OperationKind::EstablishRecord { .. }
         )
     {

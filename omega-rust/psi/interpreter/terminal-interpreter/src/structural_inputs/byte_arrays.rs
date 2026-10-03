@@ -178,13 +178,13 @@ impl TerminalExecution {
                     return Err(invalid());
                 }
             }
-            if self.structural_byte_arrays.contains_key(&array)
+            if self.structural_byte_storage.contains_key(&array)
                 || storage.insert(array, bytes).is_some()
             {
                 return Err(invalid());
             }
         }
-        self.structural_byte_arrays.extend(storage);
+        self.structural_byte_storage.extend(storage);
         self.byte_sequence_values.extend(descriptors);
         Ok(())
     }
@@ -196,7 +196,7 @@ impl TerminalExecution {
         opaque_identity: u64,
         path: &[StructuralPathSegment],
     ) -> Option<&[u8]> {
-        self.structural_byte_arrays
+        self.structural_byte_storage
             .get(&StructuralRuntimePlace {
                 opaque_identity,
                 path: path.to_vec(),

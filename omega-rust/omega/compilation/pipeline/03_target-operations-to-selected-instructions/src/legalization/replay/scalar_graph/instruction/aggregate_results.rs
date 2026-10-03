@@ -188,6 +188,21 @@ pub(super) fn validate(
             }
         }
         (
+            LegalizedScalarInstructionKind::EstablishStructuralArray {
+                result,
+                elements,
+                shape,
+            },
+            AbstractOperation::EstablishStructuralArray {
+                result: expected,
+                elements: expected_elements,
+                ..
+            },
+        ) if result == expected
+            && elements == expected_elements
+            && *shape
+                == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {}
+        (
             LegalizedScalarInstructionKind::EstablishRecord {
                 result,
                 fields,

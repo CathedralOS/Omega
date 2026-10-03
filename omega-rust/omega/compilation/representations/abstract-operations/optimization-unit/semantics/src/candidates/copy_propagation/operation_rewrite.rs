@@ -21,6 +21,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         }
     };
     match operation {
+        O::EstablishStructuralArray { .. } => {}
         O::EstablishScalarArray { elements, .. } => {
             for element in elements {
                 replace(element);

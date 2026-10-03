@@ -119,7 +119,7 @@ pub(crate) fn operation_scalar_types_match(
                 }
         }
         O::PrimitiveScalarRead { .. }
-        | O::EstablishScalarArray { .. }
+        | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }

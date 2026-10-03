@@ -148,6 +148,56 @@ pub(super) fn append_leaf_copy(
 
 // Whole child transfer preserves observations through exact declaration paths.
 // The prior child equations remain usable until the atomic operation completes.
+pub(super) fn append_array(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    axioms: &mut Vec<Proposition>,
+) -> Result<(), ModuleError> {
+    crate::validation::structural_array::operands(module, machine, operation)?;
+    let result = operation
+        .result
+        .structural()
+        .ok_or(ModuleError::RecordResultMismatch(operation.id))?;
+    let OperationKind::EstablishStructuralArray { elements } = &operation.kind else {
+        return Err(ModuleError::RecordResultMismatch(operation.id));
+    };
+    axioms.retain(|proposition| {
+        !crate::validation::proposition_observes_places(proposition, &[result.place])
+    });
+    for (index, argument) in elements.iter().enumerate() {
+        let element = module
+            .structural_types
+            .iter()
+            .find_map(|row| match row.shape {
+                terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+                    if row.id == result.structural_type =>
+                {
+                    Some(element)
+                }
+                _ => None,
+            })
+            .ok_or(ModuleError::RecordResultMismatch(operation.id))?;
+        let path = crate::validation::canonical_field_path(
+            module,
+            machine,
+            argument.place,
+            &argument.path,
+        )
+        .ok_or(ModuleError::RecordResultMismatch(operation.id))?;
+        append_child_fields(
+            module,
+            element,
+            result.place,
+            vec![CanonicalStructuralPathSegment::FixedIndex(index as u64)],
+            argument.place,
+            path,
+            axioms,
+        );
+    }
+    Ok(())
+}
+
 pub(super) fn append_child_fields(
     module: &TerminalModule,
     structural_type: semantic_vocabulary::StructuralTypeId,

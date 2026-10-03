@@ -222,6 +222,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::EstablishScalarArray { .. }
+        | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishRecord { .. }
         | O::Call { .. } => true,
@@ -522,6 +523,12 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         // Constants,
         // scalar computations, plain scalar calls, port writes, descriptor
         // parameters, and non-structural terminators name no place at all.
+        O::EstablishStructuralArray {
+            result, elements, ..
+        } => {
+            references.insert(result.place);
+            references.extend(elements.iter().map(|argument| argument.place));
+        }
         O::EstablishScalarArray { result, .. } | O::EstablishPrimitiveLocal { result, .. } => {
             references.insert(result.place);
         }
@@ -640,6 +647,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
         | O::EstablishScalarArray { result, .. }
+        | O::EstablishStructuralArray { result, .. }
         | O::EstablishCase { result, .. }
         | O::EstablishRecord { result, .. }
         | O::CallStructural {
@@ -767,6 +775,7 @@ pub(super) fn copyable_owned_argument_root(
                     O::EstablishRecord { result, .. }
                     | O::EstablishCase { result, .. }
                     | O::EstablishScalarArray { result, .. }
+                    | O::EstablishStructuralArray { result, .. }
                     | O::CallStructural {
                         result: AbstractStructuralCallResult::Structural { result, .. },
                         ..

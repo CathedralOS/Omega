@@ -57,6 +57,7 @@ impl TerminalFuelSchedule {
             | OperationKind::ElementViewWrite { .. }
             | OperationKind::ElementViewSubslice { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
+            | OperationKind::EstablishStructuralArray { .. }
             | OperationKind::EstablishRecord { .. }
             | OperationKind::EstablishStructuralCase { .. }
             | OperationKind::StoreDynamicDescriptor { .. }

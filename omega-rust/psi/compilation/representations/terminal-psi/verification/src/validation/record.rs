@@ -177,6 +177,13 @@ fn record_type(
                 shared_view_members,
             ),
             StructuralTypeShape::PrimitiveScalar(_) => true,
+            StructuralTypeShape::Reference { .. } => references,
+            StructuralTypeShape::ElementView { .. } => shared_view_members,
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: None | Some(StructuralAccess::SharedBorrow),
+                },
+            ) => shared_view_members,
             _ => false,
         };
         active.pop();
@@ -595,7 +602,8 @@ fn completed_source_where<'a>(
         .find_map(|operation| {
             if !matches!(
                 operation.kind,
-                OperationKind::EstablishRecord { .. }
+                OperationKind::EstablishStructuralArray { .. }
+                    | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
                     | OperationKind::EstablishStructuralLocal { .. }
                     | OperationKind::MoveStructuralField { .. }
@@ -694,25 +702,20 @@ pub(super) fn validate_uses(
         }
     };
     match &operation.kind {
-        OperationKind::EstablishRecord { fields }
-        | OperationKind::EstablishStructuralCase { fields, .. } => {
-            for field in fields {
-                if let RecordFieldValue::Structural(argument) = &field.value {
-                    // Every constructed child must be available, irrespective
-                    // of whether it was supplied at entry, returned, copied or
-                    // established from image bytes. This is not ownership:
-                    // unrestricted descriptors have no affine frontier entry.
-                    if !machine
-                        .structural_parameters
-                        .iter()
-                        .any(|parameter| parameter.place == argument.place)
-                        && !available.contains(&argument.place)
-                    {
-                        return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
-                            operation: operation.id,
-                            place: argument.place,
-                        });
-                    }
+        OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishStructuralArray { .. } => {
+            for argument in operation.kind.constructor_arguments() {
+                if !machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == argument.place)
+                    && !available.contains(&argument.place)
+                {
+                    return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                        operation: operation.id,
+                        place: argument.place,
+                    });
                 }
             }
         }

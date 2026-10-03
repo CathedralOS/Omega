@@ -19,18 +19,29 @@ pub(super) fn establish(
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    let (psi_operation, result, fields, result_case) = match operation {
+    let (psi_operation, result, fields, result_case, elements) = match operation {
         AbstractOperation::EstablishRecord {
             psi_operation,
             result,
             fields,
-        } => (psi_operation, result, fields, None),
+        } => (psi_operation, result, fields.as_slice(), None, None),
         AbstractOperation::EstablishCase {
             psi_operation,
             result,
             fields,
             result_case,
-        } => (psi_operation, result, fields, Some(*result_case)),
+        } => (
+            psi_operation,
+            result,
+            fields.as_slice(),
+            Some(*result_case),
+            None,
+        ),
+        AbstractOperation::EstablishStructuralArray {
+            psi_operation,
+            result,
+            elements,
+        } => (psi_operation, result, &[][..], None, Some(elements)),
         _ => return Err(invalid()),
     };
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
@@ -74,6 +85,12 @@ pub(super) fn establish(
                     .filter(|field| !field.relevance.is_erased()),
             )
             .collect(),
+        (StructuralTypeShape::FixedArray { length, .. }, None)
+            if elements
+                .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>
+        {
+            Vec::new()
+        }
         _ => return Err(invalid()),
     };
     if declarations.len() != fields.len() || live.structural_homes.contains_key(&result.place) {
@@ -82,39 +99,84 @@ pub(super) fn establish(
     let mut consumed = BTreeSet::new();
     let mut relocations = Vec::new();
     let mut moved_leaves = BTreeSet::new();
-    for (field, declaration) in fields.iter().zip(declarations.iter().copied()) {
-        if field.field != declaration.id || declaration.relevance.is_erased() {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
+    let element_type = match shape {
+        StructuralTypeShape::FixedArray { element, .. } => {
+            Some(StructuralFieldType::Structural(*element))
         }
-        match &field.value {
-            terminal_psi::RecordFieldValue::Scalar {
+        _ => None,
+    };
+    enum Input<'a> {
+        Field(&'a terminal_psi::RecordFieldValue),
+        Element(&'a terminal_psi::StructuralArgument),
+    }
+    let operands = fields
+        .iter()
+        .zip(declarations.iter().copied())
+        .map(|(field, declaration)| {
+            if field.field != declaration.id || declaration.relevance.is_erased() {
+                return Err(invalid());
+            }
+            Ok((
+                &declaration.field_type,
+                terminal_psi::StructuralPathSegment::Field(declaration.identity.clone()),
+                Input::Field(&field.value),
+            ))
+        })
+        .chain(
+            elements
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .map(|(index, argument)| {
+                    Ok((
+                        element_type.as_ref().ok_or_else(invalid)?,
+                        terminal_psi::StructuralPathSegment::FixedIndex(index as u64),
+                        Input::Element(argument),
+                    ))
+                }),
+        );
+    for operand in operands {
+        let (field_type, destination, value) = operand?;
+        match value {
+            Input::Field(terminal_psi::RecordFieldValue::Scalar {
                 value,
                 range_obligation,
-            } => {
+            }) => {
                 let source = super::scalar_sources::source(*value, function, live)?;
-                if declaration.field_type.scalar_type() != Some(source.scalar_type())
-                    || terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
+                if field_type.scalar_type() != Some(source.scalar_type())
+                    || terminal_semantics::scalar_field_requires_evidence(field_type)
                         != range_obligation.is_some()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
             }
-            terminal_psi::RecordFieldValue::Structural(argument) => {
-                let byte_carrier =
-                    declaration
-                        .field_type
-                        .byte_sequence_carrier()
-                        .filter(|carrier| {
-                            matches!(
-                                carrier,
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        });
+            Input::Field(terminal_psi::RecordFieldValue::Structural(argument))
+            | Input::Element(argument) => {
+                // Completed elements and structural members retain their own
+                // declaration identity; direct byte fields spell the same
+                // carrier inline. Resolve both before classifying storage.
+                let byte_carrier = match field_type {
+                    StructuralFieldType::Structural(child) => {
+                        types
+                            .get(child)
+                            .and_then(|declaration| match declaration.shape {
+                                StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                                _ => None,
+                            })
+                    }
+                    field_type => field_type.byte_sequence_carrier(),
+                }
+                .filter(|carrier| {
+                    matches!(
+                        carrier,
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                });
                 // A `&[T]`/`&[u8]` member relocates its loan's descriptor into
                 // the record: the field owns the descriptor copy while the
                 // referent stays borrowed. Only shared loans reach here —
                 // upstream admission declines affine view members.
-                let descriptor_member = match &declaration.field_type {
+                let descriptor_member = match field_type {
                     StructuralFieldType::Structural(child) => {
                         types.get(child).is_some_and(|child| {
                             matches!(
@@ -133,8 +195,8 @@ pub(super) fn establish(
                         })
                     ),
                 };
-                let nested = match declaration.field_type {
-                    StructuralFieldType::Structural(nested) => nested,
+                let nested = match field_type {
+                    StructuralFieldType::Structural(nested) => *nested,
                     _ if byte_carrier.is_some() => {
                         let nested = live
                             .structural_observation_type(function, argument.place)
@@ -282,7 +344,7 @@ pub(super) fn establish(
                         function,
                         types,
                         live,
-                        &declaration.identity,
+                        destination.clone(),
                         nested,
                         argument,
                         &mut relocations,
@@ -313,18 +375,26 @@ pub(super) fn establish(
     super::references::relocate_record_leaves(live, result.place, relocations);
     live.structural_homes
         .insert(result.place, result_home.clone());
-    operations.push(match result_case {
-        Some(result_case) => TargetUnitOperation::EstablishCase {
+    operations.push(if let Some(elements) = elements {
+        TargetUnitOperation::EstablishStructuralArray {
             psi_operation: *psi_operation,
             result_home,
-            result_case,
-            fields: fields.clone(),
-        },
-        None => TargetUnitOperation::EstablishRecord {
-            psi_operation: *psi_operation,
-            result_home,
-            fields: fields.clone(),
-        },
+            elements: elements.clone(),
+        }
+    } else {
+        match result_case {
+            Some(result_case) => TargetUnitOperation::EstablishCase {
+                psi_operation: *psi_operation,
+                result_home,
+                result_case,
+                fields: fields.to_vec(),
+            },
+            None => TargetUnitOperation::EstablishRecord {
+                psi_operation: *psi_operation,
+                result_home,
+                fields: fields.to_vec(),
+            },
+        }
     });
     provenance.operations.push(*psi_operation);
     Ok(())

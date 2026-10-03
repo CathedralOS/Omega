@@ -10,6 +10,7 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::*;
 use terminal_verifier::ProofBundle;
 
+mod completed_arrays;
 mod owned_successor;
 
 fn unit_module() -> TerminalModule {

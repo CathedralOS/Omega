@@ -38,7 +38,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::AtomicEvent { .. }
-        | O::EstablishScalarArray { .. }
+        | O::EstablishScalarArray { .. } | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }

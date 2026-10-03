@@ -193,6 +193,7 @@ pub(super) fn structural_metadata_may_change(
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
         | O::EstablishScalarArray { .. }
+        | O::EstablishStructuralArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishRecord { .. }
         | O::StructuralCaseMembership { .. }

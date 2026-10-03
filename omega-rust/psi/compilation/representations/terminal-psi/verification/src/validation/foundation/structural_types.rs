@@ -12,7 +12,7 @@ use terminal_psi::StructuralTypeDeclaration;
 /// Registers the module's structural types: ids and names are unique, each
 /// shape's fields, elements and cases name known types with the layout the
 /// shape allows, the type graph is well founded, and stored reference
-/// custody is transferred only by record construction.
+/// custody is transferred by complete record and fixed-array construction.
 pub(super) fn register_structural_types(
     module: &TerminalModule,
 ) -> Result<BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>, ModuleError> {
@@ -144,10 +144,14 @@ pub(super) fn register_structural_types(
     // element type. The same known-type and acyclic-graph checks apply at
     // every length; emptiness does not authorize a malformed element shell.
     validate_structural_type_graph(&types)?;
-    // Only record construction currently transfers stored reference custody.
-    // Reject other containers recursively, including a record hidden in them.
+    // Complete record and fixed-array constructors relocate exact live reference
+    // leaves. Other containers still lack that receiving contract: reject them
+    // recursively, including a supported owned aggregate hidden beneath them.
     for declaration in &module.structural_types {
-        if matches!(declaration.shape, StructuralTypeShape::Record { .. }) {
+        if matches!(
+            declaration.shape,
+            StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+        ) {
             continue;
         }
         let children: Vec<StructuralTypeId> = match &declaration.shape {

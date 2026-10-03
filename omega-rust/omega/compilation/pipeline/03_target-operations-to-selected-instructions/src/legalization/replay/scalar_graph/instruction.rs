@@ -400,6 +400,7 @@ pub(super) fn validate(
                 ..
             }
             | AbstractOperation::EstablishRecord { .. }
+            | AbstractOperation::EstablishStructuralArray { .. }
             | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishCase { .. }
             | AbstractOperation::StructuralCaseMembership { .. }

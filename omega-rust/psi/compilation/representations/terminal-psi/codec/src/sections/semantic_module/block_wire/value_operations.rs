@@ -412,3 +412,31 @@ pub(super) fn decode_byte_sequence_predicate(
         },
     })
 }
+
+pub(super) fn encode_establish_structural_array(
+    writer: &mut Writer,
+    elements: Vec<terminal_psi::StructuralArgument>,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ESTABLISH_STRUCTURAL_ARRAY);
+    writer.len("structural array elements", elements.len())?;
+    for argument in elements {
+        writer.id(argument.place);
+        super::super::structural_signature_wire::encode_structural_access(writer, argument.access);
+        encode_structural_path(writer, "array element path", &argument.path)?;
+    }
+    Ok(())
+}
+
+pub(super) fn decode_establish_structural_array(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::EstablishStructuralArray {
+        elements: decode_counted(reader, |reader| {
+            Ok(terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                path: decode_structural_path(reader)?,
+            })
+        })?,
+    })
+}
