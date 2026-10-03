@@ -19,6 +19,159 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn nested_selected_named_operator_keeps_qualifier_and_ordered_value_custody() {
+    use checked_trees::expression::ExpressionNode;
+    use checked_trees::statement::StatementNode;
+
+    let checked = checked_binding_context(
+        "data ScalarMath {}
+         boundary operator ScalarMath::keep(value: u32) -> u32
+             requires value == value ensures result == value;
+         data OtherMath {}
+         boundary operator OtherMath::keep(value: u32) -> u32
+             requires value == value ensures result == value;
+         pub boundary trait Host { machine mark(value: u32); }
+         machine run(left: u32, right: u32) reaches Host {
+             Host::mark(ScalarMath::keep(left) ^ right);
+         }",
+    );
+    let run = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .unwrap();
+    let state = &checked.typed.machine_states(run)[0];
+    let parameters = checked.typed.state_parameters(state);
+    let left = parameters
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "left")
+        .unwrap()
+        .symbol;
+    let right = parameters
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "right")
+        .unwrap()
+        .symbol;
+    let StatementNode::Call(outer) = &checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes)[0]
+    else {
+        panic!("outer observation call");
+    };
+    let arguments = checked
+        .typed
+        .statement_table
+        .expression_handles(outer.arguments);
+    let host = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Host")
+        .unwrap();
+    let mark = checked.typed.trait_machine_signatures(host)[0].symbol;
+    let call = checked
+        .facts
+        .borrow
+        .calls
+        .iter()
+        .find(|(_, call)| call.target_symbol == mark)
+        .unwrap()
+        .1
+        .clone();
+    let replay = |source: &checked_trees::CheckedTrees| {
+        crate::expression_preparation::source_custody::computation_calls::replay_call_accesses(
+            source,
+            run.symbol,
+            state.symbol,
+            0,
+            &call,
+            arguments,
+        )
+    };
+    replay(&checked).expect("selected qualifier lookup preserves the ordered operand observations");
+    let accesses = checked
+        .facts
+        .borrow
+        .argument_accesses
+        .span(call.accesses)
+        .unwrap();
+    assert_eq!(
+        accesses
+            .iter()
+            .map(|access| access.root_symbol)
+            .collect::<Vec<_>>(),
+        [left, right]
+    );
+
+    let (expression, operand) = checked
+        .typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, node)| match node {
+            ExpressionNode::Call(call) if call.target.as_str() == "keep" => Some((
+                handle,
+                checked
+                    .typed
+                    .expression_table
+                    .expression_handles(call.arguments)[0],
+            )),
+            _ => None,
+        })
+        .expect("exact nested named operator occurrence");
+    let mut forged_receiver = checked.clone();
+    let ExpressionNode::Call(inner) = forged_receiver
+        .typed
+        .expression_table
+        .expression_mut(expression)
+    else {
+        panic!("operator call");
+    };
+    inner.receiver = operand;
+    assert!(
+        replay(&forged_receiver).is_err(),
+        "a runtime operand cannot replace the static qualifier"
+    );
+
+    let other = checked
+        .typed
+        .operators()
+        .iter()
+        .find(|operator| {
+            checked.typed.operator_path_members(operator.name)[0].as_str() == "OtherMath"
+        })
+        .unwrap()
+        .symbol;
+    let mut forged_target = checked.clone();
+    let ExpressionNode::Call(inner) = forged_target
+        .typed
+        .expression_table
+        .expression_mut(expression)
+    else {
+        panic!("operator call");
+    };
+    inner.target_symbol = other;
+    assert!(
+        replay(&forged_target).is_err(),
+        "equal runtime signatures cannot substitute the selected qualifier/target pair"
+    );
+
+    let mut forged_observation = checked.clone();
+    let accesses = forged_observation
+        .facts
+        .borrow
+        .argument_accesses
+        .span_mut(call.accesses)
+        .unwrap();
+    accesses[0].root_symbol = right;
+    assert!(
+        replay(&forged_observation).is_err(),
+        "static lookup cannot erase or substitute an actual operand's captured read"
+    );
+}
+
+#[test]
 fn record_returning_static_call_updates_local_scratch() {
     let checked = checked_binding_context(
         "pub boundary trait Host { machine mark(value: u64); machine byte(value: u8); }

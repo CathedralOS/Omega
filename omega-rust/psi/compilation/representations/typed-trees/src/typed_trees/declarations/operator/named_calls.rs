@@ -67,63 +67,9 @@ pub fn named_expression_call_candidates<'program>(
             .filter(|operator| operator.symbol == call.target_symbol)
             .collect();
     }
-    let mut static_segments = Vec::new();
-    let has_value_receiver = if !call.receiver.is_valid() {
-        false
-    } else if let crate::expression::ExpressionNode::Name(path) =
-        program.expression_table.expression(call.receiver)
-    {
-        let receiver_members = program.expression_table.name_path_members(path.members);
-        let is_known_static_namespace = path.symbol.is_valid()
-            && (program
-                .data_definitions()
-                .iter()
-                .any(|definition| definition.symbol == path.symbol)
-                || program
-                    .domain_definitions()
-                    .iter()
-                    .any(|definition| definition.symbol == path.symbol)
-                || program
-                    .machines()
-                    .iter()
-                    .any(|definition| definition.symbol == path.symbol)
-                || program
-                    .traits()
-                    .iter()
-                    .any(|definition| definition.symbol == path.symbol));
-        // Named operator lowering intentionally may leave a static namespace
-        // path symbol unresolved while retaining the exact call selection.
-        // Reconstruct only the namespace/value classification from the closed
-        // operator vocabulary and complete authored path; selection itself is
-        // still finalized separately.
-        let is_operator_namespace = !path.symbol.is_valid()
-            && program
-                .operators()
-                .iter()
-                .chain(program.machine_token_bindings())
-                .any(|operator| {
-                    let operator_path = program.operator_path_members(operator.name);
-                    operator_path
-                        .split_last()
-                        .is_some_and(|(member, namespace)| {
-                            member.as_str() == call.target.as_str()
-                                && namespace.len() == receiver_members.len()
-                                && namespace
-                                    .iter()
-                                    .zip(receiver_members)
-                                    .all(|(expected, actual)| expected == actual)
-                        })
-                });
-        let is_static_namespace = is_known_static_namespace || is_operator_namespace;
-        if is_static_namespace {
-            static_segments.extend(receiver_members.iter().map(|segment| segment.as_str()));
-        }
-        !is_static_namespace
-    } else {
-        true
-    };
-    let static_receiver_segments =
-        (!static_segments.is_empty()).then_some(static_segments.as_slice());
+    let static_segments = expression_static_receiver_segments(program, call);
+    let has_value_receiver = call.receiver.is_valid() && static_segments.is_none();
+    let static_receiver_segments = static_segments.as_deref();
     let argument_count = program
         .expression_table
         .expression_handles(call.arguments)
@@ -146,6 +92,96 @@ pub fn named_expression_call_candidates<'program>(
             )
         })
         .collect()
+}
+
+/// Classify a qualifier of one already selected declaration without reselecting
+/// an operator by spelling. A value receiver, altered namespace, wrong arity or
+/// implicit self keeps its runtime observations. Nested boundary operators have
+/// no machine body to supply the ordinary machine receiver query.
+pub fn selected_named_expression_call_has_no_runtime_receiver(
+    program: &TypedTrees,
+    call: &crate::expression::TableCallExpression,
+) -> bool {
+    if !call.target_symbol.is_valid() {
+        return false;
+    }
+    let Some(operator) = super::declaration_by_symbol(program, call.target_symbol) else {
+        return false;
+    };
+    let parameters = program.operator_parameters(operator);
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() != call.arguments.count() as usize
+        || arguments.len() != parameters.len()
+        || parameters.iter().any(|parameter| parameter.is_self)
+    {
+        return false;
+    }
+    if !call.receiver.is_valid() {
+        return named_operator_path_matches_call(program, operator, None, call.target.as_str());
+    }
+    let Some(namespace) = expression_static_receiver_segments(program, call) else {
+        return false;
+    };
+    named_operator_path_matches_call(program, operator, Some(&namespace), call.target.as_str())
+}
+
+/// The namespace/value distinction is shared by preselection and source replay.
+/// The full namespace still has to match the exact selected operator above;
+/// declaration kinds alone never authenticate a selected target.
+fn expression_static_receiver_segments<'program>(
+    program: &'program TypedTrees,
+    call: &crate::expression::TableCallExpression,
+) -> Option<Vec<&'program str>> {
+    if !program.expression_table.expression_is_valid(call.receiver) {
+        return None;
+    }
+    let crate::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(call.receiver)
+    else {
+        return None;
+    };
+    let receiver_members = program.expression_table.name_path_members(path.members);
+    if receiver_members.is_empty() {
+        return None;
+    }
+    let is_known_static_namespace = path.symbol.is_valid()
+        && path.symbol.arena_index() as usize <= program.symbols.symbols().len()
+        && matches!(
+            program.symbols.get(path.symbol).kind,
+            symbols::SymbolKind::Module
+                | symbols::SymbolKind::BuiltinType
+                | symbols::SymbolKind::Data
+                | symbols::SymbolKind::Domain
+                | symbols::SymbolKind::Machine
+                | symbols::SymbolKind::Trait
+        );
+    // Legacy named-operator lowering can retain an unresolved namespace while
+    // selecting an exact declaration. Only a complete declared path supplies
+    // namespace classification; it never chooses a different target.
+    let is_operator_namespace = !path.symbol.is_valid()
+        && program
+            .operators()
+            .iter()
+            .chain(program.machine_token_bindings())
+            .any(|operator| {
+                let operator_path = program.operator_path_members(operator.name);
+                operator_path
+                    .split_last()
+                    .is_some_and(|(member, namespace)| {
+                        member.as_str() == call.target.as_str()
+                            && namespace.len() == receiver_members.len()
+                            && namespace
+                                .iter()
+                                .zip(receiver_members)
+                                .all(|(expected, actual)| expected == actual)
+                    })
+            });
+    (is_known_static_namespace || is_operator_namespace).then(|| {
+        receiver_members
+            .iter()
+            .map(|member| member.as_str())
+            .collect()
+    })
 }
 
 /// Statement-position counterpart to [`named_expression_call_candidates`].

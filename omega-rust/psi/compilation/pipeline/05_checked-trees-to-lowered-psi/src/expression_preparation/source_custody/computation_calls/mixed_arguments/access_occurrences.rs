@@ -357,18 +357,8 @@ pub(crate) fn replay(
                         // A resolved static qualifier names the callee's owner;
                         // it is not storage observed while evaluating the call.
                         // Unknown selections keep the receiver on the replay path.
-                        let no_runtime_receiver = checked
-                            .machine_holding_state(call.target_symbol)
-                            .and_then(|owner| {
-                                checked
-                                    .machine_states(owner)
-                                    .iter()
-                                    .find(|state| state.symbol == call.target_symbol)
-                                    .map(|state| {
-                                        checked.call_has_no_runtime_receiver(call, owner, state)
-                                    })
-                            })
-                            .unwrap_or(false);
+                        let no_runtime_receiver =
+                            checked.call_has_no_runtime_receiver_for_target(call);
                         if call.receiver.is_valid() && !no_runtime_receiver {
                             receiver = Some(call.receiver);
                         }

@@ -26,7 +26,7 @@ pub use applications::{
 pub use indexing::resolve_indexed_spelling_for_operands;
 pub use named_calls::{
     named_expression_call_candidates, named_statement_call_candidates, resolve_named_call,
-    resolve_named_expression_call,
+    resolve_named_expression_call, selected_named_expression_call_has_no_runtime_receiver,
 };
 pub use operand_signatures::operator_operand_signature;
 pub use primitive_float::primitive_float_binary_semantics;
