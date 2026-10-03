@@ -1,4 +1,4 @@
-//! Descriptor and whole-value snapshots precede every destination replacement.
+//! Whole-value snapshots precede every destination replacement.
 use super::VirtualRegisterId;
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::chunks;
@@ -112,11 +112,11 @@ pub(super) fn store(
         .filter(|binding| stored_transport(binding.transport).is_some())
         .zip(snapshots)
     {
-        let Some((argument, destination, byte_size, whole)) = stored_transport(binding.transport)
+        let Some((argument, destination, byte_size, _)) = stored_transport(binding.transport)
         else {
             return Err(invalid(function_index));
         };
-        let pointer = if whole {
+        let pointer = {
             let id = SelectedInstructionId(
                 (*next_instruction)
                     .try_into()
@@ -167,9 +167,7 @@ pub(super) fn store(
                 byte_count: byte_size,
                 role: SelectedMemoryAccessRole::AddressLocal { slot: destination },
             });
-            Some(output)
-        } else {
-            None
+            output
         };
         for ((byte_offset, width), input) in chunks(byte_size).into_iter().zip(words) {
             let id = SelectedInstructionId(
@@ -178,30 +176,17 @@ pub(super) fn store(
                     .map_err(|_| invalid(function_index))?,
             );
             *next_instruction += 1;
-            let (kind, key, operands) = if let Some(pointer) = pointer {
-                (
-                    SelectedInstructionKind::Store {
-                        byte_offset,
-                        byte_size: width,
-                    },
-                    constraints.keys.store,
-                    vec![pointer, *input],
-                )
-            } else {
-                (
-                    SelectedInstructionKind::Store64 {
-                        slot: FrameStorageSlotId::Local(destination),
-                        byte_offset,
-                    },
-                    constraints.keys.store64,
-                    vec![*input],
-                )
-            };
             instructions.push(super::super::constraints::instruction(
                 id,
-                kind,
-                key.ok_or_else(|| invalid(function_index))?,
-                &operands,
+                SelectedInstructionKind::Store {
+                    byte_offset,
+                    byte_size: width,
+                },
+                constraints
+                    .keys
+                    .store
+                    .ok_or_else(|| invalid(function_index))?,
+                &[pointer, *input],
                 provenance(edge),
                 catalog,
             )?);

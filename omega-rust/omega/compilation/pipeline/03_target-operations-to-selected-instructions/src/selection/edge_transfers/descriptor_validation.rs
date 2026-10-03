@@ -6,7 +6,6 @@ use crate::selection::edge_transfers::invalid;
 use crate::selection::edge_transfers::stored_transport;
 use selected_instructions::{
     FrameStorageSlotId, SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
-    SelectedStructuralTransport,
 };
 use selected_instructions::{
     SelectedBlock, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
@@ -38,7 +37,8 @@ pub(super) fn check(
     let mut store_index = scalar_count * 2 + total_chunks;
     let mut address_index = 0;
     for binding in &continuation.structural_bindings {
-        let Some((argument, destination, byte_size, whole)) = stored_transport(binding.transport)
+        let Some((argument, destination, byte_size, alignment)) =
+            stored_transport(binding.transport)
         else {
             continue;
         };
@@ -52,21 +52,14 @@ pub(super) fn check(
         {
             return Err(error());
         }
-        if let SelectedStructuralTransport::WholeValue {
-            byte_size,
-            alignment,
-            ..
-        } = binding.transport
-            && prepared
-                .local_storage_slots
-                .iter()
-                .filter(|slot| {
-                    slot.id == destination
-                        && slot.byte_size == byte_size
-                        && slot.alignment == alignment
-                })
-                .count()
-                != 1
+        if prepared
+            .local_storage_slots
+            .iter()
+            .filter(|slot| {
+                slot.id == destination && slot.byte_size == byte_size && slot.alignment == alignment
+            })
+            .count()
+            != 1
         {
             return Err(error());
         }
@@ -78,7 +71,7 @@ pub(super) fn check(
             edges: vec![continuation.psi_edge],
             ..Default::default()
         };
-        let destination_pointer = if whole {
+        let destination_pointer = {
             let address = bridge.instructions.get(store_index).ok_or_else(error)?;
             let index = register_start + scalar_count * 2 + total_chunks + address_index;
             let register = prepared.virtual_registers.get(index).ok_or_else(error)?;
@@ -113,9 +106,7 @@ pub(super) fn check(
             });
             store_index += 1;
             address_index += 1;
-            Some(register.id)
-        } else {
-            None
+            register.id
         };
         for (offset, width) in chunks(byte_size) {
             let load_position = scalar_count + chunk_index;
@@ -167,34 +158,19 @@ pub(super) fn check(
             {
                 return Err(error());
             }
-            let (kind, key, operands) = if let Some(pointer) = destination_pointer {
-                (
-                    SelectedInstructionKind::Store {
+            if store.id.0 as usize != instruction_start + store_index
+                || store.kind
+                    != (SelectedInstructionKind::Store {
                         byte_offset: offset,
                         byte_size: width,
-                    },
-                    constraints.keys.store,
-                    vec![pointer, register.id],
-                )
-            } else {
-                (
-                    SelectedInstructionKind::Store64 {
-                        slot: FrameStorageSlotId::Local(destination),
-                        byte_offset: offset,
-                    },
-                    constraints.keys.store64,
-                    vec![register.id],
-                )
-            };
-            if store.id.0 as usize != instruction_start + store_index
-                || store.kind != kind
-                || Some(store.constraint) != key
+                    })
+                || Some(store.constraint) != constraints.keys.store
                 || store.provenance != provenance
                 || store
                     .operands
                     .iter()
                     .map(|operand| operand.virtual_register)
-                    .ne(operands)
+                    .ne([destination_pointer, register.id])
             {
                 return Err(error());
             }
