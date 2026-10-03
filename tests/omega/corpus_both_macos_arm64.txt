@@ -6,7 +6,8 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.45, "load1_start": 3.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.42, "load1_start": 7.47, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/calls/guarded_arm_view_range_tail_call_exit built 1362ms exit:70 interpreter-exit:70 interpreter:agrees @d1b852badb4c+wt
 pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt
 pass/domains/record_interval_domain_member_exit built 1277ms exit:70 interpreter-exit:70 interpreter:agrees @3b6b4258b4af+wt
@@ -31,3 +32,4 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 4199ms exit:70 in
 pass/wire/runtime_wire_encode_byte_slice_exit built 2403ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 4316ms exit:70 interpreter-exit:70 interpreter:agrees @a662ed5de2fd
 pass/wire/runtime_wire_utf8_edge_verdicts_exit built 16975ms exit:70 interpreter-exit:70 interpreter:agrees @25d3c2dff582+wt
+pass/write_only/state_forwarded_scalar_store_exit built 1360ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
