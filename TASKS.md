@@ -1575,11 +1575,19 @@ the complete product bar; focused successes below do not establish that baseline
     closed. Borrow, flow, service reach, Terminal emission and source custody
     share the canonical operator identity. Structural telescopes and call
     carriers still need exact operand mapping, provider commitment and
-    independent Psi/Omega replay; crash-qualified operator invocations reject
-    before Terminal production at `validate_selected_operator_terminal_custody`,
-    so no run fixture exists yet. Scalar IEEE equality/inequality guards
-    exist; float ordering, generic and structural-formal routes still need
-    portable predicates, preserving the original guard.
+    independent Psi/Omega replay. The blanket crash-qualified-use refusal is
+    gone: on macOS ARM64 at `5ed90973d9`, the unchanged
+    `operators/crash_routes` runs through ordinary package update and
+    `omega run --both` with native/interpreter exit 0. It observes a discharged
+    route and a propagated route under the caller's ceiling; the uncovered
+    Trap control `fail/operators/selected_crash_invocation` still rejects.
+    Preserve the [public commands and runtime oracle](tests/omega/pass/operators/crash_routes/README.md).
+    Scalar comparison sites and named boundary calls have retained carriers;
+    other intrinsic spellings and structural signatures still meet the
+    custody gate's explicit refusals. Float ordering, generic and
+    structural-formal routes need their portable predicates and execution
+    evidence, preserving the original guard. This positive run does not close
+    the outcome-trace work below.
   - Finish invocation-outcome trace/refinement under
     [reconstructed observations](wiki/spec/terminal-psi/observations.md#reconstructed-rows):
     actual outcome, substituted guards, abandoned claims, staged writeback and
