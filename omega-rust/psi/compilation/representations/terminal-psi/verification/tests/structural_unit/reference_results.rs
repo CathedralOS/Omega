@@ -3048,5 +3048,8 @@ fn shared_scalar_reference_views_keep_the_complete_cohort_frozen() {
 
     let mut missing_release = module;
     missing_release.machines[0].blocks[0].operations.truncate(5);
-    rejects_custody(&missing_release);
+    assert!(matches!(
+        validate_module(&missing_release),
+        Err(ModuleError::UnitReturnAffineDiscardsMismatch { .. })
+    ));
 }

@@ -787,7 +787,37 @@ fn validate_referent_argument(
         || target.source_byte_offset != 0
         || target.fixed_array_length.is_some()
         || target.element_stride.is_some()
-        || target.root_structural_type != target.structural_type
+    {
+        return None;
+    }
+    let carrier = crate::selection::reference_input::root_type(source, semantic.place)?;
+    let (reference_type, _) = crate::structural_inputs::structural_reference_input::project(
+        carrier,
+        carrier_path,
+        &signature.structural_types,
+    )?;
+    let terminal_psi::StructuralTypeShape::Reference { referent, access } = signature
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == reference_type)?
+        .shape
+    else {
+        return None;
+    };
+    if referent != target.structural_type
+        || !(access == semantic.access
+            || access == StructuralAccess::MutableBorrow
+                && matches!(
+                    semantic.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
+        || (target.root_structural_type != target.structural_type
+            && (semantic.access != StructuralAccess::SharedBorrow
+                || !terminal_semantics::reference_source_compatible(
+                    signature.structural_types.iter(),
+                    target.root_structural_type,
+                    reference_type,
+                )))
     {
         return None;
     }
@@ -812,8 +842,9 @@ fn validate_referent_argument(
                 crate::selection::primitive_local_input::local(source, target.place)?;
             if *psi_operation != producer
                 || producer == operation
-                || result.structural_type != target.structural_type
-                || local_scalar != scalar
+                || result.structural_type != target.root_structural_type
+                || scalar_shape(local_scalar)?.byte_size != referent.byte_size
+                || scalar_shape(local_scalar)?.alignment != referent.alignment
             {
                 return None;
             }
@@ -832,7 +863,7 @@ fn validate_referent_argument(
                 StructuralAccess::Owned => false,
             };
             if !allowed
-                || parameter.semantic.structural_type != target.structural_type
+                || parameter.semantic.structural_type != target.root_structural_type
                 || parameter.semantic.is_self
                 || *placement != parameter.target.placement
             {

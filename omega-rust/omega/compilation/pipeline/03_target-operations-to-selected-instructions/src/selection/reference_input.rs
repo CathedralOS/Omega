@@ -90,7 +90,10 @@ pub(super) fn establishment(
     })
 }
 
-fn root_type(function: &LegalizedScalarFunction, place: PlaceId) -> Option<StructuralTypeId> {
+pub(super) fn root_type(
+    function: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
     let signature = function.structural.as_ref()?;
     let mut parameters = signature
         .parameters

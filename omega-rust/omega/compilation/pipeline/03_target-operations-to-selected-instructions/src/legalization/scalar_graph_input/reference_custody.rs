@@ -1948,14 +1948,25 @@ pub(in crate::legalization) fn referent_argument(
             (source.structural_type, source.placement.clone().into())
         };
     if root_type != declaration.structural_type {
-        return Err(invalid());
+        let reference_type = source_contract(caller, custody, argument.place)
+            .and_then(|carrier| leaf_type(types, carrier, carrier_path))
+            .ok_or_else(invalid)?;
+        if argument.access != StructuralAccess::SharedBorrow
+            || !terminal_semantics::reference_source_compatible(
+                types.iter(),
+                root_type,
+                reference_type,
+            )
+        {
+            return Err(invalid());
+        }
     }
     Ok(target_operations::TargetStructuralArgument {
         place: *root,
         access: argument.access,
         path: argument.path.clone(),
         root_structural_type: root_type,
-        structural_type: root_type,
+        structural_type: declaration.structural_type,
         shape: destination.shape,
         source_byte_offset: 0,
         fixed_array_length: None,

@@ -1471,14 +1471,25 @@ pub(super) fn referent_argument(
         (source.structural_type, source.placement.clone().into())
     };
     if root_type != declaration.structural_type {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
+        let reference_type = source_contract(function, live, argument.place)
+            .and_then(|(carrier, _)| leaf_type(types, carrier, carrier_path))
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        if argument.access != StructuralAccess::SharedBorrow
+            || !terminal_semantics::reference_source_compatible(
+                types.values().copied(),
+                root_type,
+                reference_type,
+            )
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
     }
     Ok(Some(TargetStructuralArgument {
         place: *root,
         access: argument.access,
         path: argument.path.clone(),
         root_structural_type: root_type,
-        structural_type: root_type,
+        structural_type: declaration.structural_type,
         shape: destination.shape,
         source_byte_offset: 0,
         fixed_array_length: None,
