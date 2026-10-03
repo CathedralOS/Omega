@@ -4,7 +4,8 @@
 use crate::common;
 
 use common::{
-    obligation, operation_id, proof_check_fixture, undischarged_proof_check_fixture, value,
+    admitted_proof_check_fixture, i32_argument, interpret, obligation, operation_id,
+    proof_check_fixture, publish, undischarged_proof_check_fixture, value,
 };
 use lowered_psi_to_lowered_psi::run_psi_optimization;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
@@ -17,6 +18,92 @@ use terminal_verifier::{ProofCheckElisionRewriteError, validate_proof_check_elis
 
 fn selections() -> PsiOptimizationSelections {
     PsiOptimizationSelections::new([PsiOptimization::ProofCheckElision]).unwrap()
+}
+
+#[test]
+fn the_executed_elision_publishes_and_interprets_identically() {
+    // Downstream-publication coverage: the elided result crosses Terminal
+    // publication's own entrance, the manifest binds the executed output
+    // identity, and the canonical bytes admit and run the authored result.
+    // The fixture's bundle is the admission-honest one: every obligation is
+    // answered by a certificate the receiver re-decides, so the published
+    // proof section is the transported one — not a producer claim the stage
+    // relation alone tolerates.
+    let lowered = admitted_proof_check_fixture();
+    let baseline =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = publish(&baseline);
+    let optimized = run_psi_optimization(lowered.clone(), selections()).expect("elision executes");
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the elision is a real rewrite, not an identity this leg restates"
+    );
+    assert_ne!(
+        optimized.execution().input_proof(),
+        optimized.execution().output_proof(),
+        "the consumed obligations' evidence rows leave the published bundle"
+    );
+    validate_proof_check_elision(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+        &lowered.proof_bundle,
+        &optimized.lowered().proof_bundle,
+    )
+    .expect("the independent check accepts the executed rewrite");
+    let published = publish(&optimized);
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic(),
+        "the manifest binds the executed output identity"
+    );
+    // v14 is the authored result: `wrapping_rem(v1, 7)` keeps its obligation
+    // answered after the discharged o3 and o4 rows leave the bundle, and
+    // `5 % 7 = 5` survives the self-subtraction folds.
+    let arguments = [i32_argument(5), i32_argument(7)];
+    let expected = interpret(&original, &arguments);
+    let actual = interpret(&published, &arguments);
+    assert_eq!(
+        expected,
+        terminal_interpreter::TerminalExecutionResult::Scalar(i32_argument(5)),
+        "the unoptimized publication returns the authored result"
+    );
+    assert_eq!(
+        actual, expected,
+        "the published elision interprets the same result"
+    );
+}
+
+#[test]
+fn the_published_elision_reenters_the_stage_at_its_fixed_point() {
+    // Fixed-point coverage: the executed elision's own publication decodes
+    // back to a legal stage input, and the same selection finds no remaining
+    // discharged leaf on it — the consumed obligations are gone from both the
+    // module and the sealed bundle, so nothing new becomes elidable.
+    let first = run_psi_optimization(admitted_proof_check_fixture(), selections()).unwrap();
+    assert_ne!(
+        first.execution().input_semantic(),
+        first.execution().output_semantic(),
+        "the first run rewrites, so the refeed is not restating a vacuous identity"
+    );
+    let refed = common::refeed(&publish(&first));
+    let second = run_psi_optimization(refed.clone(), selections())
+        .expect("the published artifact re-enters the stage");
+    assert_eq!(
+        second.lowered(),
+        &refed,
+        "the elision finds no remaining discharged leaf on its own publication"
+    );
+    assert_eq!(
+        second.execution().input_semantic(),
+        second.execution().output_semantic(),
+        "the reentered run records the identity: the published module is the fixed point"
+    );
+    assert_eq!(
+        second.execution().input_proof(),
+        second.execution().output_proof(),
+        "no further evidence row leaves the reentered bundle"
+    );
 }
 
 #[test]

@@ -3,7 +3,10 @@
 
 use crate::common;
 
-use common::{block_id, copy_fixture, dead_scalar_fixture, operation_id, value};
+use common::{
+    block_id, copy_fixture, dead_scalar_fixture, i32_argument, interpret, operation_id, publish,
+    value,
+};
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{OperationKind, Terminator};
@@ -11,6 +14,79 @@ use terminal_verifier::{DeadScalarRewriteError, validate_dead_scalar_elimination
 
 fn selections() -> PsiOptimizationSelections {
     PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap()
+}
+
+#[test]
+fn the_executed_elimination_publishes_and_interprets_identically() {
+    // Downstream-publication coverage: the pruned result crosses Terminal
+    // publication's own entrance, the manifest binds the executed output
+    // identity, and the canonical bytes admit and run the authored result.
+    let lowered = dead_scalar_fixture();
+    let baseline =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = publish(&baseline);
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("dead scalar elimination executes");
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the removal is a real rewrite, not an identity this leg restates"
+    );
+    validate_dead_scalar_elimination(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+    let published = publish(&optimized);
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic(),
+        "the manifest binds the executed output identity"
+    );
+    // The true arm feeds the merge v41 = argument and v42 = 2 while v43, its
+    // producers, and the unused entry constant all die: the authored result
+    // is `argument + 2` and the removals must not change it.
+    let arguments = [
+        terminal_interpreter::TerminalScalarValue::Boolean(true),
+        i32_argument(5),
+    ];
+    let expected = interpret(&original, &arguments);
+    let actual = interpret(&published, &arguments);
+    assert_eq!(
+        expected,
+        terminal_interpreter::TerminalExecutionResult::Scalar(i32_argument(7)),
+        "the unoptimized publication returns the authored result"
+    );
+    assert_eq!(
+        actual, expected,
+        "the published elimination interprets the same result"
+    );
+}
+
+#[test]
+fn the_published_elimination_reenters_the_stage_at_its_fixed_point() {
+    // Fixed-point coverage: the executed removal's own publication decodes
+    // back to a legal stage input, and the same selection finds no remaining
+    // dead scalar on it — transitive liveness already settled on the artifact.
+    let first = run_psi_optimization(dead_scalar_fixture(), selections()).unwrap();
+    assert_ne!(
+        first.execution().input_semantic(),
+        first.execution().output_semantic(),
+        "the first run rewrites, so the refeed is not restating a vacuous identity"
+    );
+    let refed = common::refeed(&publish(&first));
+    let second = run_psi_optimization(refed.clone(), selections())
+        .expect("the published artifact re-enters the stage");
+    assert_eq!(
+        second.lowered(),
+        &refed,
+        "the elimination finds no remaining dead scalar on its own publication"
+    );
+    assert_eq!(
+        second.execution().input_semantic(),
+        second.execution().output_semantic(),
+        "the reentered run records the identity: the published module is the fixed point"
+    );
 }
 
 #[test]

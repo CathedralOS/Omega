@@ -245,6 +245,33 @@ fn the_executed_numbering_publishes_and_interprets_identically() {
 }
 
 #[test]
+fn the_published_numbering_reenters_the_stage_at_its_fixed_point() {
+    // Fixed-point coverage: the executed numbering's own publication decodes
+    // back to a legal stage input, and the same selection finds no remaining
+    // duplicate on it — the sibling pair that survives stays survived, not
+    // newly collapsible on a second pass.
+    let first = run_psi_optimization(gvn_fixture(), selections()).unwrap();
+    assert_ne!(
+        first.execution().input_semantic(),
+        first.execution().output_semantic(),
+        "the first run rewrites, so the refeed is not restating a vacuous identity"
+    );
+    let refed = common::refeed(&publish(&first));
+    let second = run_psi_optimization(refed.clone(), selections())
+        .expect("the published artifact re-enters the stage");
+    assert_eq!(
+        second.lowered(),
+        &refed,
+        "the numbering finds no remaining duplicate on its own publication"
+    );
+    assert_eq!(
+        second.execution().input_semantic(),
+        second.execution().output_semantic(),
+        "the reentered run records the identity: the published module is the fixed point"
+    );
+}
+
+#[test]
 fn proof_bearing_closure_remains_unchanged() {
     let mut lowered = gvn_fixture();
     lowered.semantic_module.machines[0]

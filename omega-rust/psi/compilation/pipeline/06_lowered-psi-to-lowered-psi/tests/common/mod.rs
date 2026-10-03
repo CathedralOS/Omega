@@ -12,17 +12,18 @@
 use language_core::CarryPolicy;
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, ScalarType, SuspensionCrossingId, ValueId,
+    BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, ScalarType, SuspensionCrossingId, ValueId,
 };
 use terminal_psi::{
-    Block, DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
-    DebugSourceSpan, DebugSubject, EvidenceRoute, MachineContract, ObligationEvidence, Operation,
-    OperationKind, OperationResult, PrimitiveJudgment, ProofBundle, SuccessorEdge,
-    TerminalBlockNaturalRank, TerminalDebugMap, TerminalMachine, TerminalMachineResult,
-    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
-    TerminalRankedScc, TerminalSuspensionCallPlan, TerminalSuspensionCallSite,
-    TerminalSuspensionCallTarget, Terminator, ValueDeclaration, VocabularyMarker,
+    Block, CertificateEnvelope, DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile,
+    DebugSourceOrigin, DebugSourceSpan, DebugSubject, EvidenceRoute, MachineContract,
+    ObligationEvidence, Operation, OperationKind, OperationResult, PrimitiveJudgment, ProofBundle,
+    ProofSystemMarker, SuccessorEdge, TerminalBlockNaturalRank, TerminalDebugMap, TerminalMachine,
+    TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    TerminalNaturalRankEdge, TerminalRankedScc, TerminalSuspensionCallPlan,
+    TerminalSuspensionCallSite, TerminalSuspensionCallTarget, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 
 pub fn i32_type() -> ScalarType {
@@ -1181,6 +1182,116 @@ pub fn proof_check_fixture() -> LoweredPsi {
     lowered
 }
 
+/// Proof-check-elision fixture whose bundle the canonical receiver re-decides.
+///
+/// `proof_check_fixture` answers its obligations with producer-asserted
+/// `KernelDerived(ClosedIntegerRelation)` rows: that is enough for the stage
+/// relation, which re-derives the rewrite and only checks which rows leave
+/// the bundle, but Terminal publication replays every route against the
+/// reconstructed question and `ClosedIntegerRelation` does not establish a
+/// symbolic or a `Truth` goal. This fixture instead answers every obligation
+/// with a certificate produced by the admission search itself against the
+/// receiver's own reconstruction:
+///
+/// ```text
+/// machine m1(v1: i32, v2: i32) -> i32:
+///     b1:
+///         v17 = i32 7
+///         v13 = wrapping_div(v1, v17, o1) // nonzero literal divisor, but no
+///                                         // goal-free divide exists → unchanged
+///         v14 = wrapping_rem(v1, v17, o2) // same discharged-goal stay
+///         v15 = exact_sub(v1, v1, o3)     // self-subtraction → literal 0
+///         v16 = exact_sub(v2, v2, o4)     // self-subtraction → literal 0
+///         return v14
+/// ```
+///
+/// The surviving rows sit before the elided leaves so their reconstructed
+/// axiom snapshots — and therefore the certificates' cited axiom positions —
+/// are unchanged when `o3` and `o4` are consumed.
+pub fn admitted_proof_check_fixture() -> LoweredPsi {
+    let b1 = block_id(1);
+    let (v1, v2, v17) = (value(1), value(2), value(17));
+    let mut lowered = lowered(vec![machine(
+        1,
+        vec![i32(1), i32(2)],
+        TerminalMachineResult::Scalar(i32(9)),
+        b1,
+        vec![block(
+            1,
+            Vec::new(),
+            vec![
+                integer_constant(17, i32(17), 7),
+                operation(
+                    13,
+                    i32(13),
+                    OperationKind::WrappingIntegerDivide {
+                        left: v1,
+                        right: v17,
+                        obligation: obligation(1),
+                    },
+                ),
+                operation(
+                    14,
+                    i32(14),
+                    OperationKind::WrappingIntegerRemainder {
+                        left: v1,
+                        right: v17,
+                        obligation: obligation(2),
+                    },
+                ),
+                operation(
+                    15,
+                    i32(15),
+                    OperationKind::ExactIntegerSubtract {
+                        left: v1,
+                        right: v1,
+                        obligation: obligation(3),
+                    },
+                ),
+                operation(
+                    16,
+                    i32(16),
+                    OperationKind::ExactIntegerSubtract {
+                        left: v2,
+                        right: v2,
+                        obligation: obligation(4),
+                    },
+                ),
+            ],
+            return_value(8, value(14)),
+        )],
+    )]);
+    let validated = terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the fixture's semantic module validates");
+    let obligations = terminal_verifier::reconstruct_execution_terminal_obligations(validated)
+        .expect("the fixture's proof question reconstructs");
+    for site in obligations.obligations() {
+        let machine = validated
+            .machine(site.owner.machine())
+            .expect("the reconstructed owner is a fixture machine");
+        let context = validated
+            .value_context(machine)
+            .expect("the machine's proposition context reconstructs");
+        let proof = proof_admission::produce_predicate_proof(
+            &context,
+            &site.obligation.proposition,
+            &site.requirements,
+            &site.semantic_axioms,
+        )
+        .expect("the admission search discharges every fixture obligation");
+        lowered.proof_bundle.evidence.push(ObligationEvidence {
+            obligation: site.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(site.obligation.id.get())
+                    .expect("nonzero obligation identity"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof,
+            }),
+        });
+    }
+    lowered
+}
+
 /// Proof-check-elision negative fixture: every proof-bearing leaf keeps a
 /// symbolic goal, so the rule publishes a validated identity.
 pub fn undischarged_proof_check_fixture() -> LoweredPsi {
@@ -1261,5 +1372,37 @@ pub fn i32_argument(value: i128) -> terminal_interpreter::TerminalScalarValue {
     terminal_interpreter::TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
         value: IntegerValue::Signed(value),
+    }
+}
+
+/// Fixed-point support: decode a published artifact back into the stage's
+/// legal input. Re-running a rule on its own canonical publication — never
+/// on the in-memory carrier — is the convergence check the coverage matrix
+/// names: a rule that still finds work on what it published never settled,
+/// while an identity run on the decoded artifact is the fixed point.
+///
+/// The decode follows the receiver's own discipline (`replay_sections`): the
+/// semantic section decodes alone, the sealed proof section decodes against
+/// the reconstructed module identity, and the debug sidecar decodes against
+/// the module when the artifact carries one. The ephemeral occurrence lists
+/// are not encoded into Terminal Psi — the artifact is the source-free
+/// product — so they stay empty on the way back in.
+pub fn refeed(artifact: &terminal_codec::CanonicalTerminalArtifact) -> LoweredPsi {
+    let semantic_module = terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("the published semantic section decodes");
+    let proof_bundle =
+        terminal_codec::decode_proof_section_for(&semantic_module, artifact.proof_bytes())
+            .expect("the sealed proof section decodes against its own module");
+    let debug_map = artifact.debug_bytes().map(|bytes| {
+        terminal_codec::decode_debug_map(&semantic_module, bytes)
+            .expect("the published debug section decodes against its own module")
+    });
+    LoweredPsi {
+        selected_ieee_float_comparison_occurrences: Vec::new(),
+        semantic_module,
+        proof_bundle,
+        debug_map,
+        source_call_occurrences: Vec::new(),
+        selected_integer_comparison_occurrences: Vec::new(),
     }
 }

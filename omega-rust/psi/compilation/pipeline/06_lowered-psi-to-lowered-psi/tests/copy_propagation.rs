@@ -103,6 +103,32 @@ fn the_executed_collapse_publishes_and_interprets_identically() {
 }
 
 #[test]
+fn the_published_collapse_reenters_the_stage_at_its_fixed_point() {
+    // Fixed-point coverage: the executed collapse's own publication decodes
+    // back to a legal stage input, and the same selection finds no remaining
+    // work on it — the artifact that left is already the rule's fixed point.
+    let first = run_psi_optimization(copy_fixture(), selections()).unwrap();
+    assert_ne!(
+        first.execution().input_semantic(),
+        first.execution().output_semantic(),
+        "the first run rewrites, so the refeed is not restating a vacuous identity"
+    );
+    let refed = common::refeed(&publish(&first));
+    let second = run_psi_optimization(refed.clone(), selections())
+        .expect("the published artifact re-enters the stage");
+    assert_eq!(
+        second.lowered(),
+        &refed,
+        "the collapse finds no remaining copy on its own publication"
+    );
+    assert_eq!(
+        second.execution().input_semantic(),
+        second.execution().output_semantic(),
+        "the reentered run records the identity: the published module is the fixed point"
+    );
+}
+
+#[test]
 fn structurally_invalid_inputs_fail_before_rewrite() {
     // Corruption coverage: each malformed carrier fails closed at the
     // module-validation gate before any rewrite decision.
