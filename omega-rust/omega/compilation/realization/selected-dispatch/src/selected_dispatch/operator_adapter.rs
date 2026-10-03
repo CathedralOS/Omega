@@ -6,6 +6,8 @@
 
 mod application_realization;
 mod specialized_application_realization;
+#[cfg(test)]
+mod tests;
 
 pub use application_realization::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
@@ -21,19 +23,114 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use typed_trees::expression::ExpressionHandle;
 
-/// A selected operator's crash invocation has no Terminal replay support, so
-/// a program that retains one cannot enter Terminal production.
+/// A selected operator's crash invocation enters Terminal production only
+/// through a covered carrier: a spelled use replays through the
+/// `TerminalOperationCrashContract` row stage 05 installs beside the emitted
+/// comparison, and a named call's contract stays on its `BoundaryCall`
+/// operation's boundary declaration. Admission therefore requires every
+/// crash-qualified use to name a checked crash site on its owning machine
+/// whose selected operator's signature is all scalar, and — for a spelled
+/// use — a comparison spelling, the only spelled emission that records the
+/// `operator_use` join a site lowers through. A use outside that shape still
+/// has no carrier and cannot enter production; a carried site whose exact
+/// join cannot be reconstructed keeps failing closed at retention.
 pub fn validate_selected_operator_terminal_custody(
     checked: &CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    if checked
+    let program = &checked.typed;
+    let diagnostics = checked
         .facts
         .operators
-        .has_crash_qualified_uses(&checked.typed)
+        .crash_qualified_uses(program)
+        .filter_map(|crash_use| carried_crash_site_shape(checked, crash_use).err())
+        .collect::<Vec<_>>();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// The covered shapes a checked crash site lowers through. Everything else —
+/// a site stage 04 could not admit, a signature whose parameters have no
+/// positional scalar telescope, or a spelled use no comparison occurrence can
+/// join — keeps the refusal this gate has always owned.
+fn carried_crash_site_shape(
+    checked: &CheckedTrees,
+    crash_use: checked_trees::CheckedCrashQualifiedUse,
+) -> Result<(), Diagnostic> {
+    let program = &checked.typed;
+    let operators = &checked.facts.operators;
+    let (origin, spelling) = match crash_use {
+        checked_trees::CheckedCrashQualifiedUse::Spelled(handle) => {
+            let operator_use = operators.uses.get(handle);
+            (operator_use.origin, Some(operator_use.spelling))
+        }
+        checked_trees::CheckedCrashQualifiedUse::Named(handle) => {
+            (operators.named_uses.get(handle).origin, None)
+        }
+    };
+    let checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin else {
+        return Err(Diagnostic::error(
+            "selected operator crash invocation has no machine-local checked origin",
+        ));
+    };
+    let site = checked
+        .facts
+        .contract_plans
+        .for_machine(machine_symbol)
+        .and_then(|plan| {
+            plan.crash
+                .checked_operators()
+                .iter()
+                .find(|site| match crash_use {
+                    checked_trees::CheckedCrashQualifiedUse::Spelled(handle) => {
+                        site.operator_use == handle
+                    }
+                    checked_trees::CheckedCrashQualifiedUse::Named(handle) => {
+                        site.named_use == handle
+                    }
+                })
+        })
+        .ok_or_else(|| {
+            Diagnostic::error(
+                "selected operator crash invocation has no checked crash site to carry into Terminal production",
+            )
+        })?;
+    let Some(operator) =
+        typed_trees::operator::declaration_by_symbol(program, site.selected_operator)
+    else {
+        return Err(Diagnostic::error(
+            "selected operator crash invocation's site names no operator declaration",
+        ));
+    };
+    if !program
+        .operator_parameters(operator)
+        .iter()
+        .all(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
     {
-        return Err(vec![Diagnostic::error(
-            "selected operator crash invocations have no Terminal replay support",
-        )]);
+        return Err(Diagnostic::error(
+            "selected operator crash invocation's signature is not all-scalar",
+        ));
+    }
+    if let Some(spelling) = spelling
+        && !matches!(
+            spelling,
+            language_core::operator_spelling::OperatorSpelling::Equal
+                | language_core::operator_spelling::OperatorSpelling::NotEqual
+                | language_core::operator_spelling::OperatorSpelling::Less
+                | language_core::operator_spelling::OperatorSpelling::LessEqual
+                | language_core::operator_spelling::OperatorSpelling::Greater
+                | language_core::operator_spelling::OperatorSpelling::GreaterEqual
+        )
+    {
+        return Err(Diagnostic::error(
+            "selected operator crash invocation is not a selected comparison; no emitted operation carries its contract",
+        ));
     }
     Ok(())
 }
