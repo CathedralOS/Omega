@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 29.61, "load1_start": 6.2, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 6.11, "load1_start": 6.11, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1361,13 +1361,12 @@ pass/calls/mutable_receiver_computation_exit checked 1451ms @2d8ed253669f
 pass/calls/mutable_receiver_scalar_destinations_exit rejected 1054ms @f12f513338f0
 	terminal-artifact production failed: Lowering(Unsupported("scalar storage destination lost its checked source custody"))
 pass/calls/mutual_cycle_tail_admitted_exit checked 1566ms @2d8ed253669f
-pass/calls/named_target_payload_dispatch rejected 734ms @f12f513338f0
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Wrap::get_count`, state `get_count` (statement 1)
+pass/calls/named_target_payload_dispatch checked 939ms @db8d57b2103d+wt
 pass/calls/negated_edge_guard_requires_exit checked 1337ms @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms @527c7c316c6f+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 920ms @922ccf420927+wt
-pass/calls/nested_call_tail_roots_exit rejected 689ms @f12f513338f0
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Wrap::get_count`, state `get_count` (statement 1)
+pass/calls/nested_call_tail_roots_exit rejected 739ms @db8d57b2103d+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Wrap::get_count", reason: "scalar callee has no checked executable body", omission: Some("`Wrap::get_count` has no admitted body (local construction stopped at state graph: terminator: conditional successors: parameter transfer, state 0, statement 1)") })
 pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms @63377f7122bb+wt
 pass/calls/nested_machine_continuation checked 1469ms @2d8ed253669f
 pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
@@ -1444,16 +1443,12 @@ pass/calls/static_context_forwarded_twice_exit checked 1319ms @ca8c127c90c5
 pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms @2d8ed253669f
-pass/calls/transition_arg_local_from_embedded_call_exit rejected 449ms @f12f513338f0
-	exact arithmetic in machine `Main::main` state `main` local `r1` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `double_val(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
-	mixed arithmetic domains in machine `Main::main` state `main` local `r1`: one operand is `Wrapping` and the other is `Exact`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.
+pass/calls/transition_arg_local_from_embedded_call_exit checked 979ms @db8d57b2103d+wt
 pass/calls/transition_tail_call_to_machine checked 1299ms @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit checked 1179ms @2d8ed253669f
 pass/calls/value_call_as_host_arg_exit checked 1198ms @2d8ed253669f
 pass/calls/value_call_element_view_arg_compile checked 285ms @2d8ed253669f
-pass/calls/value_call_embedded_in_binary_exit rejected 450ms @f12f513338f0
-	exact arithmetic in machine `Main::main` state `main` local `r` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `double_val(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> i32 in Wrapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
-	mixed arithmetic domains in machine `Main::main` state `main` local `r`: one operand is `Wrapping` and the other is `Exact`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.
+pass/calls/value_call_embedded_in_binary_exit checked 978ms @db8d57b2103d+wt
 pass/calls/value_call_param_effect_arm checked 1361ms @2d8ed253669f
 pass/calls/value_call_subexpression checked 1244ms @2d8ed253669f
 pass/calls/value_call_transition_argument checked 1269ms @2d8ed253669f
@@ -2053,8 +2048,7 @@ pass/proofs/quotient_lift_managed_compile rejected 393ms @2d8ed253669f
 pass/proofs/ring_full_polynomial_compile checked 1201ms @2d8ed253669f
 pass/proofs/ring_law_conformance checked 1204ms @2d8ed253669f
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 724ms @767b982de12c+wt
-pass/proofs/runtime_decreases_u64_measure_exit rejected 82ms @f12f513338f0
-	store in machine `Main::main` state `main` assignment implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
+pass/proofs/runtime_decreases_u64_measure_exit checked 999ms @db8d57b2103d+wt
 pass/proofs/runtime_inductive_climbing_sum_exit checked 785ms @08b483f23366+wt
 pass/proofs/runtime_inductive_gauss_sum_exit checked 1055ms @b5a937001475+wt
 pass/proofs/runtime_mutable_ranked_accumulator_exit checked 1078ms @6571128ff286

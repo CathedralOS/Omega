@@ -30,7 +30,7 @@ terminates by (j, i) -> Nat::BoundedDistance;
 }
 machine Main::main(main: &mut Main) reaches Console {
     // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).
-    main.total = Main::count(main, 4, 0);
+    main.total = Main::count(main, 4, 0) as i32 in Wrapping;
     transition main.total == 5 { true -> ck_hits(main) _ -> bad(main, 71) }
     state ck_hits(main: &mut Main) {
         transition main.hits == 5 { true -> good(main) _ -> bad(main, 72) }

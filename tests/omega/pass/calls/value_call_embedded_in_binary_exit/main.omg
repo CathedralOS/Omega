@@ -21,9 +21,9 @@ data Main {
     calc: Calc;
 }
 
-machine Calc::double_val(n: i32 in Wrapping) -> i32 {
+machine Calc::double_val(n: i32 in Wrapping) -> i32 in Wrapping {
     transition {
-        _ -> ((n * 2) as i32)
+        _ -> (n * 2)
     }
 }
 

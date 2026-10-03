@@ -103,8 +103,8 @@ machine Wrap::get_count(wrap: &Wrap) -> u64 {
         Wrap::Has { list } -> at(list)
         _ -> (0)
     }
-    state at(list: ItemList) -> u64 {
-        ItemList::get_count(&list)
+    state at(list: &ItemList) -> u64 {
+        ItemList::get_count(list)
     }
 }
 

@@ -306,6 +306,20 @@ currently name. Two spellings are available and they are not equivalent:
    alone, and adds one implicitly bound type name to the language -- the thing
    the static contract removed for values.
 
+Measured against spelling (2) on a real customer:
+`tests/omega/pass/proofs/named_witness_static_trait_plural_compile` declares
+`machine Self::produce()` with arity 0, while both of its call sites pass a
+subject -- `Order::produce(value; incoming_first, ...)` and
+`invoke<Token, TokenProducer>(value; ...)`. So the `Self::` qualification is
+today carrying a subject the parameter list does not declare, which is why the
+fixture cannot migrate either way without this decision. Spelling the
+requirement `machine produce(subject: &Self)` and its satisfier
+`machine produce(token: &Token)` does make conformance match -- the "does not
+satisfy trait `Producer`: expected 0 parameter(s), got 1" refusal disappears --
+but leaves `state `produce` expects 1 argument(s), got 0` at the declaration
+itself, so spelling (2) alone does not close it. That remaining refusal is the
+concrete thing to resolve alongside the choice.
+
 **Recommendation:** (1), because the static contract's stated reason for
 removing the receiver is that qualification "contributes no argument or
 storage"; a reserved `Self` reintroduces exactly one implicitly bound name at
