@@ -1,5 +1,5 @@
 // Shared `&` returned at a transition tail: `first` borrows
-// `&self.buf[0]` through its transition's exit arm, and `main` reads the
+// `&main.buf[0]` through its transition's exit arm, and `main` reads the
 // referent back after the call.
 use omega_language_std::console;
 use omega::language::core::binding;

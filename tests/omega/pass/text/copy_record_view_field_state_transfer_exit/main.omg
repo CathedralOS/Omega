@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70). A `[copy]` record carrying a shared view field
-// crosses a state edge by value: `render(self.source)` copies the record out
+// crosses a state edge by value: `render(main.source)` copies the record out
 // of the receiver into the successor's owned parameter. The copied view keeps
 // its source loan's lineage (here the literal's image storage), and copy
 // permission establishes no predicate: `label` stays valid UTF-8 because

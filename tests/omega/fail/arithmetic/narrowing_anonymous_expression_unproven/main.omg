@@ -12,7 +12,7 @@
 // difference before it is a range question.
 //
 // Among anonymous positions the array element is the surviving one. A scalar
-// store answers at the landing site instead -- `self.r = 3000000000 / 2 * 2`
+// store answers at the landing site instead -- `main.r = 3000000000 / 2 * 2`
 // reports "anonymous integer value `3000000000` does not fit destination
 // `i32`", the shape narrowing_literal_wider_than_target pins -- while an array
 // element lands by range and raises this obligation.

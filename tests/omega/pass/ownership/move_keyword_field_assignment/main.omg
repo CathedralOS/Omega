@@ -1,5 +1,5 @@
 // Chapter 2: an owned value may be explicitly spelled as moved into another
-// location via `move` (`self.inventory = move replacement;`). The ownership
+// location via `move` (`main.inventory = move replacement;`). The ownership
 // lane still infers the actual move from value flow.
 use omega_language_std::console;
 use omega::language::core::binding;

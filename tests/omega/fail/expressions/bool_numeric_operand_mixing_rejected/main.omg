@@ -1,5 +1,5 @@
-// Mixing a BOOLEAN operand with a NUMERIC one in a binary op (`self.b + 5`,
-// `self.b < self.n`, `self.b == self.n`) used to compile with a C-style bool->{0,1}
+// Mixing a BOOLEAN operand with a NUMERIC one in a binary op (`main.b + 5`,
+// `main.b < main.n`, `main.b == main.n`) used to compile with a C-style bool->{0,1}
 // coercion (`true + 5` -> 6). Modern languages reject this magic coercion; Omega
 // now does too (settled 2026-07-05, Zach). A comparison RESULT into a numeric slot
 // (`let n: i32 = a < b`) is a DIFFERENT, intended coercion and stays valid.

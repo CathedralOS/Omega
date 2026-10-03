@@ -4,7 +4,7 @@
 // evaluates CORRECTLY -- i.e. the wider operand is NOT truncated to the
 // narrower width.
 //
-// `self.small` is i8 44; `self.big` is i32 300 (low byte 0x2C == 44). A truncating
+// `main.small` is i8 44; `main.big` is i32 300 (low byte 0x2C == 44). A truncating
 // compare (the rejected bug) would read `44 == (300 & 0xFF == 44)` -> TRUE; the
 // correct widened compare reads `44 == 300` -> FALSE. A second check confirms the
 // widen still matches a genuinely equal value (44 == 44). Both correct -> exit 70.

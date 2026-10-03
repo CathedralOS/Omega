@@ -1,11 +1,11 @@
 // RUN CANARY (exit 70). Borrow-carrying data (frozen decision 15 stage 2/3):
 // a `data` value may HOLD a borrow (`Msg { body: &Cell }`). Constructing one
-// (`Msg { body: &self.cell }`) and reading its reference field (`m.body`)
+// (`Msg { body: &main.cell }`) and reading its reference field (`m.body`)
 // extracts the borrowed source -- the struct-literal field-extraction fold that
 // also fixes a plain local aggregate's field read (`let p = Pair{..}; p.a`).
 // The extracted `&Cell` is then dereferenced through a `&Cell` ref parameter.
 //
-// self.cell.value = 70 -> m.body -> read_cell derefs c.value -> 70 -> exit 70.
+// main.cell.value = 70 -> m.body -> read_cell derefs c.value -> 70 -> exit 70.
 
 use omega_language_std::console;
 use omega::language::core::binding;

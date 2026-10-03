@@ -1,5 +1,5 @@
 // Nested runtime-indexed element reads in conditional successor arguments.
-// `self.a[i][k]` selects row `i` at run time and then element `k` inside that
+// `main.a[i][k]` selects row `i` at run time and then element `k` inside that
 // row at run time: two `RuntimeIndex` selectors, each bounded against its
 // own array by the state's `requires` clauses. The Wrapping policy sits on
 // the element type, so the product and the accumulation wrap instead of
@@ -12,7 +12,7 @@
 //   k = 2: 70 + 0 * 5          =  70
 //
 // Reduced from `samples/cli/collections/matrix_multiply`, whose `dot` state
-// passes `acc + self.a[i][k] * self.b[k][j]` in the same position.
+// passes `acc + main.a[i][k] * main.b[k][j]` in the same position.
 use omega_language_std::console;
 use omega::language::core::binding;
 

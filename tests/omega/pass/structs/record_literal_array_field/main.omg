@@ -10,12 +10,12 @@
 //   `local_framed`  an array beside scalar and nested-record members;
 //   `local_outer`   an array member inside a nested record literal.
 // Field-store sites, read back in a later state:
-//   `self.filled`   element order and the negative operand `0 - 2`;
-//   `self.pair`     `[u8; 2]` twice in one literal;
-//   `self.grid`     the nested member, flattened outer index first;
-//   `self.framed`   a `[i64; 3]` member beside `header` and `tag`;
-//   `self.outer`    the array inside the nested `inner` record;
-//   `self.stored`   a second negative operand, `0 - 6`.
+//   `main.filled`   element order and the negative operand `0 - 2`;
+//   `main.pair`     `[u8; 2]` twice in one literal;
+//   `main.grid`     the nested member, flattened outer index first;
+//   `main.framed`   a `[i64; 3]` member beside `header` and `tag`;
+//   `main.outer`    the array inside the nested `inner` record;
+//   `main.stored`   a second negative operand, `0 - 6`.
 //
 // Observation goes through `self` fields. Same-state reads of a record local
 // that carries an array member, element reads of a record state parameter, and

@@ -4,7 +4,7 @@
 // normalization pass lifts it into a `__hoist_N` local, and `i`'s declared
 // `[1..=4]` range proves `i - 1` lands inside `cells`.
 //
-// Before this, the hoister recognized only a `self.<field>` leaf, so the static
+// Before this, the hoister recognized only a `main.<field>` leaf, so the static
 // spelling fell through to the computed-index fence and reported "index
 // `main.i - 1` is a computed expression, not yet supported as an indexed
 // operand" -- a refusal the identical receiver-spelled program never got.

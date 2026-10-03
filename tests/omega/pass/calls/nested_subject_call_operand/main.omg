@@ -1,7 +1,7 @@
 // A nested call among a call's operands supplies the SAME subject.
 //
 // `Main::bump(main, Main::bump(main, 3))` is the explicit spelling of
-// `self.bump(self.bump(3))`. A receiver's loan is taken when the call is
+// `main.bump(main.bump(3))`. A receiver's loan is taken when the call is
 // ENTERED, after every operand has been evaluated, so the inner call holds
 // its loan only while it runs and has released it before the outer call is
 // entered. Spelled with a receiver this needed no rule, because a receiver

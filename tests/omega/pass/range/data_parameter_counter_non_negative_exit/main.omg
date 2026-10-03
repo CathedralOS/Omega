@@ -3,7 +3,7 @@
 // `main.i` starts at 0 in the entry and only ever increments, so `i >= 0` is a
 // loop invariant and `main.nums[main.i]` owes no authored `>= 0` guard. The
 // roots are deliberately MIXED, the way a migrated machine's are: the entry
-// still takes `&mut self` and writes `self.i`, while every state names the
+// still takes `&mut self` and writes `main.i`, while every state names the
 // data it operates on.
 //
 // Two separate things have to see through that. Psi's loop-invariant

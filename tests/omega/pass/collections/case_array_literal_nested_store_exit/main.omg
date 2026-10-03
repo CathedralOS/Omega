@@ -1,4 +1,4 @@
-// A nested array literal of cases stored whole (`self.rows = [[..], [..]]`):
+// A nested array literal of cases stored whole (`main.rows = [[..], [..]]`):
 // every leaf is established in row-major order, then replaces the element at
 // both of its literal indices. Two leaves in different rows read back: exit 9.
 use omega_language_std::console;

@@ -2,13 +2,13 @@
 // recast ladder -- the GUARD-DISCHARGED runtime offset (Cathedral M2 gap
 // #4): the offset param `off: u32` carries NO enforced interval; the
 // bound arrives from the caller's dominating transition guard
-// (`self.k <= 8` on the single incoming edge's guarded arm). The recast
+// (`main.k <= 8` on the single incoming edge's guarded arm). The recast
 // judgment walks incoming edges, extracts the argument at the param's
 // position, and reads the guard's literal upper bound; the footprint
 // then discharges as `8 + size(u32) <= 12`. The checker's element-index
 // prover SKIPS the recast's direct Indexed operand (the footprint check
 // is strictly stronger than `off < 12`); nested reads inside the offset
-// expression keep their own obligations. A weaker guard (`self.k <= 9`)
+// expression keep their own obligations. A weaker guard (`main.k <= 9`)
 // refuses at the recast (fail/recast/guarded_offset_footprint_rejected).
 use omega_language_std::console;
 use omega::language::core::binding;

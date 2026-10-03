@@ -12,7 +12,7 @@
 //   exit    = 35 + 35              =  70
 //
 // Reduced from `samples/cli/collections/matrix_multiply`, whose `dot` state
-// reads `self.a[i][k]` in the same successor-argument position.
+// reads `main.a[i][k]` in the same successor-argument position.
 use omega_language_std::console;
 use omega::language::core::binding;
 

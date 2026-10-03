@@ -1,5 +1,5 @@
 // The guarded-copy STABILITY twin: the edge guard establishes [0..=9] for
-// `self.yv`, but a write to `self.yv` before the bounded call invalidates the
+// `main.yv`, but a write to `main.yv` before the bounded call invalidates the
 // fact -- at `stale`'s call edge the re-read `w` is the fresh 100, so
 // `store`'s `v <= 9` requires must reject (without staleness,
 // `yv = 100; store(yv)` would "prove" through the stale guard). `yv` is a

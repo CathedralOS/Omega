@@ -13,7 +13,7 @@
 //   9-10  the payload-free case, bare and with a named common field.
 // Closed-sum payload shapes, `check_closed_payloads`:
 //   11-15 scalar, payload-free, two-field and record payloads.
-// Local-mediated stores (`let v: T = T::Case { .. }; self.f = v;`),
+// Local-mediated stores (`let v: T = T::Case { .. }; main.f = v;`),
 // `check_local_stores`:
 //   16-19 a mixed case, and closed scalar and two-field payloads.
 // An erased payload member, `check_erased_member`:

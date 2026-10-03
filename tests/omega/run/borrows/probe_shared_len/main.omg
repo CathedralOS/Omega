@@ -1,5 +1,5 @@
-// Shared `&` borrows of parameter-rooted places: `&self.size`,
-// `&self.buf[0]` literal index. Reading each referent in the
+// Shared `&` borrows of parameter-rooted places: `&main.size`,
+// `&main.buf[0]` literal index. Reading each referent in the
 // transition guard reads through the admitted loans.
 use omega_language_std::console;
 use omega::language::core::binding;

@@ -1,7 +1,7 @@
 // A literal-indexed read of an owned float array field keeps its place
 // (exit 70).
 //
-// `self.low = self.readings[1]` reads one `f64` element at a fixed index.
+// `main.low = main.readings[1]` reads one `f64` element at a fixed index.
 // The checked read retains that element as a projected field leaf, exactly as
 // it does for an integer array; source custody has to name the same leaf on
 // the authored side for a float carrier too, or native production refuses

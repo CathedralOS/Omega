@@ -1,4 +1,4 @@
-// The concat-domain law admits `self.line + "omega"` into the Utf8 domain (both
+// The concat-domain law admits `main.line + "omega"` into the Utf8 domain (both
 // operands are valid UTF-8, and UTF-8 is concat-preserving), so the DOMAIN half
 // of the write is established. The LENGTH-FITS guard then rejects it: a `[u8; 16]`
 // carrier receives a proven 13-byte value, and appending 5 more reaches 18 --

@@ -8,7 +8,7 @@
 // encoder with the import table naming the BINDING's DLL (msvcrt.dll, never
 // the KERNEL32 catalog default). Discriminating: abs(-42) must deliver 42
 // through the result place (ZII would read 0 -> exit 71). FIELD-store
-// discipline throughout (self.v arg, self.m result): host-call operands that
+// discipline throughout (main.v arg, main.m result): host-call operands that
 // are frame LOCALS fail under multi-dispatch selection (the parked
 // pending/host/host_local_operand_dual_dispatch face -- catalog ops too).
 // NATIVE-ONLY: the interpreter has no provider for authored bindings.

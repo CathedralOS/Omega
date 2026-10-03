@@ -3,7 +3,7 @@
 // directory buffer via ___getdirentries64, then WALKS the packed dirent records
 // with a RUNTIME-INDEXED cursor — `buffer[off+16]`/`[off+17]` reads the LE u16
 // `d_reclen`, advancing `off` by `reclen` until the filled byte count. Counts the
-// entries (".", "..", "alpha", "beta" => 4). The `buffer[self.idx]` reads (idx a
+// entries (".", "..", "alpha", "beta" => 4). The `buffer[main.idx]` reads (idx a
 // runtime value) exercise `CopyRuntimeMachineIndexedToRuntimeStorage`, which now
 // lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
 

@@ -7,7 +7,7 @@
 // no implicit widening at all: an explicit exact conversion is how a wider
 // carrier is requested (numeric values, "There is no implicit widening ...
 // use an explicit exact conversion to request a wider carrier"). Spelling
-// `self.small as u16` is the escape, exactly as `as i32` is for the
+// `main.small as u16` is the escape, exactly as `as i32` is for the
 // signedness face.
 //
 // This is the face a value-preserving store makes tempting to admit, so it

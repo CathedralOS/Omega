@@ -8,7 +8,7 @@
 // native artifact both exit 41.
 //
 // `main` calls the requirement directly in value and statement position,
-// lending `&self.bytes[0..41]`: the unit plan admits a borrowed boundary
+// lending `&main.bytes[0..41]`: the unit plan admits a borrowed boundary
 // argument through the fixed-range byte-view lane when its place roots at a
 // caller parameter (here the `&mut self` receiver).
 use omega_language_std::console;

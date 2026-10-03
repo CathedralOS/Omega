@@ -1,6 +1,6 @@
 // PASS canary: a by-value pass of a copy-eligible fixed array does not move the
 // owner place. `[u32; 2]` derives Unrestricted multiplicity from its scalar
-// element type, so `consume(self.items)` copies the value while `self.items`
+// element type, so `consume(main.items)` copies the value while `main.items`
 // stays established; the live shared view `view` therefore remains valid and
 // its later read is admitted. This pins the allowance the wave-9 fuzz leg
 // reported: copyable arrays under a live view are a copy, not a move -- the

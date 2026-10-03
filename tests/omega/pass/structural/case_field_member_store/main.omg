@@ -1,5 +1,5 @@
 // Regression for the structural case-field member store:
-// `self.boxed.fmt = source.fmt` where `fmt` is a `[copy]` sum and the value
+// `main.boxed.fmt = source.fmt` where `fmt` is a `[copy]` sum and the value
 // is a member read below a borrowed structural parameter. The store mints
 // a CheckedStructuralCaseFieldStorePlan, which lowers through a structural
 // leaf copy of the member plus the destination field's window move/store

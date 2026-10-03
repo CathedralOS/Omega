@@ -1,4 +1,4 @@
-// Reading a `[u8;N] in Utf8` CARRIER byte by a RUNTIME index: `self.text[self.i]`.
+// Reading a `[u8;N] in Utf8` CARRIER byte by a RUNTIME index: `main.text[main.i]`.
 // The carrier stores its inline bytes after a leading `len` word, so a runtime
 // index must skip that prefix -- the resolver was missing the `+pointer_size`
 // adjustment (it read at the len word, returning 0). Now reads the inline byte.

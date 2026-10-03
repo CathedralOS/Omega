@@ -1,6 +1,6 @@
 // MULTI-predecessor edge agreement (the last keystone catalog item): TWO
 // states funnel into `push` under STRUCTURALLY IDENTICAL guards `sp >= 0 &&
-// sp < 16`, and each edge admits `push(self.sp)` against
+// sp < 16`, and each edge admits `push(main.sp)` against
 // `requires 0 <= v && v < 16`. Two fixes compose: the proof side's
 // guard-equivalence walker gained literal LEAF arms (identical guards from
 // different statements used to compare `false` at `(Integer(0),

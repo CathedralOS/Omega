@@ -1,7 +1,7 @@
 // RUN CANARY (exit 7) + interpreter differential. Chapter 12's headline
 // Buffer::get shape: `state read(&mut self, items: &[u8], index: u64)
 // requires index < items.len` -- the bound names a SIBLING parameter's slice length.
-// The caller proves each entry on its arm (`self.j < view.len`; the
+// The caller proves each entry on its arm (`main.j < view.len`; the
 // sibling-length proof atom resolves the sibling's ARGUMENT at plan-build
 // time and the guard route matches `<arg> < <sibling-arg>.len` by display
 // spelling); inside the callee the STRICT bound mints the

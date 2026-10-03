@@ -1,8 +1,8 @@
 // The FULL runtime-bounded fixed-array subslice arc: BOTH bounds are runtime
-// params, the dominating guard `lo <= hi && hi <= self.arr.len` (a) lowers
+// params, the dominating guard `lo <= hi && hi <= main.arr.len` (a) lowers
 // natively (the fixed-array `.len` guard-operand fold -> CompareStaticValue)
 // and (b) discharges the prover's subslice bound obligations; the true arm
-// passes `self.arr[lo..hi]` as a slice ARGUMENT (frame-slot START + END feed
+// passes `main.arr[lo..hi]` as a slice ARGUMENT (frame-slot START + END feed
 // the seeded-then-shrunk descriptor). consume sees len 3 -> exit 3.
 use omega_language_std::console;
 use omega::language::core::binding;

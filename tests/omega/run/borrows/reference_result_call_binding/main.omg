@@ -5,9 +5,9 @@
 // `InvalidStructuralTypeIdentity(StructuralTypeId(3))` on the reference
 // result's carried type.
 //
-//   let v: u32   = self.plain();            checks   (scalar result)
-//   let v: &u32  = self.borrow_it();        check-green, native-red (this fixture)
-//   let v: &[u8] = self.buf.as_slice();     same residual wall (a std method)
+//   let v: u32   = main.plain();            checks   (scalar result)
+//   let v: &u32  = main.borrow_it();        check-green, native-red (this fixture)
+//   let v: &[u8] = main.buf.as_slice();     same residual wall (a std method)
 //
 // A STATEMENT call with a `&mut` argument checks, so it is not calls, and not
 // references in argument position -- it is a reference in RESULT position
@@ -19,15 +19,15 @@
 // does not route. The label is not the cause and the phase varies with the
 // PRODUCER, which is why this gap looks like several unrelated clusters:
 //
-//   `&self.size`, `&self.buf[0]`, `&mut self.buf[off]`, a reference recast
+//   `&main.size`, `&main.buf[0]`, `&mut main.buf[off]`, a reference recast
 //                       -> `statement sequence: local data: structural call binding`
 //   a borrow of a plain local, with a transition following
 //                       -> `state graph: result custody accounting`
-//   `self.buf.as_slice()`
+//   `main.buf.as_slice()`
 //                       -> `statement sequence: call: flow call`
 //   an own machine returning `&u32`   (this fixture)
 //                       -> `state graph: operation custody: reference custody`
-//   `&self.buf[0]` in a single-body machine with no transition
+//   `&main.buf[0]` in a single-body machine with no transition
 //                       -> `statement sequence: unsupported statement kind`
 //
 // Seven labels, one capability. The last row also shows the phase depends on

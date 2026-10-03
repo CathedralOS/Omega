@@ -4,7 +4,7 @@
 // fields. Exercised here:
 //   1. case construction with a common field named alongside payload fields
 //      (`consumed: true` next to `gold`),
-//   2. a common-field READ without case knowledge (`self.event.consumed`),
+//   2. a common-field READ without case knowledge (`main.event.consumed`),
 //   3. a case CHANGE that zero-initializes the unnamed common field
 //      (construction replaces the whole value; ZII makes zero valid),
 //   4. a common-field WRITE without case knowledge,

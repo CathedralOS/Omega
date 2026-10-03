@@ -6,7 +6,7 @@
 //   [White, Blue, Red]  ->  [Red, White, Blue]
 //
 // Pins, composed in one program: an INDEXED ENUM guard subject
-// (`transition self.items[self.w] { Color::Red -> .. }`), runtime-indexed
+// (`transition main.items[main.w] { Color::Red -> .. }`), runtime-indexed
 // enum-element reads/writes (the swap), counter arithmetic proven by
 // dominating guards carried transitively across states, and ZII (Color's
 // first case is Red, so the zero array is already all-Red).

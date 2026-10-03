@@ -1,5 +1,5 @@
 // FAIL CANARY (R5 default-domain frame soundness): the sibling call replaces
-// self.pair, so the predecessor's right == 20 valuation cannot survive it.
+// main.pair, so the predecessor's right == 20 valuation cannot survive it.
 // Writing left = 15 afterward is not proven to restore left <= right.
 data Pair
 where

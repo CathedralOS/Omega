@@ -1,5 +1,5 @@
-// Reading a `&[T]` slice element by a RUNTIME index: `s[self.i]` where `s` is a
-// borrowed slice (`self.nums.as_slice()`) and `self.i` is a runtime field. Like
+// Reading a `&[T]` slice element by a RUNTIME index: `s[main.i]` where `s` is a
+// borrowed slice (`main.nums.as_slice()`) and `main.i` is a runtime field. Like
 // the inline-array read, this was a silent miscompile (the read emitted nothing
 // and the target kept its zero value); the machine-indexed read encoder now
 // covers it. Reads two runtime indices and self-checks. (Constant indices on a

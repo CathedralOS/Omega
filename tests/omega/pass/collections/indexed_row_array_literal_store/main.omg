@@ -5,8 +5,8 @@
 // (Promoted: the stage-04 repair this pinned has landed and the fixture
 // checks on the release bundle.)
 //
-//   self.grid[0] = [1, 2, 3]     checks (fixed index)
-//   self.grid[i] = [10, 20, 30]  checks under `requires i <= 1` (runtime)
+//   main.grid[0] = [1, 2, 3]     checks (fixed index)
+//   main.grid[i] = [10, 20, 30]  checks under `requires i <= 1` (runtime)
 //
 // Rows of structural elements ([Cell; N]) take the structural-value route
 // instead: each element replaces its own window below the row's index

@@ -1,6 +1,6 @@
 // The STATEMENT-call half of the inert-sibling rule. Its value-call sibling,
 // `single_target_internal_caller_rejected`, binds the result
-// (`let a: i32 = self.helper.paradigm_internal();`); this one discards it and
+// (`let a: i32 = main.helper.paradigm_internal();`); this one discards it and
 // calls as an ordinary statement, which walks a different arm of
 // `admission/target_machines.rs::reject_inert_sibling_callers` -- that pass
 // walks statement AND expression calls, and only the expression arm had a

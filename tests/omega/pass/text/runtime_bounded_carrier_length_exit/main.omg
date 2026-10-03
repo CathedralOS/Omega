@@ -3,8 +3,8 @@ use omega::language::core::binding;
 // #66 owned `[u8; N] in Utf8` carrier `.len` as a host-call / value-position
 // operand. A carrier is `{len, bytes}` inline -- its length word lives at the
 // carrier's own offset (content at +pointer_size), unlike a fat-slice descriptor
-// whose len sits at +pointer_size. `self.message = "ALERT " + self.label` builds a
-// runtime carrier of length 6 + 4 = 10; `exit_process(self.message.len)` reads that
+// whose len sits at +pointer_size. `main.message = "ALERT " + main.label` builds a
+// runtime carrier of length 6 + 4 = 10; `exit_process(main.message.len)` reads that
 // length word and exits 10. (`.len` already worked in guards; this exercises it as
 // a marshaled call argument.) The `as i32` is load-bearing, not noise: a length
 // is a `u64` count per `counts_and_addresses.md`, so handing it to an `i32`

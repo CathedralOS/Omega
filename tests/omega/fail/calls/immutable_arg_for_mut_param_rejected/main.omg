@@ -1,7 +1,7 @@
 // FAIL CANARY (borrow-mutability enforcement, LANDED 2026-07-18; was
 // pending/arithmetic/immutable_arg_for_mut_param_not_checked). `handle`
 // takes `c: &mut Counter` (it may mutate through it), but `main` passes an
-// IMMUTABLE reference `&self.c` (a shared `&` vanishes at parse time, so a
+// IMMUTABLE reference `&main.c` (a shared `&` vanishes at parse time, so a
 // bare place expression IS the immutable-lend spelling). This used to
 // compile silently -- `validate_call_arguments_handles` skipped the
 // mismatch with a `continue` -- and the unenforced write SEGFAULTED

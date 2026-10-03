@@ -1,4 +1,4 @@
-// MR3 (runtime recursion is TAIL-ONLY): `3 * self.triple(n - 1)` keeps
+// MR3 (runtime recursion is TAIL-ONLY): `3 * main.triple(n - 1)` keeps
 // the frame alive past the call -- the result feeds the multiply -- so
 // even on a MEASURED machine the spelling refuses, naming why it is not
 // tail and pointing at the tail arm / explicit-storage restructurings.

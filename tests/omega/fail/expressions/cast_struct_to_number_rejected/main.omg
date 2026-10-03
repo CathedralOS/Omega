@@ -1,4 +1,4 @@
-// Casting a struct to a numeric type (`self.p as i32`) silently reinterpreted the
+// Casting a struct to a numeric type (`main.p as i32`) silently reinterpreted the
 // struct's bytes as a number. `as` converts between scalar types only. Rejected now.
 use omega::language::std::console;
 use omega::language::core::binding;

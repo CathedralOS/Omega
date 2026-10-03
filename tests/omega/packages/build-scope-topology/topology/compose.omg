@@ -486,7 +486,7 @@ machine Compose::emit_u32(compose: &mut Compose) {
     }
 }
 
-// Emit 32 bytes from a chosen field array: `self.h0` = byte base, `self.src`
+// Emit 32 bytes from a chosen field array: `compose.h0` = byte base, `compose.src`
 // selects the array (0=commit 1=digest32 2=ep_contract 3=b_tr 4=inst_asm
 // 5=profiles 6=closures 7=subjects 8=verifier 9=transports).
 machine Compose::emit_ident(compose: &mut Compose) {
@@ -1077,7 +1077,7 @@ machine Compose::dskip_rows(compose: &mut Compose) {
     }
 }
 
-// Parse the current `desc` buffer for instance `self.i`: imports (slot +
+// Parse the current `desc` buffer for instance `compose.i`: imports (slot +
 // contract), exports (identity strings -> contract digests), assumptions;
 // every other section is skipped over. Ends with the endpoint merge.
 machine Compose::analyze_desc(compose: &mut Compose) {
@@ -3647,7 +3647,7 @@ machine Compose::eval_all(compose: &mut Compose) {
 }
 
 // ---- emission -------------------------------------------------------------
-// Emit instance `self.cp`'s name: u32 len + bytes from names[].
+// Emit instance `compose.cp`'s name: u32 len + bytes from names[].
 machine Compose::emit_name(compose: &mut Compose) {
     compose.h0 = compose.cp;
     transition compose.h0 < 8 {
@@ -3693,7 +3693,7 @@ machine Compose::emit_name(compose: &mut Compose) {
     }
 }
 
-// Emit the raw call bytes of policy `self.cp` verbatim (copied from the
+// Emit the raw call bytes of policy `compose.cp` verbatim (copied from the
 // admitted request span — preserves canonical call encoding).
 machine Compose::emit_pol_call(compose: &mut Compose) {
     compose.h0 = compose.cp;
@@ -3744,7 +3744,7 @@ machine Compose::emit_pol_call(compose: &mut Compose) {
     }
 }
 
-// Emit instance `self.cp`: name, role, component description, endpoints.
+// Emit instance `compose.cp`: name, role, component description, endpoints.
 machine Compose::emit_inst(compose: &mut Compose) {
     Compose::emit_name(compose);
     compose.w8 = 0;
@@ -3856,7 +3856,7 @@ machine Compose::emit_inst(compose: &mut Compose) {
     }
 }
 
-// Emit binding `self.cp`: ii, is, ei, es u32s + transport[32] from b_tr.
+// Emit binding `compose.cp`: ii, is, ei, es u32s + transport[32] from b_tr.
 machine Compose::emit_bind(compose: &mut Compose) {
     compose.h0 = compose.cp;
     transition compose.h0 < 16 {
@@ -3897,7 +3897,7 @@ machine Compose::emit_bind(compose: &mut Compose) {
     }
 }
 
-// Emit policy `self.cp`: verifier identity + verbatim call + outcome record.
+// Emit policy `compose.cp`: verifier identity + verbatim call + outcome record.
 machine Compose::emit_pol(compose: &mut Compose) {
     compose.src = 8;
     compose.h0 = 0;

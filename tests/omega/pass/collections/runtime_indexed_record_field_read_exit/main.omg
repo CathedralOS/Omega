@@ -1,5 +1,5 @@
 // A scalar field of a RUNTIME-selected record element, read as a store value:
-// `self.cells[self.i].hp`. The read is one Terminal `PrimitiveScalarRead`
+// `main.cells[main.i].hp`. The read is one Terminal `PrimitiveScalarRead`
 // whose path selects the element with a `RuntimeIndex` segment and ends at
 // the element's `hp` field; the verifier bounds the selector against the
 // array's declared extent, and Omega loads `hp` at its declared offset inside
