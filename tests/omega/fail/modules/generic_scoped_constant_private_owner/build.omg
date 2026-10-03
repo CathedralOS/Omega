@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("generic_constant_probe");
+    builder.depend_as("values", Source::Path { location: "values" });
+}

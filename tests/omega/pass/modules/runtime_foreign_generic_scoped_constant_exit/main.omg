@@ -1,0 +1,12 @@
+// Expected native and checked-interpreter exit 0: exact foreign const field is 7.
+use values::settings;
+data Context { padding: u32; }
+machine main(context: &mut Context) crashes Trap {
+    let observed: u32 = values::settings::Holder::VALUE.value;
+    transition observed == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

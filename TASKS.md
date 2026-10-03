@@ -4519,8 +4519,8 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     `std::calling`). Local identity repair need not await the versioned
     [standalone-request extension](wiki/spec/build/compiler_request.md) shared
     with OMEGA-D/OMEGA-C; named-only OCREQ v1 cannot silently encode anonymous owners.
-  - Finish typed/checked/Terminal use of generic type-scoped constant attachments,
-    indexed constraints and operator homes. Extend existing normalization and
+  - Finish typed/checked/Terminal use of indexed constraints and operator homes.
+    Extend existing normalization and
     exact declaration selection in
     `02_syntax-trees-to-symbol-resolved-trees/src/preparation/`, preserving
     specialization, competing declarations, visibility and nontransitive file-local
@@ -4545,7 +4545,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     Interpretation or provider-body inspection cannot discharge admission.
 
   Acceptance: retain `tests/omega/pass/modules/{qualified_declarations,qualified_constants,match_constant_indices,nominal_constant_bodies,module_array_constant_indices}`
-  and `runtime_qualified_static_mutation_exit` (ordinary module-qualified mutation
+  and `runtime_foreign_generic_scoped_constant_exit` (foreign generic scoped
+  constant, native/interpreted exit 0), plus `runtime_qualified_static_mutation_exit`
+  (ordinary module-qualified mutation
   and readback, native/interpreted exit 70), plus the `modules/` corpus gate,
   then verify source-free publication/reload,
   independent checking and matching-host execution for the new supported forms.

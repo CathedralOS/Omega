@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 4.12, "load1_start": 4.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": null, "load1_end": 4.69, "load1_start": 4.84, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -753,6 +753,10 @@ fail/modules/duplicate_data_keeps_guard_facts rejected 235ms expected @2d8ed2536
 	duplicate data `Zed`
 fail/modules/duplicate_imported_machine_overload_rejected rejected 247ms expected @2d8ed253669f
 	duplicate named machine overload `seed` with parameter signature `` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
+fail/modules/generic_scoped_constant_private_owner rejected 66ms expected @743851d348c6+wt
+	module type-scoped constants require an exact accessible data carrier selected in their declaring source
+fail/modules/generic_scoped_constant_wrong_constructor rejected 79ms expected @743851d348c6+wt
+	module-owned nominal constant `VALUE` is invalid: const constructor `Other` selects a different nominal carrier than `Holder<u32>`
 fail/modules/runtime_fixed_array_index rejected 21ms expected @2d8ed253669f
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/modules/unused_scalar_constant_range rejected 12ms expected @2d8ed253669f
@@ -1932,6 +1936,7 @@ pass/modules/qualified_constants checked 283ms @2d8ed253669f
 pass/modules/qualified_declarations checked 290ms @2d8ed253669f
 pass/modules/rational_boolean_indices checked 339ms @2d8ed253669f
 pass/modules/repeated_exact_declaration_selection_compile checked 284ms @2d8ed253669f
+pass/modules/runtime_foreign_generic_scoped_constant_exit checked 1338ms @743851d348c6+wt
 pass/modules/runtime_qualified_static_mutation_exit checked 601ms @e0a76f438a35+wt
 pass/modules/same_name_requirement_field_calls_exit checked 1547ms @90e2c919eb74+wt
 pass/modules/use_imports_sibling_trait checked 282ms @2d8ed253669f

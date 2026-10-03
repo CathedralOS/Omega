@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 6.99, "load1_start": 5.94, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 5, "jobs": null, "load1_end": 4.88, "load1_start": 4.88, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -616,6 +616,7 @@ pass/modules/qualified_constants checked 324ms @2d8ed253669f+wt
 pass/modules/qualified_declarations checked 325ms @2d8ed253669f+wt
 pass/modules/rational_boolean_indices checked 366ms @2d8ed253669f+wt
 pass/modules/repeated_exact_declaration_selection_compile checked 322ms @2d8ed253669f+wt
+pass/modules/runtime_foreign_generic_scoped_constant_exit built 513ms exit:0 stdout:match @743851d348c6+wt
 pass/modules/use_imports_sibling_trait checked 316ms @2d8ed253669f+wt
 pass/objc/gui_provider_substitution checked 367ms @2d8ed253669f+wt
 pass/objc/native_gui_loop checked 1498ms @2d8ed253669f+wt
