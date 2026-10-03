@@ -1,0 +1,38 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Record { value: u64; }
+data Envelope {
+    case First(payload: Record);
+    case Second(payload: Record);
+    case Empty;
+}
+
+machine read(envelope: &Envelope) -> u64 {
+    transition envelope {
+        Envelope::First { payload } -> observe(payload)
+        Envelope::Second { payload } -> observe(&payload)
+        _ -> (0)
+    }
+    state observe(record: &Record) -> u64 {
+        transition { _ -> finish(record) }
+    }
+    state finish(record: &Record) -> u64 { record.value }
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let first: Envelope = Envelope::First { payload: Record { value: 31 } };
+    let second: Envelope = Envelope::Second { payload: Record { value: 39 } };
+    let empty: Envelope = Envelope::Empty;
+    let first_value: u64 = read(&first);
+    let second_value: u64 = read(&second);
+    let empty_value: u64 = read(&empty);
+    transition first_value == 31 && second_value == 39 && empty_value == 0 {
+        true -> done(main, 70)
+        false -> done(main, 71)
+    }
+    state done(main: &mut Main, status: i32) {
+        main.console.exit_process(status);
+    }
+}

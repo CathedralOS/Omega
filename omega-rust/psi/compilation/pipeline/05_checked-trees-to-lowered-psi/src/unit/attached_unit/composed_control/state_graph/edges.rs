@@ -645,8 +645,9 @@ pub(super) fn validate_bindings(
             carrier_identity,
         } = &transfer.source
         {
-            // The authored operand is a borrow of the place the loan names:
-            // its access matches the loan's and the target's, the projected
+            // Rejoin the argument's declared reference correspondence, not
+            // its spelling: a shared field loan needs no explicit `&` token.
+            // Its access matches the loan's and the target's, the projected
             // identity is the target's, the path carries only the segments
             // the admit side admits, and the subject roots at a parameter or
             // a rejoinable result binding.
@@ -656,19 +657,20 @@ pub(super) fn validate_bindings(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph loan argument missing",
                 ))?;
-            let borrow_access = match checked.expression_table.expression(*expression) {
-                ExpressionNode::Borrow(borrow) => borrow.access,
-                _ => return unsupported("Unit graph loan argument lost its borrow"),
-            };
-            let access_permitted = matches!(
-                (borrow_access, subject.access),
-                (
-                    language_semantics::ReferenceAccess::Shared,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                ) | (
-                    language_semantics::ReferenceAccess::Mutable,
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-                )
+            let declared_target =
+                target_formals
+                    .get(target.position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph loan target declaration missing",
+                    ))?;
+            let access_permitted = validation::checked_argument_matches_type_reference(
+                &checked.typed,
+                *expression,
+                declared_target.type_reference,
+            ) && matches!(
+                subject.access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
             );
             let source_permitted = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -1803,7 +1805,9 @@ fn validate_projected_loan_source(
     use checked_trees::CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow};
     if (actual_root != root_symbol && Some(actual_root) != receiver_root)
         || actual_path != subject.path
-        || actual_access != Some(subject.access)
+        || actual_access.is_some_and(|access| {
+            access != subject.access && !(access == MutableBorrow && subject.access == SharedBorrow)
+        })
         || !matches!(
             (root_access, subject.access),
             (Owned, SharedBorrow | MutableBorrow)

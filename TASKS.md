@@ -233,40 +233,16 @@ execution and native exit/output. A moved refusal is still unfinished work.
   reason to do this work rather than the two fixtures being individually red.
 
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
-  Remaining migrated pass fixtures clear CHECKING and are then omitted in
-  lowering, which makes stage 05 the migration's remaining frontier for call
-  shapes rather than the borrow checker. Each one passes a borrowed projection
-  where the receiver form passed a whole subject implicitly, and lowering has
-  no admitted plan for it:
-
-  `calls/case_scrutinee_self_dispatch_exit` stops at `state graph: terminator:
-  guarded jump successors: parameter transfer, state 0, statement 2` -- a
-  borrowed case payload (`&ListResponse`, bound by a case arm) transferred into
-  a named state.
-  `calls/nested_call_tail_roots_exit` stops at `InvalidUnitMachinePlan` on
-  `Wrap::get_count` after its case payload became `&ItemList`.
-  `omega run --both tests/omega/run/borrows/shared_record_loan_member_read/main.omg`
-  now exits 0 natively and in checked execution on macOS ARM64. Its shared
-  record loan is observed in the guard before the owner transfers into
-  `done`/`bad`. Stage 05's state-exit disposal now consumes the independently
-  replayed producer contract instead of guessing the carrier's type and
-  multiplicity again from the local's syntax.
-  `core/task_lifecycle_operations` is omitted through `Main::settle` after its
-  linear subject became by-value `Task<T>`.
-
-  Reading these rows needs care: every one of their golden rows predates the
-  `self` retirement by over 1100 commits, so the gate reports `regressed`
-  against a `checked` row recorded when the receiver still parsed. Measured
-  with the migration stashed, each fixture ALREADY reported `regressed` at this
-  HEAD with the parse refusal as its diagnostic, so the verdict is golden
-  staleness in both directions and the real movement is parse-refusal to
-  lowering.
-
-  These are not authoring defects: the authored programs are the
-  disjoint-projection forms STATIC-CALL-ARGUMENT-LENT-ROOT requires, and their
-  golden rows pin where each stops. Acceptance is that the remaining fixtures
-  check AND produce a terminal artifact, with runnable programs executing their
-  authored results. Do not close this by deforming the fixtures.
+  Remaining customer: `tests/omega/pass/core/task_lifecycle_operations`.
+  On the case-loan candidate based on `b03305417fb` (macOS ARM64),
+  `python3 tools/corpus_gate.py --filter core/task_lifecycle_operations`
+  still rejects during terminal production: `Main::main` calls `Main::settle`,
+  whose checked plan stops at `call operation: claim transfers, statement 0`
+  after the linear subject became by-value `Task<T>`. The owning frontier is
+  Stage 04's checked call claim-transfer construction and Stage 05's replay,
+  not parsing or a new source form. Acceptance is that this unchanged customer
+  checks and produces a terminal artifact through the public compiler route.
+  Preserve linear custody; do not close this by deforming the fixture.
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
