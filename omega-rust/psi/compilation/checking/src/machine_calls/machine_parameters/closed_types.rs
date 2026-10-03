@@ -72,7 +72,9 @@ pub fn closed_static_call_type_bindings(
         let subject = required
             .iter()
             .zip(actual)
-            .find(|(required, _)| required.is_self)
+            .find(|(required, _)| {
+                crate::declarations::traits::required_is_subject_parameter(program, required)
+            })
             .map(|(_, parameter)| selected_subject_carrier(program, Some(machine), parameter))
             .unwrap_or_else(TypeReferenceHandle::invalid);
         for (required, actual) in required.iter().zip(actual) {

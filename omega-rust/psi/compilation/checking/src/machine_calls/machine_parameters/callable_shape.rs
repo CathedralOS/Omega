@@ -233,7 +233,9 @@ fn validate_callable_parts(
     let subject = required_parameters
         .iter()
         .zip(actual_parameters)
-        .find(|(required, _)| required.is_self)
+        .find(|(required, _)| {
+            crate::declarations::traits::required_is_subject_parameter(program, required)
+        })
         .map(|(_, parameter)| selected_subject_carrier(program, selected_machine, parameter))
         .unwrap_or_else(TypeReferenceHandle::invalid);
 
