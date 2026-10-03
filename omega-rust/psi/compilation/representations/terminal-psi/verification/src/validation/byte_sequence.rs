@@ -2,6 +2,7 @@
 //! byte sequence, each validated against its retained evidence.
 
 pub(crate) mod concatenation;
+pub(crate) mod equal;
 pub(crate) mod length;
 pub(crate) mod predicate;
 pub(crate) mod read;

@@ -469,6 +469,14 @@ pub enum OperationKind {
         operand: ByteSequenceOperand,
         predicate: crate::ByteSequencePredicate,
     },
+    /// Content equality between two already-observed byte sequences: equal
+    /// live lengths and equal bytes at every live position. Each operand's
+    /// own dominating length observation bounds its reads; neither source
+    /// place is consumed or released.
+    ByteSequenceEqual {
+        left: ByteSequenceOperand,
+        right: ByteSequenceOperand,
+    },
     /// Establish one immutable borrowed element view over the contiguous
     /// elements of a structural collection place. The result carries the
     /// collection's own stored extent under a shared loan; no elements copy.
@@ -1010,6 +1018,10 @@ impl OperationKind {
                 *length = map(*length);
             }
             Self::ByteSequencePredicate { operand, .. } => operand.remap_length(map),
+            Self::ByteSequenceEqual { left, right } => {
+                left.remap_length(map);
+                right.remap_length(map);
+            }
             Self::ByteSequenceSubslice {
                 start, end, length, ..
             }

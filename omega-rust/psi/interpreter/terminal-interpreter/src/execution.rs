@@ -663,6 +663,9 @@ impl TerminalExecution {
                     OperationKind::ByteSequencePredicate { .. } => {
                         self.execute_byte_sequence_predicate(operation)?
                     }
+                    OperationKind::ByteSequenceEqual { .. } => {
+                        self.execute_byte_sequence_equal(operation)?
+                    }
                     OperationKind::ByteSequenceRead { .. } => {
                         self.execute_byte_sequence_read(operation)?
                     }

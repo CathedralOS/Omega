@@ -15,6 +15,10 @@ pub struct SelectedConstraintKeys {
     /// Byte-sequence predicate scan: two preserved inputs (base, count), two
     /// early-clobber scratch registers, one defined 0/1 result operand.
     pub scan_byte_sequence: Option<RegisterConstraintKey>,
+    /// Byte-sequence content compare: four preserved inputs (left base/left
+    /// count/right base/right count), three early-clobber scratch registers,
+    /// one defined 0/1 result operand.
+    pub compare_byte_sequences: Option<RegisterConstraintKey>,
     pub save_floating_control: Option<RegisterConstraintKey>,
     pub restore_floating_control: Option<RegisterConstraintKey>,
     pub hosted_read_byte: Option<RegisterConstraintKey>,

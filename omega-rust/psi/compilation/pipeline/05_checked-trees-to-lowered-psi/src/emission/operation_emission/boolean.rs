@@ -10,6 +10,16 @@ use crate::terminal_identities::value_id;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, ValueId};
 use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 
+/// One side of a byte-sequence content comparison: the place its descriptor
+/// occupies plus the element projection and exact byte-sequence field when the
+/// operand is a field below that carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoweredByteSequenceOperand {
+    pub source: PlaceId,
+    pub path: Vec<super::expressions::LoweredElementPathSegment>,
+    pub field: Option<StructuralFieldId>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredBooleanReturnExpression {
     StructuralCaseMembership {
@@ -64,6 +74,14 @@ pub(crate) enum LoweredBooleanReturnExpression {
         source: PlaceId,
         path: Vec<super::expressions::LoweredElementPathSegment>,
         field: Option<StructuralFieldId>,
+    },
+    /// Content equality between two readable byte-sequence operands: equal
+    /// live lengths and equal bytes at every live position. Each operand's
+    /// own dominating length observation bounds its reads; neither operand
+    /// is consumed.
+    ByteSequenceEqual {
+        left: LoweredByteSequenceOperand,
+        right: LoweredByteSequenceOperand,
     },
     Not {
         operand: Box<LoweredBooleanReturnExpression>,
@@ -223,65 +241,43 @@ pub(crate) fn emit_boolean_expression(
             path,
             field,
         } => {
-            let operand = match field {
-                Some(field) => {
-                    let path = super::expressions::emit_prepared_path(
-                        path,
-                        0,
-                        parameters,
-                        next_value_identity,
-                        operations,
-                    );
-                    let path = super::expressions::path_with_current_bounds(
-                        &path,
-                        operations.next_identity,
-                    );
-                    // The operand's own dominating field-length observation is
-                    // the predicate's read bound; record it so sibling
-                    // observations reuse this exact value identity.
-                    let length = emit_scalar_leaf(
-                        OperationKind::StructuralByteSequenceFieldLength {
-                            source: *source,
-                            path: path.clone(),
-                            field: *field,
-                        },
-                        ScalarType::Integer(
-                            semantic_vocabulary::IntegerType::new(
-                                semantic_vocabulary::IntegerSign::Unsigned,
-                                64,
-                            )
-                            .expect("u64 is valid"),
-                        ),
-                        next_value_identity,
-                        operations,
-                    );
-                    operations
-                        .field_byte_lengths
-                        .push((*source, path.clone(), *field, length));
-                    terminal_psi::control_flow::ByteSequenceOperand::Field {
-                        source: terminal_psi::StructuralArgument {
-                            place: *source,
-                            path,
-                            access: terminal_psi::StructuralAccess::SharedBorrow,
-                        },
-                        field: *field,
-                        length,
-                    }
-                }
-                None => terminal_psi::control_flow::ByteSequenceOperand::Whole {
-                    source: *source,
-                    length: super::expressions::emit_byte_length(
-                        *source,
-                        next_value_identity,
-                        operations,
-                    ),
-                },
-            };
+            let operand = byte_sequence_operand(
+                *source,
+                path,
+                *field,
+                parameters,
+                next_value_identity,
+                operations,
+            );
             emit_scalar_leaf(
                 OperationKind::ByteSequencePredicate {
                     operand,
                     predicate: *predicate,
                 },
+                ScalarType::Boolean,
+                next_value_identity,
+                operations,
+            )
+        }
+        LoweredBooleanReturnExpression::ByteSequenceEqual { left, right } => {
+            let left = byte_sequence_operand(
+                left.source,
+                &left.path,
+                left.field,
+                parameters,
+                next_value_identity,
+                operations,
+            );
+            let right = byte_sequence_operand(
+                right.source,
+                &right.path,
+                right.field,
+                parameters,
+                next_value_identity,
+                operations,
+            );
+            emit_scalar_leaf(
+                OperationKind::ByteSequenceEqual { left, right },
                 ScalarType::Boolean,
                 next_value_identity,
                 operations,
@@ -335,5 +331,64 @@ pub(crate) fn emit_boolean_expression(
         LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {
             unreachable!("short-circuit Boolean expressions lower through terminal control")
         }
+    }
+}
+
+/// One byte-observation operand shared by the byte-sequence operations: a
+/// field operand emits its dominating field-length observation as the read
+/// bound (recorded so sibling observations reuse the exact value identity),
+/// while a whole-view operand reads its descriptor extent directly.
+fn byte_sequence_operand(
+    source: PlaceId,
+    path: &[super::expressions::LoweredElementPathSegment],
+    field: Option<StructuralFieldId>,
+    parameters: &[ValueDeclaration],
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+) -> terminal_psi::control_flow::ByteSequenceOperand {
+    match field {
+        Some(field) => {
+            let path = super::expressions::emit_prepared_path(
+                path,
+                0,
+                parameters,
+                next_value_identity,
+                operations,
+            );
+            let path =
+                super::expressions::path_with_current_bounds(&path, operations.next_identity);
+            let length = emit_scalar_leaf(
+                OperationKind::StructuralByteSequenceFieldLength {
+                    source,
+                    path: path.clone(),
+                    field,
+                },
+                ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 is valid"),
+                ),
+                next_value_identity,
+                operations,
+            );
+            operations
+                .field_byte_lengths
+                .push((source, path.clone(), field, length));
+            terminal_psi::control_flow::ByteSequenceOperand::Field {
+                source: terminal_psi::StructuralArgument {
+                    place: source,
+                    path,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+                field,
+                length,
+            }
+        }
+        None => terminal_psi::control_flow::ByteSequenceOperand::Whole {
+            source,
+            length: super::expressions::emit_byte_length(source, next_value_identity, operations),
+        },
     }
 }

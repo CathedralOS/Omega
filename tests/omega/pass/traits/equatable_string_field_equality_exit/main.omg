@@ -19,7 +19,7 @@ data Tag {
 }
 
 trait Equatable {
-    machine equals(&self, other: &Self) -> bool;
+    machine equals(this: &Self, other: &Self) -> bool;
 }
 
 TagEquatable: Tag satisfies Equatable;

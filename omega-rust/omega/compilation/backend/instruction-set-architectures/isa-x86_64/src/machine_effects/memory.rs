@@ -51,6 +51,22 @@ pub(super) fn declaration(
                 maximum_bytes: None,
             },
         ),
+        MachineSemanticKind::CompareByteSequences => (
+            MachineMemoryEffect::CompareByteSequencesV1,
+            MachineTrapBehavior::MayArchitecturalFaultV1,
+            vec![0, 1, 2, 3],
+            vec![4, 5, 6, 7],
+            MachineEncodedMemoryEffect::CompareByteSequencesV1 {
+                left_base_operand: 0,
+                left_count_operand: 1,
+                right_base_operand: 2,
+                right_count_operand: 3,
+            },
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 16,
+                maximum_bytes: None,
+            },
+        ),
         MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6

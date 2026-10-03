@@ -430,6 +430,96 @@ pub(in crate::selection) fn byte_predicate(
     if result.scalar_type != ScalarType::Boolean || count_type != integer {
         return Err(invalid());
     }
+    let base = measured_span_reads(function, builder, row, operand)?;
+    let cursor = byte_field_store::scratch(builder, 2)?;
+    let byte = byte_field_store::scratch(builder, 3)?;
+    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
+    builder.emit(
+        SelectedInstructionKind::ScanByteSequence {
+            predicate: *predicate,
+        },
+        builder
+            .constraints
+            .keys
+            .scan_byte_sequence
+            .ok_or_else(|| invalid())?,
+        &[base, count, cursor, byte, output],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![operand.length(), result.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
+/// Content equality of two measured byte spans. Each operand's own
+/// dominating length supplies its read extent; the instruction compares
+/// lengths first and scans bytes only when they match.
+pub(in crate::selection) fn byte_equal(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } = &row.kind else {
+        return Err(invalid());
+    };
+    let result = row.result.ok_or_else(|| invalid())?;
+    let integer =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?);
+    let (_, left_count, _, left_count_type) =
+        builder.resolve(left.length()).ok_or_else(|| invalid())?;
+    let (_, right_count, _, right_count_type) =
+        builder.resolve(right.length()).ok_or_else(|| invalid())?;
+    if result.scalar_type != ScalarType::Boolean
+        || left_count_type != integer
+        || right_count_type != integer
+    {
+        return Err(invalid());
+    }
+    let left_base = measured_span_reads(function, builder, row, left)?;
+    let right_base = measured_span_reads(function, builder, row, right)?;
+    let cursor = byte_field_store::scratch(builder, 4)?;
+    let left_byte = byte_field_store::scratch(builder, 5)?;
+    let right_byte = byte_field_store::scratch(builder, 6)?;
+    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
+    builder.emit(
+        SelectedInstructionKind::CompareByteSequences,
+        builder
+            .constraints
+            .keys
+            .compare_byte_sequences
+            .ok_or_else(|| invalid())?,
+        &[
+            left_base,
+            left_count,
+            right_base,
+            right_count,
+            cursor,
+            left_byte,
+            right_byte,
+            output,
+        ],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![left.length(), right.length(), result.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
+/// Emit the measured-span read rows one byte-sequence operand scans: its
+/// readable base pointer and one `ReadMeasuredSpan` role per backing root,
+/// exactly the reads a predicate operand performs.
+fn measured_span_reads(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    operand: &ByteSequenceOperand,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let base = byte_concatenation::operand_pointer(function, builder, row, operand)?;
     let offset = match operand {
         ByteSequenceOperand::Field { .. } => {
@@ -467,25 +557,5 @@ pub(in crate::selection) fn byte_predicate(
             SelectedMemoryAccessRole::ReadMeasuredSpan { length },
         )?;
     }
-    let cursor = byte_field_store::scratch(builder, 2)?;
-    let byte = byte_field_store::scratch(builder, 3)?;
-    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-    builder.emit(
-        SelectedInstructionKind::ScanByteSequence {
-            predicate: *predicate,
-        },
-        builder
-            .constraints
-            .keys
-            .scan_byte_sequence
-            .ok_or_else(|| invalid())?,
-        &[base, count, cursor, byte, output],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![operand.length(), result.value],
-            fuel: row.fuel.clone(),
-            ..Default::default()
-        },
-    )?;
-    Ok(output)
+    Ok(base)
 }

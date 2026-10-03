@@ -251,6 +251,7 @@ impl<'a> PrimitiveSnapshots<'a> {
                 | StructuralEffectAction::ReadByteSequence
                 | StructuralEffectAction::EstablishByteSequenceSubslice
                 | StructuralEffectAction::EvaluateByteSequencePredicate
+                | StructuralEffectAction::EvaluateByteSequenceEqual
                 | StructuralEffectAction::EstablishElementView
                 | StructuralEffectAction::EstablishMutableElementView
                 | StructuralEffectAction::ReadElementViewLength

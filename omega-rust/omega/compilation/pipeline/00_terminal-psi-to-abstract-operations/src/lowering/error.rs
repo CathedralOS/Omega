@@ -62,6 +62,8 @@ pub enum LoweringError {
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     /// The predicate evaluation did not retain its exact Boolean result.
     InvalidByteSequencePredicate(semantic_vocabulary::OperationId),
+    /// The content-equality evaluation did not retain its exact Boolean result.
+    InvalidByteSequenceEqual(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),
     InvalidByteSequenceWrite(semantic_vocabulary::OperationId),
     InvalidByteSequenceSubslice(semantic_vocabulary::OperationId),

@@ -339,31 +339,39 @@ fn byte_carrier_literal_equality(
     None
 }
 
-/// `left == right` over two bounded owned byte carriers (`[u8; N] in Utf8`
-/// fields) is content equality: equal live lengths, then position by
-/// position below the smaller capacity either the left length ends there or
-/// both bytes agree and the next position is compared. Equal lengths never
-/// exceed that capacity, so later positions cannot differ. Each later
-/// position nests inside the previous one's agreeing branch, so evaluation is
-/// one chain rather than a product of independent alternatives, and every
-/// read is guarded on the path that reaches it: the left read by the false
-/// path of `left.len <= index`, the right read by the true path of
-/// `index < right.len`. A borrowed view has no static extent to unroll over,
-/// so a pair involving one declines.
+/// `left == right` over two live byte carriers is content equality. Two
+/// bounded owned carriers (`[u8; N] in Utf8` fields) unroll: equal live
+/// lengths, then position by position below the smaller capacity either the
+/// left length ends there or both bytes agree and the next position is
+/// compared. Equal lengths never exceed that capacity, so later positions
+/// cannot differ. Each later position nests inside the previous one's
+/// agreeing branch, so evaluation is one chain rather than a product of
+/// independent alternatives, and every read is guarded on the path that
+/// reaches it: the left read by the false path of `left.len <= index`, the
+/// right read by the true path of `index < right.len`. A pair that reaches
+/// any unbounded carrier has no static extent to unroll over; two
+/// parameter-rooted carriers compare content through the byte-sequence
+/// equality atom instead.
 fn byte_carrier_pair_equality(
     program: &TypedTrees,
     binary: &typed_trees::expression::TableBinaryExpression,
     authored_parameters: &[StateParameter],
 ) -> Option<CheckedBooleanExpression> {
-    let bounded = |carrier| {
-        let (root, path, carrier) = comparable_byte_carrier(program, authored_parameters, carrier)?;
-        let checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } = carrier else {
-            return None;
-        };
-        Some((root, path, capacity))
+    let left = comparable_byte_carrier(program, authored_parameters, binary.left)?;
+    let right = comparable_byte_carrier(program, authored_parameters, binary.right)?;
+    let ((left_root, left_path, left_carrier), (right_root, right_path, right_carrier)) =
+        (left, right);
+    let (
+        checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+            capacity: left_capacity,
+        },
+        checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+            capacity: right_capacity,
+        },
+    ) = (left_carrier, right_carrier)
+    else {
+        return byte_sequence_equal_atom(left_root, left_path, right_root, right_path);
     };
-    let (left_root, left_path, left_capacity) = bounded(binary.left)?;
-    let (right_root, right_path, right_capacity) = bounded(binary.right)?;
     let length = |root, path: &Vec<_>| {
         Box::new(CheckedScalarExpression::StructuralParameterByteLength {
             root,
@@ -424,6 +432,33 @@ fn byte_carrier_pair_equality(
         },
         None => lengths,
     })
+}
+
+/// The byte-sequence equality atom names parameter-rooted leaves only: a
+/// local-rooted carrier has no field identity in the atom's operand shape,
+/// so a pair involving one still declines the content comparison. Both
+/// operands mint canonically ordered, matching the atom's own contract mint.
+fn byte_sequence_equal_atom(
+    left_root: checked_trees::CheckedStorageRoot,
+    left_path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    right_root: checked_trees::CheckedStorageRoot,
+    right_path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+) -> Option<CheckedBooleanExpression> {
+    let operand = |root, path| match root {
+        checked_trees::CheckedStorageRoot::Parameter {
+            index: parameter_position,
+        } => Some(checked_trees::CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        }),
+        _ => None,
+    };
+    let mut left = operand(left_root, left_path)?;
+    let mut right = operand(right_root, right_path)?;
+    if left > right {
+        std::mem::swap(&mut left, &mut right);
+    }
+    Some(CheckedBooleanExpression::ByteSequenceEqual { left, right })
 }
 
 /// The storage root, path and carrier of a byte carrier whose live length and

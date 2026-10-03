@@ -26,13 +26,19 @@ fn stored_view_block_layout_uses_the_declared_descriptor_not_the_backing_extent(
         projected_qualifications: Vec::new(),
     };
     for (carrier, bytes) in [
-        (ByteSequenceCarrier::BoundedView {
-            capacity: 48,
-            access: Some(StructuralAccess::SharedBorrow),
-        }, 8),
-        (ByteSequenceCarrier::BorrowedView {
-            access: Some(StructuralAccess::SharedBorrow),
-        }, 16),
+        (
+            ByteSequenceCarrier::BoundedView {
+                capacity: 48,
+                access: Some(StructuralAccess::SharedBorrow),
+            },
+            8,
+        ),
+        (
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            },
+            16,
+        ),
     ] {
         source.structural = Some(legalized_operations::LegalizedStructuralContract {
             result: None,
@@ -40,14 +46,16 @@ fn stored_view_block_layout_uses_the_declared_descriptor_not_the_backing_extent(
                 id: identity,
                 identity: "stored-view".into(),
                 shape: StructuralTypeShape::ByteSequence(carrier),
-            }].into(),
+            }]
+            .into(),
             parameters: Vec::new(),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
         });
-        let layout = |parameter: &StructuralParameterDeclaration|
-            crate::selection::aggregate_result_input::block_parameter_shape(&source, parameter);
+        let layout = |parameter: &StructuralParameterDeclaration| {
+            crate::selection::aggregate_result_input::block_parameter_shape(&source, parameter)
+        };
         assert_eq!(layout(&parameter), Some(ValueShape::integer(bytes, 8)));
         parameter.access = StructuralAccess::WriteOnlyBorrow;
         assert_eq!(layout(&parameter), None);

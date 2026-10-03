@@ -68,6 +68,14 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
                 && matches!(scalar(operand.length()), Some(ScalarType::Integer(integer))
                     if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
         }
+        O::ByteSequenceEqual {
+            result, left, right, ..
+        } => {
+            result.scalar_type == ScalarType::Boolean
+                && [left, right].iter().all(|operand|
+                    matches!(scalar(operand.length()), Some(ScalarType::Integer(integer))
+                        if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64)))
+        }
         _ => false,
     }
 }

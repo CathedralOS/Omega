@@ -9,6 +9,20 @@ pub(crate) fn validate_boolean_parameter_types(
     expression: &LoweredBooleanReturnExpression,
     parameter_types: &[ScalarType],
 ) -> Result<(), LoweringError> {
+    fn validate_lowered_operand_path(
+        path: &[LoweredElementPathSegment],
+        parameter_types: &[ScalarType],
+    ) -> Result<(), LoweringError> {
+        for segment in path {
+            if let LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
+                validate_direct_parameter_types(selector, parameter_types)?;
+                if let Some(extent) = extent {
+                    validate_direct_parameter_types(extent, parameter_types)?;
+                }
+            }
+        }
+        Ok(())
+    }
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
         LoweredBooleanReturnExpression::StructuralField { .. }
@@ -42,15 +56,11 @@ pub(crate) fn validate_boolean_parameter_types(
             validate_direct_parameter_types(index, parameter_types)
         }
         LoweredBooleanReturnExpression::ByteSequencePredicate { path, .. } => {
-            for segment in path {
-                if let LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
-                    validate_direct_parameter_types(selector, parameter_types)?;
-                    if let Some(extent) = extent {
-                        validate_direct_parameter_types(extent, parameter_types)?;
-                    }
-                }
-            }
-            Ok(())
+            validate_lowered_operand_path(path, parameter_types)
+        }
+        LoweredBooleanReturnExpression::ByteSequenceEqual { left, right, .. } => {
+            validate_lowered_operand_path(&left.path, parameter_types)?;
+            validate_lowered_operand_path(&right.path, parameter_types)
         }
     }
 }
@@ -168,6 +178,7 @@ pub(crate) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => false,
         LoweredBooleanReturnExpression::Not { operand } => contains_short_circuit(operand),
         LoweredBooleanReturnExpression::Equal { left, right } => {
@@ -201,6 +212,7 @@ pub(crate) fn validate_short_circuit_expression(
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::ByteSequencePredicate { .. }
+        | LoweredBooleanReturnExpression::ByteSequenceEqual { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => Ok(()),
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unsupported("unresolved structural field crossed Boolean validation")

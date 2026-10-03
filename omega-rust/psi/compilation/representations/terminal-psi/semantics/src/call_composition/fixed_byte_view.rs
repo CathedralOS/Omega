@@ -65,7 +65,9 @@ pub fn borrowed_referent_presentation<'types>(
     }
     match types.clone().find(|row| row.id == actual)?.shape {
         StructuralTypeShape::FixedArray { .. } => {
-            Some(BorrowedReferentPresentation::AddressOfBacking { byte_count: capacity })
+            Some(BorrowedReferentPresentation::AddressOfBacking {
+                byte_count: capacity,
+            })
         }
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
             Some(BorrowedReferentPresentation::Unchanged)

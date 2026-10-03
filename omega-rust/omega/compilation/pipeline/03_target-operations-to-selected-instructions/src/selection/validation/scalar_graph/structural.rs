@@ -51,7 +51,7 @@ mod scalar_store;
 mod subslice;
 
 pub(super) use byte_field_read::read_byte as byte_field_read;
-pub(super) use byte_views::{byte_observation, byte_predicate};
+pub(super) use byte_views::{byte_equal, byte_observation, byte_predicate};
 pub(super) use element_views::element_observation;
 
 #[derive(Default)]

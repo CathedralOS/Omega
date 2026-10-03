@@ -50,6 +50,13 @@ pub enum SelectedInstructionKind {
     ScanByteSequence {
         predicate: terminal_psi::ByteSequencePredicate,
     },
+    /// Compare `left_count` bytes at the left base with `right_count` bytes
+    /// at the right base. Inputs 0-3 are preserved
+    /// left base/left count/right base/right count; 4-6 are early-clobber
+    /// scratch (cursor and both loaded bytes); 7 is the defined 0/1 result.
+    /// Mismatched counts produce 0 and read no bytes; equal zero counts
+    /// produce 1 likewise. Flags are clobbered.
+    CompareByteSequences,
     LoadPacked {
         byte_offset: u32,
         width: PackedByteWidth,

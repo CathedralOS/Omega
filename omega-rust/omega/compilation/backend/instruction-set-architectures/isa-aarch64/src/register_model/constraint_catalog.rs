@@ -6,9 +6,10 @@ use crate::register_model::{
     AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
     AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE,
     AARCH64_ADDRESS_OFFSET, AARCH64_BITS_TO_FLOAT32, AARCH64_BITS_TO_FLOAT64,
-    AARCH64_BYTE_LITERAL_IMAGE_ADDRESS, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_IMMEDIATE,
-    AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_BYTES, AARCH64_COPY_I64,
-    AARCH64_DARWIN_CALL, AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32, AARCH64_DARWIN_HOSTED_READ_BYTE,
+    AARCH64_BYTE_LITERAL_IMAGE_ADDRESS, AARCH64_COMPARE_BYTE_SEQUENCES, AARCH64_COMPARE_I64,
+    AARCH64_COMPARE_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,
+    AARCH64_COPY_BYTES, AARCH64_COPY_I64, AARCH64_DARWIN_CALL,
+    AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32, AARCH64_DARWIN_HOSTED_READ_BYTE,
     AARCH64_DARWIN_HOSTED_WRITE_BYTE_I32, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT,
     AARCH64_DIVIDE_I64, AARCH64_DIVIDE_U64, AARCH64_FLOAT32_TO_BITS, AARCH64_FLOAT64_TO_BITS,
     AARCH64_FRAME_ADDRESS, AARCH64_HOSTED_EXIT_PROCESS_I32, AARCH64_HOSTED_READ_BYTE,
@@ -691,6 +692,31 @@ pub fn aarch64_register_constraint_catalog(
                     GPR64,
                 );
                 row.early_clobber = operand >= 2;
+                row
+            })
+            .collect(),
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("nzcv").units.clone(),
+    });
+    // The compare reads its four preserved inputs while the cursors are
+    // written before any input home is consumed; the verdict operand is the
+    // only lasting definition. Flags fall to the compare/branch pairs.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_COMPARE_BYTE_SEQUENCES,
+        operands: (0..8)
+            .map(|operand| {
+                let mut row = allocatable(
+                    operand,
+                    if operand < 4 {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    },
+                    GPR64,
+                );
+                row.early_clobber = operand >= 4;
                 row
             })
             .collect(),

@@ -249,6 +249,7 @@ fn family_and_operand_count(
         | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::ScanByteSequence { .. }
+        | SelectedInstructionKind::CompareByteSequences
         | SelectedInstructionKind::Load8 { .. }
         | SelectedInstructionKind::Load16 { .. }
         | SelectedInstructionKind::LoadPacked { .. }

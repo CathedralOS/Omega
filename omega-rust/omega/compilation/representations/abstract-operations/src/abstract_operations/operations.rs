@@ -90,6 +90,14 @@ pub enum AbstractOperation {
         operand: terminal_psi::control_flow::ByteSequenceOperand,
         predicate: terminal_psi::ByteSequencePredicate,
     },
+    /// Content equality of two readable byte-sequence operands: equal live
+    /// lengths and equal bytes at every live position.
+    ByteSequenceEqual {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        left: terminal_psi::control_flow::ByteSequenceOperand,
+        right: terminal_psi::control_flow::ByteSequenceOperand,
+    },
     /// Write one byte through the exact mutable view and verified bounds.
     ByteSequenceWrite {
         psi_operation: OperationId,
@@ -858,6 +866,7 @@ impl AbstractOperation {
             | Self::StructuralScalarFieldRead { psi_operation, .. }
             | Self::ByteSequenceRead { psi_operation, .. }
             | Self::ByteSequencePredicate { psi_operation, .. }
+            | Self::ByteSequenceEqual { psi_operation, .. }
             | Self::ByteSequenceSubslice { psi_operation, .. }
             | Self::ByteSequenceLength { psi_operation, .. }
             | Self::EstablishElementView { psi_operation, .. }

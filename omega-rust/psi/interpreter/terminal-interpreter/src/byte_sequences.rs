@@ -10,6 +10,7 @@
 
 pub(crate) mod binding;
 pub(crate) mod concatenation;
+pub(crate) mod equality;
 pub(crate) mod field_index_store;
 pub(crate) mod field_store;
 pub(crate) mod operands;
