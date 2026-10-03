@@ -1057,7 +1057,7 @@ impl<'program> Evaluator<'program> {
         // top; carried-over bindings stay in the frame.
         let mut carried: Vec<FrameLocal> = Vec::new();
 
-        'states: loop {
+        loop {
             self.tick()?;
 
             // A bodyless declaration — a `boundary requirement`, boundary or
@@ -1083,83 +1083,79 @@ impl<'program> Evaluator<'program> {
             // activation, including subsequent state transitions.
             instance = frame.self_cell.clone();
 
-            loop {
-                // Execute statements, watching for the first satisfied transition. A state
-                // whose body ends in a bare expression (`{ 22 }`) returns that expression's
-                // value as its result (the backend's value-state form).
-                let mut next: Option<TransitionDecision<'program>> = None;
-                let mut tail_value: Option<Value> = None;
-                for (statement_handle, statement) in self
-                    .program
-                    .statement_table
-                    .iter_statements(state.statement_nodes)
-                {
-                    match statement {
-                        StatementNode::Transition(transition) => {
-                            if let Some(decision) = self.eval_transition(transition, &mut frame)? {
-                                next = Some(decision);
-                                break;
-                            }
+            // Execute statements, watching for the first satisfied transition. A state
+            // whose body ends in a bare expression (`{ 22 }`) returns that expression's
+            // value as its result (the backend's value-state form).
+            let mut next: Option<TransitionDecision<'program>> = None;
+            let mut tail_value: Option<Value> = None;
+            for (statement_handle, statement) in self
+                .program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+            {
+                match statement {
+                    StatementNode::Transition(transition) => {
+                        if let Some(decision) = self.eval_transition(transition, &mut frame)? {
+                            next = Some(decision);
+                            break;
                         }
-                        StatementNode::Expression(expression) => {
-                            tail_value = Some(self.eval_expression_at_type(
-                                *expression,
-                                frame.return_type,
-                                &mut frame,
-                            )?);
-                        }
-                        StatementNode::RootBinding(binding) => {
-                            self.execute_root_binding(statement_handle, binding, &mut frame)?;
-                        }
-                        StatementNode::Call(call) => {
-                            self.eval_call_statement(statement_handle, call, &mut frame)?;
-                        }
-                        other => {
-                            self.exec_statement(other, &mut frame)?;
-                        }
+                    }
+                    StatementNode::Expression(expression) => {
+                        tail_value = Some(self.eval_expression_at_type(
+                            *expression,
+                            frame.return_type,
+                            &mut frame,
+                        )?);
+                    }
+                    StatementNode::RootBinding(binding) => {
+                        self.execute_root_binding(statement_handle, binding, &mut frame)?;
+                    }
+                    StatementNode::Call(call) => {
+                        self.eval_call_statement(statement_handle, call, &mut frame)?;
+                    }
+                    other => {
+                        self.exec_statement(other, &mut frame)?;
                     }
                 }
+            }
 
-                match next {
-                    None => return Ok(tail_value),
-                    Some(TransitionDecision::Value(value)) => return Ok(Some(value)),
-                    Some(TransitionDecision::Terminal) => return Ok(None),
-                    Some(TransitionDecision::SelfTarget) => {
-                        // Self is an identity arrival over current homes, not a new
-                        // invocation of the original arguments. Preserve aliases and
-                        // scalar policy metadata, but reevaluate guard calls next pass.
-                        self.tick()?;
-                        frame.guard_call_results.clear();
-                        continue;
-                    }
-                    Some(TransitionDecision::Named {
-                        state: target_state,
-                        machine: target_machine,
-                        instance: target_instance,
-                        arguments,
-                    }) => {
-                        if target_machine.symbol == machine.symbol
-                            && Cell::ptr_eq(&target_instance, &instance)
-                        {
-                            // Carry this state's bindings forward to the sibling state.
-                            carried = frame.locals;
-                            state = target_state;
-                            current_args = arguments;
-                            continue 'states;
-                        }
-                        // Cross-machine named transition: a TAIL JUMP into the
-                        // target machine (the arm target is the arm's last
-                        // action; whichever machine terminates delivers the
-                        // value). Rebind the loop -- constant depth, matching
-                        // the native SetDispatchState lowering. The carried
-                        // locals clear: the callee binds a fresh frame.
-                        machine = target_machine;
-                        instance = target_instance;
+            match next {
+                None => return Ok(tail_value),
+                Some(TransitionDecision::Value(value)) => return Ok(Some(value)),
+                Some(TransitionDecision::Terminal) => return Ok(None),
+                Some(TransitionDecision::SelfTarget) => {
+                    // Re-run the same state (rare; guard against infinite loops via budget),
+                    // carrying its bindings forward.
+                    carried = frame.locals;
+                    continue;
+                }
+                Some(TransitionDecision::Named {
+                    state: target_state,
+                    machine: target_machine,
+                    instance: target_instance,
+                    arguments,
+                }) => {
+                    if target_machine.symbol == machine.symbol
+                        && Cell::ptr_eq(&target_instance, &instance)
+                    {
+                        // Carry this state's bindings forward to the sibling state.
+                        carried = frame.locals;
                         state = target_state;
                         current_args = arguments;
-                        carried = Vec::new();
-                        continue 'states;
+                        continue;
                     }
+                    // Cross-machine named transition: a TAIL JUMP into the
+                    // target machine (the arm target is the arm's last
+                    // action; whichever machine terminates delivers the
+                    // value). Rebind the loop -- constant depth, matching
+                    // the native SetDispatchState lowering. The carried
+                    // locals clear: the callee binds a fresh frame.
+                    machine = target_machine;
+                    instance = target_instance;
+                    state = target_state;
+                    current_args = arguments;
+                    carried = Vec::new();
+                    continue;
                 }
             }
         }
