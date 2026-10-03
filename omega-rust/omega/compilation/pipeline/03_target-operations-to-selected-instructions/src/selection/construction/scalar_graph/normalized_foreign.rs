@@ -15,8 +15,7 @@ use crate::selection::construction::scalar_graph::structural;
 use calling_conventions::ValueLocation;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessRole,
-    SelectedNormalizedForeignCall,
+    LocalStorageSlotId, SelectedLocalStorageSlot, SelectedNormalizedForeignCall,
 };
 
 pub(super) fn emit(
@@ -137,86 +136,37 @@ pub(super) fn emit(
         )?;
         operands.push((argument.parameter_index, output));
     }
-    // Each structural argument transports its source-rooted referent pointer
-    // into the exact pointer word the plan assigned: a register-resident
-    // destination is a call operand, a stack destination is an outgoing slot
-    // store of that pointer.
     for (argument_index, argument) in
         crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
             .zip(&call.structural_arguments)
     {
-        let pointer = structural::place_pointer(
-            builder,
-            operation,
-            argument.place,
-            argument.source_byte_offset,
-        )?;
-        match argument.destination.locations.as_slice() {
-            [ValueLocation::Register { .. }] => {
-                operands.push((argument_index as u32, pointer));
-            }
-            [
-                ValueLocation::Stack {
-                    stack_byte_offset, ..
-                },
-            ] => {
-                let slot = selected_instructions::OutgoingArgumentSlotId {
-                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-                    operation: operation.operation,
-                    argument_index: argument_index
-                        .try_into()
-                        .map_err(|_| SelectedInstructionError::custody())?,
-                };
-                builder
-                    .transport
-                    .slots
-                    .push(selected_instructions::SelectedOutgoingArgumentSlot {
-                        id: slot,
-                        byte_size: 8,
-                        alignment: 8,
-                        abi_stack_byte_offset: *stack_byte_offset,
-                    });
-                builder
-                    .transport
-                    .memory
-                    .push(selected_instructions::SelectedMemoryAccess {
-                        instruction: SelectedInstructionId(
-                            builder
-                                .instructions
-                                .len()
-                                .try_into()
-                                .map_err(|_| SelectedInstructionError::custody())?,
-                        ),
-                        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
-                            operation.operation,
-                        ),
-                        place: argument.place,
-                        byte_offset: 0,
-                        byte_count: 8,
-                        role: SelectedMemoryAccessRole::WriteOutgoing { slot },
-                    });
-                builder.emit(
-                    SelectedInstructionKind::Store64 {
-                        slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
-                        byte_offset: 0,
-                    },
-                    builder
-                        .constraints
-                        .keys
-                        .store64
-                        .ok_or_else(|| SelectedInstructionError::custody())?,
-                    &[pointer],
-                    SelectedInstructionProvenance {
-                        operations: vec![operation.operation],
-                        ..Default::default()
-                    },
-                )?;
-            }
-            _ => return Err(SelectedInstructionError::custody()),
+        // The retained target argument has already rejoined its source type,
+        // access and projection. Reuse ordinary value/reference transport,
+        // without manufacturing an internal call or changing its ownership.
+        if !argument.indices.is_empty() {
+            return Err(SelectedInstructionError::custody());
         }
+        let semantic = terminal_psi::StructuralArgument {
+            place: argument.place,
+            path: argument.path.clone(),
+            access: argument.access,
+        };
+        operands.extend(
+            super::call_arguments::structural_argument(
+                source,
+                operation,
+                argument_index,
+                &semantic,
+                argument,
+                &[],
+                builder,
+            )?
+            .into_iter()
+            .map(|register| (argument_index as u32, register)),
+        );
     }
-    // Preserve authored order within each physical bank, without changing
-    // native parameter ordinals or the semantic provenance roster.
+    // Preserve parameter order and each placement's fragment order, using
+    // the same bank ordering as retained-plan constraint reconstruction.
     operands.sort_by_key(|(position, _)| {
         (
             call.binding.boundary_entry_plan.call.parameters[*position as usize]

@@ -134,75 +134,33 @@ pub(super) fn validate(
         crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
             .zip(&call.structural_arguments)
     {
-        let pointer = super::structural::place_pointer(
-            replay,
-            operation,
-            argument.place,
-            argument.source_byte_offset,
-        )?;
-        match argument.destination.locations.as_slice() {
-            [ValueLocation::Register { .. }] => {
-                operands.push((argument_index as u32, pointer));
-            }
-            [
-                ValueLocation::Stack {
-                    stack_byte_offset, ..
-                },
-            ] => {
-                let slot = selected_instructions::OutgoingArgumentSlotId {
-                    role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-                    operation: operation.operation,
-                    argument_index: argument_index.try_into().map_err(|_| replay.invalid())?,
-                };
-                replay
-                    .transport
-                    .slots
-                    .push(selected_instructions::SelectedOutgoingArgumentSlot {
-                        id: slot,
-                        byte_size: 8,
-                        alignment: 8,
-                        abi_stack_byte_offset: *stack_byte_offset,
-                    });
-                replay
-                    .transport
-                    .memory
-                    .push(selected_instructions::SelectedMemoryAccess {
-                        instruction: SelectedInstructionId(
-                            replay
-                                .instruction_cursor
-                                .try_into()
-                                .map_err(|_| replay.invalid())?,
-                        ),
-                        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
-                            operation.operation,
-                        ),
-                        place: argument.place,
-                        byte_offset: 0,
-                        byte_count: 8,
-                        role: selected_instructions::SelectedMemoryAccessRole::WriteOutgoing {
-                            slot,
-                        },
-                    });
-                replay.check_instruction(
-                    SelectedInstructionKind::Store64 {
-                        slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
-                        byte_offset: 0,
-                    },
-                    replay
-                        .constraints
-                        .keys
-                        .store64
-                        .ok_or_else(|| replay.invalid())?,
-                    &[pointer],
-                    &SelectedInstructionProvenance {
-                        operations: vec![operation.operation],
-                        ..Default::default()
-                    },
-                )?;
-            }
-            _ => return Err(replay.invalid()),
+        // The retained target argument has already rejoined its source type,
+        // access and projection. Reuse ordinary value/reference transport,
+        // without manufacturing an internal call or changing its ownership.
+        if !argument.indices.is_empty() {
+            return Err(SelectedInstructionError::custody());
         }
+        let semantic = terminal_psi::StructuralArgument {
+            place: argument.place,
+            path: argument.path.clone(),
+            access: argument.access,
+        };
+        operands.extend(
+            super::call_arguments::structural_argument(
+                source,
+                operation,
+                argument_index,
+                &semantic,
+                argument,
+                &[],
+                replay,
+            )?
+            .into_iter()
+            .map(|register| (argument_index as u32, register)),
+        );
     }
+    // Preserve parameter order and each placement's fragment order, using
+    // the same bank ordering as retained-plan constraint reconstruction.
     operands.sort_by_key(|(position, _)| {
         (
             call.binding.boundary_entry_plan.call.parameters[*position as usize]

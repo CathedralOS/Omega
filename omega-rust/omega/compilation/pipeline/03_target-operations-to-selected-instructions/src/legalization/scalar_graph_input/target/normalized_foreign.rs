@@ -139,6 +139,7 @@ pub(super) fn validate(
                     parameters,
                     optimized,
                     native.target,
+                    binding.boundary_entry_plan.call.policy,
                     plan,
                     *expected_operation,
                 )

@@ -121,7 +121,7 @@ pub(in crate::selection::construction::scalar_graph) fn borrowed_argument(
     address: crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
     // Keep ordinary call ownership/provenance admission before loading payload.
-    let mut pointer = super::call_pointer(builder, row, place, 0)?;
+    let mut pointer = super::place_pointer(builder, row, place, 0)?;
     for offset in address.descriptor_offsets {
         let home = transport_register(builder, place, offset)?;
         builder.emit(

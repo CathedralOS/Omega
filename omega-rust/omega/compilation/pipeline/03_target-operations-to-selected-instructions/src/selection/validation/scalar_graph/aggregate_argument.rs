@@ -41,7 +41,8 @@ pub(super) fn argument(
     {
         return Ok(Vec::new());
     }
-    if target.shape != target.destination.shape
+    if target.shape.byte_size != target.destination.shape.byte_size
+        || target.shape.alignment != target.destination.shape.alignment
         || !crate::selection::aggregate_result_input::owned_argument_placement(&target.destination)
     {
         return Err(SelectedInstructionError::custody());
@@ -104,16 +105,46 @@ pub(super) fn argument(
             .map(|(_, pointer)| *pointer)
     };
     let indirect = crate::selection::aggregate_result_input::indirect_argument(&target.destination);
-    let outgoing_offset =
-        indirect
-            .map(|(_, offset)| offset)
-            .or_else(|| match target.destination.locations.first() {
-                Some(ValueLocation::Stack {
-                    stack_byte_offset, ..
-                }) => Some(*stack_byte_offset),
-                _ => None,
-            });
+    let outgoing_plan = match &operation.kind {
+        legalized_operations::LegalizedScalarInstructionKind::Call(call) => &call.call_plan,
+        legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+            &call.binding.boundary_entry_plan.call
+        }
+        _ => return Err(SelectedInstructionError::custody()),
+    };
+    let stack_base = target
+        .destination
+        .locations
+        .iter()
+        .filter_map(|location| match location {
+            ValueLocation::Stack {
+                stack_byte_offset, ..
+            } => Some(*stack_byte_offset),
+            _ => None,
+        })
+        .min();
+    let outgoing_offset = indirect.map(|(_, offset)| offset).or(stack_base);
     let outgoing = if let Some(stack_byte_offset) = outgoing_offset {
+        let byte_size = if indirect.is_some() {
+            target.shape.byte_size
+        } else {
+            target
+                .destination
+                .locations
+                .iter()
+                .filter_map(|location| match location {
+                    ValueLocation::Stack {
+                        stack_byte_offset,
+                        byte_size,
+                        ..
+                    } => Some(stack_byte_offset.checked_add(*byte_size)),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()
+                .and_then(|ends| ends.into_iter().max())
+                .and_then(|end| end.checked_sub(stack_byte_offset))
+                .ok_or_else(|| SelectedInstructionError::custody())?
+        };
         let slot = selected_instructions::OutgoingArgumentSlotId {
             operation: operation.operation,
             argument_index: argument_index
@@ -146,7 +177,7 @@ pub(super) fn argument(
             })
             .fold(target.shape.alignment, u16::max);
         let alignment = if indirect.is_some()
-            && source.call_plan.policy == calling_conventions::CallingPolicy::MicrosoftX64
+            && outgoing_plan.policy == calling_conventions::CallingPolicy::MicrosoftX64
         {
             alignment.max(16)
         } else {
@@ -157,7 +188,7 @@ pub(super) fn argument(
             .slots
             .push(selected_instructions::SelectedOutgoingArgumentSlot {
                 id: slot,
-                byte_size: target.shape.byte_size,
+                byte_size,
                 alignment,
                 abi_stack_byte_offset: stack_byte_offset,
             });
@@ -167,7 +198,7 @@ pub(super) fn argument(
             operation.operation,
             place,
             0,
-            target.shape.byte_size,
+            byte_size,
             SelectedMemoryAccessRole::AddressOutgoing { slot },
         )?;
         replay.check_instruction(
@@ -191,7 +222,14 @@ pub(super) fn argument(
     let fragments = if indirect.is_some() {
         (0..target.shape.byte_size)
             .step_by(8)
-            .map(|offset| (offset, (target.shape.byte_size - offset).min(8)))
+            .map(|offset| {
+                (
+                    offset,
+                    (target.shape.byte_size - offset).min(8),
+                    None,
+                    Some(offset),
+                )
+            })
             .collect::<Vec<_>>()
     } else {
         target
@@ -200,20 +238,50 @@ pub(super) fn argument(
             .iter()
             .map(|location| match location {
                 ValueLocation::Register {
+                    register,
                     value_byte_offset,
                     byte_size,
+                } => Ok(vec![(
+                    *value_byte_offset,
+                    *byte_size,
+                    Some(*register),
+                    None,
+                )]),
+                ValueLocation::Stack {
+                    value_byte_offset,
+                    byte_size,
+                    stack_byte_offset,
                     ..
+                } => {
+                    let stack_offset = stack_byte_offset
+                        .checked_sub(stack_base.ok_or_else(|| SelectedInstructionError::custody())?)
+                        .ok_or_else(|| SelectedInstructionError::custody())?;
+                    (0..*byte_size)
+                        .step_by(8)
+                        .map(|offset| {
+                            Ok((
+                                value_byte_offset
+                                    .checked_add(offset)
+                                    .ok_or_else(|| SelectedInstructionError::custody())?,
+                                (*byte_size - offset).min(8),
+                                None,
+                                Some(
+                                    stack_offset
+                                        .checked_add(offset)
+                                        .ok_or_else(|| SelectedInstructionError::custody())?,
+                                ),
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, SelectedInstructionError>>()
                 }
-                | ValueLocation::Stack {
-                    value_byte_offset,
-                    byte_size,
-                    ..
-                } => Ok((*value_byte_offset, *byte_size)),
                 _ => Err(SelectedInstructionError::custody()),
             })
             .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
     };
-    for (value_byte_offset, byte_size) in fragments {
+    for (value_byte_offset, byte_size, register, stack_offset) in fragments {
         let offset = value_byte_offset;
         // Read the selected subtree at its root-relative offset, while the
         // callee's ABI fragments and outgoing copy remain zero-based.
@@ -247,18 +315,22 @@ pub(super) fn argument(
                 &Default::default(),
             )?;
         }
-        if let Some((slot, address)) = outgoing {
+        if let Some(stack_offset) = stack_offset {
+            let (slot, address) = outgoing.ok_or_else(|| SelectedInstructionError::custody())?;
             outgoing_memory(
                 replay,
                 operation.operation,
                 place,
-                offset,
+                stack_offset,
                 byte_size,
                 SelectedMemoryAccessRole::WriteOutgoing { slot },
             )?;
-            super::aggregate_memory::store(replay, address, output, offset, byte_size)?;
+            super::aggregate_memory::store(replay, address, output, stack_offset, byte_size)?;
         } else {
-            registers.push(output);
+            let register = register.ok_or_else(|| SelectedInstructionError::custody())?;
+            registers.push(argument_register(
+                replay, place, offset, byte_size, register, output,
+            )?);
         }
     }
     if let Some((pointer_location, _)) = indirect {
@@ -318,6 +390,72 @@ pub(super) fn argument(
         }
     }
     Ok(registers)
+}
+
+/// Reconstruct the ABI-bank transfer from the fragment's retained destination.
+fn argument_register(
+    replay: &mut Replay<'_>,
+    place: semantic_vocabulary::PlaceId,
+    byte_offset: u32,
+    byte_size: u32,
+    register: calling_conventions::MachineRegister,
+    input: VirtualRegisterId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if !matches!(
+        register,
+        calling_conventions::MachineRegister::Aarch64V(_)
+            | calling_conventions::MachineRegister::X86Xmm(_)
+    ) {
+        return Ok(input);
+    }
+    let format = match byte_size {
+        4 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+        8 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+        _ => return Err(replay.invalid()),
+    };
+    let (kind, key) = crate::selection::scalar_call_abi::outgoing_float_transfer(
+        semantic_vocabulary::ScalarType::IeeeFloat(format),
+        &replay.constraints.keys,
+    )
+    .ok_or_else(|| replay.invalid())?;
+    let class = replay
+        .environment
+        .constraint(key)
+        .and_then(|row| row.operands.get(1))
+        .ok_or_else(|| replay.invalid())?
+        .class;
+    let origin = selected_instructions::VirtualRegisterOrigin::AbiTransport {
+        instruction: SelectedInstructionId(
+            replay
+                .instruction_cursor
+                .try_into()
+                .map_err(|_| replay.invalid())?,
+        ),
+        place,
+        byte_offset,
+    };
+    let scalar_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .map_err(|_| replay.invalid())?,
+    );
+    let retained = replay
+        .selected
+        .virtual_registers
+        .get(replay.register_cursor)
+        .ok_or_else(|| replay.invalid())?;
+    if retained.id.0 as usize != replay.register_cursor
+        || retained.class != class
+        || retained.origin != origin
+        || retained.scalar_type != scalar_type
+        || retained.definition_site.is_some()
+        || retained.entry_fixed_view.is_some()
+    {
+        return Err(replay.invalid());
+    }
+    let output = retained.id;
+    replay.register_cursor += 1;
+    replay.check_instruction(kind, key, &[input, output], &Default::default())?;
+    Ok(output)
 }
 
 /// Outgoing ABI storage belongs to this call occurrence, not to a new source place.

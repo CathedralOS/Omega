@@ -40,7 +40,8 @@ pub(super) fn argument(
     {
         return Ok(Vec::new());
     }
-    if target.shape != target.destination.shape
+    if target.shape.byte_size != target.destination.shape.byte_size
+        || target.shape.alignment != target.destination.shape.alignment
         || !crate::selection::aggregate_result_input::owned_argument_placement(&target.destination)
     {
         return Err(SelectedInstructionError::custody());
@@ -103,16 +104,46 @@ pub(super) fn argument(
             .map(|(_, pointer)| *pointer)
     };
     let indirect = crate::selection::aggregate_result_input::indirect_argument(&target.destination);
-    let outgoing_offset =
-        indirect
-            .map(|(_, offset)| offset)
-            .or_else(|| match target.destination.locations.first() {
-                Some(ValueLocation::Stack {
-                    stack_byte_offset, ..
-                }) => Some(*stack_byte_offset),
-                _ => None,
-            });
+    let outgoing_plan = match &operation.kind {
+        legalized_operations::LegalizedScalarInstructionKind::Call(call) => &call.call_plan,
+        legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+            &call.binding.boundary_entry_plan.call
+        }
+        _ => return Err(SelectedInstructionError::custody()),
+    };
+    let stack_base = target
+        .destination
+        .locations
+        .iter()
+        .filter_map(|location| match location {
+            ValueLocation::Stack {
+                stack_byte_offset, ..
+            } => Some(*stack_byte_offset),
+            _ => None,
+        })
+        .min();
+    let outgoing_offset = indirect.map(|(_, offset)| offset).or(stack_base);
     let outgoing = if let Some(stack_byte_offset) = outgoing_offset {
+        let byte_size = if indirect.is_some() {
+            target.shape.byte_size
+        } else {
+            target
+                .destination
+                .locations
+                .iter()
+                .filter_map(|location| match location {
+                    ValueLocation::Stack {
+                        stack_byte_offset,
+                        byte_size,
+                        ..
+                    } => Some(stack_byte_offset.checked_add(*byte_size)),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()
+                .and_then(|ends| ends.into_iter().max())
+                .and_then(|end| end.checked_sub(stack_byte_offset))
+                .ok_or_else(|| SelectedInstructionError::custody())?
+        };
         let slot = selected_instructions::OutgoingArgumentSlotId {
             operation: operation.operation,
             argument_index: argument_index
@@ -145,7 +176,7 @@ pub(super) fn argument(
             })
             .fold(target.shape.alignment, u16::max);
         let alignment = if indirect.is_some()
-            && source.call_plan.policy == calling_conventions::CallingPolicy::MicrosoftX64
+            && outgoing_plan.policy == calling_conventions::CallingPolicy::MicrosoftX64
         {
             alignment.max(16)
         } else {
@@ -156,7 +187,7 @@ pub(super) fn argument(
             .slots
             .push(selected_instructions::SelectedOutgoingArgumentSlot {
                 id: slot,
-                byte_size: target.shape.byte_size,
+                byte_size,
                 alignment,
                 abi_stack_byte_offset: stack_byte_offset,
             });
@@ -166,7 +197,7 @@ pub(super) fn argument(
             operation.operation,
             place,
             0,
-            target.shape.byte_size,
+            byte_size,
             SelectedMemoryAccessRole::AddressOutgoing { slot },
         )?;
         builder.emit(
@@ -190,7 +221,14 @@ pub(super) fn argument(
     let fragments = if indirect.is_some() {
         (0..target.shape.byte_size)
             .step_by(8)
-            .map(|offset| (offset, (target.shape.byte_size - offset).min(8)))
+            .map(|offset| {
+                (
+                    offset,
+                    (target.shape.byte_size - offset).min(8),
+                    None,
+                    Some(offset),
+                )
+            })
             .collect::<Vec<_>>()
     } else {
         target
@@ -199,20 +237,50 @@ pub(super) fn argument(
             .iter()
             .map(|location| match location {
                 ValueLocation::Register {
+                    register,
                     value_byte_offset,
                     byte_size,
+                } => Ok(vec![(
+                    *value_byte_offset,
+                    *byte_size,
+                    Some(*register),
+                    None,
+                )]),
+                ValueLocation::Stack {
+                    value_byte_offset,
+                    byte_size,
+                    stack_byte_offset,
                     ..
+                } => {
+                    let stack_offset = stack_byte_offset
+                        .checked_sub(stack_base.ok_or_else(|| SelectedInstructionError::custody())?)
+                        .ok_or_else(|| SelectedInstructionError::custody())?;
+                    (0..*byte_size)
+                        .step_by(8)
+                        .map(|offset| {
+                            Ok((
+                                value_byte_offset
+                                    .checked_add(offset)
+                                    .ok_or_else(|| SelectedInstructionError::custody())?,
+                                (*byte_size - offset).min(8),
+                                None,
+                                Some(
+                                    stack_offset
+                                        .checked_add(offset)
+                                        .ok_or_else(|| SelectedInstructionError::custody())?,
+                                ),
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, SelectedInstructionError>>()
                 }
-                | ValueLocation::Stack {
-                    value_byte_offset,
-                    byte_size,
-                    ..
-                } => Ok((*value_byte_offset, *byte_size)),
                 _ => Err(SelectedInstructionError::custody()),
             })
             .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
     };
-    for (value_byte_offset, byte_size) in fragments {
+    for (value_byte_offset, byte_size, register, stack_offset) in fragments {
         let offset = value_byte_offset;
         // Read the selected subtree at its root-relative offset, while the
         // callee's ABI fragments and outgoing copy remain zero-based.
@@ -246,18 +314,22 @@ pub(super) fn argument(
                 Default::default(),
             )?;
         }
-        if let Some((slot, address)) = outgoing {
+        if let Some(stack_offset) = stack_offset {
+            let (slot, address) = outgoing.ok_or_else(|| SelectedInstructionError::custody())?;
             outgoing_memory(
                 builder,
                 operation.operation,
                 place,
-                offset,
+                stack_offset,
                 byte_size,
                 SelectedMemoryAccessRole::WriteOutgoing { slot },
             )?;
-            super::aggregate_memory::store(builder, address, output, offset, byte_size)?;
+            super::aggregate_memory::store(builder, address, output, stack_offset, byte_size)?;
         } else {
-            registers.push(output);
+            let register = register.ok_or_else(|| SelectedInstructionError::custody())?;
+            registers.push(argument_register(
+                builder, place, offset, byte_size, register, output,
+            )?);
         }
     }
     if let Some((pointer_location, _)) = indirect {
@@ -317,6 +389,42 @@ pub(super) fn argument(
         }
     }
     Ok(registers)
+}
+
+/// Retained bytes enter an ABI floating bank only for its selected fragment.
+fn argument_register(
+    builder: &mut Builder<'_>,
+    place: semantic_vocabulary::PlaceId,
+    byte_offset: u32,
+    byte_size: u32,
+    register: calling_conventions::MachineRegister,
+    input: VirtualRegisterId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if !matches!(
+        register,
+        calling_conventions::MachineRegister::Aarch64V(_)
+            | calling_conventions::MachineRegister::X86Xmm(_)
+    ) {
+        return Ok(input);
+    }
+    let format = match byte_size {
+        4 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+        8 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+        _ => return Err(SelectedInstructionError::custody()),
+    };
+    let (kind, key) = crate::selection::scalar_call_abi::outgoing_float_transfer(
+        semantic_vocabulary::ScalarType::IeeeFloat(format),
+        &builder.constraints.keys,
+    )
+    .ok_or_else(|| SelectedInstructionError::custody())?;
+    let output = super::structural_case::register(builder, place, byte_offset, 64, false)?;
+    builder.registers[output.0 as usize].class = super::row(builder.catalog, key)?
+        .operands
+        .get(1)
+        .ok_or_else(|| SelectedInstructionError::custody())?
+        .class;
+    builder.emit(kind, key, &[input, output], Default::default())?;
+    Ok(output)
 }
 
 /// Outgoing ABI storage belongs to this call occurrence, not to a new source place.

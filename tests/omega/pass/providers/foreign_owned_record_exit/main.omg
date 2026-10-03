@@ -1,0 +1,52 @@
+// libc returns an IPv4 address record and consumes the same record by value.
+use omega::language::core::external_binding;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+pub data InternetAddress { address: u32; }
+
+pub boundary trait AddressParts {
+    machine make(network: u32, host: u32) -> InternetAddress;
+    machine host(address: InternetAddress) -> u32;
+}
+
+macos_arm64 machine make_binding() -> ForeignBinding<26, 14, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_makeaddr",
+        },
+    }
+}
+
+macos_arm64 machine host_binding() -> ForeignBinding<26, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_lnaof",
+        },
+    }
+}
+
+macos_arm64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via make_binding();
+macos_arm64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via host_binding();
+
+data Main {
+    foreign: Binding<AddressParts>;
+    console: Binding<Console>;
+}
+
+machine Main::main(main: &mut Main) reaches AddressParts + Console {
+    let first: InternetAddress = main.foreign.make(10, 66051);
+    let second: InternetAddress = main.foreign.make(44048, 513);
+    let first_host: u32 = main.foreign.host(first);
+    let second_host: u32 = main.foreign.host(second);
+    transition first_host == 66051 && second_host == 513 {
+        true -> passed(main)
+        _ -> failed(main)
+    }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
+}

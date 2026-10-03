@@ -129,7 +129,7 @@ pub(in crate::selection::validation::scalar_graph) fn borrowed_argument(
     place: semantic_vocabulary::PlaceId,
     address: crate::selection::reference_input::BorrowedReferenceAddress,
 ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
-    let mut pointer = super::call_pointer(replay, row, place, 0)?;
+    let mut pointer = super::place_pointer(replay, row, place, 0)?;
     for offset in address.descriptor_offsets {
         let home = result(replay, place, offset)?;
         replay.check_instruction(
