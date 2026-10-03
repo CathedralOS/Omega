@@ -1,80 +1,49 @@
 // Digital root: repeatedly sum a number's decimal digits until a single digit
 // remains. For 12345 -> 1+2+3+4+5 = 15 -> 1+5 = 6. (It equals 1 + (n-1) mod 9, the
-// basis of casting out nines.) Showcases NESTED self-transition loops -- an outer
+// basis of casting out nines.) Showcases nested state-transition loops -- an outer
 // loop that repeats while the value has more than one digit, and an inner loop
-// that sums the digits via `% 10` (last digit) and `/ 10` (drop it). No `let`
-// local crosses a field reassignment, so the digit accumulation writes fields
-// directly.
+// that sums the digits via `% 10` (last digit) and `/ 10` (drop it). Each state
+// receives only the values it needs; the intermediate digits are local values.
 // Expected exit: 6.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
-// Wrapping DECLARED: nested-field reads (main.state.n) carry no range facts
-// yet, so the digit fold `sum + n % 10` cannot prove its bounds even though the
-// real values stay tiny (max 45 for a 5-digit seed).
-data Roots [copy] {
-    n: i32 in Wrapping;
-    sum: i32 in Wrapping;
-}
-
-data Main {
-    console: Binding<Console>;
-    state: Roots;
-    pause: [u8; 256];
-}
-
-machine Main::main(main: &mut Main) reaches Console {
-    main.console.write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
-    main.state.n = 12345;
+machine main() reaches Console {
+    Console::write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
 
     transition {
-        _ -> collapse(main)
+        _ -> collapse(12345)
     }
 
-    // Outer loop: stop once n is a single digit, else sum its digits.
-    state collapse(main: &mut Main) {
-        transition main.state.n < 10 {
-            true -> done(main)
-            _ -> begin_sum(main)
-        }
-    }
-
-    state begin_sum(main: &mut Main) {
-        main.state.sum = 0;
-        transition {
-            _ -> digits(main)
+    // Outer loop: stop once the value is a single digit, else sum its digits.
+    state collapse(value: i32 in Wrapping) {
+        transition value < 10 {
+            true -> done(value)
+            _ -> digits(value, 0)
         }
     }
 
     // Inner loop: peel off decimal digits, adding each to the running sum.
-    state digits(main: &mut Main) {
-        transition main.state.n == 0 {
-            true -> fold_in(main)
-            _ -> add_digit(main)
+    state digits(value: i32 in Wrapping, sum: i32 in Wrapping) {
+        transition value == 0 {
+            true -> collapse(sum)
+            _ -> add_digit(value, sum)
         }
     }
 
-    state add_digit(main: &mut Main) {
-        main.state.sum = main.state.sum + main.state.n % 10;
-        main.state.n = main.state.n / 10;
+    state add_digit(value: i32 in Wrapping, sum: i32 in Wrapping) {
+        let next_sum: i32 in Wrapping = sum + value % 10;
+        let remaining: i32 in Wrapping = value / 10;
         transition {
-            _ -> digits(main)
+            _ -> digits(remaining, next_sum)
         }
     }
 
-    // The digit sum becomes the new value; loop until it is a single digit.
-    state fold_in(main: &mut Main) {
-        main.state.n = main.state.sum;
-        transition {
-            _ -> collapse(main)
-        }
-    }
-
-    state done(main: &mut Main) {
-        main.console.write_line("result: the digital root, 6 for 12345 (the exit code)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(main.state.n as i32);
+    state done(result: i32 in Wrapping) {
+        Console::write_line("result: the digital root, 6 for 12345 (the exit code)");
+        Console::write_line("[press Enter to close]");
+        let mut pause: [u8; 256];
+        _ = block Console::read_line(&mut pause);
+        Console::exit_process(result as i32);
     }
 }
