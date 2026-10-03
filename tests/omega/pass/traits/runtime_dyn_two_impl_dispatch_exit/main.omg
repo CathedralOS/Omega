@@ -1,5 +1,5 @@
 // Multi-conformance `dyn Trait` dispatch via call-site monomorphization. The
-// call `s.code()` retains one exact row candidate per complete conformance,
+// call `Shape::code(s)` retains one exact row candidate per complete conformance,
 // and each call site's receiver type picks the conformance:
 // dispatch(&mut self.c) runs Circle::code() == 9, dispatch(&mut self.q) runs
 // Square::code() == 4, so n == 9 * 10 + 4 == 94 -> exit 70. (Pre-fix the dyn
@@ -9,7 +9,7 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 trait Shape {
-    machine code(&mut self) -> i32;
+    machine code(subject: &mut Self) -> i32;
 }
 
 data Circle {}
@@ -60,5 +60,5 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 machine Main::dispatch(s: &mut dyn Shape) -> i32 {
-    s.code()
+    Shape::code(s)
 }

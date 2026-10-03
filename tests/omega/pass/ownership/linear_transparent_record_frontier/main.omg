@@ -9,7 +9,7 @@ data Receipt [linear] {
 
 // Hook-less linear obligation: the declared consuming contract is the
 // authorized terminal disposition.
-boundary requirement Receipt::ack(self);
+boundary requirement Receipt::ack(receipt: Receipt);
 
 data Pair {
     left: Receipt;
