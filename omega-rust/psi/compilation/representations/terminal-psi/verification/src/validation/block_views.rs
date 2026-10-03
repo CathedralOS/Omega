@@ -501,16 +501,26 @@ pub(super) fn validate_successor(
             // owned edge transfers that value regardless of aggregate syntax.
             // A verified copy may also own descriptor storage while retaining
             // its source loan lineage; it does not own the borrowed referent.
+            // An aggregate may likewise own explicitly shared byte descriptor
+            // slots without owning their backing. Edge loan replay retains that
+            // backing inside this machine; external escape is checked at return.
             // The frontier separately consumes any affine obligation.
             available.contains(&argument.place)
                 && (super::structural::result_contracts::has_plain_owned_shape(
                     module,
                     expected.structural_type,
-                ) || super::structural::leaf_copy::copied_result_source(
-                    machine,
+                ) || (terminal_semantics::descriptor_results::aggregate_descriptor_slots(
+                    &module.structural_types,
                     argument.place,
+                    expected.structural_type,
                 )
-                .is_some())
+                .is_some_and(|slots| !slots.is_empty())
+                    && terminal_semantics::descriptor_results::owned_shared_byte_descriptor_shape(
+                        module.structural_types.iter(),
+                        expected.structural_type,
+                    ))
+                    || super::structural::leaf_copy::copied_result_source(machine, argument.place)
+                        .is_some())
                 && machine.blocks.iter().any(|block| {
                     dominators.dominates(block.id, source_block)
                         && block.operations.iter().any(|operation| {

@@ -1606,3 +1606,99 @@ fn projected_constructor_block_parameter_custody_survives_staging_edges() {
         "surviving partial custody cannot escape final return"
     );
 }
+
+#[test]
+fn constructed_shared_descriptor_aggregate_keeps_custody_across_successor() {
+    for case in [false, true] {
+        let mut module = projected_constructor_module(case, true);
+        let caller = &mut module.machines[0];
+        let mut successor = caller.blocks[0].clone();
+        successor.id = block_id(3);
+        successor.operations.clear();
+        let mut parameter = caller.structural_parameters[0].clone();
+        parameter.place = place_id(7);
+        parameter.structural_type = structural_type_id(4);
+        successor.structural_parameters = vec![parameter];
+        successor.terminator = Terminator::ReturnUnit {
+            edge: edge_id(3),
+            trivial_affine_discards: vec![place_id(7)],
+        };
+        let Terminator::ReturnUnitPartialAffine {
+            residual_affine_discards,
+            ..
+        } = &caller.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        let residuals = residual_affine_discards.clone();
+        caller.blocks[0].terminator = Terminator::Jump {
+            edge: edge_id(1),
+            target: block_id(3),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(4),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: residuals,
+        };
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: place_id(7),
+            kind: StructuralPlaceKind::BlockParameter {
+                block: block_id(3),
+                position: 0,
+            },
+        });
+        caller.blocks.push(successor);
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("a constructed aggregate forwards its owned carrier and retained shared slots");
+
+        let mut wrong_access = module.clone();
+        let Terminator::Jump {
+            structural_arguments,
+            ..
+        } = &mut wrong_access.machines[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].access = StructuralAccess::SharedBorrow;
+        assert!(
+            validate_module(&wrong_access).is_err(),
+            "a borrowed carrier cannot supply owned arrival custody"
+        );
+
+        let mut wrong_type = module.clone();
+        wrong_type.machines[0].blocks[1].structural_parameters[0].structural_type =
+            structural_type_id(1);
+        assert!(
+            validate_module(&wrong_type).is_err(),
+            "carrier geometry does not replace exact result identity"
+        );
+
+        for access in [None, Some(StructuralAccess::MutableBorrow)] {
+            let mut changed = module.clone();
+            let child = changed
+                .structural_types
+                .iter_mut()
+                .find(|row| row.id == structural_type_id(5))
+                .unwrap();
+            let terminal_psi::StructuralTypeShape::Record { fields } = &mut child.shape else {
+                unreachable!()
+            };
+            fields[0].field_type = terminal_psi::StructuralFieldType::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+            );
+            assert!(
+                validate_module(&changed).is_err(),
+                "shared carrier admission requires explicit shared slot access"
+            );
+        }
+    }
+}
