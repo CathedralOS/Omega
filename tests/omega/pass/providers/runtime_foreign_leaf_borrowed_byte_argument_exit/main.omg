@@ -33,7 +33,7 @@ pub data Words {
 }
 
 pub boundary trait Measure {
-    machine measure(&mut self, text: &u8, words: &Words) -> i32 invokes CText;
+    machine measure(text: &u8, words: &Words) -> i32 invokes CText;
 }
 
 data MeasureProvider {}
@@ -42,7 +42,7 @@ macos_arm64 machine MeasureProvider::provider_defaults(defaults: &mut MeasurePro
     defaults.select_provider<Measure, MeasureProvider>();
 }
 
-macos_arm64 machine MeasureProvider::measure(provider: &mut MeasureProvider, text: &u8, words: &Words) -> i32 satisfies Measure::measure
+macos_arm64 machine MeasureProvider::measure(text: &u8, words: &Words) -> i32 satisfies Measure::measure
 reaches CText
 {
     let forwarded: u64 = c_strlen(text);
