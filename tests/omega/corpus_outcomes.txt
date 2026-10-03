@@ -9,6 +9,8 @@
 # context: {"cpus": 14, "jobs": null, "load1_end": 7.52, "load1_start": 7.91, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
+fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 123ms expected @229377b75447
+	partial exact division in array literal element of type `i64`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
 	exact arithmetic in machine `subtract` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `subtract` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -24,6 +26,8 @@ fail/arithmetic/complement_nested_overflow rejected 257ms expected @2d8ed253669f
 	exact arithmetic in machine `run` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/construction_payload_out_of_range rejected 282ms expected @2d8ed253669f
 	construction of `Slot` field `index`: value 9999 is outside its declared range `0..=15`
+fail/arithmetic/constructor_divisor_requires_nonzero rejected 123ms expected @229377b75447
+	partial exact division in construction of `QuotientBox` field `value`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/divide_by_zero_rejected rejected 168ms expected @2d8ed253669f
 	anonymous division by zero has no exact numeric value
 fail/arithmetic/exact_aggregate_divisor_unproven rejected 105ms expected @76b36d70b850+wt
@@ -68,6 +72,8 @@ fail/arithmetic/implicit_store_conversion_rejected rejected 216ms expected @2d8e
 	store in machine `Main::main` state `main` assignment implicitly converts `u32` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/arithmetic/implicit_store_widening_rejected rejected 277ms expected @2d8ed253669f
 	store in machine `Main::main` state `main` assignment implicitly converts `u8` to `u16`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u16`)
+fail/arithmetic/match_constructor_divisor_requires_nonzero rejected 123ms expected @229377b75447
+	partial exact division in construction of `QuotientBox` field `value`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/modulo_by_zero_rejected rejected 298ms expected @2d8ed253669f
 	remainder by zero in machine `Main::main` state `main` local `x`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/arithmetic/narrowing_anonymous_expression_unproven rejected 299ms expected @2d8ed253669f

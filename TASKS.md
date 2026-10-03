@@ -3368,8 +3368,10 @@ unchanged, except for intended deletions, which its commit lists.
   `omega --check tests/omega/fail/layouts/recast_integer_at_store_requires_fit/main.omg`
   rejects 128 into signed eight-bit storage at checking. On macOS ARM64,
   `omega run --both tests/omega/pass/layouts/runtime_plan_laid_integer_at_proved_write_exit/main.omg`
-  produced the authored native/interpreter exit 72 before synchronization onto
-  `d9720a4fa4`; runtime validation of the combined candidate remains pending.
+  produced the authored native/interpreter exit 72 after synchronization onto
+  `d9720a4fa4`. Both upstream terminal guard/operand-order fixtures also run
+  with exit 0 in both engines. The six-fixture constructor/match/storage check
+  retains all expected outcomes; three new constructor failures are recorded.
 
   Remaining: discharge every callee write and retain/consume all other operation
   decisions before deleting any late gate. Existing mutation summaries retain
