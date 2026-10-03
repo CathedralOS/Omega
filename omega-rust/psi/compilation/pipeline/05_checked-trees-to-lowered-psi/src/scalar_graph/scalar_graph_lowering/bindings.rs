@@ -640,6 +640,7 @@ fn prepare_operation(
             operation,
             bindings,
             value_types,
+            types,
         )?))
     }
 }

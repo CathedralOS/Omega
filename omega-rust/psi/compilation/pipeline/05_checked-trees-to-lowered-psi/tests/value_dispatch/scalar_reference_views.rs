@@ -112,3 +112,58 @@ fn scalar_reference_calls_reject_removed_source_projection() {
         .is_err()
     );
 }
+
+#[test]
+fn scalar_reference_calls_share_one_home_across_different_viewed_carriers() {
+    let source = "machine read_unsigned(value: &u32) -> u32 { value }
+        machine read_signed(value: &i32) -> i32 { value }
+        machine choose(value: f32) -> bool {
+            let first: &u32 = &value as &u32;
+            let second: &i32 = &value as &i32;
+            let unsigned: u32 = read_unsigned(first);
+            let signed: i32 = read_signed(second);
+            unsigned == 2147483648 && signed == -2147483648
+        }";
+    let (module, execution) = super::execute(
+        source,
+        &[TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(
+            0x8000_0000,
+        ))],
+    );
+    assert_eq!(
+        execution.value(),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+    );
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let homes = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishPrimitiveLocal { .. }
+            )
+        })
+        .map(|operation| operation.result.structural().unwrap().place)
+        .collect::<Vec<_>>();
+    assert_eq!(homes.len(), 1);
+    let sources = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::EstablishReference { source } => Some(source.place),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        sources,
+        [homes[0], homes[0]],
+        "both views keep the original ingress backing"
+    );
+}

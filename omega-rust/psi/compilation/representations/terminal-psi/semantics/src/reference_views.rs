@@ -67,14 +67,14 @@ pub fn scalar_reference_view_value(
             integer_bits(source, value)?,
         )));
     }
-    ScalarRepresentationViewPair::classify(source, target)?.evaluate(value)
+    ScalarRepresentationViewPair::classify(source, target)?.view(value)
 }
 
 /// Reconstruct one reference's source-to-observation representation contract.
 /// `reference` names the result carrier, not its referent. Callers independently
 /// validate source access, exact occurrence, qualifications and live backing.
 pub fn reference_source_compatible<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    mut types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     source: StructuralTypeId,
     reference: StructuralTypeId,
 ) -> bool {
