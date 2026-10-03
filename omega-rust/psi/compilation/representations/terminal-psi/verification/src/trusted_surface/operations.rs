@@ -177,7 +177,7 @@ const NO_FACT_SITES: &[&str] = &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS];
 
 static OP_ESTABLISH_REFERENCE: TrustedSurfaceEntry = entry(
     "operation:establish-reference",
-    "a validated source place whose authority covers the declared reference access; exact referent identity or an independently reconstructed total shared primitive representation view preserves the original backing, never a copied scalar; every Case/Field ingress projection retains its original root and proves each case active before formation",
+    "a validated source place whose authority covers the declared reference access; exact referent identity or an independently reconstructed total shared primitive representation view preserves the original backing, never a copied scalar; overlapping formations must all be shared, and each carrier retains its own identity until the entire cohort ends before a source write; every Case/Field ingress projection retains its original root and proves each case active before formation",
     "the reference-establishment observation publishes no scalar equation; Case premises are checked before invalidation, and mutable record formation retires source-root observations because later writes can use a different carrier identity; release restores permission, not prior contents",
     &[
         "fact:structural-effect-observation",
