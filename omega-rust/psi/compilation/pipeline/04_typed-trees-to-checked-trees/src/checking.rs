@@ -149,9 +149,14 @@ pub fn lower_typed_trees(
         mode: request.mode,
         opaque_property_receipts: request.opaque_property_receipts.to_vec(),
     };
-    let checked = exact_input_memo::checked(program, key, |program| {
+    let shared_judgment = exact_input_memo::checked(program, key, |program| {
         lower_typed_trees_uncached(program, &request)
-    })?;
+    });
+    // The memo hands back a share of the one judgment it holds. This caller
+    // owns what it returns, so it takes custody here: the share is the only
+    // one outstanding when the memo retained nothing, and the copy happens
+    // once at this boundary otherwise.
+    let checked = std::sync::Arc::unwrap_or_clone(shared_judgment)?;
     // Package authority is invocation-owned, not part of the cached language
     // judgment. Always admit the returned selections under the current caller's
     // authority, including when an identical typed program hits the memo.
@@ -166,8 +171,11 @@ pub fn lower_typed_trees(
     Ok(checked)
 }
 
+/// The check itself, over a program the exact-input memo may also be
+/// retaining. Custody is taken at the first mutation below: a program nothing
+/// retains is checked in place, and a retained one is copied exactly once.
 fn lower_typed_trees_uncached(
-    program: typed_trees::TypedTrees,
+    program: std::sync::Arc<typed_trees::TypedTrees>,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let CheckingRequest {
@@ -193,7 +201,7 @@ fn lower_typed_trees_uncached(
     // concrete machine here. Validation permits unused template bodies but the
     // generic-value-call fence still rejects any emitted concrete caller whose
     // callee remains generic (an incomplete specialization).
-    let mut program = program;
+    let mut program = std::sync::Arc::unwrap_or_clone(program);
     // Projected statement receivers retain their lexical root before their
     // field endpoint is known. Resolve both call forms before specialization
     // and effect inference, not only when finalizing authored selections.

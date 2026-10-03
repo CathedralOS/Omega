@@ -2583,14 +2583,23 @@ same flow already performed, not the check itself.
   command output plus the check corpus are unchanged.
 
 - **CHECK-MEMO-PROGRAM-CLONES.** (new-scope) Stage 04's
-  `checking/exact_input_memo.rs` deep-copies whole programs. A miss clones
-  the input `TypedTrees` (`let retained = program.clone()`) and the result
-  (`result: result.clone()`). A hit clones the stored result.
-  `programs_equal_for_check` clones two programs to clear one field before
-  comparing them. Retain shared `Arc` values and compare without clearing
-  copies. Acceptance: `exact_input_memo.rs` contains no `TypedTrees` or
-  checked-result `.clone()`, and memo hit/miss counts on
-  `python tools/corpus_gate.py --filter providers/` are unchanged.
+  `pipeline/04_typed-trees-to-checked-trees/src/checking/exact_input_memo.rs`
+  now retains `Arc<TypedTrees>` and `Arc<Result<CheckedTrees, _>>`, compares
+  programs field by field under an exhaustive pattern instead of clearing one
+  field on two whole-program copies, and hands its caller the retained share;
+  `lower_typed_trees` takes custody once. One copy is left, where a settled
+  request is served a preliminary judgment: the served judgment carries the
+  settled program's `boundary_calling_plans` while the retained preliminary
+  judgment must keep the identities its own checkpoint stamped, so that path
+  materializes its own `CheckedTrees` (`Result::clone(&entry.result)`).
+  Removing it needs the masked field to leave `CheckedTrees.typed` -- a
+  representations-owned change -- because the alternative moves the masking
+  rule into `lower_typed_trees` and splits the memo's contract across two
+  files. Acceptance: the masked field no longer travels inside the retained
+  judgment, and memo hit/miss counts over `--filter providers/` stay at 37
+  hits, 4 preliminary hits and 63 misses (`OMEGA_CORPUS_JOBS=1
+  OMEGA_LOWER_MEMO=1` on the corpus runner; the default parallel job count
+  makes the counts order-dependent).
 
 - **LOWERING-NOMINAL-RETURN-CLONE.** (new-scope) Stage 05's
   `returns/structural_scalar_return/nominal.rs` (`let mut staged =
