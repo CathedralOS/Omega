@@ -35,13 +35,16 @@ pub(crate) fn shared_boolean_runtime_parameters(
             source,
             path,
             field,
-        } => Some(BTreeSet::from([
-            SharedBooleanRuntimeInput::StructuralField {
-                source: *source,
-                path: path.clone(),
-                field: *field,
-            },
-        ])),
+        } => {
+            let (source, path) = source.field_origin(path);
+            Some(BTreeSet::from([
+                SharedBooleanRuntimeInput::StructuralField {
+                    source,
+                    path,
+                    field: *field,
+                },
+            ]))
+        }
         LoweredBooleanReturnExpression::Not { operand } => {
             shared_boolean_runtime_parameters(operand)
         }

@@ -13,7 +13,7 @@ fn integer(sign: IntegerSign, bits: u16) -> ScalarType {
 
 fn field_read(scalar_type: ScalarType) -> LoweredDirectExpression {
     LoweredDirectExpression::StructuralField {
-        source: PlaceId::new(41).unwrap(),
+        source: PlaceId::new(41).unwrap().into(),
         path: Vec::new(),
         field: StructuralFieldId::new(7).unwrap(),
         scalar_type,

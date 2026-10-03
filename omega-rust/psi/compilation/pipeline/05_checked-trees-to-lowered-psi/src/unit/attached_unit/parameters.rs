@@ -1390,7 +1390,7 @@ pub(crate) fn mint_runtime_index_selectors(
             }
             values.push(emit_direct_expression(
                 &LoweredDirectExpression::StructuralField {
-                    source,
+                    source: source.into(),
                     path,
                     field: leaf,
                     scalar_type,

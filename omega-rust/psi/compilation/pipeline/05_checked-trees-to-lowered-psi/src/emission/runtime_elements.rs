@@ -177,7 +177,7 @@ pub(crate) fn evaluate_selectors(
                 }
                 let index = super::emit_direct_expression(
                     &LoweredDirectExpression::StructuralField {
-                        source,
+                        source: source.into(),
                         path,
                         field,
                         scalar_type,

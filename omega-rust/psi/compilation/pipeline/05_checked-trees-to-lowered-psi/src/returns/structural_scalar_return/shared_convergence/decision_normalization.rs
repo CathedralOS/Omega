@@ -53,7 +53,7 @@ pub(crate) fn resolve_shared_boolean_member_fields(
                     "shared Boolean member is absent, erased, or non-Boolean",
                 ))?;
             LoweredBooleanReturnExpression::StructuralField {
-                source: parameter.place,
+                source: parameter.place.into(),
                 path: Vec::new(),
                 field: field.id,
             }

@@ -1,0 +1,28 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Leaf { enabled: bool; }
+data Pair { left: Leaf; right: Leaf; }
+data Reply { case Empty; case Full(payload: Pair); }
+data Main { console: Binding<Console>; }
+
+machine selected(subject: &Reply) -> bool {
+    transition subject {
+        Reply::Full { payload } -> (payload.left.enabled && !payload.right.enabled)
+        Reply::Empty -> (false)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let present: Reply = Reply::Full {
+        payload: Pair { left: Leaf { enabled: true }, right: Leaf { enabled: false } }
+    };
+    let absent: Reply = Reply::Empty;
+    let first: bool = selected(&present);
+    let second: bool = selected(&absent);
+    transition first && !second {
+        true -> finish(main, 70)
+        false -> finish(main, 71)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

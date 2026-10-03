@@ -21,7 +21,6 @@ use crate::expression_preparation::{
     PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeId, unsupported,
 };
-use semantic_vocabulary::CanonicalStructuralPathSegment;
 
 pub(crate) fn lower_checked_scalar_expression_at(
     checked: &CheckedTrees,
@@ -315,10 +314,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         path,
                         scalar_type,
                     )? {
-                        CasePayloadRead::Deferred { source, case, field } => {
+                        CasePayloadRead::Observation { source, path, field } => {
                             LoweredDirectExpression::StructuralField {
                                 source,
-                                path: vec![CanonicalStructuralPathSegment::Case(case)],
+                                path,
                                 field,
                                 scalar_type,
                             }
@@ -360,7 +359,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     scalar_type,
                 )?;
             Ok(LoweredDirectExpression::StructuralField {
-                source,
+                source: source.into(),
                 path,
                 field,
                 scalar_type,
@@ -1215,10 +1214,10 @@ fn lower_checked_boolean_expression_with_parameters(
                         path,
                         ScalarType::Boolean,
                     )? {
-                        CasePayloadRead::Deferred { source, case, field } => {
+                        CasePayloadRead::Observation { source, path, field } => {
                             LoweredBooleanReturnExpression::StructuralField {
                                 source,
-                                path: vec![CanonicalStructuralPathSegment::Case(case)],
+                                path,
                                 field,
                             }
                         }
@@ -1253,7 +1252,7 @@ fn lower_checked_boolean_expression_with_parameters(
                         ScalarType::Boolean,
                     )?;
                 return Ok(LoweredBooleanReturnExpression::StructuralField {
-                    source,
+                    source: source.into(),
                     path,
                     field,
                 });
@@ -1597,7 +1596,7 @@ fn element_path_runtime_selector(
                 return unsupported("element path runtime selector is not an integer read");
             }
             Ok(LoweredDirectExpression::StructuralField {
-                source,
+                source: source.into(),
                 path,
                 field,
                 scalar_type,
