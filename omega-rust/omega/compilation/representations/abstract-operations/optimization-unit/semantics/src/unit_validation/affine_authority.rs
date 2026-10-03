@@ -146,46 +146,64 @@ fn valid_edge_partial_affine_transition(
     discards: &[PlaceId],
     residuals: &[terminal_psi::StructuralAffineDiscard],
 ) -> bool {
-    let Some(first) = residuals.first() else {
+    if residuals.is_empty() {
         return valid_edge_affine_transition(function, entry, exit, discards);
-    };
-    let root = first.place;
-    let Some(custody) = entry
-        .partial_custody
-        .iter()
-        .find(|custody| custody.place == root)
-    else {
-        return false;
-    };
-    let moved = custody.moved_paths.iter().cloned().collect::<BTreeSet<_>>();
-    if !discards.is_empty()
-        || moved.len() != custody.moved_paths.len()
-        || entry.claims != exit.claims
-        || entry.claims.iter().any(|claim| claim.input == Some(root))
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == root)
-        || !entry.owned_places.iter().any(|owned| {
-            owned.place == root
-                && owned.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        })
-        || !crate::current_ownership::valid_partial_continuation_complement(
-            function,
-            structural_types,
-            root,
-            &moved,
-            residuals,
-        )
-    {
-        return false;
     }
-    let mut expected = entry.clone();
-    expected.owned_places.retain(|owned| owned.place != root);
-    expected
+    let mut roots = Vec::new();
+    let mut remaining = residuals;
+    while let Some(first) = remaining.first() {
+        let root = first.place;
+        let group_length = remaining
+            .iter()
+            .take_while(|discard| discard.place == root)
+            .count();
+        let (group, rest) = remaining.split_at(group_length);
+        let Some(custody) = entry
+            .partial_custody
+            .iter()
+            .find(|custody| custody.place == root)
+        else {
+            return false;
+        };
+        let moved = custody.moved_paths.iter().cloned().collect::<BTreeSet<_>>();
+        if roots.contains(&root)
+            || discards.contains(&root)
+            || moved.len() != custody.moved_paths.len()
+            || entry.claims.iter().any(|claim| claim.input == Some(root))
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == root)
+            || !entry.owned_places.iter().any(|owned| {
+                owned.place == root
+                    && owned.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            })
+            || !crate::current_ownership::valid_partial_continuation_complement(
+                function,
+                structural_types,
+                root,
+                &moved,
+                group,
+            )
+        {
+            return false;
+        }
+        roots.push(root);
+        remaining = rest;
+    }
+    // Each removed partial row has just been authenticated by its exact moved
+    // paths and full complement. Reuse ordinary disposal ordering for the
+    // carrier roots, then independently replay the whole-root transaction.
+    let mut complete = entry.clone();
+    complete
         .partial_custody
-        .retain(|custody| custody.place != root);
-    expected == *exit
+        .retain(|custody| !roots.contains(&custody.place));
+    let mut after_residuals = complete.clone();
+    after_residuals
+        .owned_places
+        .retain(|owned| !roots.contains(&owned.place));
+    valid_edge_affine_transition(function, &complete, &after_residuals, &roots)
+        && valid_edge_affine_transition(function, &after_residuals, exit, discards)
 }
 
 pub(crate) fn valid_edge_affine_transition(

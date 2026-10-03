@@ -3,81 +3,13 @@ use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
 use crate::current_ownership::residuals::partial_affine_residuals;
 use crate::current_ownership::structural::partial_affine_root_type;
-use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
-use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeDeclaration,
 };
-
-pub(super) fn validate_partial_continuation_roster(
-    function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    block: &OptimizationBlock,
-    trivial_discards: &[PlaceId],
-    residuals: &[StructuralAffineDiscard],
-) -> Result<(), OptimizationUnitValidationError> {
-    let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
-        machine: function.machine,
-        block: block.id,
-    };
-    let mut root = None;
-    let mut moved = BTreeSet::new();
-    for node in &block.nodes {
-        let call_arguments = match &node.operation {
-            O::CallStructural {
-                structural_arguments,
-                dynamic_arguments,
-                result: AbstractStructuralCallResult::Unit,
-                ..
-            } if dynamic_arguments.is_empty() => structural_arguments.as_slice(),
-            _ => &[],
-        };
-        for argument in call_arguments
-            .iter()
-            .chain(super::structural::constructor_arguments(&node.operation))
-        {
-            if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
-                continue;
-            }
-            let Some(root_type) = partial_affine_root_type(function, argument.place) else {
-                continue;
-            };
-            if root.is_some_and(|previous| previous != (argument.place, root_type))
-                || !moved.insert(argument.path.clone())
-            {
-                return Err(mismatch());
-            }
-            root = Some((argument.place, root_type));
-        }
-    }
-    let Some((root, root_type)) = root else {
-        return if residuals.is_empty() {
-            Ok(())
-        } else {
-            Err(mismatch())
-        };
-    };
-    let expected = partial_affine_residuals(structural_types, root_type, &moved, residuals.len())
-        .ok_or_else(mismatch)?;
-    if !trivial_discards.is_empty()
-        || expected.len() != residuals.len()
-        || residuals
-            .iter()
-            .zip(expected)
-            .any(|(actual, (path, structural_type))| {
-                actual.place != root
-                    || actual.path != path
-                    || actual.structural_type != structural_type
-            })
-    {
-        return Err(mismatch());
-    }
-    Ok(())
-}
 
 pub(crate) fn valid_partial_continuation_complement(
     function: &PsiOptimizationFunction,
@@ -119,13 +51,25 @@ pub(super) fn apply_edge_partial_affine_discards(
         machine: function.machine,
         block,
     };
-    if let Some(first) = residuals.first() {
+    if residuals.is_empty() {
+        return Ok(());
+    }
+    let mut eligible =
+        super::mutations::expected_trivial_affine_discards(function, frontier).into_iter();
+    let mut remaining = residuals;
+    while let Some(first) = remaining.first() {
         let root = first.place;
+        let group_length = remaining
+            .iter()
+            .take_while(|discard| discard.place == root)
+            .count();
+        let (group, rest) = remaining.split_at(group_length);
         let moved = frontier
             .partial_custody_paths
             .get(&root)
             .ok_or_else(mismatch)?;
-        if !trivial_discards.is_empty()
+        if trivial_discards.contains(&root)
+            || !eligible.any(|place| place == root)
             || frontier.owned_places.get(&root) != Some(&StructuralMultiplicity::Affine)
             || frontier
                 .claims
@@ -140,22 +84,17 @@ pub(super) fn apply_edge_partial_affine_discards(
                 structural_types,
                 root,
                 moved,
-                residuals,
+                group,
             )
         {
             return Err(mismatch());
         }
         frontier.partial_custody_paths.remove(&root);
         frontier.owned_places.remove(&root);
+        remaining = rest;
     }
-    // Empty complements have already retired at the projected call. Linear
-    // partial custody remains live across ordinary edges under its old rules.
-    if frontier
-        .partial_custody_paths
-        .keys()
-        .any(|root| partial_affine_root_type(function, *root).is_some())
-    {
-        return Err(mismatch());
-    }
+    // A partial owner may remain live across internal edges. Only explicit
+    // disposal consumes its complement; successor joins compare the complete
+    // carried frontier and later uses retain the same moved-path exclusions.
     Ok(())
 }
