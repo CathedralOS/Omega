@@ -193,6 +193,7 @@ pub(super) fn operation(
                         if retained == psi_edge && match home {
                             target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                             target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
+                            target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => *place == *source,
                         } && super::control_flow::cleanup_matches(cleanup_actions, trivial_affine_discards))).count() == 1
                 && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                     SelectedTerminator::Return { psi_return_edge, instruction }

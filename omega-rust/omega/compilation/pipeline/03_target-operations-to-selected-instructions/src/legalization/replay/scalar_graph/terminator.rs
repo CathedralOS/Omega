@@ -95,6 +95,18 @@ pub(super) fn validate(
             };
             match (&returned.value, source) {
                 (
+                    LegalizedScalarReturnValue::SharedDescriptor { place },
+                    AbstractOperation::ReturnStructural {
+                        psi_edge, source, ..
+                    },
+                ) if returned.edge == *psi_edge
+                    && place == source
+                    && scalar_graph_input::byte_views::shared_return(
+                        function,
+                        *source,
+                        &plan.structural_types,
+                    ) => {}
+                (
                     LegalizedScalarReturnValue::StructuralParameter { place },
                     AbstractOperation::ReturnStructural {
                         psi_edge, source, ..

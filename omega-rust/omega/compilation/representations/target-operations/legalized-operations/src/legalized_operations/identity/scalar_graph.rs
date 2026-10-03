@@ -1135,6 +1135,10 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     bytes.push(3);
                     bytes.extend_from_slice(&place.get().to_le_bytes());
                 }
+                LegalizedScalarReturnValue::SharedDescriptor { place } => {
+                    bytes.push(4);
+                    bytes.extend_from_slice(&place.get().to_le_bytes());
+                }
                 LegalizedScalarReturnValue::Structural { source } => {
                     bytes.push(2);
                     encode_structural_source(bytes, source);

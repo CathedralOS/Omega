@@ -26,7 +26,8 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 legalized_operations::LegalizedScalarTerminator::Return(returned)
                 | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { returned, .. } => matches!(
                     returned.value,
-                    legalized_operations::LegalizedScalarReturnValue::StructuralParameter { place: returned } if returned == place
+                    legalized_operations::LegalizedScalarReturnValue::StructuralParameter { place: returned }
+                    | legalized_operations::LegalizedScalarReturnValue::SharedDescriptor { place: returned } if returned == place
                 ),
                 _ => false,
             }

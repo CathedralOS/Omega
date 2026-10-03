@@ -8,6 +8,72 @@ use checked_trees::{
 use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
 
 #[test]
+fn shared_descriptor_arguments_rejoin_call_access_without_literal_recognition() {
+    for initializer in ["(\"hello\")", "label()"] {
+        let checked = checked_program(&format!(
+            r#"
+            machine label() -> &[u8] {{ ("hello") }}
+            machine observe(bytes: &[u8]) {{ let length: u64 = bytes.len; }}
+            machine main() {{
+                let view: &[u8] = {initializer};
+                observe(view);
+            }}
+            "#,
+        ));
+        let machine = machine_named(&checked, "main");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{initializer}: {:?}",
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(machine)
+                )
+            });
+        let state = checked
+            .facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+            .expect("caller borrow state");
+        let call = checked
+            .facts
+            .borrow
+            .calls
+            .span_or_empty(state.calls)
+            .iter()
+            .find(|call| call.statement_index == 1)
+            .expect("observation call");
+        let mut forged = checked.facts.clone();
+        forged
+            .borrow
+            .argument_accesses
+            .get_mut(call.accesses.start())
+            .root_symbol = symbols::SymbolHandle::invalid();
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &checked.typed,
+            &forged,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &forged.flow.terminal_boundary_scalar_returns,
+                structural_returns: &forged.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            rebuilt.for_machine(machine).is_none(),
+            "{initializer}: a substituted call access must not authorize the descriptor"
+        );
+    }
+}
+
+#[test]
 fn exclusive_whole_local_loans_use_captured_access_not_binding_mutability() {
     // Write-only formation separately requires a mutable-authority root.
     // A mutable loan of owned local storage does not require rebinding it.

@@ -352,6 +352,87 @@ pub(super) fn call_result<'a>(
     Some((result, placement))
 }
 
+/// Descriptor values use the same return transport regardless of where the
+/// descriptor was established. A local slot stores pointer/length only; its
+/// existence never authorizes the backing to escape.
+pub(super) fn returned_descriptor<'a>(
+    source: &'a LegalizedScalarFunction,
+    value: &legalized_operations::LegalizedScalarReturnValue,
+) -> Option<(
+    semantic_vocabulary::PlaceId,
+    &'a calling_conventions::ValuePlacement,
+    Option<selected_instructions::LocalStorageSlotId>,
+)> {
+    let legalized_operations::LegalizedScalarReturnValue::SharedDescriptor { place } = value else {
+        return None;
+    };
+    let signature = source.structural.as_ref()?;
+    let declared = signature.result.as_ref()?;
+    let identity = super::established_view_input::view_type(source, *place)
+        .or_else(|| super::established_view_input::element_view_type(source, *place))?;
+    let placement = source.call_plan.result.as_ref()?;
+    if identity != declared.structural_type
+        || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !declared.qualifications.is_empty()
+        || !declared.projected_qualifications.is_empty()
+        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+            signature.structural_types.iter(),
+            identity,
+        )
+        || placement.shape != calling_conventions::ValueShape::integer(16, 8)
+        || !(direct_fragments(placement)
+            || indirect_result(placement, source.call_plan.policy).is_some())
+    {
+        return None;
+    }
+    if signature
+        .parameters
+        .iter()
+        .any(|parameter| parameter.semantic.place == *place)
+    {
+        return Some((*place, placement, None));
+    }
+    for block in &source.blocks {
+        if block
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == *place)
+        {
+            return Some((
+                *place,
+                placement,
+                Some(
+                    selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                        block: block.id,
+                        place: *place,
+                    },
+                ),
+            ));
+        }
+        for row in &block.instructions {
+            if row
+                .kind
+                .get_structural_result()
+                .is_some_and(|result| result.place == *place)
+                || matches!(&row.kind,
+                    LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+                        destination, ..
+                    } if destination.id == *place)
+            {
+                return Some((
+                    *place,
+                    placement,
+                    Some(selected_instructions::LocalStorageSlotId::Structural {
+                        operation: row.operation,
+                        place: *place,
+                    }),
+                ));
+            }
+        }
+    }
+    None
+}
+
 pub(super) fn returned_parameter<'a>(
     source: &'a LegalizedScalarFunction,
     value: &legalized_operations::LegalizedScalarReturnValue,
@@ -370,13 +451,7 @@ pub(super) fn returned_parameter<'a>(
         .iter()
         .find(|parameter| parameter.semantic.place == *place)?;
     let semantic = &parameter.semantic;
-    let descriptor = semantic.access == terminal_psi::StructuralAccess::SharedBorrow
-        && semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && terminal_semantics::descriptor_results::is_shared_descriptor(
-            signature.structural_types.iter(),
-            semantic.structural_type,
-        );
-    if semantic.access != terminal_psi::StructuralAccess::Owned && !descriptor
+    if semantic.access != terminal_psi::StructuralAccess::Owned
         || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || semantic.structural_type != declared.structural_type
         || semantic.multiplicity != declared.multiplicity
@@ -393,23 +468,12 @@ pub(super) fn returned_parameter<'a>(
         semantic,
         &signature.structural_types,
     )?;
-    let payload_shape = if descriptor {
-        calling_conventions::ValueShape::integer(shape.byte_size, shape.alignment)
-    } else {
-        shape
-    };
-    let borrowed_pointer = descriptor
-        && matches!(parameter.target.placement.locations.as_slice(),
-        [calling_conventions::ValueLocation::Indirect {
-            copy_stack_byte_offset: None, byte_size, alignment, ..
-        }] if *byte_size == shape.byte_size && *alignment == shape.alignment);
     if parameter.target.shape != shape
         || parameter.target.placement.shape != shape
-        || placement.shape != payload_shape
+        || placement.shape != shape
         || !(direct_fragments(placement)
             || indirect_result(placement, source.call_plan.policy).is_some())
-        || !(borrowed_pointer
-            || inline_argument_fragments(&parameter.target.placement)
+        || !(inline_argument_fragments(&parameter.target.placement)
             || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(
                 semantic,
                 &parameter.target.placement,
@@ -861,7 +925,9 @@ pub(super) fn block_parameter_transport(
     } else {
         let actual = super::established_view_input::view_type(source, argument.place)
             .or_else(|| super::established_view_input::element_view_type(source, argument.place))
-            .or_else(|| super::address_join_input::root_type(source, argument.place, argument.access))?;
+            .or_else(|| {
+                super::address_join_input::root_type(source, argument.place, argument.access)
+            })?;
         terminal_semantics::borrowed_referent_presentation(
             source.structural.as_ref()?.structural_types.iter(),
             actual,
@@ -870,7 +936,10 @@ pub(super) fn block_parameter_transport(
     };
     match presentation {
         BorrowedReferentPresentation::Unchanged => {
-            let pointer = pointers.iter().find(|(place, _)| *place == argument.place)?.1;
+            let pointer = pointers
+                .iter()
+                .find(|(place, _)| *place == argument.place)?
+                .1;
             Some(SelectedStructuralTransport::WholeValue {
                 argument: pointer,
                 destination,
@@ -881,7 +950,11 @@ pub(super) fn block_parameter_transport(
         BorrowedReferentPresentation::AddressOfBacking { byte_count } => {
             let byte_count = u32::try_from(byte_count).ok()?;
             let base = super::address_join_input::storage_base(
-                argument.place, 0, byte_count, pointers, local_slots,
+                argument.place,
+                0,
+                byte_count,
+                pointers,
+                local_slots,
             )?;
             Some(SelectedStructuralTransport::Address {
                 base,

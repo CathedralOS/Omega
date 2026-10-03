@@ -277,21 +277,13 @@ pub(super) fn argument(
                 result.statement_index,
             )
         };
-    // A whole borrowed `&[T]` view result forwards the descriptor the caller
-    // already holds: the argument is the view's own name, not a new `&place`
-    // borrow, and the viewed storage keeps its owner and extent. The lend is
-    // admitted only while the view's checked loan is still live at this call,
-    // so a forwarded view cannot outlast the storage it borrows. Every other
-    // shared argument keeps the `&place` lane below, which checks its own
-    // borrow expression and referent.
-    // A `&[T]`/`&[u8]`/`&'a V` view forwarded whole names a live `Read`
-    // loan on the view symbol — `let`-bound `&[u8]` results register
-    // exactly that loan, so the byte carrier joins the same lane (its
-    // element is `u8`, which the older `&[T]` predicate excluded). A
-    // `let`-bound `&'a V` mints its `ref(...)`-shelled identity — the
-    // shared-view result's own spelling — and only that shelled mint
-    // enters: an owned local read through `&token` keeps the peeled
-    // carrier identity of its binding and stays on the `&place` lanes.
+    // A whole view argument reads its established carrier. Check the current
+    // call's exact access, not the presence of a loan owned by this local:
+    // image-backed results have no caller-owned backing to loan. The producer
+    // and Terminal descriptor-origin replay retain the original backing through
+    // calls; recognizing literal syntax here would lose that compositionality.
+    // Named reference views keep their shelled identity; an owned local lent
+    // through `&token` still follows the ordinary storage-loan path below.
     if !projected
         && access == CheckedStructuralAccess::SharedBorrow
         && ((crate::execution::terminal_unit::types::borrowed_slice_view(
@@ -307,52 +299,21 @@ pub(super) fn argument(
                     .as_str()))
         && let facts::PlaceRoot::Symbol(view_symbol) = place.root
     {
-        // Literal storage is established here and borrows no caller-owned
-        // place. Other view bindings still need the captured source loan.
-        // Join the exact authored declaration rather than treating a missing
-        // loan as permission to forward arbitrary views.
-        let literal_storage = match program
+        let Some(StatementNode::LocalData(local)) = program
             .statement_table
             .statements(source_state.statement_nodes)
             .get(result.statement_index as usize)
-        {
-            Some(StatementNode::LocalData(local))
-                if local.symbol == view_symbol
-                    && !local.is_mutable
-                    && result.multiplicity == Multiplicity::Unrestricted
-                    && (result.statement_index as usize) < call.statement_index =>
-            {
-                super::byte_sequence_literal_argument(
-                    program,
-                    local.type_reference,
-                    local.initial_value,
-                )
-                .is_some_and(|literal| literal.type_identity == result.type_identity)
-            }
-            _ => false,
+        else {
+            return None;
         };
-        if !literal_storage {
-            let borrow_state = facts
-                .borrow
-                .states
-                .iter()
-                .map(|(_, borrow_state)| borrow_state)
-                .find(|borrow_state| {
-                    borrow_state.machine_symbol == machine && borrow_state.state_symbol == state
-                })?;
-            let mut loans = facts
-                .borrow
-                .loans
-                .span_or_empty(borrow_state.loans)
-                .iter()
-                .filter(|loan| loan.owner_symbol == view_symbol);
-            let loan = loans.next()?;
-            if loans.next().is_some()
-                || loan.kind != checked_trees::BorrowAccessKind::Read
-                || call.statement_index > loan.last_use_statement_index
-            {
-                return None;
-            }
+        if local.symbol != view_symbol
+            || result.statement_index as usize >= call.statement_index
+            || !names_whole_local(program, call, expression, view_symbol)
+            || exact_structural_argument_access(
+                program, facts, machine, state, call, place, access,
+            )? != access
+        {
+            return None;
         }
         return Some(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {

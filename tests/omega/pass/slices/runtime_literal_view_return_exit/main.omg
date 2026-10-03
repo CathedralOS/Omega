@@ -1,0 +1,46 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine label() -> &[u8] {
+    ("is_frozen")
+}
+
+machine relay(bytes: &[u8]) -> &[u8] {
+    bytes
+}
+
+machine whole(bytes: &[u8]) -> &[u8] {
+    bytes[0..bytes.len]
+}
+
+machine first(bytes: &[u8]) -> u8 {
+    transition bytes.len > 0 {
+        true -> read(bytes)
+        _ -> (0)
+    }
+
+    state read(bytes: &[u8]) -> u8 {
+        bytes[0]
+    }
+}
+
+machine require_length(length: u64, value: u8) -> u8 {
+    transition length == 9 {
+        true -> value
+        _ -> (0)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let original: &[u8] = label();
+    let forwarded: &[u8] = relay(original);
+    let view: &[u8] = whole(forwarded);
+    let length: u64 = view.len;
+    let value: u8 = first(view);
+    let checked: u8 = require_length(length, value);
+    main.console.exit_process(checked as i32);
+}

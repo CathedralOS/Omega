@@ -12,6 +12,37 @@ use abstract_operations::ValueBinding;
 use optimization_unit::{ValueDefinition, ValueDefinitionSite};
 
 #[test]
+fn shared_descriptor_return_identity_binds_source_and_transport_kind() {
+    use crate::{LegalizedScalarReturn, LegalizedScalarReturnValue};
+    let mut plan = scalar_call_unit_plan();
+    plan.scalar_functions[0].blocks[0].terminator =
+        LegalizedScalarTerminator::Return(LegalizedScalarReturn {
+            edge: id(500),
+            value: LegalizedScalarReturnValue::SharedDescriptor { place: id(501) },
+            fuel: Vec::new(),
+            effect: EffectLink {
+                input: 0,
+                output: 1,
+            },
+            ownership: Vec::new(),
+        });
+    let original = legalized_operation_plan_identity(&plan);
+    for value in [
+        LegalizedScalarReturnValue::SharedDescriptor { place: id(502) },
+        LegalizedScalarReturnValue::StructuralParameter { place: id(501) },
+    ] {
+        let mut changed = plan.clone();
+        let LegalizedScalarTerminator::Return(returned) =
+            &mut changed.scalar_functions[0].blocks[0].terminator
+        else {
+            panic!("return fixture");
+        };
+        returned.value = value;
+        assert_identity_drift(original, &changed);
+    }
+}
+
+#[test]
 fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
     let mut plan = scalar_call_unit_plan();
     let parameter = terminal_psi::StructuralParameterDeclaration {

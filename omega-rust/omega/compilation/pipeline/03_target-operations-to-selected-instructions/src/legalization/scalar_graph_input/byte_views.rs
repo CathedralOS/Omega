@@ -181,6 +181,47 @@ fn view_type(
     .then_some(identity)
 }
 
+/// Return the descriptor value, independent of the producer's storage family.
+/// This joins the exact declaration and empty custody; whole-program descriptor
+/// origin validation separately proves that the backing survives the return.
+pub(in crate::legalization) fn shared_return(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    let Some(declared) = function.result.structural() else {
+        return false;
+    };
+    if view_type(function, place, types) != Some(declared.structural_type)
+        || declared.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !declared.qualifications.is_empty()
+        || !declared.projected_qualifications.is_empty()
+        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+            types.iter(),
+            declared.structural_type,
+        )
+    {
+        return false;
+    }
+    if let Some(parameter) = function.arrival_parameter(place) {
+        return matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::SharedBorrow
+        ) && parameter.multiplicity == declared.multiplicity
+            && !parameter.is_self
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty();
+    }
+    if let Ok((_, result)) = super::structural_case::source_result(function, place) {
+        return result.multiplicity == declared.multiplicity
+            && result.claims.is_empty()
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.qualification_establishments.is_empty();
+    }
+    super::literals::declaration_producer(function, place).is_some()
+}
+
 pub(super) fn element_type(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
