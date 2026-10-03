@@ -42,6 +42,13 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
 
-    ordinary::validate(selected, staged, physical, frame, artifact.rows())?;
+    ordinary::validate(
+        selected,
+        staged,
+        physical,
+        frame,
+        artifact.rows(),
+        artifact.encoded(),
+    )?;
     aggregate::validate(artifact)
 }

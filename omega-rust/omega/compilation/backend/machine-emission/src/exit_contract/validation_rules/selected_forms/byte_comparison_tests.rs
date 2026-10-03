@@ -29,21 +29,25 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
             .unwrap();
     let instruction = SelectedInstructionId(1);
     let effects = &encoded.footprint().encoded;
+    let mut store = machine_code::SelectedFormEncodedRowStore::new();
+    let (code, interned_footprint) = store.intern(
+        encoded.bytes(),
+        SelectedFormDecodedFootprint {
+            register_reads: encoded.footprint().register_reads.clone(),
+            register_writes: encoded.footprint().register_writes.clone(),
+            implicit_defs: effects.implicit_unit_defs.clone(),
+            implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+            encoded: effects.clone(),
+        },
+    );
     let encoding = SelectedFormEncodingRow {
         instruction,
         alternative,
         machine_disposition: SelectedFormMachineDisposition::RetainedV1,
         address: None,
-        state: SelectedFormEncodingState::Encoded {
-            bytes: encoded.bytes().to_vec(),
-            footprint: Box::new(SelectedFormDecodedFootprint {
-                register_reads: encoded.footprint().register_reads.clone(),
-                register_writes: encoded.footprint().register_writes.clone(),
-                implicit_defs: effects.implicit_unit_defs.clone(),
-                implicit_clobbers: effects.implicit_unit_clobbers.clone(),
-                encoded: effects.clone(),
-            }),
-        },
+        state: SelectedFormEncodingState::Encoded,
+        code,
+        footprint: interned_footprint,
     };
     let layout = ResolvedSelectedFormRow {
         instruction,
@@ -55,12 +59,10 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
         normalized_foreign_call_fixup: None,
         byte_literal_address_fixup: None,
     };
-    validate_non_return(instruction, kind, &encoding, &layout).unwrap();
+    validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
     for mutation in 0..9 {
-        let mut changed = encoding.clone();
-        let SelectedFormEncodingState::Encoded { footprint, .. } = &mut changed.state else {
-            unreachable!()
-        };
+        let mut changed = store.clone();
+        let footprint = changed.footprint_mut(encoding.footprint).unwrap();
         match mutation {
             0 => footprint.encoded.memory = MachineEncodedMemoryEffect::NoneV1,
             1 => {
@@ -89,14 +91,12 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
             _ => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
         }
         assert!(
-            validate_non_return(instruction, kind, &changed, &layout).is_err(),
+            validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err(),
             "mutation {mutation}"
         );
     }
-    let mut changed = encoding.clone();
-    let SelectedFormEncodingState::Encoded { footprint, .. } = &mut changed.state else {
-        unreachable!()
-    };
+    let mut changed = store.clone();
+    let footprint = changed.footprint_mut(encoding.footprint).unwrap();
     footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
-    assert!(validate_non_return(instruction, kind, &changed, &layout).is_err());
+    assert!(validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err());
 }

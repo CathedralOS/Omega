@@ -43,21 +43,25 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                 .unwrap();
                 let instruction = SelectedInstructionId(1);
                 let effects = &encoded.footprint().encoded;
-                let mut encoding = SelectedFormEncodingRow {
+                let mut store = machine_code::SelectedFormEncodedRowStore::new();
+                let (code, interned_footprint) = store.intern(
+                    encoded.bytes(),
+                    SelectedFormDecodedFootprint {
+                        register_reads: encoded.footprint().register_reads.clone(),
+                        register_writes: encoded.footprint().register_writes.clone(),
+                        implicit_defs: effects.implicit_unit_defs.clone(),
+                        implicit_clobbers: effects.implicit_unit_clobbers.clone(),
+                        encoded: effects.clone(),
+                    },
+                );
+                let encoding = SelectedFormEncodingRow {
                     instruction,
                     alternative,
                     machine_disposition: SelectedFormMachineDisposition::RetainedV1,
                     address: None,
-                    state: SelectedFormEncodingState::Encoded {
-                        bytes: encoded.bytes().to_vec(),
-                        footprint: Box::new(SelectedFormDecodedFootprint {
-                            register_reads: encoded.footprint().register_reads.clone(),
-                            register_writes: encoded.footprint().register_writes.clone(),
-                            implicit_defs: effects.implicit_unit_defs.clone(),
-                            implicit_clobbers: effects.implicit_unit_clobbers.clone(),
-                            encoded: effects.clone(),
-                        }),
-                    },
+                    state: SelectedFormEncodingState::Encoded,
+                    code,
+                    footprint: interned_footprint,
                 };
                 let layout = ResolvedSelectedFormRow {
                     instruction,
@@ -69,18 +73,16 @@ fn float_conversion_exit_admission_retains_only_its_selected_policy_control() {
                     normalized_foreign_call_fixup: None,
                     byte_literal_address_fixup: None,
                 };
-                validate_non_return(instruction, kind, &encoding, &layout).unwrap();
-                let SelectedFormEncodingState::Encoded { footprint, .. } = &mut encoding.state
-                else {
-                    unreachable!()
-                };
+                validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
+                let mut changed = store.clone();
+                let footprint = changed.footprint_mut(encoding.footprint).unwrap();
                 footprint.encoded.control = if domain == IeeeFloatToIntegerDomain::Trapping {
                     MachineEncodedControlEffect::FallThroughV1
                 } else {
                     MachineEncodedControlEffect::FallThroughOrTrapV1
                 };
                 assert!(
-                    validate_non_return(instruction, kind, &encoding, &layout).is_err(),
+                    validate_non_return(instruction, kind, &encoding, &layout, &changed).is_err(),
                     "{form:?}"
                 );
             }

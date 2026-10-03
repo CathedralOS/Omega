@@ -18,8 +18,8 @@ use target::{Architecture, NativeTarget};
 use super::{decoded_footprint, operand_views, validate_machine_footprint, validate_size};
 use crate::OptimizedSelectedFormEncodingError;
 use machine_code::{
-    SelectedFormEncodingState, SelectedFormNormalizedForeignCallFixupKind,
-    SelectedFormNormalizedForeignCallFixupState,
+    SelectedFormEncodedRowStore, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
 
 /// Independently validate the retained entry mechanism and its bytes. Kernel
@@ -37,7 +37,8 @@ pub(super) fn validate(
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    state: &SelectedFormEncodingState,
+    row: &SelectedFormEncodingRow,
+    encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
@@ -54,7 +55,10 @@ pub(super) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     if let Some(binding) = record.call.binding.system_call() {
-        let SelectedFormEncodingState::Encoded { bytes, footprint } = state else {
+        if !matches!(row.state, SelectedFormEncodingState::Encoded) {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        }
+        let Some((bytes, footprint)) = encoded.encoded(row) else {
             return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
         };
         if !record.call.callbacks.is_empty() {
@@ -108,17 +112,15 @@ pub(super) fn validate(
         };
         validate_machine_footprint(instruction, machine, &decoded)?;
         validate_size(instruction, machine.alternative.size, bytes.len())?;
-        if footprint.as_ref() != &decoded {
+        if footprint != &decoded {
             return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
         }
         return Ok(());
     }
-    let SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
-        bytes,
-        footprint,
-        fixup,
-    } = state
-    else {
+    let SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } = &row.state else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let Some((bytes, footprint)) = encoded.encoded(row) else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
     if fixup.state != SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
@@ -219,7 +221,7 @@ pub(super) fn validate(
     };
     validate_machine_footprint(instruction, machine, &decoded)?;
     validate_size(instruction, machine.alternative.size, bytes.len())?;
-    if footprint.as_ref() != &decoded {
+    if footprint != &decoded {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     Ok(())

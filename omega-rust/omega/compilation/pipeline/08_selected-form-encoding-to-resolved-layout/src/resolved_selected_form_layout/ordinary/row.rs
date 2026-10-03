@@ -30,6 +30,7 @@ pub(super) fn resolve(
     pre: &SelectedFormEncodingRow,
     physical: &ValidatedPhysicalRegisterModel,
     widened: bool,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<
     (
         Vec<u8>,
@@ -40,16 +41,18 @@ pub(super) fn resolve(
     ),
     OptimizedResolvedSelectedFormLayoutError,
 > {
+    // The resolved row owns its own byte vector; it is filled from the
+    // encoding row's interned span rather than from a per-row vector.
+    let bytes = encoded.bytes(pre.code);
     match (&pre.machine_disposition, &pre.state) {
+        (SelectedFormMachineDisposition::RetainedV1, SelectedFormEncodingState::Encoded) => {
+            Ok((bytes.to_vec(), None, None, None, None))
+        }
         (
             SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::Encoded { bytes, .. },
-        ) => Ok((bytes.clone(), None, None, None, None)),
-        (
-            SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, fixup, .. },
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
         ) => Ok((
-            bytes.clone(),
+            bytes.to_vec(),
             None,
             Some(validate_internal_fixup(
                 architecture,
@@ -63,9 +66,9 @@ pub(super) fn resolve(
         )),
         (
             SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { bytes, fixup, .. },
+            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup },
         ) => Ok((
-            bytes.clone(),
+            bytes.to_vec(),
             None,
             None,
             Some(validate_foreign_fixup(
@@ -79,9 +82,9 @@ pub(super) fn resolve(
         )),
         (
             SelectedFormMachineDisposition::RetainedV1,
-            SelectedFormEncodingState::UnresolvedByteLiteralAddress { bytes, fixup, .. },
+            SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup },
         ) => Ok((
-            bytes.clone(),
+            bytes.to_vec(),
             None,
             None,
             None,

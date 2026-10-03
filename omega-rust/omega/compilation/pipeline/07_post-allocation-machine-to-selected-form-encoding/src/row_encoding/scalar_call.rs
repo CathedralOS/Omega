@@ -11,7 +11,7 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
-use super::{validate_operand_footprint, validate_size};
+use super::{SelectedFormEncodedRowDraft, validate_operand_footprint, validate_size};
 use crate::OptimizedSelectedFormEncodingError;
 use machine_code::{
     SelectedFormDecodedFootprint, SelectedFormEncodingState, SelectedFormInternalMachineFixup,
@@ -24,7 +24,7 @@ pub(super) fn encode(
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let views = machine
         .operands
         .iter()
@@ -113,11 +113,11 @@ pub(super) fn encode(
         &footprint.register_writes,
     )?;
     validate_size(instruction, machine.alternative.size, bytes.len())?;
-    Ok(SelectedFormEncodingState::UnresolvedInternalMachineCall {
+    Ok(SelectedFormEncodedRowDraft::encoded(
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
         bytes,
-        footprint: Box::new(footprint),
-        fixup,
-    })
+        footprint,
+    ))
 }
 
 fn decoded_footprint(

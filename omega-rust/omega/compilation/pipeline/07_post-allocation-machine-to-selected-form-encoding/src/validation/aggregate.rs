@@ -7,7 +7,7 @@ pub(super) fn validate(
     let mut counts = SelectedFormEncodingCounts::default();
     for row in artifact.rows() {
         let count = match row.state {
-            SelectedFormEncodingState::Encoded { .. } => &mut counts.ordinary_encoded,
+            SelectedFormEncodingState::Encoded => &mut counts.ordinary_encoded,
             SelectedFormEncodingState::DeferredControl { .. } => {
                 &mut counts.ordinary_deferred_control
             }
@@ -63,6 +63,7 @@ mod tests {
             post_allocation_machine_optimization: None,
             identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
             rows: vec![],
+            encoded: machine_code::SelectedFormEncodedRowStore::new(),
             frame: None,
             counts: SelectedFormEncodingCounts::default(),
         };

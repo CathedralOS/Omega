@@ -53,6 +53,7 @@ pub(in crate::exit_contract) fn validate_preservation_writes(
     allow_link_write: bool,
     instruction: SelectedInstructionId,
     modified_callee_saved: &mut BTreeSet<RegisterUnitId>,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let mut validate = |unit: &RegisterUnitId| {
         if callee_saved.contains(unit) {
@@ -74,16 +75,9 @@ pub(in crate::exit_contract) fn validate_preservation_writes(
     for unit in machine.unit_defs.iter().chain(&machine.unit_clobbers) {
         validate(unit)?;
     }
-    let footprint = match &encoding.state {
-        SelectedFormEncodingState::Encoded { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedNormalizedForeignCall { footprint, .. }
-        | SelectedFormEncodingState::UnresolvedByteLiteralAddress { footprint, .. } => {
-            Some(footprint)
-        }
-        SelectedFormEncodingState::DeferredControl { .. } => None,
-    };
-    if let Some(footprint) = footprint {
+    // A deferred control row names no footprint, so the zero handle reads as
+    // absent and contributes no implicit unit.
+    if let Some(footprint) = encoded.footprint(encoding.footprint) {
         for unit in footprint
             .implicit_defs
             .iter()
@@ -101,19 +95,20 @@ pub(in crate::exit_contract) fn validate_internal_call(
     instruction: SelectedInstructionId,
     encoding: &SelectedFormEncodingRow,
     layout: &ResolvedSelectedFormRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
-    let SelectedFormEncodingState::UnresolvedInternalMachineCall {
-        bytes,
-        footprint,
-        fixup,
-    } = &encoding.state
-    else {
+    let SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } = &encoding.state else {
+        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+            instruction,
+        ));
+    };
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
             instruction,
         ));
     };
     if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
-        || bytes != &layout.bytes
+        || bytes != layout.bytes
         || layout.branch.is_some()
         || layout.internal_machine_fixup != Some(*fixup)
         || layout.normalized_foreign_call_fixup.is_some()
@@ -144,6 +139,7 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
     constraint: register_model::RegisterConstraintKey,
     encoding: &SelectedFormEncodingRow,
     layout: &ResolvedSelectedFormRow,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     if constraint.family == register_model::RegisterConstraintFamily::SystemCall {
         let canonical = if target == NativeTarget::linux_x64() {
@@ -155,7 +151,12 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
                 instruction,
             ));
         };
-        let SelectedFormEncodingState::Encoded { bytes, footprint } = &encoding.state else {
+        if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+                instruction,
+            ));
+        }
+        let Some((bytes, footprint)) = encoded.encoded(encoding) else {
             return Err(WholeFunctionExitContractError::NonReturnControlEffect(
                 instruction,
             ));
@@ -163,7 +164,7 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
         if !canonical.contains(&constraint)
             || encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
             || encoding.address.is_some()
-            || bytes != &layout.bytes
+            || bytes != layout.bytes
             || layout.branch.is_some()
             || layout.internal_machine_fixup.is_some()
             || layout.normalized_foreign_call_fixup.is_some()
@@ -183,18 +184,19 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
         }
         return Ok(());
     }
-    let SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
-        bytes,
-        footprint,
-        fixup,
-    } = &encoding.state
+    let SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } = &encoding.state
     else {
         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
             instruction,
         ));
     };
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
+        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
+            instruction,
+        ));
+    };
     if encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
-        || bytes != &layout.bytes
+        || bytes != layout.bytes
         || layout.branch.is_some()
         || layout.internal_machine_fixup.is_some()
         || layout.normalized_foreign_call_fixup.as_ref() != Some(fixup)
@@ -312,15 +314,16 @@ mod tests {
                         physical.model().view_named("sp").unwrap().id,
                     )
                 };
+            let mut store = machine_code::SelectedFormEncodedRowStore::new();
+            let (code, interned_footprint) = store.intern(&bytes, footprint);
             let encoding = SelectedFormEncodingRow {
                 instruction,
                 alternative,
                 machine_disposition: SelectedFormMachineDisposition::RetainedV1,
                 address: None,
-                state: SelectedFormEncodingState::Encoded {
-                    bytes: bytes.clone(),
-                    footprint: Box::new(footprint),
-                },
+                state: SelectedFormEncodingState::Encoded,
+                code,
+                footprint: interned_footprint,
             };
             let layout = ResolvedSelectedFormRow {
                 instruction,
@@ -332,24 +335,26 @@ mod tests {
                 normalized_foreign_call_fixup: None,
                 byte_literal_address_fixup: None,
             };
-            let validate = |encoding: &SelectedFormEncodingRow,
-                            layout: &ResolvedSelectedFormRow| {
-                validate_normalized_foreign_call(
-                    target,
-                    stack_pointer,
-                    instruction,
-                    constraint,
-                    encoding,
-                    layout,
-                )
-            };
-            validate(&encoding, &layout).unwrap();
-            for mutation in 0..5 {
-                let mut forged = encoding.clone();
-                let SelectedFormEncodingState::Encoded { bytes, footprint } = &mut forged.state
-                else {
-                    unreachable!()
+            let validate =
+                |encoding: &SelectedFormEncodingRow,
+                 layout: &ResolvedSelectedFormRow,
+                 encoded: &machine_code::SelectedFormEncodedRowStore| {
+                    validate_normalized_foreign_call(
+                        target,
+                        stack_pointer,
+                        instruction,
+                        constraint,
+                        encoding,
+                        layout,
+                        encoded,
+                    )
                 };
+            validate(&encoding, &layout, &store).unwrap();
+            for mutation in 0..5 {
+                // Both the bytes and the footprint a mutation forges live in
+                // the store, so each mutation forges its own copy of it.
+                let mut forged = store.clone();
+                let footprint = forged.footprint_mut(encoding.footprint).unwrap();
                 match mutation {
                     0 => {
                         footprint.encoded.control =
@@ -370,10 +375,10 @@ mod tests {
                                 return_address_byte_count: 8,
                             }
                     }
-                    _ => bytes[0] ^= 1,
+                    _ => forged.bytes_mut(encoding.code)[0] ^= 1,
                 }
                 assert!(
-                    validate(&forged, &layout).is_err(),
+                    validate(&encoding, &layout, &forged).is_err(),
                     "{target:?}, mutation {mutation}"
                 );
             }
@@ -386,7 +391,8 @@ mod tests {
                     instruction,
                     import_constraint,
                     &encoding,
-                    &layout
+                    &layout,
+                    &store,
                 )
                 .is_err()
             );
@@ -397,7 +403,8 @@ mod tests {
                     instruction,
                     constraint,
                     &encoding,
-                    &layout
+                    &layout,
+                    &store,
                 )
                 .is_err()
             );

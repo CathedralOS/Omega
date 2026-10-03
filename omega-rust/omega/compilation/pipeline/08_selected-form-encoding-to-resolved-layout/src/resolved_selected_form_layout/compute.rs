@@ -80,6 +80,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             &machine_rows,
             physical,
             policy,
+            pre_layout.encoded(),
         )?);
     }
     if pre_rows.next().is_some() {

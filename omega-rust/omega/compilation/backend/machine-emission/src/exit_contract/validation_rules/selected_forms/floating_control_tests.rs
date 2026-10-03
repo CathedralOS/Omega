@@ -46,6 +46,17 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
         .unwrap();
         let instruction = SelectedInstructionId(1);
         let footprint = &encoded.footprint().encoded;
+        let mut store = machine_code::SelectedFormEncodedRowStore::new();
+        let (code, interned_footprint) = store.intern(
+            encoded.bytes(),
+            SelectedFormDecodedFootprint {
+                register_reads: Vec::new(),
+                register_writes: Vec::new(),
+                implicit_defs: footprint.implicit_unit_defs.clone(),
+                implicit_clobbers: footprint.implicit_unit_clobbers.clone(),
+                encoded: footprint.clone(),
+            },
+        );
         let encoding = SelectedFormEncodingRow {
             instruction,
             alternative,
@@ -58,16 +69,9 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
                 },
                 displacement: 16,
             }),
-            state: SelectedFormEncodingState::Encoded {
-                bytes: encoded.bytes().to_vec(),
-                footprint: Box::new(SelectedFormDecodedFootprint {
-                    register_reads: Vec::new(),
-                    register_writes: Vec::new(),
-                    implicit_defs: footprint.implicit_unit_defs.clone(),
-                    implicit_clobbers: footprint.implicit_unit_clobbers.clone(),
-                    encoded: footprint.clone(),
-                }),
-            },
+            state: SelectedFormEncodingState::Encoded,
+            code,
+            footprint: interned_footprint,
         };
         let layout = ResolvedSelectedFormRow {
             instruction,
@@ -79,12 +83,13 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
             normalized_foreign_call_fixup: None,
             byte_literal_address_fixup: None,
         };
-        validate_non_return(instruction, kind, &encoding, &layout).unwrap();
+        validate_non_return(instruction, kind, &encoding, &layout, &store).unwrap();
         for mutation in 0..6 {
-            let mut changed = encoding.clone();
-            let SelectedFormEncodingState::Encoded { footprint, .. } = &mut changed.state else {
-                unreachable!()
-            };
+            // A mutation reaches either the row's own address or the
+            // footprint the store holds, so both are cloned per mutation.
+            let mut changed_row = encoding.clone();
+            let mut changed = store.clone();
+            let footprint = changed.footprint_mut(encoding.footprint).unwrap();
             match mutation {
                 0 => footprint.encoded.memory = MachineEncodedMemoryEffect::NoneV1,
                 1 => footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1,
@@ -95,9 +100,9 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
                     }
                 }
                 3 => footprint.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
-                4 => changed.address = None,
+                4 => changed_row.address = None,
                 _ => {
-                    changed.address.as_mut().unwrap().symbolic = if restore {
+                    changed_row.address.as_mut().unwrap().symbolic = if restore {
                         PhysicalAddressOperation::SaveFloatingControl { slot }
                     } else {
                         PhysicalAddressOperation::RestoreFloatingControl { slot }
@@ -105,7 +110,7 @@ fn floating_control_exit_admission_requires_frame_memory_and_unchanged_stack() {
                 }
             }
             assert!(
-                validate_non_return(instruction, kind, &changed, &layout).is_err(),
+                validate_non_return(instruction, kind, &changed_row, &layout, &changed).is_err(),
                 "mutation {mutation}"
             );
         }

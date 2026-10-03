@@ -57,6 +57,7 @@ pub use control_flow::{
 };
 pub use encoding::{
     DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
+    SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,
     SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
     SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody,

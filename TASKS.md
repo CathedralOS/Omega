@@ -2700,14 +2700,6 @@ same flow already performed, not the check itself.
   family interactions require, with the pre-allocation optimizer tests and
   native corpus `--filter optimizer/` unchanged.
 
-- **ENCODED-ROW-ALLOCATIONS.** (new-scope) machine-code's
-  `encoding/rows.rs` stores every encoded instruction as its own
-  `bytes: Vec<u8>` plus a `Box<SelectedFormDecodedFootprint>`, so each
-  instruction costs two heap allocations. Store a function's bytes in one
-  buffer with per-row offset spans, and keep footprints inline or in a
-  per-function table. Acceptance: no per-row heap allocation in encoded rows,
-  and native corpus bytes unchanged.
-
 - **CHECKING-FROZEN-PROGRAM-CONTEXT.** (new-scope)
   `checking/src/frozen_program.rs` keeps its memos in a `thread_local!`
   `RefCell` slot keyed by the program's address, which AGENTS.md rules out

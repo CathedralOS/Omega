@@ -10,8 +10,8 @@ use target::{Architecture, NativeTarget};
 
 use super::super::OptimizedSelectedFormEncodingError;
 use machine_code::{
-    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
+    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
+    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
 mod normalized_foreign_call;
@@ -24,6 +24,7 @@ pub(crate) fn validate(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     row: &SelectedFormEncodingRow,
+    encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let architecture = target.architecture;
     if row.instruction != selected.id
@@ -56,7 +57,10 @@ pub(crate) fn validate(
             if !admits_address_operation(kind, address.symbolic) {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
-            let SelectedFormEncodingState::Encoded { bytes, footprint } = &row.state else {
+            if !matches!(row.state, SelectedFormEncodingState::Encoded) {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+            let Some((bytes, footprint)) = encoded.encoded(row) else {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             };
             let decoded = if architecture == Architecture::Aarch64 {
@@ -138,7 +142,7 @@ pub(crate) fn validate(
             };
             validate_machine_footprint(selected.id, machine, &decoded)?;
             validate_size(selected.id, machine.alternative.size, bytes.len())?;
-            if footprint.as_ref() != &decoded {
+            if footprint != &decoded {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
             Ok(())
@@ -149,7 +153,7 @@ pub(crate) fn validate(
             if row.address.is_some() {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
-            scalar_call::validate(target, selected.id, kind, machine, physical, &row.state)
+            scalar_call::validate(target, selected.id, kind, machine, physical, row, encoded)
         }
         kind @ SelectedInstructionKind::NormalizedForeignCall { .. } => {
             if row.address.is_some() {
@@ -162,7 +166,8 @@ pub(crate) fn validate(
                 kind,
                 machine,
                 physical,
-                &row.state,
+                row,
+                encoded,
             )
         }
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -180,11 +185,7 @@ pub(crate) fn validate(
             Ok(())
         }
         kind @ SelectedInstructionKind::ByteLiteralImageAddress { operation, place } => {
-            let SelectedFormEncodingState::UnresolvedByteLiteralAddress {
-                bytes,
-                footprint,
-                fixup,
-            } = &row.state
+            let SelectedFormEncodingState::UnresolvedByteLiteralAddress { fixup } = &row.state
             else {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             };
@@ -210,16 +211,23 @@ pub(crate) fn validate(
             {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
-            let encoded = SelectedFormEncodingRow {
-                state: SelectedFormEncodingState::Encoded {
-                    bytes: bytes.clone(),
-                    footprint: footprint.clone(),
-                },
+            // The baseline route admits the same bytes and footprint the
+            // literal row already interned; only its unresolved field differs.
+            let retagged = SelectedFormEncodingRow {
+                state: SelectedFormEncodingState::Encoded,
                 ..row.clone()
             };
-            validate_baseline(target, selected.id, kind, machine, physical, &encoded)
+            validate_baseline(
+                target,
+                selected.id,
+                kind,
+                machine,
+                physical,
+                &retagged,
+                encoded,
+            )
         }
-        kind => validate_baseline(target, selected.id, kind, machine, physical, row),
+        kind => validate_baseline(target, selected.id, kind, machine, physical, row, encoded),
     }
 }
 
@@ -272,13 +280,17 @@ fn validate_baseline(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     row: &SelectedFormEncodingRow,
+    encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     // Ordinary routes declare no address operation; an attached resolved
     // address is a contradiction the frame-equation parity check cannot see.
     if row.address.is_some() {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
-    let SelectedFormEncodingState::Encoded { bytes, footprint } = &row.state else {
+    if !matches!(row.state, SelectedFormEncodingState::Encoded) {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    let Some((bytes, footprint)) = encoded.encoded(row) else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
     let views = operand_views(machine);
@@ -338,7 +350,7 @@ fn validate_baseline(
     };
     validate_machine_footprint(instruction, machine, &decoded)?;
     validate_size(instruction, machine.alternative.size, bytes.len())?;
-    if footprint.as_ref() != &decoded {
+    if footprint != &decoded {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     Ok(())

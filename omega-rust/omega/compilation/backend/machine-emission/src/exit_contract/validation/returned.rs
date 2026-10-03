@@ -29,6 +29,7 @@ pub(super) fn check(
     layout: &ResolvedSelectedFormRow,
     end: u64,
     claimed: &WholeFunctionReturnEvidence,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     require(
         claimed.block == block
@@ -38,12 +39,17 @@ pub(super) fn check(
             && claimed.bytes == layout.bytes
             && layout.branch.is_none(),
     )?;
-    let SelectedFormEncodingState::Encoded { bytes, footprint } = &encoding.state else {
+    if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+        return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
+            selected.id,
+        ));
+    }
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
         return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
             selected.id,
         ));
     };
-    require(bytes == &claimed.bytes && footprint.encoded == machine.alternative.encoded)?;
+    require(bytes == claimed.bytes && footprint.encoded == machine.alternative.encoded)?;
     let actual_end = claimed
         .offset
         .checked_add(

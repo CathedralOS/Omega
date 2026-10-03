@@ -20,6 +20,7 @@ use super::tests::{fixture, selected_function};
 /// produced rejects in the producer and in the replay.
 #[test]
 fn implicit_effect_drift_rejects_in_producer_and_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, selected, mut machine) = fixture();
     machine
         .alternative
@@ -27,7 +28,7 @@ fn implicit_effect_drift_rejects_in_producer_and_replay() {
         .implicit_unit_defs
         .push(RegisterUnitId(0xdead));
     assert!(matches!(
-        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, &selected_function(), None),
+        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, &selected_function(), None, &mut encoded),
         Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(
             instruction
         )) if instruction == SelectedInstructionId(1)
@@ -46,6 +47,7 @@ fn implicit_effect_drift_rejects_in_producer_and_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     assert!(matches!(
@@ -54,7 +56,8 @@ fn implicit_effect_drift_rejects_in_producer_and_replay() {
             &selected,
             &mutated,
             &physical,
-            &row
+            &row,
+            &encoded,
         ),
         Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(
             instruction
@@ -67,10 +70,11 @@ fn implicit_effect_drift_rejects_in_producer_and_replay() {
 /// in the producer and in the replay.
 #[test]
 fn unresolvable_external_operand_rejects_in_producer_and_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, selected, mut machine) = fixture();
     machine.operands[0].operand = 9;
     assert!(matches!(
-        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, &selected_function(), None),
+        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, &selected_function(), None, &mut encoded),
         Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(
             instruction
         )) if instruction == SelectedInstructionId(1)
@@ -85,6 +89,7 @@ fn unresolvable_external_operand_rejects_in_producer_and_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     assert!(matches!(
@@ -93,7 +98,8 @@ fn unresolvable_external_operand_rejects_in_producer_and_replay() {
             &selected,
             &mutated,
             &physical,
-            &row
+            &row,
+            &encoded,
         ),
         Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(
             instruction
@@ -106,6 +112,7 @@ fn unresolvable_external_operand_rejects_in_producer_and_replay() {
 /// in the producer and in the replay, while a bracketing range still admits.
 #[test]
 fn declared_size_drift_rejects_in_producer_and_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let target = target::NativeTarget::linux_x64();
     for knowledge in [
         MachineSizeKnowledge::ExactBytes(9),
@@ -121,7 +128,7 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         let (physical, selected, mut machine) = fixture();
         machine.alternative.size = knowledge;
         assert!(matches!(
-            encode_row(target, &selected, &machine, &physical, &selected_function(), None),
+            encode_row(target, &selected, &machine, &physical, &selected_function(), None, &mut encoded),
             Err(OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -136,10 +143,11 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
             &physical,
             &selected_function(),
             None,
+            &mut encoded,
         )
         .unwrap();
         assert!(matches!(
-            validation::row::validate(target, &selected_function(), &selected, &mutated, &physical, &row),
+            validation::row::validate(target, &selected_function(), &selected, &mutated, &physical, &row, &encoded),
             Err(OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -157,6 +165,7 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     validation::row::validate(
@@ -166,6 +175,7 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         &machine,
         &physical,
         &row,
+        &encoded,
     )
     .unwrap();
 }
@@ -174,38 +184,7 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
 /// encoding must fail the replay's redecoded-footprint comparison.
 #[test]
 fn stored_footprint_drift_rejects_in_replay() {
-    let (physical, selected, machine) = fixture();
-    let target = target::NativeTarget::linux_x64();
-    let mut row = encode_row(
-        target,
-        &selected,
-        &machine,
-        &physical,
-        &selected_function(),
-        None,
-    )
-    .unwrap();
-    let SelectedFormEncodingState::Encoded { footprint, .. } = &mut row.state else {
-        unreachable!()
-    };
-    footprint.register_reads.push(footprint.register_writes[0]);
-    assert!(matches!(
-        validation::row::validate(
-            target,
-            &selected_function(),
-            &selected,
-            &machine,
-            &physical,
-            &row
-        ),
-        Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
-    ));
-}
-
-/// Row header fields bind the row to exactly one instruction, alternative,
-/// and disposition: any substitution fails the replay's closed header check.
-#[test]
-fn row_header_substitutions_reject_in_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let row = encode_row(
@@ -215,6 +194,41 @@ fn row_header_substitutions_reject_in_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
+    )
+    .unwrap();
+    assert!(matches!(row.state, SelectedFormEncodingState::Encoded));
+    let footprint = encoded.footprint_mut(row.footprint).unwrap();
+    footprint.register_reads.push(footprint.register_writes[0]);
+    assert!(matches!(
+        validation::row::validate(
+            target,
+            &selected_function(),
+            &selected,
+            &machine,
+            &physical,
+            &row,
+            &encoded,
+        ),
+        Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+    ));
+}
+
+/// Row header fields bind the row to exactly one instruction, alternative,
+/// and disposition: any substitution fails the replay's closed header check.
+#[test]
+fn row_header_substitutions_reject_in_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
+    let (physical, selected, machine) = fixture();
+    let target = target::NativeTarget::linux_x64();
+    let row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+        &mut encoded,
     )
     .unwrap();
     let mut changed = row.clone();
@@ -226,7 +240,8 @@ fn row_header_substitutions_reject_in_replay() {
             &selected,
             &machine,
             &physical,
-            &changed
+            &changed,
+            &encoded,
         ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
@@ -239,7 +254,8 @@ fn row_header_substitutions_reject_in_replay() {
             &selected,
             &machine,
             &physical,
-            &changed
+            &changed,
+            &encoded,
         ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
@@ -249,6 +265,7 @@ fn row_header_substitutions_reject_in_replay() {
 /// its deferred row fails the replay's exact state check.
 #[test]
 fn encoded_state_on_deferred_control_kind_rejects_in_replay() {
+    let mut encoded = machine_code::SelectedFormEncodedRowStore::new();
     let (physical, mut selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
     let ordinary_row = encode_row(
@@ -258,6 +275,7 @@ fn encoded_state_on_deferred_control_kind_rejects_in_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     selected.kind = selected_instructions::SelectedInstructionKind::Jump;
@@ -268,13 +286,18 @@ fn encoded_state_on_deferred_control_kind_rejects_in_replay() {
         &physical,
         &selected_function(),
         None,
+        &mut encoded,
     )
     .unwrap();
     assert!(matches!(
         row.state,
         SelectedFormEncodingState::DeferredControl { .. }
     ));
+    // The spliced row presents the ordinary row's whole encoded contents:
+    // its state, its byte span, and its footprint handle.
     row.state = ordinary_row.state;
+    row.code = ordinary_row.code;
+    row.footprint = ordinary_row.footprint;
     assert!(matches!(
         validation::row::validate(
             target,
@@ -282,7 +305,8 @@ fn encoded_state_on_deferred_control_kind_rejects_in_replay() {
             &selected,
             &machine,
             &physical,
-            &row
+            &row,
+            &encoded,
         ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));

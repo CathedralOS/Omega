@@ -20,8 +20,12 @@ pub(in crate::exit_contract) fn validate_crash(
     encoding: &SelectedFormEncodingRow,
     layout: &ResolvedSelectedFormRow,
     block_end: u64,
+    encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
-    let SelectedFormEncodingState::Encoded { bytes, footprint } = &encoding.state else {
+    if !matches!(encoding.state, SelectedFormEncodingState::Encoded) {
+        return Err(Error::InstructionRosterMismatch(instruction.id));
+    }
+    let Some((bytes, footprint)) = encoded.encoded(encoding) else {
         return Err(Error::InstructionRosterMismatch(instruction.id));
     };
     let effects = &footprint.encoded;
@@ -48,7 +52,7 @@ pub(in crate::exit_contract) fn validate_crash(
         || !machine.implicit_unit_clobbers.is_empty()
         || encoding.machine_disposition != SelectedFormMachineDisposition::RetainedV1
         || bytes.is_empty()
-        || bytes != &layout.bytes
+        || bytes != layout.bytes
         || layout.branch.is_some()
         || encoding.address.is_some()
         || layout.offset.checked_add(bytes.len() as u64) != Some(block_end)

@@ -14,8 +14,8 @@ use target::{Architecture, NativeTarget};
 use super::{decoded_footprint, operand_views, validate_machine_footprint, validate_size};
 use crate::OptimizedSelectedFormEncodingError;
 use machine_code::{
-    SelectedFormEncodingState, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState,
+    SelectedFormEncodedRowStore, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
 };
 
 pub(super) fn validate(
@@ -24,14 +24,13 @@ pub(super) fn validate(
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    state: &SelectedFormEncodingState,
+    row: &SelectedFormEncodingRow,
+    encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let SelectedFormEncodingState::UnresolvedInternalMachineCall {
-        bytes,
-        footprint,
-        fixup,
-    } = state
-    else {
+    let SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } = &row.state else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let Some((bytes, footprint)) = encoded.encoded(row) else {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     };
     if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
@@ -108,7 +107,7 @@ pub(super) fn validate(
     };
     validate_machine_footprint(instruction, machine, &decoded)?;
     validate_size(instruction, machine.alternative.size, bytes.len())?;
-    if footprint.as_ref() != &decoded {
+    if footprint != &decoded {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     Ok(())
