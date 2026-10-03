@@ -41,7 +41,7 @@ fn entry_parameter(
 }
 
 fn named(name: &str) -> impl Fn(&StateParameter) -> bool {
-    move |parameter| !parameter.is_self && parameter.name.as_str() == name
+    move |parameter| parameter.name.as_str() == name
 }
 
 fn run(checked: &CheckedTrees, entry: &str, context: Option<SymbolHandle>) -> InterpretOutcome {
@@ -140,18 +140,18 @@ fn provisioned_context_from_another_machine_declines() {
     );
 }
 
-// A legacy `&mut self` context is the machine instance, which already holds
-// the attached record's zero defaults; naming it provisions nothing further.
+// Declaration attachment is a namespace, not an implicit instance. The entry
+// context remains the explicitly selected parameter even for an attached machine.
 #[test]
-fn provisioned_receiver_context_runs_on_the_machine_instance() {
+fn attached_entry_uses_its_explicit_context_parameter() {
     let program = checked(
         "data Main { count: u8; }
-        machine Main::main(&mut self) -> i32 {
-            transition self.count == 0 { true -> 7 false -> 0 }
+        machine Main::main(context: &mut Main) -> i32 {
+            transition context.count == 0 { true -> 7 false -> 0 }
         }",
     );
-    let receiver = entry_parameter(&program, "Main::main", |parameter| parameter.is_self);
-    let outcome = run(&program, "Main::main", Some(receiver));
+    let context = entry_parameter(&program, "Main::main", named("context"));
+    let outcome = run(&program, "Main::main", Some(context));
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
 }

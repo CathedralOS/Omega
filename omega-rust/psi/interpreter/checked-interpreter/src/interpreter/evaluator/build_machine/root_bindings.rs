@@ -12,13 +12,7 @@ impl<'program> Evaluator<'program> {
         state: &State,
         arguments: &[Cell],
     ) -> EvalResult<()> {
-        for (parameter, argument) in self
-            .program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .zip(arguments)
-        {
+        for (parameter, argument) in self.program.state_parameters(state).iter().zip(arguments) {
             let TypeReferenceNode::Reference {
                 access, referee, ..
             } = self

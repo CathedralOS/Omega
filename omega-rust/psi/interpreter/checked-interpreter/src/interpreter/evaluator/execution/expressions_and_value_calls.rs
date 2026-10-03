@@ -436,23 +436,11 @@ impl<'program> Evaluator<'program> {
                 Halt::Trap("selected trait operator lost its realization state".to_owned())
             })?;
         let operands = [binary.left, binary.right];
-        let has_self = self
-            .program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self);
-        let instance = if has_self {
-            let receiver = self.eval_argument(operands[0], frame)?;
-            self.deref_cell(receiver)
-        } else {
-            frame.self_cell.clone()
-        };
-        let arguments =
-            self.eval_state_arguments(state, &operands[usize::from(has_self)..], frame)?;
+        let arguments = self.eval_state_arguments(state, &operands, frame)?;
 
         let entered_guard_depth = self.guard_depth;
         self.guard_depth = 0;
-        let value = self.run_state_collect(machine, state, instance, arguments);
+        let value = self.run_state_collect(machine, state, frame.self_cell.clone(), arguments);
         self.guard_depth = entered_guard_depth;
         value?
             .ok_or_else(|| {
