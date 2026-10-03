@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 3.55, "load1_start": 3.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 4.12, "load1_start": 4.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2140,7 +2140,7 @@ pass/slices/projected_array_call_exit checked 1035ms @4e4bfed13aee+wt
 pass/slices/qualified_subslice_composition_exit checked 1090ms @a5ac65bf511d+wt
 pass/slices/recursive_subslice_element_accumulator_exit checked 728ms @de74b73e1452+wt
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 1320ms @0bc11b9b33e8
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit checked 1320ms @f7e9667e2f4a
 pass/slices/runtime_byte_view_guarded_state_contract_exit checked 987ms @5fb2e19e1f1+wt
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
 pass/slices/runtime_mutable_byte_view_loop_write_exit checked 879ms @59aa9580a54d+wt

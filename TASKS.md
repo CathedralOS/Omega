@@ -1041,7 +1041,7 @@ the complete product bar; focused successes below do not establish that baseline
     local package review. Its committed foreign-checkout `omega.lock` prevented
     the ordinary product command before compilation; test locks and admissions
     must stay local. The fixture README records preparation and the outer run.
-    At `0bc11b9b33e8` on macOS ARM64, `python3 tools/corpus_gate.py --both
+    At `f7e9667e2f4a` on macOS ARM64, `python3 tools/corpus_gate.py --both
     --filter slices/runtime_bounded_fixed_array_subslice_arg_exit` again executes
     native/interpreter exit 3. The receiver migration had hoisted the slice
     before its guard and forwarded an exclusive owner beside that slice.
