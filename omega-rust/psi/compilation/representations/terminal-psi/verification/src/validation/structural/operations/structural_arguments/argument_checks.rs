@@ -214,6 +214,14 @@ pub(in crate::validation) fn validate_structural_argument(
                     }
                     StructuralPlaceKind::BlockParameter { .. }
                         if (argument.path.is_empty()
+                            // An owned state arrival retains the same finite
+                            // affine projection contract as an entry parameter.
+                            // Its remaining siblings stay in the live frontier;
+                            // this source lookup grants no disposal or claims.
+                            || (allow_projected && ordinary_call
+                                && argument.access == StructuralAccess::Owned
+                                && partial_affine_root_type(caller, argument.place)
+                                    .is_some_and(|root| is_partial_affine_path(module, root, &argument.path)))
                             || (allow_projected && ordinary_call
                                 && argument.access == StructuralAccess::SharedBorrow
                                 && is_nonempty_field_path(&argument.path)
