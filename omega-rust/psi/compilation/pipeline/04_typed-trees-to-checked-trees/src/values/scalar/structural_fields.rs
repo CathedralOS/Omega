@@ -529,42 +529,25 @@ pub(super) fn owned_local_root(
     else {
         return None;
     };
-    let plain_array = matches!(
-        program
-            .type_reference_table
-            .type_reference(local.type_reference),
-        TypeReferenceNode::FixedArray { .. }
-    );
-    // A qualified byte array owns live-length storage rather than a raw
-    // fixed array. Keep its original declared type: executable observation
-    // must select the byte carrier and its live bound, not its capacity.
-    // Only constraint shells peel here; a reference is never an owned local.
+    // Root discovery retains identity, not permission to copy the whole
+    // value. A record's borrowed descendants do not prevent reading another
+    // field; establishment and observation replay check the selected path's
+    // custody. Preserve the declared constraints for that replay, peeling
+    // only to distinguish owned storage from a reference root.
     let mut carrier_type = local.type_reference;
     while let TypeReferenceNode::Constrained { base_type, .. } =
         program.type_reference_table.type_reference(carrier_type)
     {
         carrier_type = *base_type;
     }
-    let owned_bytes = matches!(
-        program.type_reference_table.type_reference(carrier_type),
-        TypeReferenceNode::FixedArray { .. }
-    ) && matches!(
-        crate::execution::terminal_unit::types::byte_sequence_carrier(
-            program,
-            local.type_reference,
-            &[],
-        ),
-        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-    );
-    let owned_record = matches!(
-        program.type_reference_table.type_reference(local.type_reference),
-        TypeReferenceNode::Named { symbol, .. }
-            if symbol.is_valid() && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data
-    ) && validation::has_plain_owned_contents_with_numeric_constraints(
-        program,
-        local.type_reference,
-    );
-    (plain_array || owned_bytes || owned_record).then_some((path.symbol, local.type_reference))
+    let owned = match program.type_reference_table.type_reference(carrier_type) {
+        TypeReferenceNode::FixedArray { .. } => true,
+        TypeReferenceNode::Named { symbol, .. } => {
+            symbol.is_valid() && program.symbols.get(*symbol).kind == symbols::SymbolKind::Data
+        }
+        _ => false,
+    };
+    owned.then_some((path.symbol, local.type_reference))
 }
 
 /// A collection can be stored below local fields and fixed array elements,

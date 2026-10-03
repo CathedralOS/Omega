@@ -1,7 +1,8 @@
 //! Whole owned places retain their selected source, declared carrier and storage.
 //! Carrier syntax is not ownership: fixed arrays and closed generic applications
 //! use the same source/type/transfer checks as named records. The recursive
-//! plain-owned classifier excludes references, qualifications and cleanup hooks.
+//! contents classifier retains shared descriptors without granting backing
+//! authority; exact transfer replay and Terminal lineage retain those loans.
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
     unsupported,
@@ -94,6 +95,7 @@ pub(crate) fn validate(
         ) && validation::reference_result_custody::is_reference_record(&checked.typed, source);
     if checked.primitive_type_reference(source).is_some()
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, source)
+            || validation::has_owned_or_shared_view_contents(&checked.typed, source)
             || owned_reference_parameter)
         || checked.normalized_type_identity(source) != checked.normalized_type_identity(expected)
         || checked.normalized_type_identity(source).as_str() != argument.type_identity

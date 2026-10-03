@@ -124,6 +124,52 @@ fn validate_reads(
     retained: &CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
     let (machine, state) = authored_state(checked, state)?;
+    if let ExpressionNode::Unary(unary) = checked.expression_table.expression(expression)
+        && unary.operator == checked_trees::expression::UnaryOperator::LogicalNot
+        && let CheckedScalarExpression::Boolean(value) = retained
+        && let CheckedBooleanExpression::Not(operand) = value.as_ref()
+    {
+        return validate_reads(
+            checked,
+            state.symbol,
+            scope,
+            unary.operand,
+            &CheckedScalarExpression::Boolean(operand.clone()),
+        );
+    }
+    // A content comparison expands into its own length and byte reads.
+    // Rejoin Boolean composition at its authored children so those
+    // synthetic reads cannot displace a sibling's occurrence coordinates.
+    // Each child repeats the same exact binding/path checks; ordinary
+    // scalar reads do not gain the comparison's expansion permission.
+    if let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression)
+        && let CheckedScalarExpression::Boolean(value) = retained
+    {
+        use checked_trees::expression::BinaryOperator;
+        let children = match (binary.operator, value.as_ref()) {
+            (BinaryOperator::And, CheckedBooleanExpression::And { left, right })
+            | (BinaryOperator::Or, CheckedBooleanExpression::Or { left, right }) => {
+                Some((left, right))
+            }
+            _ => None,
+        };
+        if let Some((left, right)) = children {
+            validate_reads(
+                checked,
+                state.symbol,
+                scope,
+                binary.left,
+                &CheckedScalarExpression::Boolean(left.clone()),
+            )?;
+            return validate_reads(
+                checked,
+                state.symbol,
+                scope,
+                binary.right,
+                &CheckedScalarExpression::Boolean(right.clone()),
+            );
+        }
+    }
     let mut authored_reads = Vec::new();
     let mut member_paths = Vec::new();
     let mut unmatched_member_paths = Vec::new();
