@@ -512,6 +512,19 @@ pub(crate) fn source_place_path(
             }
         }
     }
+    // A projected reference leaf presents its referent to a call, just as an
+    // intermediate stored reference is crossed before selecting another field.
+    // Root reference parameters already present their referents; only a stored
+    // leaf contributes this final descriptor crossing. Byte/element views have
+    // their own descriptor operations, not a Reference storage leaf. Explicit
+    // access remains subject to the caller's independent loan check.
+    if !path.is_empty()
+        && let Some((_, declared_access)) =
+            validation::reference_result_custody::stored_loan_parts(&checked.typed, type_reference)
+    {
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        access = access.or(Some(declared_access));
+    }
     Ok((root, path, access))
 }
 

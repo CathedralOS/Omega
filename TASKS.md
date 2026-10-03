@@ -592,6 +592,14 @@ the complete product bar; focused successes below do not establish that baseline
     forwards that field through another scalar call, and disposes the record
     exactly once on return. Stored descriptor transport must retain its window,
     backing and access; it does not transfer ownership of the backing.
+    Preserve `termination/runtime_stored_exclusive_endpoint_exit` and
+    `borrows/local_reference_record_transfer_exit` at native/interpreter exits
+    0 and 70 on macOS ARM64 (`omega run --both tests/omega/pass/<fixture>/main.omg`
+    after local package review). Local reference capture, ordinary call
+    forwarding and scalar-return disposal share backing/holder reconstruction
+    and checked whole-owner cleanup. Missing cleanup, substituted holders and
+    erased declaration bounds reject independently. Other hosts remain
+    unverified; general record-copy and nested composition work remains here.
     `structural_values::is_record_value` still gates on StructLiteral/Match
     roots; generalize the operation instead of rewriting a local observation
     into a different source subject. Primitive borrowed-local mutation already

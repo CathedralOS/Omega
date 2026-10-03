@@ -2335,36 +2335,8 @@ fn validate_operand_producers(
                 "Unit structural result argument does not rejoin its exact authored source"
             });
         }
-        if names_result
-            && producer_coordinate.call_ordinal == 0
-            && expression.is_none_or(|expression| {
-                // The operand's authored access mirrors its source: a
-                // borrowed-view local carries shared custody in its type,
-                // not a borrow expression.
-                let authored_access = named_result_operand(checked, expression).1;
-                let authored_access =
-                    if authored_access == checked_trees::CheckedStructuralAccess::Owned
-                        && (implicit_shared_owner || matches!(
-                            statements.get(result.statement_index as usize),
-                            Some(StatementNode::LocalData(local))
-                                if crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
-                                    checked,
-                                    local.type_reference,
-                                )
-                                .is_some()
-                        ))
-                    {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
-                    } else {
-                        authored_access
-                    };
-                authored_access != argument.access
-            })
-        {
-            return unsupported(
-                "Unit structural result access disagrees with its authored operand",
-            );
-        }
+        // Source-path replay above owns access as well as identity. A second
+        // syntax-only pass would mistake a stored reference for owned storage.
     }
     Ok(())
 }
@@ -2599,29 +2571,4 @@ fn claimed_result_consumer(
         );
     }
     Ok(())
-}
-
-fn named_result_operand(
-    checked: &CheckedTrees,
-    expression: checked_trees::expression::ExpressionHandle,
-) -> (
-    checked_trees::expression::ExpressionHandle,
-    checked_trees::CheckedStructuralAccess,
-) {
-    if let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) {
-        let access = match borrow.access {
-            language_core::ReferenceAccess::Shared => {
-                checked_trees::CheckedStructuralAccess::SharedBorrow
-            }
-            language_core::ReferenceAccess::Mutable => {
-                checked_trees::CheckedStructuralAccess::MutableBorrow
-            }
-            language_core::ReferenceAccess::WriteOnly => {
-                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-            }
-        };
-        (borrow.target, access)
-    } else {
-        (expression, checked_trees::CheckedStructuralAccess::Owned)
-    }
 }

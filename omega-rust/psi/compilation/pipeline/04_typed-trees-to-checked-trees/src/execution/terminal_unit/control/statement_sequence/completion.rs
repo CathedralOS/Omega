@@ -5,8 +5,8 @@
 //! returned call's result, or a returned array. A returned reference
 //! establishes its carrier, and returned carriers are released at their
 //! checked weakening boundary. A scalar body completes with its final
-//! expression's checked value. Scalar control admits only unrestricted
-//! structural results, and every flow call of the body must be planned.
+//! expression's checked value. Structural values retain their ordinary transfer
+//! and cleanup roster across scalar completion; every flow call must be planned.
 //! Exit weakening follows final-value evaluation. Statement-boundary weakening
 //! still precedes that statement, so it restores parent access at exactly the
 //! checked boundary without ending a loan needed by the final expression.
@@ -471,21 +471,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         }
     }
     append_exit_reference_releases(facts, machine.symbol, state.symbol, &mut operations)?;
-    trace.phase("statement sequence: scalar control ownership");
-    if scalar_control.is_some()
-        && operations.iter().any(|operation| {
-            let result = match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-                    Some(result)
-                }
-                CheckedUnitEffectOperationPlan::Call(call) => call.structural_result(),
-                _ => None,
-            };
-            result.is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted)
-        })
-    {
-        return None;
-    }
     trace.phase("statement sequence: call count agreement");
     (call_count == calls.len()).then_some(StatementSequence {
         scalar_result: returned_scalar_call,
