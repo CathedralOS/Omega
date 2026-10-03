@@ -2433,6 +2433,41 @@ crash and native exit behavior. Use affected check/native corpus slices under
   behavior, Build-effect custody and per-target admission/publication checks.
   **PCC-PRODUCT-PUBLICATION** owns the separate Terminal-only command product.
 
+- **DRIVER-EARNS-ITS-LINES.** (new-scope) The product driver should read as
+  "`build.omg` in, program out": prepare sources, run the stages, publish.
+  Measured 2026-10-02 on `eb241170ef`: `omega/compilation/driver` holds about
+  1.8k production lines and `driver/terminal-production` about 700 (plus ~590
+  test lines), while the stage chain itself is roughly 15 lines in
+  `terminal_production.rs` (select entry, Psi 05 lower, 06 optimize, 07
+  publish) and 40 in `compiler.rs`. The rest is plumbing:
+
+  - Two timing systems: `terminal-production/src/stage_timings.rs` keeps its
+    own ladder that `terminal/terminal_artifact.rs` merges back into
+    `CompileTimings`. Keep one.
+  - Custody wrappers: `terminal-production/src/custody.rs` threads a generic
+    caller payload through production only to hand it back on failure, with
+    wrapper error types for it. Use a plain result.
+  - Self re-validation: stage 07's entry receipt is prepared and then rejoined
+    against the artifact production just published. The producing stage
+    should return the receipt it validated once.
+  - Checked-tree sidecars carried past Terminal (source-call occurrences, IEEE
+    and integer comparison occurrences, the boundary-operator scope rebuilt
+    from checked trees) exist because Omega still reads checked trees; they
+    leave with **PROVIDER-SELECTION-AFTER-TERMINAL**.
+  - Reuse caches in `driver/src/checked` (`PreparedBuilds`, typed-frontier
+    retention, the pure-build owner, `compile_checked_reusing_builds`,
+    counters) deduplicate per-target and per-package repetition; they leave
+    with **ONE-DRIVER-PER-STAGE**. The typed-to-checked wedge
+    (`checked/checking/execution_settlement.rs`) leaves with
+    **PROVIDER-SELECTION-AFTER-TERMINAL**; the driver's product re-admissions
+    belong to **COMPILE-REPORT-PRODUCTS**.
+
+  The first three bullets are this item's own work and can land now; the
+  rest is the closing gate for those items. Acceptance: driver plus
+  terminal-production production code is about 200 lines or fewer, and every
+  remaining line is a stage call, report construction or publication; a caller
+  compiles a package root without assembling per-target configurations itself.
+
 - **COMPILE-REPORT-PRODUCTS.** (new-scope) Make product admission part of
   report construction in
   [compile_report.rs](omega-rust/omega/compilation/products/src/compilation_products.rs),
