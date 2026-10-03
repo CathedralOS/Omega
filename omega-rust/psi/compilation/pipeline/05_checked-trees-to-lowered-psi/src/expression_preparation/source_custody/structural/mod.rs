@@ -865,7 +865,7 @@ pub(crate) fn validate(
                     return unsupported("projected selection has a stale or reused root node");
                 }
                 let source_node = plans.nodes.get(source_handle).clone();
-                let Some(receipt) = selection else {
+                if selection.is_none() {
                     // A projection under a copied shared-borrow root names a
                     // field of the copy's provenance — nothing moves, so the
                     // transfer catalog legitimately records no receipt.
@@ -900,15 +900,22 @@ pub(crate) fn validate(
                         ));
                         continue;
                     }
-                    return unsupported("projected selection has no ownership receipt");
+                }
+                let transfer = match selection {
+                    Some(receipt) => owned_selection::ProjectionTransfer::Selection {
+                        receipt,
+                        source_arm,
+                    },
+                    None => owned_selection::ProjectionTransfer::Statement {
+                        statement: result.statement_index,
+                    },
                 };
                 let root = owned_selection::validate_projection(
                     checked,
                     owner,
                     source,
-                    receipt,
+                    transfer,
                     expression,
-                    source_arm,
                     &source_node,
                     &path,
                     &type_identity,

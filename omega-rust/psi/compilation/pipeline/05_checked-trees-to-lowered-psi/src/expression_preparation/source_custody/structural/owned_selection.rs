@@ -484,6 +484,20 @@ pub(super) struct ProjectionRoot {
     pub(super) reference: checked_trees::types::TypeReferenceHandle,
 }
 
+/// A projected value is transferred either by a selected arm or by the
+/// ordinary statement that consumes a constructor operand. Neither receipt
+/// supplies the path: both rejoin the independently reconstructed source.
+#[derive(Clone, Copy)]
+pub(super) enum ProjectionTransfer<'a> {
+    Selection {
+        receipt: &'a FlowOwnedSelectionReceipt,
+        source_arm: arena::Handle<checked_trees::expression::TableMatchArm>,
+    },
+    Statement {
+        statement: u32,
+    },
+}
+
 /// Replay one projected selection leaf against the authored expression. The
 /// exact member/fixed-index chain is rebuilt through each receiver's declared
 /// type and must equal both the recorded transfer path (fact segments) and
@@ -495,21 +509,32 @@ pub(super) fn validate_projection(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
-    receipt: &FlowOwnedSelectionReceipt,
+    transfer_source: ProjectionTransfer<'_>,
     expression: ExpressionHandle,
-    source_arm: arena::Handle<checked_trees::expression::TableMatchArm>,
     source_node: &checked_trees::CheckedStructuralValue,
     path: &[CheckedUnitStructuralPathSegment],
     type_identity: &str,
 ) -> Result<ProjectionRoot, LoweringError> {
     let ownership = &checked.facts.flow.ownership;
-    let transfer = ownership
-        .owned_selection_transfer(receipt, expression)
-        .ok_or(LoweringError::Unsupported(
-            "projected leaf has no unique transfer receipt",
-        ))?;
-    if transfer.source_arm != source_arm || path.is_empty() {
-        return unsupported("projected leaf changed its transfer arm or path");
+    let transfer = match transfer_source {
+        ProjectionTransfer::Selection {
+            receipt,
+            source_arm,
+        } => {
+            let transfer = ownership
+                .owned_selection_transfer(receipt, expression)
+                .ok_or(LoweringError::Unsupported(
+                    "projected leaf has no unique transfer receipt",
+                ))?;
+            if transfer.source_arm != source_arm {
+                return unsupported("projected leaf changed its transfer arm");
+            }
+            Some(transfer)
+        }
+        ProjectionTransfer::Statement { .. } => None,
+    };
+    if path.is_empty() {
+        return unsupported("projected leaf lost its transfer path");
     }
     let mut segments = Vec::new();
     let mut checked_path = Vec::new();
@@ -532,15 +557,13 @@ pub(super) fn validate_projection(
                 .ok_or(LoweringError::Unsupported(
                     "projected selection receiver has no declared type",
                 ))?;
-                let TypeReferenceNode::Named { symbol, .. } =
-                    checked.type_reference_table.type_reference(receiver)
-                else {
-                    return unsupported("projected selection receiver is not a named record");
-                };
                 let owner = checked
                     .data_definitions()
                     .iter()
-                    .find(|owner| owner.symbol == *symbol)
+                    .find(|owner| {
+                        validation::member_type_substitutions(&checked.typed, owner, receiver)
+                            .is_some()
+                    })
                     .ok_or(LoweringError::Unsupported(
                         "projected selection field owner is absent",
                     ))?;
@@ -625,7 +648,9 @@ pub(super) fn validate_projection(
     checked_path.reverse();
     if segments.is_empty()
         || checked_path.as_slice() != path
-        || ownership.segments.span_or_empty(transfer.path) != segments.as_slice()
+        || transfer.is_some_and(|transfer| {
+            ownership.segments.span_or_empty(transfer.path) != segments.as_slice()
+        })
     {
         return unsupported("projected selection changed its authored path");
     }
@@ -651,7 +676,8 @@ pub(super) fn validate_projection(
         "projected selection root has no declared type",
     ))?;
     if checked.type_multiplicity(root_reference) != Multiplicity::Affine
-        || !validation::has_linear_owned_contents(&checked.typed, root_reference)
+        || !(validation::has_linear_owned_contents(&checked.typed, root_reference)
+            || validation::has_owned_or_shared_view_fields(&checked.typed, root_reference))
     {
         return unsupported("projected selection root is not an affine owner");
     }
@@ -683,9 +709,10 @@ pub(super) fn validate_projection(
             let Some(symbol) = symbol else {
                 return unsupported("projected local root lost its symbol");
             };
-            if !ownership.selection_sources.is_valid(transfer.source)
-                || ownership.selection_sources.get(transfer.source).symbol != symbol
-                || !source_plan_matches(checked, state.symbol, symbol, &argument.source)
+            if transfer.is_some_and(|transfer| {
+                !ownership.selection_sources.is_valid(transfer.source)
+                    || ownership.selection_sources.get(transfer.source).symbol != symbol
+            }) || !source_plan_matches(checked, state.symbol, symbol, &argument.source)
                 || !argument.path.is_empty()
                 || argument.access != checked_trees::CheckedStructuralAccess::Owned
                 || argument.type_identity
@@ -695,12 +722,47 @@ pub(super) fn validate_projection(
             }
         }
         checked_trees::CheckedStructuralValueKind::Call { .. } => {
-            if transfer.source.is_valid() {
-                return unsupported("projected selection product held a roster source");
+            if transfer.is_none_or(|transfer| transfer.source.is_valid()) {
+                return unsupported("projected product lost its exact selection transfer");
             }
         }
         _ => {
             return unsupported("projected selection requires a place or call root");
+        }
+    }
+    if let ProjectionTransfer::Statement { statement } = transfer_source {
+        let Some(symbol) = symbol else {
+            return unsupported("projected statement operand has no declared owner");
+        };
+        let mut events = ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .filter(|event| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.root == facts::PlaceRoot::Symbol(symbol)
+                    && event.source
+                        == PermissionEventSource::Statement {
+                            statement_index: statement as usize,
+                        }
+                    && event.kind == language_semantics::PermissionEventKind::Transfer
+                    && ownership
+                        .segments
+                        .span(event.segments)
+                        .is_some_and(|path| path == segments.as_slice())
+            });
+        let event = events.next().ok_or(LoweringError::Unsupported(
+            "projected constructor operand lost its exact statement transfer",
+        ))?;
+        if events.next().is_some()
+            || checked.type_multiplicity(leaf_reference) != Multiplicity::Affine
+            || event.multiplicity != Multiplicity::Affine
+            || event.access != language_semantics::PermissionAccess::Owned
+            || event.claim_identity != PermissionClaimIdentity::Unknown
+            || event.obligation_live
+        {
+            return unsupported("projected constructor operand changed its transfer custody");
         }
     }
     Ok(ProjectionRoot {
