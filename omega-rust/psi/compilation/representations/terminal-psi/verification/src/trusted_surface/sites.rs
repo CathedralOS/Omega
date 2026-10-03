@@ -724,7 +724,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/predicate_denotation/value_equalities.rs",
-        sha256: Some("5716fef705d06f8ccb6a465de05cf5b4770d21a7a62dd2c53066c6fa5587ad54"),
+        sha256: Some("2907397396f97feec3847127a7a05a26aacb5f72089abe32bf991aa4b6bd2031"),
         inventory_machinery: false,
     },
     ImplementationSite {
