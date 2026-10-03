@@ -830,26 +830,27 @@ the complete product bar; focused successes below do not establish that baseline
   Source checks use each selected exit, post-call temporary cleanup, and
   replacement facts captured after RHS evaluation but before the store.
 
-  The local candidate passes all ten `contextual_conditions` source checks:
-  selected-owner readiness, generic forwarding, named-state transport, and whole
-  disjunctive/integer-comparison guards. The finite predicate worklist retains
-  whole-formula truth without inventing Boolean leaf or integer values; grouped
-  storage dependencies invalidate stale observations. Ordinary calls and operators
-  share operand-time capture. Entry transport checks the statement-entry state
-  plus each operand's exact prior-write prefix, preserving earlier copied values
-  across later writes. All 91 focused source controls pass on macOS ARM64,
-  including invalid/opposite guards, write chronology and named-state operator
-  contracts. This is source-checking evidence; conditional execution remains open.
+  The local cleanup-composition candidate retains selected-edge cleanup actions
+  through structural returns and materializes the returned owner before running
+  sibling hooks. Source inference retains whole guards, exact named-transition
+  contexts and operand-time values; the prior focused source run passed 91
+  controls. After rebasing onto `e56af86474`, five permission-schedule controls
+  pass, including upstream's cached-call transfer-identity regression.
 
-  Remaining acceptance: execute conditional nominal cleanup on structural-return
-  edges. `state_graph/returns.rs` still declines nominal owned results, and
-  Terminal `ReturnStructural` retains only trivial discards. Extend the shared
-  ordered cleanup action path through codec, independent verification,
-  interpretation and native realization, materializing the result before
-  cleanup. Preserve exact named-transition contexts and operand-time values;
-  dying local owners also remain unfinished. Reject missing/forged hook identity
-  or premises and duplicate consumption, retaining helper-call, reserved-hook
-  and erased-field controls.
+  The execution customer is
+  `omega run --both build/cleanup-probes/conditional-run/main.omg`: generic
+  forwarding returns an initially unready owner, cleans its ready sibling, then
+  the caller repairs and drops the returned owner. Its expected output is
+  `BA\n`, exit 0. The retained draft achieved that output in both engines, but
+  required an added receiver-proof route. That extension and its receiver-proof
+  tests have been removed under the PCC-removal ruling below; the existing
+  `OperationProofUnavailable` gate remains. **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**
+  and the PCC removal sequence own replacing that gate with source checking;
+  do not extend receiver verification to close this item. Ordered cleanup
+  lowering and runtime changes remain local and unpublished. Complete execution
+  on the replacement path, promote the unchanged customer to the drops corpus,
+  and finish dying local owners. Preserve source rejection of unmet hook
+  prerequisites and duplicate consumption, helper calls and erased-field controls.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize outgoing
