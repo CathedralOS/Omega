@@ -62,6 +62,7 @@ pass/borrows/borrow_returned_window_write_and_call built 631ms exit:0 @db95cfee9
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
 pass/borrows/branch_selected_record_composed_receiver_exit built 1918ms exit:70 @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit built 1252ms exit:70 @011fd400e8c1+wt
+pass/borrows/case_payload_shared_transition_exit built 1109ms exit:70 @ecff27281052
 pass/borrows/enum_selected_view_reference_exit built 1258ms exit:70 @011fd400e8c1+wt
 pass/borrows/indexed_record_field_replacement_exit built 1785ms exit:70 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @63377f7122bb+wt
