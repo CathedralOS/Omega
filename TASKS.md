@@ -1775,12 +1775,15 @@ crash and native exit behavior. Use affected check/native corpus slices under
   state transfers: `storage/runtime_local_slice_forward_exit` and
   `storage/runtime_parameter_slice_forward_exit` both execute with native and
   interpreter exit **70** on macOS ARM64. The latter checks caller-visible
-  writes across two states and untouched sibling fields. Descriptor cleanup
-  remains separate from transferred permission; stale names and shared backing
-  cannot acquire mutation authority. The prepared product command
-  `omega run --both tests/omega/pass/storage/runtime_local_slice_forward_exit/main.omg`
-  also reports native/interpreter exit **70**. Coordinate record re-views with
-  **RECAST-SOURCE-POSITIONS**.
+  writes across two states and untouched sibling fields. Shared view results
+  retain original backing through ordinary calls:
+  `slices/runtime_shared_whole_view_return_exit` runs through the prepared
+  `omega run --both` product route with native/interpreter exit **70**.
+  `slices/runtime_shared_subslice_return_exit` also agrees at **70**, retaining
+  a nonzero offset and exact extent through nested helper returns.
+  Descriptor cleanup remains separate from backing permission; returned shared
+  views cannot grant mutation authority or escape activation-owned storage.
+  Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
 
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70

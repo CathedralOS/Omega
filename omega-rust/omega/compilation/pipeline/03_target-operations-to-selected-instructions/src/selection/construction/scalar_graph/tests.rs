@@ -94,6 +94,7 @@ fn fixture_with_integer(
                 })
                 .collect();
             LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                descriptor_origins: Vec::new(),
                 structural_result: None,
                 source: NativeCallOrigin::Authored,
                 claim_transfers: Vec::new(),

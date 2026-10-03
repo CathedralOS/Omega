@@ -5,21 +5,14 @@ use crate::validation::{
     TerminalMachine, TerminalModule, ValueId,
 };
 
-pub(in crate::validation) fn borrowed_result<'a>(
-    machine: &'a TerminalMachine,
-    place: PlaceId,
-) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    crate::validation::element_view::view_loan_result(machine, place).map(|(result, _)| result)
-}
-
-/// The module-aware variant: registers call-produced view results alongside
-/// the parameter and establishment producers.
+/// Authenticate view result custody against its current module and producer.
 pub(in crate::validation) fn borrowed_result_in_module<'a>(
     module: &TerminalModule,
     machine: &'a TerminalMachine,
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    crate::validation::element_view::view_loan_result_in_module(module, machine, place).map(|(result, _)| result)
+    crate::validation::element_view::view_loan_result_in_module(module, machine, place)
+        .map(|(result, _)| result)
 }
 
 pub(in crate::validation) fn validate(
@@ -94,7 +87,9 @@ pub(in crate::validation) fn validate_uses(
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let require = |place: PlaceId| {
-        if borrowed_result_in_module(module, machine, place).is_some() && !available.contains(&place) {
+        if borrowed_result_in_module(module, machine, place).is_some()
+            && !available.contains(&place)
+        {
             Err(ModuleError::ElementViewNotEstablished {
                 operation: operation.id,
                 place,

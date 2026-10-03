@@ -133,6 +133,10 @@ pub(super) fn lower(
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
+        let home = super::aggregate_results::home(*psi_operation, result, structural_types)?;
+        if live.structural_homes.insert(result.place, home).is_some() {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
         provenance.operations.push(*psi_operation);
         operations.push(TargetUnitOperation::ByteSequenceSubslice {
             result: result.clone(),
@@ -164,6 +168,10 @@ pub(super) fn lower(
             .insert(result.place, (*psi_operation, result.structural_type))
             .is_some()
         {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        let home = super::aggregate_results::home(*psi_operation, result, structural_types)?;
+        if live.structural_homes.insert(result.place, home).is_some() {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         provenance.operations.push(*psi_operation);

@@ -500,7 +500,7 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || !super::byte_views::contains_view(optimized, *source)
+                || !super::byte_views::contains_view(optimized, *source, types)
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
@@ -519,7 +519,7 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || !super::byte_views::contains_view(optimized, *source)
+                || !super::byte_views::contains_view(optimized, *source, types)
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
@@ -890,7 +890,7 @@ pub(super) fn validate(
                 length,
                 ..
             } => {
-                if !super::byte_views::contains_view(optimized, *source)
+                if !super::byte_views::contains_view(optimized, *source, types)
                     || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                     || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 {
@@ -899,7 +899,7 @@ pub(super) fn validate(
                 result.scalar_type
             }
             AbstractOperation::ElementViewLength { source, .. } => {
-                if !super::byte_views::contains_view(optimized, *source) {
+                if !super::byte_views::contains_view(optimized, *source, types) {
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())

@@ -13,7 +13,6 @@ mod tests;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StructuralProjectionPolicy {
     Unit,
-    EmptyOnly,
     Projected,
     Boundary,
 }
@@ -31,6 +30,26 @@ pub(crate) struct StructuralSourceContract<'a> {
 impl StructuralSourceContract<'_> {
     pub(crate) fn operation_result(&self) -> Option<&terminal_psi::StructuralOperationResult> {
         self.operation_result
+    }
+
+    /// Owning an unrestricted descriptor owns its carrier value, not mutable
+    /// permission over its backing. Explicit incoming loans keep their declared
+    /// access; this ceiling applies before selecting any element of the view.
+    fn backing_access(
+        &self,
+        types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    ) -> terminal_psi::StructuralAccess {
+        if self.access == terminal_psi::StructuralAccess::Owned
+            && self.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && terminal_semantics::descriptor_results::is_shared_descriptor(
+                types.values().copied(),
+                self.structural_type,
+            )
+        {
+            terminal_psi::StructuralAccess::SharedBorrow
+        } else {
+            self.access
+        }
     }
 
     pub(crate) fn has_exact_qualifications(&self, required: &[StructuralDomainId]) -> bool {
@@ -99,10 +118,7 @@ pub(crate) fn structural_arguments_match(
             .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Case(_)));
         if case_projection
             && (argument.access == terminal_psi::StructuralAccess::Owned
-                || matches!(
-                    projection,
-                    StructuralProjectionPolicy::Boundary | StructuralProjectionPolicy::EmptyOnly
-                ))
+                || matches!(projection, StructuralProjectionPolicy::Boundary))
         {
             return false;
         }
@@ -146,10 +162,8 @@ pub(crate) fn structural_arguments_match(
                             caller, types, argument,
                         )
                     });
-            let admitted = !matches!(
-                projection,
-                StructuralProjectionPolicy::Boundary | StructuralProjectionPolicy::EmptyOnly
-            ) && selected == Some(parameter.structural_type)
+            let admitted = !matches!(projection, StructuralProjectionPolicy::Boundary)
+                && selected == Some(parameter.structural_type)
                 && argument.access == parameter.access
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()
@@ -163,6 +177,14 @@ pub(crate) fn structural_arguments_match(
         else {
             return false;
         };
+        // Moving a carrier remains a custody operation. Lending payload must
+        // also fit the backing permission; Owned is not permission to mutate
+        // through a returned or copied shared descriptor.
+        if argument.access != terminal_psi::StructuralAccess::Owned
+            && !structural_access_can_supply(source.backing_access(types), argument.access)
+        {
+            return false;
+        }
         // A static subloan preserves its root's custody. Field/index order is
         // checked by type resolution below, not by a source-shape roster. An
         // owned root is also a parent: the loan table grants it the exclusive
@@ -215,7 +237,6 @@ pub(crate) fn structural_arguments_match(
                         && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && is_partial_affine_path(types, source.structural_type, &argument.path))
             }
-            StructuralProjectionPolicy::EmptyOnly => argument.path.is_empty(),
             StructuralProjectionPolicy::Projected => true,
             StructuralProjectionPolicy::Boundary => true,
         };

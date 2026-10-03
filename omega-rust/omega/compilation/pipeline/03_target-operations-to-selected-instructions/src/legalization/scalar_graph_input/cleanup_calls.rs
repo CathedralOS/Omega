@@ -110,6 +110,7 @@ pub(in crate::legalization) fn expected(
                 arguments,
                 result_placement: None,
                 structural_result: None,
+                descriptor_origins: Vec::new(),
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),

@@ -525,6 +525,7 @@ pub(super) fn validate_structural(
                     // A `&mut` view tail return's producer is the reference
                     // establishment minted at the transition.
                     CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
                     | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => {
                         Some(result)
                     }
@@ -575,6 +576,15 @@ pub(super) fn validate_structural(
                     CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 ) {
                     super::super::super::byte_locals::validate(checked, state.state, operation)?;
+                } else if matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                ) {
+                    super::super::super::view_ranges::binding_site(
+                        checked,
+                        state.state,
+                        operation,
+                    )?;
                 } else if let CheckedUnitEffectOperationPlan::EstablishReference {
                     source, ..
                 } = operation

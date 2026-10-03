@@ -574,14 +574,15 @@ pub(crate) fn replay(
     ))
 }
 
-/// The view local an `EstablishViewSubslice` binds: its result
-/// statement must be that `let`, whose initializer is exactly the retained
-/// range and whose declared type is the result's view type.
-pub(crate) fn binding_local<'a>(
-    checked: &'a CheckedTrees,
+/// Rejoin a descriptor producer with the occurrence that evaluates its range.
+/// A local initializer and a completion use identical range operations; only
+/// the source-bound endpoint site differs. Returning never borrows a temporary
+/// descriptor carrier: the resulting value retains the original backing.
+pub(crate) fn binding_site(
+    checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
-) -> Result<&'a checked_trees::statement::TableLocalData, LoweringError> {
+) -> Result<checked_trees::CheckedSubsliceSite, LoweringError> {
     let checked_trees::CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } =
         operation
     else {
@@ -600,15 +601,38 @@ pub(crate) fn binding_local<'a>(
     };
     let (_, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
-    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(authored.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
-        return unsupported("view subslice binding lost its authored local");
+    let statements = checked.statement_table.statements(authored.statement_nodes);
+    let (declared_type, site) = match statements.get(result.statement_index as usize) {
+        Some(checked_trees::statement::StatementNode::LocalData(local))
+            if !local.is_mutable
+                && local.symbol.is_valid()
+                && local.initial_value == *expression =>
+        {
+            (
+                local.type_reference,
+                checked_trees::CheckedSubsliceSite::LocalBinding,
+            )
+        }
+        Some(
+            checked_trees::statement::StatementNode::Expression(_)
+            | checked_trees::statement::StatementNode::Transition(_),
+        ) if result.statement_index as usize + 1 == statements.len()
+            && validation::reference_result_custody::tail_return_expression(
+                &checked.typed,
+                authored,
+            ) == Some(*expression) =>
+        {
+            (
+                authored.return_type,
+                checked_trees::CheckedSubsliceSite::Expression {
+                    expression: *expression,
+                },
+            )
+        }
+        _ => return unsupported("view subslice binding lost its authored occurrence"),
     };
-    let declared = validation::reference_shell(&checked.typed, local.type_reference).ok_or(
-        LoweringError::Unsupported("range local lost its declared reference"),
+    let declared = validation::reference_shell(&checked.typed, declared_type).ok_or(
+        LoweringError::Unsupported("range result lost its declared reference"),
     )?;
     let access = match declared.access {
         language_core::ReferenceAccess::Shared => {
@@ -617,26 +641,19 @@ pub(crate) fn binding_local<'a>(
         language_core::ReferenceAccess::Mutable => {
             checked_trees::CheckedStructuralAccess::MutableBorrow
         }
-        _ => return unsupported("range local has unreadable access"),
+        _ => return unsupported("range result has unreadable access"),
     };
-    if local.is_mutable
-        || !local.symbol.is_valid()
-        || local.initial_value != *expression
-        || !matches!(
-            source.access,
-            checked_trees::CheckedStructuralAccess::SharedBorrow
-                | checked_trees::CheckedStructuralAccess::MutableBorrow
-        )
-        || source.access != access
+    if source.access != access
         || source.type_identity != result.type_identity
+        || checked.normalized_type_identity(declared.referee).as_str() != result.type_identity
         || result.multiplicity
-            != if source.access == checked_trees::CheckedStructuralAccess::MutableBorrow {
+            != if access == checked_trees::CheckedStructuralAccess::MutableBorrow {
                 language_semantics::Multiplicity::Affine
             } else {
                 language_semantics::Multiplicity::Unrestricted
             }
     {
-        return unsupported("view subslice binding changed its local, range or custody");
+        return unsupported("view subslice binding changed its range or custody");
     }
-    Ok(local)
+    Ok(site)
 }

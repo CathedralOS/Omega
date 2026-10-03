@@ -27,7 +27,7 @@ use terminal_psi::{
 /// Independent ownership replay still governs access and lifetime.
 #[derive(Clone, Copy)]
 pub(in crate::lowering) struct ElementViewBackings<'a> {
-    homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    pub(super) homes: &'a BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     address_joins: &'a BTreeSet<PlaceId>,
 }
 
@@ -322,6 +322,33 @@ pub(in crate::lowering) fn resolve_element_view(
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
     if active.contains(&place) {
         return Err(invalid());
+    }
+    if let Some((psi_operation, result)) =
+        super::byte_views::descriptor_result(function, place, structural_types)
+        && matches!(
+            structural_types
+                .get(&result.structural_type)
+                .map(|row| &row.shape),
+            Some(StructuralTypeShape::ElementView { .. })
+        )
+    {
+        if backings
+            .homes
+            .get(&place)
+            .and_then(|home| home.operation_result())
+            != Some((psi_operation, result))
+        {
+            return Err(invalid());
+        }
+        return Ok((
+            TargetElementView::Result {
+                psi_operation,
+                place,
+                structural_type: result.structural_type,
+            },
+            result.structural_type,
+            StructuralAccess::SharedBorrow,
+        ));
     }
     if let Some(AbstractOperation::EstablishElementView {
         psi_operation,

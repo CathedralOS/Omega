@@ -73,6 +73,7 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
     )
     .unwrap();
     source.blocks[0].instructions[2].kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+        descriptor_origins: Vec::new(),
         structural_result: None,
         source: NativeCallOrigin::Authored, callee: MachineId::new(10).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {

@@ -636,14 +636,14 @@ fn close_return_structural(
                         semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
                             structural_type,
                             ..
-                        } if declaration.id == *source => {
-                            Some(super::super::structural::result_contracts::StructuralResultSignature {
+                        } if declaration.id == *source => Some(
+                            super::super::structural::result_contracts::StructuralResultSignature {
                                 structural_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,
                                 qualifications: &[],
                                 projected_qualifications: &[],
-                            })
-                        }
+                            },
+                        ),
                         _ => None,
                     })
             })
@@ -665,25 +665,16 @@ fn close_return_structural(
                 && parameter.position == 0
                 && !parameter.is_self
                 && parameter.access == StructuralAccess::Owned);
-    // A `&'a`-typed parameter forwards its own borrowed storage as the
-    // result: nothing owned is consumed, so other shared parameters may
-    // coexist, and no affine obligation or claims arise.
-    let shared_view_parameter_return = source_signature.multiplicity
+    // Claim-free descriptors retain the body's original external backing.
+    // The return availability check is independent of this loan judgment.
+    let shared_descriptor_return = source_signature.multiplicity
         == StructuralMultiplicity::Unrestricted
         && super::super::structural::result_contracts::has_empty_qualification_rosters(
             source_signature.qualifications,
             source_signature.projected_qualifications,
         )
-        && super::super::structural::result_contracts::borrowed_view_shape(
-            module,
-            source_signature.structural_type,
-        )
-        && machine.structural_parameters.iter().any(|parameter| {
-            parameter.place == *source
-                && !parameter.is_self
-                && parameter.access == StructuralAccess::SharedBorrow
-                && parameter.qualifications.is_empty()
-        });
+        && terminal_semantics::descriptor_results::return_origins(module, machine, *source)
+            .is_some();
     // Return availability and the exact source/result signature are checked
     // independently. An unrestricted source owes no disposal regardless of
     // its producer: a literal view does not become an affine owner merely
@@ -800,7 +791,7 @@ fn close_return_structural(
     if (returned_claims.is_empty()
         && !reference_return
         && !bounded_owned_byte_return
-        && !shared_view_parameter_return
+        && !shared_descriptor_return
         && !exact_payloadless_claim_free_return
         && !exact_affine_parameter_return
         && !plain_owned_block_return

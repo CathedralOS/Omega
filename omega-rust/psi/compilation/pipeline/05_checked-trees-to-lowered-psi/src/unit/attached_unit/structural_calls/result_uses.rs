@@ -2062,7 +2062,7 @@ fn validate_operand_producers(
                 super::super::byte_locals::validate(checked, caller.state, candidate)?;
             }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
-                super::super::view_ranges::binding_local(checked, caller.state, candidate)?;
+                super::super::view_ranges::binding_site(checked, caller.state, candidate)?;
             }
             _ => {}
         }

@@ -22,6 +22,7 @@
 mod candidates;
 mod current_ownership;
 mod current_value_ranges;
+pub mod descriptor_results;
 mod error;
 mod unit_validation;
 

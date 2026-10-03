@@ -232,7 +232,11 @@ pub(super) fn validate(
                         target_operations::TargetStructuralReturnSource::Parameter(parameter) => {
                             optimized.structural_parameters.iter().any(|semantic| {
                                 semantic.place == *expected_source
-                            && semantic.access == terminal_psi::StructuralAccess::Owned
+                            && (semantic.access == terminal_psi::StructuralAccess::Owned
+                                || semantic.access == terminal_psi::StructuralAccess::SharedBorrow
+                                    && semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                                    && terminal_semantics::descriptor_results::is_shared_descriptor(
+                                        plan.structural_types.iter(), semantic.structural_type))
                             && semantic.multiplicity
                                 != terminal_psi::StructuralMultiplicity::Linear
                             && !semantic.is_self
@@ -253,7 +257,12 @@ pub(super) fn validate(
                                     .call_plan
                                     .result
                                     .as_ref()
-                                    .is_some_and(|result| result.shape == parameter.shape)
+                                    .is_some_and(|result| {
+                                        let payload = if parameter.access == terminal_psi::StructuralAccess::SharedBorrow {
+                                            calling_conventions::ValueShape::integer(parameter.shape.byte_size, parameter.shape.alignment)
+                                        } else { parameter.shape };
+                                        result.shape == payload
+                                    })
                         }
                         target_operations::TargetStructuralReturnSource::Home(source) => {
                             super::super::aggregate_results::result_home(

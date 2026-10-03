@@ -327,6 +327,7 @@ fn indirect_record_call_keeps_hidden_input_separate_from_shifted_arguments() {
         )
         .unwrap();
         row.kind = LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            descriptor_origins: Vec::new(),
             source: NativeCallOrigin::Authored,
             callee: MachineId::new(99).unwrap(),
             arguments: call_plan

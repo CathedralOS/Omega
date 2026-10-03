@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V41 retains typed operation or
-//! edge/action ownership for every ordinary selected call.
+//! Owns admission and authentication order. V42 retains typed call ownership
+//! and every completed shared descriptor's reconstructed backing-origin roster.
 //! Every older envelope is rejected before its payload is interpreted.
 
 mod content;
@@ -13,11 +13,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v41_identity;
+use self::envelope::v42_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 41;
+const VERSION: u32 = 42;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -27,7 +27,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v41_identity(self, &content));
+        encoded.extend_from_slice(&v42_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

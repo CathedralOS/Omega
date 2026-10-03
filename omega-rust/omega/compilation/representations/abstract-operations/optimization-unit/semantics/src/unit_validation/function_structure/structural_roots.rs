@@ -37,10 +37,29 @@ pub(crate) fn validate_structural_root_uniqueness(
 /// it establishes which catalog roots may participate and replays every
 /// observation invariant still representable after Terminal-to-Omega lowering.
 pub(crate) fn validate_structural_root_operations(
+    unit: &optimization_unit::PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let shared_descriptor_result = function.result.structural().is_some_and(|result| {
+        result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && terminal_semantics::descriptor_results::is_shared_descriptor(
+                structural_types.values().copied(),
+                result.structural_type,
+            )
+    });
+    // A descriptor owns its payload, not its backing. Reconstruct every
+    // returned origin even for functions with no callers in this unit.
+    let descriptor_origins_valid = !shared_descriptor_result
+        || crate::descriptor_results::optimized_graph(unit).is_some_and(|graph| {
+            terminal_semantics::descriptor_results::reconstruct_result_origins(
+                &unit.structural_types,
+                &graph,
+                function.machine,
+            )
+            .is_some()
+        });
     let place_kinds = function
         .structural_places
         .iter()
@@ -798,8 +817,9 @@ pub(crate) fn validate_structural_root_operations(
                                         parameter.place == *source
                                             && parameter.position == position
                                             && !parameter.is_self
-                                            && parameter.access
+                                            && (parameter.access
                                                 == terminal_psi::StructuralAccess::Owned
+                                                || shared_descriptor_result)
                                     })
                             })
                             .map(|parameter| {
@@ -839,64 +859,32 @@ pub(crate) fn validate_structural_root_operations(
                                 .blocks
                                 .iter()
                                 .flat_map(|block| &block.nodes)
-                                .find_map(|node| match &node.operation {
-                                    O::EstablishByteSequenceConcatenation {
-                                        psi_operation,
-                                        result,
-                                        ..
-                                    }
-                                    | O::EstablishScalarArray { psi_operation, result, .. }
-                                    | O::EstablishCase {
-                                        psi_operation,
-                                        result,
-                                        ..
-                                    }
-                                    | O::EstablishRecord {
-                                        psi_operation,
-                                        result,
-                                        ..
-                                    }
-                                    | O::EstablishZeroedStructural { psi_operation, result }
-                                    | O::EstablishReference {
-                                        psi_operation,
-                                        result,
-                                        ..
-                                    }
-                                    | O::StructuralLeafCopy {
-                                        psi_operation,
-                                        result,
-                                        ..
-                                    }
-                                    | O::CallStructural {
-                                        psi_operation,
-                                        result:
-                                            AbstractStructuralCallResult::Structural { result, .. },
-                                        ..
-                                    }
-                                    | O::BoundaryCall {
-                                        psi_operation,
-                                        result:
-                                            abstract_operations::AbstractBoundaryResult::Structural(
-                                                result,
-                                            ),
-                                        ..
-                                    } if *psi_operation == producer
-                                        && result.place == *source
-                                        && result.structural_type == structural_type =>
+                                .find_map(|node| {
+                                    let (actual_producer, result) = node.operation.structural_result()?;
+                                    if actual_producer != producer
+                                        || result.place != *source
+                                        || result.structural_type != structural_type
                                     {
-                                        Some((
-                                            result.structural_type,
-                                            result.multiplicity,
-                                            result.qualifications.as_slice(),
-                                            result.projected_qualifications.as_slice(),
-                                            result
-                                                .qualification_establishments
-                                                .iter()
-                                                .map(|binding| binding.domain)
-                                                .collect::<BTreeSet<_>>(),
-                                        ))
+                                        return None;
                                     }
-                                    _ => None,
+                                    // Ordinary payloads must own their storage.
+                                    // Shared descriptors instead retain backing
+                                    // through the independently replayed summary.
+                                    if !shared_descriptor_result
+                                        && crate::unit_validation::operation_contracts::structural_source_contract(
+                                            function, *source, false,
+                                        ).is_none_or(|source| source.access != terminal_psi::StructuralAccess::Owned)
+                                    {
+                                        return None;
+                                    }
+                                    Some((
+                                        result.structural_type,
+                                        result.multiplicity,
+                                        result.qualifications.as_slice(),
+                                        result.projected_qualifications.as_slice(),
+                                        result.qualification_establishments.iter()
+                                            .map(|binding| binding.domain).collect::<BTreeSet<_>>(),
+                                    ))
                                 })
                             });
                     let exact_bounded_owned_bytes = structural_types
@@ -909,36 +897,38 @@ pub(crate) fn validate_structural_root_operations(
                                 )
                             )
                         });
-                    if source_contract.is_none_or(
-                        |(structural_type, multiplicity, qualifications, projected, minted)| {
-                            // Mirror the Terminal return-edge rule: domains
-                            // minted onto the source by its producer's
-                            // authorized qualification establishments shed at
-                            // the contract edge, so the remaining source
-                            // qualifications must live inside the declared
-                            // result roster rather than equal it.
-                            structural_type != signature.structural_type
-                                || multiplicity != signature.multiplicity
-                                || if exact_bounded_owned_bytes {
-                                    !minted.is_empty()
-                                        || qualifications != signature.qualifications
-                                        || projected != signature.projected_qualifications
-                                } else {
-                                    !qualifications
-                                        .iter()
-                                        .filter(|domain| !minted.contains(domain))
-                                        .all(|domain| signature.qualifications.contains(domain))
-                                        || projected
+                    if !descriptor_origins_valid
+                        || source_contract.is_none_or(
+                            |(structural_type, multiplicity, qualifications, projected, minted)| {
+                                // Mirror the Terminal return-edge rule: domains
+                                // minted onto the source by its producer's
+                                // authorized qualification establishments shed at
+                                // the contract edge, so the remaining source
+                                // qualifications must live inside the declared
+                                // result roster rather than equal it.
+                                structural_type != signature.structural_type
+                                    || multiplicity != signature.multiplicity
+                                    || if exact_bounded_owned_bytes {
+                                        !minted.is_empty()
+                                            || qualifications != signature.qualifications
+                                            || projected != signature.projected_qualifications
+                                    } else {
+                                        !qualifications
                                             .iter()
-                                            .filter(|projection| {
-                                                !minted.contains(&projection.domain)
-                                            })
-                                            .cloned()
-                                            .collect::<Vec<_>>()
-                                            != signature.projected_qualifications
-                                }
-                        },
-                    ) {
+                                            .filter(|domain| !minted.contains(domain))
+                                            .all(|domain| signature.qualifications.contains(domain))
+                                            || projected
+                                                .iter()
+                                                .filter(|projection| {
+                                                    !minted.contains(&projection.domain)
+                                                })
+                                                .cloned()
+                                                .collect::<Vec<_>>()
+                                                != signature.projected_qualifications
+                                    }
+                            },
+                        )
+                    {
                         return Err(
                             OptimizationUnitValidationError::StructuralReturnSourceContractMismatch {
                                 machine: function.machine,

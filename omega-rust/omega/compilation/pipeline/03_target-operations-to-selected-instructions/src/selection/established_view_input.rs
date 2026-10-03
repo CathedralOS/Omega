@@ -2,6 +2,7 @@
 //! availability; selected SSA checks the separate physical address lifetime.
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    LegalizedScalarTerminator,
 };
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
@@ -12,6 +13,9 @@ pub(super) use access::view_access;
 
 pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     transferred(source, place)
+        || source.blocks.iter().any(|block| matches!(&block.terminator,
+            LegalizedScalarTerminator::Return(returned) | LegalizedScalarTerminator::ReturnCleanup { returned, .. } if matches!(&returned.value,
+                legalized_operations::LegalizedScalarReturnValue::Structural { source: legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. } } if result.place == place)))
         || source
             .blocks
             .iter()
@@ -110,6 +114,9 @@ fn declared_view_type(
             return None;
         }
         return Some(parameter.structural_type);
+    }
+    if let Some((_, result)) = descriptor_result(source, place) {
+        return Some(result.structural_type);
     }
     source
         .blocks
@@ -414,4 +421,42 @@ pub(super) fn readable_byte_type(
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     view_type(source, place)
         .or_else(|| super::byte_concatenation_input::owner_layout_type(source, place))
+}
+
+/// A completed descriptor call owns only its captured descriptor payload.
+/// Its original backing is the independently replayed nonempty call roster.
+pub(super) fn descriptor_result(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
+    let (operation, result) = super::aggregate_result_input::operation_result(source, place)?;
+    let signature = source.structural.as_ref()?;
+    if result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
+        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+            signature.structural_types.iter(),
+            result.structural_type,
+        )
+    {
+        return None;
+    }
+    let row = source
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find(|row| row.operation == operation)?;
+    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
+        return None;
+    };
+    if call.descriptor_origins.is_empty()
+        || call.structural_result.as_ref() != Some(result)
+        || super::aggregate_result_input::call_result(source, call).map(|(result, _)| result)
+            != Some(result)
+    {
+        return None;
+    }
+    Some((operation, result))
 }

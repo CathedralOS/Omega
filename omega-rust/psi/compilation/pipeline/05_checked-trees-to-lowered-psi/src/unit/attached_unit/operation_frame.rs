@@ -2382,7 +2382,7 @@ impl OperationFrame<'_, '_> {
         };
         self.results
             .require_next(result, "view subslice result binding is not dense")?;
-        super::view_ranges::binding_local(self.checked, self.state, operation)?;
+        let binding_site = super::view_ranges::binding_site(self.checked, self.state, operation)?;
         let (expression, start, end) = match &source.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 root: _,
@@ -2416,7 +2416,7 @@ impl OperationFrame<'_, '_> {
         let site = ViewRangeSite {
             state: self.state,
             statement: result.statement_index,
-            site: checked_trees::CheckedSubsliceSite::LocalBinding,
+            site: binding_site,
             expression,
             retained: Some((start, end)),
         };

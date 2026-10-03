@@ -60,6 +60,7 @@ fn structural_function() -> SelectedFunction {
         instruction: SelectedInstructionId(0),
         owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
         call: LegalizedScalarCall {
+            descriptor_origins: Vec::new(),
             structural_result: None,
             source: NativeCallOrigin::Authored,
             callee: MachineId::new(42).unwrap(),
@@ -530,5 +531,83 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
             FixedViewCopyPlan::decode(&changed.encode()).unwrap(),
             changed
         );
+    }
+}
+
+#[test]
+fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identity() {
+    use legalized_operations::LegalizedDescriptorOrigin as Origin;
+    let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    function.calls[0].call.descriptor_origins = vec![
+        Origin::Argument {
+            source: terminal_psi::StructuralArgument {
+                place: PlaceId::new(61).unwrap(),
+                path: vec![terminal_psi::StructuralPathSegment::Referent],
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+            exact: false,
+            indirect: true,
+        },
+        Origin::Literal {
+            machine: MachineId::new(67).unwrap(),
+            place: PlaceId::new(61).unwrap(),
+        },
+    ];
+    let target_operations::CallSiteOwner::Operation(producer) = function.calls[0].owner else {
+        unreachable!("fixture call is operation-owned")
+    };
+    function.memory_accesses.push(SelectedMemoryAccess {
+        instruction: SelectedInstructionId(2),
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
+            OperationId::new(71).unwrap(),
+        ),
+        place: PlaceId::new(73).unwrap(),
+        byte_offset: 0,
+        byte_count: 0,
+        role: SelectedMemoryAccessRole::ReadReturnedView { producer },
+    });
+    std::sync::Arc::make_mut(&mut original.transformed)
+        .functions
+        .push(function);
+    // Codec content is not semantic admission: retain exact origin namespaces
+    // even when two machines happen to use the same numeric place identity.
+    let encoded = original.encode();
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), original);
+    for change in 0..4 {
+        let mut changed = original.clone();
+        let functions = &mut std::sync::Arc::make_mut(&mut changed.transformed).functions;
+        let last = functions.len() - 1;
+        let function = &mut functions[last];
+        match change {
+            0 => {
+                if let Origin::Argument { exact, .. } =
+                    &mut function.calls[0].call.descriptor_origins[0]
+                {
+                    *exact = true;
+                }
+            }
+            1 => {
+                if let Origin::Argument { indirect, .. } =
+                    &mut function.calls[0].call.descriptor_origins[0]
+                {
+                    *indirect = false;
+                }
+            }
+            2 => {
+                if let Origin::Literal { machine, .. } =
+                    &mut function.calls[0].call.descriptor_origins[1]
+                {
+                    *machine = MachineId::new(79).unwrap();
+                }
+            }
+            _ => {
+                function.memory_accesses.last_mut().unwrap().role =
+                    SelectedMemoryAccessRole::ReadReturnedView {
+                        producer: OperationId::new(83).unwrap(),
+                    }
+            }
+        }
+        assert_ne!(changed.encode(), encoded);
     }
 }

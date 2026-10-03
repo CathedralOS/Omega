@@ -1,34 +1,45 @@
-//! A `collection[0..collection.len]` completion re-borrows the carrier itself:
-//! the whole view *is* the shared `&` loan, so the result names the carrier
-//! parameter — or the stored `&` field's referent leaf for member projections —
-//! with no subslice producer to lower. Partial subslices keep the derived-place
-//! `ByteSequenceSubslice`/`ElementViewSubslice` sources.
+//! Whole and partial slice returns use the same descriptor producer. The
+//! resulting value retains exact backing and bounds rather than referring to
+//! a private descriptor carrier. Local backing escape is checked downstream.
 use crate::tests::flow::terminal_unit::{checked, machine_named};
-use checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment,
-};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
 
 fn establish<'a>(
     checked: &'a checked_trees::CheckedTrees,
     name: &str,
 ) -> &'a checked_trees::CheckedUnitStructuralArgumentPlan {
-    let plan = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(machine_named(checked, name))
-        .expect("whole view return composes a Unit plan");
-    plan.operations
-        .iter()
-        .find_map(|operation| {
-            let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
-            else {
-                return None;
-            };
-            Some(source)
+    let machine = machine_named(checked, name);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let ordinary = plans
+        .for_machine(machine)
+        .into_iter()
+        .flat_map(|plan| &plan.operations);
+    let composed = plans
+        .composed_for_machine(machine)
+        .into_iter()
+        .flat_map(|plan| &plan.states)
+        .flat_map(|state| &state.operations);
+    ordinary
+        .chain(composed)
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishViewSubslice { source, result } => {
+                assert_eq!(
+                    result.multiplicity,
+                    language_semantics::Multiplicity::Unrestricted
+                );
+                Some(source)
+            }
+            CheckedUnitEffectOperationPlan::EstablishReference { .. } => {
+                panic!("a slice descriptor must not become a pointer reference")
+            }
+            _ => None,
         })
-        .expect("whole view return establishes one reference")
+        .unwrap_or_else(|| {
+            panic!(
+                "descriptor producer missing: {:?}",
+                plans.omission_for_machine(machine)
+            )
+        })
 }
 
 #[test]
@@ -42,41 +53,22 @@ fn parameter_whole_view_return_names_the_carrier_parameter() {
     "#,
     );
     let source = establish(&checked, "Nv::head_all");
-    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
+    let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        root:
+            checked_trees::CheckedStorageRoot::Parameter {
+                index: parameter_index,
+            },
+        ..
+    } = source.source
     else {
-        panic!("whole view resolves to the carrier parameter itself");
+        panic!("whole view retains its exact parameter backing");
     };
-    // `&self` reads no receiver storage, so `x` is the only structural formal.
-    assert_eq!(parameter_index, 0);
+    // The composed state retains its explicit receiver before the view.
+    assert_eq!(parameter_index, 1);
     assert!(source.path.is_empty());
     assert_eq!(
         source.access,
         checked_trees::CheckedStructuralAccess::SharedBorrow
-    );
-}
-
-#[test]
-fn member_whole_view_return_names_the_stored_view_referent() {
-    let checked = checked(
-        r#"
-        data Wv<'r> { view: &'r [u8]; tag: u64 }
-        machine Wv::head_all(&self) -> &'r [u8] {
-            self.view[0..self.view.len]
-        }
-    "#,
-    );
-    let source = establish(&checked, "Wv::head_all");
-    let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = source.source
-    else {
-        panic!("member whole view resolves to the receiver parameter");
-    };
-    assert_eq!(parameter_index, 0);
-    assert_eq!(
-        source.path,
-        vec![
-            CheckedUnitStructuralPathSegment::Field("view".to_string()),
-            CheckedUnitStructuralPathSegment::Referent,
-        ]
     );
 }
 
@@ -91,8 +83,8 @@ fn owned_parameter_whole_view_keeps_the_derived_subslice_source() {
     "#,
     );
     let source = establish(&checked, "Nv::head_owned");
-    // An owned carrier's `[0..len]` is a real subslice of its storage, not a
-    // loan pass-through — the `&` carrier route above stays declined.
+    // A descriptor can be formed over owned storage within an activation;
+    // returning it still owes the independent nonlocal-backing judgment.
     let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. } = source.source else {
         panic!("owned carrier keeps its derived subslice source");
     };

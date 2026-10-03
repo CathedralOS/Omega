@@ -65,7 +65,7 @@ impl CallAccesses {
         let Some(function) = functions.get(&machine) else {
             return;
         };
-        let origins = BorrowedRegions::origins(function);
+        let origins = BorrowedRegions::origins(function, functions, types);
         let mut writes = Vec::<ParameterMutation>::new();
         for node in function.blocks.iter().flat_map(|block| &block.nodes) {
             if let O::CallStructural { callee, .. } = &node.operation {

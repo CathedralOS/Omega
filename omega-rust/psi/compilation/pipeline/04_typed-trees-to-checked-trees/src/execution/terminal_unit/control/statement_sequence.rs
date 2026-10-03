@@ -337,10 +337,9 @@ fn returned_named_view(
 
 /// An authored `[start..end]` member or whole-parameter subslice completing a
 /// borrowed `&[u8]`/`&[T]` view return: the last statement's own indexed
-/// expression mints the same `EstablishReference` a `(place[a..b])` transition
-/// target carries through the state-graph route. The subslice argument is the
-/// result's single reference source, exactly as the reference-result post-pass
-/// spells it for named views.
+/// expression uses the ordinary checked subslice producer, as a local or call
+/// operand does. Its descriptor carries backing and extent by value; Terminal
+/// independently reconstructs the original backing through the producer.
 fn returned_subslice(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -361,8 +360,9 @@ fn returned_subslice(
         return None;
     };
     let statement_ordinal = u32::try_from(statements.len() - 1).ok()?;
-    let operation = whole_view_result_operation(
+    let operation = super::super::state_graph::returns::view_result_operation(
         program,
+        facts,
         shapes,
         machine,
         state,
@@ -370,45 +370,11 @@ fn returned_subslice(
         count,
         statement_ordinal,
         *expression,
-    )
-    .or_else(|| {
-        super::super::state_graph::returns::view_result_operation(
-            program,
-            facts,
-            shapes,
-            machine,
-            state,
-            parameters,
-            count,
-            statement_ordinal,
-            *expression,
-        )
-    })?;
-    let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation else {
+    )?;
+    let CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } = &operation else {
         return None;
     };
-    // The ordinary completion's `EstablishReference` binding is loan custody:
-    // the minted `&[T]` view ends exactly once at the result, so the binding
-    // spells Affine rather than the shared borrow's Unrestricted type
-    // multiplicity.
-    let result = CheckedUnitStructuralResultBindingPlan {
-        multiplicity: Multiplicity::Affine,
-        ..result
-    };
-    Some((
-        CheckedUnitStructuralReturnPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            },
-            type_identity: result.type_identity.clone(),
-            multiplicity: result.multiplicity,
-            reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
-                path: Vec::new(),
-                source: source.clone(),
-            }],
-        },
-        CheckedUnitEffectOperationPlan::EstablishReference { result, source },
-    ))
+    Some((result.clone().into(), operation))
 }
 
 /// A `&mut place` tail completing an exclusive `&mut R`/`&mut [T]` view
@@ -459,7 +425,7 @@ fn returned_mutable_view(
     };
     // The minted `&mut` view ends exactly once at the result, so the binding
     // spells Affine rather than the exclusive borrow's Unrestricted type
-    // multiplicity — the same loan-custody spelling the subslice arm uses.
+    // multiplicity. This permission transfer remains affine.
     let result = CheckedUnitStructuralResultBindingPlan {
         multiplicity: Multiplicity::Affine,
         ..result
@@ -527,120 +493,6 @@ pub(super) fn returned_byte_sequence_literal(
         reference_sources: Vec::new(),
     })
 }
-/// A `collection[0..collection.len]` completion re-borrows the carrier itself:
-/// the authored whole view *is* the shared `&` loan, so the result names the
-/// carrier parameter — or, for `self.field[..]`, the projected `&`-field's
-/// referent leaf — directly, with no subslice producer to lower. Any other
-/// `[start..end]` spelling falls through to the established subslice lane.
-fn whole_view_result_operation(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
-    count: &mut usize,
-    statement_ordinal: u32,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    let return_type = state.return_type;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
-        return None;
-    };
-    if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
-        return None;
-    }
-    let ExpressionNode::Integer(start) = program.expression_table.expression(range.start) else {
-        return None;
-    };
-    if start.value_i64() != Some(0) {
-        return None;
-    }
-    // The exclusive end must be this same place's own current extent —
-    // `collection.len` — so the authored window covers exactly the carrier.
-    let receiver =
-        validation::collection_length_receiver(program, machine, Some(state), range.end)?;
-    if !validation::place_has_builtin_coordinates(program, machine, Some(state), indexed.collection)
-        || !validation::place_has_builtin_coordinates(program, machine, Some(state), receiver)
-    {
-        return None;
-    }
-    if crate::flow::canonical_place_from_expression(program, indexed.collection)
-        != crate::flow::canonical_place_from_expression(program, receiver)
-        || !program
-            .expression_table
-            .expressions_structurally_equal(indexed.collection, receiver)
-    {
-        return None;
-    }
-    let statement_index = usize::try_from(statement_ordinal).ok()?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        indexed.collection,
-    )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    let authored = program.state_parameters(state);
-    let position = authored
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)?;
-    let carrier = &authored[position];
-    if carrier.is_mutable
-        || !matches!(
-            crate::execution::terminal_unit::types::structural_access_for_type_reference(
-                program,
-                carrier.type_reference,
-            ),
-            Some(CheckedStructuralAccess::SharedBorrow)
-        )
-    {
-        return None;
-    }
-    let parameter_index = parameters
-        .iter()
-        .position(|parameter| parameter.position as usize == position)?;
-    let (storage, mut path) = crate::execution::terminal_unit::calls::projected_argument_path(
-        program,
-        state.symbol,
-        statement_index,
-        &place,
-    )?;
-    // The place's resolved storage must be the very `&[T]` view the result
-    // borrows: a bare `&` parameter already names its own view, while a member
-    // projection names the stored `&` field's referent leaf one segment deeper.
-    if !crate::execution::terminal_unit::types::borrowed_slice_view(program, storage) {
-        return None;
-    }
-    if !path.is_empty() {
-        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-    }
-    let type_identity = shapes.add_slice_view_type(return_type, &[])?;
-    let source_identity = shapes.add_type(return_type, &[], &[])?;
-    let result = CheckedUnitStructuralResultBindingPlan {
-        statement_index: statement_ordinal,
-        binding_ordinal: u32::try_from(*count).ok()?,
-        type_identity,
-        multiplicity: program.type_multiplicity(return_type),
-    };
-    *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishReference {
-        result,
-        source: CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            path,
-            type_identity: source_identity,
-            access: CheckedStructuralAccess::SharedBorrow,
-        },
-    })
-}
-
 pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) scalar_result:
         Option<CheckedUnitScalarResultBindingPlan>,

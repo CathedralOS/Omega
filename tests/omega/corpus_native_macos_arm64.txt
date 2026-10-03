@@ -209,7 +209,7 @@ pass/calls/runtime_option_value_call_exit built 950ms exit:70
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 741ms exit:70
 pass/calls/runtime_param_receiver_second_instance_exit built 1803ms exit:70 @fb2178def922
 pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
-pass/calls/runtime_reference_returned_slice_element_write_exit built 3300ms exit:181 @8b265e4e6ad8+wt
+pass/calls/runtime_reference_returned_slice_element_write_exit built 1055ms exit:181 interpreter-exit:181 interpreter:agrees @1ee38ae14295+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit built 1776ms exit:70 @48008365d839
 pass/calls/runtime_same_type_second_receiver_mutation_exit built 725ms exit:70
 pass/calls/runtime_shared_ref_param_member_exit built 855ms exit:42 @2f8006be6cc9+wt
@@ -939,6 +939,8 @@ pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb217
 pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb2178def922
 pass/slices/runtime_policy_element_view_tail_recursion_exit built 865ms exit:70 @de74b73e1452+wt
 pass/slices/runtime_saturating_array_element_guard_exit built 1780ms exit:70 @fb2178def922
+pass/slices/runtime_shared_subslice_return_exit built 1249ms exit:70 interpreter-exit:70 interpreter:agrees @1ee38ae14295+wt
+pass/slices/runtime_shared_whole_view_return_exit built 1164ms exit:70 interpreter-exit:70 interpreter:agrees @1ee38ae14295+wt
 pass/slices/runtime_slice_element_runtime_index_read_exit built 1557ms exit:1 @fb2178def922
 pass/slices/runtime_slice_fixed_index_guard_exit built 1162ms exit:121 @8a91f26a0b28+wt
 pass/slices/runtime_slice_index_copy_dispatch_exit built 1445ms exit:61 @fb2178def922

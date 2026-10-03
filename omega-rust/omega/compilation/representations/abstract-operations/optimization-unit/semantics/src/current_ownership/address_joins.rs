@@ -226,17 +226,14 @@ impl AddressJoinPins {
         let mut aliases = BTreeMap::<PlaceId, BTreeSet<PlaceId>>::new();
         let mut descriptors = BTreeSet::new();
         for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-            let alias = match &node.operation {
-                O::EstablishElementView { result, source, .. } => {
-                    Some((result.place, source.place))
-                }
-                O::ElementViewSubslice { result, source, .. }
-                | O::ByteSequenceSubslice { result, source, .. } => Some((result.place, *source)),
-                _ => None,
-            };
-            if let Some((alias, source)) = alias {
-                descriptors.insert(alias);
-                aliases.entry(alias).or_default().insert(source);
+            if let Some((_, result)) = node.operation.structural_result()
+                && let Some(sources) = borrowed_regions.direct_aliases(result.place)
+            {
+                descriptors.insert(result.place);
+                aliases
+                    .entry(result.place)
+                    .or_default()
+                    .extend(sources.iter().map(|(source, _)| *source));
             }
         }
         for block in &function.blocks {

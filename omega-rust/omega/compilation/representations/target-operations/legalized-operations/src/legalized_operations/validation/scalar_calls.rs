@@ -42,6 +42,7 @@ impl LegalizedScalarCall {
                 }
             })
             || self.structural_result.is_some() && self.result_placement.is_none()
+            || self.structural_result.is_none() && !self.descriptor_origins.is_empty()
         {
             return Err(Error::Result);
         }
@@ -215,6 +216,7 @@ mod tests {
                 )
                 .unwrap();
                 let mut call = LegalizedScalarCall {
+                    descriptor_origins: Vec::new(),
                     structural_result: None,
                     source: crate::NativeCallOrigin::Authored,
                     claim_transfers: Vec::new(),

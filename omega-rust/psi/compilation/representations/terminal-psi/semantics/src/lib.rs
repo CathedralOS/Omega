@@ -23,6 +23,7 @@ mod byte_sequence_concatenation;
 mod byte_sequence_predicates;
 mod call_composition;
 mod collection_backing;
+pub mod descriptor_results;
 mod placed_view_referent;
 mod primitive_place;
 mod proof_bearing_scalar;

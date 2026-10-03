@@ -9,6 +9,7 @@ mod borrowed_storage_windows;
 mod calls;
 mod crash_obligation_evidence;
 mod crash_site_truth;
+mod descriptor_results;
 mod dynamic_dispatch;
 mod entry_requirement_crash_coverage;
 mod float_ranges;

@@ -459,3 +459,432 @@ fn mutable_field_range_later_observation_prevents_parent_read_restoration() {
         "a real later descriptor observation keeps its parent's reads suspended"
     );
 }
+
+/// Build a current optimization graph directly, without source lowering or a
+/// retained producer origin table. The callee returns its shared input; the
+/// caller observes that returned descriptor and writes its mutable backing.
+fn returned_descriptor_unit() -> optimization_unit::PsiOptimizationUnit {
+    use crate::tests::support::id;
+    use abstract_operations::{
+        AbstractFunctionResult, AbstractResult, AbstractStructuralCallResult,
+    };
+    use semantic_vocabulary::{
+        EdgeId, IntegerType, IntegerValue, ObligationId, OperationId, ScalarType, ValueId,
+    };
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+
+    let mut unit = crate::tests::fixtures::structural_catalog::structural_result_call_unit();
+    let input = unit.functions[0].structural_parameters[0].place;
+    for function in &mut unit.functions {
+        function.entry_claim_declarations.clear();
+        function.content_entry_claims.clear();
+        function.entry_claims.clear();
+        function.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
+        function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        if let AbstractFunctionResult::Structural(result) = &mut function.result {
+            result.multiplicity = StructuralMultiplicity::Unrestricted;
+        }
+        for node in &mut function.blocks[0].nodes {
+            match &mut node.operation {
+                O::CallStructural {
+                    structural_arguments,
+                    claim_transfers,
+                    result:
+                        AbstractStructuralCallResult::Structural {
+                            result,
+                            returned_claim_transfers,
+                            ..
+                        },
+                    ..
+                } => {
+                    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+                    claim_transfers.clear();
+                    returned_claim_transfers.clear();
+                    result.claims.clear();
+                    result.multiplicity = StructuralMultiplicity::Unrestricted;
+                }
+                O::ReturnStructural {
+                    returned_claims, ..
+                } => returned_claims.clear(),
+                _ => {}
+            }
+        }
+    }
+    // The carrier declaration permits borrowed access; authority is the exact
+    // parameter access and independently reconstructed result relation.
+    unit.structural_types.make_mut()[0].shape = terminal_psi::StructuralTypeShape::ByteSequence(
+        terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+    );
+    unit.functions[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    unit.functions[0].result = AbstractFunctionResult::Unit;
+    let O::CallStructural {
+        result: AbstractStructuralCallResult::Structural { result, .. },
+        ..
+    } = &unit.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    let returned = result.place;
+    let zero = id(901, ValueId::new);
+    let byte = id(902, ValueId::new);
+    let length = id(903, ValueId::new);
+    let template = unit.functions[0].blocks[0].nodes[0].clone();
+    let call = template.operation.clone();
+    let operations = vec![
+        O::IntegerConstant {
+            psi_operation: id(901, OperationId::new),
+            result: zero,
+            scalar_type: ScalarType::Integer(
+                IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).unwrap(),
+            ),
+            value: IntegerValue::Unsigned(0),
+        },
+        O::IntegerConstant {
+            psi_operation: id(902, OperationId::new),
+            result: byte,
+            scalar_type: ScalarType::Integer(
+                IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).unwrap(),
+            ),
+            value: IntegerValue::Unsigned(7),
+        },
+        O::ByteSequenceLength {
+            psi_operation: id(903, OperationId::new),
+            source: input,
+            result: AbstractResult {
+                value: length,
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+        },
+        call,
+        O::ByteSequenceLength {
+            psi_operation: id(904, OperationId::new),
+            source: returned,
+            result: AbstractResult {
+                value: id(904, ValueId::new),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            },
+        },
+        O::ByteSequenceWrite {
+            psi_operation: id(905, OperationId::new),
+            destination: input,
+            index: zero,
+            value: byte,
+            length,
+            obligation: id(901, ObligationId::new),
+        },
+        O::ReturnUnit {
+            psi_edge: id(906, EdgeId::new),
+            cleanup_actions: Vec::new(),
+        },
+    ];
+    unit.functions[0].blocks[0].nodes = operations
+        .into_iter()
+        .map(|operation| {
+            let mut node = template.clone();
+            node.operation = operation;
+            node
+        })
+        .collect();
+    for function in 0..unit.functions.len() {
+        for node in 0..unit.functions[function].blocks[0].nodes.len() {
+            refresh_node_derivatives(&mut unit, function, 0, node);
+        }
+    }
+    unit
+}
+
+#[test]
+fn returned_descriptor_releases_backing_after_last_observation() {
+    validate_address_join_ownership(&returned_descriptor_unit())
+        .expect("a returned shared descriptor's completed observation ends its backing loan");
+}
+
+#[test]
+fn returned_descriptor_blocks_write_before_last_observation() {
+    let mut unit = returned_descriptor_unit();
+    validate_address_join_ownership(&unit).unwrap();
+    unit.functions[0].blocks[0].nodes.swap(4, 5);
+    for node in [4, 5] {
+        refresh_node_derivatives(&mut unit, 0, 0, node);
+    }
+    assert!(
+        matches!(
+            validate_address_join_ownership(&unit),
+            Err(OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed { .. })
+        ),
+        "the same current callee result still observes its original backing"
+    );
+}
+
+fn shared_returned_descriptor_call_plan() -> abstract_operations::AbstractOperationPlan {
+    use crate::tests::support::id;
+    use abstract_operations::{
+        AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperationPlan,
+        AbstractStructuralCallResult,
+    };
+    use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess as Access, StructuralMultiplicity as Multiplicity,
+        StructuralTypeShape,
+    };
+
+    let descriptor = id(1200, StructuralTypeId::new);
+    let caller = id(1201, MachineId::new);
+    let relay = id(1202, MachineId::new);
+    let mutable = id(1203, MachineId::new);
+    let backing = id(1210, PlaceId::new);
+    let returned = id(1211, PlaceId::new);
+    let input = id(1212, PlaceId::new);
+    let mutable_input = id(1213, PlaceId::new);
+    let parameter = |place, access| terminal_psi::StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type: descriptor,
+        multiplicity: Multiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let function = |machine, block, parameters, result, operations| AbstractFunction {
+        machine,
+        attachment: None,
+        entry: block,
+        parameters: Vec::new(),
+        structural_parameters: parameters,
+        result,
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![AbstractBlockEntry {
+            block,
+            operation_offset: 0,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+        }],
+        operations,
+    };
+    let call = |operation, callee, place, access, result| O::CallStructural {
+        psi_operation: id(operation, OperationId::new),
+        callee,
+        result,
+        arguments: Vec::new(),
+        structural_arguments: vec![terminal_psi::StructuralArgument {
+            place,
+            path: Vec::new(),
+            access,
+        }],
+        dynamic_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    AbstractOperationPlan {
+        psi: terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([43; 32]),
+        },
+        entry: caller,
+        structural_types: vec![terminal_psi::StructuralTypeDeclaration {
+            id: descriptor,
+            identity: "shared-return-permission".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: None,
+            }),
+        }]
+        .into(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            function(
+                caller,
+                id(1220, BlockId::new),
+                vec![parameter(backing, Access::MutableBorrow)],
+                AbstractFunctionResult::Unit,
+                vec![
+                    call(
+                        1230,
+                        relay,
+                        backing,
+                        Access::SharedBorrow,
+                        AbstractStructuralCallResult::Structural {
+                            result: terminal_psi::StructuralOperationResult {
+                                place: returned,
+                                structural_type: descriptor,
+                                multiplicity: Multiplicity::Unrestricted,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                qualification_establishments: Vec::new(),
+                                claims: Vec::new(),
+                            },
+                            returned_claim_transfers: Vec::new(),
+                            selected_evidence: Vec::new(),
+                        },
+                    ),
+                    call(
+                        1231,
+                        mutable,
+                        backing,
+                        Access::MutableBorrow,
+                        AbstractStructuralCallResult::Unit,
+                    ),
+                    O::ReturnUnit {
+                        psi_edge: id(1240, EdgeId::new),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            ),
+            function(
+                relay,
+                id(1221, BlockId::new),
+                vec![parameter(input, Access::SharedBorrow)],
+                AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+                    place: id(1214, PlaceId::new),
+                    structural_type: descriptor,
+                    multiplicity: Multiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    reference_sources: Vec::new(),
+                }),
+                vec![O::ReturnStructural {
+                    psi_edge: id(1241, EdgeId::new),
+                    source: input,
+                    returned_claims: Vec::new(),
+                    trivial_affine_locals: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                }],
+            ),
+            function(
+                mutable,
+                id(1222, BlockId::new),
+                vec![parameter(mutable_input, Access::MutableBorrow)],
+                AbstractFunctionResult::Unit,
+                vec![O::ReturnUnit {
+                    psi_edge: id(1242, EdgeId::new),
+                    cleanup_actions: Vec::new(),
+                }],
+            ),
+        ],
+    }
+}
+
+#[test]
+fn shared_returned_descriptor_cannot_supply_mutable_backing_permission() {
+    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &shared_returned_descriptor_call_plan(),
+        semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let returned = unit.functions[0].blocks[0].nodes[0]
+        .operation
+        .structural_result()
+        .unwrap()
+        .1
+        .place;
+    validate_psi_optimization_unit(&unit).expect("original mutable input has backing permission");
+    let O::CallStructural {
+        structural_arguments,
+        ..
+    } = &mut unit.functions[0].blocks[0].nodes[1].operation
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].place = returned;
+    refresh_node_derivatives(&mut unit, 0, 0, 1);
+    assert!(
+        validate_psi_optimization_unit(&unit).is_err(),
+        "owning a shared descriptor carrier cannot create mutable backing permission"
+    );
+}
+
+#[test]
+fn unused_descriptor_return_rejects_owned_backing_escape() {
+    use crate::tests::support::{id, refresh_identity};
+    use semantic_vocabulary::{
+        BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
+        PlaceId, ScalarType, StructuralTypeId,
+    };
+    use terminal_psi::{
+        StructuralAccess as Access, StructuralMultiplicity as Multiplicity, StructuralTypeShape,
+    };
+    let mut plan = shared_returned_descriptor_call_plan();
+    let machine = id(1400, MachineId::new);
+    let block = id(1401, BlockId::new);
+    let input = id(1402, PlaceId::new);
+    let result_place = id(1404, PlaceId::new);
+    let element = id(1407, StructuralTypeId::new);
+    let array = id(1408, StructuralTypeId::new);
+    plan.structural_types.make_mut().extend([
+        terminal_psi::StructuralTypeDeclaration {
+            id: element,
+            identity: "unused-return-element".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            )),
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: array,
+            identity: "unused-return-array".into(),
+            shape: StructuralTypeShape::FixedArray { element, length: 4 },
+        },
+    ]);
+    let mut unused = plan.functions[1].clone();
+    unused.machine = machine;
+    unused.entry = block;
+    unused.structural_parameters[0].place = input;
+    unused.structural_parameters[0].structural_type = array;
+    unused.block_entries[0].block = block;
+    let abstract_operations::AbstractFunctionResult::Structural(signature) = &mut unused.result
+    else {
+        unreachable!()
+    };
+    signature.place = id(1403, PlaceId::new);
+    unused.operations = vec![
+        O::EstablishElementView {
+            psi_operation: id(1405, OperationId::new),
+            result: terminal_psi::StructuralOperationResult {
+                place: result_place,
+                structural_type: signature.structural_type,
+                multiplicity: Multiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+            destination: result_place,
+            source: terminal_psi::StructuralArgument {
+                place: input,
+                path: Vec::new(),
+                access: Access::SharedBorrow,
+            },
+            element,
+        },
+        O::ReturnStructural {
+            psi_edge: id(1406, EdgeId::new),
+            source: result_place,
+            returned_claims: Vec::new(),
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    ];
+    plan.functions.push(unused);
+    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    validate_psi_optimization_unit(&unit)
+        .expect("an unused function may return its incoming borrowed array backing");
+    unit.functions.last_mut().unwrap().structural_parameters[0].access = Access::Owned;
+    refresh_identity(&mut unit);
+    assert!(
+        matches!(
+            validate_psi_optimization_unit(&unit),
+            Err(OptimizationUnitValidationError::StructuralReturnSourceContractMismatch { machine: rejected, .. }) if rejected == machine
+        ),
+        "return admission must reject local owned backing even when no call queries this function"
+    );
+}

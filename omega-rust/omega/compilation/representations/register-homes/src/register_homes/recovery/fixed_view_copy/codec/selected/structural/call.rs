@@ -73,6 +73,26 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
             super::read_result::encode_result(bytes, result);
         }
     }
+    length(bytes, call.descriptor_origins.len());
+    for origin in &call.descriptor_origins {
+        match origin {
+            legalized_operations::LegalizedDescriptorOrigin::Argument {
+                source,
+                exact,
+                indirect,
+            } => {
+                bytes.push(0);
+                encode_semantic_argument(bytes, source);
+                bytes.push(u8::from(*exact));
+                bytes.push(u8::from(*indirect));
+            }
+            legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&machine.get().to_le_bytes());
+                bytes.extend_from_slice(&place.get().to_le_bytes());
+            }
+        }
+    }
     length(bytes, call.claim_transfers.len());
     for transfer in &call.claim_transfers {
         bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
@@ -154,6 +174,35 @@ pub(super) fn decode_call(
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
     let count = cursor.length()?;
+    let mut descriptor_origins = Vec::new();
+    for _ in 0..count {
+        descriptor_origins.push(match cursor.byte()? {
+            0 => {
+                let source = decode_semantic_argument(cursor)?;
+                let exact = match cursor.byte()? {
+                    0 => false,
+                    1 => true,
+                    tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+                };
+                let indirect = match cursor.byte()? {
+                    0 => false,
+                    1 => true,
+                    tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+                };
+                legalized_operations::LegalizedDescriptorOrigin::Argument {
+                    source,
+                    exact,
+                    indirect,
+                }
+            }
+            1 => legalized_operations::LegalizedDescriptorOrigin::Literal {
+                machine: decode_id(cursor, MachineId::new)?,
+                place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+            },
+            tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+        });
+    }
+    let count = cursor.length()?;
     let mut claim_transfers = Vec::new();
     for _ in 0..count {
         claim_transfers.push(ClaimTransfer {
@@ -169,6 +218,7 @@ pub(super) fn decode_call(
         instruction,
         owner,
         call: LegalizedScalarCall {
+            descriptor_origins,
             source,
             callee,
             call_plan,

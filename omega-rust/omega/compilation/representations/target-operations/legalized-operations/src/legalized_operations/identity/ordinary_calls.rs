@@ -16,6 +16,26 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
             super::structural_result::encode_operation_result(bytes, result);
         }
     }
+    encode_len(bytes, call.descriptor_origins.len());
+    for origin in &call.descriptor_origins {
+        match origin {
+            crate::LegalizedDescriptorOrigin::Argument {
+                source,
+                exact,
+                indirect,
+            } => {
+                bytes.push(0);
+                encode_structural_argument(bytes, source);
+                bytes.push(u8::from(*exact));
+                bytes.push(u8::from(*indirect));
+            }
+            crate::LegalizedDescriptorOrigin::Literal { machine, place } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&machine.get().to_le_bytes());
+                bytes.extend_from_slice(&place.get().to_le_bytes());
+            }
+        }
+    }
     encode_call_source(bytes, &call.source);
     bytes.extend_from_slice(&call.callee.get().to_le_bytes());
     encode_call_plan(bytes, &call.call_plan);

@@ -61,14 +61,10 @@ pub(super) fn validate(
             state.terminator,
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
         ) && state.operations.last().is_some_and(|operation| {
-            let result = match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => Some(result),
-                // Any call with a structural result, ordinary or boundary.
-                CheckedUnitEffectOperationPlan::Call(call) => call.structural_result(),
-                _ => None,
-            };
+            // Every structural producer occupies its authored occurrence.
+            // Result and source replay below establish whether that value is
+            // the completion; producer families do not change effect count.
+            let result = operation.structural_result_binding();
             result.is_some_and(|result| {
                 result.statement_index as usize == statements.len().saturating_sub(1)
             })
@@ -899,9 +895,9 @@ pub(super) fn validate(
             }
             (
                 CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
-                StatementNode::LocalData(_),
+                StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Transition(_),
             ) if result.statement_index as usize == ordinal => {
-                super::super::super::view_ranges::binding_local(checked, state.state, operation)?;
+                super::super::super::view_ranges::binding_site(checked, state.state, operation)?;
             }
             // A deferred structural local's establishment consumes its own
             // declaration: the authored `let` is exactly the statement the

@@ -522,8 +522,7 @@ fn validate_owned_reads(
         .chain(observation)
         .chain(byte_field_observations.into_iter().flatten());
     for place in reads.filter(|place| {
-        super::byte_sequence::subslice::borrowed_result(machine, *place).is_none()
-            && super::element_view::subslice::borrowed_result(machine, *place).is_none()
+        super::element_view::view_loan_result_in_module(module, machine, *place).is_none()
             // An owned byte concatenation is an unrestricted immutable
             // materialization with no affine frontier entry; byte-view use
             // validation requires it to dominate every loan of it.
@@ -719,7 +718,7 @@ fn validate_scalar_cleanup_actions(
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
         if !super::scalar::case::plain_return_source(module, machine, place)
             && super::record::completed_source(module, machine, place).is_none()
-            && super::element_view::view_loan_result(machine, place).is_none()
+            && super::element_view::view_loan_result_in_module(module, machine, place).is_none()
             && super::references::carrier_type(module, machine, place).is_none()
             && !frontier
                 .references

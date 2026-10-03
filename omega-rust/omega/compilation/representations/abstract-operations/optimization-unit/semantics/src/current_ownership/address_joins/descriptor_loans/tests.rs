@@ -331,7 +331,7 @@ fn scalar_with_a_colliding_producer_identity_cannot_retire_a_descriptor() {
         ),
         Some(place(9))
     );
-    let flow = DescriptorFlow::new(&function, &BTreeMap::new());
+    let flow = DescriptorFlow::new(&function, &BTreeMap::new(), &regions);
     assert_eq!(flow.steps[&position(0)].definitions, vec![place(1)]);
     assert!(flow.steps[&position(1)].definitions.is_empty());
 }

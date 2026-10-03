@@ -19,13 +19,17 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 if calls.iter().any(|(_, call)| call.arguments.iter().any(|argument|
                     matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.place == place)))))
         || source.blocks.iter().any(|block| {
-            matches!(
-                &block.terminator,
-                legalized_operations::LegalizedScalarTerminator::StructuralCase {
-                    source,
-                    ..
-                } if source.place() == place
-            )
+            match &block.terminator {
+                legalized_operations::LegalizedScalarTerminator::StructuralCase { source, .. } => source.place() == place,
+                // Returning the referent's value reads its incoming storage,
+                // even when no body instruction otherwise observes it.
+                legalized_operations::LegalizedScalarTerminator::Return(returned)
+                | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { returned, .. } => matches!(
+                    returned.value,
+                    legalized_operations::LegalizedScalarReturnValue::StructuralParameter { place: returned } if returned == place
+                ),
+                _ => false,
+            }
         })
         || source
             .blocks

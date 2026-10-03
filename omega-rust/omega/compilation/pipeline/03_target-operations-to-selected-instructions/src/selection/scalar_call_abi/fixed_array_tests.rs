@@ -109,6 +109,7 @@ fn fixed_array_call(
         ownership_frontier_facts: Vec::new(),
     };
     let call = LegalizedScalarCall {
+        descriptor_origins: Vec::new(),
         structural_result: None,
         source: legalized_operations::NativeCallOrigin::Authored,
         callee: MachineId::new(2).unwrap(),

@@ -185,7 +185,7 @@ pub(super) fn validate(
     }
     match result.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            if whole_reference {
+            if whole_reference && !shared_borrowed_slice_view(checked, state.return_type) {
                 // The exact authored ingress, result binding and tail coordinate
                 // were checked above; ordinary statement coverage still follows.
             } else {
@@ -197,6 +197,12 @@ pub(super) fn validate(
                             CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                                 result: candidate,
                                 discard_result_on_return: false,
+                                ..
+                            } if candidate.binding_ordinal == binding_ordinal => {
+                                Some((candidate, true))
+                            }
+                            CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                                result: candidate,
                                 ..
                             } if candidate.binding_ordinal == binding_ordinal => {
                                 Some((candidate, true))
@@ -280,7 +286,13 @@ pub(super) fn validate(
                 .ok_or(LoweringError::Unsupported(
                     "returned structural source parameter is absent",
                 ))?;
-            if parameter.access != CheckedStructuralAccess::Owned
+            let shared_descriptor = parameter.access == CheckedStructuralAccess::SharedBorrow
+                && shared_borrowed_slice_view(checked, source_parameter.type_reference)
+                && shared_borrowed_slice_referee_identity(checked, source_parameter.type_reference)
+                    .as_deref()
+                    == Some(result.type_identity.as_str())
+                && result.multiplicity == Multiplicity::Unrestricted;
+            if (parameter.access != CheckedStructuralAccess::Owned && !shared_descriptor)
                 || source_parameter.is_const
                 || source_parameter.is_mutable
                 || source_parameter.is_self
@@ -293,11 +305,12 @@ pub(super) fn validate(
                 || parameter.is_self
                 || parameter.fused_service_erasure.is_some()
                 || parameter.type_identity != result.type_identity
-                || checked
-                    .typed
-                    .normalized_type_identity(source_parameter.type_reference)
-                    .as_str()
-                    != result.type_identity
+                || (!shared_descriptor
+                    && checked
+                        .typed
+                        .normalized_type_identity(source_parameter.type_reference)
+                        .as_str()
+                        != result.type_identity)
                 || !matches!(checked.typed.expression_table.expression(expression),
                     ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
                         && path.head_symbol == source_parameter.symbol
@@ -305,7 +318,11 @@ pub(super) fn validate(
             {
                 return unsupported("returned structural parameter differs from its owned source");
             }
-            if validation::is_closed_primitive_array_type(
+            if shared_descriptor {
+                // The returned value is the ingress descriptor. Source access
+                // and identity were rejoined above; Terminal reconstructs its
+                // backing lifetime independently from the completed body.
+            } else if validation::is_closed_primitive_array_type(
                 &checked.typed,
                 source_parameter.type_reference,
             ) {

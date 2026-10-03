@@ -1,0 +1,29 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    bytes: [u8; 4];
+}
+
+machine whole(bytes: &[u8]) -> &[u8] {
+    bytes[0..bytes.len]
+}
+
+machine first(bytes: &[u8]) -> u8 {
+    transition bytes.len > 0 {
+        true -> read(bytes)
+        _ -> (0)
+    }
+
+    state read(bytes: &[u8]) -> u8 {
+        bytes[0]
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.bytes[0] = 70;
+    let view: &[u8] = whole(&main.bytes);
+    let value: u8 = first(view);
+    main.console.exit_process(value as i32);
+}

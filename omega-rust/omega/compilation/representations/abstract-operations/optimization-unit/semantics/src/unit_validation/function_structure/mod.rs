@@ -87,6 +87,7 @@ pub(crate) fn validate_function(
         &control_flow.predecessors,
     )?;
     structural_roots::validate_structural_root_operations(
+        unit,
         function,
         structural_types,
         structural_domains,

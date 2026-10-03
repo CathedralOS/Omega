@@ -153,61 +153,52 @@ pub(super) fn mutable_parameter(
         })
 }
 
-/// Reconstruct the declared element from the input's own view producer or
-/// parameter, never from a target expression's claimed layout.
+/// Geometry follows the exact current declaration. Producer contracts,
+/// dominance and permissions are independently checked by operation replay;
+/// the shape query must not recognize a second list of source families.
+fn view_type(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    let identity = function
+        .arrival_parameter(place)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            super::structural_case::source_result(function, place)
+                .ok()
+                .map(|(_, result)| result.structural_type)
+        })
+        .or_else(|| {
+            super::literals::declaration_producer(function, place).map(|(_, identity)| identity)
+        })?;
+    let declaration = types.iter().find(|row| row.id == identity)?;
+    (declaration.shape.is_borrowed_byte_view()
+        || matches!(
+            declaration.shape,
+            terminal_psi::StructuralTypeShape::ElementView { .. }
+        ))
+    .then_some(identity)
+}
+
 pub(super) fn element_type(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    let view = function
-        .structural_parameters
-        .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == place)
-        .map(|parameter| parameter.structural_type)
-        .or_else(|| {
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .find_map(|node| match &node.operation {
-                    AbstractOperation::EstablishElementView { result, .. }
-                    | AbstractOperation::ElementViewSubslice { result, .. }
-                        if result.place == place =>
-                    {
-                        Some(result.structural_type)
-                    }
-                    _ => None,
-                })
-        })?;
-    match types
-        .iter()
-        .find(|declaration| declaration.id == view)?
-        .shape
-    {
+    let identity = view_type(function, place, types)?;
+    match types.iter().find(|row| row.id == identity)?.shape {
         terminal_psi::StructuralTypeShape::ElementView { element } => Some(element),
         _ => None,
     }
 }
 
-// Whole-unit validation checks the exact producer and dominance. This predicate
-// restricts the native route to parameters and derived immutable views.
 pub(super) fn contains_view(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    super::literals::declaration_producer(function, place).is_some()
-        || function.structural_parameters.iter().any(|parameter| parameter.place == place)
-        || function.blocks.iter().any(|block| block.structural_parameters.iter().any(|parameter| parameter.place == place))
-        || function.blocks.iter().flat_map(|block| &block.nodes).any(|node|
-            matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } | AbstractOperation::ElementViewSubslice { result, .. } if result.place == place)
-            || matches!(&node.operation, AbstractOperation::EstablishElementView { destination, .. } if *destination == place))
+    view_type(function, place, types).is_some()
 }
 
 pub(in crate::legalization) fn owned_byte_result(
@@ -261,5 +252,73 @@ pub(super) fn contains_readable_bytes(
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    contains_view(function, place) || owned_byte_result(function, place, types).is_some()
+    view_type(function, place, types).is_some_and(|identity| {
+        types
+            .iter()
+            .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
+    }) || reads_owner_layout(function, place, types)
+}
+
+/// Exact completed descriptor home; it carries no ownership of borrowed bytes.
+pub(in crate::legalization) fn descriptor_result(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<(
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::StructuralTypeId,
+)> {
+    let (producer, result) = super::structural_case::source_result(function, place).ok()?;
+    (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && terminal_semantics::descriptor_results::is_shared_descriptor(types.iter(), result.structural_type)
+        && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+            AbstractOperation::CallStructural { psi_operation, result: abstract_operations::AbstractStructuralCallResult::Structural { result: actual, .. }, .. }
+                if *psi_operation == producer && actual == result)))
+        .then_some((producer, result.structural_type))
+}
+
+/// Derive the current call's complete backing roster, rather than trusting the
+/// physical result home or a signature-only lifetime claim.
+pub(in crate::legalization) fn call_descriptor_origins(
+    unit: &optimization_unit::PsiOptimizationUnit,
+    caller: semantic_vocabulary::MachineId,
+    result: &terminal_psi::StructuralOperationResult,
+) -> Result<Vec<legalized_operations::LegalizedDescriptorOrigin>, LegalizationError> {
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !terminal_semantics::descriptor_results::is_shared_descriptor(
+            unit.structural_types.iter(),
+            result.structural_type,
+        )
+    {
+        return Ok(Vec::new());
+    }
+    optimization_unit_semantics::descriptor_results::call_origins(unit, caller, result.place)
+        .ok_or_else(LegalizationError::custody)?
+        .into_iter()
+        .map(|origin| match origin {
+            terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument {
+                source,
+                projection,
+            } => {
+                let projection = projection.without_runtime_coordinates();
+                Ok(legalized_operations::LegalizedDescriptorOrigin::Argument {
+                    source: terminal_psi::StructuralArgument {
+                        place: source,
+                        path: projection.path,
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
+                    exact: projection.exact,
+                    indirect: projection.indirect,
+                })
+            }
+            terminal_semantics::descriptor_results::DescriptorCallOrigin::Literal {
+                machine,
+                place,
+            } => Ok(legalized_operations::LegalizedDescriptorOrigin::Literal { machine, place }),
+        })
+        .collect()
 }

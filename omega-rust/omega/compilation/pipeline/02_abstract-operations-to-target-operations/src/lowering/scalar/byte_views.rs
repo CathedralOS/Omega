@@ -9,7 +9,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+    IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::TargetByteView;
@@ -154,7 +154,9 @@ fn reads_owner_layout(
                     })
             })
         }
-        TargetByteView::Literal { .. } | TargetByteView::Subslice { .. } => false,
+        TargetByteView::Result { .. }
+        | TargetByteView::Literal { .. }
+        | TargetByteView::Subslice { .. } => false,
     }
 }
 
@@ -331,6 +333,28 @@ pub(in crate::lowering) fn resolve_byte_view(
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
     if active.contains(&place) {
         return Err(invalid());
+    }
+    if let Some((psi_operation, result)) = descriptor_result(function, place, structural_types)
+        && structural_types
+            .get(&result.structural_type)
+            .is_some_and(|row| row.shape.is_borrowed_byte_view())
+    {
+        if backings
+            .homes
+            .get(&place)
+            .and_then(|home| home.operation_result())
+            != Some((psi_operation, result))
+        {
+            return Err(invalid());
+        }
+        return Ok((
+            TargetByteView::Result {
+                psi_operation,
+                place,
+                structural_type: result.structural_type,
+            },
+            StructuralAccess::SharedBorrow,
+        ));
     }
     if let Some((psi_operation, result)) = owned_byte_result(function, place, structural_types) {
         return Ok((
@@ -611,4 +635,37 @@ fn observes_length(
         }
         _ => false,
     }
+}
+
+/// Authenticate the completed descriptor's storage identity. Backing provenance
+/// is retained separately by call custody; a result home never becomes a new
+/// independent allocation merely because it has a descriptor layout.
+pub(in crate::lowering) fn descriptor_result<'a>(
+    function: &'a AbstractFunction,
+    place: PlaceId,
+    types: &StructuralTypeLookup<'_>,
+) -> Option<(OperationId, &'a terminal_psi::StructuralOperationResult)> {
+    let mut producers = function
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            AbstractOperation::CallStructural {
+                psi_operation,
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if result.place == place => Some((*psi_operation, result)),
+            _ => None,
+        });
+    let (operation, result) = producers.next()?;
+    (producers.next().is_none()
+        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && terminal_semantics::descriptor_results::is_shared_descriptor(
+            types.values().copied(),
+            result.structural_type,
+        ))
+    .then_some((operation, result))
 }
