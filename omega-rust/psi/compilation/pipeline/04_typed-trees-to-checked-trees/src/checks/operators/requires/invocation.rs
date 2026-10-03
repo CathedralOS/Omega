@@ -19,13 +19,12 @@
 use arena::Handle;
 use checked_trees::{
     CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorUseFact, FlowFacts,
-    FlowOperatorInvocationFact, FlowOperatorOperandFact,
+    FlowOperatorInvocationFact,
 };
 use facts::{FactContextHandle, FactPlan};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) struct InvocationContexts<'facts> {
     flow: &'facts FlowFacts,
@@ -122,7 +121,7 @@ impl<'facts> InvocationContexts<'facts> {
         let operands = self
             .flow
             .control
-            .operator_operands
+            .operands
             .span_or_empty(invocation.operands);
         let mut selected = None::<Vec<FactContextHandle>>;
         for (ordinal, parameter) in parameters.iter().enumerate() {
@@ -135,22 +134,14 @@ impl<'facts> InvocationContexts<'facts> {
             let Some(operand) = operands.get(ordinal) else {
                 return Vec::new();
             };
-            let mut operand_contexts: Vec<_> = self
-                .flow
-                .semantic_constraint_contexts(operand.constraints)
-                .collect();
-            if !operand_binds_stable_copy(program, parameter.type_reference) {
-                operand_contexts = if operand.referents.is_empty() {
-                    operand_contexts.retain(|candidate| {
-                        self.flow
-                            .semantic_constraint_contexts(invocation.requires_constraints)
-                            .any(|context| context == *candidate)
-                    });
-                    operand_contexts
-                } else {
-                    self.invocation_contexts_at_referents(program, operand)
-                };
-            }
+            let operand_contexts = crate::flow::operand_contexts(
+                program,
+                self.flow,
+                self.semantic,
+                operand,
+                parameter.type_reference,
+                invocation.requires_constraints,
+            );
             if let Some(selected) = &mut selected {
                 selected.retain(|candidate| operand_contexts.contains(candidate));
             } else {
@@ -163,60 +154,6 @@ impl<'facts> InvocationContexts<'facts> {
                 .collect()
         })
     }
-
-    /// Invocation-live contexts carrying at least one fact about a referent
-    /// the operand exactly denotes. A bound view reads that storage at
-    /// invocation, so its current facts — including ones a later operand
-    /// established — are the clause's evidence in place of the captured
-    /// snapshot's context identities.
-    fn invocation_contexts_at_referents(
-        &self,
-        program: &TypedTrees,
-        operand: &FlowOperatorOperandFact,
-    ) -> Vec<FactContextHandle> {
-        let Some(invocation) = self.invocation else {
-            return Vec::new();
-        };
-        let referents = self
-            .flow
-            .control
-            .operand_referents
-            .span_or_empty(operand.referents);
-        self.flow
-            .semantic_constraint_contexts(invocation.requires_constraints)
-            .filter(|context| {
-                self.semantic
-                    .refs
-                    .span_or_empty(self.semantic.contexts.get(*context).facts)
-                    .iter()
-                    .any(|fact_ref| {
-                        let fact = self.semantic.facts.get(fact_ref.fact);
-                        let facts::FactPlace::Place(place) = fact.place else {
-                            return false;
-                        };
-                        let Some(place) = crate::flow::canonical_place_from_semantic_place(
-                            program,
-                            self.semantic,
-                            self.semantic.places.get(place),
-                        ) else {
-                            return false;
-                        };
-                        referents.iter().any(|referent| {
-                            crate::flow::normalized_event_place_root(program, place.root)
-                                == crate::flow::normalized_event_place_root(program, referent.root)
-                                && crate::flow::canonical_place_segments_may_overlap(
-                                    program,
-                                    &place.segments,
-                                    self.flow
-                                        .control
-                                        .operand_referent_segments
-                                        .span_or_empty(referent.segments),
-                                )
-                        })
-                    })
-            })
-            .collect()
-    }
 }
 
 /// The capture row names its exact operand expressions in evaluation order;
@@ -227,37 +164,11 @@ fn operand_expressions_match(
     operands: &[ExpressionHandle],
 ) -> bool {
     flow.control
-        .operator_operands
+        .operands
         .span_or_empty(invocation.operands)
         .iter()
         .map(|operand| operand.expression)
         .eq(operands.iter().copied())
-}
-
-/// Whether the operand bound to this formal is a detached copy of stable
-/// contents, so its operand-time facts describe the invocation value outright.
-/// A copied scalar is the narrow case; a by-value record, sum, or fixed array
-/// with stable observable contents is equally detached — a later operand's
-/// write to the source storage cannot reach the copy, and no loan or interior
-/// authority inside it can retarget what the operator received. Reference and
-/// slice formals are views onto shared storage: a view operand's recorded
-/// referents transport the facts live on that storage at invocation; anything
-/// the contents classifier cannot prove stable, or whose referent could not
-/// be resolved exactly, keeps the capture ∩ invocation intersection.
-fn operand_binds_stable_copy(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Named { .. } => {
-                return program.primitive_type_reference(reference).is_some()
-                    || validation::has_stable_observable_contents(program, reference);
-            }
-            TypeReferenceNode::Generic { .. } | TypeReferenceNode::FixedArray { .. } => {
-                return validation::has_stable_observable_contents(program, reference);
-            }
-            _ => return false,
-        }
-    }
 }
 
 fn occurrence_root_symbol(

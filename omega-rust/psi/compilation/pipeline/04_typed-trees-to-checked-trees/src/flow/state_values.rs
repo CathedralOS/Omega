@@ -37,6 +37,7 @@ pub(super) struct StateValues {
     fields: Vec<fields::FieldValue>,
     qualifications: Vec<qualifications::QualifiedInput>,
     predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
+    entry_paths: crate::facts::boolean_predicates::EntryPaths,
 }
 
 /// The greatest predicate set this state's incoming edges have ever jointly
@@ -64,16 +65,25 @@ pub(super) fn field_predicate_ceiling<'a>(
     field.map_or(&[], |field| field.predicate_ceiling())
 }
 
+fn entry_state<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<&'program typed_trees::state::State> {
+    let index = crate::checks::termination::named_transition_target_state_index(
+        program,
+        machine,
+        machine.symbol,
+    )?;
+    program.machine_states(machine).get(index)
+}
+
 fn reachable(
     build: &FlowBuildContext,
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: SymbolHandle,
 ) -> bool {
-    program
-        .machine_states(machine)
-        .first()
-        .is_some_and(|entry| entry.symbol == state)
+    entry_state(program, machine).is_some_and(|entry| entry.symbol == state)
         || build
             .state_value_inputs
             .iter()
@@ -110,6 +120,12 @@ fn join(
         );
         changed |= qualifications::meet(&mut previous.qualifications, &incoming.qualifications);
         changed |= predicates::meet(&mut previous.predicates, &incoming.predicates);
+        if previous.entry_paths.union(&incoming.entry_paths) {
+            changed = true;
+            // Each change adds an arrival clause or removes a stricter one
+            // over the finite original-entry guard atoms; no syntax unrolling.
+            build.new_state_field_input_height += 1;
+        }
         for (parameter, value) in &mut previous.values {
             let next = incoming
                 .values
@@ -174,6 +190,7 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
                     fields: Vec::new(),
                     qualifications: Vec::new(),
                     predicates: Vec::new(),
+                    entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
                     values: program
                         .state_parameters(state)
                         .iter()
@@ -233,11 +250,7 @@ pub(super) fn record_transition(
         }
         _ => return,
     };
-    if program
-        .machine_states(machine)
-        .first()
-        .is_some_and(|entry| entry.symbol == destination.symbol)
-    {
+    if entry_state(program, machine).is_some_and(|entry| entry.symbol == destination.symbol) {
         return;
     }
     let mut ordinal = 0;
@@ -303,6 +316,18 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
+    let path_contexts = build
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(contexts)
+        .iter()
+        .map(|reference| reference.context)
+        .collect::<Vec<_>>();
+    let entry_paths = crate::facts::boolean_predicates::EntryPaths::retained(
+        semantic,
+        &path_contexts,
+        machine.symbol,
+    );
     let mut qualifications = argument_qualifications;
     qualifications.extend(qualifications::capture_receiver(
         program,
@@ -325,6 +350,7 @@ pub(super) fn record_transition(
             fields,
             qualifications,
             predicates,
+            entry_paths,
         },
     );
 }
@@ -350,11 +376,7 @@ pub(super) fn record_invocation<'plans>(
     else {
         return;
     };
-    if program
-        .machine_states(owner)
-        .first()
-        .is_some_and(|entry| entry.symbol == destination.symbol)
-    {
+    if entry_state(program, owner).is_some_and(|entry| entry.symbol == destination.symbol) {
         return;
     }
     if owner.symbol == machine.symbol
@@ -383,6 +405,7 @@ pub(super) fn record_invocation<'plans>(
             fields: Vec::new(),
             qualifications: Vec::new(),
             predicates: Vec::new(),
+            entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
             bounds: Vec::new(),
             values: program
                 .state_parameters(destination)
@@ -415,6 +438,21 @@ pub(super) fn append_entry_context(
     fields::append(program, semantic, &input.fields, machine, state, point);
     qualifications::append(semantic, &input.qualifications, point);
     predicates::append(semantic, &input.predicates, point);
+    if let Some(entry) = crate::checks::termination::named_transition_target_state_index(
+        program,
+        machine,
+        machine.symbol,
+    )
+    .and_then(|index| program.machine_states(machine).get(index))
+    {
+        crate::facts::boolean_predicates::seed_entry_paths(
+            semantic,
+            machine.symbol,
+            entry.symbol,
+            point,
+            &input.entry_paths,
+        );
+    }
     for (parameter, value) in &input.values {
         if *value == ScalarValue::Unknown {
             continue;

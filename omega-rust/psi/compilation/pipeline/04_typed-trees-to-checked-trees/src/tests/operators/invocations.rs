@@ -44,18 +44,18 @@ fn operator_operand_custody_rejects_missing_duplicate_or_reordered_records() {
                     .operator_invocations
                     .append(invocation.clone());
             }
-            "operands" => facts.flow.control.operator_operands = Default::default(),
+            "operands" => facts.flow.control.operands = Default::default(),
             "reordered" => {
                 let reversed = facts
                     .flow
                     .control
-                    .operator_operands
+                    .operands
                     .span_or_empty(invocation.operands)
                     .iter()
                     .rev()
                     .copied()
                     .collect::<Vec<_>>();
-                let span = facts.flow.control.operator_operands.insert_many(reversed);
+                let span = facts.flow.control.operands.insert_many(reversed);
                 facts
                     .flow
                     .control

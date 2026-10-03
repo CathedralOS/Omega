@@ -94,16 +94,36 @@ pub(crate) fn lower_unit_scalar_argument(
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
+    let (parameters, locals) = unit_scalar_context(program, state, before_statement)?;
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+
+    lower_return_expression(
+        program,
+        operators,
+        expression,
+        &parameters,
+        program.state_parameters(state),
+        &parameter_types,
+        &locals,
+        expected_type,
+        &operators.exact_integer_casts,
+    )
+}
+
+fn unit_scalar_context(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+) -> Option<(Vec<StateParameter>, Vec<ScalarLocal>)> {
     let parameters = program
         .state_parameters(state)
         .iter()
         .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
         .cloned()
         .collect::<Vec<_>>();
-    let parameter_types = parameters
-        .iter()
-        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-        .collect::<Option<Vec<_>>>()?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix = statements.get(..before_statement)?;
     let mut locals = Vec::new();
@@ -144,16 +164,28 @@ pub(crate) fn lower_unit_scalar_argument(
             shared_loan_place: None,
         });
     }
-    lower_return_expression(
-        program,
-        operators,
-        expression,
-        &parameters,
-        program.state_parameters(state),
-        &parameter_types,
-        &locals,
-        expected_type,
-        &operators.exact_integer_casts,
+    Some((parameters, locals))
+}
+
+/// The exact binding namespace used by `lower_unit_scalar_argument`. Stored
+/// local values retain their own symbols rather than replaying initializers.
+pub(crate) fn unit_scalar_binding_symbols(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    before_statement: usize,
+) -> Option<Vec<symbols::SymbolHandle>> {
+    let (parameters, locals) = unit_scalar_context(program, state, before_statement)?;
+    Some(
+        parameters
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .chain(
+                locals
+                    .iter()
+                    .filter(|local| local.is_value_binding())
+                    .map(|local| local.symbol),
+            )
+            .collect(),
     )
 }
 

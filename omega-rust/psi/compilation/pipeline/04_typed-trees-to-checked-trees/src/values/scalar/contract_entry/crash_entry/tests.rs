@@ -14,18 +14,18 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 fn entry_requirements_compose_structural_arithmetic_and_literal_operands() {
     for (predicate, operation) in [
         (
-            "self.length - 1 < self.items.len",
+            "buffer.length - 1 < buffer.items.len",
             checked_trees::CheckedIntegerBinaryKind::WrappingSubtract,
         ),
         (
-            "(3 - 2) + self.length < self.items.len",
+            "(3 - 2) + buffer.length < buffer.items.len",
             checked_trees::CheckedIntegerBinaryKind::WrappingAdd,
         ),
     ] {
         let checked = crate::tests::front_end::checked_program(&format!(
             "data Buffer {{ items: [i32; 4]; length: u64 in Wrapping; }}
-         machine Buffer::inspect(&self) -> i32
-         requires self.length > 0; {predicate} {{ 0 }}"
+         machine Buffer::inspect(buffer: &Buffer) -> i32
+         requires buffer.length > 0; {predicate} {{ 0 }}"
         ));
         let machine = &checked.machines()[0];
         let requirements = checked
@@ -118,10 +118,10 @@ fn structural_entry_field_identity_is_retained_without_a_spelling_lookup() {
 }
 
 #[test]
-fn structural_entry_self_uses_the_exact_attached_field_alias() {
-    for receiver in ["self", "&self", "&mut self"] {
+fn structural_entry_named_receiver_uses_the_exact_declared_field() {
+    for receiver in ["Input", "&Input", "&mut Input"] {
         let program = typed_program(&format!(
-            "data Input {{ allowed: bool; }} machine Input::value({receiver}) -> bool requires self.allowed {{ true }}"
+            "data Input {{ allowed: bool; }} data Other {{ allowed: bool; }} machine Input::value(input: {receiver}) -> bool requires input.allowed {{ true }}"
         ));
         assert_eq!(
             read(&program),
@@ -136,14 +136,14 @@ fn structural_entry_self_uses_the_exact_attached_field_alias() {
         let parameters = program.machine_states(&program.machines()[0])[0].parameters;
         for wrong in [
             SymbolHandle::invalid(),
-            program.data_definitions()[0].symbol,
+            program.data_definitions()[1].symbol,
         ] {
             let mut invalid = program.clone();
             let fake = invalid
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol: wrong,
-                    name: "Self".into(),
+                    name: "Other".into(),
                 });
             invalid
                 .tables
@@ -156,10 +156,10 @@ fn structural_entry_self_uses_the_exact_attached_field_alias() {
 }
 
 #[test]
-fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
+fn structural_entry_runtime_named_receiver_path_and_boolean_type_queries_agree() {
     for explicit_identity in [false, true] {
         let mut program = typed_program(
-            "data Input { allowed: bool; } machine Input::value(&self) -> bool requires self.allowed { true }",
+            "data Input { allowed: bool; } machine Input::value(input: &Input) -> bool requires input.allowed { true }",
         );
         if explicit_identity {
             field_mut(&mut program, 0).identity = Some(7);
@@ -171,7 +171,7 @@ fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
         let position = crate::values::scalar::structural_fields::structural_parameter_field_path(
             &program, parameters, expression, &mut path,
         )
-        .expect("runtime path reader joins exact self root and inherited field alias");
+        .expect("runtime path reader joins exact named root and declared field identity");
         assert_eq!(position, 0);
         assert_eq!(
             path,
@@ -182,7 +182,7 @@ fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
         let (_, _, field_type, _) = super::super::super::resolve_structural_parameter_path(
             &program, parameters, position, &path,
         )
-        .expect("runtime structural type owner resolves machine Self to attachment");
+        .expect("runtime structural type owner resolves the named receiver declaration");
         assert_eq!(
             program.primitive_type_reference(field_type),
             Some(typed_trees::types::PrimitiveType::Bool)
@@ -201,7 +201,7 @@ fn structural_entry_runtime_self_path_and_boolean_type_queries_agree() {
                 &[],
             ),
             expected,
-            "runtime Boolean field lookup must preserve the same Self attachment and field type"
+            "runtime Boolean field lookup must preserve the same declared receiver and field type"
         );
     }
 }
@@ -774,13 +774,13 @@ fn integer_entry_fields_keep_nested_identity_and_mixed_scalar_ordinals() {
             }
         );
     }
-    for receiver in ["self", "&self", "&mut self"] {
+    for receiver in ["Input", "&Input", "&mut Input"] {
         let program = typed_program(&format!(
-            "data Input {{ number: i32; }} machine Input::value({receiver}, limit: i32) -> bool\nrequires self.number < limit\n{{ true }}"
+            "data Input {{ number: i32; }} machine Input::value(input: {receiver}, limit: i32) -> bool\nrequires input.number < limit\n{{ true }}"
         ));
         let Some(CheckedBooleanExpression::IntegerComparison { left, right, .. }) = read(&program)
         else {
-            panic!("exact self field comparison: {receiver}");
+            panic!("exact named receiver field comparison: {receiver}");
         };
         assert_eq!(
             *left,
@@ -991,6 +991,7 @@ fn body_entry_predicate(
         state.symbol,
         statement_index,
         expression,
+        &|_| true,
     )
 }
 

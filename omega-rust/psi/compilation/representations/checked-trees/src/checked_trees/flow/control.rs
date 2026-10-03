@@ -19,7 +19,7 @@ use super::{
 pub struct FlowOperatorInvocationFact {
     pub operator_use: arena::Handle<crate::CheckedOperatorUseFact>,
     pub named_use: arena::Handle<crate::CheckedNamedOperatorUseFact>,
-    pub operands: HandleSpan<super::FlowOperatorOperandFact>,
+    pub operands: HandleSpan<super::FlowOperandFact>,
     pub requires_constraints: HandleSpan<FlowConstraintRef>,
 }
 
@@ -27,6 +27,8 @@ pub struct FlowOperatorInvocationFact {
 pub struct FlowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
+    /// Actuals in authored evaluation order, captured at their own completion.
+    pub operands: HandleSpan<super::FlowOperandFact>,
     /// Exact expression occurrence captured by the semantic call traversal.
     /// Statement calls and named transition roots use the zero handle.
     pub authored_expression: typed_trees::expression::ExpressionHandle,
@@ -78,6 +80,20 @@ pub struct FlowStatementFact {
     pub pre_store_constraints: HandleSpan<FlowConstraintRef>,
 }
 
+/// Live source observations after the selected outgoing operands have been
+/// evaluated, before successor admission/arrival or machine-return guarantees.
+/// Unlike `FlowExitFact`, this includes named state transfers and introduces
+/// no machine result or ensures obligation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowStateOutgoingFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    /// Invalid only for implicit completion or a final expression.
+    pub transition_target: typed_trees::statement::TransitionTargetHandle,
+    pub constraints: HandleSpan<FlowConstraintRef>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowExitFact {
     pub machine_symbol: SymbolHandle,
@@ -115,6 +131,7 @@ pub struct FlowStateFact {
     pub statements: HandleSpan<FlowStatementFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
+    pub outgoing: HandleSpan<FlowStateOutgoingFact>,
     pub service_reach: ServiceReachSummary,
     pub suspension: SuspensionSummary,
     pub blocking: BlockingSummary,

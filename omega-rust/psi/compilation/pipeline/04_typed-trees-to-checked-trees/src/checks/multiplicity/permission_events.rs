@@ -332,7 +332,6 @@ fn record_crash_frontier_lower_bounds(
         else {
             continue;
         };
-        let statements = program.statement_table.statements(state.statement_nodes);
         let events = facts
             .flow
             .ownership

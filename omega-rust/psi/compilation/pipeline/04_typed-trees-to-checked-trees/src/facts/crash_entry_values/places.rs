@@ -100,7 +100,7 @@ pub(in crate::facts) fn entry_place(
 /// canonical structural path. The presentation comes only from the provenance
 /// replay above; every member is then authenticated against the exact entry
 /// type, including the case and field identities used by checked predicates.
-pub(in crate::facts) fn entry_parameter_place(
+pub(crate) fn entry_parameter_place(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,

@@ -42,7 +42,11 @@ pub(crate) use entry_origins::{
 };
 mod exits;
 mod expression;
+mod operand_contexts;
 mod operator_calls;
+pub(crate) use operand_contexts::{
+    entry_origin_is_stable, operand_contexts, operand_entry_origin_is_stable,
+};
 mod state;
 mod statements;
 mod transfers;
@@ -117,7 +121,7 @@ use constraints::{
 };
 use context::FlowBuildContext;
 pub(crate) use domain::build_domain_facts;
-use domain::filter_contexts_after_place_mutations;
+pub(crate) use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
 use fact_rows::borrow_state_fact;

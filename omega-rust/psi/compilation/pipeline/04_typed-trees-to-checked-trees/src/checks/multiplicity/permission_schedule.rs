@@ -159,3 +159,6 @@ pub(super) fn select_cases(
         );
     }
 }
+
+#[cfg(test)]
+mod tests;

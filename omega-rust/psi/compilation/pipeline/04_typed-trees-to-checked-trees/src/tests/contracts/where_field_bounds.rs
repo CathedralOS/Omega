@@ -17,11 +17,11 @@ fn messages(source: &str) -> Vec<String> {
 fn program(facts: &str, stored: &str) -> String {
     format!(
         "data Main where {facts} {{ values: [u8; 4]; i: u64; limit: u64; }}
-         machine Main::bump(&mut self) {{
+         machine Main::bump(main: &mut Main) {{
              let next: u64 = {stored};
-             self.i = next;
+             main.i = next;
          }}
-         machine Main::read(&self) -> u8 {{ self.values[self.i] }}"
+         machine Main::read(main: &Main) -> u8 {{ main.values[main.i] }}"
     )
 }
 

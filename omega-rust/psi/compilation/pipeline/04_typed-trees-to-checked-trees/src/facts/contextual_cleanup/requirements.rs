@@ -5,8 +5,8 @@
 //! Its missing proposition must still denote the invocation's original value;
 //! writes and non-entry locals cannot be repaired by assuming a fact at exit.
 use checked_trees::{
-    CheckFacts, CheckedStructuralPredicatePathSegment, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, FlowStateFact,
+    CheckFacts, CheckedBooleanExpression, CheckedStructuralPredicatePathSegment,
+    ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, FlowStateFact,
 };
 use diagnostics::Diagnostic;
 use facts::{FactContextHandle, PlaceRoot, PlaceSegment};
@@ -20,11 +20,14 @@ use crate::execution::terminal_unit::cleanup::{
 };
 use crate::flow::{CanonicalPlace, CleanupLeaf, selected_cleanup_leaves};
 
+use super::super::boolean_predicates::{conjunction, entry_path_condition};
+
 struct Pending {
     machine: SymbolHandle,
     parameter_position: u32,
     path: Vec<CheckedStructuralPredicatePathSegment>,
     expected: bool,
+    antecedent: CheckedBooleanExpression,
     hook_machine: SymbolHandle,
     hook_clause: ExpressionHandle,
     template_machine: SymbolHandle,
@@ -68,6 +71,11 @@ pub(crate) fn infer_entry_requirements(
         if obligation.proven(program, facts) {
             continue;
         }
+        let Some(antecedent) =
+            entry_path_condition(&facts.semantic, &obligation.contexts, instance.machine)
+        else {
+            continue;
+        };
         if let Some(row) = transport(
             program,
             instance.machine,
@@ -75,6 +83,7 @@ pub(crate) fn infer_entry_requirements(
             obligation.statement,
             &obligation.place,
             obligation.expected,
+            antecedent,
             obligation.hook,
             obligation.clause,
             template,
@@ -129,19 +138,31 @@ pub(crate) fn infer_entry_requirements(
                 if !has_symbolic_origin(program, state, call.statement_index, &place) {
                     continue;
                 }
-                if let Some(row) = transport(
-                    program,
-                    state.machine_symbol,
-                    state.state_symbol,
-                    call.statement_index,
-                    &place,
-                    requirement.expected,
-                    requirement.hook_machine,
-                    requirement.hook_clause,
-                    specialization.template,
-                ) {
-                    pending.push(row);
-                }
+                let Some(path_condition) =
+                    entry_path_condition(&facts.semantic, &contexts, state.machine_symbol)
+                else {
+                    continue;
+                };
+                let Some(callee_condition) =
+                    calls::entry_antecedent(program, facts, state, call, requirement)
+                else {
+                    continue;
+                };
+                let Some((parameter_position, path)) =
+                    calls::entry_subject(program, facts, state, call, requirement)
+                else {
+                    continue;
+                };
+                pending.push(Pending {
+                    machine: state.machine_symbol,
+                    parameter_position,
+                    path,
+                    expected: requirement.expected,
+                    antecedent: conjunction(path_condition, callee_condition),
+                    hook_machine: requirement.hook_machine,
+                    hook_clause: requirement.hook_clause,
+                    template_machine: specialization.template,
+                });
             }
         }
     }
@@ -292,6 +313,7 @@ fn transport(
     statement: usize,
     place: &CanonicalPlace,
     expected: bool,
+    antecedent: CheckedBooleanExpression,
     hook_machine: SymbolHandle,
     hook_clause: ExpressionHandle,
     template_machine: SymbolHandle,
@@ -304,6 +326,7 @@ fn transport(
         parameter_position,
         path,
         expected,
+        antecedent,
         hook_machine,
         hook_clause,
         template_machine,
@@ -318,13 +341,18 @@ fn append(
         if prior.machine == row.machine
             && prior.parameter_position == row.parameter_position
             && requirements.paths.span_or_empty(prior.path) == row.path
+            && prior.antecedent == row.antecedent
         {
-            if prior.expected != row.expected {
+            if prior.expected != row.expected
+                && row.antecedent == CheckedBooleanExpression::Constant(true)
+            {
                 return Err(vec![Diagnostic::error(
                     "contextual cleanup has contradictory prerequisites for the same invocation-entry place",
                 )]);
             }
-            return Ok(false);
+            if prior.expected == row.expected {
+                return Ok(false);
+            }
         }
     }
     let mut path = arena::HandleSpan::default();
@@ -336,7 +364,7 @@ fn append(
         parameter_position: row.parameter_position,
         path,
         expected: row.expected,
-        antecedent: checked_trees::CheckedBooleanExpression::Constant(true),
+        antecedent: row.antecedent,
         hook_machine: row.hook_machine,
         hook_clause: row.hook_clause,
         template_machine: row.template_machine,
@@ -514,8 +542,8 @@ pub(super) fn occurrence_contexts(
             facts
                 .flow
                 .control
-                .exits
-                .span_or_empty(state.exits)
+                .outgoing
+                .span_or_empty(state.outgoing)
                 .iter()
                 .filter(|exit| {
                     exit.statement_index == coordinate.statement_index
@@ -526,7 +554,7 @@ pub(super) fn occurrence_contexts(
                         exit.statement_index,
                         facts
                             .flow
-                            .semantic_constraint_contexts(exit.entry_constraints)
+                            .semantic_constraint_contexts(exit.constraints)
                             .collect(),
                     )
                 })

@@ -74,6 +74,69 @@ pub(crate) fn lower_entry_predicate_with_subjects(
         .then_some(predicate)
 }
 
+/// Scalar actuals use the same authenticated subjects and selected meaning as
+/// Boolean predicates. This does not replay stored initializer expressions.
+pub(crate) fn lower_entry_scalar_with_subjects(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    primitive_type: PrimitiveType,
+    subjects: &EntrySubjectResolver<'_>,
+) -> Option<CheckedScalarExpression> {
+    if primitive_type == PrimitiveType::Bool {
+        return lower_entry_predicate_with_subjects(
+            program, operators, machine, state, expression, subjects,
+        )
+        .map(|value| CheckedScalarExpression::Boolean(Box::new(value)));
+    }
+    if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
+    {
+        return None;
+    }
+    let mut reader = Reader {
+        program,
+        operators,
+        machine: Some(machine),
+        owner: machine.symbol,
+        parameters: super::authored_entry_parameters(program, machine)?,
+        remaining: 4096,
+        subjects: Some(subjects),
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            let subject = reader.subject(expression, 0)?;
+            if reader.primitive(subject.type_reference, 0)??.0 != primitive_type {
+                return None;
+            }
+            Some(if subject.path.is_empty() {
+                CheckedScalarExpression::Parameter {
+                    position: reader.scalar_position(subject.parameter_position, 0)?,
+                    primitive_type,
+                }
+            } else {
+                CheckedScalarExpression::StructuralParameterField {
+                    parameter_position: u32::try_from(subject.parameter_position).ok()?,
+                    path: subject.path,
+                    primitive_type,
+                }
+            })
+        }
+        ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
+            crate::values::lower_unit_scalar_argument(
+                program,
+                operators,
+                state,
+                0,
+                expression,
+                primitive_type,
+            )
+        }
+        _ => None,
+    }
+}
+
 struct Reader<'program> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,

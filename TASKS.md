@@ -830,14 +830,25 @@ the complete product bar; focused successes below do not establish that baseline
   Source checks use each selected exit, post-call temporary cleanup, and
   replacement facts captured after RHS evaluation but before the store.
 
-  Remaining acceptance: retain conditional prerequisites through generic
-  selection/forwarding without demanding readiness of the returned owner;
-  `contextual_conditions` currently rejects four valid `choose<T>` programs.
-  Preserve separate target/continuation custody and carry live relational facts
-  across named-state arrivals. Dying local owners also remain unfinished.
-  Complete these through encoded, independently verified Terminal and native
-  artifacts; reject missing/forged hook identity or premises and duplicate
-  consumption, retaining helper-call, reserved-hook and erased-field controls.
+  The local candidate passes all eight `contextual_conditions` source checks:
+  selected-owner readiness, generic forwarding (including a negated selector),
+  reordered named-state parameters, and a taken guard whose selector is omitted
+  from the next state. Guard implications remain separate from authored clauses;
+  historical entry conditions cannot prove current storage values. The focused
+  76-test run passes 74 checks, including exact named-transition cleanup contexts
+  and all six new relational-fact controls. The valid copied-selector case still
+  rejects when a later argument writes its source; ordinary calls need the same
+  operand-time capture used by operators. One old receiver fixture needs migration.
+
+  Remaining acceptance: execute conditional nominal cleanup on structural-return
+  edges. `state_graph/returns.rs` still declines nominal owned results, and
+  Terminal `ReturnStructural` retains only trivial discards. Extend the shared
+  ordered cleanup action path through codec, independent verification,
+  interpretation and native realization, materializing the result before
+  cleanup. Preserve exact named-transition contexts and operand-time values;
+  dying local owners also remain unfinished. Reject missing/forged hook identity
+  or premises and duplicate consumption, retaining helper-call, reserved-hook
+  and erased-field controls.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize outgoing

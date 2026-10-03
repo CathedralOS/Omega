@@ -14,7 +14,7 @@ pub struct FlowOperandReferent {
     pub segments: HandleSpan<facts::PlaceSegment>,
 }
 
-/// Facts at completion of one authored operator operand. Scalar copies and
+/// Facts at completion of one authored invocation operand. Scalar copies and
 /// by-value carriers with stable observable contents keep this value's facts
 /// even if a later operand changes its former source storage — the bound
 /// operand is a detached copy. View carriers such as references and slices
@@ -22,8 +22,12 @@ pub struct FlowOperandReferent {
 /// referent custody: the clause's evidence is the facts live on that storage
 /// at invocation, including ones a later operand established.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FlowOperatorOperandFact {
+pub struct FlowOperandFact {
     pub expression: ExpressionHandle,
+    /// Writes already evaluated in this statement when the operand completed.
+    /// Later writes cannot change this prefix or its invocation-entry origin.
+    pub entry_origin_writes: HandleSpan<FlowOperandReferent>,
+    pub entry_origin_unknown_write: bool,
     pub constraints: HandleSpan<FlowConstraintRef>,
     /// Exact referent storage when the operand is a view carrier. Empty for
     /// detached carriers and for referents the resolver cannot place exactly.

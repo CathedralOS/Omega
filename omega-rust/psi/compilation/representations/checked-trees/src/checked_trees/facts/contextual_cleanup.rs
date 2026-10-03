@@ -75,7 +75,6 @@ pub struct ContextualCleanupEntryRequirement {
     pub template_machine: SymbolHandle,
 }
 
-
 impl Default for ContextualCleanupEntryRequirement {
     fn default() -> Self {
         Self {
@@ -92,6 +91,8 @@ impl Default for ContextualCleanupEntryRequirement {
 }
 
 impl ContextualCleanupEntryRequirement {
+    /// One complete invocation obligation. Neither source flow nor Terminal
+    /// publication may assume the consequence without its selected-edge guard.
     pub fn predicate(
         &self,
         paths: &Arena<crate::CheckedStructuralPredicatePathSegment>,
@@ -101,12 +102,18 @@ impl ContextualCleanupEntryRequirement {
             parameter_position: self.parameter_position,
             path: paths.span_or_empty(self.path).to_vec(),
         };
-        let consequence = if self.expected { field } else { CheckedBooleanExpression::Not(Box::new(field)) };
+        let consequence = if self.expected {
+            field
+        } else {
+            CheckedBooleanExpression::Not(Box::new(field))
+        };
         if self.antecedent == CheckedBooleanExpression::Constant(true) {
             consequence
         } else {
             CheckedBooleanExpression::Or {
-                left: Box::new(CheckedBooleanExpression::Not(Box::new(self.antecedent.clone()))),
+                left: Box::new(CheckedBooleanExpression::Not(Box::new(
+                    self.antecedent.clone(),
+                ))),
                 right: Box::new(consequence),
             }
         }

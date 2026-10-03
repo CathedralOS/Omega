@@ -16,6 +16,7 @@ impl Execution<'_, '_, '_> {
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
         let mut operands = Vec::new();
+        let mut captured_operands = Vec::new();
         let mut values = Vec::new();
         let mut captured_qualifications = Vec::new();
         match self.program.statement_table.transition_target(target) {
@@ -27,8 +28,15 @@ impl Execution<'_, '_, '_> {
                     .iter()
                     .enumerate()
                 {
-                    operands.push((*argument, self.operand_writes.len()));
+                    let first_write = self.operand_writes.len();
+                    operands.push((*argument, first_write));
                     self.expression(*argument, contexts, constraints);
+                    captured_operands.push(self.capture_operand(
+                        *argument,
+                        first_write,
+                        *contexts,
+                        *constraints,
+                    ));
                     captured_qualifications.extend(qualifications::capture_argument(
                         self.program,
                         self.semantic,
@@ -91,9 +99,18 @@ impl Execution<'_, '_, '_> {
             &values,
             argument_qualifications,
         );
+        super::super::exits::append_outgoing_state_fact(
+            self.context,
+            self.machine.symbol,
+            self.state.symbol,
+            self.statement_index,
+            target,
+            *constraints,
+        );
         self.invoke(
             InvocationSite::Transition(target),
             &operands,
+            &captured_operands,
             contexts,
             constraints,
         );

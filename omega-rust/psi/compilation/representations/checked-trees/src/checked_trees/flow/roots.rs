@@ -111,15 +111,17 @@ impl FlowBoundaryFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowControlFacts {
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
-    pub operator_operands: Arena<super::FlowOperatorOperandFact>,
+    pub operands: Arena<super::FlowOperandFact>,
     /// Exact storage an operand's evaluated view carrier denotes, one row per
     /// resolvable referent; segment payloads live in `operand_referent_segments`
     /// in the semantic `Place` vocabulary.
+    pub operand_origin_writes: Arena<super::FlowOperandReferent>,
     pub operand_referents: Arena<super::FlowOperandReferent>,
     pub operand_referent_segments: Arena<facts::PlaceSegment>,
     pub statements: Arena<FlowStatementFact>,
     pub calls: Arena<FlowCallFact>,
     pub exits: Arena<FlowExitFact>,
+    pub outgoing: Arena<super::FlowStateOutgoingFact>,
     pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
     pub states: Arena<FlowStateFact>,
     /// Call rows whose authored call selected execution replaced in the typed
@@ -139,11 +141,13 @@ impl FlowControlFacts {
         Self {
             statements,
             operator_invocations: Arena::default(),
-            operator_operands: Arena::default(),
+            operands: Arena::default(),
+            operand_origin_writes: Arena::default(),
             operand_referents: Arena::default(),
             operand_referent_segments: Arena::default(),
             calls,
             exits,
+            outgoing: Arena::default(),
             exit_parameter_origins: Arena::default(),
             states,
             retired_calls: Vec::new(),

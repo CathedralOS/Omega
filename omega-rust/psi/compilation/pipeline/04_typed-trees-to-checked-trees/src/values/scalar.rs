@@ -50,9 +50,9 @@ pub(crate) use call_arguments::{
 pub(crate) use computations::build_checked_scalar_computation_plans;
 pub(crate) use computations::build_checked_value_computation_plans;
 pub(crate) use contract_entry::{
-    lower_entry_predicate_with_subjects, lower_machine_entry_boolean_expression,
-    lower_machine_entry_crash_contract_expression, lower_operator_crash_contract_expression,
-    lower_signature_crash_contract_expression,
+    lower_entry_predicate_with_subjects, lower_entry_scalar_with_subjects,
+    lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
+    lower_operator_crash_contract_expression, lower_signature_crash_contract_expression,
 };
 pub(crate) use expression_facts::{
     occupies_scalar_position, operator_is_builtin, parameter_position, scalar_expression_type,
@@ -66,7 +66,10 @@ pub(crate) use result_contract::{
     lower_scalar_parameter_range_requirements, lower_scalar_parameter_refinement_predicates,
     lower_state_interval_predicate, lower_state_scalar_contract_predicate,
 };
-pub(crate) use scalar_lowering::{lower_state_scalar_expression, lower_unit_scalar_argument};
+pub(crate) use scalar_lowering::{
+    landed_for_primitive, lower_state_scalar_expression, lower_unit_scalar_argument,
+    unit_scalar_binding_symbols,
+};
 pub(crate) use structural_fields::{
     exclusive_reference, resolve_structural_parameter_path, structural_data,
 };

@@ -93,6 +93,12 @@ pub(crate) fn nominal_scalar_caller_requirements(
         if requirement.machine != caller_machine.symbol {
             continue;
         }
+        // This bounded plan disposes every listed owner unconditionally.
+        // A guarded implication is not its consequent: only a general edge
+        // cleanup plan may use the selected edge's premises to discharge it.
+        if requirement.antecedent != checked_trees::CheckedBooleanExpression::Constant(true) {
+            return None;
+        }
         let [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] =
             contextual.paths.span_or_empty(requirement.path)
         else {
@@ -597,5 +603,54 @@ pub(crate) fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTyp
         | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
         | CheckedUnitStructuralTypeShape::Sum { .. }
         | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
+    }
+}
+
+#[cfg(test)]
+mod guarded_context_tests {
+    #[test]
+    fn nominal_caller_plan_never_flattens_a_guarded_contextual_requirement() {
+        let mut checked = crate::tests::front_end::checked_program(
+            "data Token { ready: bool; }
+             machine Token::drop(token: &mut Token) requires token.ready {}
+             machine retire<T>(token: T) {}
+             machine root(token: Token) requires token.ready { retire(token); }",
+        );
+        let (row, machine) = checked
+            .facts
+            .contextual_cleanup
+            .entry_requirements
+            .rows
+            .iter()
+            .find(|(_, row)| {
+                checked
+                    .facts
+                    .flow
+                    .terminal_nominal_affine_unit_cleanups
+                    .for_machine(row.machine)
+                    .is_some()
+            })
+            .map(|(handle, row)| (handle, row.machine))
+            .expect("closed nominal consumer");
+        let source = checked.machine_by_symbol(machine).unwrap().clone();
+        let state = checked.machine_states(&source)[0].clone();
+        let requirements = |checked: &checked_trees::CheckedTrees| {
+            super::nominal_cleanup_caller_boolean_requirements(
+                &checked.typed,
+                &checked.facts,
+                &source,
+                &state,
+                checked.state_parameters(&state),
+            )
+        };
+        assert!(requirements(&checked).is_some());
+        checked
+            .facts
+            .contextual_cleanup
+            .entry_requirements
+            .rows
+            .get_mut(row)
+            .antecedent = checked_trees::CheckedBooleanExpression::Constant(false);
+        assert!(requirements(&checked).is_none());
     }
 }

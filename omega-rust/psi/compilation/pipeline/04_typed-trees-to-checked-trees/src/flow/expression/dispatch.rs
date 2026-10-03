@@ -18,7 +18,7 @@ impl Execution<'_, '_, '_> {
     ) {
         let subject_capture_writes = self.operand_writes.len();
         self.expression(dispatch.subject, contexts, constraints);
-        let subject_operand = self.capture_operator_operand(
+        let subject_operand = self.capture_operand(
             dispatch.subject,
             subject_capture_writes,
             *contexts,
@@ -39,7 +39,7 @@ impl Execution<'_, '_, '_> {
             if let MatchPattern::Value(pattern) = arm.pattern {
                 let pattern_capture_writes = self.operand_writes.len();
                 self.expression(pattern, contexts, constraints);
-                let pattern_operand = self.capture_operator_operand(
+                let pattern_operand = self.capture_operand(
                     pattern,
                     pattern_capture_writes,
                     *contexts,

@@ -21,6 +21,28 @@ pub(super) use guards::{
     append_predicate_context,
 };
 
+/// Preserve the outgoing source frontier independently from return contracts.
+pub(super) fn append_outgoing_state_fact(
+    build: &mut FlowBuildContext,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    transition_target: typed_trees::statement::TransitionTargetHandle,
+    constraints: HandleSpan<FlowConstraintRef>,
+) {
+    let constraints = retained_constraint_refs(&build.contexts.constraint_refs, constraints);
+    build
+        .control
+        .outgoing
+        .append(checked_trees::FlowStateOutgoingFact {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            transition_target,
+            constraints,
+        });
+}
+
 pub(super) fn append_state_exit_facts(
     program: &typed_trees::TypedTrees,
     proof: &ProofFacts,
@@ -40,6 +62,16 @@ pub(super) fn append_state_exit_facts(
             && exit.transition_target == transition_target)
             .then_some(exit)
     }) {
+        if !transition_target.is_valid() {
+            append_outgoing_state_fact(
+                build,
+                machine_symbol,
+                state_symbol,
+                contract_exit.statement_index,
+                transition_target,
+                active_constraints,
+            );
+        }
         let entry_exit_contexts =
             retained_flow_contexts(&build.contexts.semantic_context_refs, active_contexts);
         let entry_constraints =
@@ -150,12 +182,14 @@ pub(super) fn append_transition_flow_facts<'plans>(
     }
     // Guards execute on both paths. Their effects survive a missed arm, while
     // calls evaluating one target never run on its sibling continuation.
+    let guard_writes = execution.write_prefix();
     let guard_contexts = *active_contexts;
     let guard_constraints = *active_constraints;
     for (region, target) in [(1, transition.target), (2, transition.continuation)] {
         if !target.is_valid() {
             continue;
         }
+        execution.restore_write_prefix(guard_writes);
         let mut branch_contexts = retained_flow_contexts(
             &execution.context.contexts.semantic_context_refs,
             guard_contexts,
@@ -174,6 +208,8 @@ pub(super) fn append_transition_flow_facts<'plans>(
             target,
             transition.guard,
             region == 1,
+            guard_writes.writes,
+            guard_writes.unknown,
             &mut branch_contexts,
             &mut branch_constraints,
         );
@@ -195,6 +231,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
             branch_constraints,
         );
     }
+    execution.restore_write_prefix(guard_writes);
     *active_contexts = guard_contexts;
     *active_constraints = guard_constraints;
     guards::append_guard_context(
@@ -207,6 +244,8 @@ pub(super) fn append_transition_flow_facts<'plans>(
         Default::default(),
         transition.guard,
         false,
+        guard_writes.writes,
+        guard_writes.unknown,
         active_contexts,
         active_constraints,
     );

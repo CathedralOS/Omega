@@ -38,6 +38,10 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
 ) -> Result<LoweredPsi, LoweringError> {
+    crate::unit::unit_cleanup::contexts::validate_unconditional_contextual_requirements(
+        checked,
+        plan.machine,
+    )?;
     if plan.structural_parameters.is_empty()
         || plan.cleanup_actions.len() != plan.structural_parameters.len()
     {

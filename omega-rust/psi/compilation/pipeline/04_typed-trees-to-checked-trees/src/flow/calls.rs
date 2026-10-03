@@ -128,6 +128,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
         authored_expression: Default::default(),
+        operands: HandleSpan::empty(),
         receiver_symbol: borrow_call.receiver_symbol,
         target_symbol: borrow_call.target_symbol,
         has_receiver: borrow_call.has_receiver,

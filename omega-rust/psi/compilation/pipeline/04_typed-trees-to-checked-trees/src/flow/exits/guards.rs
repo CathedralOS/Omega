@@ -24,6 +24,8 @@ pub(super) fn append_guard_context(
     transition_target: typed_trees::statement::TransitionTargetHandle,
     guard: TransitionGuardNode,
     value: bool,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
@@ -45,6 +47,8 @@ pub(super) fn append_guard_context(
         expression,
         value,
         point,
+        entry_writes,
+        entry_unknown_write,
         active_contexts,
         active_constraints,
     );
@@ -547,9 +551,25 @@ pub(in crate::flow) fn append_predicate_context(
     expression: ExpressionHandle,
     value: bool,
     point: ProgramPoint,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
+    append_entry_path_context(
+        program,
+        semantic,
+        build,
+        state_symbol,
+        statement_index,
+        expression,
+        value,
+        point,
+        entry_writes,
+        entry_unknown_write,
+        active_contexts,
+        active_constraints,
+    );
     // A `pred(place)` scrutinee taken true is whole-carrier evidence: every
     // byte currently at the operand's place sits in the named per-byte class.
     // The fact rides the operand's place, not the call's spelling, so any
@@ -603,6 +623,27 @@ pub(in crate::flow) fn append_match_pattern_context(
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
+    if let FactPayload::MatchPattern {
+        expression,
+        matched,
+        ..
+    } = payload
+    {
+        append_entry_path_context(
+            program,
+            semantic,
+            build,
+            state_symbol,
+            statement_index,
+            expression,
+            matched,
+            point,
+            HandleSpan::empty(),
+            true,
+            active_contexts,
+            active_constraints,
+        );
+    }
     let Some((subject, pattern, _)) = payload.match_pattern_comparison(program) else {
         return;
     };
@@ -829,4 +870,56 @@ fn expression_is_stable_predicate(
         }
         _ => false,
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_entry_path_context(
+    program: &typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    value: bool,
+    point: ProgramPoint,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let Some(context) = crate::facts::boolean_predicates::capture_entry_guard(
+        program,
+        build.operators,
+        semantic,
+        state,
+        statement_index,
+        expression,
+        value,
+        point,
+        &|place| {
+            crate::flow::entry_origin_is_stable(
+                program,
+                &build.control,
+                entry_writes,
+                entry_unknown_write,
+                place,
+            )
+        },
+    ) else {
+        return;
+    };
+    *active_contexts =
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
+    *active_constraints =
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
+    reference_spans::append_flow_reference(
+        &mut build.contexts.semantic_context_refs,
+        active_contexts,
+        FlowSemanticContextRef { context },
+    );
+    append_constraint_ref(
+        &mut build.contexts.constraint_refs,
+        active_constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
 }

@@ -91,7 +91,7 @@ pub(crate) fn build(
             || parameters.len() != operands.len()
             || !flow
                 .control
-                .operator_operands
+                .operands
                 .span_or_empty(invocation.operands)
                 .iter()
                 .map(|operand| operand.expression)

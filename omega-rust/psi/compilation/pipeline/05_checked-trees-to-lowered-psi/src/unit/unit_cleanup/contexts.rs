@@ -26,10 +26,33 @@ impl SignatureContext {
     }
 }
 
+/// Bounded nominal plans dispose their complete caller roster on every exit.
+/// They cannot turn a contextual implication into an unconditional field fact.
+pub(crate) fn validate_unconditional_contextual_requirements(
+    checked: &CheckedTrees,
+    source: SymbolHandle,
+) -> Result<(), LoweringError> {
+    if checked
+        .facts
+        .contextual_cleanup
+        .entry_requirements
+        .rows
+        .iter()
+        .any(|(_, row)| {
+            row.machine == source
+                && row.antecedent != checked_trees::CheckedBooleanExpression::Constant(true)
+        })
+    {
+        return unsupported("guarded contextual cleanup requires an exact edge cleanup plan");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_requirements(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
 ) -> Result<(), LoweringError> {
+    validate_unconditional_contextual_requirements(checked, nominal.machine.machine)?;
     let field = |position: u32, identity: &str| {
         let parameter = nominal
             .machine
@@ -241,4 +264,47 @@ pub(crate) fn prepare_signature(
     }
     crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut requires)?;
     Ok(Some(SignatureContext { receiver, requires }))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn retained_nominal_plan_cannot_flatten_a_changed_contextual_antecedent() {
+        let mut checked = crate::front_end::checked_program(
+            "data Token { ready: bool; }
+             machine Token::drop(token: &mut Token) requires token.ready {}
+             machine retire<T>(token: T) {}
+             machine root(token: Token) requires token.ready { retire(token); }",
+        );
+        let plan = checked
+            .facts
+            .flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines
+            .iter()
+            .find(|plan| !plan.caller_requirements.is_empty())
+            .expect("contextual nominal consumer")
+            .clone();
+        super::validate_requirements(&checked, &plan).expect("unconditional checked plan");
+        let row = checked
+            .facts
+            .contextual_cleanup
+            .entry_requirements
+            .rows
+            .iter()
+            .find(|(_, row)| row.machine == plan.machine.machine)
+            .map(|(handle, _)| handle)
+            .expect("inferred entry requirement");
+        checked
+            .facts
+            .contextual_cleanup
+            .entry_requirements
+            .rows
+            .get_mut(row)
+            .antecedent = checked_trees::CheckedBooleanExpression::Constant(false);
+        assert!(
+            super::validate_requirements(&checked, &plan).is_err(),
+            "the unchanged direct-field plan cannot stand for an implication"
+        );
+    }
 }

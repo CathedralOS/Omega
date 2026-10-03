@@ -23,7 +23,7 @@ mod boundaries;
 mod contexts;
 mod control;
 mod invalidations;
-mod operator_operand;
+mod operand;
 mod ownership;
 mod semantic_dependencies;
 
@@ -107,7 +107,7 @@ pub use boundaries::FlowBoundaryEdgeFact;
 pub use contexts::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 pub use control::{
     FlowCallFact, FlowExitFact, FlowExitParameterOrigin, FlowOperatorInvocationFact, FlowStateFact,
-    FlowStatementFact, RetiredFlowCall,
+    FlowStateOutgoingFact, FlowStatementFact, RetiredFlowCall,
 };
 pub use dynamic_scalar_calls::{
     CheckedDynamicBinding, CheckedDynamicBindingKind, CheckedDynamicDescriptorTransferEdge,
@@ -122,7 +122,7 @@ pub use dynamic_scalar_calls::{
     CheckedStructuralCaseLiteralFieldStorePlan, CheckedStructuralScalarFieldStorePlan,
 };
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
-pub use operator_operand::{FlowOperandReferent, FlowOperatorOperandFact};
+pub use operand::{FlowOperandFact, FlowOperandReferent};
 pub use ownership::{
     FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,

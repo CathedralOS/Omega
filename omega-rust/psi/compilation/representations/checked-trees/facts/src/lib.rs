@@ -12,7 +12,7 @@ pub mod fact_plan;
 pub mod predicates;
 
 pub use predicates::{
-    BooleanPredicate, BooleanPredicateBinding, CheckedBooleanExpression,
+    BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole, CheckedBooleanExpression,
     CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedRuntimeIndex,
     CheckedScalarExpression, CheckedStorageRoot, CheckedStructuralParameterField,

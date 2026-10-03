@@ -229,6 +229,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     let state_boundary_edges_start = build.boundaries.edges.len();
     let state_statements_start = build.control.statements.len();
     let state_exits_start = build.control.exits.len();
+    let state_outgoing_start = build.control.outgoing.len();
     let state_calls = {
         append_state_statement_flow_facts(
             program,
@@ -287,6 +288,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         statements: appended_span_since(&build.control.statements, state_statements_start),
         calls: state_calls,
         exits: appended_span_since(&build.control.exits, state_exits_start),
+        outgoing: appended_span_since(&build.control.outgoing, state_outgoing_start),
         service_reach: Default::default(),
         suspension: Default::default(),
         blocking: Default::default(),

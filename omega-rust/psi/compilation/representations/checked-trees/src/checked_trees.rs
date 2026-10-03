@@ -170,11 +170,11 @@ pub use flow::{
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,
     FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, FlowConstraintKind, FlowConstraintRef,
     FlowContextFacts, FlowControlFacts, FlowExitFact, FlowExitParameterOrigin, FlowFacts,
-    FlowInvalidationFact, FlowInvalidationFacts, FlowInvalidationSource, FlowOperandReferent,
-    FlowOperatorInvocationFact, FlowOperatorOperandFact, FlowOwnedSelectionClaim,
+    FlowInvalidationFact, FlowInvalidationFacts, FlowInvalidationSource, FlowOperandFact,
+    FlowOperandReferent, FlowOperatorInvocationFact, FlowOwnedSelectionClaim,
     FlowOwnedSelectionReceipt, FlowOwnedSelectionSource, FlowOwnedSelectionTransfer,
     FlowOwnershipFacts, FlowPermissionEvaluation, FlowPermissionEventFact, FlowSemanticContextRef,
-    FlowStateFact, FlowStatementFact, RetiredFlowCall, is_borrowed_view,
+    FlowStateFact, FlowStateOutgoingFact, FlowStatementFact, RetiredFlowCall, is_borrowed_view,
 };
 pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,

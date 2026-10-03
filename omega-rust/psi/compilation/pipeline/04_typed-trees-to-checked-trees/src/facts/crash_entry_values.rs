@@ -42,7 +42,7 @@ mod checked_projection;
 mod literal_projection;
 mod places;
 pub(super) use checked_projection::entry_value as checked_projected_entry_value;
-pub(super) use places::entry_parameter_place;
+pub(crate) use places::entry_parameter_place;
 mod mutable;
 pub(super) use mutable::statement_may_overwrite_place;
 use mutable::{PlaceSegment, fixed_index_segment, storage_holds_bound_value};
@@ -58,6 +58,9 @@ mod tests;
 /// Lower a body's current Boolean observation in the invocation namespace.
 /// The predicate reader owns the algebra; this owner only rejoins each exact
 /// place to the entry operand whose storage still survives at this point.
+/// Add the already-evaluated operand prefix to the ordinary statement-level
+/// entry provenance check. The caller supplies the retained evaluation point;
+/// later writes must not invalidate an earlier observation.
 pub(crate) fn entry_boolean_predicate(
     program: &TypedTrees,
     operators: &checked_trees::CheckedOperatorFacts,
@@ -65,6 +68,7 @@ pub(crate) fn entry_boolean_predicate(
     state_symbol: SymbolHandle,
     before_statement: usize,
     expression: ExpressionHandle,
+    admit_subject: &impl Fn(&crate::flow::CanonicalPlace) -> bool,
 ) -> Option<checked_trees::CheckedBooleanExpression> {
     let (machine, state) =
         crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
@@ -81,6 +85,9 @@ pub(crate) fn entry_boolean_predicate(
                 before_statement,
                 leaf,
             )?;
+            if !admit_subject(&place) {
+                return None;
+            }
             entry_parameter_place(
                 program,
                 machine_symbol,

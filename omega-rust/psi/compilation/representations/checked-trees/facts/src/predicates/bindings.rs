@@ -8,6 +8,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanPredicate {
+    pub role: BooleanPredicateRole,
     pub machine: SymbolHandle,
     pub entry_state: SymbolHandle,
     pub expression: CheckedBooleanExpression,
@@ -17,6 +18,7 @@ pub struct BooleanPredicate {
 impl Default for BooleanPredicate {
     fn default() -> Self {
         Self {
+            role: BooleanPredicateRole::CurrentObservation,
             machine: SymbolHandle::invalid(),
             entry_state: SymbolHandle::invalid(),
             expression: CheckedBooleanExpression::Constant(false),
@@ -44,4 +46,14 @@ impl Default for BooleanPredicateBinding {
             type_reference: TypeReferenceHandle::invalid(),
         }
     }
+}
+
+/// Historical entry conditions describe control reachability, never current
+/// storage. An untransportable guard explicitly blocks entry-condition proof.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BooleanPredicateRole {
+    #[default]
+    CurrentObservation,
+    EntryPathCondition,
+    UnknownEntryPathCondition,
 }

@@ -71,3 +71,79 @@ fn contextual_condition_rejects_the_unready_dropped_owner() {
         }
     }
 }
+
+#[test]
+fn contextual_condition_retains_named_state_parameter_positions() {
+    let source = "
+        data Token { ready: bool; }
+        machine Token::drop(owner: &mut Token) requires owner.ready {}
+        machine choose<T>(keep_first: bool, first: T, second: T) -> T {
+            transition { _ -> select(second, keep_first, first) }
+            state select(other: T, flag: bool, chosen: T) {
+                transition flag { true -> chosen false -> other }
+            }
+        }
+        machine run() -> Token {
+            choose(true, Token { ready: false }, Token { ready: true })
+        }
+    ";
+    checked_program(source);
+}
+
+#[test]
+fn contextual_condition_retains_taken_guard_after_selector_is_omitted() {
+    let source = "
+        data Token { ready: bool; }
+        machine Token::drop(owner: &mut Token) requires owner.ready {}
+        machine choose<T>(keep_first: bool, first: T, second: T) -> T {
+            transition keep_first {
+                true -> keep(first, second)
+                false -> leave(first, second)
+            }
+            state keep(chosen: T, discarded: T) { chosen }
+            state leave(discarded: T, chosen: T) { chosen }
+        }
+        machine run() -> Token {
+            choose(true, Token { ready: false }, Token { ready: true })
+        }
+    ";
+    checked_program(source);
+}
+
+#[test]
+fn contextual_condition_composes_negated_actuals_in_generic_forwarding() {
+    let source = format!(
+        "{CHOOSE}
+        machine forward<T>(flag: bool, first: T, second: T) -> T {{
+            choose(!flag, second, first)
+        }}
+        machine run() -> Token {{
+            forward(true, Token {{ ready: false }}, Token {{ ready: true }})
+        }}"
+    );
+    checked_program(&source);
+}
+
+#[test]
+fn contextual_condition_retains_disjunctive_selector_as_a_whole_fact() {
+    checked_program("data Token { ready: bool; }
+        machine Token::drop(owner: &mut Token) requires owner.ready {}
+        machine choose<T>(left: bool, right: bool, first: T, second: T) -> T {
+            transition left || right { true -> first false -> second }
+        }
+        machine run() -> Token {
+            choose(false, true, Token { ready: false }, Token { ready: true })
+        }");
+}
+
+#[test]
+fn contextual_condition_retains_integer_comparison_as_a_whole_fact() {
+    checked_program("data Token { ready: bool; }
+        machine Token::drop(owner: &mut Token) requires owner.ready {}
+        machine choose<T>(count: u8, first: T, second: T) -> T {
+            transition count > 0 { true -> first false -> second }
+        }
+        machine run() -> Token {
+            choose(1, Token { ready: false }, Token { ready: true })
+        }");
+}

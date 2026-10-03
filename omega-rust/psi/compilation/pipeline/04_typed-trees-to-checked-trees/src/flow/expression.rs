@@ -47,6 +47,15 @@ enum InvocationSite {
     Transition(TransitionTargetHandle),
 }
 
+/// A branch restores the write timeline that reached its guard, retaining no
+/// effects from the sibling target. Arena rows are immutable; spans name prefixes.
+#[derive(Clone, Copy)]
+pub(in crate::flow) struct EvaluatedWritePrefix {
+    length: usize,
+    pub(in crate::flow) writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    pub(in crate::flow) unknown: bool,
+}
+
 pub(super) struct Execution<'a, 'b, 'plans> {
     program: &'plans typed_trees::TypedTrees,
     borrow: &'a BorrowFacts,
@@ -60,6 +69,8 @@ pub(super) struct Execution<'a, 'b, 'plans> {
     state_calls: &'b mut HandleSpan<FlowCallFact>,
     invocations: Vec<Invocation<'a>>,
     operand_writes: Vec<Option<Vec<CanonicalPlace>>>,
+    entry_origin_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_origin_unknown_write: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -109,11 +120,25 @@ pub(super) fn append_statement_calls<'plans>(
         }
         StatementNode::Call(call) => {
             let mut operands = Vec::new();
+            let mut captured = Vec::new();
             for argument in program.statement_table.expression_handles(call.arguments) {
-                operands.push((*argument, execution.operand_writes.len()));
+                let first_write = execution.operand_writes.len();
+                operands.push((*argument, first_write));
                 execution.expression(*argument, contexts, constraints);
+                captured.push(execution.capture_operand(
+                    *argument,
+                    first_write,
+                    *contexts,
+                    *constraints,
+                ));
             }
-            execution.invoke(InvocationSite::Statement, &operands, contexts, constraints);
+            execution.invoke(
+                InvocationSite::Statement,
+                &operands,
+                &captured,
+                contexts,
+                constraints,
+            );
         }
         StatementNode::RootBinding(binding) => {
             execution.expression(binding.receiver, contexts, constraints);
@@ -238,6 +263,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             state_calls,
             invocations,
             operand_writes: Vec::new(),
+            entry_origin_writes: HandleSpan::empty(),
+            entry_origin_unknown_write: false,
         }
     }
 
@@ -245,6 +272,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         site: InvocationSite,
         operands: &[(ExpressionHandle, usize)],
+        captured_operands: &[checked_trees::FlowOperandFact],
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
@@ -289,7 +317,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
-        self.operand_writes.push(writes);
+        self.record_operand_writes(writes);
+        call.operands = self
+            .context
+            .control
+            .operands
+            .insert_many(captured_operands.iter().copied());
         // A by-value argument is not the storage value after a later operand
         // changed it. Do not republish that substitution through callee ensures.
         self.filter_captured_sources(&captured_sources, contexts, constraints);
@@ -312,19 +345,57 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         value
     }
 
-    fn capture_operator_operand(
+    pub(in crate::flow) fn write_prefix(&self) -> EvaluatedWritePrefix {
+        EvaluatedWritePrefix {
+            length: self.operand_writes.len(),
+            writes: self.entry_origin_writes,
+            unknown: self.entry_origin_unknown_write,
+        }
+    }
+
+    pub(in crate::flow) fn restore_write_prefix(&mut self, prefix: EvaluatedWritePrefix) {
+        self.operand_writes.truncate(prefix.length);
+        self.entry_origin_writes = prefix.writes;
+        self.entry_origin_unknown_write = prefix.unknown;
+    }
+
+    fn record_operand_writes(&mut self, writes: Option<Vec<CanonicalPlace>>) {
+        if let Some(places) = &writes {
+            for place in places {
+                let segments = self
+                    .context
+                    .control
+                    .operand_referent_segments
+                    .insert_many(place.segments.iter().copied());
+                self.context.control.operand_origin_writes.append_to_span(
+                    &mut self.entry_origin_writes,
+                    checked_trees::FlowOperandReferent {
+                        root: place.root,
+                        segments,
+                    },
+                );
+            }
+        } else {
+            self.entry_origin_unknown_write = true;
+        }
+        self.operand_writes.push(writes);
+    }
+
+    fn capture_operand(
         &mut self,
         expression: ExpressionHandle,
         first_write: usize,
         contexts: HandleSpan<FlowSemanticContextRef>,
         constraints: HandleSpan<FlowConstraintRef>,
-    ) -> checked_trees::FlowOperatorOperandFact {
+    ) -> checked_trees::FlowOperandFact {
         let changed = self.changed_operand_sources(&[(expression, first_write)]);
         let mut captured_contexts = contexts;
         let mut captured_constraints = constraints;
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
-        checked_trees::FlowOperatorOperandFact {
+        checked_trees::FlowOperandFact {
             expression,
+            entry_origin_writes: self.entry_origin_writes,
+            entry_origin_unknown_write: self.entry_origin_unknown_write,
             constraints: captured_constraints,
             referents: self.operand_referents(expression),
         }
@@ -404,7 +475,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         expression: ExpressionHandle,
         occurrence: checked_trees::CheckedOperatorOccurrence,
-        captured_operands: &[checked_trees::FlowOperatorOperandFact],
+        captured_operands: &[checked_trees::FlowOperandFact],
         constraints: HandleSpan<FlowConstraintRef>,
     ) {
         // Both spelled operators and Match comparisons consume saved operands.
@@ -426,7 +497,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 } if machine_symbol == machine && state_symbol == state && statement_index == statement)
             {
                 if operand_span.is_empty() {
-                    operand_span = control.operator_operands
+                    operand_span = control.operands
                         .insert_many(captured_operands.iter().copied());
                 }
                 control.operator_invocations.append(
@@ -475,7 +546,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         named_uses: &[arena::Handle<checked_trees::CheckedNamedOperatorUseFact>],
-        captured: &[(ExpressionHandle, checked_trees::FlowOperatorOperandFact)],
+        captured: &[(ExpressionHandle, checked_trees::FlowOperandFact)],
         constraints: HandleSpan<FlowConstraintRef>,
     ) {
         for &named_use in named_uses {
@@ -517,7 +588,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             let operand_span = self
                 .context
                 .control
-                .operator_operands
+                .operands
                 .insert_many(bound.iter().copied());
             self.context.control.operator_invocations.append(
                 checked_trees::FlowOperatorInvocationFact {
@@ -570,6 +641,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     }
                     let skipped_contexts = *contexts;
                     let skipped_constraints = *constraints;
+                    let entry_prefix = self.write_prefix();
                     super::exits::append_predicate_context(
                         self.program,
                         self.semantic,
@@ -583,6 +655,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                             state_symbol: self.state.symbol,
                             statement_index: self.statement_index,
                         },
+                        entry_prefix.writes,
+                        entry_prefix.unknown,
                         contexts,
                         constraints,
                     );
@@ -590,15 +664,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.meet(skipped_contexts, skipped_constraints, contexts, constraints);
                     return (right == Some(!evaluate_when)).then_some(!evaluate_when);
                 }
-                let left_operand = self.capture_operator_operand(
-                    binary.left,
-                    left_capture_writes,
-                    *contexts,
-                    *constraints,
-                );
+                let left_operand =
+                    self.capture_operand(binary.left, left_capture_writes, *contexts, *constraints);
                 let right_capture_writes = self.operand_writes.len();
                 self.expression(binary.right, contexts, constraints);
-                let right_operand = self.capture_operator_operand(
+                let right_operand = self.capture_operand(
                     binary.right,
                     right_capture_writes,
                     *contexts,
@@ -628,15 +698,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 let mut operands = vec![(call.receiver, self.operand_writes.len())];
                 let mut captured = Vec::new();
                 self.expression(call.receiver, contexts, constraints);
-                if !named_uses.is_empty() {
+                if call.receiver.is_valid() {
                     captured.push((
                         call.receiver,
-                        self.capture_operator_operand(
-                            call.receiver,
-                            operands[0].1,
-                            *contexts,
-                            *constraints,
-                        ),
+                        self.capture_operand(call.receiver, operands[0].1, *contexts, *constraints),
                     ));
                 }
                 for argument in self
@@ -647,15 +712,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let first_write = self.operand_writes.len();
                     operands.push((*argument, first_write));
                     self.expression(*argument, contexts, constraints);
-                    if !named_uses.is_empty() {
+                    {
                         captured.push((
                             *argument,
-                            self.capture_operator_operand(
-                                *argument,
-                                first_write,
-                                *contexts,
-                                *constraints,
-                            ),
+                            self.capture_operand(*argument, first_write, *contexts, *constraints),
                         ));
                     }
                 }
@@ -663,6 +723,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.invoke(
                     InvocationSite::Expression(expression),
                     &operands,
+                    &captured
+                        .iter()
+                        .map(|(_, operand)| *operand)
+                        .collect::<Vec<_>>(),
                     contexts,
                     constraints,
                 );
@@ -689,16 +753,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         contexts,
                         constraints,
                     );
-                    self.operand_writes.push(
-                        super::operator_calls::named_operator_call_mutated_places(
-                            self.program,
-                            self.context,
-                            self.state.symbol,
-                            self.statement_index,
-                            call,
-                            named_use,
-                        ),
+                    let writes = super::operator_calls::named_operator_call_mutated_places(
+                        self.program,
+                        self.context,
+                        self.state.symbol,
+                        self.statement_index,
+                        call,
+                        named_use,
                     );
+                    self.record_operand_writes(writes);
                 }
             }
             ExpressionNode::ArrayLiteral(values) => {
@@ -727,7 +790,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // evaluated and captured at its own completion.
                 let collection_writes = self.operand_writes.len();
                 self.expression(indexed.collection, contexts, constraints);
-                let collection_operand = self.capture_operator_operand(
+                let collection_operand = self.capture_operand(
                     indexed.collection,
                     collection_writes,
                     *contexts,
@@ -739,20 +802,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 {
                     let start_writes = self.operand_writes.len();
                     self.expression(range.start, contexts, constraints);
-                    let start_operand = self.capture_operator_operand(
-                        range.start,
-                        start_writes,
-                        *contexts,
-                        *constraints,
-                    );
+                    let start_operand =
+                        self.capture_operand(range.start, start_writes, *contexts, *constraints);
                     let end_writes = self.operand_writes.len();
                     self.expression(range.end, contexts, constraints);
-                    let end_operand = self.capture_operator_operand(
-                        range.end,
-                        end_writes,
-                        *contexts,
-                        *constraints,
-                    );
+                    let end_operand =
+                        self.capture_operand(range.end, end_writes, *contexts, *constraints);
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
                     // bounds; keep that publication now that the bounds were
@@ -767,12 +822,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 } else {
                     let index_writes = self.operand_writes.len();
                     self.expression(indexed.index, contexts, constraints);
-                    let index_operand = self.capture_operator_operand(
-                        indexed.index,
-                        index_writes,
-                        *contexts,
-                        *constraints,
-                    );
+                    let index_operand =
+                        self.capture_operand(indexed.index, index_writes, *contexts, *constraints);
                     self.record_operator_invocation(
                         expression,
                         checked_trees::CheckedOperatorOccurrence::Expression,

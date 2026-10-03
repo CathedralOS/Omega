@@ -298,7 +298,7 @@ fn named_call_referent_custody_has_no_snapshot_fallback() {
     let operand_count = facts
         .flow
         .control
-        .operator_operands
+        .operands
         .span_or_empty(invocation.operands)
         .len();
     for ordinal in 0..operand_count as u32 {
@@ -306,12 +306,7 @@ fn named_call_referent_custody_has_no_snapshot_fallback() {
             invocation.operands.start().arena_index() + ordinal,
             invocation.operands.start().generation(),
         );
-        facts
-            .flow
-            .control
-            .operator_operands
-            .get_mut(handle)
-            .referents = arena::HandleSpan::empty();
+        facts.flow.control.operands.get_mut(handle).referents = arena::HandleSpan::empty();
     }
     let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
         .expect_err("without custody the retained snapshot no longer discharges the clause");
