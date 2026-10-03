@@ -8,6 +8,57 @@ use super::{
 };
 
 #[test]
+fn stored_view_block_layout_uses_the_declared_descriptor_not_the_backing_extent() {
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let mut source = fixture(target::NativeTarget::windows_x64(), 0);
+    let identity = StructuralTypeId::new(1).unwrap();
+    let mut parameter = StructuralParameterDeclaration {
+        place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: identity,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    for (carrier, bytes) in [
+        (ByteSequenceCarrier::BoundedView {
+            capacity: 48,
+            access: Some(StructuralAccess::SharedBorrow),
+        }, 8),
+        (ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        }, 16),
+    ] {
+        source.structural = Some(legalized_operations::LegalizedStructuralContract {
+            result: None,
+            structural_types: vec![StructuralTypeDeclaration {
+                id: identity,
+                identity: "stored-view".into(),
+                shape: StructuralTypeShape::ByteSequence(carrier),
+            }].into(),
+            parameters: Vec::new(),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+        let layout = |parameter: &StructuralParameterDeclaration|
+            crate::selection::aggregate_result_input::block_parameter_shape(&source, parameter);
+        assert_eq!(layout(&parameter), Some(ValueShape::integer(bytes, 8)));
+        parameter.access = StructuralAccess::WriteOnlyBorrow;
+        assert_eq!(layout(&parameter), None);
+        parameter.access = StructuralAccess::SharedBorrow;
+        parameter.multiplicity = StructuralMultiplicity::Linear;
+        assert_eq!(layout(&parameter), None);
+        parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+    }
+}
+
+#[test]
 fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
     for target in [
         target::NativeTarget::linux_x64(),

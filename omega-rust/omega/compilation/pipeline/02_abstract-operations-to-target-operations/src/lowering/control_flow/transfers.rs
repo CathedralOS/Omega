@@ -310,7 +310,14 @@ pub(super) fn validate_successors(
                 if binding.parameter != parameter.place
                     || (parameter.access == terminal_psi::StructuralAccess::Owned
                         && exact_source_owned_contract != Some(true))
-                    || argument_type != Some(parameter.structural_type)
+                    || !argument_type.is_some_and(|actual| {
+                        if parameter.access == terminal_psi::StructuralAccess::Owned {
+                            actual == parameter.structural_type
+                        } else {
+                            terminal_semantics::borrowed_referent_matches(
+                                structural_types.values().copied(), actual, parameter.structural_type)
+                        }
+                    })
                     || binding.argument.access != parameter.access
                     || moved_loan_leaf
                     || (!binding.argument.path.is_empty()

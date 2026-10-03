@@ -66,10 +66,6 @@ fn stored_transport(
         // An address transport stores a pointer it forms, never bytes it reads.
         selected_instructions::SelectedStructuralTransport::Unused
         | selected_instructions::SelectedStructuralTransport::Address { .. } => None,
-        selected_instructions::SelectedStructuralTransport::Descriptor {
-            argument,
-            destination,
-        } => Some((argument, destination, 16, false)),
         selected_instructions::SelectedStructuralTransport::WholeValue {
             argument,
             destination,

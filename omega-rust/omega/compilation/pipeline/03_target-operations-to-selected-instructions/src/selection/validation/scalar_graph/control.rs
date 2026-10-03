@@ -487,57 +487,24 @@ fn check_successor(
             }
             continue;
         }
-        let owned_shape = if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
-            let parameter = function
-                .blocks
-                .iter()
-                .find(|block| block.id == source.target)
-                .ok_or(SelectedInstructionError::custody())?
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == semantic.parameter)
-                .ok_or(SelectedInstructionError::custody())?;
-            Some(
-                crate::selection::aggregate_result_input::block_parameter_shape(
-                    function, parameter,
-                )
-                .ok_or(SelectedInstructionError::custody())?,
-            )
-        } else {
-            None
-        };
-        if owned_shape.is_some_and(|shape| shape.byte_size == 0) {
-            if actual.semantic != *semantic
-                || actual.transport != selected_instructions::SelectedStructuralTransport::Unused
-            {
-                return Err(SelectedInstructionError::custody());
-            }
-            continue;
-        }
-        let pointer = replay
-            .transport
-            .pointers
+        let parameter = function
+            .blocks
             .iter()
-            .find(|(place, _)| *place == semantic.argument.place)
-            .map(|(_, pointer)| *pointer)
+            .find(|block| block.id == source.target)
+            .ok_or(SelectedInstructionError::custody())?
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == semantic.parameter)
             .ok_or(SelectedInstructionError::custody())?;
-        let destination = selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
-            block: source.target,
-            place: semantic.parameter,
-        };
-        let expected = if let Some(shape) = owned_shape {
-            selected_instructions::SelectedStructuralTransport::WholeValue {
-                argument: pointer,
-                destination,
-                byte_size: shape.byte_size,
-                alignment: shape.alignment,
-            }
-        } else {
-            selected_instructions::SelectedStructuralTransport::Descriptor {
-                argument: pointer,
-                destination,
-            }
-        };
+        let expected = crate::selection::aggregate_result_input::block_parameter_transport(
+            function,
+            source.target,
+            parameter,
+            &semantic.argument,
+            &replay.transport.pointers,
+            &replay.transport.local_slots,
+        )
+        .ok_or(SelectedInstructionError::custody())?;
         if actual.semantic != *semantic || actual.transport != expected {
             return Err(SelectedInstructionError::custody());
         }

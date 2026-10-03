@@ -243,12 +243,14 @@ fn unused_owned_bindings_select_and_replay_without_homes_or_copies() {
                 _ => None,
             })
             .unwrap();
-        binding.transport = selected_instructions::SelectedStructuralTransport::Descriptor {
+        binding.transport = selected_instructions::SelectedStructuralTransport::WholeValue {
             argument: VirtualRegisterId(0),
             destination: selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
                 block: BlockId::new(4).unwrap(),
                 place: semantic_vocabulary::PlaceId::new(14).unwrap(),
             },
+            byte_size: 16,
+            alignment: 8,
         };
         assert!(
             validate(&changed).is_err(),

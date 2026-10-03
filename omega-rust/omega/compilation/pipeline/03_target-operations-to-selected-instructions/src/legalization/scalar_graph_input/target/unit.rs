@@ -652,7 +652,6 @@ pub(super) fn validate_operation(
                 let root_type =
                     crate::legalization::scalar_graph_input::primitive_locals::read_root_type(
                         optimized,
-                        &unit.structural_types,
                         *expected_source,
                     )
                     .ok_or(LegalizationError::custody())?;

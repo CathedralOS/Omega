@@ -183,7 +183,6 @@ pub(super) fn project_primitive_scalar_read(
     } else {
         let root_type = scalar_graph_input::primitive_locals::read_root_type(
             optimized,
-            &unit.structural_types,
             *source,
         )
         .ok_or(Error::custody())?;

@@ -12,7 +12,7 @@
 
 mod affine_locals;
 mod argument_paths;
-mod argument_presentation;
+pub(super) mod argument_presentation;
 mod boundary_admission;
 mod call_operations;
 mod computation_arguments;

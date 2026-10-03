@@ -27,11 +27,9 @@ pub(in crate::selection::construction) fn block_entry(
         let joined = crate::selection::address_join_input::join(source, parameter.place).is_some();
         let shape = if joined {
             crate::selection::address_join_input::carrier_shape()
-        } else if parameter.access == terminal_psi::StructuralAccess::Owned {
+        } else {
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
                 .ok_or(SelectedInstructionError::custody())?
-        } else {
-            calling_conventions::ValueShape::integer(16, 8)
         };
         if shape.byte_size == 0 {
             // Custody is still bound by the semantic edge; no payload address

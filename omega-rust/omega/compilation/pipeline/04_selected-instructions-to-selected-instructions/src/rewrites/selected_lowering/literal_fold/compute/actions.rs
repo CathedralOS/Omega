@@ -257,10 +257,6 @@ fn sole_use(
                         argument,
                         ..
                     }
-                    | selected_instructions::SelectedStructuralTransport::Descriptor {
-                        argument,
-                        ..
-                    }
                     | selected_instructions::SelectedStructuralTransport::Address {
                         base: selected_instructions::SelectedAddressBase::Register(argument),
                         ..
@@ -903,10 +899,6 @@ fn dropped_def_is_dead(
                     matches!(
                         binding.transport,
                         selected_instructions::SelectedStructuralTransport::WholeValue {
-                            argument,
-                            ..
-                        }
-                        | selected_instructions::SelectedStructuralTransport::Descriptor {
                             argument,
                             ..
                         }

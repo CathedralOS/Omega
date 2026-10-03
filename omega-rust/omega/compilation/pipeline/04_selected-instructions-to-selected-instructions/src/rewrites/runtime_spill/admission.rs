@@ -521,8 +521,7 @@ pub(super) fn admit<'source>(
                 let Some(byte_size) = stored_transport_size(binding.transport) else {
                     continue;
                 };
-                let (SelectedStructuralTransport::Descriptor { argument, .. }
-                | SelectedStructuralTransport::WholeValue { argument, .. }) = binding.transport
+                let SelectedStructuralTransport::WholeValue { argument, .. } = binding.transport
                 else {
                     continue;
                 };

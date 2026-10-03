@@ -533,14 +533,6 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 bytes.extend_from_slice(&byte_size.to_le_bytes());
                 bytes.extend_from_slice(&alignment.to_le_bytes());
             }
-            crate::SelectedStructuralTransport::Descriptor {
-                argument,
-                destination,
-            } => {
-                bytes.push(1);
-                bytes.extend_from_slice(&argument.0.to_le_bytes());
-                destination.encode_identity(bytes);
-            }
             crate::SelectedStructuralTransport::Address {
                 base,
                 byte_offset,

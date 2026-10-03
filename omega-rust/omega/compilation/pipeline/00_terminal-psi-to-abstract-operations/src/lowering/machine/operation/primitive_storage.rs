@@ -10,12 +10,12 @@ use terminal_psi::{
 
 use crate::lowering::LoweringError;
 
-/// A borrowed state name retains its declared pointer carrier, never an entry
-/// parameter's position. Terminal replay has already established availability;
-/// retain the exact block/place correspondence for each downstream consumer.
+/// Resolve the declared parameter independently of its physical carrier.
+/// State parameters retain their own block/place correspondence, never an entry
+/// parameter's position. The observing operation checks access, custody and its
+/// projection; being a native address join is not a semantic identity condition.
 pub(super) fn parameter<'a>(
     machine: &'a TerminalMachine,
-    types: &[StructuralTypeDeclaration],
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
     if let Some(parameter) = machine
@@ -38,9 +38,7 @@ pub(super) fn parameter<'a>(
         .find(|row| row.id == block)?
         .structural_parameters
         .get(position as usize)?;
-    (parameter.place == place
-        && parameter.position == position
-        && abstract_operations::control_flow::address_joins::is_address_join_in(parameter, types))
+    (parameter.place == place && parameter.position == position)
     .then_some(parameter)
 }
 
@@ -244,7 +242,7 @@ pub(super) fn lower(
                         .map(|(_, parameter)| parameter.structural_type)
                 })
                 .or_else(|| {
-                    parameter(machine, types, source)
+                    parameter(machine, source)
                         .filter(|parameter| {
                             // A projected read observes the owned aggregate's
                             // existing storage. An empty path still requires

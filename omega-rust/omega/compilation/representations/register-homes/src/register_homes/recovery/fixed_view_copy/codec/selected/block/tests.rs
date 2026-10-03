@@ -154,7 +154,7 @@ fn crash_block_codec_retains_exact_cause_guards_frontier_and_fuel() {
 }
 
 #[test]
-fn descriptor_binding_retains_semantic_place_and_transport_without_scalar_identity() {
+fn borrowed_value_binding_retains_semantic_place_and_exact_storage() {
     use selected_instructions::{
         LocalStorageSlotId, SelectedStructuralBinding, SelectedStructuralTransport,
     };
@@ -171,14 +171,35 @@ fn descriptor_binding_retains_semantic_place_and_transport_without_scalar_identi
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                 },
             },
-            transport: SelectedStructuralTransport::Descriptor {
+            transport: SelectedStructuralTransport::WholeValue {
                 argument: VirtualRegisterId(41),
                 destination: LocalStorageSlotId::StructuralBlockParameter {
                     block: original.source_target,
                     place: PlaceId::new(31).unwrap(),
                 },
+                byte_size: 16,
+                alignment: 8,
             },
         });
+    let mut stored_bytes = Vec::new();
+    encode_successor(&mut stored_bytes, &original);
+    let mut unused = original.clone();
+    unused.structural_bindings[0].transport = SelectedStructuralTransport::Unused;
+    let mut unused_bytes = Vec::new();
+    encode_successor(&mut unused_bytes, &unused);
+    let transport_offset = stored_bytes
+        .iter()
+        .zip(&unused_bytes)
+        .position(|(stored, unused)| stored != unused)
+        .unwrap();
+    assert_eq!(stored_bytes[transport_offset], 2);
+    assert_eq!(unused_bytes[transport_offset], 0);
+    // The retired descriptor tag must not silently acquire whole-value semantics.
+    stored_bytes[transport_offset] = 1;
+    assert_eq!(
+        decode_successor(&mut Cursor::new(&stored_bytes)),
+        Err(FixedViewCopyDecodeError::UnknownValueTransport(1))
+    );
     for transport in [
         original.structural_bindings[0].transport,
         SelectedStructuralTransport::Unused,

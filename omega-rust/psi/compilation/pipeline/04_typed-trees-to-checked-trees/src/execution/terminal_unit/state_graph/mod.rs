@@ -2422,10 +2422,13 @@ fn successor_bindings(
                                         | CheckedUnitStructuralPathSegment::FixedIndex(_)
                                 )
                             })
-                            && program
-                                .normalized_type_identity(projected_type)
-                                .into_string()
-                                == target.type_identity
+                            && calls::argument_presentation::is_admitted(
+                                program,
+                                projected_type,
+                                target_parameters.get(target.position as usize)?.type_reference,
+                                &target.type_identity,
+                                &[],
+                            )
                             && {
                                 // Owned roots lend only the projected subtree.
                                 // Borrowed roots retain their existing referent
@@ -2502,10 +2505,19 @@ fn successor_bindings(
                                         | CheckedUnitStructuralPathSegment::FixedIndex(_)
                                 )
                             })
-                            && program
-                                .normalized_type_identity(projected_type)
-                                .into_string()
-                                == target.type_identity
+                            // A state argument has the same presentation as a
+                            // call argument. Fixed byte references retain a
+                            // reference identity while their local backing is
+                            // an array; normalized-string equality incorrectly
+                            // rejected that ordinary loan. Access, live-home
+                            // and reference-content checks remain independent.
+                            && calls::argument_presentation::is_admitted(
+                                program,
+                                projected_type,
+                                target_parameters.get(target.position as usize)?.type_reference,
+                                &target.type_identity,
+                                &[],
+                            )
                             && !declared_contains_reference(
                                 shapes,
                                 &program

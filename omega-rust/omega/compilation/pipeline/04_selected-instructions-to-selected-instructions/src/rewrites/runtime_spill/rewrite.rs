@@ -318,8 +318,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 let Some(byte_size) = super::stored_transport_size(binding.transport) else {
                     continue;
                 };
-                let (SelectedStructuralTransport::Descriptor { argument, .. }
-                | SelectedStructuralTransport::WholeValue { argument, .. }) =
+                let SelectedStructuralTransport::WholeValue { argument, .. } =
                     &mut binding.transport
                 else {
                     continue;

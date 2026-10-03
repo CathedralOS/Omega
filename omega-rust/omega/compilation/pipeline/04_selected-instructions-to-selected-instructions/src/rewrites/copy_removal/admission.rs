@@ -160,10 +160,6 @@ fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId
                     argument,
                     destination,
                     ..
-                }
-                | SelectedStructuralTransport::Descriptor {
-                    argument,
-                    destination,
                 } => argument == register || local_slot_mentions(destination, register),
                 SelectedStructuralTransport::Address {
                     base, destination, ..
@@ -610,10 +606,6 @@ fn lower_successor(
                 argument,
                 destination,
                 ..
-            }
-            | SelectedStructuralTransport::Descriptor {
-                argument,
-                destination,
             } => {
                 *argument = lower_register(*argument, removed_register)?;
                 lower_local_slot(destination, removed_register)?;

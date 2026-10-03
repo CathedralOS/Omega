@@ -72,15 +72,13 @@ fn valid_owned_result(
                     }
         })
 }
-/// The parameter a primitive read's root names: an entry parameter, a state's
-/// owned arrival (observed in its block home, as a field read observes it) or
-/// a block address join. Access, multiplicity and path rules stay with each
+/// The parameter a primitive read's root names, independent of its native
+/// carrier. Access, multiplicity and path rules stay with each
 /// caller; this only finds the declaration naming `place`.
-pub(in crate::legalization) fn read_parameter<'a>(
-    function: &'a PsiOptimizationFunction,
-    types: &[terminal_psi::StructuralTypeDeclaration],
+pub(in crate::legalization) fn read_parameter(
+    function: &PsiOptimizationFunction,
     place: PlaceId,
-) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
     function
         .structural_parameters
         .iter()
@@ -88,13 +86,7 @@ pub(in crate::legalization) fn read_parameter<'a>(
             function
                 .blocks
                 .iter()
-                .flat_map(|block| &block.structural_parameters)
-                .filter(|parameter| {
-                    parameter.access == StructuralAccess::Owned
-                        || abstract_operations::control_flow::address_joins::is_address_join_in(
-                            parameter, types,
-                        )
-                }),
+                .flat_map(|block| &block.structural_parameters),
         )
         .find(|parameter| parameter.place == place)
 }
@@ -103,14 +95,13 @@ pub(in crate::legalization) fn read_parameter<'a>(
 /// establishment's result, else the parameter `read_parameter` finds.
 pub(in crate::legalization) fn read_root_type(
     function: &PsiOptimizationFunction,
-    types: &[terminal_psi::StructuralTypeDeclaration],
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
     super::structural_case::source_result(function, place)
         .ok()
         .map(|(_, result)| result.structural_type)
         .or_else(|| {
-            read_parameter(function, types, place).map(|parameter| parameter.structural_type)
+            read_parameter(function, place).map(|parameter| parameter.structural_type)
         })
 }
 
@@ -168,7 +159,7 @@ pub(super) fn validate(
                     }
                     local.structural_type
                 } else {
-                    let parameter = read_parameter(function, types, *source)
+                    let parameter = read_parameter(function, *source)
                         .ok_or(LegalizationError::custody())?;
                     if !(matches!(
                         parameter.access,

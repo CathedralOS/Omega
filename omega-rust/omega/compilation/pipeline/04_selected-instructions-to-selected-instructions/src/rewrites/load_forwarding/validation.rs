@@ -482,7 +482,6 @@ fn edge_keeps(
         let destination = match binding.transport {
             SelectedStructuralTransport::Unused => continue,
             SelectedStructuralTransport::WholeValue { destination, .. }
-            | SelectedStructuralTransport::Descriptor { destination, .. }
             | SelectedStructuralTransport::Address { destination, .. } => destination,
         };
         if destination.structural_place().is_some() {

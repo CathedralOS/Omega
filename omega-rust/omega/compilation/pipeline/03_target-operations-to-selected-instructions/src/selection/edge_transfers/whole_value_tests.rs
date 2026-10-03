@@ -35,9 +35,10 @@ fn whole_values_snapshot_before_parallel_replacement_and_replay_exact_extents() 
                 unreachable!()
             };
             for binding in &mut successor.structural_bindings {
-                let SelectedStructuralTransport::Descriptor {
+                let SelectedStructuralTransport::WholeValue {
                     argument,
                     destination,
+                    ..
                 } = binding.transport
                 else {
                     unreachable!()

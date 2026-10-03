@@ -101,22 +101,13 @@ fn registers_binding_arguments_admit_while_other_transports_reject() {
                             access: terminal_psi::StructuralAccess::SharedBorrow,
                         },
                     },
-                    transport: if reference_kind == 3 {
-                        SelectedStructuralTransport::Descriptor {
-                            argument: VirtualRegisterId(1),
-                            destination: LocalStorageSlotId::Boundary {
-                                operation: OperationId::new(1).unwrap(),
-                            },
-                        }
-                    } else {
-                        SelectedStructuralTransport::WholeValue {
-                            argument: VirtualRegisterId(1),
-                            destination: LocalStorageSlotId::Boundary {
-                                operation: OperationId::new(1).unwrap(),
-                            },
-                            byte_size: 8,
-                            alignment: 8,
-                        }
+                    transport: SelectedStructuralTransport::WholeValue {
+                        argument: VirtualRegisterId(1),
+                        destination: LocalStorageSlotId::Boundary {
+                            operation: OperationId::new(1).unwrap(),
+                        },
+                        byte_size: if reference_kind == 3 { 16 } else { 8 },
+                        alignment: 8,
                     },
                 }),
                 _ => unreachable!(),

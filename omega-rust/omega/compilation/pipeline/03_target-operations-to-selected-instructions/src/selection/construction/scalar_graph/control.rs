@@ -376,48 +376,27 @@ fn successor(
                         .ok_or(SelectedInstructionError::custody())?,
                     });
                 }
-                let owned_shape = if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
-                    let parameter = source.blocks.iter().find(|block| block.id == next.target).and_then(|block| block.structural_parameters.iter().find(|parameter| parameter.place == semantic.parameter)).ok_or(SelectedInstructionError::custody())?;
-                    Some(crate::selection::aggregate_result_input::block_parameter_shape(source, parameter).ok_or(SelectedInstructionError::custody())?)
-                } else {
-                    None
-                };
-                if owned_shape.is_some_and(|shape| shape.byte_size == 0) {
-                    // The exact semantic transfer remains, but an empty value
-                    // has neither a source address nor a destination payload.
-                    return Ok(selected_instructions::SelectedStructuralBinding {
-                        semantic: semantic.clone(),
-                        transport: selected_instructions::SelectedStructuralTransport::Unused,
-                    });
-                }
-                let argument = builder
-                    .transport
-                    .pointers
+                let parameter = source
+                    .blocks
                     .iter()
-                    .find(|(place, _)| *place == semantic.argument.place)
-                    .map(|(_, pointer)| *pointer)
+                    .find(|block| block.id == next.target)
+                    .and_then(|block| {
+                        block.structural_parameters.iter()
+                            .find(|parameter| parameter.place == semantic.parameter)
+                    })
                     .ok_or(SelectedInstructionError::custody())?;
-                if let Some(shape) = owned_shape {
-                    return Ok(selected_instructions::SelectedStructuralBinding {
-                        semantic: semantic.clone(),
-                        transport: selected_instructions::SelectedStructuralTransport::WholeValue {
-                            argument,
-                            destination: selected_instructions::LocalStorageSlotId::StructuralBlockParameter { block: next.target, place: semantic.parameter },
-                            byte_size: shape.byte_size,
-                            alignment: shape.alignment,
-                        },
-                    });
-                }
+                let transport = crate::selection::aggregate_result_input::block_parameter_transport(
+                    source,
+                    next.target,
+                    parameter,
+                    &semantic.argument,
+                    &builder.transport.pointers,
+                    &builder.transport.local_slots,
+                )
+                .ok_or(SelectedInstructionError::custody())?;
                 Ok(selected_instructions::SelectedStructuralBinding {
                     semantic: semantic.clone(),
-                    transport: selected_instructions::SelectedStructuralTransport::Descriptor {
-                        argument,
-                        destination:
-                            selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
-                                block: next.target,
-                                place: semantic.parameter,
-                            },
-                    },
+                    transport,
                 })
             })
             .collect::<Result<Vec<_>, SelectedInstructionError>>()?,

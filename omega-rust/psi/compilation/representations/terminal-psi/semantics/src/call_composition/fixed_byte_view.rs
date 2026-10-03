@@ -19,6 +19,81 @@ pub struct FixedByteArrayWindow<'path> {
     pub length: u64,
 }
 
+/// How the same borrowed referent is presented in the destination carrier.
+/// This is geometry, not authority to read, lend, or retain the source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowedReferentPresentation {
+    /// The existing carrier already has the destination representation.
+    Unchanged,
+    /// The destination stores a pointer to these inline backing bytes.
+    AddressOfBacking { byte_count: u64 },
+}
+
+/// Compare borrowed referents without equating their storage representations.
+/// A bounded byte view may observe exactly the corresponding fixed u8 backing.
+/// This judgment supplies geometry only: every caller must independently check
+/// access, qualifications, lifetime, and aliasing before presenting the loan.
+pub fn borrowed_referent_matches<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    actual: semantic_vocabulary::StructuralTypeId,
+    expected: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    borrowed_referent_presentation(types, actual, expected).is_some()
+}
+
+/// Reconstruct the representation step separately from loan admission. Copying
+/// the first word of an inline array does not construct a view; conversely,
+/// taking the address of an existing pointer cell adds an unwanted indirection.
+pub fn borrowed_referent_presentation<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    actual: semantic_vocabulary::StructuralTypeId,
+    expected: semantic_vocabulary::StructuralTypeId,
+) -> Option<BorrowedReferentPresentation> {
+    let Some(expected_type) = types.clone().find(|row| row.id == expected) else {
+        return None;
+    };
+    if actual == expected {
+        return Some(BorrowedReferentPresentation::Unchanged);
+    }
+    let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { capacity, .. }) =
+        expected_type.shape
+    else {
+        return None;
+    };
+    if capacity == 0 || fixed_byte_extent(types.clone(), actual) != Some(capacity) {
+        return None;
+    }
+    match types.clone().find(|row| row.id == actual)?.shape {
+        StructuralTypeShape::FixedArray { .. } => {
+            Some(BorrowedReferentPresentation::AddressOfBacking { byte_count: capacity })
+        }
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
+            Some(BorrowedReferentPresentation::Unchanged)
+        }
+        _ => None,
+    }
+}
+
+fn fixed_byte_extent<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    identity: semantic_vocabulary::StructuralTypeId,
+) -> Option<u64> {
+    match types.clone().find(|row| row.id == identity)?.shape {
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+            capacity, ..
+        }) => Some(capacity),
+        StructuralTypeShape::FixedArray { element, length } => {
+            let element = types.clone().find(|row| row.id == element)?;
+            matches!(element.shape,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                    if integer.sign() == IntegerSign::Unsigned
+                        && integer.bits() == 8 && !integer.is_address())
+            .then_some(length)
+        }
+        _ => None,
+    }
+}
+
 /// Rejoin a borrowed byte-view argument to initialized fixed-u8-array storage.
 /// This preserves the actual type and field path; the returned length grants
 /// neither new storage nor resize permission. Callers separately check claims,
@@ -89,59 +164,27 @@ pub fn fixed_byte_array_window<'types, 'path>(
     }
     let declaration =
         runtime_structural_path_tip(types.clone(), actual.structural_type, backing_path)?;
-    // A bounded-view source is already the whole-backing byte window: its
-    // element is the implicit u8 and its capacity is the backing extent.
-    if let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
-        capacity, ..
-    }) = declaration.shape
-    {
-        if capacity == 0 {
-            return None;
-        }
-        let (start, end) = range.unwrap_or((0, capacity));
-        if start > end || end > capacity {
-            return None;
-        }
-        if bounded_capacity.is_some_and(|expected_capacity| expected_capacity != end - start) {
-            return None;
-        }
-        return Some(FixedByteArrayWindow {
-            backing_path,
-            backing_length: capacity,
-            offset: start,
-            length: end - start,
-        });
-    }
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
-        return None;
-    };
+    // Inline arrays and already borrowed backing expose the same extent.
+    // Window admission is independent of how native code stores the carrier;
+    // transport must preserve that separate residence distinction.
+    let length = fixed_byte_extent(types, declaration.id)?;
     // This borrowed-backing presentation currently requires a positive extent.
     if length == 0 {
         return None;
     }
-    let element = types.clone().find(|row| row.id == element)?;
-    match element.shape {
-        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-            if integer.sign() == IntegerSign::Unsigned
-                && integer.bits() == 8
-                && !integer.is_address() =>
-        {
-            let (start, end) = range.unwrap_or((0, length));
-            if start > end || end > length {
-                return None;
-            }
-            if bounded_capacity.is_some_and(|capacity| capacity != end - start) {
-                return None;
-            }
-            Some(FixedByteArrayWindow {
-                backing_path,
-                backing_length: length,
-                offset: start,
-                length: end - start,
-            })
-        }
-        _ => None,
+    let (start, end) = range.unwrap_or((0, length));
+    if start > end || end > length {
+        return None;
     }
+    if bounded_capacity.is_some_and(|capacity| capacity != end - start) {
+        return None;
+    }
+    Some(FixedByteArrayWindow {
+        backing_path,
+        backing_length: length,
+        offset: start,
+        length: end - start,
+    })
 }
 
 /// Rejoin a borrowed element-view argument to initialized fixed-array storage

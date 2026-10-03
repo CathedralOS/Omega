@@ -465,32 +465,32 @@ pub(in crate::legalization) fn block_home_layout(
     )
 }
 
-/// A block may receive a borrowed byte or element view descriptor. Both
-/// carry an exact address and extent that edge replay transfers unchanged;
+/// A block may receive a borrowed byte or element view descriptor. The
+/// extent is either carried dynamically or fixed by its declared type;
 /// the view's own reads, lengths and subslices replay against that same
 /// parameter place. Ordinary call arguments keep the byte-only rule below.
 fn borrowed_view_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> bool {
-    byte_parameter(parameter, plan)
-        || (!parameter.is_self
-            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            && matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::SharedBorrow
-                    | terminal_psi::StructuralAccess::MutableBorrow
-            )
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
-            && (plan.structural_types.iter().any(|declaration| {
-                declaration.id == parameter.structural_type
-                    && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
-            })
-                || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
-                    parameter,
-                    &plan.structural_types,
-                )))
+    !parameter.is_self
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        )
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && (plan.structural_types.iter().any(|declaration| {
+            declaration.id == parameter.structural_type
+                && (declaration.shape.is_borrowed_byte_carrier()
+                    || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }))
+        })
+            || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+                parameter,
+                &plan.structural_types,
+            ))
 }
 
 fn byte_parameter(

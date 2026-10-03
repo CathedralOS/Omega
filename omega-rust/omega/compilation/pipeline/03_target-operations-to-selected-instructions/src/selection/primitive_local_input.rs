@@ -106,10 +106,9 @@ pub(super) fn readable(
     })
 }
 
-/// Entry referents, state address joins and a state's owned arrivals retain
-/// the same declared storage type. The join lookup also rejoins its exact
-/// block/place declaration; an owned arrival is observed in its block home,
-/// exactly as a field read of that arrival is.
+/// Entry and state parameters retain their declared referent type regardless
+/// of native carrier. The state lookup rejoins the exact block/place identity;
+/// callers independently check access, multiplicity and projection geometry.
 pub(super) fn read_parameter(
     source: &LegalizedScalarFunction,
     place: PlaceId,
@@ -121,13 +120,12 @@ pub(super) fn read_parameter(
         .iter()
         .find(|parameter| parameter.semantic.place == place)
         .map(|parameter| &parameter.semantic)
-        .or_else(|| super::address_join_input::join(source, place).map(|(_, parameter)| parameter))
-        .or_else(|| owned_arrival(source, place))
+        .or_else(|| block_arrival(source, place))
 }
 
-/// A non-entry block's owned structural parameter at its exact block/place
+/// A non-entry block's structural parameter at its exact block/place
 /// declaration.
-fn owned_arrival(
+fn block_arrival(
     source: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<&terminal_psi::StructuralParameterDeclaration> {
@@ -142,7 +140,6 @@ fn owned_arrival(
     let (block, parameter) = matching.next()?;
     (matching.next().is_none()
         && block != source.entry_block
-        && parameter.access == StructuralAccess::Owned
         && signature.structural_places.iter().any(|declaration| {
             declaration.id == place
                 && declaration.kind

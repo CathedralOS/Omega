@@ -213,7 +213,6 @@ fn edge_registers(
     for binding in &successor.structural_bindings {
         match binding.transport {
             SelectedStructuralTransport::WholeValue { argument, .. }
-            | SelectedStructuralTransport::Descriptor { argument, .. }
             | SelectedStructuralTransport::Address {
                 base: selected_instructions::SelectedAddressBase::Register(argument),
                 ..

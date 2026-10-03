@@ -59,8 +59,8 @@ pub use byte_sequence_predicates::{
 pub use call_composition::{
     CallArgumentRule, CallCompositionSchema, CallCompositionSemanticRow, CallCrashRule,
     CallEvidenceRule, CallFrontierRule, CallFuelPolicy, CallOutcomeRule, CallRequirementRule,
-    CallResultRule, CallTargetRule, CallTransferRule, FixedByteArrayWindow,
-    boundary_buffer_capacity, bounded_byte_owner_capacity,
+    CallResultRule, CallTargetRule, CallTransferRule, BorrowedReferentPresentation, FixedByteArrayWindow,
+    borrowed_referent_matches, borrowed_referent_presentation, boundary_buffer_capacity, bounded_byte_owner_capacity,
     bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
     call_composition_semantic_row, exact_call_composition_semantic_row_in, fixed_byte_array_extent,
     fixed_byte_array_window, fixed_element_array_extent, shared_boundary_buffer_capacity,

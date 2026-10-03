@@ -1,13 +1,13 @@
 // DESCRIPTOR WALK -- the Cathedral M2 memory-map pattern, in-tree: a byte
 // buffer holding firmware-style descriptors is walked at a RUNTIME stride
-// (`off + self.descriptor_size`, never sizeof), each entry re-viewed
-// through the §5b record recast (`&self.buf[off] as &Desc`) with member
+// (`offset + descriptor_size`, never sizeof), each entry re-viewed
+// through the §5b record recast (`&buffer[offset] as &Desc`) with member
 // reads through the view. Every proof is compiler-side:
 //   - the walk bound: the back-edge guard `next <= 32` admits the
-//     forwarded offset into the walk states' `requires off <= 32` contract;
-//   - the stride: the guard `0 < stride <= 16` on the stored descriptor size
-//     bounds `off + stride`;
-//   - the view footprint: `high(off) + size_of(Desc) <= len(buf)` through
+//     forwarded offset into the walk states' `requires offset <= 32` contract;
+//   - the stride: the guard `0 < stride <= 16` on the descriptor-size parameter
+//     bounds `offset + stride`;
+//   - the view footprint: `high(offset) + size_of(Desc) <= len(buffer)` through
 //     the interval walk's incoming edges give the offset -- the literal 0
 //     and the `next <= 32` guard (recast rung C1/C2);
 //   - no runtime bounds checks, no linear-counter workaround.
@@ -18,60 +18,54 @@
 // Expected exit: 50
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
 data Desc { kind: u32; pages: u64; }
-data Main {
-    console: Binding<Console>;
-    buf: [u8; 48];
-    descriptor_size: u32;
-    total: u32 in Wrapping;
-}
-machine Main::main(main: &mut Main) reaches Console {
+machine main() reaches Console {
+    let mut buffer: [u8; 48];
     // Descriptor 0: kind 3, pages 10.
-    main.buf[0] = 3;
-    main.buf[8] = 10;
+    buffer[0] = 3;
+    buffer[8] = 10;
     // Descriptor 1: kind 4, pages 20.
-    main.buf[16] = 4;
-    main.buf[24] = 20;
+    buffer[16] = 4;
+    buffer[24] = 20;
     // Descriptor 2: kind 5, pages 30.
-    main.buf[32] = 5;
-    main.buf[40] = 30;
-    main.descriptor_size = 16;
-    transition { _ -> walk(main, 0) }
+    buffer[32] = 5;
+    buffer[40] = 30;
+    let descriptor_size: u32 = 16;
+    let total: u32 in Wrapping = 0;
+    transition { _ -> walk(&buffer, descriptor_size, 0, total) }
 
-    // The view is taken once per entry, here: this state's incoming edges are
-    // the literal 0 and the `next <= 32` back-edge guard, which is what the
-    // recast footprint check accepts (it does not read the requires clause).
-    state walk(main: &mut Main, off: u32) requires off <= 32 {
-        let d: &Desc = &main.buf[off] as &Desc;
-        let pages: u64 = d.pages;
-        transition d.kind >= 4 {
-            true -> tally(main, off, pages)
-            _ -> step(main, off)
+    // Each view borrows the entry's local buffer. Coordinates and the
+    // accumulator travel as values instead of persistent context fields.
+    state walk(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
+        let descriptor: &Desc = &buffer[offset] as &Desc;
+        let pages: u64 = descriptor.pages;
+        transition descriptor.kind >= 4 {
+            true -> tally(buffer, descriptor_size, offset, total, pages)
+            _ -> step(buffer, descriptor_size, offset, total)
         }
     }
-    state tally(main: &mut Main, off: u32, pages: u64) requires off <= 32 {
+    state tally(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, pages: u64) requires offset <= 32 {
         let counted: u32 in Wrapping =
             narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
-        main.total = main.total + counted;
-        transition { _ -> step(main, off) }
+        let updated_total: u32 in Wrapping = total + counted;
+        transition { _ -> step(buffer, descriptor_size, offset, updated_total) }
     }
-    state step(main: &mut Main, off: u32) requires off <= 32 {
-        let stride: u32 = main.descriptor_size;
+    state step(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping) requires offset <= 32 {
+        let stride: u32 = descriptor_size;
         transition stride > 0 && stride <= 16 {
-            true -> advance(main, off, stride)
-            _ -> done(main)
+            true -> advance(buffer, descriptor_size, offset, total, stride)
+            _ -> done(total)
         }
     }
-    state advance(main: &mut Main, off: u32, stride: u32) requires off <= 32 requires stride <= 16 {
-        let next: u32 = off + stride;
+    state advance(buffer: &[u8; 48], descriptor_size: u32, offset: u32, total: u32 in Wrapping, stride: u32) requires offset <= 32 requires stride <= 16 {
+        let next: u32 = offset + stride;
         transition next <= 32 {
-            true -> walk(main, next)
-            _ -> done(main)
+            true -> walk(buffer, descriptor_size, next, total)
+            _ -> done(total)
         }
     }
-    state done(main: &mut Main) {
-        let code: i32 = narrow_u32_to_i32_trapping(main.total as u32);
-        main.console.exit_process(code);
+    state done(total: u32 in Wrapping) {
+        let code: i32 = narrow_u32_to_i32_trapping(total as u32);
+        Console::exit_process(code);
     }
 }

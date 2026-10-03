@@ -20,6 +20,55 @@ use terminal_psi::{
 };
 
 #[test]
+fn borrowed_block_reads_retain_declarations_independently_of_native_carrier() {
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
+
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let (mut function, mut target) = field_fixture(scalar);
+    let block = BlockId::new(2).unwrap();
+    let mut parameter = function.structural_parameters.remove(0);
+    parameter.is_self = false;
+    let place = parameter.place;
+    let identity = parameter.structural_type;
+    function.block_entries.push(abstract_operations::AbstractBlockEntry {
+        block,
+        structural_parameters: vec![parameter.clone()],
+        parameters: Vec::new(),
+        operation_offset: 0,
+    });
+    target.graph.parameters.clear();
+    target.graph.blocks[0].block = block;
+    target.graph.blocks[0].structural_parameters = vec![parameter];
+    target.graph.structural_types = vec![StructuralTypeDeclaration {
+        id: identity,
+        identity: "test::BoundedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+            capacity: 48,
+            access: Some(StructuralAccess::SharedBorrow),
+        }),
+    }].into();
+    let read = |function: &AbstractFunction, target: &TargetFunction| {
+        super::read_access(function, target, place, super::AccessPurpose::Field)
+    };
+    assert_eq!(read(&function, &target), Some((StructuralAccess::SharedBorrow, identity)));
+    let mut changed = target.clone();
+    changed.graph.blocks[0].structural_parameters[0].position = 1;
+    assert_eq!(read(&function, &changed), None, "the target must retain the exact declaration");
+    for (access, multiplicity) in [
+        (StructuralAccess::WriteOnlyBorrow, StructuralMultiplicity::Unrestricted),
+        (StructuralAccess::SharedBorrow, StructuralMultiplicity::Linear),
+    ] {
+        let mut changed_function = function.clone();
+        let mut changed_target = target.clone();
+        let parameter = &mut changed_function.block_entries[0].structural_parameters[0];
+        parameter.access = access;
+        parameter.multiplicity = multiplicity;
+        changed_target.graph.blocks[0].structural_parameters[0] = parameter.clone();
+        assert_eq!(read(&changed_function, &changed_target), None);
+    }
+}
+
+#[test]
 fn projected_primitive_publication_retains_path_and_requires_native_replay() {
     use terminal_psi::StructuralPathSegment as Segment;
     use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};

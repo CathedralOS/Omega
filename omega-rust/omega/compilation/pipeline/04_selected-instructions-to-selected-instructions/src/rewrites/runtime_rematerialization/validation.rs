@@ -283,7 +283,7 @@ fn reconstruct<'source>(
                     if argument == register || parameter == register)
             }) || successor.structural_bindings.iter().any(|binding| {
                 matches!(binding.transport,
-                SelectedStructuralTransport::Descriptor { argument, .. }
+                SelectedStructuralTransport::WholeValue { argument, .. }
                 | SelectedStructuralTransport::Address {
                     base: selected_instructions::SelectedAddressBase::Register(argument),
                     ..

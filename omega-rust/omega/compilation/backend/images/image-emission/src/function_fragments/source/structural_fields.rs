@@ -1512,26 +1512,13 @@ fn read_access(
             .enumerate()
             .filter(|(_, parameter)| parameter.place == place)
         {
-            // A block loan observes the original pointer retained by its
-            // exact graph declaration, just as an owned arrival observes its
-            // own home. Source/selection replay checks that pointer transport.
-            // A shared loan over a view-carrying record observes its member
-            // descriptors through the same pointer: the extent word of a
-            // stored `&[T]` field is the byte-length read it admits.
-            let shared_view_carrier =
-                abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
-                    parameter,
-                    &target.graph.structural_types,
-                );
+            // Access follows the declared parameter, independently of whether
+            // native transport carries a referent address or a descriptor.
+            // Mandatory source/selection replay checks that transport; here
+            // publication rejoins the exact block declaration and permissions.
             if block.block == function.entry
                 || parameter.position as usize != position
                 || parameter.is_self
-                || !(parameter.access == StructuralAccess::Owned
-                    || shared_view_carrier
-                    || abstract_operations::control_flow::address_joins::is_address_join_in(
-                        parameter,
-                        &target.graph.structural_types,
-                    ))
                 || !parameter_access(parameter, &target.graph.structural_types, purpose)
                 || !target.graph.blocks.iter().any(|candidate| {
                     candidate.block == block.block

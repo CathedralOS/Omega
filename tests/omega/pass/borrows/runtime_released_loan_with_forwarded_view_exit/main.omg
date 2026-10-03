@@ -1,33 +1,33 @@
-use omega::language::core::binding;
 use omega_language_std::console;
 
-data Main { console: Binding<Console>; count: u64; }
+data Counter { count: u64; }
 
 // The count loan ends at writeback. Forwarding unrelated backing must not
 // extend that loan into a state which mutates its former referent.
-machine Main::update(main: &mut Main, bytes: &[u8]) {
-    transition { _ -> snapshot(main, &main.count, bytes) }
-    state snapshot(main: &mut Main, count: &u64, bytes: &[u8]) {
+machine Counter::update(counter: &mut Counter, bytes: &[u8]) {
+    transition { _ -> snapshot(counter, &counter.count, bytes) }
+    state snapshot(counter: &mut Counter, count: &u64, bytes: &[u8]) {
         let saved: u64 = count;
-        transition { _ -> writeback(main, saved, bytes) }
+        transition { _ -> writeback(counter, saved, bytes) }
     }
-    state writeback(main: &mut Main, saved: u64, bytes: &[u8]) {
-        main.count = ((saved as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64;
+    state writeback(counter: &mut Counter, saved: u64, bytes: &[u8]) {
+        counter.count = ((saved as u64 in Wrapping) + (bytes.len as u64 in Wrapping)) as u64;
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main() reaches Console {
     let bytes: [u8; 3];
-    main.count = 67;
-    Main::update(main, &bytes[..]);
-    transition main.count == 70 {
-        true -> matched(main)
-        false -> mismatched(main)
+    let mut counter: Counter;
+    counter.count = 67;
+    Counter::update(&mut counter, &bytes[..]);
+    transition counter.count == 70 {
+        true -> matched()
+        false -> mismatched()
     }
-    state matched(main: &mut Main) {
-        main.console.exit_process(70);
+    state matched() {
+        Console::exit_process(70);
     }
-    state mismatched(main: &mut Main) {
-        main.console.exit_process(71);
+    state mismatched() {
+        Console::exit_process(71);
     }
 }
