@@ -2041,8 +2041,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   in authored order (1, 2, 3, 4), while the skipped arm leaves the counter alone.
   Array preparation shares the ordinary argument schedule; closure checking and
   lowering retain each selected arm's source custody and temporary namespace.
-  Structural-result tail calls, closed-sum case arms, range-constrained result
-  compatibility, and claim-transferring arm calls remain declined there.
+  Structural-result tail calls still need selected call-result completion;
+  their ordinary record-return prerequisite now runs beside a crash exit
+  (`structural/runtime_structural_result_crash_branch_exit`, **0** in both engines).
+  Closed-sum case arms, range-constrained result compatibility, and
+  claim-transferring arm calls remain declined there.
   Nested receiver terminal calls still need the exact receiver leaf identity
   retained in the typed
   transition and joined to an occurrence-specific selected dispatch row;
