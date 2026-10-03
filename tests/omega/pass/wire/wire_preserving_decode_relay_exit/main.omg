@@ -1,4 +1,4 @@
-// Draft preserving codec execution regression; expected successful exit 70.
+// Preserving codec execution regression; expected successful exit 70.
 // Finite checks do not establish a general codec agreement proof or Derived trust.
 // Encoder failure reports written=0. Capacity failure may leave a partial output;
 // codec identity failure is checked before the first output write.

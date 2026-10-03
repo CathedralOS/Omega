@@ -3477,37 +3477,6 @@ completion syntax or other terminal service is a prerequisite.
   loan admission; **TERMINAL-SLICE-VIEW-VOCABULARY** owns broader view bounds;
   **PLAN-LAID-VIEWS** owns provider-backed establishment and access plans.
 
-- **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish faithful re-encoding for the
-  authored preserving-codec customer under the
-  [codec contract](wiki/spec/layouts/codecs.md), using ordinary library machines
-  and call/storage/lifetime owners. `PreservingDecode` admission, closed generic
-  result substitution and nested returned-view custody now carry
-  `tests/omega/pass/wire/wire_preserving_decode_relay_exit` through native and
-  checked-interpreter execution on macOS arm64: both return 70, validating the
-  known byte, codec identity and exact ordered tail. The conflicting-input
-  control in `fail/wire/returned_preserving_remainder_input_write` rejects the
-  write while the returned remainder remains live. Run the customer with
-  `omega run --both tests/omega/pass/wire/wire_preserving_decode_relay_exit/main.omg`.
-
-  The customer still inspects a decode result without re-encoding it. Extend it
-  with an authored `Encode<PreservePolicy, Relayed<LocalMessage>>` realization,
-  independently update the known value, and retain the exact unknown tail in the
-  output. The next implementation dependency is ordinary projected constructor
-  transfer: moving `relayed.remainder` from a closed generic borrow-carrying
-  owner into another record must retain its exact statement custody and any
-  live sibling fields. Join the existing S4 structural-value construction and
-  S5 projected-source/emission owners; selected-arm complement disposal is not
-  ordinary constructor transfer. Do not add a codec-specific classifier or
-  discard an unresolved returned-carrier lifetime frontier.
-
-  Acceptance: preserve the explicit exit-70 decode oracle, then execute faithful
-  relay through the same selected codec. Preserve exact unknown bytes/order and
-  retain the input loan while its remainder lives. Codec substitution, invalid
-  known input and conflicting input-buffer use must reject. Preserve unique
-  historical-migration selection and existing generated-codec verification
-  ownership: `checked-interpreter::verify_wire_schema_codec` supplies finite
-  regression probes, which cannot earn `Derived` trust.
-
 - **SYMBOLIC-MATERIALIZATION.** Restore repeatable native acceptance for the
   existing recursive [derived consumer](wiki/spec/layouts/plans.md#derived-consumers),
   including the outstanding Linux AArch64 execution leg. The cited compiler
