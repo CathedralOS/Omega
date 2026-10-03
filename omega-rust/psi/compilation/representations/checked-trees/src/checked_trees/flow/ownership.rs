@@ -3,7 +3,7 @@ use symbols::SymbolHandle;
 
 /// Exact evaluation lane within a source statement. Guards precede the
 /// custody fork; target operands execute only on their selected edge.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum FlowPermissionEvaluation {
     #[default]
     Statement,
