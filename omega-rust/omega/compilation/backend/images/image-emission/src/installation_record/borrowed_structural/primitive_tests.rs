@@ -44,6 +44,40 @@ fn primitive_local_installation_keeps_exact_referent_extent_and_borrowed_access(
             &argument,
             15 + u32::from(size)
         ));
+        // Candidate records keep the semantic reference path while the stack
+        // location still names its original primitive producer. Typed image
+        // replay independently checks the root/view relation.
+        let mut viewed = argument.clone();
+        viewed.access = StructuralAccess::SharedBorrow;
+        viewed.structural_type = semantic_vocabulary::StructuralTypeId::new(2).unwrap();
+        viewed.path = vec![
+            StructuralPathSegment::Field("bits".into()),
+            StructuralPathSegment::Referent,
+        ];
+        assert!(local_primitive_source_is_exact(
+            &viewed,
+            16 + u32::from(size)
+        ));
+        assert!(!local_primitive_source_is_exact(
+            &viewed,
+            15 + u32::from(size)
+        ));
+        for mutation in 0..5 {
+            let mut changed = viewed.clone();
+            match mutation {
+                0 => changed.access = StructuralAccess::MutableBorrow,
+                1 => changed.path.clear(),
+                2 => {
+                    changed.path.pop();
+                }
+                3 => changed.fixed_array_length = Some(1),
+                _ => changed.element_stride = Some(1),
+            }
+            assert!(
+                !local_primitive_source_is_exact(&changed, 32),
+                "view size {size}, mutation {mutation}"
+            );
+        }
         for mutation in 0..7 {
             let mut changed = argument.clone();
             match mutation {

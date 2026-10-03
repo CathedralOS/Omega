@@ -3,7 +3,7 @@ use crate::installation_record::{InstallationRecord, InstalledFunction};
 use calling_conventions::ValueShape;
 use machine_code::{InternalUnitCallArgumentRecord, SemanticCodeSite, StructuralSourceLocation};
 use semantic_vocabulary::OperationId;
-use terminal_psi::StructuralAccess;
+use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
 pub(super) fn source_is_exact(
     record: &InstallationRecord,
@@ -33,9 +33,20 @@ pub(super) fn local_primitive_source_is_exact(
         StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow
-    ) && argument.path.is_empty()
-        && argument.source_byte_offset == 0
-        && argument.root_structural_type == argument.structural_type
+    ) && (if argument.path.is_empty() {
+        argument.root_structural_type == argument.structural_type
+    } else {
+        // This record has no semantic type catalog. The mandatory image replay
+        // joins the exact root, viewed type and retained reference path before
+        // installation; frame_location checks the total shared representation
+        // relation against the original primitive producer. This is only the
+        // shape of that same pointer transport, never a new type permission.
+        argument.path.last() == Some(&StructuralPathSegment::Referent)
+            && (argument.root_structural_type == argument.structural_type
+                || argument.access == StructuralAccess::SharedBorrow)
+    }) && argument.source_byte_offset == 0
+        && argument.fixed_array_length.is_none()
+        && argument.element_stride.is_none()
         && matches!(argument.shape.byte_size, 1 | 2 | 4 | 8)
         && argument.shape
             == ValueShape::borrowed_reference(

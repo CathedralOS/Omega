@@ -363,3 +363,98 @@ fn primitive_observation_requires_a_fresh_load_result() {
         );
     }
 }
+
+#[test]
+fn primitive_reference_publication_preserves_original_home_and_total_view() {
+    use super::frame_location::argument_matches_source;
+    use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
+    let source_type = StructuralTypeId::new(1).unwrap();
+    let view_type = StructuralTypeId::new(2).unwrap();
+    let source_scalar = ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32);
+    let unsigned =
+        |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+    let types = [
+        source_scalar,
+        unsigned(32),
+        unsigned(64),
+        ScalarType::Boolean,
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, scalar)| StructuralTypeDeclaration {
+        id: StructuralTypeId::new(index as u64 + 1).unwrap(),
+        identity: format!("carrier{index}"),
+        shape: StructuralTypeShape::PrimitiveScalar(scalar),
+    })
+    .collect::<Vec<_>>();
+    let shape = ValueShape::borrowed_reference(4, 4);
+    let placement = evaluate_call_plan(
+        CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: vec![shape],
+            result: None,
+        },
+    )
+    .unwrap()
+    .parameters
+    .remove(0);
+    let argument = target_operations::TargetStructuralArgument {
+        place: PlaceId::new(1).unwrap(),
+        access: StructuralAccess::SharedBorrow,
+        // The pointer still names one primitive home when the lending
+        // reference was captured inside an aggregate carrier.
+        path: vec![
+            StructuralPathSegment::Field("bits".into()),
+            StructuralPathSegment::Referent,
+        ],
+        root_structural_type: source_type,
+        structural_type: view_type,
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            psi_operation: OperationId::new(1).unwrap(),
+        },
+        destination: placement,
+    };
+    assert!(argument_matches_source(
+        &argument,
+        source_type,
+        source_scalar,
+        &types
+    ));
+    for mutation in 0..6 {
+        let mut changed = argument.clone();
+        match mutation {
+            0 => changed.root_structural_type = view_type,
+            1 => changed.structural_type = StructuralTypeId::new(3).unwrap(),
+            2 => changed.structural_type = StructuralTypeId::new(4).unwrap(),
+            3 => changed.access = StructuralAccess::MutableBorrow,
+            4 => changed.path.clear(),
+            _ => {
+                changed.path.pop();
+            }
+        }
+        assert!(
+            !argument_matches_source(&changed, source_type, source_scalar, &types),
+            "mutation {mutation}"
+        );
+    }
+    assert!(!argument_matches_source(
+        &argument,
+        source_type,
+        unsigned(32),
+        &types
+    ));
+    let mut duplicate = types.clone();
+    duplicate.push(types[1].clone());
+    assert!(!argument_matches_source(
+        &argument,
+        source_type,
+        source_scalar,
+        &duplicate
+    ));
+}

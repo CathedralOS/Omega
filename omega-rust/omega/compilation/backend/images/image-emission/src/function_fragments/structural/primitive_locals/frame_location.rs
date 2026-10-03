@@ -4,8 +4,10 @@ use crate::function_fragments::{Error, source};
 use machine_code::StructuralSourceLocation;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use selected_instructions::{LocalStorageSlotId, SelectedFunction};
-use semantic_vocabulary::OperationId;
-use terminal_psi::StructuralAccess;
+use semantic_vocabulary::{OperationId, ScalarType};
+use terminal_psi::{
+    StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 pub(in crate::function_fragments::structural) fn location(
     source: &StagedOptimizedRelocationFreeObjectContainer,
@@ -18,11 +20,15 @@ pub(in crate::function_fragments::structural) fn location(
     let (function, _) = source::function(source, selected.machine)?;
     let (producer_operation, size) =
         establishment(function, selected, argument.place).ok_or_else(invalid)?;
-    let (_, result, _) = producer(function, argument.place).ok_or_else(invalid)?;
+    let (_, result, value) = producer(function, argument.place).ok_or_else(invalid)?;
+    let contract = selected.structural.as_ref().ok_or_else(invalid)?;
     if producer_operation != operation
-        || argument.structural_type != result.structural_type
-        || argument.root_structural_type != result.structural_type
-        || !argument.path.is_empty()
+        || !argument_matches_source(
+            argument,
+            result.structural_type,
+            value.scalar_type,
+            &contract.structural_types,
+        )
         || argument.source_byte_offset != 0
         || !matches!(
             argument.access,
@@ -81,4 +87,40 @@ pub(super) fn frame_location(
     Ok(StructuralSourceLocation::Stack {
         byte_offset: u32::try_from(home.frame_offset_bytes).map_err(|_| Error::Overflow)?,
     })
+}
+
+/// The semantic path names the lending reference, while the transport names its
+/// original primitive home. Mandatory selected-graph replay authenticates that
+/// lineage; this join checks its retained producer and observation carrier.
+pub(super) fn argument_matches_source(
+    argument: &target_operations::TargetStructuralArgument,
+    source_type: semantic_vocabulary::StructuralTypeId,
+    source_scalar: ScalarType,
+    types: &[StructuralTypeDeclaration],
+) -> bool {
+    let scalar = |identity| {
+        let mut declarations = types.iter().filter(|row| row.id == identity);
+        let declaration = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        match declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+            _ => None,
+        }
+    };
+    if argument.root_structural_type != source_type || scalar(source_type) != Some(source_scalar) {
+        return false;
+    }
+    if !argument.path.is_empty() && argument.path.last() != Some(&StructuralPathSegment::Referent) {
+        return false;
+    }
+    if argument.structural_type == source_type {
+        return true;
+    }
+    argument.access == StructuralAccess::SharedBorrow
+        && argument.path.last() == Some(&StructuralPathSegment::Referent)
+        && scalar(argument.structural_type).is_some_and(|target| {
+            terminal_semantics::scalar_reference_view_is_total(source_scalar, target)
+        })
 }
