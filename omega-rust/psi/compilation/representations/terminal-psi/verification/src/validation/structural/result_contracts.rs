@@ -2,7 +2,8 @@
 
 use crate::validation::{
     BTreeSet, OperationKind, PlaceId, StructuralDomainId, StructuralFieldType,
-    StructuralMultiplicity, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalModule,
 };
 #[derive(Clone, Copy)]
 pub(in crate::validation) struct StructuralResultSignature<'a> {
@@ -48,6 +49,42 @@ pub(in crate::validation) fn source_signature(
                     operation.result.structural().and_then(|result| {
                         (result.place == source).then(|| operation_signature(result))
                     })
+                })
+        })
+        .or_else(|| {
+            // An image literal publishes a descriptor without an owned
+            // operation result. Its declaration and sole establishment still
+            // give it an exact carrier and qualification contract.
+            let structural_type = machine
+                .structural_places
+                .iter()
+                .find_map(|place| match place.kind {
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    } if place.id == source => Some(structural_type),
+                    _ => None,
+                })?;
+            let mut establishments = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| match &operation.kind {
+                    OperationKind::EstablishByteSequenceLiteral {
+                        destination,
+                        qualifications,
+                        ..
+                    } if *destination == source => Some(qualifications.as_slice()),
+                    _ => None,
+                });
+            let qualifications = establishments.next()?;
+            establishments
+                .next()
+                .is_none()
+                .then_some(StructuralResultSignature {
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications,
+                    projected_qualifications: &[],
                 })
         })
 }

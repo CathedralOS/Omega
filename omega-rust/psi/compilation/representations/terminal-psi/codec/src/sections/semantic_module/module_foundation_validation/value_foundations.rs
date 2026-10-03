@@ -394,29 +394,22 @@ pub(super) fn validate_establish_record(
                     return malformed("record range obligation differs");
                 }
             }
-            (
-                terminal_psi::RecordFieldValue::Structural(argument),
-                StructuralFieldType::Structural(_)
-                | StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                )
-                | StructuralFieldType::PredicateByteSequence {
-                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    ..
-                },
-            ) if argument.access == terminal_psi::StructuralAccess::Owned
-                && argument.path.is_empty() => {}
-            // A borrowed-view member is an owned descriptor the record keeps:
-            // the declared access names the view's authority over its referent,
-            // not the field's custody, so the operand arrives as an owned
-            // whole-view argument exactly like a nested owned record.
-            (
-                terminal_psi::RecordFieldValue::Structural(argument),
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ),
-            ) if argument.access == terminal_psi::StructuralAccess::Owned
-                && argument.path.is_empty() => {}
+            (terminal_psi::RecordFieldValue::Structural(argument), field_type)
+                if (matches!(field_type, StructuralFieldType::Structural(_))
+                    || matches!(
+                        field_type.byte_sequence_carrier(),
+                        Some(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                    ))
+                    && argument.access == terminal_psi::StructuralAccess::Owned
+                    && argument.path.is_empty() =>
+            {
+                // Predicate wrappers do not change operand custody. The field
+                // takes a whole value or descriptor; independent verification
+                // checks its access, backing lifetime and receiving predicates.
+            }
             _ => return malformed("record field operand differs"),
         }
     }

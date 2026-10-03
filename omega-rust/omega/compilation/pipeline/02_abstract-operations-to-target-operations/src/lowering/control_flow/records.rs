@@ -125,25 +125,18 @@ pub(super) fn establish(
                             )
                         })
                     }
-                    StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { access },
-                    ) => *access == Some(StructuralAccess::SharedBorrow),
-                    _ => false,
+                    field_type => matches!(
+                        field_type.byte_sequence_carrier(),
+                        Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        })
+                    ),
                 };
                 let nested = match declaration.field_type {
                     StructuralFieldType::Structural(nested) => nested,
                     _ if byte_carrier.is_some() => {
                         let nested = live
-                            .structural_homes
-                            .get(&argument.place)
-                            .map(|home| home.structural_type())
-                            .or_else(|| {
-                                function
-                                    .structural_parameters
-                                    .iter()
-                                    .find(|parameter| parameter.place == argument.place)
-                                    .map(|parameter| parameter.structural_type)
-                            })
+                            .structural_observation_type(function, argument.place)
                             .ok_or_else(invalid)?;
                         if !types.get(&nested).is_some_and(|declaration| {
                             Some(&declaration.shape)
@@ -157,29 +150,14 @@ pub(super) fn establish(
                     // standalone borrowed view; the source carries that shape.
                     _ if descriptor_member => {
                         let nested = live
-                            .views
-                            .get(&argument.place)
-                            .map(|(_, ty)| *ty)
-                            .or_else(|| {
-                                function
-                                    .structural_parameters
-                                    .iter()
-                                    .chain(
-                                        function
-                                            .block_entries
-                                            .iter()
-                                            .flat_map(|entry| &entry.structural_parameters),
-                                    )
-                                    .find(|parameter| parameter.place == argument.place)
-                                    .map(|parameter| parameter.structural_type)
-                            })
+                            .structural_observation_type(function, argument.place)
                             .ok_or_else(invalid)?;
                         if !types.get(&nested).is_some_and(|declaration| {
                             matches!(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                        access: None,
+                                        access: None | Some(StructuralAccess::SharedBorrow),
                                     },
                                 )
                             )
@@ -227,23 +205,7 @@ pub(super) fn establish(
                     // source is the live view place (established or copied)
                     // or the block's view parameter — both spell the member's
                     // own type. Shared loans stay shared, so nothing consumes.
-                    let view_type =
-                        live.views
-                            .get(&argument.place)
-                            .map(|(_, ty)| *ty)
-                            .or_else(|| {
-                                live.block_views
-                                    .contains(&argument.place)
-                                    .then(|| {
-                                        function
-                                            .block_entries
-                                            .iter()
-                                            .flat_map(|entry| &entry.structural_parameters)
-                                            .find(|parameter| parameter.place == argument.place)
-                                            .map(|parameter| parameter.structural_type)
-                                    })
-                                    .flatten()
-                            });
+                    let view_type = live.structural_observation_type(function, argument.place);
                     if view_type != Some(nested) {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }

@@ -37,7 +37,7 @@ fn validate_byte_observations(
             place: source,
         };
         let signature = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, source, true,
+            function, source,
         )
         .ok_or_else(invalid)?;
         if signature.access == StructuralAccess::Owned
@@ -231,7 +231,7 @@ pub(super) fn validate_current_ownership_cfg(
             {
                 let signature =
                     crate::unit_validation::operation_contracts::structural_source_contract(
-                        function, *source, false,
+                        function, *source,
                     )
                     .ok_or(
                         OptimizationUnitValidationError::InvalidStructuralCaseDispatch {
@@ -333,7 +333,6 @@ pub(super) fn validate_current_ownership_cfg(
                         crate::unit_validation::operation_contracts::structural_source_contract(
                             function,
                             argument.place,
-                            false,
                         )
                         .map(|source| source.multiplicity)
                     })
@@ -352,7 +351,6 @@ pub(super) fn validate_current_ownership_cfg(
                         crate::unit_validation::operation_contracts::structural_source_contract(
                             function,
                             value.place,
-                            false,
                         )
                         .map(|source| source.multiplicity)
                         .ok_or(
@@ -407,7 +405,7 @@ pub(super) fn validate_current_ownership_cfg(
             // the live reference, and there is nothing left to consume.
             if let O::ReleaseReference { source, .. } = &node.operation
                 && crate::unit_validation::operation_contracts::structural_source_contract(
-                    function, *source, false,
+                    function, *source,
                 )
                 .is_some_and(|signature| {
                     signature.multiplicity != StructuralMultiplicity::Unrestricted
@@ -483,8 +481,8 @@ pub(super) fn validate_current_ownership_cfg(
                         // and produced values both require current whole/path custody.
                         || (argument.access != StructuralAccess::Owned
                             && crate::unit_validation::operation_contracts::structural_source_contract(
-                                function, argument.place, false,
-                            ).is_some_and(|source| source.access == StructuralAccess::Owned
+                                function, argument.place,
+).is_some_and(|source| source.access == StructuralAccess::Owned
                                 && source.multiplicity == StructuralMultiplicity::Affine))
                 })
             {

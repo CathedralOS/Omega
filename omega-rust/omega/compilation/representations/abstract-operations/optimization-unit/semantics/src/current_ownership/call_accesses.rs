@@ -91,7 +91,7 @@ impl CallAccesses {
             } = &node.operation
                 && (structural_arguments.iter().any(|argument| {
                     argument.access == StructuralAccess::Owned
-                        || !structural_source_contract(function, argument.place, true).is_some_and(
+                        || !structural_source_contract(function, argument.place).is_some_and(
                             |source| {
                                 argument_storage_is_closed(
                                     types,

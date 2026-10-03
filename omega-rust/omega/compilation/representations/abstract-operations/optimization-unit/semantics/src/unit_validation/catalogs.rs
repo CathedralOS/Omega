@@ -157,12 +157,9 @@ fn validate_structural_field_range_authority(
                 ..
             } => {
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
-                let root = super::operation_contracts::structural_source_contract(
-                    function,
-                    source.place,
-                    false,
-                )
-                .ok_or_else(|| invalid.clone())?;
+                let root =
+                    super::operation_contracts::structural_source_contract(function, source.place)
+                        .ok_or_else(|| invalid.clone())?;
                 let collection = terminal_semantics::runtime_structural_path_tip(
                     types.values().copied(),
                     root.structural_type,
@@ -217,12 +214,9 @@ fn validate_structural_field_range_authority(
                 obligation,
             } => {
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
-                let root = super::operation_contracts::structural_source_contract(
-                    function,
-                    *destination,
-                    false,
-                )
-                .ok_or_else(|| invalid.clone())?;
+                let root =
+                    super::operation_contracts::structural_source_contract(function, *destination)
+                        .ok_or_else(|| invalid.clone())?;
                 let Some(StructuralTypeShape::ElementView { element }) =
                     types.get(&root.structural_type).map(|row| &row.shape)
                 else {

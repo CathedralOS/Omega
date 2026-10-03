@@ -279,7 +279,7 @@ pub(crate) fn validate_structural_root_operations(
                 } => {
                     let signature =
                         crate::unit_validation::operation_contracts::structural_source_contract(
-                            function, *source, false,
+                            function, *source,
                         );
                     let valid = result.scalar_type == ScalarType::Boolean
                         && signature.is_some_and(|signature| {
@@ -571,7 +571,7 @@ pub(crate) fn validate_structural_root_operations(
                     // relocated loan may point at any declared type.
                     let valid =
                         crate::unit_validation::operation_contracts::structural_source_contract(
-                            function, *source, false,
+                            function, *source,
                         )
                         .is_some_and(|signature| {
                             structural_types
@@ -658,8 +658,7 @@ pub(crate) fn validate_structural_root_operations(
                             crate::unit_validation::operation_contracts::structural_source_contract(
                                 function,
                                 value.place,
-                                false,
-                            )
+)
                             .is_some_and(|signature| {
                                 signature.structural_type == field_type
                                     && signature.is_unqualified()
@@ -713,8 +712,8 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     let valid =
                         crate::unit_validation::operation_contracts::structural_source_contract(
-                            function, *source, false,
-                        )
+                            function, *source,
+)
                         .is_some_and(|signature| {
                             signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
                             // Whole byte copies transport exactly the source
@@ -890,8 +889,8 @@ pub(crate) fn validate_structural_root_operations(
                                     // through the independently replayed summary.
                                     if !shared_descriptor_result
                                         && crate::unit_validation::operation_contracts::structural_source_contract(
-                                            function, *source, false,
-                                        ).is_none_or(|source| source.access != terminal_psi::StructuralAccess::Owned)
+                                            function, *source,
+).is_none_or(|source| source.access != terminal_psi::StructuralAccess::Owned)
                                     {
                                         return None;
                                     }
@@ -1144,9 +1143,8 @@ fn readable_field_type(
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<(StructuralTypeId, terminal_psi::StructuralAccess)> {
-    let signature = crate::unit_validation::operation_contracts::structural_source_contract(
-        function, place, false,
-    )?;
+    let signature =
+        crate::unit_validation::operation_contracts::structural_source_contract(function, place)?;
     if signature.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
         || signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !signature.is_unqualified()

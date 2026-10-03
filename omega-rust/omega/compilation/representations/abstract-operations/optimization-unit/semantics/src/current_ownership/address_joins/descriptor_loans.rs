@@ -545,7 +545,7 @@ fn operation_observations(
         let mut projection = Projection::new(&region.path);
         projection.indirect |= region.indirect;
         let root = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, place, false,
+            function, place,
         );
         // The shared path owner interprets selectors. A nested view/reference
         // dereferences storage outside this record; no contained-field alias
@@ -574,7 +574,7 @@ fn operation_observations(
     let byte_field_projection = |place, path: &[StructuralPathSegment], field| {
         let mut projection = projected(place, path, Some(field));
         let owned = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, place, false,
+            function, place,
         )
         .and_then(|root| {
             terminal_semantics::runtime_structural_path_tip(
@@ -705,7 +705,6 @@ fn operation_observations(
                     !crate::unit_validation::operation_contracts::structural_source_contract(
                         function,
                         argument.place,
-                        false,
                     )
                     .is_some_and(|source| {
                         argument_storage_is_closed(
@@ -875,7 +874,7 @@ fn descriptor_inputs(
     let mut inputs = crate::unit_validation::function_structure::operation_place_inputs(operation);
     let mut dispose = |place: PlaceId| {
         let descriptor = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, place, false,
+            function, place,
         )
         .is_some_and(|source| {
             source.operation_result().is_some()

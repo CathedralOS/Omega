@@ -305,7 +305,7 @@ pub(crate) fn mutable_record_field_destination<'path>(
     let (terminal_psi::StructuralPathSegment::Referent, suffix) = path.split_first()? else {
         return None;
     };
-    let source = structural_source_contract(function, destination, false)?;
+    let source = structural_source_contract(function, destination)?;
     if source.access != terminal_psi::StructuralAccess::Owned
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || !source.is_unqualified()
@@ -498,7 +498,7 @@ pub(crate) fn projected_carrier_type(
     let (terminal_psi::StructuralPathSegment::Referent, fields) = source.path.split_last()? else {
         return None;
     };
-    let current = structural_source_contract(function, source.place, false)?.structural_type;
+    let current = structural_source_contract(function, source.place)?.structural_type;
     leaf_referent(types, current, fields)
 }
 
@@ -535,7 +535,7 @@ pub(crate) fn reference_source_type(
                 | terminal_psi::StructuralPathSegment::FixedIndex(_)
         )
     }) {
-        let contract = structural_source_contract(function, source.place, false)?;
+        let contract = structural_source_contract(function, source.place)?;
         if !access_covers(contract.access, source.access)
             || contract.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !contract.is_unqualified()
@@ -591,7 +591,7 @@ pub(crate) fn argument_owns_references(
     argument: &terminal_psi::StructuralArgument,
 ) -> bool {
     argument.access == terminal_psi::StructuralAccess::Owned
-        && structural_source_contract(function, argument.place, false)
+        && structural_source_contract(function, argument.place)
             .is_some_and(|source| contains_reference(types, source.structural_type))
 }
 
@@ -777,7 +777,7 @@ pub(crate) fn validate_function_references(
         .flat_map(|node| &node.successors)
         .flat_map(|edge| &edge.structural_bindings)
         .any(|binding| {
-            structural_source_contract(function, binding.argument.place, false)
+            structural_source_contract(function, binding.argument.place)
                 .is_some_and(|source| contains_reference(types, source.structural_type))
                 && (binding.argument.access != terminal_psi::StructuralAccess::Owned
                     || !binding.argument.path.is_empty())

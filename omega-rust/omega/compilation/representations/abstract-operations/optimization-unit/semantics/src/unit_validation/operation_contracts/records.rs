@@ -149,48 +149,7 @@ pub(crate) fn record_establishment_matches(
     else {
         return false;
     };
-    declarations.len() == fields.len()
-        && declarations.iter().zip(fields).all(|(declaration, field)| {
-            // Byte fields retain their own predicate contract; nested records keep
-            // the qualification-free whole-child contract below.
-            if let Some(carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) =
-                declaration.field_type.byte_sequence_carrier()
-            {
-                let RecordFieldValue::Structural(argument) = &field.value else {
-                    return false;
-                };
-                let Some(source) = structural_source_contract(function, argument.place, false)
-                else {
-                    return false;
-                };
-                field.field == declaration.id
-                    && !declaration.relevance.is_erased()
-                    && argument.access == StructuralAccess::Owned
-                    && argument.path.is_empty()
-                    && argument.place != result.place
-                    && source.access == StructuralAccess::Owned
-                    && source.multiplicity == StructuralMultiplicity::Unrestricted
-                    && !source_has_claims(function, argument.place)
-                    && types
-                        .get(&source.structural_type)
-                        .is_some_and(|declaration| {
-                            declaration.shape == StructuralTypeShape::ByteSequence(carrier)
-                        })
-                    && source
-                        .declared_byte_predicates(domains)
-                        .is_some_and(|predicates| {
-                            predicates.implies(declaration.field_type.byte_predicates())
-                        })
-            } else {
-                field_initializers_match(
-                    function,
-                    result,
-                    std::slice::from_ref(declaration),
-                    std::slice::from_ref(field),
-                    types,
-                )
-            }
-        })
+    field_initializers_match(function, result, declarations, fields, types, domains)
 }
 
 pub(crate) fn plain_owned_shape(
@@ -206,6 +165,10 @@ pub(crate) fn field_initializers_match(
     declarations: &[terminal_psi::StructuralFieldDeclaration],
     fields: &[terminal_psi::RecordFieldInitializer],
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<
+        semantic_vocabulary::StructuralDomainId,
+        &terminal_psi::StructuralDomainDeclaration,
+    >,
 ) -> bool {
     if declarations.len() != fields.len() {
         return false;
@@ -222,8 +185,7 @@ pub(crate) fn field_initializers_match(
                     StructuralFieldType::Structural(expected),
                     RecordFieldValue::Structural(argument),
                 ) => {
-                    let Some(source) = structural_source_contract(function, argument.place, false)
-                    else {
+                    let Some(source) = structural_source_contract(function, argument.place) else {
                         return false;
                     };
                     // A view-descriptor member stores its descriptor with the
@@ -246,42 +208,64 @@ pub(crate) fn field_initializers_match(
                         && (result.multiplicity != StructuralMultiplicity::Unrestricted
                             || source.multiplicity == StructuralMultiplicity::Unrestricted)
                 }
-                (
-                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
-                    RecordFieldValue::Structural(argument),
-                ) => {
-                    // A borrowed-view member stores its descriptor with the
-                    // field's declared access: the source spells the loan's
-                    // own access, never `Owned` backing custody — the record
-                    // relocates the descriptor, the backing stays borrowed.
-                    let Some(source) = structural_source_contract(function, argument.place, false)
-                    else {
+                (field_type, RecordFieldValue::Structural(argument))
+                    if field_type.byte_sequence_carrier().is_some() =>
+                {
+                    // Owned bytes and shared descriptors have different backing
+                    // custody, but both bind the current completed value. Domain
+                    // wrappers do not select another constructor path.
+                    let Some(source) = structural_source_contract(function, argument.place) else {
                         return false;
+                    };
+                    let Some(declared_source) = types.get(&source.structural_type) else {
+                        return false;
+                    };
+                    let carrier_matches = match field_type.byte_sequence_carrier() {
+                        Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
+                            source.access == StructuralAccess::Owned
+                                && source.multiplicity == StructuralMultiplicity::Unrestricted
+                                && declared_source.shape
+                                    == StructuralTypeShape::ByteSequence(carrier)
+                        }
+                        Some(ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        }) => {
+                            matches!(
+                                source.access,
+                                StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                            ) && matches!(
+                                declared_source.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    ByteSequenceCarrier::BorrowedView {
+                                        access: None | Some(StructuralAccess::SharedBorrow),
+                                    }
+                                )
+                            )
+                        }
+                        _ => false,
                     };
                     argument.access == StructuralAccess::Owned
                         && argument.path.is_empty()
-                        && *access == Some(source.access)
-                        && source.is_unqualified()
-                        && !source_has_claims(function, argument.place)
                         && argument.place != result.place
-                        && types
-                            .get(&source.structural_type)
-                            .is_some_and(|declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                            access: None,
-                                        },
-                                    )
-                                )
-                            })
+                        && carrier_matches
+                        && source.declared_byte_predicates(domains).is_some()
+                        && !source_has_claims(function, argument.place)
                         && matches!(
                             source.multiplicity,
                             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
                         )
                         && (result.multiplicity != StructuralMultiplicity::Unrestricted
                             || source.multiplicity == StructuralMultiplicity::Unrestricted)
+                        && (field_type.byte_predicates().is_empty()
+                            || crate::unit_validation::function_structure::whole_source_predicates(
+                                types.values().copied(),
+                                domains.values().copied(),
+                                function,
+                                argument.place,
+                            )
+                            .is_some_and(|available| {
+                                available.implies(field_type.byte_predicates())
+                            }))
                 }
                 (
                     field_type,

@@ -158,59 +158,26 @@ pub(super) fn field_shape(
             {
                 return None;
             }
-            let signature = source.structural.as_ref()?;
-            let parameters = signature
-                .parameters
+            // Descriptor identity and readable custody have one shared source
+            // query. Constructors do not maintain a second producer whitelist.
+            let child_type = super::established_view_input::view_type(source, argument.place)
+                .or_else(|| {
+                    super::established_view_input::element_view_type(source, argument.place)
+                })?;
+            let readable = super::established_view_input::view_access(source, argument.place)
+                == Some(terminal_psi::StructuralAccess::SharedBorrow);
+            if (declarations
                 .iter()
-                .map(|parameter| &parameter.semantic)
-                .chain(
-                    source
-                        .blocks
+                .find(|declaration| declaration.id == child_type)
+                .map(|declaration| &declaration.shape)
+                != Some(&expected)
+                && !descriptor_family(
+                    declarations
                         .iter()
-                        .filter(|block| block.id != source.entry_block)
-                        .flat_map(|block| &block.structural_parameters),
-                );
-            let mut matches = parameters
-                .filter(|parameter| parameter.place == argument.place)
-                .map(|parameter| {
-                    (
-                        parameter.structural_type,
-                        parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                            && parameter.qualifications.is_empty()
-                            && parameter.projected_qualifications.is_empty(),
-                    )
-                })
-                .chain(
-                    source
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.instructions)
-                        .filter_map(|row| {
-                            let result = row.kind.get_structural_result()?;
-                            (result.place == argument.place).then_some((
-                                result.structural_type,
-                                result.multiplicity != StructuralMultiplicity::Linear
-                                    && result.claims.is_empty()
-                                    && result.qualifications.is_empty()
-                                    && result.projected_qualifications.is_empty(),
-                            ))
-                        }),
-                );
-            let (child_type, readable) = matches.next()?;
-            if matches.next().is_some()
-                || (declarations
-                    .iter()
-                    .find(|declaration| declaration.id == child_type)
-                    .map(|declaration| &declaration.shape)
-                    != Some(&expected)
-                    && !descriptor_family(
-                        declarations
-                            .iter()
-                            .find(|declaration| declaration.id == child_type)
-                            .map(|declaration| &declaration.shape),
-                        &expected,
-                    ))
+                        .find(|declaration| declaration.id == child_type)
+                        .map(|declaration| &declaration.shape),
+                    &expected,
+                ))
                 || !readable
             {
                 return None;

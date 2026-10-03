@@ -196,11 +196,9 @@ impl emission::Emission<'_, '_, '_> {
                             range_obligation,
                         }
                     } else {
-                        // A `&[T]` view member's declared carrier is the borrowed
-                        // byte sequence itself: the nested value's descriptor is
-                        // the shared view element type the signature registers
-                        // under the view's unwrapped carrier identity — the same
-                        // identity the leaf's shared-borrow argument plan mints.
+                        // Nominal children retain their identity. Byte members
+                        // instead embed a carrier contract; resolve that carrier
+                        // without requiring an unrelated source alias to survive.
                         let child_type = match &target.field_type {
                             StructuralFieldType::Structural(child_type) => *child_type,
                             StructuralFieldType::ByteSequence(
@@ -221,22 +219,27 @@ impl emission::Emission<'_, '_, '_> {
                             }
                             StructuralFieldType::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                            ) => lookup_type_id(
-                                self.type_ids,
-                                self.checked
-                                    .normalized_type_identity(
-                                        validation::unwrapped_type_reference(
-                                            &self.checked.typed,
-                                            field.type_reference,
+                            )
+                            | StructuralFieldType::PredicateByteSequence {
+                                carrier: terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                                ..
+                            } => {
+                                // Byte fields embed their carrier, not a nominal
+                                // type identity. Choose that descriptor contract
+                                // from the operand catalog; an unrelated parameter
+                                // must not be needed to root a source-spelled alias.
+                                self.structural_types.iter().find_map(|declaration|
+                                    matches!(declaration.shape,
+                                        terminal_psi::StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                            }
                                         )
-                                        .ok_or(
-                                            LoweringError::Unsupported(
-                                                "view record member lost its carrier",
-                                            ),
-                                        )?,
-                                    )
-                                    .as_str(),
-                            )?,
+                                    ).then_some(declaration.id)
+                                ).ok_or(LoweringError::Unsupported(
+                                    "shared byte member has no descriptor carrier",
+                                ))?
+                            }
                             _ => {
                                 return unsupported(
                                     "nested record operand has a scalar destination",

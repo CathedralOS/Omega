@@ -38,12 +38,13 @@
 //! - `StructuralTypeRoster`: a body that owns its type roster may add the
 //!   generated literal-view carrier; a composed callee borrowing the closure's
 //!   published roster may not.
-//! - `PrivatePlaces`: the ordinary machine keeps byte-sequence literal places
-//!   and construction temporaries in two rosters; a composed body keeps both
-//!   in its one private temporary roster.
 //! - `ClaimBindings`: the ordinary machine's claim table grows when a linear
 //!   boundary result mints a caller binding; a composed state reads the
 //!   machine-wide table and cannot mint.
+//!
+//! Private declarations share one machine-owned roster in both routes. A
+//! constructor can produce literals as well as temporary values: splitting
+//! those rosters gives their literal allocators overlapping ordinals.
 //!
 //! Every other check either route applied runs for both. In particular a
 //! borrowed-window move or repair must name a machine-parameter root the
@@ -126,7 +127,7 @@ pub(super) struct OperationFrame<'f, 'c> {
     /// keeps its own roster of `establish_primitive_local` results.
     pub(super) primitive_locals: &'f [PrimitiveLocal],
     pub(super) results: StructuralResults<'f>,
-    pub(super) private_places: PrivatePlaces<'f>,
+    pub(super) private_places: &'f mut Vec<StructuralPlaceDeclaration>,
     /// Open borrowed-storage windows on the current straight-line sequence.
     pub(super) windows: &'f mut BorrowedWindowLedger,
     pub(super) evaluation: &'f mut Evaluation,
@@ -211,38 +212,6 @@ impl ClaimBindings<'_> {
         let claim = claim_id(allocate_dense(next_claim)?);
         bindings.push((identity, claim));
         Ok(claim)
-    }
-}
-
-/// The private places a body declares beside its authored results.
-pub(super) enum PrivatePlaces<'f> {
-    /// The ordinary machine keeps byte-sequence literal places (preallocated
-    /// per call argument, then store literals) apart from the temporaries a
-    /// structural-value construction declares.
-    Split {
-        literals: &'f mut Vec<StructuralPlaceDeclaration>,
-        temporaries: &'f mut Vec<StructuralPlaceDeclaration>,
-    },
-    /// A composed body keeps literals, construction and join temporaries in
-    /// one roster. A literal's ordinal counts only the literals in it.
-    Shared(&'f mut Vec<StructuralPlaceDeclaration>),
-}
-
-impl PrivatePlaces<'_> {
-    /// The roster a store's byte-sequence literal place joins.
-    fn literals(&mut self) -> &mut Vec<StructuralPlaceDeclaration> {
-        match self {
-            Self::Split { literals, .. } => literals,
-            Self::Shared(places) => places,
-        }
-    }
-
-    /// The roster a structural-value construction's temporaries join.
-    fn temporaries(&mut self) -> &mut Vec<StructuralPlaceDeclaration> {
-        match self {
-            Self::Split { temporaries, .. } => temporaries,
-            Self::Shared(places) => places,
-        }
     }
 }
 
@@ -785,15 +754,13 @@ impl OperationFrame<'_, '_> {
             }),
             kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
         });
-        self.private_places
-            .temporaries()
-            .push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                },
-            });
+        self.private_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        });
         self.evaluation
             .primitive_storage
             .push((parameter.symbol, place, scalar_type));
@@ -1146,7 +1113,7 @@ impl OperationFrame<'_, '_> {
             &self.evaluation.structural_parameters,
             &self.evaluation.structural_locals,
             self.structural_types.declarations(),
-            self.private_places.literals(),
+            self.private_places,
             self.next_place,
             self.next_value,
             &mut self.calls.next_obligation_identity,
@@ -1710,15 +1677,13 @@ impl OperationFrame<'_, '_> {
                 path: lower_structural_path(&store.value.path)?,
             },
         });
-        self.private_places
-            .literals()
-            .push(StructuralPlaceDeclaration {
-                id: copied_place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: copy,
-                    structural_type: hole_type,
-                },
-            });
+        self.private_places.push(StructuralPlaceDeclaration {
+            id: copied_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: copy,
+                structural_type: hole_type,
+            },
+        });
         let mut field_path = store.carrier_path.clone();
         field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             store.field_identity.clone(),
@@ -1769,15 +1734,13 @@ impl OperationFrame<'_, '_> {
                 "structural case field store move emitted no operation",
             ))?
             .id;
-        self.private_places
-            .literals()
-            .push(StructuralPlaceDeclaration {
-                id: moved,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: move_id,
-                    structural_type: hole_type,
-                },
-            });
+        self.private_places.push(StructuralPlaceDeclaration {
+            id: moved,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: move_id,
+                structural_type: hole_type,
+            },
+        });
         // The moved-out leaf is `Unrestricted` by the plan's own contract, so
         // no custody action retires it: edge discards admit affine places
         // only, and an unrestricted owned place may simply be left behind.
@@ -2008,15 +1971,13 @@ impl OperationFrame<'_, '_> {
                 fields: initialized.into_iter().map(|(_, field)| field).collect(),
             },
         });
-        self.private_places
-            .literals()
-            .push(StructuralPlaceDeclaration {
-                id: copied_place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: establishment,
-                    structural_type: hole_type,
-                },
-            });
+        self.private_places.push(StructuralPlaceDeclaration {
+            id: copied_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: establishment,
+                structural_type: hole_type,
+            },
+        });
         let mut field_path = store.carrier_path.clone();
         field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             store.field_identity.clone(),
@@ -2064,15 +2025,13 @@ impl OperationFrame<'_, '_> {
                 "structural case literal field store move emitted no operation",
             ))?
             .id;
-        self.private_places
-            .literals()
-            .push(StructuralPlaceDeclaration {
-                id: moved,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: move_id,
-                    structural_type: hole_type,
-                },
-            });
+        self.private_places.push(StructuralPlaceDeclaration {
+            id: moved,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: move_id,
+                structural_type: hole_type,
+            },
+        });
         // The moved-out leaf is `Unrestricted` by the plan's own contract, so
         // no custody action retires it.
         self.windows.emit_store(
@@ -2473,7 +2432,7 @@ impl OperationFrame<'_, '_> {
         ))?;
         let destination = place_id(allocate_dense(self.next_place)?);
         let declaration_ordinal =
-            crate::emission::next_byte_sequence_literal_ordinal(self.private_places.literals())?;
+            crate::emission::next_byte_sequence_literal_ordinal(self.private_places)?;
         let declaration = StructuralPlaceDeclaration {
             id: destination,
             kind: StructuralPlaceKind::ByteSequenceLiteral {
@@ -2481,7 +2440,7 @@ impl OperationFrame<'_, '_> {
                 structural_type,
             },
         };
-        self.private_places.literals().push(declaration);
+        self.private_places.push(declaration);
         let id = self.operations.allocate();
         self.operations.push(Operation {
             id,
@@ -2537,7 +2496,7 @@ impl OperationFrame<'_, '_> {
                 &self.evaluation.structural_parameters,
                 &self.evaluation.structural_locals,
                 self.structural_types.declarations(),
-                self.private_places.literals(),
+                self.private_places,
                 self.next_place,
                 self.next_value,
                 &mut self.calls.next_obligation_identity,
@@ -2635,7 +2594,7 @@ impl OperationFrame<'_, '_> {
             storage.bind(self.checked, self.state, &bindings, whole)?;
         if let Some(establishment) = establishment {
             let declaration = super::view_ranges::establish(&establishment, self.operations);
-            self.private_places.temporaries().push(declaration);
+            self.private_places.push(declaration);
         }
         let declaration = super::view_ranges::emit(
             self.checked,

@@ -23,7 +23,7 @@ impl OperationFrame<'_, '_> {
             return byte_store::emit_literal_view(
                 bytes,
                 self.structural_types.declarations(),
-                self.private_places.literals(),
+                self.private_places,
                 self.next_place,
                 self.operations,
             );
@@ -103,7 +103,7 @@ impl OperationFrame<'_, '_> {
             if let Some(establishment) = establishment {
                 let declaration =
                     super::super::view_ranges::establish(&establishment, self.operations);
-                self.private_places.temporaries().push(declaration);
+                self.private_places.push(declaration);
             }
             let destination = place_id(allocate_dense(self.next_place)?);
             let result_type = range_source.structural_type;
@@ -127,7 +127,7 @@ impl OperationFrame<'_, '_> {
                 self.next_value,
                 self.operations,
             )?;
-            self.private_places.temporaries().push(declaration);
+            self.private_places.push(declaration);
             return Ok(destination);
         }
         let (machine, state) = crate::expression_preparation::source_custody::authored_state(
@@ -181,15 +181,13 @@ impl OperationFrame<'_, '_> {
                 path,
             },
         });
-        self.private_places
-            .temporaries()
-            .push(StructuralPlaceDeclaration {
-                id: destination,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                },
-            });
+        self.private_places.push(StructuralPlaceDeclaration {
+            id: destination,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        });
         Ok(destination)
     }
 }

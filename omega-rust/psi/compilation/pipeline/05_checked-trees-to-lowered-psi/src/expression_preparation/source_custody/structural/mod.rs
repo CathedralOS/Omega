@@ -679,10 +679,20 @@ pub(crate) fn validate(
                     operand_roles.push(role);
                 }
             }
-            // A literal view member is decomposed into member stores by the
-            // record literal's assignment; no construction establishes it.
-            CheckedStructuralValueKind::ByteLiteralView { .. } => {
-                return unsupported("structural construction has a literal view member");
+            CheckedStructuralValueKind::ByteLiteralView { bytes } => {
+                // Image-backed descriptors are values too. Rejoin the exact
+                // authored bytes and declared correspondence; Terminal checks
+                // the destination predicates from the actual source separately.
+                if !matches!(checked.expression_table.expression(expression),
+                    ExpressionNode::String(authored) if authored.as_ref() == bytes.as_slice())
+                    || !validation::checked_argument_matches_type_reference(
+                        &checked.typed,
+                        expression,
+                        reference,
+                    )
+                {
+                    return unsupported("literal view changed its authored bytes or carrier");
+                }
             }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 // The synthesized zero's whole contract is the declared

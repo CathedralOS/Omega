@@ -172,9 +172,8 @@ pub fn byte_field_root(
     {
         return None;
     }
-    let source = crate::unit_validation::operation_contracts::structural_source_contract(
-        function, root, false,
-    )?;
+    let source =
+        crate::unit_validation::operation_contracts::structural_source_contract(function, root)?;
     (source.is_unqualified()
         && !source.has_result_evidence()
         && matches!(

@@ -16,7 +16,7 @@ pub(super) fn validate(
         machine: function.machine,
         source,
     };
-    let signature = structural_source_contract(function, source, false).ok_or_else(invalid)?;
+    let signature = structural_source_contract(function, source).ok_or_else(invalid)?;
     if signature.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return Err(invalid());
     }

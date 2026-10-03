@@ -837,7 +837,7 @@ static OP_ESTABLISH_STRUCTURAL_LOCAL: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
     "operation:establish-record",
-    "a validated complete record establishment in declaration field order; owned bounded-byte operands are live unrestricted whole values of the exact capacity whose independently interpreted source predicates imply the member predicates, never evidence supplied by the destination declaration",
+    "a validated complete record establishment in declaration field order; every structural operand is available before construction and its multiplicity determines affine custody, not its producer kind; owned bounded-byte operands have the exact capacity and shared-byte operands have readable descriptor access, with independently interpreted source predicates implying member predicates, never evidence supplied by the destination declaration",
     "the record's field-establishment facts and declared obligations",
     &[
         "fact:record-establishment",

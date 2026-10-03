@@ -1,5 +1,5 @@
-//! A constructor's literal is fresh owned storage, not an existing place move.
-//! Replay the authored bytes against the declared bounded carrier and every
+//! Constructor literals establish owned containers or image-backed descriptors,
+//! not moves from existing places. Replay bytes against the declared carrier and every
 //! selected byte predicate before emission attaches its qualification roster.
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -69,6 +69,9 @@ fn collect_domains(
         visited.push((value, reference));
         let node = plans.nodes.get(value);
         match &node.kind {
+            CheckedStructuralValueKind::ByteLiteralView { .. } => {
+                requires_literal_view = true;
+            }
             CheckedStructuralValueKind::Place(argument)
                 if matches!(
                     argument.source,

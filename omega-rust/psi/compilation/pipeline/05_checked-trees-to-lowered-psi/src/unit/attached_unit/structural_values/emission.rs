@@ -1183,11 +1183,19 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(place)
             }
-            // Source custody already refuses this kind; emission has no
-            // shared view operand to establish it with either.
-            CheckedStructuralValueKind::ByteLiteralView { .. } => Err(LoweringError::Unsupported(
-                "structural construction has a literal view member",
-            )),
+            CheckedStructuralValueKind::ByteLiteralView { bytes } => {
+                let place = crate::emission::structural_byte_sequence_store::emit_literal_view(
+                    &bytes,
+                    self.structural_types,
+                    self.temporary_places,
+                    self.next_place,
+                    self.operations,
+                )?;
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, None, continuation)?;
+                }
+                Ok(place)
+            }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 let place = self.establish_zeroed()?;
                 if let Some(continuation) = continuation {
