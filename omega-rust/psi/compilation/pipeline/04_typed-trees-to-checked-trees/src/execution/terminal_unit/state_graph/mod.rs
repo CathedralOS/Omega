@@ -817,17 +817,29 @@ fn build_traced_with(
                     // A parameter carries an established value, not a fresh
                     // initializer. Exact edge custody retains represented byte
                     // predicates, including those below record/array children.
-                    // A `[copy]` record of plain fields and shared byte views
-                    // arrives as a whole copy whose views keep their source
-                    // loans' lineage.
+                    // A carrier of plain fields and shared views arrives as a
+                    // whole move whose views keep their source loans' lineage:
+                    // a descriptor copy rides any non-linear carrier, `copy`
+                    // or affine, under the contents judgment the dispatch
+                    // applies to the same carrier as a scrutinee subject.
+                    // The one-shot entry names the caller's custody: its loan
+                    // has no checked transfer to ride in on, so only the
+                    // one-record-deep view shape the invocation can spell is
+                    // admitted there — the wider contents family enters
+                    // exclusively through established edge custody.
+                    let view_carrier = if state_index == 0 && invocation_only_entry {
+                        parameter.multiplicity == Multiplicity::Unrestricted
+                            && validation::has_owned_or_shared_view_fields(program, reference())
+                    } else {
+                        validation::has_owned_or_shared_view_contents(program, reference())
+                    };
                     if parameter.multiplicity != Multiplicity::Linear
                         && !owned_sequence
                         && !validation::has_plain_owned_contents_with_represented_constraints(
                             program,
                             reference(),
                         )
-                        && !(parameter.multiplicity == Multiplicity::Unrestricted
-                            && validation::has_owned_or_shared_view_fields(program, reference()))
+                        && !view_carrier
                     {
                         trace.phase(
                             "state graph: state signature: parameter custody shape: owned non-linear record contents",
@@ -2289,11 +2301,12 @@ fn successor_bindings(
                 });
             }
             mark(SuccessorGuard::ProjectedCopy);
-            // `parameter.field` supplied to an owned unrestricted parameter
-            // copies that subtree out of a live source parameter into fresh
-            // storage the target owns; the source keeps its whole custody.
-            if target.access == CheckedStructuralAccess::Owned
-                && target.multiplicity == Multiplicity::Unrestricted
+            // `parameter.field` supplied to an unrestricted parameter of
+            // the leaf's own declared access copies that subtree out of a
+            // live source parameter into fresh storage the target binds;
+            // the source keeps its whole custody. A view-typed leaf's copy
+            // forwards the descriptor — the view's loan keeps its lineage.
+            if target.multiplicity == Multiplicity::Unrestricted
                 && let Some(subject) = projected_copy_subject(
                     program,
                     machine,
@@ -2303,6 +2316,7 @@ fn successor_bindings(
                     expression,
                     target,
                 )
+                && subject.access == target.access
             {
                 return Some(CheckedStructuralControlTransferPlan {
                     source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
@@ -2797,29 +2811,38 @@ fn projected_copy_subject(
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
         || program.type_multiplicity(projected_type) != Multiplicity::Unrestricted
         // Represented field predicates remain in the copied declaration.
-        // A `[copy]` record of owned fields and shared views copies its view
-        // descriptors whole: each copied view keeps its source loan's lineage,
-        // and copy permission neither establishes a field's predicates nor
-        // extends the loan.
+        // A `[copy]` carrier of owned fields and shared views copies its
+        // view descriptors whole — and a leaf that is itself a view
+        // forwards its descriptor the same way: each copied view keeps its
+        // source loan's lineage, and copy permission neither establishes
+        // a field's predicates nor extends the loan.
         || !(validation::has_plain_owned_contents_with_represented_constraints(program, projected_type)
-            || validation::has_owned_or_shared_view_fields(
+            || validation::has_owned_or_shared_view_contents(
                 program,
                 projected_type,
             ))
-        || program
-            .normalized_type_identity(projected_type)
-            .into_string()
-            != target.type_identity
+        || {
+            // A borrowed target names its referent, so the leaf matches
+            // the target when the leaf's own referent does.
+            let identity = match validation::reference_shell(program, projected_type) {
+                Some(shell) => program.normalized_type_identity(shell.referee).into_string(),
+                None => program
+                    .normalized_type_identity(projected_type)
+                    .into_string(),
+            };
+            identity != target.type_identity
+        }
     {
         return None;
     }
+    let access = super::types::structural_access_for_type_reference(program, projected_type)?;
     Some(CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
             parameter_index: u32::try_from(parameter_index).ok()?,
         },
         path,
         type_identity: target.type_identity.clone(),
-        access: CheckedStructuralAccess::Owned,
+        access,
     })
 }
 
@@ -2908,7 +2931,14 @@ fn case_payload_transfer(
         }
     };
     let admitted_shape = if target.access == CheckedStructuralAccess::Owned {
-        validation::has_plain_owned_contents_with_numeric_constraints(program, field.type_reference)
+        // The payload subtree copies under the same contents judgment the
+        // dispatch itself admits for the subject: a view descriptor inside
+        // the carrier travels as a descriptor copy whose loan stays with
+        // the view's owner, not with the dispatched place.
+        (validation::has_plain_owned_contents_with_numeric_constraints(
+            program,
+            field.type_reference,
+        ) || validation::has_owned_or_shared_view_contents(program, field.type_reference))
             && normalized(field.type_reference) == target.type_identity
     } else {
         target.access == CheckedStructuralAccess::SharedBorrow

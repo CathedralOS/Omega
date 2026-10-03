@@ -184,10 +184,13 @@ pub(crate) fn build_checked_machine_residual_parts(
         && !validation::reference_result_custody::is_reference_record(program, state.return_type)
         && !crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type)
         && !crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type)
-        && !crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
-            program,
-            state.return_type,
-        )
+        && !(matches!(
+            crate::execution::terminal_unit::types::structural_access_for_type_reference(
+                program,
+                state.return_type,
+            ),
+            Some(checked_trees::CheckedStructuralAccess::Owned)
+        ) && validation::has_owned_or_shared_view_contents(program, state.return_type))
         && !validation::is_closed_primitive_array_type(program, state.return_type)
         && !validation::has_plain_owned_contents_with_numeric_constraints(
             program,
@@ -411,6 +414,11 @@ pub(crate) fn build_checked_machine_residual_parts(
         && structural_result.is_none()
         && scalar_result.is_none()
         && scalar_control.is_none()
+        // A body ending in control (a guarded or unconditional transition)
+        // produces its result at the terminator, which is composed after
+        // this gate — the retained returning tail answers result ownership
+        // the same way for scalar and structural carriers.
+        && statement_sequence::returning_terminator(program, facts, machine, state).is_none()
     {
         return None;
     }

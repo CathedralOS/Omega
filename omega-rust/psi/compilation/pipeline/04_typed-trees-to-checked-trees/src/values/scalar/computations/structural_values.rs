@@ -65,7 +65,8 @@ pub(super) fn is_structural_case_value(
     ) {
         return false;
     }
-    let Some(constructor) = validation::structural_case_constructor(program, expression) else {
+    let Some(constructor) = validation::structural_case_constructor(program, expression, expected)
+    else {
         return false;
     };
     let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
@@ -102,16 +103,13 @@ pub(super) fn is_record_value(
         shared_referent.is_some() && program.primitive_type_reference(reference).is_some();
     let mut record_symbol = SymbolHandle::invalid();
     if !primitive_referent {
-        let Some(symbol) = closed_data_symbol(program, reference) else {
+        let Some(record) = program.data_definitions().iter().find(|record| {
+            closed_data_symbol(program, reference) == Some(record.symbol)
+                || validation::member_type_substitutions(program, record, reference).is_some()
+        }) else {
             return false;
         };
-        let Some(record) = program
-            .data_definitions()
-            .iter()
-            .find(|record| record.symbol == symbol)
-        else {
-            return false;
-        };
+        let symbol = record.symbol;
         if program
             .data_members(record)
             .iter()
@@ -851,7 +849,10 @@ impl Builder<'_, '_> {
             // copies. Only a local's later read takes the copy route below,
             // because the local's initializer need not be its current value.
             CheckedStructuralValueKind::Place(argument)
-        } else if let Some(view) = self.slice_view_place(expression, expected) {
+        } else if let Some(view) = self
+            .slice_view_place(expression, expected)
+            .or_else(|| self.subslice_view_place(expression, expected))
+        {
             // A view's authored producer is spelled as a call but establishes
             // no call result: it lends storage that already exists. Classify
             // it before the ordinary call-result branch, which would otherwise
@@ -1643,15 +1644,19 @@ impl Builder<'_, '_> {
             return None;
         }
         let reference = validation::unwrapped_type_reference(self.program, expected)?;
-        let symbol = closed_data_symbol(self.program, reference)?;
-        if literal.case_name.is_some() || literal.type_symbol != symbol {
+        let Some(data) = self.program.data_definitions().iter().find(|data| {
+            validation::member_type_substitutions(self.program, data, reference).is_some()
+        }) else {
+            return None;
+        };
+        if literal.case_name.is_some() || literal.type_symbol != data.symbol {
             return None;
         }
-        let data = self
-            .program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == symbol)?;
+        let substitutions = validation::member_type_substitutions(self.program, data, reference)?;
+        let program = self.program;
+        let member_type = |field: &typed_trees::data::DataField| {
+            validation::substituted_member_reference(program, field.type_reference, &substitutions)
+        };
         let declared = self.program.data_members(data);
         if declared
             .iter()
@@ -1706,8 +1711,8 @@ impl Builder<'_, '_> {
                     })
                 })
                 || omitted.iter().any(|field| {
-                    zeroed_scalar_array_parts(self.program, field.type_reference).is_none()
-                        && !validation::zeroed_structural_parts(self.program, field.type_reference)
+                    zeroed_scalar_array_parts(self.program, member_type(field)).is_none()
+                        && !validation::zeroed_structural_parts(self.program, member_type(field))
                 }))
         {
             return None;
@@ -1730,12 +1735,12 @@ impl Builder<'_, '_> {
                 // checked value keeps its exact initializer for interpretation
                 // while emission skips it below the lowered representations.
                 let value = checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                    self.structural_value(initializer.value, field.type_reference, values, pure)?,
+                    self.structural_value(initializer.value, member_type(field), values, pure)?,
                 );
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression: initializer.value,
-                    type_reference: field.type_reference,
+                    type_reference: member_type(field),
                     value,
                 });
                 continue;
@@ -1758,7 +1763,7 @@ impl Builder<'_, '_> {
                 && matches!(
                     crate::execution::terminal_unit::types::byte_sequence_carrier(
                         self.program,
-                        field.type_reference,
+                        member_type(field),
                         &[],
                     ),
                     Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
@@ -1768,7 +1773,7 @@ impl Builder<'_, '_> {
             {
                 if !crate::facts::field_domain::string_literal_grants_view_domains(
                     self.program,
-                    field.type_reference,
+                    member_type(field),
                     initializer.value,
                 ) {
                     return None;
@@ -1782,24 +1787,17 @@ impl Builder<'_, '_> {
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression: initializer.value,
-                    type_reference: field.type_reference,
+                    type_reference: member_type(field),
                     value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
                 });
                 continue;
             }
-            let reference =
-                validation::unwrapped_type_reference(self.program, field.type_reference)?;
+            let declared = member_type(field);
+            let reference = validation::unwrapped_type_reference(self.program, declared)?;
             let value =
-                if validation::reference_result_custody::parts(self.program, field.type_reference)
-                    .is_some()
-                {
+                if validation::reference_result_custody::parts(self.program, declared).is_some() {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(
-                            initializer.value,
-                            field.type_reference,
-                            values,
-                            pure,
-                        )?,
+                        self.structural_value(initializer.value, declared, values, pure)?,
                     )
                 } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
                     let root = self.expression(initializer.value, primitive)?;
@@ -1817,23 +1815,19 @@ impl Builder<'_, '_> {
                     checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
                 } else {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(
-                            initializer.value,
-                            field.type_reference,
-                            values,
-                            pure,
-                        )?,
+                        self.structural_value(initializer.value, declared, values, pure)?,
                     )
                 };
             fields.push(checked_trees::CheckedStructuralRecordField {
                 field: field.symbol,
                 expression: initializer.value,
-                type_reference: field.type_reference,
+                type_reference: declared,
                 value,
             });
         }
         for field in omitted {
-            if zeroed_scalar_array_parts(self.program, field.type_reference).is_none() {
+            let declared = member_type(&field);
+            if zeroed_scalar_array_parts(self.program, declared).is_none() {
                 // Structural members carry no element roster: the emitted
                 // EstablishZeroedStructural owns the whole shape's zeros.
                 let node = values.nodes.append(CheckedStructuralValue {
@@ -1843,13 +1837,13 @@ impl Builder<'_, '_> {
                 fields.push(checked_trees::CheckedStructuralRecordField {
                     field: field.symbol,
                     expression,
-                    type_reference: field.type_reference,
+                    type_reference: declared,
                     value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
                 });
                 continue;
             }
             let (primitive_type, element_count) =
-                zeroed_scalar_array_parts(self.program, field.type_reference)?;
+                zeroed_scalar_array_parts(self.program, declared)?;
             let zero = zeroed_integer_literal(primitive_type)?;
             let element = self
                 .plans
@@ -1873,7 +1867,7 @@ impl Builder<'_, '_> {
             fields.push(checked_trees::CheckedStructuralRecordField {
                 field: field.symbol,
                 expression,
-                type_reference: field.type_reference,
+                type_reference: declared,
                 value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
             });
         }
@@ -1895,7 +1889,8 @@ impl Builder<'_, '_> {
         values: &mut CheckedStructuralValuePlans,
         pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueKind> {
-        let constructor = validation::structural_case_constructor(self.program, expression)?;
+        let constructor =
+            validation::structural_case_constructor(self.program, expression, expected)?;
         if self
             .program
             .normalized_type_identity(constructor.type_reference)

@@ -1558,10 +1558,11 @@ pub(crate) fn operand_source(
             // The constructor may carry structural payload siblings, so the
             // tolerant roster resolves first; the selected field still owes a
             // primitive carrier.
-            let source = validation::structural_case_constructor(&checked.typed, expression)
-                .ok_or(LoweringError::Unsupported(
-                    "structural field lost its authored constructor",
-                ))?;
+            let source =
+                validation::structural_case_constructor(&checked.typed, expression, declared)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural field lost its authored constructor",
+                    ))?;
             return source
                 .fields
                 .get(field_ordinal as usize)

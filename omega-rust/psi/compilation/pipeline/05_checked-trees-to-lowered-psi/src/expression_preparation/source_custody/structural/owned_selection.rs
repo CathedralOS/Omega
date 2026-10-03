@@ -404,16 +404,9 @@ pub(super) fn source_plan_matches(
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: plan_symbol,
             } => *plan_symbol == symbol,
-            CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { root, .. } => {
-                match *root {
-                    checked_trees::CheckedStorageRoot::OwnedLocal {
-                        symbol: plan_symbol,
-                    }
-                    | checked_trees::CheckedStorageRoot::ViewLocal {
-                        symbol: plan_symbol,
-                    } => plan_symbol == symbol,
-                    checked_trees::CheckedStorageRoot::Parameter { .. } => false,
-                }
+            CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { root, .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { root, .. } => {
+                storage_root_matches(*root, symbol, None)
             }
             _ => false,
         };
@@ -457,16 +450,30 @@ pub(super) fn source_plan_matches(
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             Some(*parameter_index) == filtered
         }
-        CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { root, .. } => match *root {
-            checked_trees::CheckedStorageRoot::Parameter { index } => Some(index) == filtered,
-            checked_trees::CheckedStorageRoot::OwnedLocal {
-                symbol: plan_symbol,
-            }
-            | checked_trees::CheckedStorageRoot::ViewLocal {
-                symbol: plan_symbol,
-            } => plan_symbol == symbol,
-        },
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { root, .. }
+        | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { root, .. } => {
+            storage_root_matches(*root, symbol, filtered)
+        }
         _ => false,
+    }
+}
+
+/// A subslice source's storage root matched to the roster leaf it names:
+/// parameter roots compare their dense roster index, view and owned locals
+/// compare the `let` symbol that established them.
+fn storage_root_matches(
+    root: checked_trees::CheckedStorageRoot,
+    symbol: SymbolHandle,
+    filtered: Option<u32>,
+) -> bool {
+    match root {
+        checked_trees::CheckedStorageRoot::Parameter { index } => Some(index) == filtered,
+        checked_trees::CheckedStorageRoot::OwnedLocal {
+            symbol: plan_symbol,
+        }
+        | checked_trees::CheckedStorageRoot::ViewLocal {
+            symbol: plan_symbol,
+        } => plan_symbol == symbol,
     }
 }
 

@@ -1057,28 +1057,64 @@ pub(super) fn validate_bindings(
                 reference = field.type_reference;
             }
             // The copied leaf is the last field's declared type: an
-            // unrestricted value of exactly the target's type, with represented
-            // owned-field predicates or shared views retaining their source loans.
+            // unrestricted value matching the target's declared identity, with
+            // represented owned-field predicates or shared views retaining
+            // their source loans. A shared-view leaf copies only its
+            // descriptor — the view's loan keeps its lineage through the
+            // projection's root — so it compares its referee's identity to the
+            // target's declared identity the way the subject's mint did.
+            let normalized = |reference| checked.normalized_type_identity(reference).into_string();
             let leaf_copyable = path_matches
-                && checked.normalized_type_identity(reference).as_str() == target.type_identity
                 && checked.type_multiplicity(reference) == Multiplicity::Unrestricted
-                && (validation::has_plain_owned_contents_with_represented_constraints(
-                    &checked.typed,
-                    reference,
-                ) || validation::has_owned_or_shared_view_fields(&checked.typed, reference));
+                && match subject.access {
+                    checked_trees::CheckedStructuralAccess::Owned => {
+                        normalized(reference) == target.type_identity
+                            && (validation::has_plain_owned_contents_with_represented_constraints(
+                                &checked.typed,
+                                reference,
+                            ) || validation::has_owned_or_shared_view_fields(
+                                &checked.typed,
+                                reference,
+                            ))
+                    }
+                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        let mut cursor = reference;
+                        loop {
+                            match checked.type_reference_table.type_reference(cursor) {
+                                checked_trees::types::TypeReferenceNode::Constrained {
+                                    base_type,
+                                    ..
+                                } => cursor = *base_type,
+                                checked_trees::types::TypeReferenceNode::Reference {
+                                    access: language_semantics::ReferenceAccess::Shared,
+                                    referee,
+                                    ..
+                                } => break normalized(*referee) == target.type_identity,
+                                _ => break false,
+                            }
+                        }
+                    }
+                    _ => false,
+                };
+            let name_ok = matches!(
+                checked.expression_table.expression(tested_root),
+                ExpressionNode::Name(name)
+                    if (name.symbol == root_symbol || Some(name.symbol) == receiver_root)
+                        && name.head_symbol == name.symbol
+                        && name.members.count() == 1
+            );
+            let access_ok = subject.access == target.access
+                && matches!(
+                    subject.access,
+                    checked_trees::CheckedStructuralAccess::Owned
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                );
             if transfer.target_parameter_index as usize != position
-                || !matches!(
-                    checked.expression_table.expression(tested_root),
-                    ExpressionNode::Name(name)
-                        if (name.symbol == root_symbol || Some(name.symbol) == receiver_root)
-                            && name.head_symbol == name.symbol
-                            && name.members.count() == 1
-                )
+                || !name_ok
                 || !path_matches
                 || !leaf_copyable
-                || subject.access != checked_trees::CheckedStructuralAccess::Owned
+                || !access_ok
                 || subject.type_identity != target.type_identity
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
                 || target.multiplicity != Multiplicity::Unrestricted
                 || target.is_self
                 || subject.path.is_empty()

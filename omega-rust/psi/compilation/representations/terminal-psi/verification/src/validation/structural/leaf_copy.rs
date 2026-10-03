@@ -365,6 +365,32 @@ fn resolve_canonical_leaf_type(
     None
 }
 
+/// The structural result a leaf-copy operation installed at `source`,
+/// independent of the declared custody. Each caller composes the custody
+/// class it needs against this producer identity: a loan join names an
+/// unrestricted copy, while a whole owned transfer accepts any declared
+/// multiplicity the operation certified.
+pub(in crate::validation) fn copied_result_source(
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> Option<terminal_psi::StructuralOperationResult> {
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::StructuralCaseLeafCopy { .. }
+            )
+            .then(|| operation.result.structural())
+            .flatten()
+            .filter(|result| result.place == source)
+            .cloned()
+        })
+}
+
 /// A copied leaf's result is owned the way an `EstablishScalarCase` result
 /// is: the copy is fresh storage, so an `Unrestricted` machine result may
 /// publish it without the plain-shape proviso that payloadless returns need.
@@ -373,23 +399,12 @@ pub(in crate::validation) fn copied_return_source(
     machine: &TerminalMachine,
     source: PlaceId,
 ) -> bool {
-    machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .any(|operation| {
-            matches!(
-                operation.kind,
-                OperationKind::StructuralLeafCopy { .. }
-                    | OperationKind::StructuralCaseLeafCopy { .. }
-            ) && operation.result.structural().is_some_and(|result| {
-                result.place == source
-                    && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-            })
-        })
+    copied_result_source(machine, source).is_some_and(|result| {
+        result.multiplicity == StructuralMultiplicity::Unrestricted
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+    })
 }
 
 pub(in crate::validation) fn validate_available(

@@ -79,6 +79,11 @@ impl Builder<'_, '_> {
                 .state_local_declaration(state, name.symbol)
                 .filter(|&(ordinal, _)| ordinal < self.statement_index)
         {
+            // The observation reads the case tag through a shared borrow;
+            // what the local's contents carry — plain fields or shared
+            // views whose loans keep their lineage — selects nothing here.
+            // A local that is itself a borrow names no storage of its own,
+            // so only owned carriers classify.
             if local.is_mutable
                 || name.head_symbol != name.symbol
                 || self
@@ -87,10 +92,18 @@ impl Builder<'_, '_> {
                     .name_path_members(name.members)
                     .len()
                     != 1
-                || !validation::has_plain_owned_contents_with_numeric_constraints(
+                || !(validation::has_plain_owned_contents_with_numeric_constraints(
                     self.program,
                     local.type_reference,
-                )
+                ) || (validation::has_owned_or_shared_view_contents(
+                    self.program,
+                    local.type_reference,
+                ) && !matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                )))
             {
                 return None;
             }

@@ -197,6 +197,10 @@ impl ScalarBindings {
         };
         let place = match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+                ..
+            }
             | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
                 root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
                 ..
@@ -248,6 +252,13 @@ impl ScalarBindings {
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
+            }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_index,
+                    },
+                ..
             }
             | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
                 root:

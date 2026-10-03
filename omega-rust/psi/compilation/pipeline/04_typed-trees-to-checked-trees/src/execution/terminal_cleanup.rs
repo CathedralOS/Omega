@@ -590,12 +590,12 @@ fn build_state_plan(
                 continue;
             };
             if !segments.span_or_empty(event.segments).is_empty() {
-                // The case-payload operation materializes a fresh plain
-                // carrier before the edge retires its parent storage. It is
-                // not a transfer of the whole parent. Keep that parent in
-                // the ordinary discard roster; actual partial moves still
+                // The case-payload operation materializes a fresh carrier
+                // before the edge retires its parent storage. It is not a
+                // transfer of the whole parent. Keep that parent in the
+                // ordinary discard roster; actual partial moves still
                 // require their separate residual-complement evidence.
-                plain_case_payload_copy(
+                case_payload_copy(
                     program,
                     state,
                     statement_index,
@@ -693,7 +693,7 @@ fn build_state_plan(
 /// payload's next owner, while this physical route retains parent storage
 /// until the edge's ordinary cleanup. Claims, nominal drops and general
 /// projected moves cannot use that no-code retirement.
-fn plain_case_payload_copy(
+fn case_payload_copy(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -729,6 +729,9 @@ fn plain_case_payload_copy(
     }) {
         return None;
     }
+    // The copy is the dispatch's leaf extraction: plain contents or a
+    // shared-view carrier whose descriptor loans keep their lineage on the
+    // fresh copy.
     let parameter = program
         .state_parameters(state)
         .iter()
@@ -741,7 +744,8 @@ fn plain_case_payload_copy(
     (matches!(
         program.type_multiplicity(payload),
         Multiplicity::Affine | Multiplicity::Unrestricted
-    ) && validation::has_plain_owned_contents_with_numeric_constraints(program, payload)
+    ) && (validation::has_plain_owned_contents_with_numeric_constraints(program, payload)
+        || validation::has_owned_or_shared_view_contents(program, payload))
         && !super::terminal_unit::types::type_graph_requires_nominal_drop(program, payload))
     .then_some(())
 }
@@ -1040,7 +1044,7 @@ pub(super) fn state_exit_result_locals(
             || !(validation::has_plain_owned_contents_with_represented_constraints(
                 program,
                 local.type_reference,
-            ) || validation::has_owned_or_shared_view_fields(program, local.type_reference))
+            ) || validation::has_owned_or_shared_view_contents(program, local.type_reference))
             || super::terminal_unit::types::type_graph_requires_nominal_drop(
                 program,
                 local.type_reference,

@@ -82,7 +82,7 @@ pub(in crate::execution::terminal_unit) fn signature(
                     && !validation::has_plain_owned_contents_with_numeric_constraints(
                         program, reference,
                     )
-                    && !validation::has_owned_or_shared_view_fields(program, reference))))
+                    && !validation::has_owned_or_shared_view_contents(program, reference))))
     {
         return None;
     }
