@@ -66,11 +66,32 @@ pub(crate) fn assignment_target_domain_identities(
     state: &typed_trees::state::State,
     target: typed_trees::expression::ExpressionHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    assignment_target_domain_constraints(program, machine, state, target)
+        .into_iter()
+        .map(|domain| (domain.symbol, domain.semantic_id))
+        .collect()
+}
+
+/// Retain the complete declared application when proving a write. A symbol
+/// alone loses the normalized instance and any selected static arguments.
+pub(crate) fn assignment_target_domain_constraints<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    target: typed_trees::expression::ExpressionHandle,
+) -> Vec<&'program typed_trees::types::DomainConstraint> {
     let Some(type_reference) = assignment_target_type_reference(program, machine, state, target)
     else {
         return Vec::new();
     };
-    predicate_domain_constraint_identities(program, type_reference)
+    declared_domain_constraints(program, type_reference)
+        .into_iter()
+        .filter(|domain| {
+            program.domain_definitions().iter().any(|definition| {
+                definition.symbol == domain.symbol && definition.predicate_body.is_present()
+            })
+        })
+        .collect()
 }
 
 /// Resolve a state parameter/local target, including nested data members, to
@@ -726,18 +747,26 @@ pub(crate) fn domain_constraint_identities(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    declared_domain_constraints(program, type_reference)
+        .into_iter()
+        .map(|domain| (domain.symbol, domain.semantic_id))
+        .collect()
+}
+
+fn declared_domain_constraints(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<&typed_trees::types::DomainConstraint> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            domain_constraint_identities(program, *referee)
+            declared_domain_constraints(program, *referee)
         }
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
             .iter()
             .filter_map(|constraint| match constraint {
-                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
-                    Some((domain.symbol, domain.semantic_id))
-                }
+                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => Some(domain),
                 _ => None,
             })
             .collect(),

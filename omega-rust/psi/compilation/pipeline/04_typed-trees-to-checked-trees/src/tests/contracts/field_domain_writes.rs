@@ -127,3 +127,38 @@ fn unpinned_runtime_index_write_still_retires_sibling_domains() {
     "#;
     check(source, false);
 }
+
+#[test]
+fn declared_interval_write_identity_reaches_generated_wire_decoder() {
+    let source = r#"
+        data Msg { #0 v: u32; #1 delta: i32; }
+        domain u32::WireValue(value) requires value <= 100;
+        domain i32::WireDelta(value) requires 0 - 10 <= value && value <= 10;
+        data Val { v: u32 in WireValue; delta: i32 in WireDelta; }
+        data WireVerdict { case Invalid; case Sound; }
+        machine decode_value(value: &mut Val, bytes: &[u8], read: &mut u64, verdict: &mut WireVerdict) {
+            Msg::decode(value, bytes, read, verdict);
+        }
+    "#;
+    check(source, true);
+    for invalid in ["value.v = 200;", "value.delta = 0 - 20;"] {
+        check(
+            &source.replace("Msg::decode(value, bytes, read, verdict);", invalid),
+            false,
+        );
+    }
+}
+
+#[test]
+fn declared_interval_write_identity_retains_indexed_bounds() {
+    let source = r#"
+        domain<const Bound: u64> u64::AtMost<Bound>(value) requires value <= Bound;
+        data Limits { low: u64 in AtMost<10>; high: u64 in AtMost<20>; }
+        machine install(value: &mut Limits, input: u64) requires input <= 10; {
+            value.low = input;
+            value.high = input;
+        }
+    "#;
+    check(source, true);
+    check(&source.replace("input <= 10", "input <= 20"), false);
+}

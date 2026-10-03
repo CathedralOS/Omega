@@ -99,12 +99,13 @@ pub(super) fn check_domain_field_writes(
         }
         // (1) Assignment into a domain-refined field, parameter, or local.
         if let StatementNode::Assignment(assignment) = statement {
-            for domain_symbol in crate::facts::field_domain::assignment_target_domain_symbols(
+            for domain in crate::facts::field_domain::assignment_target_domain_constraints(
                 program,
                 machine,
                 state,
                 assignment.target,
             ) {
+                let domain_symbol = domain.symbol;
                 // A write establishes a PREDICATE-ONLY domain by satisfying its
                 // predicates, the same route a `let` initializer already takes
                 // above. `domains.md`: "Predicates alone establish
@@ -116,14 +117,8 @@ pub(super) fn check_domain_field_writes(
                 // target's integer range: the bounded-assignment obligation
                 // proves every write inside it, from guards and operand
                 // ranges alike, as it did for the bracketed range.
-                let exact_interval = validation::exact_declared_domain_interval(
-                    program,
-                    &typed_trees::types::DomainConstraint {
-                        symbol: domain_symbol,
-                        ..Default::default()
-                    },
-                )
-                .is_some();
+                let exact_interval =
+                    validation::exact_declared_domain_interval(program, domain).is_some();
                 if !exact_interval
                     && !value_proves_domain(
                         program,
