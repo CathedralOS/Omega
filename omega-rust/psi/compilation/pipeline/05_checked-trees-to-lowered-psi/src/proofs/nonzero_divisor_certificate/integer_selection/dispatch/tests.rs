@@ -243,3 +243,67 @@ fn add_carrier_bounds_land_on_computed_multiply_operands() {
         }
     }
 }
+
+#[test]
+fn closed_integer_relations_retain_compound_endpoints_and_policy() {
+    use proof_admission::{PrimitiveJudgment, ProofRule};
+    for integer in [
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        IntegerType::new(IntegerSign::Signed, 16).unwrap(),
+    ] {
+        let context = wide_context(integer, 2);
+        let remainder = ScalarTerm::exact_integer_remainder(
+            integer,
+            ScalarTerm::exact_integer_subtract(integer, literal(12, integer), literal(4, integer))
+                .unwrap(),
+            literal(4, integer),
+        )
+        .unwrap();
+        for goal in [
+            Proposition::Equal(remainder.clone(), literal(0, integer)),
+            Proposition::LessOrEqual(literal(0, integer), remainder.clone()),
+            Proposition::LessOrEqual(remainder.clone(), literal(0, integer)),
+        ] {
+            let raw = super::super::build(&context, &goal, &[], &[])
+                .expect("closed operations produce the exact requested relation");
+            check_certificate(&context, &goal, &[], &[], &raw)
+                .expect("the raw candidate already obeys every rule's endpoint contract");
+            assert!(matches!(
+                raw.rule,
+                ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
+            ));
+        }
+        for goal in [
+            Proposition::Equal(remainder.clone(), literal(1, integer)),
+            Proposition::LessThan(remainder.clone(), literal(0, integer)),
+            Proposition::LessOrEqual(literal(1, integer), remainder.clone()),
+            Proposition::Equal(value(1, integer), literal(0, integer)),
+            Proposition::Equal(
+                ScalarTerm::ExactIntegerRemainder {
+                    scalar_type: integer,
+                    left: Box::new(literal(12, integer)),
+                    right: Box::new(literal(0, integer)),
+                },
+                literal(0, integer),
+            ),
+        ] {
+            assert!(
+                produce_checked_canonical_integer_proof(
+                    &context,
+                    &goal,
+                    &[],
+                    &[],
+                    &BTreeSet::new(),
+                    &mut crate::proofs::ProofSearchDeclines::default(),
+                )
+                .is_none(),
+                "false, open or undefined arithmetic supplies no certificate: {goal:?}"
+            );
+        }
+        assert!(super::strict::adjacent(&remainder, true).is_none());
+        assert_eq!(
+            super::strict::adjacent(&literal(4, integer), true),
+            Some(literal(5, integer)),
+        );
+    }
+}

@@ -227,7 +227,17 @@ fn prove_without_subtract(
 }
 
 pub(super) fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
-    let (integer_type, value) = literal_value(literal)?;
+    // This constructs the premise for a requested endpoint. Moving a literal
+    // back inward must recover that exact endpoint; evaluating a compound
+    // first would recover only its value and produce an invalid certificate.
+    let ScalarTerm::Integer {
+        scalar_type: integer_type,
+        value,
+    } = literal
+    else {
+        return None;
+    };
+    let (integer_type, value) = (*integer_type, *value);
     if integer_type.carrier() != IntegerCarrier::Fixed || integer_type.is_address() {
         return None;
     }
