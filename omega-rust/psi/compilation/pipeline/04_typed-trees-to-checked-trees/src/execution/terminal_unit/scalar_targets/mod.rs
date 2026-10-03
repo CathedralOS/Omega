@@ -168,17 +168,65 @@ impl ScalarCallSite<'_> {
         }
     }
 
-    pub(super) fn of_composed_state<'a>(
+    pub(super) fn of_composed_operation<'a>(
         machine: SymbolHandle,
         state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
-    ) -> ScalarCallSite<'a> {
-        ScalarCallSite {
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Option<ScalarCallSite<'a>> {
+        let owns = |operations: &[&CheckedUnitEffectOperationPlan]| {
+            operations
+                .iter()
+                .flat_map(|operation| operation.with_value_calls())
+                .any(|candidate| std::ptr::eq(candidate, operation))
+        };
+        let mut operations = state.operations.iter().collect::<Vec<_>>();
+        if !owns(&operations) {
+            // Selected arms share the predecessor namespace, but their own
+            // preparation bindings may reuse ordinals. Only the selected
+            // operation's scope can supply its argument sources.
+            let mut selected = None;
+            for arm in state.terminator.return_arms() {
+                let dependencies = arm.operation_dependencies().collect::<Vec<_>>();
+                if owns(&dependencies) && selected.replace(dependencies).is_some() {
+                    return None;
+                }
+            }
+            if let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
+                return_values,
+                ..
+            } = &state.terminator
+            {
+                for returned in return_values {
+                    let dependencies = vec![returned];
+                    if owns(&dependencies) && selected.replace(dependencies).is_some() {
+                        return None;
+                    }
+                }
+            }
+            for successor in state.successors() {
+                for transfer in &successor.transfers {
+                    if let checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                        operands,
+                        establishment,
+                    } = &transfer.source {
+                        let dependencies = operands.iter()
+                            .chain(std::iter::once(establishment.as_ref()))
+                            .collect::<Vec<_>>();
+                        if owns(&dependencies) && selected.replace(dependencies).is_some() {
+                            return None;
+                        }
+                    }
+                }
+            }
+            operations.extend(selected?);
+        }
+        Some(ScalarCallSite {
             machine,
             state: state.state,
-            operations: state.operation_dependencies().collect(),
+            operations,
             structural_parameters: &state.structural_parameters,
             entry_claims: &state.entry_claims,
-        }
+        })
     }
 }
 
@@ -571,6 +619,45 @@ pub(super) fn available_target(
                         Some(facts.values.structural_values.nodes.get(*value).expression),
                     )
                 }),
+            CheckedUnitEffectOperationPlan::EstablishScalarArray {
+                result,
+                source:
+                    checked_trees::CheckedArrayConstructionSource::CallArgument {
+                        call_ordinal,
+                        parameter_position,
+                    },
+                ..
+            } => {
+                let site = crate::semantic::calls::find_call_site(
+                    program,
+                    caller.machine,
+                    caller.state,
+                    result.statement_index as usize,
+                    *call_ordinal as usize,
+                )?;
+                let arguments =
+                    crate::semantic::calls::call_site_argument_expressions(program, &site);
+                let target = match site {
+                    crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
+                    crate::semantic::calls::CallSite::Expression { call, .. } => {
+                        crate::flow::call_target_symbol(program, call)
+                    }
+                    crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+                };
+                let parameters = crate::semantic::calls::call_target_parameters(program, target)?;
+                let explicit_self = crate::semantic::calls::call_site_supplies_explicit_subject(
+                    program, &site, parameters,
+                );
+                let mut actuals = parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| !parameter.is_self || explicit_self)
+                    .zip(arguments);
+                let expression = actuals.find_map(|((position, _), expression)| {
+                    (position == *parameter_position as usize).then_some(*expression)
+                })?;
+                Some((result, Some(expression)))
+            }
             CheckedUnitEffectOperationPlan::Call(call) => {
                 call.structural_result().map(|result| (result, None))
             }

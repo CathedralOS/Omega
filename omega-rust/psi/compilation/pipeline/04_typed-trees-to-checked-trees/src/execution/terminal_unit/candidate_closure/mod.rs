@@ -282,7 +282,6 @@ pub(super) fn retain_available(
             continue;
         }
         for state in &plan.states {
-            let site = scalar_targets::ScalarCallSite::of_composed_state(plan.machine, state);
             for operation in state
                 .operation_dependencies()
                 .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
@@ -313,7 +312,8 @@ pub(super) fn retain_available(
                             call.target.state,
                         ),
                         (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
-                        match scalar_targets::available_target(
+                        match scalar_targets::ScalarCallSite::of_composed_operation(plan.machine, state, operation)
+                            .and_then(|site| scalar_targets::available_target(
                             program,
                             facts,
                             scalar_callees,
@@ -321,7 +321,7 @@ pub(super) fn retain_available(
                             composed_machines,
                             &site,
                             operation,
-                        ) {
+                        )) {
                             Some(scalar_targets::AvailableScalarTarget::Registered) => {}
                             Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(
                                 target_index,
