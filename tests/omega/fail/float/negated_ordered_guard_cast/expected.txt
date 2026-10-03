@@ -1,1 +1,1 @@
-cannot prove unqualified `I32::from_f64` operand `self.value` is finite and truncates into `i32`
+cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`

@@ -655,10 +655,8 @@ fail/float/named_float_to_integer_no_context_unproven rejected 431ms expected @c
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed253669f
 	constant initializer: undetermined NaN has no representation for a raw-bit recast
-fail/float/negated_ordered_guard_cast rejected 882ms expected @2d8ed253669f
-	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `self.value` is finite and in range; constrain the float with a declared range or a dominating guard, or select `in Saturating`/`in Trapping`
-	float-to-int cast in machine `Guarded::convert` state `bounded` cast expression is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
-	float-to-int cast in machine `Guarded::convert` state `bounded` assignment is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
+fail/float/negated_ordered_guard_cast rejected 191ms expected @7f4f399bb74b+wt
+	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/record_window_transition_unrepaired rejected 348ms expected @ca8c127c90c5
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
@@ -969,8 +967,8 @@ fail/ranges/loop_increment_index_unbounded rejected 296ms expected @c08960bee2b1
 	cannot prove index `main.i` is within length 4 in Main::main::body
 fail/ranges/subject_guard_compound_index_mutated rejected 310ms expected @f64782b89114+wt
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-fail/ranges/sum_payload_non_case_guard_unproven rejected 725ms expected @2d8ed253669f
-	cannot prove requires contract for call use_v from Main::main: self.p::One.v in i32::Fifty
+fail/ranges/sum_payload_non_case_guard_unproven rejected 142ms expected @7f4f399bb74b+wt
+	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
 fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: the recast target `u32` needs 4 bytes at offset 9, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/interior_slice_runtime_offset_non_tiling rejected 174ms expected @a3bac00e54bb+wt
