@@ -1191,7 +1191,7 @@ fn returned_record_projected_call_rejects_suspended_parent_and_overlapping_actua
         validate_module(&module).map(|_| ()),
         Err(ModuleError::InvalidReferenceCustody {
             machine: machine_id(1),
-            reason: "projected call reference remains suspended by a live child",
+            reason: "reference call descriptor is absent, ambiguous or suspended",
         })
     );
 

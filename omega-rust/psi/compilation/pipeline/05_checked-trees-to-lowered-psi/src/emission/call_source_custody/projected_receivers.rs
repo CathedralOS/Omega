@@ -233,6 +233,28 @@ fn resolve_source(
                         variant: case.symbol,
                     });
                 }
+                // Replay implicit dereferences from the receiver's declared
+                // type, not from the producer's path. Root parameters already
+                // denote borrowed storage; a projected reference field stores
+                // a carrier that must be crossed before this field access.
+                if !matches!(
+                    checked.expression_table.expression(member.receiver),
+                    ExpressionNode::Name(_)
+                ) {
+                    let mut reference = validation::declared_place_type_raw(
+                        &checked.typed,
+                        machine,
+                        Some(state),
+                        member.receiver,
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "projected receiver lost its carrier type",
+                    ))?;
+                    while let Some(shell) = validation::reference_shell(&checked.typed, reference) {
+                        path.push(CheckedUnitStructuralPathSegment::Referent);
+                        reference = shell.referee;
+                    }
+                }
                 cursor = member.receiver;
             }
             // An assignment destination's runtime selector is the statement's

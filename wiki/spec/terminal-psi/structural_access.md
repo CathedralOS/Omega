@@ -104,19 +104,28 @@ receiving validation, instruction replay and publication retain this distinction
 turn, writes before and after a method call, and checks the untouched neighbor;
 it executes with its authored exit 70 on macOS ARM64.
 
-An ordinary, nonescaping call may also borrow a static child through that
-returned mutable-record carrier. Both its semantic and target argument keep the
-carrier place and explicit `Referent` crossing followed by the exact
-field/fixed-index suffix. The target row names the carrier's producer home;
-its offset is relative to the loaded referent. Source replay binds the suffix
-to the authored borrow. Terminal checks the live, unsuspended parent and
-compatible access; native lowering and re-legalization retain the selected
-address rather than allocate a copy or substitute a static origin.
-Selection checks pointer geometry and placement against that admitted input;
-its custody receipt includes re-legalization's exact-origin check. This does
-not admit a new escaping reference result or reference establishment from the
-projected child. Stores before and after the call continue to use the same
-parent permission until its existing release boundary.
+An ordinary, nonescaping call may borrow a static child through stored
+references, independently of whether the carrier came from a local or a call.
+Both semantic and target arguments retain the original carrier and every
+explicit `Referent` crossing between exact field/fixed-index segments. Source
+replay binds that path to the authored borrow. At every crossing, Terminal
+requires a live, unsuspended descriptor and compatible access. Continuing
+through another descriptor requires concrete stored lineage for every possible
+origin; an opaque incoming referent's type cannot invent inner-loan evidence.
+The call protects intermediate descriptor storage against enclosing loans and
+sibling exclusive/owned arguments, as well as protecting its final referents.
+
+Native lowering and re-legalization preserve that custody. Selection loads
+each pointer word in order, restarting field offsets at each reached referent,
+then applies the final suffix offset. It never allocates a referent copy or
+substitutes a static origin for a runtime address. Independent replay checks
+the pointer geometry, placement and memory operations against admitted input.
+This does not admit a new escaping reference result or reference establishment
+from the projected child. Existing release boundaries remain in force.
+`omega run --both tests/omega/pass/borrows/nested_reference_crossings_exit/main.omg`
+exercises two stored references with nonzero descriptor offsets and exits 70
+in both engines on macOS ARM64.
+
 Scalar field observations through returned shared or mutable record carriers
 require live readable permission with no outstanding child loan. They read the
 captured referent address and then apply the declared field path; an origin set

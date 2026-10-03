@@ -9,8 +9,8 @@ use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, argument_owns_references,
-    contains_reference, formal_origin, is_reference_projection, leaf_access_within, leaf_paths,
-    leaf_referent, leaf_type, mutable_record_call_argument_type, reference_access,
+    call_source_type, contains_reference, formal_origin, is_reference_projection,
+    leaf_access_within, leaf_paths, leaf_referent, leaf_type, reference_access,
     reference_source_type,
 };
 use abstract_operations::AbstractOperation as O;
@@ -24,6 +24,9 @@ use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclarati
 // this private verification-work capacity separate from resource authority;
 // local/result rosters remain bounded by their existing captured rows.
 const MAX_INCOMING_REFERENCE_LEAVES: usize = 4096;
+
+mod call_paths;
+use call_paths::{call_dependency_conflict, call_reference_custody};
 
 #[cfg(test)]
 mod alternative_result_tests;
@@ -68,99 +71,6 @@ fn contains_origin(origins: &ReferenceOrigin, candidate: &ReferenceOrigin) -> bo
         ) => *place == identity.place && paths.binary_search(&identity.path).is_ok(),
         _ => origins == candidate,
     }
-}
-
-/// Resolve a call-only borrow through a returned mutable record carrier. The
-/// carrier remains the permission identity; the normalized origin appends the
-/// selected child to its one exact static ingress path for alias checks.
-fn mutable_record_call_origin(
-    function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    block: BlockId,
-    node: u32,
-    live: &[LiveReference],
-    argument: &StructuralArgument,
-) -> Result<Option<ReferenceOrigin>, OptimizationUnitValidationError> {
-    if mutable_record_call_argument_type(function, structural_types, argument).is_none() {
-        return Ok(None);
-    }
-    let Some((terminal_psi::StructuralPathSegment::Referent, suffix)) = argument.path.split_first()
-    else {
-        return Ok(None);
-    };
-    let mut carriers = live.iter().filter(|reference| {
-        reference.carrier == argument.place && reference.carrier_path.is_empty()
-    });
-    let carrier = carriers.next().ok_or_else(|| {
-        invalid(
-            function,
-            block,
-            Some(node),
-            "returned record call argument has no live reference carrier",
-        )
-    })?;
-    if carriers.next().is_some()
-        || live.iter().any(|child| {
-            matches!(&child.parent, ReferenceParent::Reference(parent) if parent == &carrier.identity)
-        })
-    {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
-            "returned record call argument has ambiguous or suspended custody",
-        ));
-    }
-    let root_place = match &carrier.root {
-        ReferenceOrigin::IngressLeaf(root) => root.place,
-        ReferenceOrigin::Alternatives { place, .. } => *place,
-        ReferenceOrigin::Primitive(_) => {
-            return Err(invalid(
-                function,
-                block,
-                Some(node),
-                "returned record call argument has no exact ingress",
-            ));
-        }
-    };
-    let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == root_place)
-    else {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
-            "returned record call argument root is not an ingress parameter",
-        ));
-    };
-    let access_is_compatible = parameter.access == StructuralAccess::MutableBorrow
-        && matches!(
-            argument.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        );
-    if !access_is_compatible {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
-            "returned record call argument widens ingress access",
-        ));
-    }
-    // The selected pointer is exact at runtime, but alias checks retain every
-    // complete parent candidate. A synchronous borrow creates no child loan.
-    let ReferenceOrigin::IngressLeaf(root) = &carrier.root else {
-        return Ok(Some(carrier.root.clone()));
-    };
-    let mut path = root.path.clone();
-    path.extend_from_slice(suffix);
-    Ok(Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
-        place: root.place,
-        path,
-    })))
 }
 
 fn invalid(
@@ -1169,11 +1079,31 @@ pub(super) fn apply_operation(
     }
     let mut normalized_arguments = Vec::new();
     let mut moved = BTreeSet::new();
-    for argument in operation_structural_arguments(operation) {
-        if let Some(root) =
-            mutable_record_call_origin(function, structural_types, block, node, live, argument)?
+    let arguments = operation_structural_arguments(operation);
+    for (argument_position, argument) in arguments.iter().enumerate() {
+        if argument
+            .path
+            .contains(&terminal_psi::StructuralPathSegment::Referent)
         {
-            normalized_arguments.push((root, argument.access, true));
+            let custody =
+                call_reference_custody(function, structural_types, block, node, live, argument)?;
+            if arguments.iter().enumerate().any(|(position, other)| {
+                position != argument_position
+                    && call_dependency_conflict(&custody.dependencies, other)
+            }) {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "call consumes or mutates an intermediate reference carrier",
+                ));
+            }
+            normalized_arguments.push((
+                custody.origins,
+                argument.access,
+                true,
+                custody.dependencies,
+            ));
             continue;
         }
         if argument_owns_references(function, structural_types, argument) {
@@ -1243,7 +1173,12 @@ pub(super) fn apply_operation(
                         "owned reference argument duplicates or suspends a leaf",
                     ));
                 }
-                normalized_arguments.push((reference.root.clone(), argument.access, true));
+                normalized_arguments.push((
+                    vec![reference.root.clone()],
+                    argument.access,
+                    true,
+                    Vec::new(),
+                ));
             }
             continue;
         }
@@ -1263,29 +1198,44 @@ pub(super) fn apply_operation(
             }
             let (root, _) =
                 normalized_source(function, structural_types, block, node, live, argument)?;
-            normalized_arguments.push((root, argument.access, true));
+            normalized_arguments.push((vec![root], argument.access, true, Vec::new()));
         } else {
             normalized_arguments.push((
-                ReferenceOrigin::Primitive(argument.place),
+                vec![ReferenceOrigin::Primitive(argument.place)],
                 argument.access,
                 false,
+                Vec::new(),
             ));
         }
     }
-    for (position, (root, access, reference_access)) in normalized_arguments.iter().enumerate() {
+    for (position, (roots, access, reference_access, dependencies)) in
+        normalized_arguments.iter().enumerate()
+    {
         if normalized_arguments[position + 1..].iter().any(
-            |(other, other_access, other_reference_access)| {
-                (*reference_access || *other_reference_access)
-                    && origins_overlap(root, other)
+            |(others, other_access, other_reference_access, other_dependencies)| {
+                ((*reference_access || *other_reference_access)
                     && (*access != StructuralAccess::SharedBorrow
                         || *other_access != StructuralAccess::SharedBorrow)
+                    && roots
+                        .iter()
+                        .any(|root| others.iter().any(|other| origins_overlap(root, other))))
+                    || (*other_access != StructuralAccess::SharedBorrow
+                        && dependencies
+                            .iter()
+                            .any(|root| others.iter().any(|other| origins_overlap(root, other))))
+                    || (*access != StructuralAccess::SharedBorrow
+                        && roots.iter().any(|root| {
+                            other_dependencies
+                                .iter()
+                                .any(|other| origins_overlap(root, other))
+                        }))
             },
         ) {
             return Err(invalid(
                 function,
                 block,
                 Some(node),
-                "call arguments overlap through reference origins",
+                "call arguments overlap through reference origins or descriptor dependencies",
             ));
         }
     }

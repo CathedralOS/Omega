@@ -606,11 +606,17 @@ the complete product bar; focused successes below do not establish that baseline
     `expressions/borrow_carrying_data_field_exit` and
     `borrows/stored_reference_projection_exit`, including nested containment
     and unrelated intervening computation. Native calls share one typed
-    descriptor-prefix/referent-suffix route rather than rebasing primitive
-    loans to their origins or recognizing returned record producers. Finish
-    additional reference crossings and runtime/case projections through that
-    common path; retain independent source, suspension and transport checks.
-    `fail/borrows/stored_reference_live_source_write` must still reject.
+    typed reference-path route rather than rebasing primitive loans to their
+    origins or recognizing returned record producers. Repeated crossings with
+    concrete stored lineage now run: on macOS ARM64,
+    `omega run --both tests/omega/pass/borrows/nested_reference_crossings_exit/main.omg`
+    exits 70 natively and in the interpreter. Each crossing requires a live
+    descriptor and protects intermediate storage as well as final referents.
+    Finish runtime/case projections and opaque incoming referents that need
+    independently retained inner-loan evidence; a reference-shaped type alone
+    must not invent that evidence. Preserve independent source, suspension and
+    transport checks, and rejection of `fail/borrows/stored_reference_live_source_write`
+    and `fail/borrows/nested_reference_live_source_write`.
 
     Keep `collections/runtime_whole_array_value_copy_exit` as the qualified
     replacement control: `omega run --both` must preserve independent array

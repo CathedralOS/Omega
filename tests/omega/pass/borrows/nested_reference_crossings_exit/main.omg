@@ -1,0 +1,25 @@
+// Borrow through two stored references, without replacing either carrier by its origin.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { stamp: i32; value: i32; }
+data Message { stamp: i32; body: &Cell; }
+data Envelope { stamp: i32; message: &Message; }
+data Main { console: Binding<Console>; cell: Cell; }
+
+machine read_cell(cell: &Cell) -> i32 { cell.value }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.cell.stamp = 9;
+    main.cell.value = 70;
+    let message: Message = Message { stamp: 11, body: &main.cell };
+    let envelope: Envelope = Envelope { stamp: 12, message: &message };
+    let unrelated: i32 = 6 * 2;
+    let code: i32 = read_cell(envelope.message.body);
+    transition code == 70 && unrelated == 12 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

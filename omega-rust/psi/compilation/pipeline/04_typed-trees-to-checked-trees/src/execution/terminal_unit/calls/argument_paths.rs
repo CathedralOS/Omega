@@ -293,6 +293,26 @@ fn projected_argument_path_impl(
     let mut path = Vec::with_capacity(place.segments.len());
     let mut payload_field = None;
     for (position, segment) in place.segments.iter().enumerate() {
+        // Parameters already denote their borrowed storage. Below that root,
+        // a stored reference is an address-bearing value: retain every
+        // crossing before selecting the next member. The canonical source
+        // place keeps the authored field path for borrow-fact correspondence.
+        if position > 0 && matches!(segment, facts::PlaceSegment::Field { .. }) {
+            let container = crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: place.segments[..position].to_vec(),
+            };
+            let mut reference = crate::flow::canonical_place_type_reference(
+                program,
+                state_symbol,
+                statement_index,
+                &container,
+            )?;
+            while let Some(shell) = validation::reference_shell(program, reference) {
+                path.push(CheckedUnitStructuralPathSegment::Referent);
+                reference = shell.referee;
+            }
+        }
         match segment {
             facts::PlaceSegment::Field { symbol } => {
                 let identity = match payload_field.take() {
@@ -857,47 +877,6 @@ pub(crate) fn ordinary_projected_call_is_supported(
     if !arguments.iter().any(projected) {
         return true;
     }
-    // A retained result carrier presents its borrowed referent, not a moved
-    // aggregate field. Exact producing local/loan custody was rejoined by the
-    // shared result argument builder and is independently replayed in lowering.
-    //
-    // This is a rule about ONE argument, so it is written as one and applied
-    // per argument below. Asking it of every projected argument at once meant
-    // a call mixing the two projection sources supported neither: in
-    // `RoomEvents::roll_event(&mut builder.events, depth, random, &mut
-    // room.event)` the first is a parameter projection and the last a result
-    // binding's, each disqualifying the other's rule.
-    let retained_result_projection = |argument: &CheckedUnitStructuralArgumentPlan| {
-        argument
-            .source_structural_result_binding_ordinal()
-            .is_some()
-            && (argument.path.split_last().is_some_and(|(last, prefix)| {
-                *last == CheckedUnitStructuralPathSegment::Referent
-                    && prefix.iter().all(|segment| {
-                        matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
-                    })
-            }) || argument.path.split_first().is_some_and(|(first, suffix)| {
-                // A returned plain-record permission lends a static child
-                // without moving the carrier or creating an escaping loan.
-                *first == CheckedUnitStructuralPathSegment::Referent
-                    && !suffix.is_empty()
-                    && suffix.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            CheckedUnitStructuralPathSegment::Field(_)
-                                | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                        )
-                    })
-            }))
-            && argument.access == CheckedStructuralAccess::MutableBorrow
-    };
-    if arguments
-        .iter()
-        .all(|argument| !projected(argument) || retained_result_projection(argument))
-    {
-        return true;
-    }
-
     let caller_source_parameters = program.state_parameters(caller_state);
     let target_source_parameters = program.state_parameters(target_state);
     // Before completed-signature reconciliation, explicit operands retain
@@ -922,41 +901,37 @@ pub(crate) fn ordinary_projected_call_is_supported(
     if target_parameters.len() != arguments.len() {
         return false;
     }
-    // A live result binding lends a record subtree through a borrow: the
-    // binding itself is not moved, the checked loan evidence was already
-    // rejoined by the result-argument builder, and lowering replays the same
-    // projected place against its own result roster. A shared loan
-    // (`&dash.engine`) is admitted alongside the exclusive ones; the equality
-    // with the callee parameter's own access below keeps a shared loan from
-    // reaching a mutable parameter or the reverse.
+    // Argument construction joins the exact source and authored loan before
+    // this admission. A live result lends its typed path, whether it selects
+    // owned storage or crosses stored references. Do not distinguish returned
+    // records from local carriers or require one particular crossing position.
+    // Receiving custody independently checks each descriptor and attenuates
+    // access; this query grants neither a new loan nor escaping authority.
+    let retained_result_projection =
+        |argument: &CheckedUnitStructuralArgumentPlan, target: &StateParameter| {
+            argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+                && argument.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        CheckedUnitStructuralPathSegment::Field(_)
+                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                            | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                            | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                            | CheckedUnitStructuralPathSegment::Referent
+                    )
+                })
+                && argument.access != CheckedStructuralAccess::Owned
+                && structural_access_for_type_reference(program, target.type_reference)
+                    == Some(argument.access)
+        };
     if target_machine.supply_mode == MachineSupplyMode::CheckedBody
         && arguments
             .iter()
             .zip(&target_parameters)
             .all(|(argument, target)| {
-                if !projected(argument) {
-                    return true;
-                }
-                argument
-                    .source_structural_result_binding_ordinal()
-                    .is_some()
-                    && argument.path.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            CheckedUnitStructuralPathSegment::Field(_)
-                                | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
-                                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                        )
-                    })
-                    && matches!(
-                        argument.access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::WriteOnlyBorrow
-                    )
-                    && structural_access_for_type_reference(program, target.type_reference)
-                        == Some(argument.access)
+                !projected(argument) || retained_result_projection(argument, target)
             })
     {
         return true;
@@ -1010,7 +985,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 // beside a parameter projection. Requiring every projected
                 // argument to reach THIS rule is what made a mixed call
                 // unsupported even though each of its arguments is supported.
-                if retained_result_projection(argument) {
+                if retained_result_projection(argument, target) {
                     return true;
                 }
                 let Some(source) = argument

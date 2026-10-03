@@ -1,0 +1,12 @@
+data Cell { value: i32; }
+data Message { body: &Cell; }
+data Envelope { message: &Message; }
+
+machine read_cell(cell: &Cell) -> i32 { cell.value }
+
+machine exercise(cell: &mut Cell) -> i32 {
+    let message: Message = Message { body: cell };
+    let envelope: Envelope = Envelope { message: &message };
+    cell.value = 71;
+    read_cell(envelope.message.body)
+}

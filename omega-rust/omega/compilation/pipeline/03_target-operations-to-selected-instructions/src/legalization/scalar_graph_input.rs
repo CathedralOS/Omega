@@ -559,16 +559,14 @@ pub(super) fn match_input(
                 return Err(LegalizationError::custody());
             }
             for (position, argument) in structural_arguments.iter().enumerate() {
-                // Both a carrier's `.., Referent` and a returned record's
-                // leading `Referent, ..` resolve through ordered reference
-                // custody, which the target replay below re-derives per node.
-                if matches!(
-                    argument.path.last(),
-                    Some(terminal_psi::StructuralPathSegment::Referent)
-                ) || matches!(
-                    argument.path.first(),
-                    Some(terminal_psi::StructuralPathSegment::Referent)
-                ) {
+                // Every reference crossing needs the ordered live frontier,
+                // regardless of its position in the path. The target replay
+                // below reconstructs it per node; an empty-custody preflight
+                // cannot validate an interior descriptor or its final suffix.
+                if argument
+                    .path
+                    .contains(&terminal_psi::StructuralPathSegment::Referent)
+                {
                     continue;
                 }
                 structural_call::argument_at(

@@ -1590,6 +1590,9 @@ pub(crate) fn validate_consumer(
         // Lending a whole local or a projected subtree does not consume its
         // owner. The authored path was rejoined above; a loan either ends at
         // this call or survives in independently reconstructed result custody.
+        // Stored-reference crossings retain that same call custody. The path
+        // replay preserves their descriptors; Terminal independently checks
+        // each live permission instead of recognizing a returned-record form.
         let lent_access = match argument.access {
             checked_trees::CheckedStructuralAccess::MutableBorrow
             | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
@@ -1607,6 +1610,7 @@ pub(crate) fn validate_consumer(
                         | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
                         | checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. }
                         | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                        | checked_trees::CheckedUnitStructuralPathSegment::Referent
                 )
             })
             && lent_access

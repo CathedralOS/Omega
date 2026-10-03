@@ -197,49 +197,17 @@ pub(super) fn borrowed_argument(
         }
         _ => return None,
     }
-    let crossing = argument
-        .path
-        .iter()
-        .position(|segment| matches!(segment, StructuralPathSegment::Referent))?;
-    if argument.path.iter().enumerate().any(|(position, segment)| {
-        position != crossing
-            && !matches!(
-                segment,
-                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-            )
-    }) {
-        return None;
-    }
-    let (prefix, crossing_and_suffix) = argument.path.split_at(crossing);
-    let suffix = &crossing_and_suffix[1..];
-    let (carrier, descriptor_offset) =
-        crate::structural_inputs::structural_reference_input::project(root, prefix, declarations)?;
-    let StructuralTypeShape::Reference { referent, access } = declarations
-        .iter()
-        .find(|declaration| declaration.id == carrier)?
-        .shape
-    else {
-        return None;
-    };
-    let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
-        referent,
-        suffix,
+    let projection = crate::structural_inputs::structural_reference_input::reference_projection(
+        root,
+        &argument.path,
+        argument.access,
         declarations,
     )?;
+    let selected = projection.selected;
+    let offset = projection.referent_offset;
     let shape =
         crate::structural_inputs::structural_reference_input::shape(selected, declarations)?;
-    let allowed_access = match access {
-        StructuralAccess::MutableBorrow => matches!(
-            argument.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ),
-        StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-        _ => false,
-    };
-    (allowed_access
-        && target.place == argument.place
+    (target.place == argument.place
         && target.path == argument.path
         && target.access == argument.access
         && target.root_structural_type == root
@@ -251,13 +219,13 @@ pub(super) fn borrowed_argument(
         && target.fixed_array_length.is_none()
         && target.element_stride.is_none())
     .then_some(BorrowedReferenceAddress {
-        descriptor_offset,
+        descriptor_offsets: projection.descriptor_offsets,
         referent_offset: offset,
     })
 }
 
 pub(super) struct BorrowedReferenceAddress {
-    pub(super) descriptor_offset: u32,
+    pub(super) descriptor_offsets: Vec<u32>,
     pub(super) referent_offset: u32,
 }
 

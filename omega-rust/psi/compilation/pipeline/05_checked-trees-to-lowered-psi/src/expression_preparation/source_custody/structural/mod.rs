@@ -2252,11 +2252,10 @@ fn replays_loan_event(
 }
 
 /// The referent of a shared-borrow `&T` result/local type: `T` must be a named
-/// record, or a primitive, whose contents the structural pipeline carries --
-/// the same admissible carrier the checked value planner required. The rule is
-/// linear-tolerant for the same reason it is there: a shared borrow observes
-/// the referent instead of moving it, so a linear declaration's claim stays
-/// with the referent's owner and never becomes an obligation of this join. A
+/// record or a primitive, independently of whether a record contains loans.
+/// A shared borrow observes the referent instead of moving its contents;
+/// contained loans and linear claims stay with the referent's owner and never
+/// become owned obligations of this join. A
 /// primitive referent has no data declaration to resolve; its structural
 /// carrier is the `PrimitiveScalar` shape the type catalog already registers,
 /// and the borrow still denotes the original storage rather than a snapshot.
@@ -2300,7 +2299,6 @@ pub(crate) fn shared_borrow_record_referent(
         .data_members(record)
         .iter()
         .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-        || !validation::has_linear_owned_contents(&checked.typed, *referee)
     {
         return None;
     }

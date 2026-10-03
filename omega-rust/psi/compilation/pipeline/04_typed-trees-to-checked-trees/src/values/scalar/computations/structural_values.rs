@@ -324,9 +324,11 @@ fn shared_record_reference(
     else {
         return None;
     };
-    if *access != language_semantics::ReferenceAccess::Shared
-        || !validation::has_linear_owned_contents(program, *referee)
-    {
+    // Borrowing observes the declared storage; it does not transfer that
+    // storage's contents. Requiring an owned-content shape here wrongly
+    // rejects records that contain references. Their nested loans remain
+    // with the referent, under the ordinary borrow and lifetime checks.
+    if *access != language_semantics::ReferenceAccess::Shared {
         return None;
     }
     if program.primitive_type_reference(*referee).is_some() {
