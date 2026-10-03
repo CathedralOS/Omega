@@ -6,8 +6,8 @@
 use crate::common;
 
 use common::{
-    block, block_id, boolean, conditional, edge, i32, jump, lowered, machine, operation,
-    operation_id, return_value, successor, value, with_debug_sites,
+    block, block_id, boolean, conditional, edge, i32, i32_argument, interpret, jump, lowered,
+    machine, operation, operation_id, publish, return_value, successor, value, with_debug_sites,
 };
 use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
@@ -195,6 +195,53 @@ fn selected_numbering_collapses_dominating_duplicates_to_the_canonical_survivor(
         &optimized.lowered().semantic_module,
     )
     .expect("the independent check accepts the executed rewrite");
+}
+
+#[test]
+fn the_executed_numbering_publishes_and_interprets_identically() {
+    // Downstream-publication coverage: the collapsed result crosses Terminal
+    // publication's own entrance, the manifest binds the executed output
+    // identity, and the canonical bytes admit and run the authored result.
+    let lowered = gvn_fixture();
+    let baseline =
+        run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
+    let original = publish(&baseline);
+    let optimized =
+        run_psi_optimization(lowered.clone(), selections()).expect("value numbering executes");
+    assert_ne!(
+        optimized.execution().input_semantic(),
+        optimized.execution().output_semantic(),
+        "the collapse is a real rewrite, not an identity this leg restates"
+    );
+    validate_global_value_numbering(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+    let published = publish(&optimized);
+    assert_eq!(
+        published.manifest().semantic(),
+        optimized.execution().output_semantic(),
+        "the manifest binds the executed output identity"
+    );
+    // The true arm computes `(3 + 3) * 3 = 18` and the merge adds the `v10`
+    // survivor: numbering substitutes the same canonical value, so the
+    // authored `18 + 6 = 24` must survive publication.
+    let arguments = [
+        i32_argument(3),
+        terminal_interpreter::TerminalScalarValue::Boolean(true),
+    ];
+    let expected = interpret(&original, &arguments);
+    let actual = interpret(&published, &arguments);
+    assert_eq!(
+        expected,
+        terminal_interpreter::TerminalExecutionResult::Scalar(i32_argument(24)),
+        "the unoptimized publication returns the authored result"
+    );
+    assert_eq!(
+        actual, expected,
+        "the published numbering interprets the same result"
+    );
 }
 
 #[test]
