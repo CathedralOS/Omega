@@ -142,6 +142,47 @@ execution and native exit/output. A moved refusal is still unfinished work.
   never paid it. The rewrite itself is ready to land the moment that build
   terminates.
 
+- **STATIC-RECEIVER-FOOTPRINT-UNVERIFIED.** (split-of:STATIC-MACHINE-MIGRATION)
+  `checks/borrows/calls/receiver/footprint.rs` (591 lines) has lost most of its
+  verification, and the decision it encodes is unsettled. Measured at this base,
+  independently of any migration edit:
+  `cargo nextest run -p typed-trees-to-checked-trees -E 'test(borrow::checks::receiver_argument_reads)
+  or test(borrow::checks::receiver_live_loan_reads) or test(borrow::checks::receiver_jump_loans)
+  or test(borrow::checks::self_operand_loans)'` selects 47 tests of which 33
+  fail, because they are authored in `&mut self` and the parser now refuses it.
+
+  Both checks the surviving fixtures pin -- `check_receiver_footprint_against_argument_loans`
+  and `check_receiver_reads_against_live_loans` -- are gated on
+  `call_passes_receiver` = `call.has_receiver || local_jump(..).is_some()`
+  (`checks/borrows/calls/receiver.rs:42`). `has_receiver` requires
+  `machine_has_receiver`, which is `parameters.iter().any(|p| p.is_self)`
+  (`typed-trees/src/typed_trees/trait_and_machine_tables.rs:391`), so with
+  `self` parser-refused NO callee can satisfy it. The ordinary-call leg of both
+  checks is therefore dead code reachable only through `local_jump`, which is a
+  different rule already covered by `receiver_jump_loans`.
+
+  The open question is whether the whole-`&mut` subject footprint relaxation
+  (footprint.rs:1-13: a whole `&mut` receiver is judged by what the callee
+  accesses through it, so arguments of disjoint fields stay usable beside it)
+  survives on the ordinary-call leg or retires with the syntax.
+  STATIC-CALL-ARGUMENT-LENT-ROOT reads as deciding it retires -- "The refusal is
+  correct; the authored program changes" plus "no exclusivity exception added to
+  checking" -- in which case the call leg of both checks and the three fixtures
+  below should be DELETED rather than respelled, together with the 33 red tests.
+  That is a corpus-and-compiler scope call, so it is recorded here rather than
+  acted on. The three fixtures are
+  `fail/borrows/{whole_mut_receiver_write_under_argument_view,
+  whole_mut_receiver_read_under_argument_loan,
+  whole_mut_receiver_read_under_live_local_loan}`; each was migrated in a
+  scratch tree and each landed on a DIFFERENT refusal than it pins, so none is
+  a respelling. Measured: the first becomes "receives `main` as both mutable and
+  read-only", which duplicates the already-migrated
+  `bare_self_mut_operand_beside_self_view`; the second becomes "receives `main`
+  as mutable more than once"; the third becomes "receives `main` while local
+  borrow `other_view` is still active". Restructuring them to disjoint
+  projections is not a repair either -- it removes the whole-`&mut` subject the
+  footprint check exists to judge, so the fixture would pin nothing.
+
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Three migrated pass fixtures now clear CHECKING and are then omitted in
   lowering, which makes stage 05 the migration's remaining frontier for call
