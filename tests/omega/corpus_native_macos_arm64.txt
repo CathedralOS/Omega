@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.1, "load1_start": 6.49, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 5.99, "load1_start": 6.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1181,10 +1181,9 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 1562ms @48008365d839
 pass/wire/runtime_wire_decode_ranged_field_exit built 16227ms exit:70 @7d617c5d99b2
 pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit built 4092ms exit:70 @1da616075c39+wt
 pass/wire/runtime_wire_decode_rejects_wrong_era_exit built 45899ms exit:70 @1da616075c39+wt
-pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 1646ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 4)
-pass/wire/runtime_wire_encode_byte_slice_exit rejected 1422ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 4163ms exit:70 @a662ed5de2fd
+pass/wire/runtime_wire_encode_byte_slice_exit built 2155ms exit:70 @a662ed5de2fd
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 4081ms exit:70 @a662ed5de2fd
 pass/wire/runtime_wire_exact_array_without_count_exit built 6346ms exit:70 @1da616075c39+wt
 pass/wire/runtime_wire_policy_authored_plan_exit incomplete 22588ms @6ec9ff444c14+wt
 	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775818 unproved; the module is not shown invalid
