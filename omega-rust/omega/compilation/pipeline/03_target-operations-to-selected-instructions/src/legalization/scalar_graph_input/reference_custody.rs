@@ -778,6 +778,31 @@ fn reference_source_type(
     direct_storage_type(function, types, source)
 }
 
+// A new shared loan may coexist only with authenticated shared carrier leaves.
+// The original roots and parent identities remain live until every loan ends.
+fn shared_source_compatible(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    carrier: &PlaceId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> bool {
+    access == StructuralAccess::SharedBorrow
+        && source_contract(function, custody, *carrier)
+            .and_then(|root| leaf_type(types, root, path))
+            .and_then(|leaf| types.iter().find(|declaration| declaration.id == leaf))
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )
+            })
+}
+
 /// A `.., Referent` source names a suspended child of the located carrier
 /// leaf; an empty path names the whole ingress referent directly. A static
 /// field/fixed-index path retains the exact borrowed ingress address.
@@ -807,30 +832,27 @@ fn normalized_source(
                 None => Err(invalid()),
             };
         };
-        if custody
-            .leaves
-            .values()
-            .any(|child| child.parent.as_ref() == Some(&leaf.identity))
-        {
+        if custody.leaves.iter().any(|((carrier, path), child)| {
+            child.parent.as_ref() == Some(&leaf.identity)
+                && !shared_source_compatible(function, custody, types, carrier, path, source.access)
+        }) {
             return Err(invalid());
         }
         Ok((leaf.root.clone(), Some(leaf.identity.clone())))
     } else if source.path.is_empty() {
-        if custody
-            .leaves
-            .values()
-            .any(|reference| reference.root.place() == source.place)
-        {
+        if custody.leaves.iter().any(|((carrier, path), reference)| {
+            reference.root.place() == source.place
+                && !shared_source_compatible(function, custody, types, carrier, path, source.access)
+        }) {
             return Err(invalid());
         }
         Ok((Root::Place(source.place), None))
     } else if direct_storage_type(function, types, source).is_some() {
         let root = Root::Ingress(source.place, source.path.clone());
-        if custody
-            .leaves
-            .values()
-            .any(|leaf| leaf.root.place() == source.place)
-        {
+        if custody.leaves.iter().any(|((carrier, path), leaf)| {
+            leaf.root.place() == source.place
+                && !shared_source_compatible(function, custody, types, carrier, path, source.access)
+        }) {
             return Err(invalid());
         }
         Ok((root, None))

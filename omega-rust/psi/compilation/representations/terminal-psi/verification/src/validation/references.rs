@@ -1236,6 +1236,23 @@ pub(super) fn validate_call(
     Ok(true)
 }
 
+// Shared formations join a cohort; they do not restore exclusive authority.
+// Resolve access from the current carrier leaf, including relocated carriers.
+fn shared_source_compatible(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    reference: &LiveReference,
+    access: StructuralAccess,
+) -> bool {
+    access == StructuralAccess::SharedBorrow
+        && super::structural::result_contracts::source_signature(machine, reference.carrier)
+            .and_then(|signature| {
+                leaf_reference_type(module, signature.structural_type, &reference.carrier_path)
+            })
+            .and_then(|leaf| reference_access(module, leaf))
+            == Some(StructuralAccess::SharedBorrow)
+}
+
 fn normalized_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -1248,7 +1265,8 @@ fn normalized_source(
         }) {
             if live
                 .iter()
-                .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
+                .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity)
+                    && !shared_source_compatible(module, machine, reference, source.access))
             {
                 return Err(invalid(
                     machine,
@@ -1272,9 +1290,10 @@ fn normalized_source(
             return Err(invalid(machine, "reference carrier is no longer live"));
         }
         if mutable_referent(module, leaf)
-            && live
-                .iter()
-                .any(|reference| origin_root(&reference.root) == source.place)
+            && live.iter().any(|reference| {
+                origin_root(&reference.root) == source.place
+                    && !shared_source_compatible(module, machine, reference, source.access)
+            })
         {
             return Err(invalid(
                 machine,
@@ -1287,10 +1306,10 @@ fn normalized_source(
         });
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else if source.path.is_empty() {
-        if live
-            .iter()
-            .any(|reference| origin_root(&reference.root) == source.place)
-        {
+        if live.iter().any(|reference| {
+            origin_root(&reference.root) == source.place
+                && !shared_source_compatible(module, machine, reference, source.access)
+        }) {
             return Err(invalid(
                 machine,
                 "original referent remains suspended by a live reference",
@@ -1299,10 +1318,10 @@ fn normalized_source(
         let root = ReferenceOrigin::Primitive(source.place);
         Ok((root.clone(), ReferenceParent::Root(root)))
     } else if direct_storage_type(module, machine, source).is_some() {
-        if live
-            .iter()
-            .any(|reference| origin_root(&reference.root) == source.place)
-        {
+        if live.iter().any(|reference| {
+            origin_root(&reference.root) == source.place
+                && !shared_source_compatible(module, machine, reference, source.access)
+        }) {
             return Err(invalid(
                 machine,
                 "projected ingress remains suspended by a live reference",

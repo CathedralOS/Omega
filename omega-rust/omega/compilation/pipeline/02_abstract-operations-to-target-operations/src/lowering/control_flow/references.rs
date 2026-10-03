@@ -598,6 +598,32 @@ pub(super) fn reference_source_type(
     direct_storage_type(function, live, types, source)
 }
 
+// A new shared loan may coexist only with authenticated shared carrier leaves.
+// The original roots and parent identities remain live until every loan ends.
+fn shared_source_compatible(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    carrier: &PlaceId,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> bool {
+    access == StructuralAccess::SharedBorrow
+        && source_contract(function, live, *carrier)
+            .map(|(root, _)| root)
+            .and_then(|root| leaf_type(types, root, path))
+            .and_then(|leaf| types.get(&leaf))
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )
+            })
+}
+
 /// A `.., Referent` source names a suspended child of the located carrier
 /// leaf; an empty path names the whole ingress referent directly. A static
 /// field/fixed-index path retains the exact borrowed ingress address.
@@ -629,30 +655,27 @@ fn normalized_source(
                 None => Err(LoweringError::unsupported_control_flow(function.machine)),
             };
         };
-        if live
-            .references
-            .values()
-            .any(|child| child.parent.as_ref() == Some(&leaf.identity))
-        {
+        if live.references.iter().any(|((carrier, path), child)| {
+            child.parent.as_ref() == Some(&leaf.identity)
+                && !shared_source_compatible(function, live, types, carrier, path, source.access)
+        }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok((leaf.root.clone(), Some(leaf.identity.clone())))
     } else if source.path.is_empty() {
-        if live
-            .references
-            .values()
-            .any(|reference| reference.root.place() == source.place)
-        {
+        if live.references.iter().any(|((carrier, path), reference)| {
+            reference.root.place() == source.place
+                && !shared_source_compatible(function, live, types, carrier, path, source.access)
+        }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok((ReferenceRoot::Place(source.place), None))
     } else if direct_storage_type(function, live, types, source).is_some() {
         let root = ReferenceRoot::Ingress(source.place, source.path.clone());
-        if live
-            .references
-            .values()
-            .any(|leaf| leaf.root.place() == source.place)
-        {
+        if live.references.iter().any(|((carrier, path), leaf)| {
+            leaf.root.place() == source.place
+                && !shared_source_compatible(function, live, types, carrier, path, source.access)
+        }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok((root, None))

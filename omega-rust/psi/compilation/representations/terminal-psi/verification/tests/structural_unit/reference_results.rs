@@ -2989,3 +2989,64 @@ fn shared_scalar_reference_views_reject_invalid_formation_and_live_loan_use() {
         );
     }
 }
+
+#[test]
+fn shared_scalar_reference_views_keep_the_complete_cohort_frozen() {
+    use semantic_vocabulary::{IntegerSign, IntegerType};
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    let mut module = scalar_reference_view_module(scalar, scalar);
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(reference_place(3, 5));
+    let operations = &mut machine.blocks[0].operations;
+    let mut second_call = operations[1].clone();
+    second_call.id = operation_id(6);
+    let OperationResult::Scalar(result) = &mut second_call.result else {
+        unreachable!()
+    };
+    result.id = value_id(3);
+    let OperationKind::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut second_call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].place = place_id(3);
+    operations.insert(
+        1,
+        establish(
+            5,
+            3,
+            StructuralArgument {
+                place: place_id(1),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+        ),
+    );
+    operations.insert(3, second_call);
+    operations.insert(5, release(7, 3));
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("shared siblings retain one backing until both are released");
+
+    let mut early_write = module.clone();
+    early_write.machines[0].blocks[0].operations.swap(5, 6);
+    rejects_custody(&early_write);
+
+    let mut exclusive_formation = module.clone();
+    let OperationKind::EstablishReference { source } =
+        &mut exclusive_formation.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    source.access = StructuralAccess::MutableBorrow;
+    rejects_custody(&exclusive_formation);
+
+    let mut missing_release = module;
+    missing_release.machines[0].blocks[0].operations.truncate(5);
+    rejects_custody(&missing_release);
+}
